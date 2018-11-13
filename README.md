@@ -9,7 +9,7 @@ SourceKit-LSP is under heavy development! The best way to try it out is to build
 
 1. Install the latest [Trunk Development (master)](https://swift.org/download/#trunk-development-master) toolchain from Swift.org. Set the environment variable `SOURCEKIT_TOOLCHAIN_PATH` to the absolute path to the toolchain or otherwise configure your editor to use this toolchain. See [Toolchains](#toolchains) for more information.
 
-2. Build the language server executable `sourcekit-lsp` using `swift build`. See [Building](#building) for more information.
+2. Build the language server executable `sourcekit-lsp` using `swift build`. See [Building](#building-sourcekit-lsp) for more information.
 
 3. Configure your editor to use the newly built `sourcekit-lsp` executable. See [Editors](Editors) for more information about editor integration.
 
