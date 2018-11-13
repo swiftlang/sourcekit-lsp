@@ -1,0 +1,22 @@
+{
+  "keyfiles": ["Package.swift"],
+
+  "cmd": [
+    "swift", "build"
+  ],
+
+  "working_dir": "$folder",
+
+  "variants": [
+    {
+      "name": "test",
+      "cmd": [
+        "swift","test", "--parallel"
+      ]
+    }
+  ],
+
+  "file_regex": "^\\s*([^:]+):(\\d+):(\\d+): (.*)",
+
+  "cancel": {"kill": true}
+}

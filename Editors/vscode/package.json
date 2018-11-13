@@ -1,0 +1,57 @@
+{
+    "name": "sourcekit-lsp",
+    "displayName": "SourceKit-LSP",
+    "description": "Language server for Swift and C/C++/Objective-C",
+    "version": "0.0.1",
+    "publisher": "unpublished",
+    "repository": "https://github.com/apple/sourcekit-lsp",
+    "license": "SEE LICENSE IN LICENSE.txt",
+    "engines": {
+        "vscode": "^1.28.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "activationEvents": [
+        "onLanguage:swift",
+        "onLanguage:cpp",
+        "onLanguage:c",
+        "onLanguage:objective-c",
+        "onLanguage:objective-cpp"
+    ],
+    "main": "./out/extension",
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "postinstall": "node ./node_modules/vscode/bin/install",
+        "createDevPackage": "npm install && ./node_modules/.bin/vsce package -o ./out/sourcekit-lsp-vscode-dev.vsix"
+    },
+    "dependencies": {
+        "vscode-languageclient": "^4.0.0"
+    },
+    "devDependencies": {
+        "typescript": "^2.6.1",
+        "vscode": "^1.1.21",
+        "vsce": "^1.52.0",
+        "@types/node": "^8.10.25"
+    },
+    "contributes": {
+        "configuration": {
+            "type": "object",
+            "title": "SourceKit-LSP",
+            "properties": {
+                "sourcekit-lsp.serverPath": {
+                    "type": "string",
+                    "default": "sourcekit-lsp",
+                    "description": "The path of the sourcekit-lsp executable"
+                },
+                "sourcekit-lsp.toolchainPath": {
+                    "type": "string",
+                    "default": "",
+                    "description": "The path of the swift toolchain"
+                }
+            }
+        }
+    }
+}

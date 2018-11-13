@@ -1,0 +1,5 @@
+module sourcekitd {
+  // header "sourcekitd.h"
+  header "sourcekitd_functions.h"
+  export *
+}

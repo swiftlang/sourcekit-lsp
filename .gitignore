@@ -1,0 +1,8 @@
+.DS_Store
+default.profraw
+Package.resolved
+/.build
+/Packages
+/*.xcodeproj
+/*.sublime-project
+/*.sublime-workspace
