@@ -74,16 +74,16 @@ public final class Logger {
   public internal(set)
   static var shared: Logger = .init()
 
-  let logQueue: DispatchQueue = DispatchQueue(label: "log-queue", qos: .utility)
+  let logQueue = DispatchQueue(label: "log-queue", qos: .utility)
 
   /// - note: This is separate from the logging queue to make it as fast as possible. Ideally we'd use a relaxed atomic.
-  let logLevelQueue: DispatchQueue = DispatchQueue(label: "log-level-queue", qos: .userInitiated)
+  let logLevelQueue = DispatchQueue(label: "log-level-queue", qos: .userInitiated)
 
   var _currentLevel: LogLevel = .warning
 
-  var disableOSLog: Bool = false
+  var disableOSLog = false
 
-  var disableNSLog: Bool = false
+  var disableNSLog = false
 
   /// The current logging level.
   public var currentLevel: LogLevel {
