@@ -22,8 +22,8 @@ public typealias Notification = LanguageServerProtocol.Notification
 public let initRequestsOnce: Void = registerTestRequests()
 
 public struct TestJSONRPCConnection {
-  public let clientToServer: Pipe = Pipe()
-  public let serverToClient: Pipe = Pipe()
+  public let clientToServer = Pipe()
+  public let serverToClient = Pipe()
   public let client: TestClient
   public let clientConnection: JSONRPCConection
   public let server: TestServer
