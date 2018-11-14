@@ -69,7 +69,7 @@ You will need the path to the `sourcekit-lsp` executable and the Swift toolchain
 
 ## Other Editors
 
-SourceKit-LSP should work with any editor that supports the Language Server Protocol](https://microsoft.github.io/language-server-protocol/)
+SourceKit-LSP should work with any editor that supports the [Language Server Protocol](https://microsoft.github.io/language-server-protocol/)
 (LSP). Each editor has its own mechanism for configuring an LSP server, so consult your editor's
 documentation for the specifics. In general, you can configure your editor to use SourceKit-LSP for
 Swift, C, C++, Objective-C and Objective-C++ files; the editor will need to be configured to find
