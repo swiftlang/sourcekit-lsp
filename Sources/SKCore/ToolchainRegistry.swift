@@ -23,7 +23,7 @@ public final class ToolchainRegistry {
 
   var defaultID: String? = nil
 
-  var queue: DispatchQueue = DispatchQueue(label: "toolchain-registry-queue")
+  var queue = DispatchQueue(label: "toolchain-registry-queue")
 
   let fs: FileSystem
 
