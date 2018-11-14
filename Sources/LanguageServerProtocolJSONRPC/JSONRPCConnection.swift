@@ -21,8 +21,8 @@ import Foundation
 public final class JSONRPCConection {
 
   var receiveHandler: MessageHandler? = nil
-  let queue: DispatchQueue = DispatchQueue(label: "jsonrpc-queue", qos: .userInitiated)
-  let sendQueue: DispatchQueue = DispatchQueue(label: "jsonrpc-send-queue", qos: .userInitiated)
+  let queue = DispatchQueue(label: "jsonrpc-queue", qos: .userInitiated)
+  let sendQueue = DispatchQueue(label: "jsonrpc-send-queue", qos: .userInitiated)
   let receiveIO: DispatchIO
   let sendIO: DispatchIO
 
