@@ -46,7 +46,7 @@ public final class Workspace {
   public var index: IndexStoreDB? = nil
 
   /// Open documents.
-  let documentManager: DocumentManager = DocumentManager()
+  let documentManager = DocumentManager()
 
   /// Language service for an open document, if available.
   var documentService: [URL: Connection] = [:]
