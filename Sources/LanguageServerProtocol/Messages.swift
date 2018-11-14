@@ -48,7 +48,7 @@ public let builtinNotifications: [NotificationType.Type] = [
 // MARK: - General -
 
 public struct InitializeRequest: RequestType, Hashable {
-  public static let method: String = "initialize"
+  public static let method = "initialize"
   public typealias Response = InitializeResult
 
   /// The process identifier (pid) of the process that started the LSP server, or nil if the server was started by e.g. a user shell and should not be monitored.
@@ -118,13 +118,13 @@ public struct InitializeResult: ResponseType, Hashable {
 }
 
 public struct InitializedNotification: NotificationType, Hashable {
-  public static let method: String = "initialized"
+  public static let method = "initialized"
 
   public init() {}
 }
 
 public struct CancelRequest: NotificationType, Hashable {
-  public static let method: String = "$/cancelRequest"
+  public static let method = "$/cancelRequest"
 
   /// The request to cancel.
   public var id: RequestID
@@ -147,18 +147,18 @@ extension Array: ResponseType where Element: ResponseType {}
 extension Location: ResponseType {}
 
 public struct Shutdown: RequestType, Hashable {
-  public static let method: String = "shutdown"
+  public static let method = "shutdown"
   public typealias Response = VoidResponse
 }
 
 public struct Exit: NotificationType, Hashable {
-  public static let method: String = "exit"
+  public static let method = "exit"
 }
 
 // MARK: - Window -
 
 public struct LogMessage: NotificationType, Hashable {
-  public static let method: String = "window/logMessage"
+  public static let method = "window/logMessage"
 
   public var type: WindowMessageType
 
@@ -173,7 +173,7 @@ public struct LogMessage: NotificationType, Hashable {
 // MARK: - Workspace -
 
 public struct DidChangeConfiguration: NotificationType {
-  public static let method: String = "workspace/didChangeConfiguration"
+  public static let method = "workspace/didChangeConfiguration"
 
   public var settings: WorkspaceSettingsChange
 
@@ -185,7 +185,7 @@ public struct DidChangeConfiguration: NotificationType {
 // MARK: - Text synchronization -
 
 public struct DidOpenTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/didOpen"
+  public static let method = "textDocument/didOpen"
 
   public var textDocument: TextDocumentItem
 
@@ -195,13 +195,13 @@ public struct DidOpenTextDocument: NotificationType, Hashable {
 }
 
 public struct DidCloseTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/didClose"
+  public static let method = "textDocument/didClose"
 
   public var textDocument: TextDocumentIdentifier
 }
 
 public struct DidChangeTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/didChange"
+  public static let method = "textDocument/didChange"
 
   public var textDocument: VersionedTextDocumentIdentifier
 
@@ -214,7 +214,7 @@ public struct DidChangeTextDocument: NotificationType, Hashable {
 }
 
 public struct WillSaveTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/willSave"
+  public static let method = "textDocument/willSave"
 
   public var textDocument: TextDocumentIdentifier
 
@@ -222,7 +222,7 @@ public struct WillSaveTextDocument: NotificationType, Hashable {
 }
 
 public struct DidSaveTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/didSave"
+  public static let method = "textDocument/didSave"
 
   public var textDocument: TextDocumentIdentifier
 
@@ -235,7 +235,7 @@ public struct DidSaveTextDocument: NotificationType, Hashable {
 // MARK: - Diagnostics -
 
 public struct PublishDiagnostics: NotificationType, Hashable {
-  public static let method: String = "textDocument/publishDiagnostics"
+  public static let method = "textDocument/publishDiagnostics"
 
   public var url: URL
 
@@ -262,7 +262,7 @@ public protocol TextDocumentRequest: RequestType {
 }
 
 public struct CompletionRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/completion"
+  public static let method = "textDocument/completion"
   public typealias Response = CompletionList
 
   public var textDocument: TextDocumentIdentifier
@@ -292,7 +292,7 @@ public struct CompletionList: ResponseType, Hashable {
 }
 
 public struct HoverRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/hover"
+  public static let method = "textDocument/hover"
   public typealias Response = HoverResponse?
 
   public var textDocument: TextDocumentIdentifier
@@ -335,7 +335,7 @@ extension HoverResponse: Codable {
 }
 
 public struct DefinitionRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/definition"
+  public static let method = "textDocument/definition"
   public typealias Response = [Location]
 
   public var textDocument: TextDocumentIdentifier
@@ -344,7 +344,7 @@ public struct DefinitionRequest: TextDocumentRequest, Hashable {
 }
 
 public struct ReferencesRequest: RequestType, Hashable {
-  public static let method: String = "textDocument/references"
+  public static let method = "textDocument/references"
   public typealias Response = [Location]
 
   public var textDocument: TextDocumentIdentifier
@@ -355,7 +355,7 @@ public struct ReferencesRequest: RequestType, Hashable {
 }
 
 public struct DocumentHighlightRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/documentHighlight"
+  public static let method = "textDocument/documentHighlight"
   public typealias Response = [DocumentHighlight]?
 
   public var textDocument: TextDocumentIdentifier
@@ -364,7 +364,7 @@ public struct DocumentHighlightRequest: TextDocumentRequest, Hashable {
 }
 
 public struct DocumentFormatting: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/formatting"
+  public static let method = "textDocument/formatting"
   public typealias Response = [TextEdit]?
 
   public var textDocument: TextDocumentIdentifier
@@ -373,7 +373,7 @@ public struct DocumentFormatting: TextDocumentRequest, Hashable {
 }
 
 public struct DocumentRangeFormatting: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/rangeFormatting"
+  public static let method = "textDocument/rangeFormatting"
   public typealias Response = [TextEdit]?
 
   public var textDocument: TextDocumentIdentifier
@@ -384,7 +384,7 @@ public struct DocumentRangeFormatting: TextDocumentRequest, Hashable {
 }
 
 public struct DocumentOnTypeFormatting: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/onTypeFormatting"
+  public static let method = "textDocument/onTypeFormatting"
   public typealias Response = [TextEdit]?
 
   public var textDocument: TextDocumentIdentifier

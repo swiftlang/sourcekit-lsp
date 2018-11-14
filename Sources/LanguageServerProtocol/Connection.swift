@@ -72,7 +72,7 @@ public final class LocalConnection {
     case ready, started, closed
   }
 
-  let queue: DispatchQueue = DispatchQueue(label: "local-connection-queue")
+  let queue = DispatchQueue(label: "local-connection-queue")
 
   var _nextRequestID: Int = 0
 

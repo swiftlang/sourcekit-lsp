@@ -20,8 +20,8 @@ public struct MarkupKind: RawRepresentable, Codable, Hashable {
     self.rawValue = rawValue
   }
 
-  public static let plaintext: MarkupKind = MarkupKind(rawValue: "plaintext")
-  public static let markdown: MarkupKind = MarkupKind(rawValue: "markdown")
+  public static let plaintext = MarkupKind(rawValue: "plaintext")
+  public static let markdown = MarkupKind(rawValue: "markdown")
 }
 
 public struct MarkupContent: Codable, Hashable {

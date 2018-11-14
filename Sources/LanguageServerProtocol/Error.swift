@@ -25,15 +25,15 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable {
   }
 
   // JSON RPC
-  public static let parseError: ErrorCode = ErrorCode(rawValue: -32700)
-  public static let invalidRequest: ErrorCode = ErrorCode(rawValue: -32600)
-  public static let methodNotFound: ErrorCode = ErrorCode(rawValue: -32601)
-  public static let invalidParams: ErrorCode = ErrorCode(rawValue: -32602)
-  public static let internalError: ErrorCode = ErrorCode(rawValue: -32603)
-  public static let serverErrorStart: ErrorCode = ErrorCode(rawValue: -32099)
-  public static let serverErrorEnd: ErrorCode = ErrorCode(rawValue: -32000)
-  public static let serverNotInitialized: ErrorCode = ErrorCode(rawValue: -32002)
-  public static let unknownErrorCode: ErrorCode = ErrorCode(rawValue: -32001)
+  public static let parseError = ErrorCode(rawValue: -32700)
+  public static let invalidRequest = ErrorCode(rawValue: -32600)
+  public static let methodNotFound = ErrorCode(rawValue: -32601)
+  public static let invalidParams = ErrorCode(rawValue: -32602)
+  public static let internalError = ErrorCode(rawValue: -32603)
+  public static let serverErrorStart = ErrorCode(rawValue: -32099)
+  public static let serverErrorEnd = ErrorCode(rawValue: -32000)
+  public static let serverNotInitialized = ErrorCode(rawValue: -32002)
+  public static let unknownErrorCode = ErrorCode(rawValue: -32001)
 
   // LSP
   public static let cancelled: ErrorCode = ErrorCode(rawValue: -32800)
@@ -54,9 +54,9 @@ public struct ResponseError: Error, Codable, Hashable {
 extension ResponseError {
   // MARK: Convencience properties for common errors.
 
-  public static var cancelled: ResponseError = ResponseError(code: .cancelled, message: "request cancelled")
+  public static var cancelled = ResponseError(code: .cancelled, message: "request cancelled")
 
-  public static var serverNotInitialized: ResponseError = ResponseError(code: .serverNotInitialized, message: "received other request before \"initialize\"")
+  public static var serverNotInitialized = ResponseError(code: .serverNotInitialized, message: "received other request before \"initialize\"")
 
   public static func methodNotFound(_ method: String) -> ResponseError {
     return ResponseError(code: .methodNotFound, message: "method not found: \(method)")

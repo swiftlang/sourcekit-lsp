@@ -22,25 +22,25 @@ public struct CodeActionKind: RawRepresentable, Codable, Hashable {
   }
 
   /// QuickFix action, such as FixIt.
-  public static let quickFix: CodeActionKind = CodeActionKind(rawValue: "quickfix")
+  public static let quickFix = CodeActionKind(rawValue: "quickfix")
 
   /// Base kind for refactoring action.
-  public static let refactor: CodeActionKind = CodeActionKind(rawValue: "refactor")
+  public static let refactor = CodeActionKind(rawValue: "refactor")
 
   /// Base kind for refactoring extract action, such as extract method or extract variable.
-  public static let refactorExtract: CodeActionKind = CodeActionKind(rawValue: "refactor.extract")
+  public static let refactorExtract = CodeActionKind(rawValue: "refactor.extract")
 
   /// Base kind for refactoring inline action, such as inline method, or inline variable.
-  public static let refactorInline: CodeActionKind = CodeActionKind(rawValue: "refactor.inline")
+  public static let refactorInline = CodeActionKind(rawValue: "refactor.inline")
 
   /// Refactoring rewrite action.
   // FIXME: what is this?
-  public static let refactorRewrite: CodeActionKind = CodeActionKind(rawValue: "refactor.rewrite")
+  public static let refactorRewrite = CodeActionKind(rawValue: "refactor.rewrite")
 
   /// Source action that applies to the entire file.
   // FIXME: what is this?
-  public static let source: CodeActionKind = CodeActionKind(rawValue: "source")
+  public static let source = CodeActionKind(rawValue: "source")
 
   /// Organize imports action.
-  public static let sourceOrganizeImports: CodeActionKind = CodeActionKind(rawValue: "source.organizeImports")
+  public static let sourceOrganizeImports = CodeActionKind(rawValue: "source.organizeImports")
 }
