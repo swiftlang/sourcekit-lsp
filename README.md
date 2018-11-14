@@ -7,7 +7,7 @@ SourceKit-LSP is an implementation of the [Language Server Protocol](https://mic
 
 SourceKit-LSP is under heavy development! The best way to try it out is to build it from source. You will also need a Swift development toolchain and an editor that supports LSP.
 
-1. Install the latest [Trunk Development (master)](https://swift.org/download/#trunk-development-master) toolchain from Swift.org. Set the environment variable `SOURCEKIT_TOOLCHAIN_PATH` to the absolute path to the toolchain or otherwise configure your editor to use this toolchain. See [Toolchains](#toolchains) for more information.
+1. Install the `swift-DEVELOPMENT-SNAPSHOT-2018-11-01-a` toolchain snapshot from https://swift.org/download/. Set the environment variable `SOURCEKIT_TOOLCHAIN_PATH` to the absolute path to the toolchain or otherwise configure your editor to use this toolchain. See [Toolchains](#toolchains) for more information.
 
 2. Build the language server executable `sourcekit-lsp` using `swift build`. See [Building](#building-sourcekit-lsp) for more information.
 
@@ -51,7 +51,7 @@ SourceKit-LSP depends on tools such as `sourcekitd` and `clangd`, which it loads
 
 ### Recommended Toolchain
 
-Use the latest [Trunk Development (master)](https://swift.org/download/#trunk-development-master) toolchain snapshot from Swift.org. SourceKit-LSP is still early in its development and we are actively adding functionality to the toolchain to support it. Using an older toolchain, such as a Swift-4.2 toolchain, is likely to be missing important functionality.
+Use the `swift-DEVELOPMENT-SNAPSHOT-2018-11-01-a` toolchain snapshot from https://swift.org/download/#snapshots. It can be found under "Older Snapshots" as "November 1, 2018".  SourceKit-LSP is still early in its development and we are actively adding functionality to the toolchain to support it.
 
 ### Selecting the Toolchain
 
