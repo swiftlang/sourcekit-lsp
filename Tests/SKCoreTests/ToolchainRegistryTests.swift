@@ -57,7 +57,7 @@ final class ToolchainRegistryTests: XCTestCase {
     let fs = InMemoryFileSystem()
     let tr = ToolchainRegistry(fileSystem: fs)
 
-    let xcodeDeveloper = tr.currentXodeDeveloperPath!
+    let xcodeDeveloper = tr.currentXcodeDeveloperPath!
     let toolchains = xcodeDeveloper.appending(components: "Toolchains")
 
     let makeToolchain = { (id: String, opensource: Bool, path: AbsolutePath) in
