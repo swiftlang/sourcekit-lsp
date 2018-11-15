@@ -140,7 +140,7 @@ extension ToolchainRegistry {
     AbsolutePath("/Library/Developer/Toolchains"),
     ]
 
-  var currentXodeDeveloperPath: AbsolutePath? {
+  var currentXcodeDeveloperPath: AbsolutePath? {
     if let str = try? Process.checkNonZeroExit(args: "/usr/bin/xcode-select", "-p"), let path = try? AbsolutePath(validating: str.chomp()) {
       return path
     }
@@ -149,7 +149,7 @@ extension ToolchainRegistry {
 
   private func scanForToolchainsDarwin() {
     // Try to find the current Xcode's toolchains using `xcode-select -p`
-    if let path = currentXodeDeveloperPath {
+    if let path = currentXcodeDeveloperPath {
       scanForXCToolchains(path.appending(components: "Toolchains"))
     }
 
