@@ -16,7 +16,7 @@ public final class CancellationToken {
   public var isCancelled: Bool { return false }
 
   public init() {}
-  
+
   public func addCancellationHandler(_ handler: @escaping () -> ()) {
 
   }

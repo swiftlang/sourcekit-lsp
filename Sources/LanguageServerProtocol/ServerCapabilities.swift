@@ -76,7 +76,7 @@ public struct ServerCapabilities: Codable, Hashable {
     } else if let kind = try? container.decode(TextDocumentSyncKind.self, forKey: .textDocumentSync) {
       // Legacy response
       self.textDocumentSync = TextDocumentSyncOptions(openClose: nil, change: kind, willSave: nil, willSaveWaitUntil: nil, save: nil)
-      
+
     } else {
       self.textDocumentSync = nil
     }

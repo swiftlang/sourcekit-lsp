@@ -46,10 +46,10 @@ public protocol _IndirectConnection: Connection {
 
 /// An abstract message handler, such as a language server or client.
 public protocol MessageHandler: AnyObject {
-  
+
   /// Handle a notification without a reply.
   func handle<Notification>(_: Notification, from: ObjectIdentifier) where Notification: NotificationType
-  
+
   /// Handle a request and (asynchronously) receive a reply.
   func handle<Request>(_: Request, id: RequestID, from: ObjectIdentifier, reply: @escaping (LSPResult<Request.Response>) -> ()) where Request: RequestType
 }
