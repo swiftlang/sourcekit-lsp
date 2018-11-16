@@ -13,20 +13,17 @@
 /// Range within a particular document.
 ///
 /// For a location where the document is implied, use `Position` or `Range<Position>`.
-public struct Location {
+public struct Location: Hashable {
 
   public var url: URL
 
-  public var range: Range<Position>
+  public var range: PositionRange
 
   public init(url: URL, range: Range<Position>) {
     self.url = url
-    self.range = range
+    self.range = PositionRange(range)
   }
 }
-
-extension Location: Equatable {}
-extension Location: Hashable {}
 
 // Encode using the key "uri" to match LSP.
 extension Location: Codable {

@@ -19,13 +19,13 @@ public enum DocumentHighlightKind: Int, Codable, Hashable {
 public struct DocumentHighlight: ResponseType, Hashable {
 
   /// The location of the highlight.
-  public var range: Range<Position>
+  public var range: PositionRange
 
   /// What kind of reference this is. Default is `.text`.
   public var kind: DocumentHighlightKind?
 
   public init(range: Range<Position>, kind: DocumentHighlightKind?) {
-    self.range = range
+    self.range = PositionRange(range)
     self.kind = kind
   }
 }

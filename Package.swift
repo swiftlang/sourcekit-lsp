@@ -7,7 +7,7 @@ let package = Package(
     products: [
     ],
     dependencies: [
-      .package(url: "https://github.com/apple/swift-package-manager.git", "0.3.0"..<"0.4.0"),
+      .package(url: "https://github.com/apple/swift-package-manager.git", .branch("master")),
       .package(url: "https://github.com/apple/indexstore-db.git", .branch("master")),
     ],
     targets: [

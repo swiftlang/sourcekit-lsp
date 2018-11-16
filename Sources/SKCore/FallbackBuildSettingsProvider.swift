@@ -19,7 +19,7 @@ public final class FallbackBuildSettingsProvider: BuildSettingsProvider {
 
   lazy var sdkpath: AbsolutePath? = {
     if case .darwin? = Platform.currentPlatform {
-      if let str = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx"), let path = try? AbsolutePath(validating: str.chomp()) {
+      if let str = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx"), let path = try? AbsolutePath(validating: str.spm_chomp()) {
         return path
       }
     }

@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Position within a text document, expressed as a zero-based line and column (utf-16 code unit offset).
-public struct Position {
+public struct Position: Hashable {
 
   /// Line number within a document (zero-based).
   public var line: Int
@@ -25,8 +25,6 @@ public struct Position {
   }
 }
 
-extension Position: Equatable {}
-extension Position: Hashable {}
 extension Position: Codable {
   private enum CodingKeys: String, CodingKey {
     case line
@@ -37,31 +35,5 @@ extension Position: Codable {
 extension Position: Comparable {
   public static func < (lhs: Position, rhs: Position) -> Bool {
     return (lhs.line, lhs.utf16index) < (rhs.line, rhs.utf16index)
-  }
-}
-
-// Encode Range<Position> using the keys "start" and "end" to match the LSP protocol for "Range".
-extension Range: Codable where Bound == Position {
-  private enum CodingKeys: String, CodingKey {
-    case lowerBound = "start"
-    case upperBound = "end"
-  }
-
-  /// Create a range for a single position.
-  public init(_ pos: Position) {
-    self = pos ..< pos
-  }
-
-  public init(from decoder: Decoder) throws {
-    let values = try decoder.container(keyedBy: CodingKeys.self)
-    let lowerBound = try values.decode(Position.self, forKey: .lowerBound)
-    let upperBound = try values.decode(Position.self, forKey: .upperBound)
-    self = lowerBound ..< upperBound
-  }
-
-  public func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode(lowerBound, forKey: .lowerBound)
-    try container.encode(upperBound, forKey: .upperBound)
   }
 }

@@ -25,7 +25,7 @@ public enum DiagnosticCode: Hashable {
 public struct Diagnostic: Codable, Hashable {
 
   /// The primary position/range of the diagnostic.
-  public var range: Range<Position>
+  public var range: PositionRange
 
   /// Whether this is a warning, error, etc.
   public var severity: DiagnosticSeverity?
@@ -43,7 +43,7 @@ public struct Diagnostic: Codable, Hashable {
   public var relatedInformation: [DiagnosticRelatedInformation]?
 
   public init(range: Range<Position>, severity: DiagnosticSeverity?, code: DiagnosticCode? = nil, source: String?, message: String, relatedInformation: [DiagnosticRelatedInformation]? = nil) {
-    self.range = range
+    self.range = PositionRange(range)
     self.severity = severity
     self.code = code
     self.source = source

@@ -16,7 +16,7 @@ import SKSupport
 struct MessageHeader: Hashable {
   static let contentLengthKey: [UInt8] = [UInt8]("Content-Length".utf8)
   static let separator: [UInt8] = [UInt8]("\r\n".utf8)
-  static let colon: UInt8 = ":".utf8.only!
+  static let colon: UInt8 = ":".utf8.spm_only!
   static let invalidKeyBytes: [UInt8] = [colon] + separator
 
   var contentLength: Int? = nil

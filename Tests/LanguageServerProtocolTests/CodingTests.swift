@@ -38,7 +38,7 @@ final class CodingTests: XCTestCase {
 
     let indent2rangejson = rangejson.indented(2, skipFirstLine: true)
 
-    checkCoding(range, json: rangejson)
+    checkCoding(PositionRange(range), json: rangejson)
 
     // url -> uri
     checkCoding(Location(url: url, range: range), json: """
