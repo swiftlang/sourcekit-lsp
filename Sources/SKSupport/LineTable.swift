@@ -121,7 +121,7 @@ public struct LineTable: Hashable {
   @inlinable
   func nextLineStart(_ line: Int) -> String.Index {
     if line == count - 1 {
-      return content.endIndex 
+      return content.endIndex
     } else {
       return impl[line + 1].stringIndex
     }
@@ -153,9 +153,9 @@ extension LineTable {
   mutating public func replace(
     fromLine: Int,
     utf16Offset fromOff: Int,
-    toLine: Int, 
-    utf16Offset toOff: Int, 
-    with replacement: String) 
+    toLine: Int,
+    utf16Offset toOff: Int,
+    with replacement: String)
   {
     let start = String.Index(encodedOffset: self[fromLine].utf16Offset + fromOff)
     let end = String.Index(encodedOffset: self[toLine].utf16Offset + toOff)
@@ -177,7 +177,7 @@ extension LineTable {
     fromLine: Int,
     utf16Offset fromOff: Int,
     utf16Length: Int,
-    with replacement: String) 
+    with replacement: String)
   {
     let endOff = self[fromLine].utf16Offset + fromOff + utf16Length
     let endLine = self[utf16Offset: endOff]
