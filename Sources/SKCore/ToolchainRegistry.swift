@@ -141,7 +141,7 @@ extension ToolchainRegistry {
     ]
 
   var currentXcodeDeveloperPath: AbsolutePath? {
-    if let str = try? Process.checkNonZeroExit(args: "/usr/bin/xcode-select", "-p"), let path = try? AbsolutePath(validating: str.chomp()) {
+    if let str = try? Process.checkNonZeroExit(args: "/usr/bin/xcode-select", "-p"), let path = try? AbsolutePath(validating: str.spm_chomp()) {
       return path
     }
     return nil

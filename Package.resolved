@@ -1,0 +1,34 @@
+{
+  "object": {
+    "pins": [
+      {
+        "package": "IndexStoreDB",
+        "repositoryURL": "https://github.com/apple/indexstore-db.git",
+        "state": {
+          "branch": "master",
+          "revision": "d2a21552ca6d20a641a39cd12e1369fa63800482",
+          "version": null
+        }
+      },
+      {
+        "package": "llbuild",
+        "repositoryURL": "https://github.com/apple/swift-llbuild.git",
+        "state": {
+          "branch": "master",
+          "revision": "40c302a0b2ac12e99d1355986e4f16590d1fb03e",
+          "version": null
+        }
+      },
+      {
+        "package": "SwiftPM",
+        "repositoryURL": "https://github.com/apple/swift-package-manager.git",
+        "state": {
+          "branch": "master",
+          "revision": "70829165806e77c2d0b72aa172cc6e1af7fa94e4",
+          "version": null
+        }
+      }
+    ]
+  },
+  "version": 1
+}

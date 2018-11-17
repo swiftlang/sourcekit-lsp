@@ -37,8 +37,8 @@ public final class SwiftPMWorkspace {
   let toolchainRegistry: ToolchainRegistry
   let fs: FileSystem
 
-  var fileToTarget: [AbsolutePath: TargetDescription] = [:]
-  var sourceDirToTarget: [AbsolutePath: TargetDescription] = [:]
+  var fileToTarget: [AbsolutePath: TargetBuildDescription] = [:]
+  var sourceDirToTarget: [AbsolutePath: TargetBuildDescription] = [:]
 
   /// Creates a `BuildSettingsProvider` using the Swift Package Manager, if this workspace is part of a package.
   ///
@@ -77,10 +77,10 @@ public final class SwiftPMWorkspace {
     let target: Triple = Triple.hostTriple
     if case .darwin? = Platform.currentPlatform {
       if let path = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx") {
-        sdkpath = try? AbsolutePath(validating: path.chomp())
+        sdkpath = try? AbsolutePath(validating: path.spm_chomp())
       }
       if let path = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-platform-path", "--sdk", "macosx") {
-        platformPath = try? AbsolutePath(validating: path.chomp())
+        platformPath = try? AbsolutePath(validating: path.spm_chomp())
       }
     }
 
@@ -113,7 +113,7 @@ public final class SwiftPMWorkspace {
       dataPath: packageRoot.appending(component: ".build"),
       editablesPath: packageRoot.appending(component: "Packages"),
       pinsFile: packageRoot.appending(component: "Package.resolved"),
-      manifestLoader: ManifestLoader(resources: swiftpmToolchain),
+      manifestLoader: ManifestLoader(manifestResources: swiftpmToolchain),
       delegate: BuildSettingProviderWorkspaceDelegate(),
       fileSystem: fs,
       skipUpdate: true
@@ -137,7 +137,7 @@ public final class SwiftPMWorkspace {
 
     let plan = try BuildPlan(buildParameters: buildParameters, graph: packageGraph, diagnostics: diags, fileSystem: self.fs)
 
-    self.fileToTarget = [AbsolutePath: TargetDescription](
+    self.fileToTarget = [AbsolutePath: TargetBuildDescription](
       packageGraph.allTargets.flatMap { target in
         return target.sources.paths.compactMap {
           guard let td = plan.targetMap[target] else {
@@ -150,7 +150,7 @@ public final class SwiftPMWorkspace {
         return td
     })
 
-    self.sourceDirToTarget = [AbsolutePath: TargetDescription](
+    self.sourceDirToTarget = [AbsolutePath: TargetBuildDescription](
       packageGraph.allTargets.compactMap { target in
         guard let td = plan.targetMap[target] else {
           return nil
@@ -204,7 +204,11 @@ extension SwiftPMWorkspace {
 
   // MARK: Implementation details
 
-  public func settings(for path: AbsolutePath, language: Language, targetDescription td: TargetDescription) -> FileBuildSettings? {
+  public func settings(
+    for path: AbsolutePath,
+    language: Language,
+    targetDescription td: TargetBuildDescription
+  ) -> FileBuildSettings? {
 
     let buildPath = self.buildPath
 
@@ -300,12 +304,12 @@ extension SwiftPMWorkspace {
   }
 
   func packageDescriptionSettings(_ path: AbsolutePath) -> FileBuildSettings? {
-
     for package in packageGraph.packages {
       if path == package.manifest.path {
         return FileBuildSettings(
           preferredToolchain: nil,
-          compilerArguments: package.manifest.interpreterFlags + [path.asString])
+          compilerArguments:
+            workspace.interpreterFlags(for: package.path) + [path.asString])
       }
     }
     return nil
@@ -332,6 +336,8 @@ private struct SwiftPMToolchain: Build.Toolchain, ManifestResourceProvider {
   var extraSwiftCFlags: [String]
   var extraCPPFlags: [String]
   var dynamicLibraryExtension: String
+
+  func getClangCompiler() throws -> AbsolutePath { return clangCompiler }
 }
 
 extension ToolchainRegistry {

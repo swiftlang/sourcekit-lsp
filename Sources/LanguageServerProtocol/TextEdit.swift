@@ -14,13 +14,13 @@
 public struct TextEdit: Codable, Hashable {
 
   /// The range of text to be replaced.
-  var range: Range<Position>
+  var range: PositionRange
 
   /// The new text.
   var newText: String
 
   public init(range: Range<Position>, newText: String) {
-    self.range = range
+    self.range = PositionRange(range)
     self.newText = newText
   }
 }

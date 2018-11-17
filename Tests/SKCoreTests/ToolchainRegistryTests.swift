@@ -68,7 +68,7 @@ final class ToolchainRegistryTests: XCTestCase {
       let infoPlistPath = path.appending(component: opensource ? "Info.plist" : "ToolchainInfo.plist")
       let infoPlist = try! PropertyListEncoder().encode(XCToolchainPlist(identifier: id, displayName: "name-\(id)"))
       try! fs.writeFileContents(infoPlistPath, body: { stream in
-        stream.write(collection: infoPlist)
+        stream.write(infoPlist)
       })
     }
 

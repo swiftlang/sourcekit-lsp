@@ -34,18 +34,3 @@ extension Result {
     }
   }
 }
-
-extension Result: Equatable where Value: Equatable, ErrorType: Equatable {
-
-  @inlinable
-  public static func ==(lhs: Result, rhs: Result) -> Bool {
-    switch (lhs, rhs) {
-    case (.success(let lhs), .success(let rhs)):
-      return lhs == rhs
-    case (.failure(let lhs), .failure(let rhs)):
-      return lhs == rhs
-    default:
-      return false
-    }
-  }
-}

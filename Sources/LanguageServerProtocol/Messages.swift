@@ -309,7 +309,7 @@ public struct HoverResponse: ResponseType, Hashable {
 
   public var contents: MarkupContent
 
-  public var range: Range<Position>?
+  public var range: PositionRange?
 
   /// Extension!
   public var usr: String?
@@ -319,7 +319,7 @@ public struct HoverResponse: ResponseType, Hashable {
 
   public init(contents: MarkupContent, range: Range<Position>?, usr: String?, definition: Location?) {
     self.contents = contents
-    self.range = range
+    self.range = range.map { PositionRange($0) }
     self.usr = usr
     self.definition = definition
   }
@@ -378,7 +378,7 @@ public struct DocumentRangeFormatting: TextDocumentRequest, Hashable {
 
   public var textDocument: TextDocumentIdentifier
 
-  public var range: Range<Position>
+  public var range: PositionRange
 
   public var options: FormattingOptions
 }
