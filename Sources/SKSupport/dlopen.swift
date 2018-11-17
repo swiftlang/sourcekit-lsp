@@ -47,8 +47,10 @@ public struct DLOpenFlags: RawRepresentable, OptionSet {
   // Platform-specific flags.
   #if os(macOS)
     public static let first: DLOpenFlags = DLOpenFlags(rawValue: RTLD_FIRST)
+    public static let deepBind: DLOpenFlags = DLOpenFlags(rawValue: 0)
   #else
     public static let first: DLOpenFlags = DLOpenFlags(rawValue: 0)
+    public static let deepBind: DLOpenFlags = DLOpenFlags(rawValue: RTLD_DEEPBIND)
   #endif
 
   public var rawValue: Int32
