@@ -172,7 +172,7 @@ extension SwiftPMWorkspace: ExternalWorkspace, BuildSettingsProvider {
   }
 
   public var indexStorePath: AbsolutePath? {
-    return buildPath.appending(components: "index", "store")
+    return buildParameters.indexStoreMode == .off ? nil : buildParameters.indexStore
   }
 
   public var indexDatabasePath: AbsolutePath? {
