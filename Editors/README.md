@@ -13,6 +13,7 @@ After installing the extension, settings for SourceKit-LSP can be found in `Pref
 
 * `sourcekit-lsp.serverPath`: The path to sourcekit-lsp executable
 * `sourcekit-lsp.toolchainPath`: The path to the swift toolchain (sets `SOURCEKIT_TOOLCHAIN_PATH`)
+* `sourcekit-lsp.tracing.server`: Traces the communication between VS Code and the SourceKit-LSP language server
 
 ## Sublime Text
 
