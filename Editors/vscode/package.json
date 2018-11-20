@@ -50,6 +50,16 @@
                     "type": "string",
                     "default": "",
                     "description": "The path of the swift toolchain"
+                },
+                "sourcekit-lsp.trace.server": {
+                    "type": "string",
+                    "default": "off",
+                    "enum": [
+                        "off",
+                        "messages",
+                        "verbose"
+                    ],
+                    "description": "Traces the communication between VS Code and the SourceKit-LSP language server."
                 }
             }
         }

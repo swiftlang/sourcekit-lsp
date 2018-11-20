@@ -29,7 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
         synchronize: undefined
     };
 
-    const client = new langclient.LanguageClient('SourceKit Language Server', serverOptions, clientOptions);
+    const client = new langclient.LanguageClient('sourcekit-lsp', 'SourceKit Language Server', serverOptions, clientOptions);
 
     context.subscriptions.push(client.start());
 
