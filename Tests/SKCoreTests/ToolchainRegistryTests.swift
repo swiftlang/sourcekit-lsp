@@ -47,7 +47,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainID)
   }
 
-  func testUnknownLinux() {
+  func testUnknownPlatform() {
     let prevPlatform = Platform.currentPlatform
     defer { Platform.currentPlatform = prevPlatform }
     Platform.currentPlatform = nil
@@ -298,6 +298,7 @@ final class ToolchainRegistryTests: XCTestCase {
   static var allTests = [
     ("testDefaultBasic", testDefaultBasic),
     ("testDefaultDarwin", testDefaultDarwin),
+    ("testUnknownPlatform", testUnknownPlatform),
     ("testSearchDarwin", testSearchDarwin),
     ("testSearchPATH", testSearchPATH),
     ("testFromDirectory", testFromDirectory),
