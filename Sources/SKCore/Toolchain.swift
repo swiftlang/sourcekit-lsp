@@ -86,7 +86,8 @@ public final class Toolchain {
       foundAny = true
     }
 
-    let dylibExt = Platform.currentPlatform?.dynamicLibraryExtension ?? "dylib"
+    // If 'currentPlatform' is nil it's most likely an unknown linux flavor.
+    let dylibExt = Platform.currentPlatform?.dynamicLibraryExtension ?? "so"
 
     let sourcekitdPath = libPath.appending(components: "sourcekitd.framework", "sourcekitd")
     if fs.isFile(sourcekitdPath) {

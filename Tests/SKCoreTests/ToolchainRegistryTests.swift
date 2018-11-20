@@ -47,6 +47,29 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainID)
   }
 
+  func testUnknownLinux() {
+    let prevPlatform = Platform.currentPlatform
+    defer { Platform.currentPlatform = prevPlatform }
+    Platform.currentPlatform = nil
+
+    let fs = InMemoryFileSystem()
+
+    let makeToolchain = { (binPath: AbsolutePath) in
+      let libPath = binPath.parentDirectory.appending(component: "lib")
+      try! fs.createDirectory(libPath, recursive: true)
+      try! fs.writeFileContents(libPath.appending(components: "libsourcekitdInProc.so") , bytes: "")
+    }
+
+    let binPath = AbsolutePath("/foo/bar/my_toolchain/bin")
+    makeToolchain(binPath)
+
+    guard let t = Toolchain(identifier: "a", displayName: "b", searchForTools: binPath, fileSystem: fs) else {
+      XCTFail("could not find any tools")
+      return
+    }
+    XCTAssertNotNil(t.sourcekitd)
+  }
+
   func testSearchDarwin() {
 // FIXME: requires PropertyListEncoder
 #if os(macOS)
@@ -228,7 +251,7 @@ final class ToolchainRegistryTests: XCTestCase {
   func testDylibNames() {
     let fs = InMemoryFileSystem()
 
-    let ext = Platform.currentPlatform?.dynamicLibraryExtension ?? "dylib"
+    let ext = Platform.currentPlatform?.dynamicLibraryExtension ?? "so"
 
     let makeToolchain = { (binPath: AbsolutePath) in
       let libPath = binPath.parentDirectory.appending(component: "lib")
