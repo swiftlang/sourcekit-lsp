@@ -11,70 +11,22 @@
 //===----------------------------------------------------------------------===//
 
 public struct LineTable: Hashable {
-
-  public struct Line: Hashable {
-
-    /// The zero-based line number.
-    public var index: Int
-
-    /// The UTF-8 byte offset of the start of the line.
-    public var utf8Offset: Int
-
-    /// The UTF-16 code-unit offset of the start of the line.
-    public var utf16Offset: Int { return content.startIndex.encodedOffset }
-
-    /// The content of the line, including the newline.
-    public var content: Substring
-
-    @inlinable
-    public init(index: Int, utf8Offset: Int, content: Substring) {
-      self.index = index
-      self.utf8Offset = utf8Offset
-      self.content = content
-    }
-  }
-
   @usableFromInline
-  struct LineData: Hashable {
-    @usableFromInline
-    var stringIndex: String.Index
-    @usableFromInline
-    var utf8Offset: Int
-  }
-
-  @usableFromInline
-  var impl: [LineData]
+  var impl: [String.Index]
 
   public var content: String
 
   public init(_ string: String) {
     content = string
 
-    if content.isEmpty {
-      impl = [LineData(stringIndex: content.startIndex, utf8Offset: 0)]
-      return
-    }
-
     var i = string.startIndex
-    var utf8Offset = 0
-    var prevUTF16: UInt16 = 0
-
-    impl = [LineData(stringIndex: i, utf8Offset: utf8Offset)]
-
-    let utf16 = string.utf16
-
+    impl = [i]
     while i != string.endIndex {
-      let next = utf16.index(after: i)
-
-      let c = utf16[i]
-      utf8Offset += _utf8Count(c, prev: prevUTF16)
-      prevUTF16 = c
-
-      if c == /*newline*/10 {
-        impl.append(LineData(stringIndex: next, utf8Offset: utf8Offset))
+      let c = string[i]
+      string.formIndex(after: &i)
+      if c == "\n" || c == "\r\n" || c == "\r" {
+        impl.append(i)
       }
-
-      i = next
     }
   }
 
@@ -82,48 +34,35 @@ public struct LineTable: Hashable {
   @inlinable
   public var count: Int { return impl.count }
 
-  /// Returns the given (zero-based) line.
+  /// Returns the given (zero-based) line as a Substring, including the newline.
+  ///
+  /// - parameter line: Line number (zero-based).
   @inlinable
-  public subscript(_ line: Int) -> Line {
-    let data = impl[line]
-    return Line(
-      index: line,
-      utf8Offset: data.utf8Offset,
-      content: content[data.stringIndex..<nextLineStart(line)]
-    )
+  public subscript(line: Int) -> Substring {
+    return content[impl[line] ..< (line == count - 1 ? content.endIndex : impl[line + 1])]
   }
 
-  /// Returns the line containing the given UTF-8 byte offset.
-  @inlinable
-  public subscript(utf8Offset offset: Int) -> Line {
-    // FIXME: binary search
-    for (i, data) in impl.enumerated() {
-      if data.utf8Offset > offset {
-        assert(i > 0)
-        return self[i - 1]
+  /// Translate String.Index to logical line/utf16 pair.
+  @usableFromInline
+  func lineAndUTF16ColumnOf(_ index: String.Index, fromLine: Int = 0) -> (line: Int, utf16Column: Int) {
+    precondition(0 <= fromLine && fromLine < count)
+
+    // Binary search.
+    var lower = fromLine
+    var upper = count
+    while true {
+      let mid = lower + (upper - lower) / 2
+      let lineStartIndex = impl[mid]
+      if mid == lower || lineStartIndex == index {
+        return (
+          line: mid,
+          utf16Column: content.utf16.distance(from: lineStartIndex, to: index)
+        )
+      } else if lineStartIndex < index {
+        lower = mid
+      } else {
+        upper = mid
       }
-    }
-    return self[count - 1]
-  }
-
-  @inlinable
-  public subscript(utf16Offset offset: Int) -> Line {
-    // FIXME: binary search
-    for (i, data) in impl.enumerated() {
-      if data.stringIndex.encodedOffset > offset {
-        assert(i > 0)
-        return self[i - 1]
-      }
-    }
-    return self[count - 1]
-  }
-
-  @inlinable
-  func nextLineStart(_ line: Int) -> String.Index {
-    if line == count - 1 {
-      return content.endIndex
-    } else {
-      return impl[line + 1].stringIndex
     }
   }
 }
@@ -157,8 +96,8 @@ extension LineTable {
     utf16Offset toOff: Int,
     with replacement: String)
   {
-    let start = String.Index(encodedOffset: self[fromLine].utf16Offset + fromOff)
-    let end = String.Index(encodedOffset: self[toLine].utf16Offset + toOff)
+    let start = content.utf16.index(impl[fromLine], offsetBy: fromOff)
+    let end = content.utf16.index(impl[toLine], offsetBy: toOff)
 
     var newText = self.content
     newText.replaceSubrange(start..<end, with: replacement)
@@ -172,29 +111,81 @@ extension LineTable {
   /// - parameter fromOff: Starting UTF-16 column offset (zero-based).
   /// - parameter utf16Length: The number of UTF-16 code units to replace.
   /// - parameter replacement: The new text for the given range.
-  @inlinable
   mutating public func replace(
     fromLine: Int,
     utf16Offset fromOff: Int,
     utf16Length: Int,
     with replacement: String)
   {
-    let endOff = self[fromLine].utf16Offset + fromOff + utf16Length
-    let endLine = self[utf16Offset: endOff]
-
-    self.replace(fromLine: fromLine, utf16Offset: fromOff, toLine: endLine.index, utf16Offset: endOff - endLine.utf16Offset, with: replacement)
+    let start = content.utf16.index(impl[fromLine], offsetBy: fromOff)
+    let end = content.utf16.index(start, offsetBy: utf16Length)
+    let (toLine, toOff) = lineAndUTF16ColumnOf(end, fromLine: fromLine)
+    self.replace(fromLine: fromLine, utf16Offset: fromOff, toLine: toLine, utf16Offset: toOff, with: replacement)
   }
 }
 
-// Note: This is copied from the stdlib.
-// Used to calculate a running count. For non-BMP scalars, it's important if the
-// prior code unit was a leading surrogate (validity).
-private func _utf8Count(_ utf16CU: UInt16, prev: UInt16) -> Int {
-  switch utf16CU {
-  case 0..<0x80: return 1
-  case 0x80..<0x800: return 2
-  case 0x800..<0xDC00: return 3
-  case 0xDC00..<0xE000: return UTF16.isLeadSurrogate(prev) ? 1 : 3
-  default: return 3
+extension LineTable {
+
+  // MARK: - Position translation
+
+  /// Returns `String.Index` of given logical position.
+  ///
+  /// - parameter line: Line number (zero-based).
+  /// - parameter utf16Column: UTF-16 column offset (zero-based).
+  @inlinable
+  public func stringIndexOf(line: Int, utf16Column: Int) -> String.Index? {
+    guard line < count else {
+      // Line out of range.
+      return nil
+    }
+    let lineSlice = self[line]
+    guard utf16Column <= content.utf16.distance(from: lineSlice.startIndex, to: lineSlice.endIndex) else {
+      // Column out of range.
+      return nil
+    }
+    return content.utf16.index(lineSlice.startIndex, offsetBy: utf16Column)
+  }
+
+  /// Returns UTF8 buffer offset of given logical position.
+  ///
+  /// - parameter line: Line number (zero-based).
+  /// - parameter utf16Column: UTF-16 column offset (zero-based).
+  @inlinable
+  public func utf8OffsetOf(line: Int, utf16Column: Int) -> Int? {
+    guard let stringIndex = stringIndexOf(line: line, utf16Column: utf16Column) else {
+      return nil
+    }
+    return content.utf8.distance(from: content.startIndex, to: stringIndex)
+  }
+
+  /// Returns logical position of given source offset.
+  ///
+  /// - parameter utf8Offset: UTF-8 buffer offset (zero-based).
+  @inlinable
+  public func lineAndUTF16ColumnOf(utf8Offset: Int) -> (line: Int, utf16Column: Int)? {
+    guard utf8Offset <= content.utf8.count else {
+      // Offset ouf of range.
+      return nil
+    }
+    return lineAndUTF16ColumnOf(content.utf8.index(content.startIndex, offsetBy: utf8Offset))
+  }
+
+  /// Returns UTF16 column offset at UTF8 version of logical position.
+  ///
+  /// - parameter line: Line number (zero-based).
+  /// - parameter utf8Column: UTF-8 column offset (zero-based).
+  @inlinable
+  public func utf16ColumnAt(line: Int, utf8Column: Int) -> Int? {
+    guard line < count else {
+      // Line out of range.
+      return nil
+    }
+    let lineSlice = self[line]
+    guard utf8Column <= content.utf8.distance(from: lineSlice.startIndex, to: lineSlice.endIndex) else {
+      // Column out of range
+      return nil
+    }
+    let targetIndex = content.utf8.index(lineSlice.startIndex, offsetBy: utf8Column)
+    return content.utf16.distance(from: lineSlice.startIndex, to: targetIndex)
   }
 }

@@ -27,11 +27,7 @@ public struct DocumentSnapshot {
   }
 
   func index(of pos: Position) -> String.Index? {
-    // FIXME: TEST ME
-    guard pos.line < lineTable.count else { return nil }
-    let lineData = lineTable[pos.line]
-    let utf16Offset = lineData.utf16Offset + pos.utf16index
-    return String.Index(encodedOffset: utf16Offset)
+    return lineTable.stringIndexOf(line: pos.line, utf16Column: pos.utf16index)
   }
 }
 

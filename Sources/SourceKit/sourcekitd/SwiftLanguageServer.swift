@@ -552,31 +552,19 @@ extension SwiftLanguageServer {
 extension DocumentSnapshot {
 
   func utf8Offset(of pos: Position) -> Int? {
-    // FIXME: TEST ME
-    guard pos.line < lineTable.count else { return nil }
-    let lineData = lineTable[pos.line]
-    let utf16Offset = lineData.utf16Offset + pos.utf16index
-    let index = String.Index(encodedOffset: utf16Offset)
-    guard index <= lineData.content.endIndex else { return nil }
-    return lineData.utf8Offset + lineData.content.prefix(upTo: index).utf8.count
+    return lineTable.utf8OffsetOf(line: pos.line, utf16Column: pos.utf16index)
   }
 
   func positionOf(utf8Offset: Int) -> Position? {
-    // FIXME: TEST ME
-    let line = lineTable[utf8Offset: utf8Offset]
-    let column = utf8Offset - line.utf8Offset
-    return positionOf(zeroBasedLine: line.index, utf8Column: column)
+    return lineTable.lineAndUTF16ColumnOf(utf8Offset: utf8Offset).map {
+      Position(line: $0.line, utf16index: $0.utf16Column)
+    }
   }
 
   func positionOf(zeroBasedLine: Int, utf8Column: Int) -> Position? {
-    // FIXME: TEST ME
-    guard zeroBasedLine < lineTable.count else { return nil }
-    let lineData = lineTable[zeroBasedLine]
-    let index = lineData.content.dropFirst(utf8Column).startIndex
-    return Position(
-      line: zeroBasedLine,
-      utf16index: index.encodedOffset - lineData.utf16Offset
-    )
+    return lineTable.utf16ColumnAt(line: zeroBasedLine, utf8Column: utf8Column).map {
+      Position(line: zeroBasedLine, utf16index: $0)
+    }
   }
 }
 
