@@ -300,7 +300,11 @@ extension SwiftLanguageServer {
       return
     }
 
-    let completionPos = adjustCompletionLocation(req.params.position, in: snapshot)
+    guard let completionPos = adjustCompletionLocation(req.params.position, in: snapshot) else {
+      log("invalid completion position \(req.params.position)")
+      req.reply(CompletionList(isIncomplete: true, items: []))
+      return
+    }
 
     guard let offset = snapshot.utf8Offset(of: completionPos) else {
       log("invalid completion position \(req.params.position) (adjusted: \(completionPos)")
@@ -388,13 +392,20 @@ extension SwiftLanguageServer {
   }
 
   /// Adjust completion position to the start of identifier characters.
-  func adjustCompletionLocation(_ pos: Position, in snapshot: DocumentSnapshot) -> Position {
+  func adjustCompletionLocation(_ pos: Position, in snapshot: DocumentSnapshot) -> Position? {
+    guard pos.line < snapshot.lineTable.count else {
+      // Line out of range.
+      return nil
+    }
     let lineSlice = snapshot.lineTable[pos.line]
     let startIndex = lineSlice.startIndex
 
     let identifierChars = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
 
-    var loc = lineSlice.utf16.index(startIndex, offsetBy: pos.utf16index)
+    guard var loc = lineSlice.utf16.index(startIndex, offsetBy: pos.utf16index, limitedBy: lineSlice.endIndex) else {
+      // Column out of range.
+      return nil
+    }
     while loc != startIndex {
       let prev = lineSlice.index(before: loc)
       if !identifierChars.contains(lineSlice.unicodeScalars[prev]) {
