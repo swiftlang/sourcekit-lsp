@@ -276,12 +276,12 @@ final class SupportTests: XCTestCase {
 
   func checkLines(_ string: String, _ expected: [String], file: StaticString = #file, line: UInt = #line) {
     let table = LineTable(string)
-    XCTAssertEqual(table.map { String($0.content) }, expected, file: file, line: line)
+    XCTAssertEqual(table.map { String($0) }, expected, file: file, line: line)
   }
 
   func checkOffsets(_ string: String, _ expected: [Int], file: StaticString = #file, line: UInt = #line) {
     let table = LineTable(string)
-    XCTAssertEqual(table.map { $0.utf8Offset }, expected, file: file, line: line)
+    XCTAssertEqual(table.map { string.utf8.distance(from: string.startIndex, to: $0.startIndex) }, expected, file: file, line: line)
   }
 
   func testLineTable() {
@@ -292,6 +292,7 @@ final class SupportTests: XCTestCase {
     checkLines("\n", ["\n", ""])
     checkLines("\n\n", ["\n", "\n", ""])
     checkLines("\r\n", ["\r\n", ""])
+    checkLines("\r\r", ["\r", "\r", ""])
     checkLines("a\nb", ["a\n", "b"])
     checkLines("a\nb\n", ["a\n", "b\n", ""])
     checkLines("a\nb\nccccc", ["a\n", "b\n", "ccccc"])
@@ -321,13 +322,88 @@ final class SupportTests: XCTestCase {
     checkOffsets("\n\u{10000}b", [0, 1])
     checkOffsets("\n\u{10000}b\nc", [0, 1, 7])
 
-    XCTAssertEqual(LineTable("")[0].content, "")
-    XCTAssertEqual(LineTable("\n")[1].content, "")
+    XCTAssertEqual(LineTable("")[0], "")
+    XCTAssertEqual(LineTable("\n")[1], "")
+  }
 
-    XCTAssertEqual(LineTable("")[utf8Offset: 0].index, 0)
-    XCTAssertEqual(LineTable("\n")[utf8Offset: 0].index, 0)
-    XCTAssertEqual(LineTable("\n")[utf8Offset: 1].index, 1)
-    XCTAssertEqual(LineTable("\n")[utf8Offset: 199].index, 1)
+  func checkLineAndColumns(_ table: LineTable, _ utf8Offset: Int, _ expected: (line: Int, utf16Column: Int)?, file: StaticString = #file, line: UInt = #line) {
+    switch (table.lineAndUTF16ColumnOf(utf8Offset: utf8Offset), expected) {
+    case (nil, nil):
+      break
+    case (let result?, let _expected?):
+      XCTAssertTrue(result == _expected, "\(result) != \(_expected)", file: file, line: line)
+    case (let result, let _expected):
+      XCTFail("\(String(describing: result)) != \(String(describing: _expected))", file: file, line: line)
+    }
+  }
+
+  func checkUTF8OffsetOf(_ table: LineTable, _ query: (line: Int, utf16Column: Int), _ expected: Int?, file: StaticString = #file, line: UInt = #line) {
+    XCTAssertEqual(table.utf8OffsetOf(line: query.line, utf16Column: query.utf16Column), expected, file: file, line: line)
+  }
+
+  func checkUTF16ColumnAt(_ table: LineTable, _ query: (line: Int, utf8Column: Int), _ expected: Int?, file: StaticString = #file, line: UInt = #line) {
+    XCTAssertEqual(table.utf16ColumnAt(line: query.line, utf8Column: query.utf8Column), expected, file: file, line: line)
+  }
+
+  func testLineTableLinePositionTranslation() {
+    let t1 = LineTable("""
+      0123
+      5678
+      abcd
+      """)
+    checkLineAndColumns(t1, 0, (line: 0, utf16Column: 0))
+    checkLineAndColumns(t1, 2, (line: 0, utf16Column: 2))
+    checkLineAndColumns(t1, 4, (line: 0, utf16Column: 4))
+    checkLineAndColumns(t1, 5, (line: 1, utf16Column: 0))
+    checkLineAndColumns(t1, 9, (line: 1, utf16Column: 4))
+    checkLineAndColumns(t1, 10, (line: 2, utf16Column: 0))
+    checkLineAndColumns(t1, 14, (line: 2, utf16Column: 4))
+    checkLineAndColumns(t1, 15, nil)
+
+    checkUTF8OffsetOf(t1, (line: 0, utf16Column: 0), 0)
+    checkUTF8OffsetOf(t1, (line: 0, utf16Column: 2), 2)
+    checkUTF8OffsetOf(t1, (line: 0, utf16Column: 4), 4)
+    checkUTF8OffsetOf(t1, (line: 0, utf16Column: 5), 5)
+    checkUTF8OffsetOf(t1, (line: 0, utf16Column: 6), nil)
+    checkUTF8OffsetOf(t1, (line: 1, utf16Column: 0), 5)
+    checkUTF8OffsetOf(t1, (line: 1, utf16Column: 4), 9)
+    checkUTF8OffsetOf(t1, (line: 2, utf16Column: 0), 10)
+    checkUTF8OffsetOf(t1, (line: 2, utf16Column: 4), 14)
+    checkUTF8OffsetOf(t1, (line: 2, utf16Column: 5), nil)
+    checkUTF8OffsetOf(t1, (line: 3, utf16Column: 0), nil)
+
+    checkUTF16ColumnAt(t1, (line: 0, utf8Column: 4), 4)
+    checkUTF16ColumnAt(t1, (line: 0, utf8Column: 5), 5)
+    checkUTF16ColumnAt(t1, (line: 0, utf8Column: 6), nil)
+    checkUTF16ColumnAt(t1, (line: 2, utf8Column: 0), 0)
+    checkUTF16ColumnAt(t1, (line: 3, utf8Column: 0), nil)
+
+    let t2 = LineTable("""
+      こんにちは
+      안녕하세요
+      \u{1F600}\u{1F648}
+      """)
+    checkLineAndColumns(t2, 0, (line: 0, utf16Column: 0))
+    checkLineAndColumns(t2, 15, (line: 0, utf16Column: 5))
+    checkLineAndColumns(t2, 19, (line: 1, utf16Column: 1))
+    checkLineAndColumns(t2, 32, (line: 2, utf16Column: 0))
+    checkLineAndColumns(t2, 36, (line: 2, utf16Column: 2))
+    checkLineAndColumns(t2, 40, (line: 2, utf16Column: 4))
+
+    checkUTF8OffsetOf(t2, (line: 0, utf16Column: 0), 0)
+    checkUTF8OffsetOf(t2, (line: 0, utf16Column: 5), 15)
+    checkUTF8OffsetOf(t2, (line: 0, utf16Column: 6), 16)
+    checkUTF8OffsetOf(t2, (line: 1, utf16Column: 1), 19)
+    checkUTF8OffsetOf(t2, (line: 1, utf16Column: 6), 32)
+    checkUTF8OffsetOf(t2, (line: 1, utf16Column: 7), nil)
+    checkUTF8OffsetOf(t2, (line: 2, utf16Column: 0), 32)
+    checkUTF8OffsetOf(t2, (line: 2, utf16Column: 2), 36)
+    checkUTF8OffsetOf(t2, (line: 2, utf16Column: 4), 40)
+    checkUTF8OffsetOf(t2, (line: 2, utf16Column: 5), nil)
+
+    checkUTF16ColumnAt(t2, (line: 0, utf8Column: 3), 1)
+    checkUTF16ColumnAt(t2, (line: 0, utf8Column: 15), 5)
+    checkUTF16ColumnAt(t2, (line: 2, utf8Column: 4), 2)
   }
 
   func testLineTableEditing() {
@@ -420,11 +496,11 @@ final class SupportTests: XCTestCase {
       self.startMeasuring()
 
       for _ in 1...iterations {
-        let line = (0..<(t.count-1)).randomElement()!
-        let col = (0 ..< (t[line+1].utf16Offset - t[line].utf16Offset)).randomElement()!
+        let line = (0..<(t.count-1)).randomElement(using: &lcg)!
+        let col = (0 ..< t[line].utf16.count).randomElement(using: &lcg)!
         let len = Bool.random() ? 1 : 0
         var newText = String(characters.randomElement(using: &lcg)!)
-        if len == 1 && Bool.random() {
+        if len == 1 && Bool.random(using: &lcg) {
           newText = "" // deletion
         }
 
