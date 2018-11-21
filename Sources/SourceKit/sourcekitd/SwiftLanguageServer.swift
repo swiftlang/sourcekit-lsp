@@ -387,29 +387,28 @@ extension SwiftLanguageServer {
     return result
   }
 
+  /// Adjust completion position to the start of identifier characters.
   func adjustCompletionLocation(_ pos: Position, in snapshot: DocumentSnapshot) -> Position {
-    guard let requestedLoc = snapshot.index(of: pos), requestedLoc != snapshot.text.startIndex else {
-      return pos
-    }
+    let lineSlice = snapshot.lineTable[pos.line]
+    let startIndex = lineSlice.startIndex
 
     let identifierChars = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
 
-    var prev = requestedLoc
-    var loc = snapshot.text.index(before: requestedLoc)
-    while identifierChars.contains(snapshot.text[loc].unicodeScalars.first!) {
-      prev = loc
-      loc = snapshot.text.index(before: loc)
+    var loc = lineSlice.utf16.index(startIndex, offsetBy: pos.utf16index)
+    while loc != startIndex {
+      let prev = lineSlice.index(before: loc)
+      if !identifierChars.contains(lineSlice.unicodeScalars[prev]) {
+        break
+      }
+      loc = prev
     }
 
-    // #aabccccccdddddd
-    // ^^- prev  ^-requestedLoc
-    // `- loc
-    //
-    // We offset the column by (requestedLoc - prev), which must be >=0 and on the same line.
+    // ###aabccccccdddddd
+    // ^  ^- loc  ^-requestedLoc
+    // `- startIndex
 
-    let delta = requestedLoc.encodedOffset - prev.encodedOffset
-
-    return Position(line: pos.line, utf16index: pos.utf16index - delta)
+    let adjustedOffset = lineSlice.utf16.distance(from: startIndex, to: loc)
+    return Position(line: pos.line, utf16index: adjustedOffset)
   }
 
   func hover(_ req: Request<HoverRequest>) {
