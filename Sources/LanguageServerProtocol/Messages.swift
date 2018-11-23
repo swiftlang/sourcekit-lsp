@@ -37,6 +37,7 @@ public let builtinNotifications: [NotificationType.Type] = [
   CancelRequest.self,
   LogMessage.self,
   DidChangeConfiguration.self,
+  DidChangeWorkspaceFolders.self,
   DidOpenTextDocument.self,
   DidCloseTextDocument.self,
   DidChangeTextDocument.self,
@@ -180,6 +181,16 @@ public struct DidChangeConfiguration: NotificationType {
   public init(settings: WorkspaceSettingsChange) {
     self.settings = settings
   }
+}
+
+public struct DidChangeWorkspaceFolders: NotificationType {
+    public static let method: String = "workspace/didChangeWorkspaceFolders"
+
+    public var event: WorkspaceFoldersChangeEvent
+
+    public init(event: WorkspaceFoldersChangeEvent) {
+        self.event = event
+    }
 }
 
 // MARK: - Text synchronization -
