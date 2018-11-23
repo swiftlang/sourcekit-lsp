@@ -19,7 +19,7 @@ public struct WorkspaceFoldersChangeEvent: Codable, Hashable {
     /// The array of the removed workspace folders
     public var removed: [WorkspaceFolder]?
 
-    init(added: [WorkspaceFolder]? = nil, removed: [WorkspaceFolder]? = nil) {
+    public init(added: [WorkspaceFolder]? = nil, removed: [WorkspaceFolder]? = nil) {
         self.added = added
         self.removed = removed
     }
