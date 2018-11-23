@@ -18,6 +18,7 @@ import Basic
 public let builtinRequests: [_RequestType.Type] = [
   InitializeRequest.self,
   Shutdown.self,
+  WorkspaceFoldersRequest.self,
   CompletionRequest.self,
   HoverRequest.self,
   DefinitionRequest.self,
@@ -172,6 +173,12 @@ public struct LogMessage: NotificationType, Hashable {
 }
 
 // MARK: - Workspace -
+
+public struct WorkspaceFoldersRequest: RequestType, Hashable {
+    public static let method: String = "workspace/workspaceFolders"
+
+    public typealias Response = [WorkspaceFolder]
+}
 
 public struct DidChangeConfiguration: NotificationType {
   public static let method: String = "workspace/didChangeConfiguration"
