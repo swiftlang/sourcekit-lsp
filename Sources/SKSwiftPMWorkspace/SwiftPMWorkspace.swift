@@ -239,7 +239,7 @@ extension SwiftPMWorkspace {
         workingDirectory: workspacePath.asString
       )
 
-    case (.clang(_), .swift):
+    case (.clang, .swift):
       return nil
 
     case (.clang(let td), _):
