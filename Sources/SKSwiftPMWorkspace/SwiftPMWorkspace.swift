@@ -67,7 +67,7 @@ public final class SwiftPMWorkspace {
     self.packageRoot = packageRoot
     self.fs = fileSystem
 
-    guard var swiftpmToolchain = toolchainRegistry.swiftpmHost else {
+    guard var swiftpmToolchain = toolchainRegistry.swiftPMHost else {
       throw Error.cannotDetermineHostToolchain
     }
 
@@ -343,7 +343,7 @@ private struct SwiftPMToolchain: Build.Toolchain, ManifestResourceProvider {
 extension ToolchainRegistry {
 
   /// A toolchain appropriate for using to load swiftpm manifests.
-  fileprivate var swiftpmHost: SwiftPMToolchain? {
+  fileprivate var swiftPMHost: SwiftPMToolchain? {
     guard let base = self.default, base.swiftc != nil else {
       return nil
     }
