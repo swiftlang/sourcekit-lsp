@@ -527,7 +527,7 @@ extension SwiftLanguageServer {
 
       var highlights: [DocumentHighlight] = []
 
-      results.forEach { i, value in
+      results.forEach { _, value in
         if let offset: Int = value[self.keys.offset],
            let start: Position = snapshot.positionOf(utf8Offset: offset),
            let length: Int = value[self.keys.length],
