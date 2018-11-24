@@ -50,10 +50,11 @@ public final class Toolchain {
     fileSystem fs: FileSystem = localFileSystem
   ) {
     self.init(identifier: identifier, displayName: displayName, path: path)
-    _  = searchForTools(path: path, fileSystem: fs)
+    searchForTools(path: path, fileSystem: fs)
   }
 
   /// Search `path` for tools, returning true if any are found.
+  @discardableResult
   func searchForTools(path: AbsolutePath, fileSystem fs: FileSystem = localFileSystem) -> Bool {
     return
       searchForTools(binPath: path, fs) ||
