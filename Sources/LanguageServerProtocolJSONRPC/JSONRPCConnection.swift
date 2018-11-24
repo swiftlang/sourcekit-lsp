@@ -48,9 +48,9 @@ public final class JSONRPCConection {
   /// The set of currently outstanding outgoing requests along with information about how to decode and handle their responses.
   var outstandingRequests: [RequestID: OutstandingRequest] = [:]
 
-  var closeHandler: () -> ()
+  var closeHandler: () -> Void
 
-  public init(inFD: Int32, outFD: Int32, closeHandler: @escaping () -> () = {}) {
+  public init(inFD: Int32, outFD: Int32, closeHandler: @escaping () -> Void = {}) {
     state = .created
     self.closeHandler = closeHandler
 

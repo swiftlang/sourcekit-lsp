@@ -41,7 +41,6 @@ public final class Request<R: RequestType> {
   public let cancellationToken: CancellationToken
 
   public init(_ request: Params, id: RequestID, clientID: ObjectIdentifier, cancellation: CancellationToken, reply: @escaping (LSPResult<Response>) -> ()) {
-
     self.id = id
     self.clientID = clientID
     self.params = request

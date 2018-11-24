@@ -17,7 +17,7 @@ public final class CancellationToken {
 
   public init() {}
 
-  public func addCancellationHandler(_ handler: @escaping () -> ()) {
+  public func addCancellationHandler(_ handler: @escaping () -> Void) {
 
   }
 

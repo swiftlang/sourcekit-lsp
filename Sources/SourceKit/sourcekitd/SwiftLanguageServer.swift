@@ -26,7 +26,7 @@ public final class SwiftLanguageServer: LanguageServer {
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
 
-  let onExit: () -> ()
+  let onExit: () -> Void
 
   var api: sourcekitd_functions_t { return sourcekitd.api }
   var keys: sourcekitd_keys { return sourcekitd.keys }
@@ -34,7 +34,7 @@ public final class SwiftLanguageServer: LanguageServer {
   var values: sourcekitd_values { return sourcekitd.values }
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, sourcekitd: AbsolutePath, buildSettingsProvider: BuildSettingsProvider, onExit: @escaping () -> () = {}) throws {
+  public init(client: Connection, sourcekitd: AbsolutePath, buildSettingsProvider: BuildSettingsProvider, onExit: @escaping () -> Void = {}) throws {
 
     self.sourcekitd = try SwiftSourceKitFramework(dylib: sourcekitd)
     self.buildSettingsProvider = buildSettingsProvider

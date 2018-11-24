@@ -38,10 +38,10 @@ public final class SourceKitServer: LanguageServer {
 
   let fs: FileSystem
 
-  let onExit: () -> ()
+  let onExit: () -> Void
 
   /// Creates a language server for the given client.
-  public init(client: Connection, fileSystem: FileSystem = localFileSystem, onExit: @escaping () -> () = {}) {
+  public init(client: Connection, fileSystem: FileSystem = localFileSystem, onExit: @escaping () -> Void = {}) {
 
     self.fs = fileSystem
     self.toolchainRegistry = ToolchainRegistry(fileSystem: fs)
