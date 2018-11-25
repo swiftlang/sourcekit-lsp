@@ -30,6 +30,7 @@ public let builtinRequests: [_RequestType.Type] = [
   DocumentRangeFormatting.self,
   DocumentOnTypeFormatting.self,
   FoldingRangeRequest.self,
+  CodeActionRequest.self,
 
   // MARK: LSP Extension Requests
 
