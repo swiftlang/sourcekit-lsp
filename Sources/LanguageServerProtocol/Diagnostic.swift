@@ -46,24 +46,20 @@ public struct Diagnostic: Codable, Hashable {
   /// Related diagnostic notes.
   public var relatedInformation: [DiagnosticRelatedInformation]?
 
-  public init(
-    range: Range<Position>,
-    severity: DiagnosticSeverity?,
-    code: DiagnosticCode? = nil,
-    source: String?,
-    message: String,
-    relatedInformation: [DiagnosticRelatedInformation]? = nil)
-  {
-    self.range = PositionRange(range)
+  public var fixits: [DiagnosticFixit]?
+
+  public init(range: Range<Position>, severity: DiagnosticSeverity?, code: DiagnosticCode? = nil, source: String?, message: String, relatedInformation: [DiagnosticRelatedInformation]? = nil, diagnosticFixits: [DiagnosticFixit]? = nil) {
+    self.range = range
     self.severity = severity
     self.code = code
     self.source = source
     self.message = message
     self.relatedInformation = relatedInformation
+    self.fixits = diagnosticFixits
   }
 }
 
-/// A 'note' diagnostic attached to a primary diagonstic that provides additional information.
+/// A 'note' diagnostic attached to a primary diagnostic that provides additional information.
 public struct DiagnosticRelatedInformation: Codable, Hashable {
 
   public var location: Position
@@ -73,6 +69,19 @@ public struct DiagnosticRelatedInformation: Codable, Hashable {
   public init(location: Position, message: String) {
     self.location = location
     self.message = message
+  }
+}
+
+/// A code suggestion that can be automatically applied to fix a compile error.
+public struct DiagnosticFixit: Codable, Hashable {
+
+  public var range: Range<Position>
+
+  public var fixit: String
+
+  public init(range: Range<Position>, fixit: String) {
+    self.range = range
+    self.fixit = fixit
   }
 }
 

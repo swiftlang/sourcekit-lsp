@@ -66,6 +66,18 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.codeAction)
   }
 
+  func getDiagnosticFixit(_ diag: SKResponseDictionary, for snapshot: DocumentSnapshot) -> DiagnosticFixit? {
+    guard let sourceText: String = diag[keys.sourcetext] else { return nil }
+
+    guard let offset: Int = diag[self.keys.offset],
+      let start: Position = snapshot.positionOf(utf8Offset: offset),
+      let length: Int = diag[self.keys.length],
+      let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
+        return nil
+    }
+    return DiagnosticFixit(range: start..<end, fixit: sourceText)
+  }
+
   func getDiagnostic(_ diag: SKResponseDictionary, for snapshot: DocumentSnapshot) -> Diagnostic? {
 
     // FIXME: this assumes that the diagnostics are all in the same file.
@@ -108,13 +120,24 @@ public final class SwiftLanguageServer: LanguageServer {
       }
     }
 
+    var fixits: [DiagnosticFixit]? = nil
+    if let skfixits: SKResponseArray = diag[keys.fixits] {
+      fixits = []
+      skfixits.forEach { (_, skfixit) -> Bool in
+        guard let fixit = getDiagnosticFixit(skfixit, for: snapshot) else { return true }
+        fixits?.append(fixit)
+        return true
+      }
+    }
+
     return Diagnostic(
       range: Range(position!),
       severity: severity,
       code: nil,
       source: "sourcekitd",
       message: message,
-      relatedInformation: notes
+      relatedInformation: notes,
+      diagnosticFixits: fixits
     )
   }
 
