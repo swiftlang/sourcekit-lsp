@@ -200,6 +200,7 @@ struct sourcekitd_keys {
   let kind: sourcekitd_uid_t
   let notification: sourcekitd_uid_t
   let diagnostics: sourcekitd_uid_t
+  let fixits: sourcekitd_uid_t
   let severity: sourcekitd_uid_t
   let line: sourcekitd_uid_t
   let column: sourcekitd_uid_t
@@ -227,6 +228,7 @@ struct sourcekitd_keys {
     kind = api.uid_get_from_cstr("key.kind")!
     notification = api.uid_get_from_cstr("key.notification")!
     diagnostics = api.uid_get_from_cstr("key.diagnostics")!
+    fixits = api.uid_get_from_cstr("key.fixits")!
     severity = api.uid_get_from_cstr("key.severity")!
     line = api.uid_get_from_cstr("key.line")!
     column = api.uid_get_from_cstr("key.column")!
