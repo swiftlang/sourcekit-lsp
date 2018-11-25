@@ -63,6 +63,7 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.documentSymbolHighlight)
     _register(SwiftLanguageServer.foldingRange)
     _register(SwiftLanguageServer.symbolInfo)
+    _register(SwiftLanguageServer.codeAction)
   }
 
   func getDiagnostic(_ diag: SKResponseDictionary, for snapshot: DocumentSnapshot) -> Diagnostic? {
@@ -642,6 +643,23 @@ extension SwiftLanguageServer {
                            kind: kind)
     }
     ranges.append(range)
+  }
+
+  func codeAction(_ req: Request<CodeActionRequest>) {
+    var codeActions: [CodeAction] = []
+    let diagnostics = req.params.context.diagnostics
+    diagnostics.forEach { diagnostic in
+      if let fixits = diagnostic.fixits {
+        var textEdits: [TextEdit] = []
+        fixits.forEach { fixit in
+          textEdits.append(TextEdit(range: fixit.range, newText: fixit.fixit))
+        }
+        let textDocumentEdit = TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(url: req.params.textDocument.url, version: nil), edits: textEdits)
+        let workspaceEdit = WorkspaceEdit(documentChanges: [textDocumentEdit])
+        codeActions.append(CodeAction(title: "fixIt", kind: CodeActionKind.quickFix, edit: workspaceEdit))
+      }
+    }
+    req.reply(codeActions)
   }
 }
 
