@@ -26,3 +26,8 @@ public struct TextDocumentEdit: Hashable, Codable {
     self.edits = edits
   }
 }
+
+extension TextDocumentEdit: Equatable {}
+extension TextDocumentEdit: Hashable {}
+extension TextDocumentEdit: Codable {}
+extension TextDocumentEdit: ResponseType {}
