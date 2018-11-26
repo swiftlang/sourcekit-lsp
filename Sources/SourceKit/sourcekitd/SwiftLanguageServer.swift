@@ -150,6 +150,8 @@ public final class SwiftLanguageServer: LanguageServer {
       }
       return true
     }
+    // Store the diagnostics associated with the document in the document snapshot.
+    snapshot.document.diagnostics = result
     client.send(PublishDiagnostics(url: snapshot.document.url, diagnostics: result))
   }
 
@@ -216,6 +218,7 @@ extension SwiftLanguageServer {
       referencesProvider: nil,
       documentHighlightProvider: true,
       foldingRangeProvider: true
+      codeActionProvider: [CodeActionKind.quickFix]
       )))
   }
 
@@ -669,8 +672,17 @@ extension SwiftLanguageServer {
   }
 
   func codeAction(_ req: Request<CodeActionRequest>) {
+    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
+      log("failed to find snapshot for url \(req.params.textDocument.url)")
+      req.reply([])
+      return
+    }
+    guard let diagnostics = snapshot.document.diagnostics else {
+      log("document from snapshot for url \(req.params.textDocument.url) does not have diagnostics.")
+      req.reply([])
+      return
+    }
     var codeActions: [CodeAction] = []
-    let diagnostics = req.params.context.diagnostics
     diagnostics.forEach { diagnostic in
       if let fixits = diagnostic.fixits {
         var textEdits: [TextEdit] = []
@@ -679,7 +691,7 @@ extension SwiftLanguageServer {
         }
         let textDocumentEdit = TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(url: req.params.textDocument.url, version: nil), edits: textEdits)
         let workspaceEdit = WorkspaceEdit(documentChanges: [textDocumentEdit])
-        codeActions.append(CodeAction(title: "fixIt", kind: CodeActionKind.quickFix, edit: workspaceEdit))
+        codeActions.append(CodeAction(title: "Fix \(diagnostic.message)", kind: CodeActionKind.quickFix, edit: workspaceEdit))
       }
     }
     req.reply(codeActions)
