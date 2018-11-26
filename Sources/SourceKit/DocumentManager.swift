@@ -36,6 +36,7 @@ public final class Document {
   public let language: Language
   var latestVersion: Int
   var latestLineTable: LineTable
+  var diagnostics: [Diagnostic]?
 
   init(url: URL, language: Language, version: Int, text: String) {
     self.url = url
