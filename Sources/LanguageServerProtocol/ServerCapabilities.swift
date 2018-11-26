@@ -42,6 +42,9 @@ public struct ServerCapabilities: Codable, Hashable {
   /// Whether the server provides "textDocument/foldingRange".
   public var foldingRangeProvider: Bool?
 
+  /// Whether the server provides "textDocument/codeAction".
+  public var codeActionProvider: [CodeActionKind]?
+
   // TODO: fill-in the rest.
 
   public init(
@@ -55,6 +58,7 @@ public struct ServerCapabilities: Codable, Hashable {
     documentRangeFormattingProvider: Bool? = nil,
     documentOnTypeFormattingProvider: DocumentOnTypeFormattingOptions? = nil,
     foldingRangeProvider: Bool? = nil
+    codeActionProvider: [CodeActionKind]? = nil
     )
   {
     self.textDocumentSync = textDocumentSync
@@ -67,6 +71,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.documentRangeFormattingProvider = documentRangeFormattingProvider
     self.documentOnTypeFormattingProvider = documentOnTypeFormattingProvider
     self.foldingRangeProvider = foldingRangeProvider
+    self.codeActionProvider = codeActionProvider
   }
 
   public init(from decoder: Decoder) throws {

@@ -253,6 +253,7 @@ extension SourceKitServer {
       referencesProvider: true,
       documentHighlightProvider: true,
       foldingRangeProvider: true
+      codeActionProvider: [CodeActionKind.quickFix]
     )))
   }
 
