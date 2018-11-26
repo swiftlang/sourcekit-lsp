@@ -684,14 +684,17 @@ extension SwiftLanguageServer {
     }
     var codeActions: [CodeAction] = []
     diagnostics.forEach { diagnostic in
-      if let fixits = diagnostic.fixits {
+      if let fixits = diagnostic.fixits, !fixits.isEmpty {
         var textEdits: [TextEdit] = []
         fixits.forEach { fixit in
           textEdits.append(TextEdit(range: fixit.range, newText: fixit.fixit))
         }
-        let textDocumentEdit = TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(url: req.params.textDocument.url, version: nil), edits: textEdits)
-        let workspaceEdit = WorkspaceEdit(documentChanges: [textDocumentEdit])
-        codeActions.append(CodeAction(title: "Fix \(diagnostic.message)", kind: CodeActionKind.quickFix, edit: workspaceEdit))
+        // If there are no text edits, we can return an empty list to the client.
+        if !textEdits.isEmpty {
+          let textDocumentEdit = TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(url: req.params.textDocument.url, version: nil), edits: textEdits)
+          let workspaceEdit = WorkspaceEdit(documentChanges: [textDocumentEdit])
+          codeActions.append(CodeAction(title: "Fix \(diagnostic.message)", kind: CodeActionKind.quickFix, edit: workspaceEdit))
+        }
       }
     }
     req.reply(codeActions)
