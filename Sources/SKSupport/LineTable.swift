@@ -139,11 +139,7 @@ extension LineTable {
       return nil
     }
     let lineSlice = self[line]
-    guard utf16Column <= content.utf16.distance(from: lineSlice.startIndex, to: lineSlice.endIndex) else {
-      // Column out of range.
-      return nil
-    }
-    return content.utf16.index(lineSlice.startIndex, offsetBy: utf16Column)
+    return content.utf16.index(lineSlice.startIndex, offsetBy: utf16Column, limitedBy: lineSlice.endIndex)
   }
 
   /// Returns UTF8 buffer offset of given logical position.
@@ -181,11 +177,10 @@ extension LineTable {
       return nil
     }
     let lineSlice = self[line]
-    guard utf8Column <= content.utf8.distance(from: lineSlice.startIndex, to: lineSlice.endIndex) else {
+    guard let targetIndex = content.utf8.index(lineSlice.startIndex, offsetBy: utf8Column, limitedBy: lineSlice.endIndex) else {
       // Column out of range
       return nil
     }
-    let targetIndex = content.utf8.index(lineSlice.startIndex, offsetBy: utf8Column)
     return content.utf16.distance(from: lineSlice.startIndex, to: targetIndex)
   }
 }
