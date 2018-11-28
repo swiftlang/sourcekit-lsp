@@ -31,10 +31,10 @@
         "vscode-languageclient": "^4.0.0"
     },
     "devDependencies": {
+        "@types/node": "^8.10.25",
         "typescript": "^2.6.1",
-        "vscode": "^1.1.21",
-        "vsce": "^1.52.0",
-        "@types/node": "^8.10.25"
+        "vsce": "^1.53.2",
+        "vscode": "^1.1.22"
     },
     "contributes": {
         "configuration": {
