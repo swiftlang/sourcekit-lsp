@@ -52,7 +52,7 @@ SourceKit-LSP as soon as you open a Swift file:
 
 
 ```sh
-(lldb) process attach --name sourcekit-lsp --waitfor
+$ lldb -w -n sourcekit-lsp
 ```
 
 If you are using the Xcode project, go to Debug, Attach to Process by PID or Name.
