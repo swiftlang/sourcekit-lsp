@@ -59,7 +59,7 @@ If you are using the Xcode project, go to Debug, Attach to Process by PID or Nam
 
 ### Print SourceKit Logs
 
-You can configure SourceKit-LSP to print log information from SourceKit to stdout by setting the following environment variable:
+You can configure SourceKit-LSP to print log information from SourceKit to stderr by setting the following environment variable:
 
 ```sh
 SOURCEKIT_LOGGING="N"
