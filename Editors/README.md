@@ -68,6 +68,10 @@ You will need the path to the `sourcekit-lsp` executable and the Swift toolchain
 }
 ```
 
+## Emacs
+
+There is an Emacs client for SourceKit-LSP in the [main Emacs LSP repository](https://github.com/emacs-lsp/lsp-sourcekit).
+
 ## Other Editors
 
 SourceKit-LSP should work with any editor that supports the [Language Server Protocol](https://microsoft.github.io/language-server-protocol/)
