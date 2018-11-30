@@ -220,6 +220,73 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertNotEqual(after, selfDot)
   }
 
+  func testFoldingRanges() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    sk.allowUnexpectedNotification = true
+
+    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: url,
+      language: .swift,
+      version: 12,
+      text:
+    """
+    struct S {
+      //c1
+      //c2
+      /*
+       c3
+      */
+      var abc: Int
+
+      func test(a: Int) {
+        guard a > 0 else { return }
+        self.abc = a
+      }
+    }
+    """)))
+
+    let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url: url))
+    let ranges = try! sk.sendSync(request)!
+
+    XCTAssertEqual(ranges.count, 6)
+
+    let c1Range = ranges[0]
+    XCTAssertEqual(c1Range.startLine, 1)
+    XCTAssertEqual(c1Range.endLine, 1)
+    XCTAssertEqual(c1Range.startCharacter, 13)
+    XCTAssertEqual(c1Range.endCharacter, 17)
+
+    let c2Range = ranges[1]
+    XCTAssertEqual(c2Range.startLine, 2)
+    XCTAssertEqual(c2Range.endLine, 2)
+    XCTAssertEqual(c2Range.startCharacter, 20)
+    XCTAssertEqual(c2Range.endCharacter, 24)
+
+    let c3Range = ranges[2]
+    XCTAssertEqual(c3Range.startLine, 3)
+    XCTAssertEqual(c3Range.endLine, 5)
+    XCTAssertEqual(c3Range.startCharacter, 27)
+    XCTAssertEqual(c3Range.endCharacter, 39)
+
+    let structRange = ranges[3]
+    XCTAssertEqual(structRange.startLine, 0)
+    XCTAssertEqual(structRange.endLine, 12)
+    XCTAssertEqual(structRange.startCharacter, 10)
+    XCTAssertEqual(structRange.endCharacter, 132)
+
+    let methodRange = ranges[4]
+    XCTAssertEqual(methodRange.startLine, 8)
+    XCTAssertEqual(methodRange.endLine, 11)
+    XCTAssertEqual(methodRange.startCharacter, 78)
+    XCTAssertEqual(methodRange.endCharacter, 130)
+
+    let guardRange = ranges[5]
+    XCTAssertEqual(guardRange.startLine, 9)
+    XCTAssertEqual(guardRange.endLine, 9)
+    XCTAssertEqual(guardRange.startCharacter, 101)
+    XCTAssertEqual(guardRange.endCharacter, 109)
+  }
+
   func testXMLToMarkdownDeclaration() {
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Declaration>func foo(_ bar: <Type usr="fake">Baz</Type>)</Declaration>

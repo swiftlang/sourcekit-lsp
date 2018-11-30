@@ -67,6 +67,7 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceRequest(SourceKitServer.definition)
     registerWorkspaceRequest(SourceKitServer.references)
     registerWorkspaceRequest(SourceKitServer.documentSymbolHighlight)
+    registerWorkspaceRequest(SourceKitServer.foldingRange)
     registerWorkspaceRequest(SourceKitServer.symbolInfo)
   }
 
@@ -249,7 +250,8 @@ extension SourceKitServer {
       hoverProvider: true,
       definitionProvider: true,
       referencesProvider: true,
-      documentHighlightProvider: true
+      documentHighlightProvider: true,
+      foldingRangeProvider: true
     )))
   }
 
@@ -324,6 +326,10 @@ extension SourceKitServer {
   }
 
   func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>, workspace: Workspace) {
+    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  }
+
+  func foldingRange(_ req: Request<FoldingRangeRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }
 

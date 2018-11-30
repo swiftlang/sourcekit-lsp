@@ -58,6 +58,7 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.completion)
     _register(SwiftLanguageServer.hover)
     _register(SwiftLanguageServer.documentSymbolHighlight)
+    _register(SwiftLanguageServer.foldingRange)
     _register(SwiftLanguageServer.symbolInfo)
   }
 
@@ -514,6 +515,81 @@ extension SwiftLanguageServer {
       }
 
       req.reply(highlights)
+    }
+
+    // FIXME: cancellation
+    _ = handle
+  }
+
+  func foldingRange(_ req: Request<FoldingRangeRequest>) {
+
+    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
+      log("failed to find snapshot for url \(req.params.textDocument.url)")
+      req.reply(nil)
+      return
+    }
+
+    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
+    skreq[keys.request] = requests.editor_open
+    skreq[keys.name] = "IBSwiftAnnotationProvider:" + snapshot.document.url.path
+    skreq[keys.sourcetext] = snapshot.text
+    skreq[keys.syntactic_only] = 1
+
+    let handle = sourcekitd.send(skreq) { [weak self] result in
+      guard let self = self else { return }
+      guard let dict = result.success else {
+        req.reply(.failure(result.failure!))
+        return
+      }
+
+      guard let syntaxMap: SKResponseArray = dict[self.keys.syntaxmap],
+            let substructure: SKResponseArray = dict[self.keys.substructure] else {
+        return req.reply([])
+      }
+
+      var ranges: [FoldingRange] = []
+
+      syntaxMap.forEach { _, value in
+        if let kind: sourcekitd_uid_t = value[self.keys.kind],
+           kind == self.values.syntaxtype_comment,
+           let offset: Int = value[self.keys.offset],
+           let start: Position = snapshot.positionOf(utf8Offset: offset),
+           let length: Int = value[self.keys.length],
+           // SourceKit marks the end of a comment as the first non-comment character
+           // after it, so we subtract one to get the real comment range.
+           let end: Position = snapshot.positionOf(utf8Offset: offset + length - 1) {
+          let range = FoldingRange(startLine: start.line,
+                                   startCharacter: offset,
+                                   endLine: end.line,
+                                   endCharacter: offset + length - 1,
+                                   kind: .comment)
+          ranges.append(range)
+        }
+        return true
+      }
+
+      var structureStack: [SKResponseArray] = [substructure]
+      while let substructure = structureStack.popLast() {
+        substructure.forEach { _, value in
+          if let offset: Int = value[self.keys.bodyoffset],
+             let length: Int = value[self.keys.bodylength],
+             length > 0,
+             let start: Position = snapshot.positionOf(utf8Offset: offset),
+             let end: Position = snapshot.positionOf(utf8Offset: offset + length) {
+            let range = FoldingRange(startLine: start.line,
+                                     startCharacter: offset,
+                                     endLine: end.line,
+                                     endCharacter: offset + length)
+            ranges.append(range)
+          }
+          if let substructure: SKResponseArray = value[self.keys.substructure] {
+            structureStack.append(substructure)
+          }
+          return true
+        }
+      }
+
+      req.reply(ranges)
     }
 
     // FIXME: cancellation
