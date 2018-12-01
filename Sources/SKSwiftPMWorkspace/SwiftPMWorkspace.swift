@@ -358,13 +358,7 @@ extension ToolchainRegistry {
       extraCCFlags: [],
       extraSwiftCFlags: [],
       extraCPPFlags: [],
-      dynamicLibraryExtension: {
-        if case .darwin? = Platform.currentPlatform {
-          return "dylib"
-        } else {
-          return "so"
-        }
-      }()
+      dynamicLibraryExtension: Platform.currentPlatform?.dynamicLibraryExtension ?? "so"
     )
   }
 }

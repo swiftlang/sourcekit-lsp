@@ -110,12 +110,3 @@ public final class Toolchain {
     return foundAny
   }
 }
-
-extension Platform {
-  var dynamicLibraryExtension: String {
-    switch self {
-    case .darwin: return "dylib"
-    case .linux(_): return "so"
-    }
-  }
-}
