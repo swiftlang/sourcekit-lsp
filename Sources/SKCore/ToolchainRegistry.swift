@@ -172,36 +172,6 @@ extension ToolchainRegistry {
     }
   }
 
-  /// Returns the Info.plist contents from the xctoolchain at `path`, or nil.
-  func readXCToolchainPlist(fromDirectory path: AbsolutePath) throws -> XCToolchainPlist {
-    let plistNames = [
-      RelativePath("ToolchainInfo.plist"), // Xcode
-      RelativePath("Info.plist"), // Swift.org
-    ]
-
-#if os(macOS)
-    for name in plistNames {
-      let plistPath = path.appending(name)
-      if fs.isFile(plistPath) {
-        let bytes = try fs.readFileContents(plistPath)
-        return bytes.withUnsafeData { data in
-          var format = PropertyListSerialization.PropertyListFormat.binary
-          do {
-            return try PropertyListDecoder().decode(XCToolchainPlist.self, from: data, format: &format)
-          } catch {
-            // Error!
-            fatalError(error.localizedDescription)
-          }
-        }
-      }
-    }
-#else
-    fatalError("readXCToolchainPlist not implemented")
-#endif
-
-    throw FileSystemError.noEntry
-  }
-
   /// Register an xctoolchain at the given `path` if we have not seen a toolchain with this identifier before.
   ///
   /// - returns: `false` if this toolchain identifier has already been seen.
@@ -210,7 +180,7 @@ extension ToolchainRegistry {
   public func registerXCToolchain(at path: AbsolutePath) throws -> Bool {
     return try queue.sync {
 
-      let infoPlist = try readXCToolchainPlist(fromDirectory: path)
+      let infoPlist = try XCToolchainPlist(fromDirectory: path, fileSystem: fs)
 
       // If we have seen this identifier before, we keep the first one.
       if _toolchains[infoPlist.identifier] == nil {
@@ -223,37 +193,4 @@ extension ToolchainRegistry {
   }
 }
 
-/// A helper type for decoding the Info.plist or ToolchainInfo.plist file from a .xctoolchain.
-struct XCToolchainPlist {
-  var identifier: String
-  var displayName: String?
-}
 
-extension XCToolchainPlist: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case Identifier
-    case CFBundleIdentifier
-    case DisplayName
-  }
-
-  init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    if let identifier = try container.decodeIfPresent(String.self, forKey: .Identifier) {
-      self.identifier = identifier
-    } else {
-      self.identifier = try container.decode(String.self, forKey: .CFBundleIdentifier)
-    }
-    self.displayName = try container.decodeIfPresent(String.self, forKey: .DisplayName)
-  }
-
-  /// Encode the info plist. **For testing**.
-  func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    if identifier.starts(with: "com.apple") {
-      try container.encode(identifier, forKey: .Identifier)
-    } else {
-      try container.encode(identifier, forKey: .CFBundleIdentifier)
-    }
-    try container.encodeIfPresent(displayName, forKey: .DisplayName)
-  }
-}
