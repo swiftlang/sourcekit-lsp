@@ -87,12 +87,7 @@ public final class ToolchainRegistry {
 
   @discardableResult
   func scanForToolchain(path: AbsolutePath) -> Toolchain? {
-    if let toolchain = Toolchain(
-      identifier: path.asString,
-      displayName: path.basename,
-      searchForTools: path,
-      fileSystem: fs)
-    {
+    if let toolchain = Toolchain(path: path, fileSystem: fs) {
       registerToolchain(toolchain)
       return toolchain
     }
@@ -165,30 +160,9 @@ extension ToolchainRegistry {
     }
     for name in contents {
       let path = toolchains.appending(component: name)
-      if path.extension == "xctoolchain" {
-        // Ignore failure.
-        _ = try? registerXCToolchain(at: path)
+      if path.extension == "xctoolchain", let toolchain = Toolchain(path: path, fileSystem: fs) {
+        registerToolchain(toolchain)
       }
-    }
-  }
-
-  /// Register an xctoolchain at the given `path` if we have not seen a toolchain with this identifier before.
-  ///
-  /// - returns: `false` if this toolchain identifier has already been seen.
-  /// - throws: An error if there is a problem reading the Info.plist or loading the toolchain.
-  @discardableResult
-  public func registerXCToolchain(at path: AbsolutePath) throws -> Bool {
-    return try queue.sync {
-
-      let infoPlist = try XCToolchainPlist(fromDirectory: path, fileSystem: fs)
-
-      // If we have seen this identifier before, we keep the first one.
-      if _toolchains[infoPlist.identifier] == nil {
-        let displayName = infoPlist.displayName ?? String(path.basename.dropLast(path.suffix?.count ?? 0))
-        self._toolchains[infoPlist.identifier] = Toolchain(identifier: infoPlist.identifier, displayName: displayName, xctoolchainPath: path, fileSystem: fs)
-        return true
-      }
-      return false
     }
   }
 }

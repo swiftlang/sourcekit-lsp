@@ -63,7 +63,7 @@ final class ToolchainRegistryTests: XCTestCase {
     let binPath = AbsolutePath("/foo/bar/my_toolchain/bin")
     makeToolchain(binPath)
 
-    guard let t = Toolchain(identifier: "a", displayName: "b", searchForTools: binPath, fileSystem: fs) else {
+    guard let t = Toolchain(path: binPath, fileSystem: fs) else {
       XCTFail("could not find any tools")
       return
     }
@@ -137,6 +137,12 @@ final class ToolchainRegistryTests: XCTestCase {
 
     tr.scanForToolchains()
     XCTAssertEqual(tr.toolchains.count, 5)
+
+    let path = toolchains.appending(component: "Explicit.xctoolchain")
+    makeToolchain("org.fake.explicit", false, path)
+    let tc = Toolchain(path: path, fileSystem: fs)
+    XCTAssertNotNil(tc)
+    XCTAssertEqual(tc?.identifier, "org.fake.explicit")
 #endif
   }
 
@@ -226,7 +232,7 @@ final class ToolchainRegistryTests: XCTestCase {
     try! fs.writeFileContents(path.appending(components: "bin", "other") , bytes: "")
     try! fs.writeFileContents(path.appending(components: "lib", "sourcekitd.framework", "sourcekitd") , bytes: "")
 
-    let t1 = Toolchain(identifier: "a", displayName: "b", xctoolchainPath: path.parentDirectory, fileSystem: fs)
+    let t1 = Toolchain(path: path.parentDirectory, fileSystem: fs)!
     XCTAssertNotNil(t1.sourcekitd)
     XCTAssertNil(t1.clang)
     XCTAssertNil(t1.clangd)
@@ -241,7 +247,7 @@ final class ToolchainRegistryTests: XCTestCase {
     chmodRX(path.appending(components: "bin", "swiftc"))
     chmodRX(path.appending(components: "bin", "other"))
 
-    let t2 = Toolchain(identifier: "a", displayName: "b", xctoolchainPath: path.parentDirectory, fileSystem: fs)
+    let t2 = Toolchain(path: path.parentDirectory, fileSystem: fs)!
     XCTAssertNotNil(t2.sourcekitd)
     XCTAssertNotNil(t2.clang)
     XCTAssertNotNil(t2.clangd)
@@ -263,7 +269,7 @@ final class ToolchainRegistryTests: XCTestCase {
     let binPath = AbsolutePath("/foo/bar/my_toolchain/bin")
     makeToolchain(binPath)
 
-    guard let t = Toolchain(identifier: "a", displayName: "b", searchForTools: binPath, fileSystem: fs) else {
+    guard let t = Toolchain(path: binPath, fileSystem: fs) else {
       XCTFail("could not find any tools")
       return
     }
@@ -283,16 +289,16 @@ final class ToolchainRegistryTests: XCTestCase {
     makeToolchain(AbsolutePath("/t1/bin"))
     makeToolchain(AbsolutePath("/t2/usr/bin"))
 
-    XCTAssertNotNil(Toolchain(identifier: "a", displayName: "b", searchForTools: AbsolutePath("/t1"), fileSystem: fs))
-    XCTAssertNotNil(Toolchain(identifier: "a", displayName: "b", searchForTools: AbsolutePath("/t1/bin"), fileSystem: fs))
-    XCTAssertNotNil(Toolchain(identifier: "a", displayName: "b", searchForTools: AbsolutePath("/t2"), fileSystem: fs))
+    XCTAssertNotNil(Toolchain(path: AbsolutePath("/t1"), fileSystem: fs))
+    XCTAssertNotNil(Toolchain(path: AbsolutePath("/t1/bin"), fileSystem: fs))
+    XCTAssertNotNil(Toolchain(path: AbsolutePath("/t2"), fileSystem: fs))
 
-    XCTAssertNil(Toolchain(identifier: "a", displayName: "b", searchForTools: AbsolutePath("/t3"), fileSystem: fs))
+    XCTAssertNil(Toolchain(path: AbsolutePath("/t3"), fileSystem: fs))
     try! fs.createDirectory(AbsolutePath("/t3/bin"), recursive: true)
     try! fs.createDirectory(AbsolutePath("/t3/lib/sourcekitd.framework"), recursive: true)
-    XCTAssertNil(Toolchain(identifier: "a", displayName: "b", searchForTools: AbsolutePath("/t3"), fileSystem: fs))
+    XCTAssertNil(Toolchain(path: AbsolutePath("/t3"), fileSystem: fs))
     makeToolchain(AbsolutePath("/t3/bin"))
-    XCTAssertNotNil(Toolchain(identifier: "a", displayName: "b", searchForTools: AbsolutePath("/t3"), fileSystem: fs))
+    XCTAssertNotNil(Toolchain(path: AbsolutePath("/t3"), fileSystem: fs))
   }
 
   static var allTests = [
