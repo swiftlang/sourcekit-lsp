@@ -44,7 +44,7 @@ public final class SourceKitServer: LanguageServer {
   public init(client: Connection, fileSystem: FileSystem = localFileSystem, onExit: @escaping () -> () = {}) {
 
     self.fs = fileSystem
-    self.toolchainRegistry = ToolchainRegistry(fileSystem: fs)
+    self.toolchainRegistry = ToolchainRegistry.shared
     self.onExit = onExit
 
     super.init(client: client)
@@ -119,7 +119,9 @@ public final class SourceKitServer: LanguageServer {
   }
 
   func toolchain(for url: URL, language: Language) -> Toolchain? {
-    if let id = workspace?.buildSettings.settings(for: url, language: language)?.preferredToolchain, let toolchain = toolchainRegistry.toolchains[id] {
+    if let id = workspace?.buildSettings.settings(for: url, language: language)?.preferredToolchain,
+       let toolchain = toolchainRegistry.toolchain(identifier:id)
+    {
       return toolchain
     }
 
@@ -139,7 +141,7 @@ public final class SourceKitServer: LanguageServer {
       return toolchain
     }
 
-    for toolchain in toolchainRegistry.toolchains.values {
+    for toolchain in toolchainRegistry.toolchains {
       if supportsLang(toolchain) {
         return toolchain
       }
@@ -204,9 +206,6 @@ extension SourceKitServer {
   // MARK: - General
 
   func initialize(_ req: Request<InitializeRequest>) {
-
-    toolchainRegistry.scanForToolchains()
-
     if let url = req.params.rootURL {
       self.workspace = try? Workspace(
         url: url,

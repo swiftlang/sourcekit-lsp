@@ -10,51 +10,115 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKSupport
 import Basic
 import Utility
 
+/// A Toolchain is a collection of related compilers and libraries meant to be used together to
+/// build and edit source code.
+///
+/// This can be an explicit toolchain, such as an xctoolchain directory on Darwin, or an implicit
+/// toolchain, such as the contents from `/usr/bin`.
 public final class Toolchain {
 
+  /// The unique toolchain identifer.
+  ///
+  /// For an xctoolchain, this is a reverse domain name e.g. "com.apple.dt.toolchain.XcodeDefault".
+  /// Otherwise, it is typically derived from `path`.
   public var identifier: String
+
+  /// The human-readable name for the toolchain.
   public var displayName: String
+
+  /// The path to this toolchain, if applicable.
+  ///
+  /// For example, this may be the path to an ".xctoolchain" directory.
   public var path: AbsolutePath? = nil
 
+  // MARK: Tool Paths
+
+  /// The path to the Clang compiler if available.
   public var clang: AbsolutePath?
+
+  /// The path to the Swift compiler if available.
   public var swiftc: AbsolutePath?
+
+  /// The path to the clangd language server if available.
   public var clangd: AbsolutePath?
+
+  /// The path to the Swift language server if available.
   public var sourcekitd: AbsolutePath?
+
+  /// The path to the indexstore library if available.
   public var libIndexStore: AbsolutePath?
 
-  public init(identifier: String, displayName: String, path: AbsolutePath?) {
+  public init(
+    identifier: String,
+    displayName: String,
+    path: AbsolutePath? = nil,
+    clang: AbsolutePath? = nil,
+    swiftc: AbsolutePath? = nil,
+    clangd: AbsolutePath? = nil,
+    sourcekitd: AbsolutePath? = nil,
+    libIndexStore: AbsolutePath? = nil)
+  {
     self.identifier = identifier
     self.displayName = displayName
     self.path = path
+    self.clang = clang
+    self.swiftc = swiftc
+    self.clangd = clangd
+    self.sourcekitd = sourcekitd
+    self.libIndexStore = libIndexStore
   }
+}
 
-  public convenience init?(
-    identifier: String,
-    displayName: String,
-    searchForTools path: AbsolutePath,
-    fileSystem fs: FileSystem = localFileSystem)
-  {
-    self.init(identifier: identifier, displayName: displayName, path: path)
-    if !searchForTools(path: path, fileSystem: fs) {
+extension Toolchain {
+
+  /// Create a toolchain for the given path, if it contains at least one tool, otherwise return nil.
+  ///
+  /// This initializer looks for a toolchain using the following basic layout:
+  ///
+  /// ```
+  /// bin/clang
+  ///    /clangd
+  ///    /swiftc
+  /// lib/sourcekitd.framework/sourcekitd
+  ///    /libsourcekitdInProc.{so,dylib}
+  ///    /libIndexStore.{so,dylib}
+  /// ```
+  ///
+  /// The above directory layout can found relative to `path` in the following ways:
+  /// * `path` (=bin), `path/../lib`
+  /// * `path/bin`, `path/lib`
+  /// * `path/usr/bin`, `path/usr/lib`
+  ///
+  /// If `path` has an ".xctoolchain" extension, we try to read an Info.plist file to provide the
+  /// toolchain identifier, etc.  Otherwise this information is derived from the path.
+  convenience public init?(_ path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) {
+    if path.extension == "xctoolchain",
+       let infoPlist = orLog("", {
+         try XCToolchainPlist(fromDirectory: path, fileSystem) })
+    {
+      self.init(
+        identifier: infoPlist.identifier,
+        displayName:
+          infoPlist.displayName ?? String(path.basename.dropLast(path.suffix?.count ?? 0)),
+        path: path)
+    } else {
+      self.init(
+        identifier: path.asString,
+        displayName: path.basename,
+        path: path)
+    }
+
+    if !searchForTools(path, fileSystem) {
       return nil
     }
   }
 
-  public convenience init(
-    identifier: String,
-    displayName: String,
-    xctoolchainPath path: AbsolutePath,
-    fileSystem fs: FileSystem = localFileSystem
-  ) {
-    self.init(identifier: identifier, displayName: displayName, path: path)
-    _  = searchForTools(path: path, fileSystem: fs)
-  }
-
   /// Search `path` for tools, returning true if any are found.
-  func searchForTools(path: AbsolutePath, fileSystem fs: FileSystem = localFileSystem) -> Bool {
+  func searchForTools(_ path: AbsolutePath, _ fs: FileSystem = localFileSystem) -> Bool {
     return
       searchForTools(binPath: path, fs) ||
       searchForTools(binPath: path.appending(components: "bin"), fs) ||
@@ -108,14 +172,5 @@ public final class Toolchain {
     }
 
     return foundAny
-  }
-}
-
-extension Platform {
-  var dynamicLibraryExtension: String {
-    switch self {
-    case .darwin: return "dylib"
-    case .linux(_): return "so"
-    }
   }
 }

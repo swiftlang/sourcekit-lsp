@@ -348,7 +348,7 @@ extension ToolchainRegistry {
       return nil
     }
 
-    guard let clang = base.clang ?? toolchains.values.first(where: { $0.clang != nil })?.clang else { return nil }
+    guard let clang = base.clang ?? toolchains.first(where: { $0.clang != nil })?.clang else { return nil }
 
     return SwiftPMToolchain(
       swiftCompiler: base.swiftc!,
@@ -358,13 +358,7 @@ extension ToolchainRegistry {
       extraCCFlags: [],
       extraSwiftCFlags: [],
       extraCPPFlags: [],
-      dynamicLibraryExtension: {
-        if case .darwin? = Platform.currentPlatform {
-          return "dylib"
-        } else {
-          return "so"
-        }
-      }()
+      dynamicLibraryExtension: Platform.currentPlatform?.dynamicLibraryExtension ?? "so"
     )
   }
 }
