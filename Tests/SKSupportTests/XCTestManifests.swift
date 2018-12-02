@@ -11,6 +11,7 @@ extension SupportTests {
         ("testLineTable", testLineTable),
         ("testLineTableAppendPerf", testLineTableAppendPerf),
         ("testLineTableEditing", testLineTableEditing),
+        ("testLineTableLinePositionTranslation", testLineTableLinePositionTranslation),
         ("testLineTableSingleCharEditPerf", testLineTableSingleCharEditPerf),
         ("testLogging", testLogging),
         ("testResultEquality", testResultEquality),
