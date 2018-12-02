@@ -95,10 +95,10 @@ extension Toolchain {
   ///
   /// If `path` has an ".xctoolchain" extension, we try to read an Info.plist file to provide the
   /// toolchain identifier, etc.  Otherwise this information is derived from the path.
-  convenience public init?(path: AbsolutePath, fileSystem: FileSystem = localFileSystem) {
+  convenience public init?(_ path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) {
     if path.extension == "xctoolchain",
        let infoPlist = orLog("", {
-         try XCToolchainPlist(fromDirectory: path, fileSystem: fileSystem) })
+         try XCToolchainPlist(fromDirectory: path, fileSystem) })
     {
       self.init(
         identifier: infoPlist.identifier,
@@ -112,13 +112,13 @@ extension Toolchain {
         path: path)
     }
 
-    if !searchForTools(path: path, fileSystem: fileSystem) {
+    if !searchForTools(path, fileSystem) {
       return nil
     }
   }
 
   /// Search `path` for tools, returning true if any are found.
-  func searchForTools(path: AbsolutePath, fileSystem fs: FileSystem = localFileSystem) -> Bool {
+  func searchForTools(_ path: AbsolutePath, _ fs: FileSystem = localFileSystem) -> Bool {
     return
       searchForTools(binPath: path, fs) ||
       searchForTools(binPath: path.appending(components: "bin"), fs) ||

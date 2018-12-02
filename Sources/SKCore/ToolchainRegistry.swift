@@ -87,7 +87,7 @@ public final class ToolchainRegistry {
 
   @discardableResult
   func scanForToolchain(path: AbsolutePath) -> Toolchain? {
-    if let toolchain = Toolchain(path: path, fileSystem: fs) {
+    if let toolchain = Toolchain(path, fs) {
       registerToolchain(toolchain)
       return toolchain
     }
@@ -160,7 +160,7 @@ extension ToolchainRegistry {
     }
     for name in contents {
       let path = toolchains.appending(component: name)
-      if path.extension == "xctoolchain", let toolchain = Toolchain(path: path, fileSystem: fs) {
+      if path.extension == "xctoolchain", let toolchain = Toolchain(path, fs) {
         registerToolchain(toolchain)
       }
     }

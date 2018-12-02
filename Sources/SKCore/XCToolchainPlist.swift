@@ -34,7 +34,7 @@ extension XCToolchainPlist {
   ///
   /// - parameter path: The directory to search.
   /// - throws: If there is not plist file or it cannot be read.
-  init(fromDirectory path: AbsolutePath, fileSystem: FileSystem = localFileSystem) throws {
+  init(fromDirectory path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
 #if os(macOS)
     let plistNames = [
       RelativePath("ToolchainInfo.plist"), // Xcode
@@ -43,7 +43,7 @@ extension XCToolchainPlist {
 
     for plistPath in plistNames.lazy.map({ path.appending($0) }) {
       if fileSystem.isFile(plistPath) {
-        try self.init(path: plistPath, fileSystem: fileSystem)
+        try self.init(path: plistPath, fileSystem)
         return
       }
     }
@@ -57,7 +57,7 @@ extension XCToolchainPlist {
   /// Returns the plist contents from the xctoolchain at `path`.
   ///
   /// - parameter path: The directory to search.
-  init(path: AbsolutePath, fileSystem: FileSystem = localFileSystem) throws {
+  init(path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
 #if os(macOS)
     let bytes = try fileSystem.readFileContents(path)
     self = try bytes.withUnsafeData { data in
