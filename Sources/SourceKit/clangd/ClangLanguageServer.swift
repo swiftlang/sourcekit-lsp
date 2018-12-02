@@ -106,7 +106,13 @@ func makeJSONRPCClangServer(client: MessageHandler, clangd: AbsolutePath, buildS
   connection.start(receiveHandler: shim)
 
   let process = Foundation.Process()
-  process.launchPath = clangd.asString
+
+  if #available(OSX 10.13, *) {
+    process.executableURL = clangd.asURL
+  } else {
+    process.launchPath = clangd.asString
+  }
+
   process.arguments = [
     "-compile_args_from=lsp", // Provide compiler args programmatically.
   ]
@@ -117,7 +123,11 @@ func makeJSONRPCClangServer(client: MessageHandler, clangd: AbsolutePath, buildS
     connection.close()
   }
 
-  process.launch()
+  if #available(OSX 10.13, *) {
+    try process.run()
+  } else {
+    process.launch()
+  }
 
   return connectionToShim
 }
