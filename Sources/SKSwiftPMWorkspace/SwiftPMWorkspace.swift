@@ -74,7 +74,6 @@ public final class SwiftPMWorkspace {
     // FIXME: duplicating code from UserToolchain setup in swiftpm.
     var sdkpath: AbsolutePath? = nil
     var platformPath: AbsolutePath? = nil
-    let target: Triple = Triple.hostTriple
     if case .darwin? = Platform.currentPlatform {
       if let path = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx") {
         sdkpath = try? AbsolutePath(validating: path.spm_chomp())
@@ -84,8 +83,8 @@ public final class SwiftPMWorkspace {
       }
     }
 
-    var extraSwiftFlags = ["-target", target.tripleString]
-    var extraClangFlags = ["-arch", target.arch.rawValue]
+    var extraSwiftFlags: [String] = []
+    var extraClangFlags: [String] = []
     if let sdkpath = sdkpath {
       extraSwiftFlags += [
         "-sdk", sdkpath.asString

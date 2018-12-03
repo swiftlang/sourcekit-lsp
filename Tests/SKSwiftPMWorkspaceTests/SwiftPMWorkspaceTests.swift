@@ -49,6 +49,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       "-emit-module", "-emit-module-path", arguments: arguments)
     check("-parse-as-library", "-c", arguments: arguments)
 
+    check("-target", arguments: arguments) // Only one!
 #if os(macOS)
     check("-target", "x86_64-apple-macosx10.10", arguments: arguments)
     check("-sdk", arguments: arguments)
@@ -170,10 +171,14 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       arguments: arguments)
     check("-std=c++14", arguments: arguments)
 
-    check("-arch", "x86_64", arguments: arguments)
+    checkNot("-arch", arguments: arguments)
+    check("-target", arguments: arguments) // Only one!
 #if os(macOS)
+    check("-target", "x86_64-apple-macosx10.10", arguments: arguments)
     check("-isysroot", arguments: arguments)
     check("-F", arguments: arguments)
+#else
+    check("-target", "x86_64-unknown-linux", arguments: arguments)
 #endif
 
     check("-I", packageRoot.appending(components: "Sources", "lib", "include").asString, arguments: arguments)
