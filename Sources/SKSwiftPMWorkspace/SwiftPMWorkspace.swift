@@ -74,7 +74,6 @@ public final class SwiftPMWorkspace {
     // FIXME: duplicating code from UserToolchain setup in swiftpm.
     var sdkpath: AbsolutePath? = nil
     var platformPath: AbsolutePath? = nil
-    let target: Triple = Triple.hostTriple
     if case .darwin? = Platform.currentPlatform {
       if let path = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx") {
         sdkpath = try? AbsolutePath(validating: path.spm_chomp())
@@ -84,8 +83,8 @@ public final class SwiftPMWorkspace {
       }
     }
 
-    var extraSwiftFlags = ["-target", target.tripleString]
-    var extraClangFlags = ["-arch", target.arch.rawValue]
+    var extraSwiftFlags: [String] = []
+    var extraClangFlags: [String] = []
     if let sdkpath = sdkpath {
       extraSwiftFlags += [
         "-sdk", sdkpath.asString
@@ -344,16 +343,23 @@ extension ToolchainRegistry {
 
   /// A toolchain appropriate for using to load swiftpm manifests.
   fileprivate var swiftpmHost: SwiftPMToolchain? {
-    guard let base = self.default, base.swiftc != nil else {
+    var swiftc: AbsolutePath? = self.default?.swiftc
+    var clang: AbsolutePath? = self.default?.clang
+    if swiftc == nil {
+      swiftc = toolchains.first(where: { $0.swiftc != nil })?.swiftc
+    }
+    if clang == nil {
+      clang = toolchains.first(where: { $0.clang != nil })?.clang
+    }
+
+    if swiftc == nil || clang == nil {
       return nil
     }
 
-    guard let clang = base.clang ?? toolchains.first(where: { $0.clang != nil })?.clang else { return nil }
-
     return SwiftPMToolchain(
-      swiftCompiler: base.swiftc!,
-      clangCompiler: clang,
-      libDir: base.swiftc!.parentDirectory.parentDirectory.appending(components: "lib", "swift", "pm"),
+      swiftCompiler: swiftc!,
+      clangCompiler: clang!,
+      libDir: swiftc!.parentDirectory.parentDirectory.appending(components: "lib", "swift", "pm"),
       sdkRoot: nil,
       extraCCFlags: [],
       extraSwiftCFlags: [],
