@@ -344,16 +344,23 @@ extension ToolchainRegistry {
 
   /// A toolchain appropriate for using to load swiftpm manifests.
   fileprivate var swiftpmHost: SwiftPMToolchain? {
-    guard let base = self.default, base.swiftc != nil else {
+    var swiftc: AbsolutePath? = self.default?.swiftc
+    var clang: AbsolutePath? = self.default?.clang
+    if swiftc == nil {
+      swiftc = toolchains.first(where: { $0.swiftc != nil })?.swiftc
+    }
+    if clang == nil {
+      clang = toolchains.first(where: { $0.clang != nil })?.clang
+    }
+
+    if swiftc == nil || clang == nil {
       return nil
     }
 
-    guard let clang = base.clang ?? toolchains.first(where: { $0.clang != nil })?.clang else { return nil }
-
     return SwiftPMToolchain(
-      swiftCompiler: base.swiftc!,
-      clangCompiler: clang,
-      libDir: base.swiftc!.parentDirectory.parentDirectory.appending(components: "lib", "swift", "pm"),
+      swiftCompiler: swiftc!,
+      clangCompiler: clang!,
+      libDir: swiftc!.parentDirectory.parentDirectory.appending(components: "lib", "swift", "pm"),
       sdkRoot: nil,
       extraCCFlags: [],
       extraSwiftCFlags: [],

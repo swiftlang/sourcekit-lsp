@@ -38,6 +38,9 @@ let package = Package(
       .target(
         name: "SKSwiftPMWorkspace",
         dependencies: ["SwiftPM", "SKCore"]),
+      .testTarget(
+        name: "SKSwiftPMWorkspaceTests",
+        dependencies: ["SKSwiftPMWorkspace", "SKTestSupport"]),
 
       // Csourcekitd: C modules wrapper for sourcekitd.
       .target(
