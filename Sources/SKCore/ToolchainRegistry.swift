@@ -36,6 +36,14 @@ public final class ToolchainRegistry {
   /// Mutex for registering and accessing toolchains.
   var queue: DispatchQueue = DispatchQueue(label: "toolchain-registry-queue")
 
+  /// The currently selected toolchain identifier on Darwin.
+  public internal(set) lazy var darwinToolchainOverride: String? = {
+    if let id = getenv("TOOLCHAINS"), !id.isEmpty, id != "default" {
+      return id
+    }
+    return nil
+  }()
+
   /// Creates an empty toolchain registry.
   public init() {}
 }
@@ -75,16 +83,16 @@ extension ToolchainRegistry {
 
   /// The default toolchain.
   ///
-  /// On Darwin, this is typically the toolchain with the identifier
-  /// `darwinDefaultToolchainIdentifier`, i.e. the default toolchain of the active Xcode. Otherwise
-  /// it is the first toolchain that was registered, if any.
+  /// On Darwin, this is typically the toolchain with the identifier `darwinToolchainIdentifier`,
+  /// i.e. the default toolchain of the active Xcode. Otherwise it is the first toolchain that was
+  /// registered, if any.
   ///
   /// The default toolchain must be only of the registered toolchains.
   public var `default`: Toolchain? {
     get {
       return queue.sync {
         if _default == nil {
-          if let tc = toolchainIdentifiers[ToolchainRegistry.darwinDefaultToolchainIdentifier] {
+          if let tc = toolchainIdentifiers[darwinToolchainIdentifier] {
             _default = tc
           } else {
             _default = _toolchains.first
@@ -108,10 +116,16 @@ extension ToolchainRegistry {
   }
 
   /// The standard default toolchain identifier on Darwin.
+  public static let darwinDefaultToolchainIdentifier: String = "com.apple.dt.toolchain.XcodeDefault"
+
+  /// The current toolchain identifier on Darwin, which is either specified byt the `TOOLCHAINS`
+  /// environment variable, or defaults to `darwinDefaultToolchainIdentifier`.
   ///
   /// The value of `default.identifier` may be different if the default toolchain has been
-  /// explicitly overridden, or if there is no toolchain with this identifier.
-  public static let darwinDefaultToolchainIdentifier: String = "com.apple.dt.toolchain.XcodeDefault"
+  /// explicitly overridden in code, or if there is no toolchain with this identifier.
+  public var darwinToolchainIdentifier: String {
+    return darwinToolchainOverride ?? ToolchainRegistry.darwinDefaultToolchainIdentifier
+  }
 
   /// All toolchains, in the order they were added.
   public var toolchains: [Toolchain] {

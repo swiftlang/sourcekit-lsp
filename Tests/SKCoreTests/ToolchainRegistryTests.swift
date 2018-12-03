@@ -37,6 +37,7 @@ final class ToolchainRegistryTests: XCTestCase {
     Platform.currentPlatform = .darwin
 
     let tr = ToolchainRegistry()
+    tr.darwinToolchainOverride = nil
     XCTAssertNil(tr.default)
     let a = Toolchain(identifier: "a", displayName: "a", path: nil)
     try! tr.registerToolchain(a)
@@ -69,6 +70,7 @@ final class ToolchainRegistryTests: XCTestCase {
 #if os(macOS)
     let fs = InMemoryFileSystem()
     let tr1 = ToolchainRegistry(fs)
+    tr1.darwinToolchainOverride = nil
 
     let xcodeDeveloper = ToolchainRegistry.currentXcodeDeveloperPath!
     let toolchains = xcodeDeveloper.appending(components: "Toolchains")
@@ -90,6 +92,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertEqual(tr1.toolchains.count, 1)
 
     let tr = ToolchainRegistry(fs)
+    tr.darwinToolchainOverride = nil
 
     XCTAssertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
     XCTAssertEqual(tr.default?.path, toolchains.appending(component: "XcodeDefault.xctoolchain"))
@@ -161,6 +164,11 @@ final class ToolchainRegistryTests: XCTestCase {
     let tc = Toolchain(path, fs)
     XCTAssertNotNil(tc)
     XCTAssertEqual(tc?.identifier, "org.fake.explicit")
+
+    let overrideReg = ToolchainRegistry(fs)
+    overrideReg.darwinToolchainOverride = "org.fake.global.B"
+    XCTAssertEqual(overrideReg.darwinToolchainIdentifier, "org.fake.global.B")
+    XCTAssertEqual(overrideReg.default?.identifier, "org.fake.global.B")
 #endif
   }
 

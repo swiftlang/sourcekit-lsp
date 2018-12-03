@@ -187,6 +187,37 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     checkNot(bcxx.asString, arguments: arguments)
     check("-o", build.appending(components: "lib.build", "a.cpp.o").asString, arguments: arguments)
   }
+
+  func testDeploymentTargetSwift() {
+    // FIXME: should be possible to use InMemoryFileSystem.
+    let fs = localFileSystem
+    let tempDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
+    try! fs.createFiles(root: tempDir.path, files: [
+      "pkg/Sources/lib/a.swift": "",
+      "pkg/Package.swift": """
+          // swift-tools-version:5.0
+          import PackageDescription
+          let package = Package(name: "a",
+            platforms: [.macOS(.v10_13)],
+            products: [], dependencies: [],
+            targets: [.target(name: "lib", dependencies: [])])
+          """
+    ])
+    let packageRoot = tempDir.path.appending(component: "pkg")
+    let ws = try! SwiftPMWorkspace(
+      workspacePath: packageRoot,
+      toolchainRegistry: ToolchainRegistry.shared,
+      fileSystem: fs)!
+
+    let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
+    let arguments = ws.settings(for: aswift.asURL, language: .swift)!.compilerArguments
+    check("-target", arguments: arguments) // Only one!
+#if os(macOS)
+    check("-target", "x86_64-apple-macosx10.13", arguments: arguments)
+#else
+    check("-target", "x86_64-unknown-linux", arguments: arguments)
+#endif
+  }
 }
 
 private func checkNot(
