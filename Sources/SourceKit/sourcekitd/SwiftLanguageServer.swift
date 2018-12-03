@@ -328,7 +328,7 @@ extension SwiftLanguageServer {
 
       var result = CompletionList(isIncomplete: false, items: [])
 
-      let cancelled = !completions.forEach({ (i, value) -> Bool in
+      let cancelled = !completions.forEach { (i, value) -> Bool in
         // Check for cancellation periodically when there are many results.
         if i % 100 == 0, req.isCancelled {
           req.reply(LSPResult.failure(.cancelled))
@@ -357,7 +357,7 @@ extension SwiftLanguageServer {
         ))
 
         return true
-      })
+      }
 
       if !cancelled {
         req.reply(result)
