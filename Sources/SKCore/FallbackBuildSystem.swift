@@ -14,14 +14,17 @@ import LanguageServerProtocol
 import Basic
 import enum Utility.Platform
 
-/// A simple build settings provider suitable as a fallback when accurate settings are unknown.
-public final class FallbackBuildSettingsProvider: BuildSystem {
+/// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
+public final class FallbackBuildSystem: BuildSystem {
 
+  /// The path to the SDK.
   lazy var sdkpath: AbsolutePath? = {
-    if case .darwin? = Platform.currentPlatform {
-      if let str = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx"), let path = try? AbsolutePath(validating: str.spm_chomp()) {
-        return path
-      }
+    if case .darwin? = Platform.currentPlatform,
+       let str = try? Process.checkNonZeroExit(
+         args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx"),
+       let path = try? AbsolutePath(validating: str.spm_chomp())
+    {
+      return path
     }
     return nil
   }()

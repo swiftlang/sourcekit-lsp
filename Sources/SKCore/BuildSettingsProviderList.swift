@@ -18,7 +18,7 @@ public final class BuildSettingsProviderList {
 
   /// The build settings providers to try (in order).
   public var providers: [BuildSystem] = [
-    FallbackBuildSettingsProvider()
+    FallbackBuildSystem()
   ]
 
   public init() {}
