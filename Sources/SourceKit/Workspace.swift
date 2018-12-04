@@ -69,7 +69,7 @@ public final class Workspace {
 
     self.rootPath = try AbsolutePath(validating: url.path)
     self.clientCapabilities = clientCapabilities
-    let settings = BuildSettingsProviderList()
+    let settings = BuildSystemList()
     self.buildSettings = settings
 
     settings.providers.insert(CompilationDatabaseBuildSystem(projectRoot: rootPath), at: 0)

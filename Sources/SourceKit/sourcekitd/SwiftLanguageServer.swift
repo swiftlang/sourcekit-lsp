@@ -576,7 +576,7 @@ func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buil
   let server = try SwiftLanguageServer(
     client: connectionToClient,
     sourcekitd: sourcekitd,
-    buildSystem: buildSettings ?? BuildSettingsProviderList()
+    buildSystem: buildSettings ?? BuildSystemList()
   )
 
   connectionToSK.start(handler: server)

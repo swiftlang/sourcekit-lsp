@@ -13,10 +13,10 @@
 import Basic
 import LanguageServerProtocol
 
-/// Provides build settings from a list of providers in priority order.
-public final class BuildSettingsProviderList {
+/// Provides build settings from a list of build systems in priority order.
+public final class BuildSystemList {
 
-  /// The build settings providers to try (in order).
+  /// The build systems to try (in order).
   public var providers: [BuildSystem] = [
     FallbackBuildSystem()
   ]
@@ -24,7 +24,7 @@ public final class BuildSettingsProviderList {
   public init() {}
 }
 
-extension BuildSettingsProviderList: BuildSystem {
+extension BuildSystemList: BuildSystem {
 
   public var indexStorePath: AbsolutePath? { return providers.first?.indexStorePath }
 

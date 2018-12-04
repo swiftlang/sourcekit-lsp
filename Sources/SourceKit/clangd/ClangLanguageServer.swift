@@ -98,7 +98,7 @@ func makeJSONRPCClangServer(client: MessageHandler, clangd: AbsolutePath, buildS
   let shim = try ClangLanguageServerShim(
     client: connectionToClient,
     clangd: connection,
-    buildSystem: buildSettings ?? BuildSettingsProviderList()
+    buildSystem: buildSettings ?? BuildSystemList()
   )
 
   connectionToShim.start(handler: shim)
