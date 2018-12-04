@@ -42,7 +42,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
     XCTAssertEqual(ws.buildPath, packageRoot.appending(components: ".build", "debug"))
     XCTAssertNotNil(ws.indexStorePath)
-    let arguments = ws.settings(for: aswift.asURL, language: .swift)!.compilerArguments
+    let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
 
     check(
       "-module-name", "lib", "-incremental", "-emit-dependencies",
@@ -87,10 +87,10 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
     let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
 
-    let argumentsA = ws.settings(for: aswift.asURL, language: .swift)!.compilerArguments
+    let argumentsA = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
     check(aswift.asString, arguments: argumentsA)
     check(bswift.asString, arguments: argumentsA)
-    let argumentsB = ws.settings(for: aswift.asURL, language: .swift)!.compilerArguments
+    let argumentsB = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
     check(aswift.asString, arguments: argumentsB)
     check(bswift.asString, arguments: argumentsB)
   }
@@ -124,12 +124,12 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
     let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
     let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
-    let arguments = ws.settings(for: aswift.asURL, language: .swift)!.compilerArguments
+    let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
     check(aswift.asString, arguments: arguments)
     checkNot(bswift.asString, arguments: arguments)
     check("-I", packageRoot.appending(components: "Sources", "libC", "include").asString, arguments: arguments)
 
-    let argumentsB = ws.settings(for: bswift.asURL, language: .swift)!.compilerArguments
+    let argumentsB = ws.settings(for: bswift.asURL, .swift)!.compilerArguments
     check(bswift.asString, arguments: argumentsB)
     checkNot(aswift.asString, arguments: argumentsB)
     checkNot("-I", packageRoot.appending(components: "Sources", "libC", "include").asString, arguments: argumentsB)
@@ -164,7 +164,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
     XCTAssertEqual(ws.buildPath, build)
     XCTAssertNotNil(ws.indexStorePath)
-    let arguments = ws.settings(for: acxx.asURL, language: .cpp)!.compilerArguments
+    let arguments = ws.settings(for: acxx.asURL, .cpp)!.compilerArguments
 
     check("-MD", "-MT", "dependencies",
       "-MF", build.appending(components: "lib.build", "a.cpp.d").asString,
@@ -210,7 +210,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       fileSystem: fs)!
 
     let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-    let arguments = ws.settings(for: aswift.asURL, language: .swift)!.compilerArguments
+    let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
     check("-target", arguments: arguments) // Only one!
 #if os(macOS)
     check("-target", "x86_64-apple-macosx10.13", arguments: arguments)
