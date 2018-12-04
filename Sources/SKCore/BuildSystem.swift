@@ -11,9 +11,23 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import Basic
 
-/// Provider of build settings.
+/// Provider of FileBuildSettings and other build-related information.
+///
+/// The primary role of the build system is to answer queries for FileBuildSettings and (TODO) to
+/// notify clients when they change. The BuildSystem is also the source of related informatino,
+/// such as where the index datastore is located.
+///
+/// For example, a SwiftPMWorkspace provides compiler arguments for the files contained in a
+/// SwiftPM package root directory.
 public protocol BuildSystem {
+
+  /// The path to the raw index store data, if any.
+  var indexStorePath: AbsolutePath? { get }
+
+  /// The path to put the index database, if any.
+  var indexDatabasePath: AbsolutePath? { get }
 
   /// Returns the settings for the given url and language mode, if known.
   func settings(for: URL, _ language: Language) -> FileBuildSettings?

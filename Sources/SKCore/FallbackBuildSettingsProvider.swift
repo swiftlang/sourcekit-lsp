@@ -26,6 +26,10 @@ public final class FallbackBuildSettingsProvider: BuildSystem {
     return nil
   }()
 
+  public var indexStorePath: AbsolutePath? { return nil }
+
+  public var indexDatabasePath: AbsolutePath? { return nil }
+
   public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
     guard let path = try? AbsolutePath(validating: url.path) else {
       return nil

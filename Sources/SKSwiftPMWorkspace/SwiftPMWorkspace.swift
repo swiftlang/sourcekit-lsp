@@ -162,9 +162,7 @@ public final class SwiftPMWorkspace {
   }
 }
 
-extension SwiftPMWorkspace: ExternalWorkspace, BuildSystem {
-
-  public var buildSystem: BuildSystem { return self }
+extension SwiftPMWorkspace: BuildSystem {
 
   public var buildPath: AbsolutePath {
     return buildParameters.buildPath

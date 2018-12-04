@@ -228,7 +228,6 @@ extension SourceKitServer {
       self.workspace = Workspace(
         rootPath: nil,
         clientCapabilities: req.params.capabilities,
-        external: nil,
         buildSettings: BuildSettingsProviderList(),
         index: nil
       )

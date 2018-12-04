@@ -17,7 +17,7 @@ import LanguageServerProtocol
 ///
 /// Provides build settings from a `CompilationDatabase` found by searching a project. For now, only
 /// one compilation database, located at the project root.
-public final class CompilationDatabaseBuildSystem: BuildSystem {
+public final class CompilationDatabaseBuildSystem {
 
   /// The compilation database.
   var compdb: CompilationDatabase? = nil
@@ -30,6 +30,13 @@ public final class CompilationDatabaseBuildSystem: BuildSystem {
       self.compdb = tryLoadCompilationDatabase(directory: path, fileSystem: fileSystem)
     }
   }
+}
+
+extension CompilationDatabaseBuildSystem: BuildSystem {
+
+  // FIXME: derive from the compiler arguments.
+  public var indexStorePath: AbsolutePath? { return nil }
+  public var indexDatabasePath: AbsolutePath? { return nil }
 
   public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
     guard let db = database(for: url),

@@ -23,9 +23,7 @@ import SKSwiftPMWorkspace
 /// In LSP, this represents the per-workspace state that is typically only available after the
 /// "initialize" request has been made.
 ///
-/// Typically a workspace is contained in a root directory, and may be represented by an
-/// `ExternalWorkspace` if this workspace is part of a workspace in another tool such as a swiftpm
-/// package.
+/// Typically a workspace is contained in a root directory.
 public final class Workspace {
 
   /// The root directory of the workspace.
@@ -33,13 +31,7 @@ public final class Workspace {
 
   public let clientCapabilities: ClientCapabilities
 
-  /// The external workspace connection, if any.
-  public let external: ExternalWorkspace?
-
   /// The build settings provider to use for documents in this workspace.
-  ///
-  /// If `external` is not `nil`, this will typically include `external.buildSystem`. It may also
-  /// provide settings for files outside the workspace using additional providers.
   public let buildSettings: BuildSystem
 
   /// The source code index, if available.
@@ -54,13 +46,11 @@ public final class Workspace {
   public init(
     rootPath: AbsolutePath?,
     clientCapabilities: ClientCapabilities,
-    external: ExternalWorkspace?,
     buildSettings: BuildSystem,
     index: IndexStoreDB?)
   {
     self.rootPath = rootPath
     self.clientCapabilities = clientCapabilities
-    self.external = external
     self.buildSettings = buildSettings
     self.index = index
   }
@@ -79,21 +69,17 @@ public final class Workspace {
 
     self.rootPath = try AbsolutePath(validating: url.path)
     self.clientCapabilities = clientCapabilities
-    self.external = SwiftPMWorkspace(url: url, toolchainRegistry: toolchainRegistry)
-
     let settings = BuildSettingsProviderList()
     self.buildSettings = settings
 
     settings.providers.insert(CompilationDatabaseBuildSystem(projectRoot: rootPath), at: 0)
 
-    guard let external = self.external else {
-      return
+    if let swiftpm = SwiftPMWorkspace(url: url, toolchainRegistry: toolchainRegistry) {
+      settings.providers.insert(swiftpm, at: 0)
     }
 
-    settings.providers.insert(external.buildSystem, at: 0)
-
-    if let storePath = external.indexStorePath,
-       let dbPath = external.indexDatabasePath,
+    if let storePath = buildSettings.indexStorePath,
+       let dbPath = buildSettings.indexDatabasePath,
        let libPath = toolchainRegistry.default?.libIndexStore
     {
       do {
