@@ -129,8 +129,9 @@ public final class SwiftPMWorkspace {
 
     // FIXME: the rest of this should be done asynchronously.
 
-    // FIXME: connect to logging?
-    let diags = DiagnosticsEngine()
+    let diags = DiagnosticsEngine(handlers: [{ diag in
+      log(diag.localizedDescription, level: diag.behavior.asLogLevel)
+    }])
 
     self.packageGraph = self.workspace.loadPackageGraph(root: PackageGraphRootInput(packages: [packageRoot]), diagnostics: diags)
 
@@ -397,5 +398,15 @@ public final class BuildSettingProviderWorkspaceDelegate: WorkspaceDelegate {
   }
 
   public func managedDependenciesDidUpdate(_ dependencies: AnySequence<ManagedDependency>) {
+  }
+}
+
+extension Basic.Diagnostic.Behavior {
+  var asLogLevel: LogLevel {
+    switch self {
+    case .error: return .error
+    case .warning: return .warning
+    default: return .info
+    }
   }
 }
