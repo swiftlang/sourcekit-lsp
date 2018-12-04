@@ -21,7 +21,7 @@ public final class SwiftLanguageServer: LanguageServer {
 
   let sourcekitd: SwiftSourceKitFramework
 
-  let buildSettingsProvider: BuildSettingsProvider
+  let buildSystem: BuildSystem
 
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
@@ -34,10 +34,10 @@ public final class SwiftLanguageServer: LanguageServer {
   var values: sourcekitd_values { return sourcekitd.values }
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, sourcekitd: AbsolutePath, buildSettingsProvider: BuildSettingsProvider, onExit: @escaping () -> () = {}) throws {
+  public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, onExit: @escaping () -> () = {}) throws {
 
     self.sourcekitd = try SwiftSourceKitFramework(dylib: sourcekitd)
-    self.buildSettingsProvider = buildSettingsProvider
+    self.buildSystem = buildSystem
     self.documentManager = DocumentManager()
     self.onExit = onExit
     super.init(client: client)
@@ -220,7 +220,7 @@ extension SwiftLanguageServer {
     req[keys.name] = note.params.textDocument.url.path
     req[keys.sourcetext] = snapshot.text
 
-    if let settings = buildSettingsProvider.settings(for: snapshot.document.url, language: snapshot.document.language) {
+    if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
       req[keys.compilerargs] = settings.compilerArguments
     }
 
@@ -308,7 +308,7 @@ extension SwiftLanguageServer {
     skreq[keys.sourcefile] = snapshot.document.url.path
     skreq[keys.sourcetext] = snapshot.text
 
-    if let settings = buildSettingsProvider.settings(for: snapshot.document.url, language: snapshot.document.language) {
+    if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
       skreq[keys.compilerargs] = settings.compilerArguments
     }
 
@@ -432,7 +432,7 @@ extension SwiftLanguageServer {
     skreq[keys.sourcefile] = snapshot.document.url.path
 
     // FIXME: should come from the internal document
-    if let settings = buildSettingsProvider.settings(for: snapshot.document.url, language: snapshot.document.language) {
+    if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
       skreq[keys.compilerargs] = settings.compilerArguments
     }
 
@@ -510,7 +510,7 @@ extension SwiftLanguageServer {
     skreq[keys.sourcefile] = snapshot.document.url.path
 
     // FIXME: should come from the internal document
-    if let settings = buildSettingsProvider.settings(for: snapshot.document.url, language: snapshot.document.language) {
+    if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
       skreq[keys.compilerargs] = settings.compilerArguments
     }
 
@@ -568,7 +568,7 @@ extension DocumentSnapshot {
   }
 }
 
-func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buildSettings: BuildSettingsProvider?) throws -> Connection {
+func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buildSettings: BuildSystem?) throws -> Connection {
 
   let connectionToSK = LocalConnection()
   let connectionToClient = LocalConnection()
@@ -576,7 +576,7 @@ func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buil
   let server = try SwiftLanguageServer(
     client: connectionToClient,
     sourcekitd: sourcekitd,
-    buildSettingsProvider: buildSettings ?? BuildSettingsProviderList()
+    buildSystem: buildSettings ?? BuildSettingsProviderList()
   )
 
   connectionToSK.start(handler: server)

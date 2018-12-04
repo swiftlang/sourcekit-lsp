@@ -15,7 +15,7 @@ import Basic
 import enum Utility.Platform
 
 /// A simple build settings provider suitable as a fallback when accurate settings are unknown.
-public final class FallbackBuildSettingsProvider: BuildSettingsProvider {
+public final class FallbackBuildSettingsProvider: BuildSystem {
 
   lazy var sdkpath: AbsolutePath? = {
     if case .darwin? = Platform.currentPlatform {
@@ -26,22 +26,22 @@ public final class FallbackBuildSettingsProvider: BuildSettingsProvider {
     return nil
   }()
 
-  public func settings(for url: URL, language: Language) -> FileBuildSettings? {
+  public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
     guard let path = try? AbsolutePath(validating: url.path) else {
       return nil
     }
 
     switch language {
     case .swift:
-      return settingsSwift(path: path)
+      return settingsSwift(path)
     case .c, .cpp, .objective_c, .objective_cpp:
-      return settingsClang(path: path, language: language)
+      return settingsClang(path, language)
     default:
       return nil
     }
   }
 
-  func settingsSwift(path: AbsolutePath) -> FileBuildSettings {
+  func settingsSwift(_ path: AbsolutePath) -> FileBuildSettings {
     var args: [String] = []
     if let sdkpath = sdkpath {
       args += [
@@ -53,7 +53,7 @@ public final class FallbackBuildSettingsProvider: BuildSettingsProvider {
     return FileBuildSettings(preferredToolchain: nil, compilerArguments: args)
   }
 
-  func settingsClang(path: AbsolutePath, language: Language) -> FileBuildSettings {
+  func settingsClang(_ path: AbsolutePath, _ language: Language) -> FileBuildSettings {
     var args: [String] = []
     if let sdkpath = sdkpath {
       args += [

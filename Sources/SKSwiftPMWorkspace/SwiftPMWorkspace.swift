@@ -40,7 +40,7 @@ public final class SwiftPMWorkspace {
   var fileToTarget: [AbsolutePath: TargetBuildDescription] = [:]
   var sourceDirToTarget: [AbsolutePath: TargetBuildDescription] = [:]
 
-  /// Creates a `BuildSettingsProvider` using the Swift Package Manager, if this workspace is part of a package.
+  /// Creates a `BuildSystem` using the Swift Package Manager, if this workspace is part of a package.
   ///
   /// - returns: nil if `workspacePath` is not part of a package or there is an error.
   public convenience init?(url: LanguageServerProtocol.URL, toolchainRegistry: ToolchainRegistry) {
@@ -52,7 +52,7 @@ public final class SwiftPMWorkspace {
     }
   }
 
-  /// Creates a `BuildSettingsProvider` using the Swift Package Manager, if this workspace is part of a package.
+  /// Creates a `BuildSystem` using the Swift Package Manager, if this workspace is part of a package.
   ///
   /// - returns: nil if `workspacePath` is not part of a package.
   /// - throws: If there is an error loading the package.
@@ -162,9 +162,9 @@ public final class SwiftPMWorkspace {
   }
 }
 
-extension SwiftPMWorkspace: ExternalWorkspace, BuildSettingsProvider {
+extension SwiftPMWorkspace: ExternalWorkspace, BuildSystem {
 
-  public var buildSystem: BuildSettingsProvider { return self }
+  public var buildSystem: BuildSystem { return self }
 
   public var buildPath: AbsolutePath {
     return buildParameters.buildPath
@@ -178,13 +178,16 @@ extension SwiftPMWorkspace: ExternalWorkspace, BuildSettingsProvider {
     return buildPath.appending(components: "index", "db")
   }
 
-  public func settings(for url: LanguageServerProtocol.URL, language: Language) -> FileBuildSettings? {
+  public func settings(
+    for url: LanguageServerProtocol.URL,
+    _ language: Language) -> FileBuildSettings?
+  {
     guard let path = try? AbsolutePath(validating: url.path) else {
       return nil
     }
 
     if let td = self.fileToTarget[path] {
-      return settings(for: path, language: language, targetDescription: td)
+      return settings(for: path, language, td)
     }
 
     if path.basename == "Package.swift" {
@@ -192,7 +195,7 @@ extension SwiftPMWorkspace: ExternalWorkspace, BuildSettingsProvider {
     }
 
     if path.extension == "h" {
-      return settings(forHeader: path, language: language)
+      return settings(forHeader: path, language)
     }
 
     return nil
@@ -205,8 +208,8 @@ extension SwiftPMWorkspace {
 
   public func settings(
     for path: AbsolutePath,
-    language: Language,
-    targetDescription td: TargetBuildDescription
+    _ language: Language,
+    _ td: TargetBuildDescription
   ) -> FileBuildSettings? {
 
     let buildPath = self.buildPath
@@ -314,11 +317,11 @@ extension SwiftPMWorkspace {
     return nil
   }
 
-  public func settings(forHeader path: AbsolutePath, language: Language) -> FileBuildSettings? {
+  public func settings(forHeader path: AbsolutePath, _ language: Language) -> FileBuildSettings? {
     var dir = path.parentDirectory
     while !dir.isRoot {
       if let td = sourceDirToTarget[dir] {
-        return settings(for: path, language: language, targetDescription: td)
+        return settings(for: path, language, td)
       }
       dir = dir.parentDirectory
     }

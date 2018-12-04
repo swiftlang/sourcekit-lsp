@@ -19,7 +19,7 @@ import Basic
 public protocol ExternalWorkspace {
 
   /// The build system, providing access to compiler arguments.
-  var buildSystem: BuildSettingsProvider { get }
+  var buildSystem: BuildSystem { get }
 
   /// The path to the raw index store data, if any.
   var indexStorePath: AbsolutePath? { get }

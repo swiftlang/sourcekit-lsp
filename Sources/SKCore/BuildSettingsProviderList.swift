@@ -13,18 +13,18 @@
 import LanguageServerProtocol
 
 /// Provides build settings from a list of providers in priority order.
-public final class BuildSettingsProviderList: BuildSettingsProvider {
+public final class BuildSettingsProviderList: BuildSystem {
 
   /// The build settings providers to try (in order).
-  public var providers: [BuildSettingsProvider] = [
+  public var providers: [BuildSystem] = [
     FallbackBuildSettingsProvider()
   ]
 
   public init() {}
 
-  public func settings(for url: URL, language: Language) -> FileBuildSettings? {
+  public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
     for provider in providers {
-      if let settings = provider.settings(for: url, language: language) {
+      if let settings = provider.settings(for: url, language) {
         return settings
       }
     }

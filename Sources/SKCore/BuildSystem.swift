@@ -13,10 +13,10 @@
 import LanguageServerProtocol
 
 /// Provider of build settings.
-public protocol BuildSettingsProvider {
+public protocol BuildSystem {
 
   /// Returns the settings for the given url and language mode, if known.
-  func settings(for: URL, language: Language) -> FileBuildSettings?
+  func settings(for: URL, _ language: Language) -> FileBuildSettings?
 
   // TODO: notifications when settings change.
 }

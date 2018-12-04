@@ -40,7 +40,7 @@ public final class Workspace {
   ///
   /// If `external` is not `nil`, this will typically include `external.buildSystem`. It may also
   /// provide settings for files outside the workspace using additional providers.
-  public let buildSettings: BuildSettingsProvider
+  public let buildSettings: BuildSystem
 
   /// The source code index, if available.
   public var index: IndexStoreDB? = nil
@@ -55,7 +55,7 @@ public final class Workspace {
     rootPath: AbsolutePath?,
     clientCapabilities: ClientCapabilities,
     external: ExternalWorkspace?,
-    buildSettings: BuildSettingsProvider,
+    buildSettings: BuildSystem,
     index: IndexStoreDB?)
   {
     self.rootPath = rootPath

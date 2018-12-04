@@ -118,8 +118,8 @@ public final class SourceKitServer: LanguageServer {
     client.send(note.params)
   }
 
-  func toolchain(for url: URL, language: Language) -> Toolchain? {
-    if let id = workspace?.buildSettings.settings(for: url, language: language)?.preferredToolchain,
+  func toolchain(for url: URL, _ language: Language) -> Toolchain? {
+    if let id = workspace?.buildSettings.settings(for: url, language)?.preferredToolchain,
        let toolchain = toolchainRegistry.toolchain(identifier:id)
     {
       return toolchain
@@ -150,7 +150,7 @@ public final class SourceKitServer: LanguageServer {
     return nil
   }
 
-  func languageService(for toolchain: Toolchain, language: Language) -> Connection? {
+  func languageService(for toolchain: Toolchain, _ language: Language) -> Connection? {
     let key = LanguageServiceKey(toolchain: toolchain.identifier, language: language)
     if let service = languageService[key] {
       return service
@@ -158,7 +158,7 @@ public final class SourceKitServer: LanguageServer {
 
     // Start a new service.
     return orLog("failed to start language service", level: .error) {
-      guard let service = try SourceKit.languageService(for: toolchain, language: language, client: self) else {
+      guard let service = try SourceKit.languageService(for: toolchain, language, client: self) else {
         return nil
       }
 
@@ -183,12 +183,14 @@ public final class SourceKitServer: LanguageServer {
     }
   }
 
-  func languageService(for url: URL, language: Language, workspace: Workspace) -> Connection? {
+  func languageService(for url: URL, _ language: Language, in workspace: Workspace) -> Connection? {
     if let service = workspace.documentService[url] {
       return service
     }
 
-    guard let toolchain = toolchain(for: url, language: language), let service = languageService(for: toolchain, language: language) else {
+    guard let toolchain = toolchain(for: url, language),
+          let service = languageService(for: toolchain, language)
+    else {
       return nil
     }
 
@@ -274,7 +276,7 @@ extension SourceKitServer {
   func openDocument(_ note: Notification<DidOpenTextDocument>, workspace: Workspace) {
     workspace.documentManager.open(note)
 
-    if let service = languageService(for: note.params.textDocument.url, language: note.params.textDocument.language, workspace: workspace) {
+    if let service = languageService(for: note.params.textDocument.url, note.params.textDocument.language, in: workspace) {
       service.send(note.params)
     }
   }
@@ -448,11 +450,16 @@ extension SourceKitServer {
   }
 }
 
-/// Creates a new connection from `client` to a service for `language` if available, and launches the service. Does *not* send the initialization request.
+/// Creates a new connection from `client` to a service for `language` if available, and launches
+/// the service. Does *not* send the initialization request.
 ///
 /// - returns: The connection, if a suitable language service is available; otherwise nil.
 /// - throws: If there is a suitable service but it fails to launch, throws an error.
-public func languageService(for toolchain: Toolchain, language: Language, client: MessageHandler) throws -> Connection? {
+public func languageService(
+  for toolchain: Toolchain,
+  _ language: Language,
+  client: MessageHandler) throws -> Connection?
+{
   switch language {
 
   case .c, .cpp, .objective_c, .objective_cpp:
