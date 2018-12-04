@@ -58,13 +58,10 @@ public protocol CompilationDatabase {
 /// Loads the compilation database located in `directory`, if any.
 public func tryLoadCompilationDatabase(
   directory: AbsolutePath,
-  fileSystem: FileSystem = localFileSystem
+  _ fileSystem: FileSystem = localFileSystem
 ) -> CompilationDatabase? {
-
-  return orLog("could not open compilation database for \(directory.asString)", level: .error) {
-    try JSONCompilationDatabase(directory: directory, fileSystem: fileSystem)
-  }
   // TODO: Support fixed compilation database (compile_flags.txt).
+  return try? JSONCompilationDatabase(directory: directory, fileSystem)
 }
 
 /// The JSON clang-compatible compilation database.
@@ -128,7 +125,7 @@ extension JSONCompilationDatabase: Codable {
 }
 
 extension JSONCompilationDatabase {
-  public init(directory: AbsolutePath, fileSystem: FileSystem = localFileSystem) throws {
+  public init(directory: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
     let path = directory.appending(component: "compile_commands.json")
     let bytes = try fileSystem.readFileContents(path)
     try bytes.withUnsafeData { data in
