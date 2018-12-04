@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKSupport
 import Basic
 import LanguageServerProtocol
 
@@ -27,7 +28,7 @@ public final class CompilationDatabaseBuildSystem: BuildSettingsProvider {
   public init(projectRoot: AbsolutePath? = nil, fileSystem: FileSystem = localFileSystem) {
     self.fileSystem = fileSystem
     if let path = projectRoot {
-      self.compdb = tryLoadCompilationDatabase(directory: path, fileSystem: fileSystem)
+      self.compdb = tryLoadCompilationDatabase(directory: path, fileSystem)
     }
   }
 
@@ -53,12 +54,17 @@ public final class CompilationDatabaseBuildSystem: BuildSettingsProvider {
       var dir = path
       while !dir.isRoot {
         dir = dir.parentDirectory
-        if let db = tryLoadCompilationDatabase(directory: dir, fileSystem: fileSystem) {
+        if let db = tryLoadCompilationDatabase(directory: dir, fileSystem) {
           compdb = db
           break
         }
       }
     }
+
+    if compdb == nil {
+      log("could not open compilation database for \(path.asString)", level: .warning)
+    }
+
     return compdb
   }
 }
