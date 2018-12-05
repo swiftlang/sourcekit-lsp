@@ -39,24 +39,34 @@ public struct FoldingRange: ResponseType, Hashable {
 
   /// The zero-based character offset from where the folded range starts.
   /// If not defined, defaults to the length of the start line.
-  public var startCharacter: Int?
+  public var utf16startIndex: Int?
 
   /// The zero-based line number where the folded range ends.
   public var endLine: Int
 
   /// The zero-based character offset before the folded range ends.
   /// If not defined, defaults to the length of the end line.
-  public var endCharacter: Int?
+  public var utf16endIndex: Int?
 
   /// Describes the kind of the folding range such as `comment' or 'region'. The kind
   /// is used to categorize folding ranges and used by commands like 'Fold all comments'.
   public var kind: FoldingRangeKind?
 
-  public init(startLine: Int, startCharacter: Int? = nil, endLine: Int, endCharacter: Int? = nil, kind: FoldingRangeKind? = nil) {
+  public init(startLine: Int, utf16startIndex: Int? = nil, endLine: Int, utf16endIndex: Int? = nil, kind: FoldingRangeKind? = nil) {
     self.startLine = startLine
-    self.startCharacter = startCharacter
+    self.utf16startIndex = utf16startIndex
     self.endLine = endLine
-    self.endCharacter = endCharacter
+    self.utf16endIndex = utf16endIndex
     self.kind = kind
+  }
+}
+
+extension FoldingRange: Codable {
+  private enum CodingKeys: String, CodingKey {
+    case startLine
+    case utf16startIndex = "startCharacter"
+    case endLine
+    case utf16endIndex = "endCharacter"
+    case kind
   }
 }

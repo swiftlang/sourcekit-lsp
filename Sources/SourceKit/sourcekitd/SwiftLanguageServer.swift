@@ -531,7 +531,7 @@ extension SwiftLanguageServer {
 
     let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.editor_open
-    skreq[keys.name] = "IBSwiftAnnotationProvider:" + snapshot.document.url.path
+    skreq[keys.name] = "FoldingRanges:" + snapshot.document.url.path
     skreq[keys.sourcetext] = snapshot.text
     skreq[keys.syntactic_only] = 1
 
@@ -559,9 +559,9 @@ extension SwiftLanguageServer {
            // after it, so we subtract one to get the real comment range.
            let end: Position = snapshot.positionOf(utf8Offset: offset + length - 1) {
           let range = FoldingRange(startLine: start.line,
-                                   startCharacter: offset,
+                                   utf16startIndex: start.utf16index,
                                    endLine: end.line,
-                                   endCharacter: offset + length - 1,
+                                   utf16endIndex: end.utf16index,
                                    kind: .comment)
           ranges.append(range)
         }
@@ -577,9 +577,9 @@ extension SwiftLanguageServer {
              let start: Position = snapshot.positionOf(utf8Offset: offset),
              let end: Position = snapshot.positionOf(utf8Offset: offset + length) {
             let range = FoldingRange(startLine: start.line,
-                                     startCharacter: offset,
+                                     utf16startIndex: start.utf16index,
                                      endLine: end.line,
-                                     endCharacter: offset + length)
+                                     utf16endIndex: end.utf16index)
             ranges.append(range)
           }
           if let substructure: SKResponseArray = value[self.keys.substructure] {

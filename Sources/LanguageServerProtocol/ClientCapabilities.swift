@@ -235,14 +235,14 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   /// Capabilities specific to `textDocument/foldingRange`.
   public struct FoldingRange: Equatable, Hashable, Codable {
 
-    /// Whether the client supports dynamic registaration of this request.
+    /// Whether the client supports dynamic registration of this request.
     public var dynamicRegistration: Bool? = nil
 
     /// The maximum number of folding ranges that the client prefers to receive per document.
     public var rangeLimit: Int? = nil
 
     /// If set, the client signals that it only supports folding complete lines. If set, client will
-    /// ignore specified `startCharacter` and `endCharacter` properties in a FoldingRange.
+    /// ignore specified `utf16startIndex` and `utf16endIndex` properties in a FoldingRange.
     public var lineFoldingOnly: Bool? = nil
   }
 

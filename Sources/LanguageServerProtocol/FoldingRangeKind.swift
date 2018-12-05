@@ -24,9 +24,9 @@ public struct FoldingRangeKind: RawRepresentable, Codable, Hashable {
   /// Folding range for a comment.
   public static let comment: FoldingRangeKind = FoldingRangeKind(rawValue: "comment")
 
-  /// Folding range for a imports or includes.
+  /// Folding range for imports or includes.
   public static let imports: FoldingRangeKind = FoldingRangeKind(rawValue: "imports")
 
-  /// Folding range for a region (e.g. `#region`).
+  /// Folding range for a region (e.g. C# `#region`).
   public static let region: FoldingRangeKind = FoldingRangeKind(rawValue: "region")
 }
