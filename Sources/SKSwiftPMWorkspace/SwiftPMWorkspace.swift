@@ -108,8 +108,10 @@ public final class SwiftPMWorkspace {
     swiftpmToolchain.extraSwiftCFlags = extraSwiftFlags
     swiftpmToolchain.extraCPPFlags = extraClangFlags
 
+    let buildPath = packageRoot.appending(component: ".build")
+
     self.workspace = Workspace(
-      dataPath: packageRoot.appending(component: ".build"),
+      dataPath: buildPath,
       editablesPath: packageRoot.appending(component: "Packages"),
       pinsFile: packageRoot.appending(component: "Package.resolved"),
       manifestLoader: ManifestLoader(manifestResources: swiftpmToolchain),
@@ -120,8 +122,10 @@ public final class SwiftPMWorkspace {
 
     // FIXME: make these configurable
 
+    let triple = Triple.hostTriple
+
     self.buildParameters = BuildParameters(
-      dataPath: packageRoot.appending(component: ".build"),
+      dataPath: buildPath.appending(component: triple.tripleString),
       configuration: .debug,
       toolchain: swiftpmToolchain,
       flags: BuildFlags()

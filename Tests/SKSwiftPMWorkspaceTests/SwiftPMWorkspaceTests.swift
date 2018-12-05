@@ -39,8 +39,9 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       fileSystem: fs)!
 
     let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
+    let build = buildPath(root: packageRoot)
 
-    XCTAssertEqual(ws.buildPath, packageRoot.appending(components: ".build", "debug"))
+    XCTAssertEqual(ws.buildPath, build)
     XCTAssertNotNil(ws.indexStorePath)
     let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
 
@@ -58,7 +59,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     check("-target", "x86_64-unknown-linux", arguments: arguments)
 #endif
 
-    check("-I", packageRoot.appending(components: ".build", "debug").asString, arguments: arguments)
+    check("-I", build.asString, arguments: arguments)
 
     check(aswift.asString, arguments: arguments)
   }
@@ -160,7 +161,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
     let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
     let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
-    let build = packageRoot.appending(components: ".build", "debug")
+    let build = buildPath(root: packageRoot)
 
     XCTAssertEqual(ws.buildPath, build)
     XCTAssertNotNil(ws.indexStorePath)
@@ -250,4 +251,12 @@ private func check(
       "pattern \(pattern) found twice (\(index), \(index2)) in \(arguments)",
       file: file, line: line)
   }
+}
+
+private func buildPath(root: AbsolutePath) -> AbsolutePath {
+  #if os(macOS)
+    return root.appending(components: ".build", "x86_64-apple-macosx", "debug")
+#else
+    return root.appending(components: ".build", "x86_64-unknown-linux", "debug")
+#endif
 }
