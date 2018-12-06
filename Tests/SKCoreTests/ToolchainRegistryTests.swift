@@ -294,15 +294,6 @@ final class ToolchainRegistryTests: XCTestCase {
     makeToolchain(binPath: AbsolutePath("/t3/bin"), fs, sourcekitd: true)
     XCTAssertNotNil(Toolchain(AbsolutePath("/t3"), fs))
   }
-
-  static var allTests = [
-    ("testDefaultBasic", testDefaultBasic),
-    ("testDefaultDarwin", testDefaultDarwin),
-    ("testUnknownPlatform", testUnknownPlatform),
-    ("testSearchDarwin", testSearchDarwin),
-    ("testSearchPATH", testSearchPATH),
-    ("testFromDirectory", testFromDirectory),
-    ]
 }
 
 #if os(macOS)

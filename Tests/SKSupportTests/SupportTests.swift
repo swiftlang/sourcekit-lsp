@@ -525,12 +525,4 @@ final class SupportTests: XCTestCase {
     XCTAssertNotEqual(AbsolutePath(expandingTilde: "~/foo").parentDirectory, .root)
     XCTAssertEqual(AbsolutePath(expandingTilde: "/foo"), AbsolutePath("/foo"))
   }
-
-  static var allTests = [
-    ("testResultEquality", testResultEquality),
-    ("testResultProjection", testResultProjection),
-    ("testIntFromAscii", testIntFromAscii),
-    ("testFindSubsequence", testFindSubsequence),
-    ("testLogging", testLogging),
-    ]
 }

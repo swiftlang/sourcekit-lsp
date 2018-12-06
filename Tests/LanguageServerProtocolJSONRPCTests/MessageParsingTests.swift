@@ -145,10 +145,4 @@ final class MessageParsingTests: XCTestCase {
 
     checkError("C\r\n", MessageDecodingError.parseError("expected ':' in message header"))
   }
-
-  static var allTests = [
-    ("testSplitMessage", testSplitMessage),
-    ("testParseHeader", testParseHeader),
-    ("testParseHeaderField", testParseHeaderField),
-  ]
 }

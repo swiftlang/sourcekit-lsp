@@ -68,10 +68,4 @@ class ConnectionPerfTests: XCTestCase {
       }
     }
   }
-
-  static var allTests = [
-    ("testEcho1", testEcho1),
-    ("testEcho100Latency", testEcho100Latency),
-    ("testEcho100Throughput", testEcho100Throughput),
-  ]
 }
