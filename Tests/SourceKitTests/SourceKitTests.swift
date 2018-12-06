@@ -52,9 +52,4 @@ final class SKTests: XCTestCase {
       XCTAssertEqual(initResult.capabilities.textDocumentSync?.openClose, true)
       XCTAssertNotNil(initResult.capabilities.completionProvider)
     }
-
-    static var allTests = [
-        ("testInitLocal", testInitLocal),
-        ("testInitJSON", testInitJSON),
-    ]
 }

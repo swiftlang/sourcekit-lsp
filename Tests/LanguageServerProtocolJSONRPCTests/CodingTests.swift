@@ -209,11 +209,6 @@ final class CodingTests: XCTestCase {
     {"jsonrpc":"2.0","id":2,"result":{}}
     """, userInfo: info)
   }
-
-  static var allTests = [
-    ("testMessageCoding", testMessageCoding),
-    ("testMessageDecodingError", testMessageDecodingError),
-    ]
 }
 
 private func checkMessageCoding<Request>(_ value: Request, id: RequestID, json: String, file: StaticString = #file, line: UInt = #line) where Request: RequestType & Equatable {

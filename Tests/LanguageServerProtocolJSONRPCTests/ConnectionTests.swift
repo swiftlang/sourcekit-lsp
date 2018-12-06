@@ -251,18 +251,4 @@ class ConnectionTests: XCTestCase {
     wait(for: [closedServer], timeout: 10)
 #endif
   }
-
-  static var allTests = [
-    ("testRound", testRound),
-    ("testEcho", testEcho),
-    ("testMessageBuffer", testMessageBuffer),
-    ("testEchoError", testEchoError),
-    ("testEchoNote", testEchoNote),
-    ("testUnknownRequest", testUnknownRequest),
-    ("testUnknownNotification", testUnknownNotification),
-    ("testUnexpectedResponse", testUnexpectedResponse),
-    ("testSendAfterClose", testSendAfterClose),
-    //("testCloseClientFD", testCloseClientFD),
-    //("testCloseServerFD", testCloseServerFD),
-    ]
 }
