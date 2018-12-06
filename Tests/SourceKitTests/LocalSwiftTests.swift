@@ -253,38 +253,38 @@ final class LocalSwiftTests: XCTestCase {
     let c1Range = ranges[0]
     XCTAssertEqual(c1Range.startLine, 1)
     XCTAssertEqual(c1Range.endLine, 1)
-    XCTAssertEqual(c1Range.utf16startIndex, 2)
-    XCTAssertEqual(c1Range.utf16endIndex, 6)
+    XCTAssertEqual(c1Range.utf16StartIndex, 2)
+    XCTAssertEqual(c1Range.utf16EndIndex, 6)
 
     let c2Range = ranges[1]
     XCTAssertEqual(c2Range.startLine, 2)
     XCTAssertEqual(c2Range.endLine, 2)
-    XCTAssertEqual(c2Range.utf16startIndex, 2)
-    XCTAssertEqual(c2Range.utf16endIndex, 6)
+    XCTAssertEqual(c2Range.utf16StartIndex, 2)
+    XCTAssertEqual(c2Range.utf16EndIndex, 6)
 
     let c3Range = ranges[2]
     XCTAssertEqual(c3Range.startLine, 3)
     XCTAssertEqual(c3Range.endLine, 5)
-    XCTAssertEqual(c3Range.utf16startIndex, 2)
-    XCTAssertEqual(c3Range.utf16endIndex, 3)
+    XCTAssertEqual(c3Range.utf16StartIndex, 2)
+    XCTAssertEqual(c3Range.utf16EndIndex, 3)
 
     let structRange = ranges[3]
     XCTAssertEqual(structRange.startLine, 0)
     XCTAssertEqual(structRange.endLine, 12)
-    XCTAssertEqual(structRange.utf16startIndex, 10)
-    XCTAssertEqual(structRange.utf16endIndex, 0)
+    XCTAssertEqual(structRange.utf16StartIndex, 10)
+    XCTAssertEqual(structRange.utf16EndIndex, 0)
 
     let methodRange = ranges[4]
     XCTAssertEqual(methodRange.startLine, 8)
     XCTAssertEqual(methodRange.endLine, 11)
-    XCTAssertEqual(methodRange.utf16startIndex, 21)
-    XCTAssertEqual(methodRange.utf16endIndex, 2)
+    XCTAssertEqual(methodRange.utf16StartIndex, 21)
+    XCTAssertEqual(methodRange.utf16EndIndex, 2)
 
     let guardRange = ranges[5]
     XCTAssertEqual(guardRange.startLine, 9)
     XCTAssertEqual(guardRange.endLine, 9)
-    XCTAssertEqual(guardRange.utf16startIndex, 22)
-    XCTAssertEqual(guardRange.utf16endIndex, 30)
+    XCTAssertEqual(guardRange.utf16StartIndex, 22)
+    XCTAssertEqual(guardRange.utf16EndIndex, 30)
   }
 
   func testXMLToMarkdownDeclaration() {

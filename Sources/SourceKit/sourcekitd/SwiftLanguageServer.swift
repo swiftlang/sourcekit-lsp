@@ -559,9 +559,9 @@ extension SwiftLanguageServer {
            // after it, so we subtract one to get the real comment range.
            let end: Position = snapshot.positionOf(utf8Offset: offset + length - 1) {
           let range = FoldingRange(startLine: start.line,
-                                   utf16startIndex: start.utf16index,
+                                   utf16StartIndex: start.utf16index,
                                    endLine: end.line,
-                                   utf16endIndex: end.utf16index,
+                                   utf16EndIndex: end.utf16index,
                                    kind: .comment)
           ranges.append(range)
         }
@@ -577,9 +577,9 @@ extension SwiftLanguageServer {
              let start: Position = snapshot.positionOf(utf8Offset: offset),
              let end: Position = snapshot.positionOf(utf8Offset: offset + length) {
             let range = FoldingRange(startLine: start.line,
-                                     utf16startIndex: start.utf16index,
+                                     utf16StartIndex: start.utf16index,
                                      endLine: end.line,
-                                     utf16endIndex: end.utf16index)
+                                     utf16EndIndex: end.utf16index)
             ranges.append(range)
           }
           if let substructure: SKResponseArray = value[self.keys.substructure] {
