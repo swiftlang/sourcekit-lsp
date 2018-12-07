@@ -335,8 +335,8 @@ extension SourceKitServer {
       return
     }
 
-    let id = service.send(HoverRequest(textDocument: req.params.textDocument, position: req.params.position), queue: queue) { result in
-      guard let hover: HoverResponse = result.success ?? nil else {
+    let id = service.send(SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position), queue: queue) { result in
+      guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
         if let error = result.failure {
           req.reply(.failure(error))
         } else {
@@ -345,9 +345,9 @@ extension SourceKitServer {
         return
       }
 
-      let fallbackLocation = [hover.definition].compactMap { $0 }
+      let fallbackLocation = [symbol.bestLocalDeclaration].compactMap { $0 }
 
-      guard let usr = hover.usr, let index = workspace.index else {
+      guard let usr = symbol.usr, let index = workspace.index else {
         return req.reply(fallbackLocation)
       }
 
@@ -390,8 +390,9 @@ extension SourceKitServer {
       return
     }
 
-    let id = service.send(HoverRequest(textDocument: req.params.textDocument, position: req.params.position), queue: queue) { result in
-      guard let hover: HoverResponse = result.success ?? nil else {
+
+    let id = service.send(SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position), queue: queue) { result in
+      guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
         if let error = result.failure {
           req.reply(.failure(error))
         } else {
@@ -400,7 +401,7 @@ extension SourceKitServer {
         return
       }
 
-      guard let usr = hover.usr, let index = workspace.index else {
+      guard let usr = symbol.usr, let index = workspace.index else {
         req.reply([])
         return
       }
