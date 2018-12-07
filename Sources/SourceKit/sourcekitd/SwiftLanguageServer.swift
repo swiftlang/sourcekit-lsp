@@ -414,81 +414,52 @@ extension SwiftLanguageServer {
   }
 
   func hover(_ req: Request<HoverRequest>) {
-
-    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
-      log("failed to find snapshot for url \(req.params.textDocument.url)")
-      req.reply(nil)
-      return
-    }
-
-    guard let offset = snapshot.utf8Offset(of: req.params.position) else {
-      log("invalid position \(req.params.position)")
-      req.reply(nil)
-      return
-    }
-
-    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
-    skreq[keys.request] = requests.cursorinfo
-    skreq[keys.offset] = offset
-    skreq[keys.sourcefile] = snapshot.document.url.path
-
-    // FIXME: should come from the internal document
-    if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
-      skreq[keys.compilerargs] = settings.compilerArguments
-    }
-
-    let handle = sourcekitd.send(skreq) { [weak self] result in
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        req.reply(.failure(result.failure!))
-        return
+    let url = req.params.textDocument.url
+    let position = req.params.position
+    cursorInfo(url, position) { result in
+      guard let cursorInfo: CursorInfo = result.success ?? nil else {
+        if let error = result.failure {
+          log("cursor info failed \(url):\(position): \(error)", level: .warning)
+        }
+        return req.reply(nil)
       }
 
-      guard let _: sourcekitd_uid_t = dict[self.keys.kind] else {
-        // Nothing to report.
-        req.reply(nil)
-        return
-      }
-
-      guard let name: String = dict[self.keys.name] else {
+      guard let name: String = cursorInfo.symbolInfo.name else {
         // There is a cursor but we don't know how to deal with it.
         req.reply(nil)
         return
       }
 
       var result = "# \(name)"
-      if let doc: String = dict[self.keys.doc_full_as_xml] {
+      if let doc = cursorInfo.documentationXML {
         result += """
 
         \(orLog { try xmlDocumentationToMarkdown(doc) } ?? doc)
         """
-      } else if let annotated: String = dict[self.keys.annotated_decl] {
+      } else if let annotated: String = cursorInfo.annotatedDeclaration {
         result += """
 
         \(orLog { try xmlDocumentationToMarkdown(annotated) } ?? annotated)
         """
       }
 
-      let usr: String? = dict[self.keys.usr]
+      req.reply(HoverResponse(contents: MarkupContent(kind: .markdown, value: result), range: nil))
+    }
+  }
 
-      var location: Location? = nil
-      if let filepath: String = dict[self.keys.filepath],
-         let offset: Int = dict[self.keys.offset],
-         let pos = snapshot.positionOf(utf8Offset: offset)
-      {
-        location = Location(url: URL(fileURLWithPath: filepath), range: Range(pos))
+  func symbolInfo(_ req: Request<SymbolInfoRequest>) {
+    let url = req.params.textDocument.url
+    let position = req.params.position
+    cursorInfo(url, position) { result in
+      guard let cursorInfo: CursorInfo = result.success ?? nil else {
+        if let error = result.failure {
+          log("cursor info failed \(url):\(position): \(error)", level: .warning)
+        }
+        return req.reply([])
       }
 
-      req.reply(HoverResponse(
-        contents: MarkupContent(kind: .markdown, value: result),
-        range: nil,
-        usr: usr,
-        definition: location
-      ))
+      req.reply([cursorInfo.symbolInfo])
     }
-
-    // FIXME: cancellation
-    _ = handle
   }
 
   func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
@@ -543,63 +514,6 @@ extension SwiftLanguageServer {
       }
 
       req.reply(highlights)
-    }
-
-    // FIXME: cancellation
-    _ = handle
-  }
-
-  func symbolInfo(_ req: Request<SymbolInfoRequest>) {
-    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
-      log("failed to find snapshot for url \(req.params.textDocument.url)")
-      req.reply([])
-      return
-    }
-
-    guard let offset = snapshot.utf8Offset(of: req.params.position) else {
-      log("invalid position \(req.params.position)")
-      req.reply([])
-      return
-    }
-
-    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
-    skreq[keys.request] = requests.cursorinfo
-    skreq[keys.offset] = offset
-    skreq[keys.sourcefile] = snapshot.document.url.path
-
-    // FIXME: should come from the internal document
-    if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
-      skreq[keys.compilerargs] = settings.compilerArguments
-    }
-
-    let handle = sourcekitd.send(skreq) { [weak self] result in
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        req.reply(.failure(result.failure!))
-        return
-      }
-
-      guard let _: sourcekitd_uid_t = dict[self.keys.kind] else {
-        // Nothing to report.
-        req.reply([])
-        return
-      }
-
-      var location: Location? = nil
-      if let filepath: String = dict[self.keys.filepath],
-         let offset: Int = dict[self.keys.offset],
-         let pos = snapshot.positionOf(utf8Offset: offset)
-      {
-        location = Location(url: URL(fileURLWithPath: filepath), range: Range(pos))
-      }
-
-      req.reply([
-        SymbolDetails(
-          name: dict[self.keys.name],
-          containerName: nil,
-          usr: dict[self.keys.usr],
-          bestLocalDeclaration: location),
-      ])
     }
 
     // FIXME: cancellation

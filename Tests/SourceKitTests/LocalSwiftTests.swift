@@ -545,4 +545,52 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertEqual(resp.count, 0)
     }
   }
+
+  func testHover() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    sk.allowUnexpectedNotification = true
+
+    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: url,
+      language: .swift,
+      version: 1,
+      text: """
+      /// This is a doc comment for S.
+      ///
+      /// Details.
+      struct S {}
+      """)))
+
+    do {
+      let resp = try! sk.sendSync(HoverRequest(
+        textDocument: TextDocumentIdentifier(url: url),
+        position: Position(line: 3, utf16index: 7)))
+
+      XCTAssertNotNil(resp)
+      if let hover = resp {
+        XCTAssertNil(hover.range)
+        XCTAssertEqual(hover.contents.kind, .markdown)
+        XCTAssertEqual(hover.contents.value, """
+          # S
+          ```
+          struct S
+          ```
+
+          This is a doc comment for S.
+
+          ### Discussion
+
+          Details.
+          """)
+      }
+    }
+
+    do {
+      let resp = try! sk.sendSync(HoverRequest(
+        textDocument: TextDocumentIdentifier(url: url),
+        position: Position(line: 0, utf16index: 7)))
+
+      XCTAssertNil(resp)
+    }
+  }
 }

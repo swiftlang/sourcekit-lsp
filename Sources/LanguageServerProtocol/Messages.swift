@@ -333,26 +333,9 @@ public struct HoverResponse: ResponseType, Hashable {
 
   public var range: PositionRange?
 
-  /// Extension!
-  public var usr: String?
-
-  /// Extension!
-  public var definition: Location?
-
-  public init(contents: MarkupContent, range: Range<Position>?, usr: String?, definition: Location?) {
+  public init(contents: MarkupContent, range: Range<Position>?) {
     self.contents = contents
     self.range = range.map { PositionRange($0) }
-    self.usr = usr
-    self.definition = definition
-  }
-}
-
-extension HoverResponse: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case contents
-    case range
-    case usr = "sk_usr"
-    case definition = "sk_definition"
   }
 }
 
