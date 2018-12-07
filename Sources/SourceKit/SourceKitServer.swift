@@ -67,6 +67,7 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceRequest(SourceKitServer.definition)
     registerWorkspaceRequest(SourceKitServer.references)
     registerWorkspaceRequest(SourceKitServer.documentSymbolHighlight)
+    registerWorkspaceRequest(SourceKitServer.symbolInfo)
   }
 
   func registerWorkspaceRequest<R>(
@@ -315,6 +316,11 @@ extension SourceKitServer {
 
   func hover(_ req: Request<HoverRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  }
+
+  /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
+  func symbolInfo(_ req: Request<SymbolInfoRequest>, workspace: Workspace) {
+    toolchainTextDocumentRequest(req, workspace: workspace, fallback: [])
   }
 
   func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>, workspace: Workspace) {

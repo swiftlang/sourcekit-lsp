@@ -27,6 +27,10 @@ public let builtinRequests: [_RequestType.Type] = [
   DocumentFormatting.self,
   DocumentRangeFormatting.self,
   DocumentOnTypeFormatting.self,
+
+  // MARK: LSP Extension Requests
+
+  SymbolInfoRequest.self,
 ]
 
 /// The set of known notifications.
@@ -423,4 +427,64 @@ public struct FormattingOptions: Codable, Hashable {
 
   /// Whether to use spaces instead of tabs.
   public var insertSpaces: Bool
+}
+
+/// Request for semantic information about the symbol at a given location **(LSP Extension)**.
+///
+/// This request looks up the symbol (if any) at a given text document location and returns
+/// SymbolDetails for that location, including information such as the symbol's USR. The symbolInfo
+/// request is not primarily designed for editors, but instead as an implementation detail of how
+/// one LSP implementation (e.g. SourceKit) gets information from another (e.g. clangd) to use in
+/// performing index queries or otherwise implementing the higher level requests such as definition.
+///
+/// - Parameters:
+///   - textDocument: The document in which to interpret `position`.
+///   - position: The document location at which to lookup symbol information.
+///
+/// - Returns: `[SymbolDetails]` for the given location, which may have multiple elements if there are
+///   multiple references, or no elements if there is no symbol at the given location.
+///
+/// ### LSP Extension
+///
+/// This request is an extension to LSP supported by SourceKit-LSP and clangd. It does *not* require
+/// any additional client or server capabilities to use.
+public struct SymbolInfoRequest: TextDocumentRequest, Hashable {
+  public static let method: String = "textDocument/symbolInfo"
+  public typealias Response = [SymbolDetails]
+
+  /// The document in which to interpret `position`.
+  public var textDocument: TextDocumentIdentifier
+
+  /// The document location at which to lookup symbol information.
+  public var position: Position
+
+  public init(textDocument: TextDocumentIdentifier, position: Position) {
+    self.textDocument = textDocument
+    self.position = position
+  }
+}
+
+/// Detailed information about a symbol, such as the response to a `SymbolInfoRequest`
+/// **(LSP Extension)**.
+public struct SymbolDetails: ResponseType, Hashable {
+
+  /// The name of the symbol, if any.
+  public var name: String?
+
+  /// The name of the containing type for the symbol, if any.
+  ///
+  /// For example, in the following snippet, the `containerName` of `foo()` is `C`.
+  ///
+  /// ```c++
+  /// class C {
+  ///   void foo() {}
+  /// }
+  /// ```
+  public var containerName: String?
+
+  /// The USR of the symbol, if any.
+  public var usr: String?
+
+  /// An opaque identifier in a format known only to clangd.
+  // public var id: String?
 }
