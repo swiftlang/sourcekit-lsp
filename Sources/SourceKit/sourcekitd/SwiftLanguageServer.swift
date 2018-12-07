@@ -58,6 +58,7 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.completion)
     _register(SwiftLanguageServer.hover)
     _register(SwiftLanguageServer.documentSymbolHighlight)
+    _register(SwiftLanguageServer.symbolInfo)
   }
 
   func getDiagnostic(_ diag: SKResponseDictionary, for snapshot: DocumentSnapshot) -> Diagnostic? {
@@ -542,6 +543,51 @@ extension SwiftLanguageServer {
       }
 
       req.reply(highlights)
+    }
+
+    // FIXME: cancellation
+    _ = handle
+  }
+
+  func symbolInfo(_ req: Request<SymbolInfoRequest>) {
+    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
+      log("failed to find snapshot for url \(req.params.textDocument.url)")
+      req.reply([])
+      return
+    }
+
+    guard let offset = snapshot.utf8Offset(of: req.params.position) else {
+      log("invalid position \(req.params.position)")
+      req.reply([])
+      return
+    }
+
+    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
+    skreq[keys.request] = requests.cursorinfo
+    skreq[keys.offset] = offset
+    skreq[keys.sourcefile] = snapshot.document.url.path
+
+    // FIXME: should come from the internal document
+    if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
+      skreq[keys.compilerargs] = settings.compilerArguments
+    }
+
+    let handle = sourcekitd.send(skreq) { [weak self] result in
+      guard let self = self else { return }
+      guard let dict = result.success else {
+        req.reply(.failure(result.failure!))
+        return
+      }
+
+      guard let _: sourcekitd_uid_t = dict[self.keys.kind] else {
+        // Nothing to report.
+        req.reply([])
+        return
+      }
+
+      req.reply([
+        SymbolDetails(name: dict[self.keys.name], containerName: nil, usr: dict[self.keys.usr]),
+      ])
     }
 
     // FIXME: cancellation

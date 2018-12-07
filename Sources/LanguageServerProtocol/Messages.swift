@@ -487,4 +487,10 @@ public struct SymbolDetails: ResponseType, Hashable {
 
   /// An opaque identifier in a format known only to clangd.
   // public var id: String?
+
+  public init(name: String?, containerName: String? = nil, usr: String?) {
+    self.name = name
+    self.containerName = containerName
+    self.usr = usr
+  }
 }

@@ -472,4 +472,68 @@ final class LocalSwiftTests: XCTestCase {
     Error.missingDocument if the document is not open.
     """)
   }
+
+  func testSymbolInfo() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    sk.allowUnexpectedNotification = true
+
+    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: url,
+      language: .swift,
+      version: 1,
+      text: """
+      struct S {
+        func foo() {
+          var local = 1
+        }
+      }
+      """)))
+
+    do {
+      let resp = try! sk.sendSync(SymbolInfoRequest(
+        textDocument: TextDocumentIdentifier(url: url),
+        position: Position(line: 0, utf16index: 7)))
+
+      XCTAssertEqual(resp.count, 1)
+      if let sym = resp.first {
+        XCTAssertEqual(sym.name, "S")
+        XCTAssertNil(sym.containerName)
+        XCTAssertEqual(sym.usr, "s:1a1SV")
+      }
+    }
+
+    do {
+      let resp = try! sk.sendSync(SymbolInfoRequest(
+        textDocument: TextDocumentIdentifier(url: url),
+        position: Position(line: 1, utf16index: 7)))
+
+      XCTAssertEqual(resp.count, 1)
+      if let sym = resp.first {
+        XCTAssertEqual(sym.name, "foo()")
+        XCTAssertNil(sym.containerName)
+        XCTAssertEqual(sym.usr, "s:1a1SV3fooyyF")
+      }
+    }
+
+    do {
+      let resp = try! sk.sendSync(SymbolInfoRequest(
+        textDocument: TextDocumentIdentifier(url: url),
+        position: Position(line: 2, utf16index: 8)))
+
+      XCTAssertEqual(resp.count, 1)
+      if let sym = resp.first {
+        XCTAssertEqual(sym.name, "local")
+        XCTAssertNil(sym.containerName)
+        XCTAssertEqual(sym.usr, "s:1a1SV3fooyyF5localL_Sivp")
+      }
+    }
+
+    do {
+      let resp = try! sk.sendSync(SymbolInfoRequest(
+        textDocument: TextDocumentIdentifier(url: url),
+        position: Position(line: 3, utf16index: 0)))
+
+      XCTAssertEqual(resp.count, 0)
+    }
+  }
 }
