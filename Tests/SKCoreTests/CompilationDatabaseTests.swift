@@ -169,7 +169,7 @@ final class CompilationDatabaseTests: XCTestCase {
   func testJSONCompilationDatabaseFromDirectory() {
     let fs = InMemoryFileSystem()
     try! fs.createDirectory(AbsolutePath("/a"))
-    XCTAssertNil(tryLoadCompilationDatabase(directory: AbsolutePath("/a"), fileSystem: fs))
+    XCTAssertNil(tryLoadCompilationDatabase(directory: AbsolutePath("/a"), fs))
 
     try! fs.writeFileContents(AbsolutePath("/a/compile_commands.json"), bytes: """
       [
@@ -181,7 +181,7 @@ final class CompilationDatabaseTests: XCTestCase {
       ]
       """)
 
-    XCTAssertNotNil(tryLoadCompilationDatabase(directory: AbsolutePath("/a"), fileSystem: fs))
+    XCTAssertNotNil(tryLoadCompilationDatabase(directory: AbsolutePath("/a"), fs))
   }
 
   func testCompilationDatabaseBuildSystem() {
@@ -197,10 +197,10 @@ final class CompilationDatabaseTests: XCTestCase {
       ]
       """)
 
-    let buildSystem: BuildSettingsProvider = CompilationDatabaseBuildSystem(
+    let buildSystem: BuildSystem = CompilationDatabaseBuildSystem(
       projectRoot: AbsolutePath("/a"), fileSystem: fs)
 
-    let settings = buildSystem.settings(for: URL(fileURLWithPath: "/a/a.swift"), language: .swift)
+    let settings = buildSystem.settings(for: URL(fileURLWithPath: "/a/a.swift"), .swift)
     XCTAssertNotNil(settings)
     XCTAssertEqual(settings?.workingDirectory, "/a")
     XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", "/a/a.swift"])

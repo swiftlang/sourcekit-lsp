@@ -7,7 +7,7 @@ SourceKit-LSP is an implementation of the [Language Server Protocol](https://mic
 
 SourceKit-LSP is under heavy development! The best way to try it out is to build it from source. You will also need a Swift development toolchain and an editor that supports LSP.
 
-1. Install the `swift-DEVELOPMENT-SNAPSHOT-2018-11-01-a` toolchain snapshot from https://swift.org/download/. Set the environment variable `SOURCEKIT_TOOLCHAIN_PATH` to the absolute path to the toolchain or otherwise configure your editor to use this toolchain. See [Toolchains](#toolchains) for more information.
+1. Install the `swift-DEVELOPMENT-SNAPSHOT-2018-12-02-a` toolchain snapshot from https://swift.org/download/#snapshots. Set the environment variable `SOURCEKIT_TOOLCHAIN_PATH` to the absolute path to the toolchain or otherwise configure your editor to use this toolchain. See [Toolchains](#toolchains) for more information.
 
 2. Build the language server executable `sourcekit-lsp` using `swift build`. See [Building](#building-sourcekit-lsp) for more information.
 
@@ -45,13 +45,35 @@ $ swift package generate-xcodeproj --xcconfig-overrides overrides.xcconfig
 $ open SourceKitLSP.xcodeproj
 ```
 
+## Debugging
+
+You can attach LLDB to SourceKit-LSP and set breakpoints to debug. You may want to instruct LLDB to wait for the sourcekit-lsp process to launch and then start your editor, which will typically launch
+SourceKit-LSP as soon as you open a Swift file:
+
+
+```sh
+$ lldb -w -n sourcekit-lsp
+```
+
+If you are using the Xcode project, go to Debug, Attach to Process by PID or Name.
+
+### Print SourceKit Logs
+
+You can configure SourceKit-LSP to print log information from SourceKit to stderr by setting the following environment variable:
+
+```sh
+SOURCEKIT_LOGGING="N"
+```
+
+Where "N" configures the log verbosity and is one of the following numbers: 0 (error), 1 (warning), 2 (info), or 3 (debug).
+
 ## Toolchains
 
 SourceKit-LSP depends on tools such as `sourcekitd` and `clangd`, which it loads at runtime from an installed toolchain.
 
 ### Recommended Toolchain
 
-Use the `swift-DEVELOPMENT-SNAPSHOT-2018-11-01-a` toolchain snapshot from https://swift.org/download/#snapshots. It can be found under "Older Snapshots" as "November 1, 2018".  SourceKit-LSP is still early in its development and we are actively adding functionality to the toolchain to support it.
+Use the `swift-DEVELOPMENT-SNAPSHOT-2018-12-02-a` toolchain snapshot from https://swift.org/download/#snapshots. SourceKit-LSP is still early in its development and we are actively adding functionality to the toolchain to support it.
 
 ### Selecting the Toolchain
 
@@ -93,9 +115,6 @@ SourceKit-LSP is still in early development, so you may run into rough edges wit
 
 
 ### Caveats
-
-* Indexing does not work on Linux (jump-to-definition, find references)
-	* Should be fixed in the next Swift snapshot by [swift-clang#219](https://github.com/apple/swift-clang/pull/219)
 
 * SwiftPM build settings are not updated automatically after files are added/removed.
 	* **Workaround**: close and reopen the project after adding/removing files

@@ -11,35 +11,26 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import Basic
 
-/// Provider of build settings.
-public protocol BuildSettingsProvider {
+/// Provider of FileBuildSettings and other build-related information.
+///
+/// The primary role of the build system is to answer queries for FileBuildSettings and (TODO) to
+/// notify clients when they change. The BuildSystem is also the source of related informatino,
+/// such as where the index datastore is located.
+///
+/// For example, a SwiftPMWorkspace provides compiler arguments for the files contained in a
+/// SwiftPM package root directory.
+public protocol BuildSystem {
+
+  /// The path to the raw index store data, if any.
+  var indexStorePath: AbsolutePath? { get }
+
+  /// The path to put the index database, if any.
+  var indexDatabasePath: AbsolutePath? { get }
 
   /// Returns the settings for the given url and language mode, if known.
-  func settings(for: URL, language: Language) -> FileBuildSettings?
+  func settings(for: URL, _ language: Language) -> FileBuildSettings?
 
   // TODO: notifications when settings change.
-}
-
-/// Build settings for a single file.
-public struct FileBuildSettings {
-
-  /// The identifier of the toolchain that is preferred for compiling this file, if any.
-  public var preferredToolchain: String? = nil
-
-  /// The compiler arguments to use for this file.
-  public var compilerArguments: [String]
-
-  /// The working directory to resolve any relative paths in `compilerArguments`.
-  public var workingDirectory: String? = nil
-
-  public init(
-    preferredToolchain: String? = nil,
-    compilerArguments: [String],
-    workingDirectory: String? = nil
-  ) {
-    self.preferredToolchain = preferredToolchain
-    self.compilerArguments = compilerArguments
-    self.workingDirectory = workingDirectory
-  }
 }

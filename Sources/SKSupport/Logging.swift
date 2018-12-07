@@ -54,7 +54,7 @@ public func logAsync(level: LogLevel = .default, messageProducer: @escaping (_ c
 }
 
 /// Like `try?`, but logs the error on failure.
-public func orLog<R>(_ prefix: String = "", level: LogLevel = .default, block: () throws -> R?) -> R? {
+public func orLog<R>(_ prefix: String = "", level: LogLevel = .default, _ block: () throws -> R?) -> R? {
   do {
     return try block()
   } catch {

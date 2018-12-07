@@ -6,11 +6,14 @@ extension SupportTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__SupportTests = [
+        ("testByteStringWithUnsafeData", testByteStringWithUnsafeData),
+        ("testExpandingTilde", testExpandingTilde),
         ("testFindSubsequence", testFindSubsequence),
         ("testIntFromAscii", testIntFromAscii),
         ("testLineTable", testLineTable),
         ("testLineTableAppendPerf", testLineTableAppendPerf),
         ("testLineTableEditing", testLineTableEditing),
+        ("testLineTableLinePositionTranslation", testLineTableLinePositionTranslation),
         ("testLineTableSingleCharEditPerf", testLineTableSingleCharEditPerf),
         ("testLogging", testLogging),
         ("testResultEquality", testResultEquality),

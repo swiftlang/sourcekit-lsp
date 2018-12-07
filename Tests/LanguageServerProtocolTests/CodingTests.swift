@@ -197,10 +197,6 @@ final class CodingTests: XCTestCase {
     checkCoding(RequestID.number(100), json: "100")
     checkCoding(RequestID.string("100"), json: "\"100\"")
   }
-
-  static var allTests = [
-    ("testValueCoding", testValueCoding),
-    ]
 }
 
 func with<T>(_ value: T, mutate: (inout T) -> ()) -> T {

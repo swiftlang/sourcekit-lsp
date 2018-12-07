@@ -29,6 +29,7 @@ extension ToolchainRegistryTests {
         ("testSearchExplicitEnv", testSearchExplicitEnv),
         ("testSearchPATH", testSearchPATH),
         ("testSubDirs", testSubDirs),
+        ("testUnknownPlatform", testUnknownPlatform),
     ]
 }
 

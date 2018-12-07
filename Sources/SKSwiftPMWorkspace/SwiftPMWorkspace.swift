@@ -40,7 +40,7 @@ public final class SwiftPMWorkspace {
   var fileToTarget: [AbsolutePath: TargetBuildDescription] = [:]
   var sourceDirToTarget: [AbsolutePath: TargetBuildDescription] = [:]
 
-  /// Creates a `BuildSettingsProvider` using the Swift Package Manager, if this workspace is part of a package.
+  /// Creates a `BuildSystem` using the Swift Package Manager, if this workspace is part of a package.
   ///
   /// - returns: nil if `workspacePath` is not part of a package or there is an error.
   public convenience init?(url: LanguageServerProtocol.URL, toolchainRegistry: ToolchainRegistry) {
@@ -52,7 +52,7 @@ public final class SwiftPMWorkspace {
     }
   }
 
-  /// Creates a `BuildSettingsProvider` using the Swift Package Manager, if this workspace is part of a package.
+  /// Creates a `BuildSystem` using the Swift Package Manager, if this workspace is part of a package.
   ///
   /// - returns: nil if `workspacePath` is not part of a package.
   /// - throws: If there is an error loading the package.
@@ -74,7 +74,6 @@ public final class SwiftPMWorkspace {
     // FIXME: duplicating code from UserToolchain setup in swiftpm.
     var sdkpath: AbsolutePath? = nil
     var platformPath: AbsolutePath? = nil
-    let target: Triple = Triple.hostTriple
     if case .darwin? = Platform.currentPlatform {
       if let path = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx") {
         sdkpath = try? AbsolutePath(validating: path.spm_chomp())
@@ -84,8 +83,8 @@ public final class SwiftPMWorkspace {
       }
     }
 
-    var extraSwiftFlags = ["-target", target.tripleString]
-    var extraClangFlags = ["-arch", target.arch.rawValue]
+    var extraSwiftFlags: [String] = []
+    var extraClangFlags: [String] = []
     if let sdkpath = sdkpath {
       extraSwiftFlags += [
         "-sdk", sdkpath.asString
@@ -109,8 +108,10 @@ public final class SwiftPMWorkspace {
     swiftpmToolchain.extraSwiftCFlags = extraSwiftFlags
     swiftpmToolchain.extraCPPFlags = extraClangFlags
 
+    let buildPath = packageRoot.appending(component: ".build")
+
     self.workspace = Workspace(
-      dataPath: packageRoot.appending(component: ".build"),
+      dataPath: buildPath,
       editablesPath: packageRoot.appending(component: "Packages"),
       pinsFile: packageRoot.appending(component: "Package.resolved"),
       manifestLoader: ManifestLoader(manifestResources: swiftpmToolchain),
@@ -121,8 +122,10 @@ public final class SwiftPMWorkspace {
 
     // FIXME: make these configurable
 
+    let triple = Triple.hostTriple
+
     self.buildParameters = BuildParameters(
-      dataPath: packageRoot.appending(component: ".build"),
+      dataPath: buildPath.appending(component: triple.tripleString),
       configuration: .debug,
       toolchain: swiftpmToolchain,
       flags: BuildFlags()
@@ -130,8 +133,9 @@ public final class SwiftPMWorkspace {
 
     // FIXME: the rest of this should be done asynchronously.
 
-    // FIXME: connect to logging?
-    let diags = DiagnosticsEngine()
+    let diags = DiagnosticsEngine(handlers: [{ diag in
+      log(diag.localizedDescription, level: diag.behavior.asLogLevel)
+    }])
 
     self.packageGraph = self.workspace.loadPackageGraph(root: PackageGraphRootInput(packages: [packageRoot]), diagnostics: diags)
 
@@ -163,9 +167,7 @@ public final class SwiftPMWorkspace {
   }
 }
 
-extension SwiftPMWorkspace: ExternalWorkspace, BuildSettingsProvider {
-
-  public var buildSystem: BuildSettingsProvider { return self }
+extension SwiftPMWorkspace: BuildSystem {
 
   public var buildPath: AbsolutePath {
     return buildParameters.buildPath
@@ -179,13 +181,16 @@ extension SwiftPMWorkspace: ExternalWorkspace, BuildSettingsProvider {
     return buildPath.appending(components: "index", "db")
   }
 
-  public func settings(for url: LanguageServerProtocol.URL, language: Language) -> FileBuildSettings? {
+  public func settings(
+    for url: LanguageServerProtocol.URL,
+    _ language: Language) -> FileBuildSettings?
+  {
     guard let path = try? AbsolutePath(validating: url.path) else {
       return nil
     }
 
     if let td = self.fileToTarget[path] {
-      return settings(for: path, language: language, targetDescription: td)
+      return settings(for: path, language, td)
     }
 
     if path.basename == "Package.swift" {
@@ -193,7 +198,7 @@ extension SwiftPMWorkspace: ExternalWorkspace, BuildSettingsProvider {
     }
 
     if path.extension == "h" {
-      return settings(forHeader: path, language: language)
+      return settings(forHeader: path, language)
     }
 
     return nil
@@ -206,8 +211,8 @@ extension SwiftPMWorkspace {
 
   public func settings(
     for path: AbsolutePath,
-    language: Language,
-    targetDescription td: TargetBuildDescription
+    _ language: Language,
+    _ td: TargetBuildDescription
   ) -> FileBuildSettings? {
 
     let buildPath = self.buildPath
@@ -314,11 +319,11 @@ extension SwiftPMWorkspace {
     return nil
   }
 
-  public func settings(forHeader path: AbsolutePath, language: Language) -> FileBuildSettings? {
+  public func settings(forHeader path: AbsolutePath, _ language: Language) -> FileBuildSettings? {
     var dir = path.parentDirectory
     while !dir.isRoot {
       if let td = sourceDirToTarget[dir] {
-        return settings(for: path, language: language, targetDescription: td)
+        return settings(for: path, language, td)
       }
       dir = dir.parentDirectory
     }
@@ -343,27 +348,28 @@ extension ToolchainRegistry {
 
   /// A toolchain appropriate for using to load swiftpm manifests.
   fileprivate var swiftPMHost: SwiftPMToolchain? {
-    guard let base = self.default, base.swiftc != nil else {
+    var swiftc: AbsolutePath? = self.default?.swiftc
+    var clang: AbsolutePath? = self.default?.clang
+    if swiftc == nil {
+      swiftc = toolchains.first(where: { $0.swiftc != nil })?.swiftc
+    }
+    if clang == nil {
+      clang = toolchains.first(where: { $0.clang != nil })?.clang
+    }
+
+    if swiftc == nil || clang == nil {
       return nil
     }
 
-    guard let clang = base.clang ?? toolchains.values.first(where: { $0.clang != nil })?.clang else { return nil }
-
     return SwiftPMToolchain(
-      swiftCompiler: base.swiftc!,
-      clangCompiler: clang,
-      libDir: base.swiftc!.parentDirectory.parentDirectory.appending(components: "lib", "swift", "pm"),
+      swiftCompiler: swiftc!,
+      clangCompiler: clang!,
+      libDir: swiftc!.parentDirectory.parentDirectory.appending(components: "lib", "swift", "pm"),
       sdkRoot: nil,
       extraCCFlags: [],
       extraSwiftCFlags: [],
       extraCPPFlags: [],
-      dynamicLibraryExtension: {
-        if case .darwin? = Platform.currentPlatform {
-          return "dylib"
-        } else {
-          return "so"
-        }
-      }()
+      dynamicLibraryExtension: Platform.currentPlatform?.dynamicLibraryExtension ?? "so"
     )
   }
 }
@@ -396,5 +402,15 @@ public final class BuildSettingProviderWorkspaceDelegate: WorkspaceDelegate {
   }
 
   public func managedDependenciesDidUpdate(_ dependencies: AnySequence<ManagedDependency>) {
+  }
+}
+
+extension Basic.Diagnostic.Behavior {
+  var asLogLevel: LogLevel {
+    switch self {
+    case .error: return .error
+    case .warning: return .warning
+    default: return .info
+    }
   }
 }

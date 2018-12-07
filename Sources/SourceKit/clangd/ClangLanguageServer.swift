@@ -22,13 +22,13 @@ final class ClangLanguageServerShim: LanguageServer {
 
   let clangd: Connection
 
-  let buildSettingsProvider: BuildSettingsProvider
+  let buildSystem: BuildSystem
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, clangd: Connection, buildSettingsProvider: BuildSettingsProvider) throws {
+  public init(client: Connection, clangd: Connection, buildSystem: BuildSystem) throws {
 
     self.clangd = clangd
-    self.buildSettingsProvider = buildSettingsProvider
+    self.buildSystem = buildSystem
     super.init(client: client)
   }
 
@@ -65,7 +65,7 @@ final class ClangLanguageServerShim: LanguageServer {
 
   func openDocument(_ note: Notification<DidOpenTextDocument>) {
     let url = note.params.textDocument.url
-    let settings = buildSettingsProvider.settings(for: url, language: note.params.textDocument.language)
+    let settings = buildSystem.settings(for: url, note.params.textDocument.language)
 
     logAsync(level: settings == nil ? .warning : .debug) { _ in
       let settingsStr = settings == nil ? "nil" : settings!.compilerArguments.description
@@ -82,7 +82,7 @@ final class ClangLanguageServerShim: LanguageServer {
   }
 }
 
-func makeJSONRPCClangServer(client: MessageHandler, clangd: AbsolutePath, buildSettings: BuildSettingsProvider?) throws -> Connection {
+func makeJSONRPCClangServer(client: MessageHandler, clangd: AbsolutePath, buildSettings: BuildSystem?) throws -> Connection {
 
   let clientToServer: Pipe = Pipe()
   let serverToClient: Pipe = Pipe()
@@ -98,7 +98,7 @@ func makeJSONRPCClangServer(client: MessageHandler, clangd: AbsolutePath, buildS
   let shim = try ClangLanguageServerShim(
     client: connectionToClient,
     clangd: connection,
-    buildSettingsProvider: buildSettings ?? BuildSettingsProviderList()
+    buildSystem: buildSettings ?? BuildSystemList()
   )
 
   connectionToShim.start(handler: shim)
@@ -106,7 +106,13 @@ func makeJSONRPCClangServer(client: MessageHandler, clangd: AbsolutePath, buildS
   connection.start(receiveHandler: shim)
 
   let process = Foundation.Process()
-  process.launchPath = clangd.asString
+
+  if #available(OSX 10.13, *) {
+    process.executableURL = clangd.asURL
+  } else {
+    process.launchPath = clangd.asString
+  }
+
   process.arguments = [
     "-compile_args_from=lsp", // Provide compiler args programmatically.
   ]
@@ -117,7 +123,11 @@ func makeJSONRPCClangServer(client: MessageHandler, clangd: AbsolutePath, buildS
     connection.close()
   }
 
-  process.launch()
+  if #available(OSX 10.13, *) {
+    try process.run()
+  } else {
+    process.launch()
+  }
 
   return connectionToShim
 }

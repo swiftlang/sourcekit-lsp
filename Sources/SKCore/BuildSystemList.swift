@@ -10,21 +10,29 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Basic
 import LanguageServerProtocol
 
-/// Provides build settings from a list of providers in priority order.
-public final class BuildSettingsProviderList: BuildSettingsProvider {
+/// Provides build settings from a list of build systems in priority order.
+public final class BuildSystemList {
 
-  /// The build settings providers to try (in order).
-  public var providers: [BuildSettingsProvider] = [
-    FallbackBuildSettingsProvider()
+  /// The build systems to try (in order).
+  public var providers: [BuildSystem] = [
+    FallbackBuildSystem()
   ]
 
   public init() {}
+}
 
-  public func settings(for url: URL, language: Language) -> FileBuildSettings? {
+extension BuildSystemList: BuildSystem {
+
+  public var indexStorePath: AbsolutePath? { return providers.first?.indexStorePath }
+
+  public var indexDatabasePath: AbsolutePath? { return providers.first?.indexDatabasePath }
+
+  public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
     for provider in providers {
-      if let settings = provider.settings(for: url, language: language) {
+      if let settings = provider.settings(for: url, language) {
         return settings
       }
     }

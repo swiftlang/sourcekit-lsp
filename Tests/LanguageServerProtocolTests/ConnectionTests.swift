@@ -72,10 +72,4 @@ class ConnectionTests: XCTestCase {
 
     waitForExpectations(timeout: 10)
   }
-
-  static var allTests = [
-    ("testEcho", testEcho),
-    ("testEchoError", testEchoError),
-    ("testEchoNote", testEchoNote),
-    ]
 }

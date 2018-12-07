@@ -1,1 +1,10 @@
-OTHER_LDFLAGS = $(inherited) -framework CoreServices
+// These link requirements only show issues in Xcode because it does dynamic linking, which enforce
+// the dependency immediately, while swiftpm on the command line defaults to static linking, which
+// means there is only an issue if the final image cannot find needed symbols.
+//
+// * CoreServices is used by IndexStoreDB's C++ code and cannot use autolinking.
+// * ncurses and sqlite are used by llbuild (dependency of swiftpm) from C++ code
+OTHER_LDFLAGS = $(inherited) -framework CoreServices -lncurses -lsqlite3
+
+// Required to trigger a workaround in llbuild headers (dependency of swiftpm).
+GCC_PREPROCESSOR_DEFINITIONS = SWIFT_PACKAGE=1

@@ -511,11 +511,18 @@ final class SupportTests: XCTestCase {
     }
   }
 
-  static var allTests = [
-    ("testResultEquality", testResultEquality),
-    ("testResultProjection", testResultProjection),
-    ("testIntFromAscii", testIntFromAscii),
-    ("testFindSubsequence", testFindSubsequence),
-    ("testLogging", testLogging),
-    ]
+  func testByteStringWithUnsafeData() {
+    ByteString(encodingAsUTF8: "").withUnsafeData { data in
+      XCTAssertEqual(data.count, 0)
+    }
+    ByteString(encodingAsUTF8: "abc").withUnsafeData { data in
+      XCTAssertEqual(data.count, 3)
+    }
+  }
+
+  func testExpandingTilde() {
+    XCTAssertEqual(AbsolutePath(expandingTilde: "~/foo").basename, "foo")
+    XCTAssertNotEqual(AbsolutePath(expandingTilde: "~/foo").parentDirectory, .root)
+    XCTAssertEqual(AbsolutePath(expandingTilde: "/foo"), AbsolutePath("/foo"))
+  }
 }

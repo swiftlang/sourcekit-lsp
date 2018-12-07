@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKSupport
 import Basic
 import LanguageServerProtocol
 
@@ -17,7 +18,7 @@ import LanguageServerProtocol
 ///
 /// Provides build settings from a `CompilationDatabase` found by searching a project. For now, only
 /// one compilation database, located at the project root.
-public final class CompilationDatabaseBuildSystem: BuildSettingsProvider {
+public final class CompilationDatabaseBuildSystem {
 
   /// The compilation database.
   var compdb: CompilationDatabase? = nil
@@ -27,11 +28,18 @@ public final class CompilationDatabaseBuildSystem: BuildSettingsProvider {
   public init(projectRoot: AbsolutePath? = nil, fileSystem: FileSystem = localFileSystem) {
     self.fileSystem = fileSystem
     if let path = projectRoot {
-      self.compdb = tryLoadCompilationDatabase(directory: path, fileSystem: fileSystem)
+      self.compdb = tryLoadCompilationDatabase(directory: path, fileSystem)
     }
   }
+}
 
-  public func settings(for url: URL, language: Language) -> FileBuildSettings? {
+extension CompilationDatabaseBuildSystem: BuildSystem {
+
+  // FIXME: derive from the compiler arguments.
+  public var indexStorePath: AbsolutePath? { return nil }
+  public var indexDatabasePath: AbsolutePath? { return nil }
+
+  public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
     guard let db = database(for: url),
           let cmd = db[url].first else { return nil }
     return FileBuildSettings(
@@ -53,12 +61,17 @@ public final class CompilationDatabaseBuildSystem: BuildSettingsProvider {
       var dir = path
       while !dir.isRoot {
         dir = dir.parentDirectory
-        if let db = tryLoadCompilationDatabase(directory: dir, fileSystem: fileSystem) {
+        if let db = tryLoadCompilationDatabase(directory: dir, fileSystem) {
           compdb = db
           break
         }
       }
     }
+
+    if compdb == nil {
+      log("could not open compilation database for \(path.asString)", level: .warning)
+    }
+
     return compdb
   }
 }
