@@ -67,7 +67,7 @@ public final class SwiftPMWorkspace {
     self.packageRoot = packageRoot
     self.fs = fileSystem
 
-    guard var swiftpmToolchain = toolchainRegistry.swiftpmHost else {
+    guard var swiftpmToolchain = toolchainRegistry.swiftPMHost else {
       throw Error.cannotDetermineHostToolchain
     }
 
@@ -244,7 +244,7 @@ extension SwiftPMWorkspace {
         workingDirectory: workspacePath.asString
       )
 
-    case (.clang(_), .swift):
+    case (.clang, .swift):
       return nil
 
     case (.clang(let td), _):
@@ -309,13 +309,12 @@ extension SwiftPMWorkspace {
   }
 
   func packageDescriptionSettings(_ path: AbsolutePath) -> FileBuildSettings? {
-    for package in packageGraph.packages {
-      if path == package.manifest.path {
+    for package in packageGraph.packages where path == package.manifest.path {
+        let compilerArgs = workspace.interpreterFlags(for: package.path) + [path.asString]
         return FileBuildSettings(
           preferredToolchain: nil,
-          compilerArguments:
-            workspace.interpreterFlags(for: package.path) + [path.asString])
-      }
+          compilerArguments: compilerArgs
+        )
     }
     return nil
   }
@@ -348,7 +347,7 @@ private struct SwiftPMToolchain: Build.Toolchain, ManifestResourceProvider {
 extension ToolchainRegistry {
 
   /// A toolchain appropriate for using to load swiftpm manifests.
-  fileprivate var swiftpmHost: SwiftPMToolchain? {
+  fileprivate var swiftPMHost: SwiftPMToolchain? {
     var swiftc: AbsolutePath? = self.default?.swiftc
     var clang: AbsolutePath? = self.default?.clang
     if swiftc == nil {

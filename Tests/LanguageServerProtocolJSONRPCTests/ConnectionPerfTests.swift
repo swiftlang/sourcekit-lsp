@@ -32,7 +32,7 @@ class ConnectionPerfTests: XCTestCase {
     self.measureMetrics([.wallClockTime], automaticallyStartMeasuring: false) {
       let expectation = self.expectation(description: "response received")
       self.startMeasuring()
-      _ = client.send(EchoRequest(string: "hello!")) { resp in
+      _ = client.send(EchoRequest(string: "hello!")) { _ in
         self.stopMeasuring()
         expectation.fulfill()
       }
@@ -46,7 +46,7 @@ class ConnectionPerfTests: XCTestCase {
     let sema = DispatchSemaphore(value: 0)
     self.measure {
       for _ in 1...100 {
-        _ = client.send(EchoRequest(string: "hello!")) { resp in
+        _ = client.send(EchoRequest(string: "hello!")) { _ in
           sema.signal()
         }
         XCTAssertEqual(sema.wait(timeout: .now() + .seconds(10)), .success)
@@ -59,7 +59,7 @@ class ConnectionPerfTests: XCTestCase {
     let sema = DispatchSemaphore(value: 0)
     self.measure {
       DispatchQueue.concurrentPerform(iterations: 100, execute: { _ in
-        _ = client.send(EchoRequest(string: "hello!")) { resp in
+        _ = client.send(EchoRequest(string: "hello!")) { _ in
           sema.signal()
         }
       })

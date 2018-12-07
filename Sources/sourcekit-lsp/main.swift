@@ -24,7 +24,7 @@ let clientConnection = JSONRPCConection(inFD: STDIN_FILENO, outFD: STDOUT_FILENO
   exit(0)
 })
 
-Logger.shared.addLogHandler { message, level in
+Logger.shared.addLogHandler { message, _ in
   clientConnection.send(LogMessage(type: .log, message: message))
 }
 

@@ -26,7 +26,7 @@ public final class SwiftLanguageServer: LanguageServer {
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
 
-  let onExit: () -> ()
+  let onExit: () -> Void
 
   var api: sourcekitd_functions_t { return sourcekitd.api }
   var keys: sourcekitd_keys { return sourcekitd.keys }
@@ -34,7 +34,7 @@ public final class SwiftLanguageServer: LanguageServer {
   var values: sourcekitd_values { return sourcekitd.values }
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, onExit: @escaping () -> () = {}) throws {
+  public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, onExit: @escaping () -> Void = {}) throws {
 
     self.sourcekitd = try SwiftSourceKitFramework(dylib: sourcekitd)
     self.buildSystem = buildSystem
@@ -328,7 +328,7 @@ extension SwiftLanguageServer {
 
       var result = CompletionList(isIncomplete: false, items: [])
 
-      let cancelled = !completions.forEach({ (i, value) -> Bool in
+      let cancelled = !completions.forEach { (i, value) -> Bool in
         // Check for cancellation periodically when there are many results.
         if i % 100 == 0, req.isCancelled {
           req.reply(LSPResult.failure(.cancelled))
@@ -357,7 +357,7 @@ extension SwiftLanguageServer {
         ))
 
         return true
-      })
+      }
 
       if !cancelled {
         req.reply(result)
@@ -527,7 +527,7 @@ extension SwiftLanguageServer {
 
       var highlights: [DocumentHighlight] = []
 
-      results.forEach { i, value in
+      results.forEach { _, value in
         if let offset: Int = value[self.keys.offset],
            let start: Position = snapshot.positionOf(utf8Offset: offset),
            let length: Int = value[self.keys.length],

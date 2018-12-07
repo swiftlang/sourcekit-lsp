@@ -118,6 +118,7 @@ extension Toolchain {
   }
 
   /// Search `path` for tools, returning true if any are found.
+  @discardableResult
   func searchForTools(_ path: AbsolutePath, _ fs: FileSystem = localFileSystem) -> Bool {
     return
       searchForTools(binPath: path, fs) ||

@@ -18,7 +18,7 @@ extension Platform {
   public var dynamicLibraryExtension: String {
     switch self {
     case .darwin: return "dylib"
-    case .linux(_): return "so"
+    case .linux: return "so"
     }
   }
 }
