@@ -20,9 +20,12 @@ typealias Notification = LanguageServerProtocol.Notification
 
 @testable import SourceKit
 
-final class SKLocalSwiftTests: XCTestCase {
+final class LocalSwiftTests: XCTestCase {
 
+  /// Connection and lifetime management for the service.
   var connection: TestSourceKitServer! = nil
+
+  /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
 
   /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
@@ -468,5 +471,126 @@ final class SKLocalSwiftTests: XCTestCase {
 
     Error.missingDocument if the document is not open.
     """)
+  }
+
+  func testSymbolInfo() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    sk.allowUnexpectedNotification = true
+
+    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: url,
+      language: .swift,
+      version: 1,
+      text: """
+      struct S {
+        func foo() {
+          var local = 1
+        }
+      }
+      """)))
+
+    do {
+      let resp = try! sk.sendSync(SymbolInfoRequest(
+        textDocument: TextDocumentIdentifier(url: url),
+        position: Position(line: 0, utf16index: 7)))
+
+      XCTAssertEqual(resp.count, 1)
+      if let sym = resp.first {
+        XCTAssertEqual(sym.name, "S")
+        XCTAssertNil(sym.containerName)
+        XCTAssertEqual(sym.usr, "s:1a1SV")
+        XCTAssertEqual(sym.bestLocalDeclaration?.url, url)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 0)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 7)
+      }
+    }
+
+    do {
+      let resp = try! sk.sendSync(SymbolInfoRequest(
+        textDocument: TextDocumentIdentifier(url: url),
+        position: Position(line: 1, utf16index: 7)))
+
+      XCTAssertEqual(resp.count, 1)
+      if let sym = resp.first {
+        XCTAssertEqual(sym.name, "foo()")
+        XCTAssertNil(sym.containerName)
+        XCTAssertEqual(sym.usr, "s:1a1SV3fooyyF")
+        XCTAssertEqual(sym.bestLocalDeclaration?.url, url)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 1)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 7)
+      }
+    }
+
+    do {
+      let resp = try! sk.sendSync(SymbolInfoRequest(
+        textDocument: TextDocumentIdentifier(url: url),
+        position: Position(line: 2, utf16index: 8)))
+
+      XCTAssertEqual(resp.count, 1)
+      if let sym = resp.first {
+        XCTAssertEqual(sym.name, "local")
+        XCTAssertNil(sym.containerName)
+        XCTAssertEqual(sym.usr, "s:1a1SV3fooyyF5localL_Sivp")
+        XCTAssertEqual(sym.bestLocalDeclaration?.url, url)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 2)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 8)
+      }
+    }
+
+    do {
+      let resp = try! sk.sendSync(SymbolInfoRequest(
+        textDocument: TextDocumentIdentifier(url: url),
+        position: Position(line: 3, utf16index: 0)))
+
+      XCTAssertEqual(resp.count, 0)
+    }
+  }
+
+  func testHover() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    sk.allowUnexpectedNotification = true
+
+    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: url,
+      language: .swift,
+      version: 1,
+      text: """
+      /// This is a doc comment for S.
+      ///
+      /// Details.
+      struct S {}
+      """)))
+
+    do {
+      let resp = try! sk.sendSync(HoverRequest(
+        textDocument: TextDocumentIdentifier(url: url),
+        position: Position(line: 3, utf16index: 7)))
+
+      XCTAssertNotNil(resp)
+      if let hover = resp {
+        XCTAssertNil(hover.range)
+        XCTAssertEqual(hover.contents.kind, .markdown)
+        XCTAssertEqual(hover.contents.value, """
+          # S
+          ```
+          struct S
+          ```
+
+          This is a doc comment for S.
+
+          ### Discussion
+
+          Details.
+          """)
+      }
+    }
+
+    do {
+      let resp = try! sk.sendSync(HoverRequest(
+        textDocument: TextDocumentIdentifier(url: url),
+        position: Position(line: 0, utf16index: 7)))
+
+      XCTAssertNil(resp)
+    }
   }
 }
