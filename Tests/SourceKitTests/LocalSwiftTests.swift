@@ -20,9 +20,12 @@ typealias Notification = LanguageServerProtocol.Notification
 
 @testable import SourceKit
 
-final class SKLocalSwiftTests: XCTestCase {
+final class LocalSwiftTests: XCTestCase {
 
+  /// Connection and lifetime management for the service.
   var connection: TestSourceKitServer! = nil
+
+  /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
 
   /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
