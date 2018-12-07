@@ -499,6 +499,9 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(sym.name, "S")
         XCTAssertNil(sym.containerName)
         XCTAssertEqual(sym.usr, "s:1a1SV")
+        XCTAssertEqual(sym.bestLocalDeclaration?.url, url)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 0)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 7)
       }
     }
 
@@ -512,6 +515,9 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(sym.name, "foo()")
         XCTAssertNil(sym.containerName)
         XCTAssertEqual(sym.usr, "s:1a1SV3fooyyF")
+        XCTAssertEqual(sym.bestLocalDeclaration?.url, url)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 1)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 7)
       }
     }
 
@@ -525,6 +531,9 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(sym.name, "local")
         XCTAssertNil(sym.containerName)
         XCTAssertEqual(sym.usr, "s:1a1SV3fooyyF5localL_Sivp")
+        XCTAssertEqual(sym.bestLocalDeclaration?.url, url)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 2)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 8)
       }
     }
 

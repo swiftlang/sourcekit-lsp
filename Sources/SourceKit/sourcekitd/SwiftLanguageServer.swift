@@ -585,8 +585,20 @@ extension SwiftLanguageServer {
         return
       }
 
+      var location: Location? = nil
+      if let filepath: String = dict[self.keys.filepath],
+         let offset: Int = dict[self.keys.offset],
+         let pos = snapshot.positionOf(utf8Offset: offset)
+      {
+        location = Location(url: URL(fileURLWithPath: filepath), range: Range(pos))
+      }
+
       req.reply([
-        SymbolDetails(name: dict[self.keys.name], containerName: nil, usr: dict[self.keys.usr]),
+        SymbolDetails(
+          name: dict[self.keys.name],
+          containerName: nil,
+          usr: dict[self.keys.usr],
+          bestLocalDeclaration: location),
       ])
     }
 

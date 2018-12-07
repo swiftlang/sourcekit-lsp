@@ -488,9 +488,24 @@ public struct SymbolDetails: ResponseType, Hashable {
   /// An opaque identifier in a format known only to clangd.
   // public var id: String?
 
-  public init(name: String?, containerName: String? = nil, usr: String?) {
+  /// Best known declaration or definition location without global knowledge.
+  ///
+  /// For a local or private variable, this is generally the canonical definition location -
+  /// appropriate as a response to a `textDocument/definition` request. For global symbols this is
+  /// the best known location within a single compilation unit. For example, in C++ this might be
+  /// the declaration location from a header as opposed to the definition in some other
+  /// translation unit.
+  public var bestLocalDeclaration: Location? = nil
+
+  public init(
+    name: String?,
+    containerName: String? = nil,
+    usr: String?,
+    bestLocalDeclaration: Location? = nil)
+  {
     self.name = name
     self.containerName = containerName
     self.usr = usr
+    self.bestLocalDeclaration = bestLocalDeclaration
   }
 }
