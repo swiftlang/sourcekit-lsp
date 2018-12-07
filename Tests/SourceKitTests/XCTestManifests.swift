@@ -17,6 +17,7 @@ extension LocalSwiftTests {
     static let __allTests__LocalSwiftTests = [
         ("testCompletion", testCompletion),
         ("testEditing", testEditing),
+        ("testSymbolInfo", testSymbolInfo),
         ("testXMLToMarkdownComment", testXMLToMarkdownComment),
         ("testXMLToMarkdownDeclaration", testXMLToMarkdownDeclaration),
     ]
