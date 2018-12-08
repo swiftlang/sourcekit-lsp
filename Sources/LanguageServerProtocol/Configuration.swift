@@ -10,17 +10,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// The workspace folder change event.
-public struct WorkspaceFoldersChangeEvent: Codable, Hashable {
+/// Notification from the client that the configuration of the workspace has changed.
+///
+/// - Note: the format of the settings is implementation-defined.
+///
+/// - Parameter settings: The changed workspace settings.
+public struct DidChangeConfiguration: NotificationType {
+  public static let method: String = "workspace/didChangeConfiguration"
 
-    /// The array of added workspace folders
-    public var added: [WorkspaceFolder]?
+  /// The changed workspace settings.
+  public var settings: WorkspaceSettingsChange
 
-    /// The array of the removed workspace folders
-    public var removed: [WorkspaceFolder]?
-
-    public init(added: [WorkspaceFolder]? = nil, removed: [WorkspaceFolder]? = nil) {
-        self.added = added
-        self.removed = removed
-    }
+  public init(settings: WorkspaceSettingsChange) {
+    self.settings = settings
+  }
 }

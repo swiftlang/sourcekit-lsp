@@ -10,10 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct InitializationOptions {
+public struct InitializationOptions: Hashable, Codable {
   public init() {}
 }
-
-extension InitializationOptions: Equatable {}
-extension InitializationOptions: Hashable {}
-extension InitializationOptions: Codable {}

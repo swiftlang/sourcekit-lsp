@@ -25,9 +25,11 @@ public struct CompletionItem: Codable, Hashable {
   /// The name to use for filtering the result. If `nil`, use `label.
   public var filterText: String?
 
-  /// The (primary) edit to apply to the document if this completion is accepted. This takes precedence over `insertText`.
+  /// The (primary) edit to apply to the document if this completion is accepted.
   ///
-  /// - note: the range of the edit must contain the completion position.
+  /// This takes precedence over `insertText`.
+  ///
+  /// - Note: The range of the edit must contain the completion position.
   public var textEdit: TextEdit?
 
   /// **Deprecated**: use `textEdit`
@@ -38,13 +40,25 @@ public struct CompletionItem: Codable, Hashable {
   /// The format of the `textEdit.nextText` or `insertText` value.
   public var insertTextFormat: InsertTextFormat?
 
+  /// The kind of completion item - e.g. method, property.
   public var kind: CompletionItemKind
 
+  /// Whether the completion is for a deprecated symbol.
   public var deprecated: Bool?
 
   // TODO: remaining members
 
-  public init(label: String, detail: String? = nil, sortText: String? = nil, filterText: String? = nil, textEdit: TextEdit? = nil, insertText: String? = nil, insertTextFormat: InsertTextFormat? = nil, kind: CompletionItemKind, deprecated: Bool? = nil) {
+  public init(
+    label: String,
+    detail: String? = nil,
+    sortText: String? = nil,
+    filterText: String? = nil,
+    textEdit: TextEdit? = nil,
+    insertText: String? = nil,
+    insertTextFormat: InsertTextFormat? = nil,
+    kind: CompletionItemKind,
+    deprecated: Bool? = nil)
+  {
     self.label = label
     self.detail = detail
     self.sortText = sortText
@@ -57,12 +71,12 @@ public struct CompletionItem: Codable, Hashable {
   }
 }
 
-
+/// The format of the returned insertion text - either literal plain text or a snippet.
 public enum InsertTextFormat: Int, Codable, Hashable {
 
   /// The text to insert is plain text.
   case plain = 1
 
-  /// The text to insert is a "snippet", which may contain placheolders.
+  /// The text to insert is a "snippet", which may contain placeholders.
   case snippet = 2
 }

@@ -10,17 +10,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Edit to a text document, replacing the contents of `range` with `text`.
-public struct TextEdit: ResponseType, Hashable {
+/// Notification from the server containing a log message.
+///
+/// - Parameters:
+///   - type: The kind of log message.
+///   - message: The contents of the message.
+public struct LogMessage: NotificationType, Hashable {
+  public static let method: String = "window/logMessage"
 
-  /// The range of text to be replaced.
-  var range: PositionRange
+  /// The kind of log message.
+  public var type: WindowMessageType
 
-  /// The new text.
-  var newText: String
+  /// The contents of the message.
+  public var message: String
 
-  public init(range: Range<Position>, newText: String) {
-    self.range = PositionRange(range)
-    self.newText = newText
+  public init(type: WindowMessageType, message: String) {
+    self.type = type
+    self.message = message
   }
 }

@@ -13,7 +13,7 @@
 /// A document identifier representing a specific version of the document.
 ///
 /// Notionally a subtype of `TextDocumentIdentifier`.
-public struct VersionedTextDocumentIdentifier /* : TextDocumentIdentifier */ {
+public struct VersionedTextDocumentIdentifier: Hashable {
 
   /// A URL that uniquely identifies the document.
   public var url: URL
@@ -21,14 +21,11 @@ public struct VersionedTextDocumentIdentifier /* : TextDocumentIdentifier */ {
   /// The version number of this document, or nil if unknown.
   public var version: Int?
 
-  public init(url: URL, version: Int?) {
+  public init(_ url: URL, version: Int?) {
     self.url = url
     self.version = version
   }
 }
-
-extension VersionedTextDocumentIdentifier: Equatable {}
-extension VersionedTextDocumentIdentifier: Hashable {}
 
 // Encode using the key "uri" to match LSP.
 extension VersionedTextDocumentIdentifier: Codable {

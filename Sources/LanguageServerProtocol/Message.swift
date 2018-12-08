@@ -12,7 +12,8 @@
 
 public protocol MessageType: Codable {}
 
-/// `RequestType` with no associated type or same-type requirements. Most users should prefer `RequestType`.
+/// `RequestType` with no associated type or same-type requirements. Most users should prefer
+/// `RequestType`.
 public protocol _RequestType: MessageType {
 
   /// The name of the request.
@@ -54,4 +55,10 @@ extension NotificationType {
   public func _handle(_ handler: MessageHandler, connection: Connection) {
     handler.handle(self, from: ObjectIdentifier(connection))
   }
+}
+
+/// A `textDocument/*` request, which takes a text document identifier indicating which document it
+/// operates in or on.
+public protocol TextDocumentRequest: RequestType {
+  var textDocument: TextDocumentIdentifier { get }
 }

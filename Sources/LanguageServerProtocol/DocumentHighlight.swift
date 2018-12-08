@@ -10,15 +10,48 @@
 //
 //===----------------------------------------------------------------------===//
 
+/// Request to find document ranges that should be highlighted to match the given cursor position.
+///
+/// This is typically used to highlight all references to the symbol under the cursor that are found
+/// within a single document. Unlike the `references` request, this is scoped to one document and
+/// has a DocumentHighlightKind that may include fuzzy (`.text`) matches.
+///
+/// Servers that provide document highlights should set the`documentHighlightProvider` server
+/// capability.
+///
+/// - Parameters:
+///   - textDocument: The document in which to lookup the symbol location.
+///   - position: The document location at which to lookup symbol information.
+///
+/// - Returns: An array of document highlight ranges, if any.
+public struct DocumentHighlightRequest: TextDocumentRequest, Hashable {
+  public static let method: String = "textDocument/documentHighlight"
+  public typealias Response = [DocumentHighlight]?
+
+  /// The document in which to lookup the symbol location.
+  public var textDocument: TextDocumentIdentifier
+
+  /// The document location at which to lookup symbol information.
+  public var position: Position
+}
+
+/// The kind of document highlight - read, write, or text (fuzzy).
 public enum DocumentHighlightKind: Int, Codable, Hashable {
+
+  /// Textual match.
   case text = 1
+
+  /// A read of the symbol.
   case read = 2
+
+  /// A write to the symbol.
   case write = 3
 }
 
+/// A document range to highlight.
 public struct DocumentHighlight: ResponseType, Hashable {
 
-  /// The location of the highlight.
+  /// The range of the highlight.
   public var range: PositionRange
 
   /// What kind of reference this is. Default is `.text`.
