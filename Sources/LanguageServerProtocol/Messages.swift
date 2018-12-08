@@ -174,18 +174,6 @@ public struct LogMessage: NotificationType, Hashable {
   }
 }
 
-// MARK: - Workspace -
-
-public struct DidChangeConfiguration: NotificationType {
-  public static let method: String = "workspace/didChangeConfiguration"
-
-  public var settings: WorkspaceSettingsChange
-
-  public init(settings: WorkspaceSettingsChange) {
-    self.settings = settings
-  }
-}
-
 public protocol TextDocumentRequest: RequestType {
 
   var textDocument: TextDocumentIdentifier { get }

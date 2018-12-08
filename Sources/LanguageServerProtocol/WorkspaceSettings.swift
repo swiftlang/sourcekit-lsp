@@ -10,14 +10,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// The `settings` field of a `workspace/didChangeConfiguration`. This is typed as `Any` in the protocol, and this enum contains the formats we support.
+/// The `settings` field of a `workspace/didChangeConfiguration`.
+///
+/// This is typed as `Any` in the protocol, and this enum contains the formats we support.
 public enum WorkspaceSettingsChange: Codable, Hashable {
 
   case clangd(ClangWorkspaceSettings)
   case unknown
 
   public init(from decoder: Decoder) throws {
-    // FIXME: doing trial deserialization only works if we have at least one non-optional unique key, which we don't yet.  For now, assume that if we add another kind of workspace settings it will rectify this issue.
+    // FIXME: doing trial deserialization only works if we have at least one non-optional unique
+    // key, which we don't yet.  For now, assume that if we add another kind of workspace settings
+    // it will rectify this issue.
     if let settings = try? ClangWorkspaceSettings(from: decoder) {
       self = .clangd(settings)
     } else {
@@ -35,6 +39,10 @@ public enum WorkspaceSettingsChange: Codable, Hashable {
   }
 }
 
+/// Workspace settings for clangd, represented by a compilation database.
+///
+/// Clangd will accept *either* a path to a compilation database on disk, or the contents of a
+/// compilation database to be managed in-memory, but they cannot be mixed.
 public struct ClangWorkspaceSettings: Codable, Hashable {
 
   /// The path to a json compilation database.
@@ -52,10 +60,13 @@ public struct ClangWorkspaceSettings: Codable, Hashable {
   }
 }
 
+/// A single compile command for use in a clangd workspace settings.
 public struct ClangCompileCommand: Codable, Hashable {
 
+  /// The command (executable + compiler arguments).
   public var compilationCommand: [String]
 
+  /// The directory to perform the compilation in.
   public var workingDirectory: String
 
   public init(compilationCommand: [String], workingDirectory: String) {
