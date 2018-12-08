@@ -129,16 +129,6 @@ public struct InitializedNotification: NotificationType, Hashable {
   public init() {}
 }
 
-public struct CancelRequest: NotificationType, Hashable {
-  public static let method: String = "$/cancelRequest"
-
-  /// The request to cancel.
-  public var id: RequestID
-
-  public init(id: RequestID) {
-    self.id = id
-  }
-}
 
 public struct VoidResponse: ResponseType, Hashable {
   public init() {}
