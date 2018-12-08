@@ -27,6 +27,7 @@ extension ToolchainRegistryTests {
         ("testFromDirectory", testFromDirectory),
         ("testSearchDarwin", testSearchDarwin),
         ("testSearchExplicitEnv", testSearchExplicitEnv),
+        ("testSearchExplicitEnvBuiltin", testSearchExplicitEnvBuiltin),
         ("testSearchPATH", testSearchPATH),
         ("testSubDirs", testSubDirs),
         ("testUnknownPlatform", testUnknownPlatform),

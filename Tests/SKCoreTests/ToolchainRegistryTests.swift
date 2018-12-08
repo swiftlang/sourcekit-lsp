@@ -29,6 +29,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertEqual(tr.default?.identifier, "b")
     tr.default = nil
     XCTAssertEqual(tr.default?.identifier, "a")
+    XCTAssert(tr.default === tr.toolchain(identifier: "a"))
   }
 
   func testDefaultDarwin() {
@@ -169,6 +170,10 @@ final class ToolchainRegistryTests: XCTestCase {
     overrideReg.darwinToolchainOverride = "org.fake.global.B"
     XCTAssertEqual(overrideReg.darwinToolchainIdentifier, "org.fake.global.B")
     XCTAssertEqual(overrideReg.default?.identifier, "org.fake.global.B")
+
+    let checkByDir = ToolchainRegistry()
+    checkByDir.scanForToolchains(xctoolchainSearchPath: toolchains, fs)
+    XCTAssertEqual(checkByDir.toolchains.count, 4)
 #endif
   }
 
@@ -198,9 +203,23 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tc.swiftc)
     XCTAssertNotNil(tc.sourcekitd)
     XCTAssertNil(tc.libIndexStore)
+
+    let binPath2 = AbsolutePath("/other/my_toolchain/bin")
+    try! setenv("SOME_TEST_ENV_PATH", value: "/bogus:\(binPath2.asString):/bogus2")
+    makeToolchain(binPath: binPath2, fs, sourcekitd: true)
+    tr.scanForToolchains(pathVariables: ["NOPE", "SOME_TEST_ENV_PATH", "MORE_NOPE"], fs)
+
+    guard let tc2 = tr.toolchains.first(where: { tc in tc.path == binPath2 }) else {
+      XCTFail("couldn't find expected toolchain")
+      return
+    }
+
+    XCTAssertEqual(tr.default?.identifier, tc.identifier)
+    XCTAssertEqual(tc2.identifier, binPath2.asString)
+    XCTAssertNotNil(tc2.sourcekitd)
   }
 
-  func testSearchExplicitEnv() {
+  func testSearchExplicitEnvBuiltin() {
     let fs = InMemoryFileSystem()
     let tr = ToolchainRegistry(fs)
     let binPath = AbsolutePath("/foo/bar/my_toolchain/bin")
@@ -220,6 +239,35 @@ final class ToolchainRegistryTests: XCTestCase {
     }
 
     XCTAssertEqual(tr.default?.identifier, tc.identifier)
+    XCTAssertEqual(tc.identifier, binPath.parentDirectory.asString)
+    XCTAssertNil(tc.clang)
+    XCTAssertNil(tc.clangd)
+    XCTAssertNil(tc.swiftc)
+    XCTAssertNotNil(tc.sourcekitd)
+    XCTAssertNil(tc.libIndexStore)
+  }
+
+  func testSearchExplicitEnv() {
+    let fs = InMemoryFileSystem()
+    let tr = ToolchainRegistry(fs)
+    let binPath = AbsolutePath("/foo/bar/my_toolchain/bin")
+    makeToolchain(binPath: binPath, fs, sourcekitd: true)
+
+    XCTAssertNil(tr.default)
+    XCTAssert(tr.toolchains.isEmpty)
+
+    try! setenv("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH", value: binPath.parentDirectory.asString)
+
+    tr.scanForToolchains(
+      environmentVariables: ["TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH"],
+      setDefault: false,
+      fs)
+
+    guard let tc = tr.toolchains.first(where: { tc in tc.path == binPath.parentDirectory }) else {
+      XCTFail("couldn't find expected toolchain")
+      return
+    }
+
     XCTAssertEqual(tc.identifier, binPath.parentDirectory.asString)
     XCTAssertNil(tc.clang)
     XCTAssertNil(tc.clangd)
@@ -264,6 +312,14 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNotNil(t2.clang)
     XCTAssertNotNil(t2.clangd)
     XCTAssertNotNil(t2.swiftc)
+
+    let tr = ToolchainRegistry()
+    let t3 = try! tr.registerToolchain(path.parentDirectory, fs)
+    XCTAssertEqual(t3.identifier, t2.identifier)
+    XCTAssertEqual(t3.sourcekitd, t2.sourcekitd)
+    XCTAssertEqual(t3.clang, t2.clang)
+    XCTAssertEqual(t3.clangd, t2.clangd)
+    XCTAssertEqual(t3.swiftc, t2.swiftc)
   }
 
   func testDylibNames() {
