@@ -199,7 +199,7 @@ final class CodingTests: XCTestCase {
   }
 }
 
-func with<T>(_ value: T, mutate: (inout T) -> ()) -> T {
+func with<T>(_ value: T, mutate: (inout T) -> Void) -> T {
   var localCopy = value
   mutate(&localCopy)
   return localCopy

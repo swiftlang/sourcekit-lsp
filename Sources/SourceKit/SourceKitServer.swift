@@ -71,7 +71,7 @@ public final class SourceKitServer: LanguageServer {
   }
 
   func registerWorkspaceRequest<R>(
-    _ requestHandler: @escaping (SourceKitServer) -> (Request<R>, Workspace) -> ())
+    _ requestHandler: @escaping (SourceKitServer) -> (Request<R>, Workspace) -> Void)
   {
     _register { [unowned self] (req: Request<R>) in
       guard let workspace = self.workspace else {
@@ -83,7 +83,7 @@ public final class SourceKitServer: LanguageServer {
   }
 
   func registerWorkspaceNotfication<N>(
-    _ noteHandler: @escaping (SourceKitServer) -> (Notification<N>, Workspace) -> ())
+    _ noteHandler: @escaping (SourceKitServer) -> (Notification<N>, Workspace) -> Void)
   {
     _register { [unowned self] (note: Notification<N>) in
       guard let workspace = self.workspace else {

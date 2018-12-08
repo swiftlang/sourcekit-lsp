@@ -93,11 +93,11 @@ public final class TestClient: LanguageServerEndpoint {
   }
 
   public var replyQueue: DispatchQueue = DispatchQueue(label: "testclient-reply-queue")
-  var oneShotNotificationHandlers: [((Any) -> ())] = []
+  var oneShotNotificationHandlers: [((Any) -> Void)] = []
 
   public var allowUnexpectedNotification: Bool = false
 
-  public func appendOneShotNotificationHandler<N>(_ handler: @escaping (Notification<N>) -> ()) {
+  public func appendOneShotNotificationHandler<N>(_ handler: @escaping (Notification<N>) -> Void) {
     oneShotNotificationHandlers.append({ anyNote in
       guard let note = anyNote as? Notification<N> else {
         fatalError("received notification of the wrong type \(anyNote); expected \(N.self)")
@@ -106,7 +106,7 @@ public final class TestClient: LanguageServerEndpoint {
     })
   }
 
-  public func handleNextNotification<N>(_ handler: @escaping (Notification<N>) -> ()) {
+  public func handleNextNotification<N>(_ handler: @escaping (Notification<N>) -> Void) {
     precondition(oneShotNotificationHandlers.isEmpty)
     appendOneShotNotificationHandler(handler)
   }
@@ -137,12 +137,12 @@ extension TestClient: Connection {
   }
 
   /// Send a request to the language server and (asynchronously) receive a reply.
-  public func send<Request>(_ request: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> ()) -> RequestID where Request: RequestType {
+  public func send<Request>(_ request: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
     return server.send(request, queue: queue, reply: reply)
   }
 
   /// Convenience method to get reply on replyQueue.
-  public func send<Request>(_ request: Request, reply: @escaping (LSPResult<Request.Response>) -> ()) -> RequestID where Request: RequestType {
+  public func send<Request>(_ request: Request, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
     return send(request, queue: replyQueue, reply: reply)
   }
 
@@ -152,7 +152,7 @@ extension TestClient: Connection {
 
   /// Send a notification and expect a notification in reply synchronously.
   /// For testing notifications that behave like requests  - e.g. didChange & publishDiagnostics.
-  public func sendNoteSync<NSend, NReply>(_ notification: NSend, _ handler: @escaping (Notification<NReply>) -> ()) where NSend: NotificationType {
+  public func sendNoteSync<NSend, NReply>(_ notification: NSend, _ handler: @escaping (Notification<NReply>) -> Void) where NSend: NotificationType {
 
     let expectation = XCTestExpectation(description: "sendNoteSync - note received")
 
@@ -173,8 +173,8 @@ extension TestClient: Connection {
   /// For testing notifications that behave like requests  - e.g. didChange & publishDiagnostics.
   public func sendNoteSync<NSend, NReply1, NReply2>(
     _ notification: NSend,
-    _ handler1: @escaping (Notification<NReply1>) -> (),
-    _ handler2: @escaping (Notification<NReply2>) -> ()
+    _ handler1: @escaping (Notification<NReply1>) -> Void,
+    _ handler2: @escaping (Notification<NReply2>) -> Void
   ) where NSend: NotificationType {
 
     let expectation = XCTestExpectation(description: "sendNoteSync - note received")

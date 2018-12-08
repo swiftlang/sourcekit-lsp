@@ -67,7 +67,7 @@ public func checkDecoding<T>(json: String, expected value: T, file: StaticString
   XCTAssertEqual(value, decodedValue, file: file, line: line)
 }
 
-public func checkCoding<T>(_ value: T, json: String, userInfo: [CodingUserInfoKey: Any] = [:], file: StaticString = #file, line: UInt = #line, body: (T) -> ()) where T: Codable {
+public func checkCoding<T>(_ value: T, json: String, userInfo: [CodingUserInfoKey: Any] = [:], file: StaticString = #file, line: UInt = #line, body: (T) -> Void) where T: Codable {
   let encoder = JSONEncoder()
   encoder.outputFormatting.insert(.prettyPrinted)
   if #available(macOS 10.13, *) {

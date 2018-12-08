@@ -100,7 +100,7 @@ public final class Logger {
   }
 
   @discardableResult
-  public func addLogHandler(_ handler: @escaping (String, LogLevel) -> ()) -> AnyLogHandler {
+  public func addLogHandler(_ handler: @escaping (String, LogLevel) -> Void) -> AnyLogHandler {
     let obj = AnyLogHandler(handler)
     addLogHandler(obj)
     return obj
@@ -165,9 +165,9 @@ public final class Logger {
 
 public class AnyLogHandler: LogHandler {
 
-  let handler: (String, LogLevel) -> ()
+  let handler: (String, LogLevel) -> Void
 
-  public init(_ handler: @escaping (String, LogLevel) -> ()) {
+  public init(_ handler: @escaping (String, LogLevel) -> Void) {
     self.handler = handler
   }
 

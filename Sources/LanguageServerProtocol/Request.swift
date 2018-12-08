@@ -28,7 +28,7 @@ public final class Request<R: RequestType> {
   /// The request parameters.
   public let params: Params
 
-  private var replyBlock: (LSPResult<Response>) -> ()
+  private var replyBlock: (LSPResult<Response>) -> Void
 
   /// Whether a reply has been made. Every request must reply exactly once.
   private var replied: Bool = false {
@@ -40,7 +40,7 @@ public final class Request<R: RequestType> {
   /// The request's cancellation state.
   public let cancellationToken: CancellationToken
 
-  public init(_ request: Params, id: RequestID, clientID: ObjectIdentifier, cancellation: CancellationToken, reply: @escaping (LSPResult<Response>) -> ()) {
+  public init(_ request: Params, id: RequestID, clientID: ObjectIdentifier, cancellation: CancellationToken, reply: @escaping (LSPResult<Response>) -> Void) {
     self.id = id
     self.clientID = clientID
     self.params = request

@@ -19,7 +19,7 @@ public protocol Connection: AnyObject {
   func send<Notification>(_: Notification) where Notification: NotificationType
 
   /// Send a request and (asynchronously) receive a reply.
-  func send<Request>(_: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> ()) -> RequestID where Request: RequestType
+  func send<Request>(_: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType
 
   /// Send a request synchronously. **Use wisely**.
   func sendSync<Request>(_: Request) throws -> Request.Response where Request: RequestType
@@ -51,7 +51,7 @@ public protocol MessageHandler: AnyObject {
   func handle<Notification>(_: Notification, from: ObjectIdentifier) where Notification: NotificationType
 
   /// Handle a request and (asynchronously) receive a reply.
-  func handle<Request>(_: Request, id: RequestID, from: ObjectIdentifier, reply: @escaping (LSPResult<Request.Response>) -> ()) where Request: RequestType
+  func handle<Request>(_: Request, id: RequestID, from: ObjectIdentifier, reply: @escaping (LSPResult<Request.Response>) -> Void) where Request: RequestType
 }
 
 /// A connection between two message handlers in the same process.
@@ -114,7 +114,7 @@ extension LocalConnection: Connection {
     handler!.handle(notification, from: ObjectIdentifier(self))
   }
 
-  public func send<Request>(_ request: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> ()) -> RequestID where Request: RequestType {
+  public func send<Request>(_ request: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
     precondition(state == .started)
     let id = nextRequestID()
     handler!.handle(request, id: id, from: ObjectIdentifier(self)) { result in
