@@ -202,56 +202,6 @@ public struct DidChangeWorkspaceFolders: NotificationType {
     }
 }
 
-// MARK: - Text synchronization -
-
-public struct DidOpenTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/didOpen"
-
-  public var textDocument: TextDocumentItem
-
-  public init(textDocument: TextDocumentItem) {
-    self.textDocument = textDocument
-  }
-}
-
-public struct DidCloseTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/didClose"
-
-  public var textDocument: TextDocumentIdentifier
-}
-
-public struct DidChangeTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/didChange"
-
-  public var textDocument: VersionedTextDocumentIdentifier
-
-  public var contentChanges: [TextDocumentContentChangeEvent]
-
-  public init(textDocument: VersionedTextDocumentIdentifier, contentChanges: [TextDocumentContentChangeEvent]) {
-    self.textDocument = textDocument
-    self.contentChanges = contentChanges
-  }
-}
-
-public struct WillSaveTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/willSave"
-
-  public var textDocument: TextDocumentIdentifier
-
-  public var reason: TextDocumentSaveReason
-}
-
-public struct DidSaveTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/didSave"
-
-  public var textDocument: TextDocumentIdentifier
-
-  /// The content of the file.
-  ///
-  /// - note: Only provided if the server specified `includeText == true`.
-  public var text: String?
-}
-
 public protocol TextDocumentRequest: RequestType {
 
   var textDocument: TextDocumentIdentifier { get }
