@@ -14,7 +14,9 @@ import Basic
 
 /// The set of known requests.
 ///
-/// All requests from LSP as well as any extensions provided by the server should be listed here. If you are adding a message for testing only, you can register it dynamically using `MessageRegistry._register()` which allows you to avoid bloating the real server implementation.
+/// All requests from LSP as well as any extensions provided by the server should be listed here.
+/// If you are adding a message for testing only, you can register it dynamically using
+/// `MessageRegistry._register()` which allows you to avoid bloating the real server implementation.
 public let builtinRequests: [_RequestType.Type] = [
   InitializeRequest.self,
   Shutdown.self,
@@ -35,7 +37,9 @@ public let builtinRequests: [_RequestType.Type] = [
 
 /// The set of known notifications.
 ///
-/// All notifications from LSP as well as any extensions provided by the server should be listed here. If you are adding a message for testing only, you can register it dynamically using `MessageRegistry._register()` which allows you to avoid bloating the real server implementation.
+/// All notifications from LSP as well as any extensions provided by the server should be listed
+/// here. If you are adding a message for testing only, you can register it dynamically using
+/// `MessageRegistry._register()` which allows you to avoid bloating the real server implementation.
 public let builtinNotifications: [NotificationType.Type] = [
   InitializedNotification.self,
   Exit.self,
