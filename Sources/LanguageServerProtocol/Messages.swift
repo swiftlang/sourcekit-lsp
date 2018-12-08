@@ -150,15 +150,6 @@ extension Optional: ResponseType where Wrapped: ResponseType {}
 extension Array: MessageType where Element: MessageType {}
 extension Array: ResponseType where Element: ResponseType {}
 
-public struct Shutdown: RequestType, Hashable {
-  public static let method: String = "shutdown"
-  public typealias Response = VoidResponse
-}
-
-public struct Exit: NotificationType, Hashable {
-  public static let method: String = "exit"
-}
-
 public protocol TextDocumentRequest: RequestType {
 
   var textDocument: TextDocumentIdentifier { get }
