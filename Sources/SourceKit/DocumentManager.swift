@@ -95,7 +95,7 @@ public final class DocumentManager {
   /// - returns: The contents of the file after all the edits are applied.
   /// - throws: Error.missingDocument if the document is not open.
   @discardableResult
-  public func edit(_ url: URL, newVersion: Int, edits: [TextDocumentContentChangeEvent], editCallback: ((_ before: DocumentSnapshot, TextDocumentContentChangeEvent) -> ())? = nil) throws -> DocumentSnapshot {
+  public func edit(_ url: URL, newVersion: Int, edits: [TextDocumentContentChangeEvent], editCallback: ((_ before: DocumentSnapshot, TextDocumentContentChangeEvent) -> Void)? = nil) throws -> DocumentSnapshot {
     return try queue.sync {
       guard let document = documents[url] else {
         throw Error.missingDocument(url)
@@ -159,7 +159,7 @@ extension DocumentManager {
 
   /// Convenience wrapper for `edit(_:newVersion:edits:editCallback:)` that logs on failure.
   @discardableResult
-  func edit(_ note: Notification<DidChangeTextDocument>, editCallback: ((_ before: DocumentSnapshot, TextDocumentContentChangeEvent) -> ())? = nil) -> DocumentSnapshot? {
+  func edit(_ note: Notification<DidChangeTextDocument>, editCallback: ((_ before: DocumentSnapshot, TextDocumentContentChangeEvent) -> Void)? = nil) -> DocumentSnapshot? {
     return orLog("failed to edit document", level: .error) {
       try edit(note.params.textDocument.url, newVersion: note.params.textDocument.version ?? -1, edits: note.params.contentChanges, editCallback: editCallback)
     }

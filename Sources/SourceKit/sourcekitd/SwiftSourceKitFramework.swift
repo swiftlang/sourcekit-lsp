@@ -160,7 +160,7 @@ extension SwiftSourceKitFramework {
   }
 
   /// Send the given request and synchronously receive a reply dictionary (or error).
-  func send(_ req: SKRequestDictionary, reply: @escaping (LSPResult<SKResponseDictionary>) -> ()) -> sourcekitd_request_handle_t? {
+  func send(_ req: SKRequestDictionary, reply: @escaping (LSPResult<SKResponseDictionary>) -> Void) -> sourcekitd_request_handle_t? {
     logAsync { _ in req.description }
 
     var handle: sourcekitd_request_handle_t? = nil
