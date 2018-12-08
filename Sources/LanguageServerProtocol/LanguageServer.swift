@@ -103,7 +103,7 @@ extension LanguageServerEndpoint {
   /// Register the given request handler, which must be a method on `self`.
   ///
   /// Must be called on `queue`.
-  public func _register<Server, R>(_ requestHandler: @escaping (Server) -> (Request<R>) -> ()) {
+  public func _register<Server, R>(_ requestHandler: @escaping (Server) -> (Request<R>) -> Void) {
     // We can use `unowned` here because the handler is run synchronously on `queue`.
     precondition(self is Server)
     requestHandlers[ObjectIdentifier(R.self)] = { [unowned self] request in
@@ -114,7 +114,7 @@ extension LanguageServerEndpoint {
   /// Register the given notification handler, which must be a method on `self`.
   ///
   /// Must be called on `queue`.
-  public func _register<Server, N>(_ noteHandler: @escaping (Server) -> (Notification<N>) -> ()) {
+  public func _register<Server, N>(_ noteHandler: @escaping (Server) -> (Notification<N>) -> Void) {
     // We can use `unowned` here because the handler is run synchronously on `queue`.
     notificationHandlers[ObjectIdentifier(N.self)] = { [unowned self] note in
       noteHandler(self as! Server)(note)
@@ -124,24 +124,24 @@ extension LanguageServerEndpoint {
   /// Register the given request handler.
   ///
   /// Must be called on `queue`.
-  public func _register<R>(_ requestHandler: @escaping (Request<R>) -> ()) {
+  public func _register<R>(_ requestHandler: @escaping (Request<R>) -> Void) {
     requestHandlers[ObjectIdentifier(R.self)] = requestHandler
   }
 
   /// Register the given notification handler.
   ///
   /// Must be called on `queue`.
-  public func _register<N>(_ noteHandler: @escaping (Notification<N>) -> ()) {
+  public func _register<N>(_ noteHandler: @escaping (Notification<N>) -> Void) {
     notificationHandlers[ObjectIdentifier(N.self)] = noteHandler
   }
 
   /// Register the given request handler.  **For test messages only**.
-  public func register<R>(_ requestHandler: @escaping (Request<R>) -> ()) {
+  public func register<R>(_ requestHandler: @escaping (Request<R>) -> Void) {
     queue.sync { _register(requestHandler) }
   }
 
   /// Register the given notification handler.  **For test messages only**.
-  public func register<N>(_ noteHandler: @escaping (Notification<N>) -> ()) {
+  public func register<N>(_ noteHandler: @escaping (Notification<N>) -> Void) {
     queue.sync { _register(noteHandler) }
   }
 }
@@ -157,7 +157,7 @@ extension LanguageServerEndpoint: MessageHandler {
 
       self._logNotification(notification)
 
-      guard let handler = self.notificationHandlers[ObjectIdentifier(N.self)] as? ((Notification<N>) -> ()) else {
+      guard let handler = self.notificationHandlers[ObjectIdentifier(N.self)] as? ((Notification<N>) -> Void) else {
         self._handleUnknown(notification)
         return
       }
@@ -165,7 +165,7 @@ extension LanguageServerEndpoint: MessageHandler {
     }
   }
 
-  public func handle<R>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response >) -> ()) where R: RequestType {
+  public func handle<R>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response >) -> Void) where R: RequestType {
 
     queue.async {
 
@@ -182,7 +182,7 @@ extension LanguageServerEndpoint: MessageHandler {
 
       self._logRequest(request)
 
-      guard let handler = self.requestHandlers[ObjectIdentifier(R.self)] as? ((Request<R>) -> ()) else {
+      guard let handler = self.requestHandlers[ObjectIdentifier(R.self)] as? ((Request<R>) -> Void) else {
         self._handleUnknown(request)
         return
       }
