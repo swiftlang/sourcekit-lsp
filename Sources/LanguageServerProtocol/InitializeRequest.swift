@@ -23,7 +23,7 @@
 ///   - initializationOptions: User-provided options.
 ///   - capabilities: The capabilities provided by the client editor.
 ///   - trace: Whether to enable tracing.
-///   - workspaceFolders: The workspace folders configued, if the client supports multiple workspace
+///   - workspaceFolders: The workspace folders configured, if the client supports multiple workspace
 ///     folders.
 ///
 /// - Returns:
@@ -62,7 +62,7 @@ public struct InitializeRequest: RequestType, Hashable {
   /// Whether to enable tracing.
   public var trace: Tracing? = .off
 
-  /// The workspace folders configued, if the client supports multiple workspace folders.
+  /// The workspace folders configured, if the client supports multiple workspace folders.
   public var workspaceFolders: [WorkspaceFolder]?
 
   public init(

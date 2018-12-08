@@ -77,6 +77,6 @@ public enum InsertTextFormat: Int, Codable, Hashable {
   /// The text to insert is plain text.
   case plain = 1
 
-  /// The text to insert is a "snippet", which may contain placheolders.
+  /// The text to insert is a "snippet", which may contain placeholders.
   case snippet = 2
 }

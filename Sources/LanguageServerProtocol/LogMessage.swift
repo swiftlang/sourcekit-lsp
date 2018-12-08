@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Notifcation from the server containing a log message.
+/// Notification from the server containing a log message.
 ///
 /// - Parameters:
 ///   - type: The kind of log message.

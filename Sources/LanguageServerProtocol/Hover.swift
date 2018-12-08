@@ -39,7 +39,7 @@ public struct HoverRequest: TextDocumentRequest, Hashable {
   }
 }
 
-/// Documentation markup contents for a symbol found by the hover requst.
+/// Documentation markup contents for a symbol found by the hover request.
 public struct HoverResponse: ResponseType, Hashable {
 
   /// The documentation markup content.
