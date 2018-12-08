@@ -159,21 +159,6 @@ public struct Exit: NotificationType, Hashable {
   public static let method: String = "exit"
 }
 
-// MARK: - Window -
-
-public struct LogMessage: NotificationType, Hashable {
-  public static let method: String = "window/logMessage"
-
-  public var type: WindowMessageType
-
-  public var message: String
-
-  public init(type: WindowMessageType, message: String) {
-    self.type = type
-    self.message = message
-  }
-}
-
 public protocol TextDocumentRequest: RequestType {
 
   var textDocument: TextDocumentIdentifier { get }
