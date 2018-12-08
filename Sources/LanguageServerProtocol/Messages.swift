@@ -310,31 +310,3 @@ public struct CompletionList: ResponseType, Hashable {
     self.items = items
   }
 }
-
-public struct HoverRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/hover"
-  public typealias Response = HoverResponse?
-
-  public var textDocument: TextDocumentIdentifier
-
-  public var position: Position
-
-  public init(textDocument: TextDocumentIdentifier, position: Position) {
-    self.textDocument = textDocument
-    self.position = position
-  }
-}
-
-public struct HoverResponse: ResponseType, Hashable {
-
-  public var contents: MarkupContent
-
-  public var range: PositionRange?
-
-  public init(contents: MarkupContent, range: Range<Position>?) {
-    self.contents = contents
-    self.range = range.map { PositionRange($0) }
-  }
-}
-
-
