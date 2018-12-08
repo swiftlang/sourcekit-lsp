@@ -150,8 +150,6 @@ extension Optional: ResponseType where Wrapped: ResponseType {}
 extension Array: MessageType where Element: MessageType {}
 extension Array: ResponseType where Element: ResponseType {}
 
-extension Location: ResponseType {}
-
 public struct Shutdown: RequestType, Hashable {
   public static let method: String = "shutdown"
   public typealias Response = VoidResponse

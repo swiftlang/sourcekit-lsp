@@ -68,7 +68,7 @@ extension ResponseError {
 }
 
 /// An error during message decoding.
-public struct MessageDecodingError: Error {
+public struct MessageDecodingError: Error, Hashable {
 
   /// The error code.
   public var code: ErrorCode
@@ -109,9 +109,6 @@ public struct MessageDecodingError: Error {
     }
   }
 }
-
-extension MessageDecodingError: Equatable {}
-extension MessageDecodingError: Hashable {}
 
 extension MessageDecodingError {
   public static func methodNotFound(_ method: String, id: RequestID? = nil, messageKind: MessageKind = .unknown) -> MessageDecodingError {

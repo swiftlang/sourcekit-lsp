@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Unique identifier for a document.
-public struct WorkspaceFolder {
+public struct WorkspaceFolder: ResponseType, Hashable {
 
   /// A URL that uniquely identifies the workspace.
   public var url: URL
@@ -27,10 +27,6 @@ public struct WorkspaceFolder {
     }
   }
 }
-
-extension WorkspaceFolder: Equatable {}
-extension WorkspaceFolder: Hashable {}
-extension WorkspaceFolder: ResponseType {}
 
 // Encode using the key "uri" to match LSP.
 extension WorkspaceFolder: Codable {

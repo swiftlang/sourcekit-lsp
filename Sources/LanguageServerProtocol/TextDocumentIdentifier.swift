@@ -16,7 +16,7 @@ import struct Foundation.URL
 public typealias URL = Foundation.URL
 
 /// Unique identifier for a document.
-public struct TextDocumentIdentifier {
+public struct TextDocumentIdentifier: Hashable {
 
   /// A URL that uniquely identifies the document.
   public var url: URL
@@ -25,9 +25,6 @@ public struct TextDocumentIdentifier {
     self.url = url
   }
 }
-
-extension TextDocumentIdentifier: Equatable {}
-extension TextDocumentIdentifier: Hashable {}
 
 // Encode using the key "uri" to match LSP.
 extension TextDocumentIdentifier: Codable {

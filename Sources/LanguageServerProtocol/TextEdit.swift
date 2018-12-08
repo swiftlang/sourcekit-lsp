@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Edit to a text document, replacing the contents of `range` with `text`.
-public struct TextEdit: Codable, Hashable {
+public struct TextEdit: ResponseType, Hashable {
 
   /// The range of text to be replaced.
   var range: PositionRange
@@ -24,5 +24,3 @@ public struct TextEdit: Codable, Hashable {
     self.newText = newText
   }
 }
-
-extension TextEdit: ResponseType {}

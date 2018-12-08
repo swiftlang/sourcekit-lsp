@@ -13,7 +13,7 @@
 /// Range within a particular document.
 ///
 /// For a location where the document is implied, use `Position` or `Range<Position>`.
-public struct Location: Hashable {
+public struct Location: ResponseType, Hashable {
 
   public var url: URL
 
