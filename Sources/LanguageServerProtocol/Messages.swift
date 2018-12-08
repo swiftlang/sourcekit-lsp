@@ -274,39 +274,7 @@ extension PublishDiagnostics: Codable {
   }
 }
 
-// MARK: - Language features -
-
 public protocol TextDocumentRequest: RequestType {
 
   var textDocument: TextDocumentIdentifier { get }
-}
-
-public struct CompletionRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/completion"
-  public typealias Response = CompletionList
-
-  public var textDocument: TextDocumentIdentifier
-
-  public var position: Position
-
-  // public var context: CompletionContext?
-
-  public init(textDocument: TextDocumentIdentifier, position: Position) {
-    self.textDocument = textDocument
-    self.position = position
-  }
-}
-
-public struct CompletionList: ResponseType, Hashable {
-
-  /// Whether the list of completions is "complete" or not. When this value is `true`, the client should re-query the server when doing further filtering.
-  public var isIncomplete: Bool
-
-  /// The resulting completions.
-  public var items: [CompletionItem]
-
-  public init(isIncomplete: Bool, items: [CompletionItem]) {
-    self.isIncomplete = isIncomplete
-    self.items = items
-  }
 }
