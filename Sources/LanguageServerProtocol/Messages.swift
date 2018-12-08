@@ -337,11 +337,4 @@ public struct HoverResponse: ResponseType, Hashable {
   }
 }
 
-public struct DefinitionRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/definition"
-  public typealias Response = [Location]
 
-  public var textDocument: TextDocumentIdentifier
-
-  public var position: Position
-}
