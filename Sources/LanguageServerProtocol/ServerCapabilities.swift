@@ -74,6 +74,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.completionProvider = try container.decodeIfPresent(CompletionOptions.self, forKey: .completionProvider)
     self.hoverProvider = try container.decodeIfPresent(Bool.self, forKey: .hoverProvider)
     self.definitionProvider = try container.decodeIfPresent(Bool.self, forKey: .definitionProvider)
+    self.foldingRangeProvider = try container.decodeIfPresent(Bool.self, forKey: .foldingRangeProvider)
 
     if let textDocumentSync = try? container.decode(TextDocumentSyncOptions.self, forKey: .textDocumentSync) {
       self.textDocumentSync = textDocumentSync

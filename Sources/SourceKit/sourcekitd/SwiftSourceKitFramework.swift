@@ -345,6 +345,8 @@ struct sourcekitd_values {
   let ref_generic_type_param: sourcekitd_uid_t
   let ref_module: sourcekitd_uid_t
   let syntaxtype_comment: sourcekitd_uid_t
+  let syntaxtype_doccomment: sourcekitd_uid_t
+  let syntaxtype_doccomment_field: sourcekitd_uid_t
 
   let kind_keyword: sourcekitd_uid_t
 
@@ -430,6 +432,8 @@ struct sourcekitd_values {
     ref_generic_type_param = api.uid_get_from_cstr("source.lang.swift.ref.generic_type_param")!
     ref_module = api.uid_get_from_cstr("source.lang.swift.ref.module")!
     syntaxtype_comment = api.uid_get_from_cstr("source.lang.swift.syntaxtype.comment")!
+    syntaxtype_doccomment = api.uid_get_from_cstr("source.lang.swift.syntaxtype.doccomment")!
+    syntaxtype_doccomment_field = api.uid_get_from_cstr("source.lang.swift.syntaxtype.doccomment.field")!
 
     kind_keyword = api.uid_get_from_cstr("source.lang.swift.keyword")!
   }

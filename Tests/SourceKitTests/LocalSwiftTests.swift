@@ -230,6 +230,20 @@ final class LocalSwiftTests: XCTestCase {
       version: 12,
       text:
     """
+    /// DC1
+    /// - Returns: DC1
+
+    /**
+      DC2
+
+      - Parameter param: DC2
+
+      - Throws: DC2
+      DC2
+      DC2
+
+      - Returns: DC2
+    */
     struct S {
       //c1
       //c2
@@ -242,49 +256,77 @@ final class LocalSwiftTests: XCTestCase {
         guard a > 0 else { return }
         self.abc = a
       }
+      /* c4 */
     }
     """)))
 
     let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url: url))
     let ranges = try! sk.sendSync(request)!
 
-    XCTAssertEqual(ranges.count, 6)
+    XCTAssertEqual(ranges.count, 9)
 
-    let c1Range = ranges[0]
-    XCTAssertEqual(c1Range.startLine, 1)
-    XCTAssertEqual(c1Range.endLine, 1)
-    XCTAssertEqual(c1Range.utf16StartIndex, 2)
-    XCTAssertEqual(c1Range.utf16EndIndex, 6)
+    let dc1Range = ranges[0]
+    XCTAssertEqual(dc1Range.startLine, 0)
+    XCTAssertEqual(dc1Range.endLine, 2)
+    XCTAssertEqual(dc1Range.startUTF16Index, 0)
+    XCTAssertEqual(dc1Range.endUTF16Index, 0)
+    XCTAssertEqual(dc1Range.kind, .comment)
 
-    let c2Range = ranges[1]
-    XCTAssertEqual(c2Range.startLine, 2)
-    XCTAssertEqual(c2Range.endLine, 2)
-    XCTAssertEqual(c2Range.utf16StartIndex, 2)
-    XCTAssertEqual(c2Range.utf16EndIndex, 6)
+    let dc2Range = ranges[1]
+    XCTAssertEqual(dc2Range.startLine, 3)
+    XCTAssertEqual(dc2Range.endLine, 13)
+    XCTAssertEqual(dc2Range.startUTF16Index, 0)
+    XCTAssertEqual(dc2Range.endUTF16Index, 2)
+    XCTAssertEqual(dc2Range.kind, .comment)
 
-    let c3Range = ranges[2]
-    XCTAssertEqual(c3Range.startLine, 3)
-    XCTAssertEqual(c3Range.endLine, 5)
-    XCTAssertEqual(c3Range.utf16StartIndex, 2)
-    XCTAssertEqual(c3Range.utf16EndIndex, 3)
+    let c1Range = ranges[2]
+    XCTAssertEqual(c1Range.startLine, 15)
+    XCTAssertEqual(c1Range.endLine, 16)
+    XCTAssertEqual(c1Range.startUTF16Index, 2)
+    XCTAssertEqual(c1Range.endUTF16Index, 0)
+    XCTAssertEqual(c1Range.kind, .comment)
 
-    let structRange = ranges[3]
-    XCTAssertEqual(structRange.startLine, 0)
-    XCTAssertEqual(structRange.endLine, 12)
-    XCTAssertEqual(structRange.utf16StartIndex, 10)
-    XCTAssertEqual(structRange.utf16EndIndex, 0)
+    let c2Range = ranges[3]
+    XCTAssertEqual(c2Range.startLine, 16)
+    XCTAssertEqual(c2Range.endLine, 17)
+    XCTAssertEqual(c2Range.startUTF16Index, 2)
+    XCTAssertEqual(c2Range.endUTF16Index, 0)
+    XCTAssertEqual(c2Range.kind, .comment)
 
-    let methodRange = ranges[4]
-    XCTAssertEqual(methodRange.startLine, 8)
-    XCTAssertEqual(methodRange.endLine, 11)
-    XCTAssertEqual(methodRange.utf16StartIndex, 21)
-    XCTAssertEqual(methodRange.utf16EndIndex, 2)
+    let c3Range = ranges[4]
+    XCTAssertEqual(c3Range.startLine, 17)
+    XCTAssertEqual(c3Range.endLine, 19)
+    XCTAssertEqual(c3Range.startUTF16Index, 2)
+    XCTAssertEqual(c3Range.endUTF16Index, 4)
+    XCTAssertEqual(c3Range.kind, .comment)
 
-    let guardRange = ranges[5]
-    XCTAssertEqual(guardRange.startLine, 9)
-    XCTAssertEqual(guardRange.endLine, 9)
-    XCTAssertEqual(guardRange.utf16StartIndex, 22)
-    XCTAssertEqual(guardRange.utf16EndIndex, 30)
+    let c4Range = ranges[5]
+    XCTAssertEqual(c4Range.startLine, 26)
+    XCTAssertEqual(c4Range.endLine, 26)
+    XCTAssertEqual(c4Range.startUTF16Index, 2)
+    XCTAssertEqual(c4Range.endUTF16Index, 10)
+    XCTAssertEqual(c4Range.kind, .comment)
+
+    let structRange = ranges[6]
+    XCTAssertEqual(structRange.startLine, 14)
+    XCTAssertEqual(structRange.endLine, 27)
+    XCTAssertEqual(structRange.startUTF16Index, 10)
+    XCTAssertEqual(structRange.endUTF16Index, 0)
+    XCTAssertNil(structRange.kind)
+
+    let methodRange = ranges[7]
+    XCTAssertEqual(methodRange.startLine, 22)
+    XCTAssertEqual(methodRange.endLine, 25)
+    XCTAssertEqual(methodRange.startUTF16Index, 21)
+    XCTAssertEqual(methodRange.endUTF16Index, 2)
+    XCTAssertNil(methodRange.kind)
+
+    let guardRange = ranges[8]
+    XCTAssertEqual(guardRange.startLine, 23)
+    XCTAssertEqual(guardRange.endLine, 23)
+    XCTAssertEqual(guardRange.startUTF16Index, 22)
+    XCTAssertEqual(guardRange.endUTF16Index, 30)
+    XCTAssertNil(guardRange.kind)
   }
 
   func testXMLToMarkdownDeclaration() {

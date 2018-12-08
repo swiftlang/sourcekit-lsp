@@ -39,24 +39,24 @@ public struct FoldingRange: ResponseType, Hashable {
 
   /// The zero-based character offset from where the folded range starts.
   /// If not defined, defaults to the length of the start line.
-  public var utf16StartIndex: Int?
+  public var startUTF16Index: Int?
 
   /// The zero-based line number where the folded range ends.
   public var endLine: Int
 
   /// The zero-based character offset before the folded range ends.
   /// If not defined, defaults to the length of the end line.
-  public var utf16EndIndex: Int?
+  public var endUTF16Index: Int?
 
   /// Describes the kind of the folding range such as `comment' or 'region'. The kind
   /// is used to categorize folding ranges and used by commands like 'Fold all comments'.
   public var kind: FoldingRangeKind?
 
-  public init(startLine: Int, utf16StartIndex: Int? = nil, endLine: Int, utf16EndIndex: Int? = nil, kind: FoldingRangeKind? = nil) {
+  public init(startLine: Int, startUTF16Index: Int? = nil, endLine: Int, endUTF16Index: Int? = nil, kind: FoldingRangeKind? = nil) {
     self.startLine = startLine
-    self.utf16StartIndex = utf16StartIndex
+    self.startUTF16Index = startUTF16Index
     self.endLine = endLine
-    self.utf16EndIndex = utf16EndIndex
+    self.endUTF16Index = endUTF16Index
     self.kind = kind
   }
 }
@@ -64,9 +64,9 @@ public struct FoldingRange: ResponseType, Hashable {
 extension FoldingRange: Codable {
   private enum CodingKeys: String, CodingKey {
     case startLine
-    case utf16StartIndex = "startCharacter"
+    case startUTF16Index = "startCharacter"
     case endLine
-    case utf16EndIndex = "endCharacter"
+    case endUTF16Index = "endCharacter"
     case kind
   }
 }

@@ -242,7 +242,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     public var rangeLimit: Int? = nil
 
     /// If set, the client signals that it only supports folding complete lines. If set, client will
-    /// ignore specified `utf16StartIndex` and `utf16EndIndex` properties in a FoldingRange.
+    /// ignore specified `startUTF16Index` and `endUTF16Index` properties in a FoldingRange.
     public var lineFoldingOnly: Bool? = nil
   }
 

@@ -480,7 +480,7 @@ public func languageService(
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
-    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings)
+    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings, clientCapabilities: (client as? SourceKitServer)?.workspace?.clientCapabilities)
 
   default:
     return nil

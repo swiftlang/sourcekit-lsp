@@ -23,6 +23,8 @@ public final class SwiftLanguageServer: LanguageServer {
 
   let buildSystem: BuildSystem
 
+  let clientCapabilities: ClientCapabilities
+
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
 
@@ -34,10 +36,11 @@ public final class SwiftLanguageServer: LanguageServer {
   var values: sourcekitd_values { return sourcekitd.values }
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, onExit: @escaping () -> Void = {}) throws {
+  public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, clientCapabilities: ClientCapabilities, onExit: @escaping () -> Void = {}) throws {
 
     self.sourcekitd = try SwiftSourceKitFramework(dylib: sourcekitd)
     self.buildSystem = buildSystem
+    self.clientCapabilities = clientCapabilities
     self.documentManager = DocumentManager()
     self.onExit = onExit
     super.init(client: client)
@@ -187,7 +190,8 @@ extension SwiftLanguageServer {
       hoverProvider: true,
       definitionProvider: nil,
       referencesProvider: nil,
-      documentHighlightProvider: true
+      documentHighlightProvider: true,
+      foldingRangeProvider: true
       )))
   }
 
@@ -522,7 +526,6 @@ extension SwiftLanguageServer {
   }
 
   func foldingRange(_ req: Request<FoldingRangeRequest>) {
-
     guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
       log("failed to find snapshot for url \(req.params.textDocument.url)")
       req.reply(nil)
@@ -549,23 +552,33 @@ extension SwiftLanguageServer {
 
       var ranges: [FoldingRange] = []
 
+      // Merge successive comments into one big comment by adding their lengths.
+      var currentComment: (offset: Int, length: Int)? = nil
+
       syntaxMap.forEach { _, value in
         if let kind: sourcekitd_uid_t = value[self.keys.kind],
-           kind == self.values.syntaxtype_comment,
+           kind.isCommentKind(self.values),
            let offset: Int = value[self.keys.offset],
-           let start: Position = snapshot.positionOf(utf8Offset: offset),
-           let length: Int = value[self.keys.length],
-           // SourceKit marks the end of a comment as the first non-comment character
-           // after it, so we subtract one to get the real comment range.
-           let end: Position = snapshot.positionOf(utf8Offset: offset + length - 1) {
-          let range = FoldingRange(startLine: start.line,
-                                   utf16StartIndex: start.utf16index,
-                                   endLine: end.line,
-                                   utf16EndIndex: end.utf16index,
-                                   kind: .comment)
-          ranges.append(range)
+           let length: Int = value[self.keys.length]
+        {
+          if let comment = currentComment {
+            if offset == comment.offset + comment.length {
+              currentComment?.length += length
+            } else {
+              self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toArray: &ranges)
+              currentComment = (offset: offset, length: length)
+            }
+          } else {
+            currentComment = (offset: offset, length: length)
+          }
         }
         return true
+      }
+
+      // Add the last stored comment.
+      if let comment = currentComment {
+        self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toArray: &ranges)
+        currentComment = nil
       }
 
       var structureStack: [SKResponseArray] = [substructure]
@@ -573,14 +586,9 @@ extension SwiftLanguageServer {
         substructure.forEach { _, value in
           if let offset: Int = value[self.keys.bodyoffset],
              let length: Int = value[self.keys.bodylength],
-             length > 0,
-             let start: Position = snapshot.positionOf(utf8Offset: offset),
-             let end: Position = snapshot.positionOf(utf8Offset: offset + length) {
-            let range = FoldingRange(startLine: start.line,
-                                     utf16StartIndex: start.utf16index,
-                                     endLine: end.line,
-                                     utf16EndIndex: end.utf16index)
-            ranges.append(range)
+             length > 0
+          {
+            self.addFoldingRange(offset: offset, length: length, in: snapshot, toArray: &ranges)
           }
           if let substructure: SKResponseArray = value[self.keys.substructure] {
             structureStack.append(substructure)
@@ -594,6 +602,38 @@ extension SwiftLanguageServer {
 
     // FIXME: cancellation
     _ = handle
+  }
+
+  func addFoldingRange(offset: Int, length: Int, kind: FoldingRangeKind? = nil, in snapshot: DocumentSnapshot, toArray ranges: inout [FoldingRange]) {
+    let capabilities = clientCapabilities.textDocument?.foldingRange
+    if let rangeLimit = capabilities?.rangeLimit, ranges.count == rangeLimit {
+      return
+    }
+    guard let start: Position = snapshot.positionOf(utf8Offset: offset),
+          let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
+      return
+    }
+    let range: FoldingRange
+    // If the client only supports folding full lines, ignore the end character's line.
+    if capabilities?.lineFoldingOnly == true {
+      let lastLineToFold = end.line - 1
+      if lastLineToFold <= start.line {
+        return
+      } else {
+        range = FoldingRange(startLine: start.line,
+                             startUTF16Index: nil,
+                             endLine: lastLineToFold,
+                             endUTF16Index: nil,
+                             kind: kind)
+      }
+    } else {
+      range = FoldingRange(startLine: start.line,
+                           startUTF16Index: start.utf16index,
+                           endLine: end.line,
+                           endUTF16Index: end.utf16index,
+                           kind: kind)
+    }
+    ranges.append(range)
   }
 }
 
@@ -616,7 +656,7 @@ extension DocumentSnapshot {
   }
 }
 
-func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buildSettings: BuildSystem?) throws -> Connection {
+func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buildSettings: BuildSystem?, clientCapabilities: ClientCapabilities?) throws -> Connection {
 
   let connectionToSK = LocalConnection()
   let connectionToClient = LocalConnection()
@@ -624,7 +664,8 @@ func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buil
   let server = try SwiftLanguageServer(
     client: connectionToClient,
     sourcekitd: sourcekitd,
-    buildSystem: buildSettings ?? BuildSystemList()
+    buildSystem: buildSettings ?? BuildSystemList(),
+    clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil)
   )
 
   connectionToSK.start(handler: server)
@@ -634,6 +675,14 @@ func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buil
 }
 
 extension sourcekitd_uid_t {
+  func isCommentKind(_ vals: sourcekitd_values) -> Bool {
+    return self == vals.syntaxtype_comment || isDocCommentKind(vals)
+  }
+
+  func isDocCommentKind(_ vals: sourcekitd_values) -> Bool {
+    return self == vals.syntaxtype_doccomment || self == vals.syntaxtype_doccomment_field
+  }
+
   func asCompletionItemKind(_ vals: sourcekitd_values) -> CompletionItemKind? {
     switch self {
       case vals.kind_keyword:
