@@ -55,3 +55,7 @@ extension NotificationType {
     handler.handle(self, from: ObjectIdentifier(connection))
   }
 }
+
+public protocol TextDocumentRequest: RequestType {
+  var textDocument: TextDocumentIdentifier { get }
+}
