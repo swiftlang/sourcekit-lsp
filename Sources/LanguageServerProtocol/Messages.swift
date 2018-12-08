@@ -252,28 +252,6 @@ public struct DidSaveTextDocument: NotificationType, Hashable {
   public var text: String?
 }
 
-// MARK: - Diagnostics -
-
-public struct PublishDiagnostics: NotificationType, Hashable {
-  public static let method: String = "textDocument/publishDiagnostics"
-
-  public var url: URL
-
-  public var diagnostics: [Diagnostic]
-
-  public init(url: URL, diagnostics: [Diagnostic]) {
-    self.url = url
-    self.diagnostics = diagnostics
-  }
-}
-
-extension PublishDiagnostics: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case url = "uri"
-    case diagnostics
-  }
-}
-
 public protocol TextDocumentRequest: RequestType {
 
   var textDocument: TextDocumentIdentifier { get }
