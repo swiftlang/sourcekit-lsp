@@ -21,7 +21,7 @@ public struct TextDocumentIdentifier {
   /// A URL that uniquely identifies the document.
   public var url: URL
 
-  public init(url: URL) {
+  public init(_ url: URL) {
     self.url = url
   }
 }

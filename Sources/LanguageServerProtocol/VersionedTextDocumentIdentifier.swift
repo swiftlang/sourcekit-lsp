@@ -21,7 +21,7 @@ public struct VersionedTextDocumentIdentifier /* : TextDocumentIdentifier */ {
   /// The version number of this document, or nil if unknown.
   public var version: Int?
 
-  public init(url: URL, version: Int?) {
+  public init(_ url: URL, version: Int?) {
     self.url = url
     self.version = version
   }

@@ -77,7 +77,7 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 0, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url: url, version: 13), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 13), contentChanges: [
       .init(range: Range(Position(line: 0, utf16index: 4)), text: " foo() {}\n")
     ]), { (note: Notification<PublishDiagnostics>) in
       log("Received diagnostics for edit 1 - syntactic")
@@ -88,7 +88,7 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 0)
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url: url, version: 14), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 14), contentChanges: [
       .init(range: Range(Position(line: 1, utf16index: 0)), text: "_ = bar()")
       ]), { (note: Notification<PublishDiagnostics>) in
         log("Received diagnostics for edit 2 - syntactic")
@@ -105,7 +105,7 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 1, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url: url, version: 14), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 14), contentChanges: [
       .init(range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 7), text: "foo")
       ]), { (note: Notification<PublishDiagnostics>) in
         log("Received diagnostics for edit 3 - syntactic")
@@ -119,7 +119,7 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 0)
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url: url, version: 15), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 15), contentChanges: [
       .init(range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 7), text: "fooTypo")
       ]), { (note: Notification<PublishDiagnostics>) in
         log("Received diagnostics for edit 4 - syntactic")
@@ -136,7 +136,7 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 1, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url: url, version: 16), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 16), contentChanges: [
       .init(range: nil, text: """
       func bar() {}
       _ = foo()
@@ -177,7 +177,7 @@ final class LocalSwiftTests: XCTestCase {
     """)))
 
     let selfDot = try! sk.sendSync(CompletionRequest(
-      textDocument: TextDocumentIdentifier(url: url),
+      textDocument: TextDocumentIdentifier(url),
       position: Position(line: 4, utf16index: 9)))
 
     XCTAssertEqual(selfDot.isIncomplete, false)
@@ -208,14 +208,14 @@ final class LocalSwiftTests: XCTestCase {
 
     for col in 10...12 {
       let inIdent = try! sk.sendSync(CompletionRequest(
-        textDocument: TextDocumentIdentifier(url: url),
+        textDocument: TextDocumentIdentifier(url),
         position: Position(line: 4, utf16index: col)))
       // If we switch to server-side filtering this will change.
       XCTAssertEqual(inIdent, selfDot)
     }
 
     let after = try! sk.sendSync(CompletionRequest(
-      textDocument: TextDocumentIdentifier(url: url),
+      textDocument: TextDocumentIdentifier(url),
       position: Position(line: 4, utf16index: 13)))
     XCTAssertNotEqual(after, selfDot)
   }
@@ -491,7 +491,7 @@ final class LocalSwiftTests: XCTestCase {
 
     do {
       let resp = try! sk.sendSync(SymbolInfoRequest(
-        textDocument: TextDocumentIdentifier(url: url),
+        textDocument: TextDocumentIdentifier(url),
         position: Position(line: 0, utf16index: 7)))
 
       XCTAssertEqual(resp.count, 1)
@@ -507,7 +507,7 @@ final class LocalSwiftTests: XCTestCase {
 
     do {
       let resp = try! sk.sendSync(SymbolInfoRequest(
-        textDocument: TextDocumentIdentifier(url: url),
+        textDocument: TextDocumentIdentifier(url),
         position: Position(line: 1, utf16index: 7)))
 
       XCTAssertEqual(resp.count, 1)
@@ -523,7 +523,7 @@ final class LocalSwiftTests: XCTestCase {
 
     do {
       let resp = try! sk.sendSync(SymbolInfoRequest(
-        textDocument: TextDocumentIdentifier(url: url),
+        textDocument: TextDocumentIdentifier(url),
         position: Position(line: 2, utf16index: 8)))
 
       XCTAssertEqual(resp.count, 1)
@@ -539,7 +539,7 @@ final class LocalSwiftTests: XCTestCase {
 
     do {
       let resp = try! sk.sendSync(SymbolInfoRequest(
-        textDocument: TextDocumentIdentifier(url: url),
+        textDocument: TextDocumentIdentifier(url),
         position: Position(line: 3, utf16index: 0)))
 
       XCTAssertEqual(resp.count, 0)
@@ -563,7 +563,7 @@ final class LocalSwiftTests: XCTestCase {
 
     do {
       let resp = try! sk.sendSync(HoverRequest(
-        textDocument: TextDocumentIdentifier(url: url),
+        textDocument: TextDocumentIdentifier(url),
         position: Position(line: 3, utf16index: 7)))
 
       XCTAssertNotNil(resp)
@@ -587,7 +587,7 @@ final class LocalSwiftTests: XCTestCase {
 
     do {
       let resp = try! sk.sendSync(HoverRequest(
-        textDocument: TextDocumentIdentifier(url: url),
+        textDocument: TextDocumentIdentifier(url),
         position: Position(line: 0, utf16index: 7)))
 
       XCTAssertNil(resp)

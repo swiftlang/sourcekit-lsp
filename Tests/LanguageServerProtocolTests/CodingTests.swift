@@ -56,26 +56,26 @@ final class CodingTests: XCTestCase {
       """)
 
     // url -> uri
-    checkCoding(TextDocumentIdentifier(url: url), json: """
+    checkCoding(TextDocumentIdentifier(url), json: """
       {
         "uri" : "\(urljson)"
       }
       """)
 
-    checkCoding(VersionedTextDocumentIdentifier(url: url, version: nil), json: """
+    checkCoding(VersionedTextDocumentIdentifier(url, version: nil), json: """
       {
         "uri" : "\(urljson)"
       }
       """)
 
-    checkCoding(VersionedTextDocumentIdentifier(url: url, version: 3), json: """
+    checkCoding(VersionedTextDocumentIdentifier(url, version: 3), json: """
       {
         "uri" : "\(urljson)",
         "version" : 3
       }
       """)
 
-    checkCoding(TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(url: url, version: 1), edits: [TextEdit(range: range, newText: "foo")]), json: """
+    checkCoding(TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(url, version: 1), edits: [TextEdit(range: range, newText: "foo")]), json: """
       {
         "edits" : [
           {

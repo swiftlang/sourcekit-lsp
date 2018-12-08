@@ -75,7 +75,7 @@ final class LocalClangTests: XCTestCase {
 
     do {
       let resp = try! sk.sendSync(SymbolInfoRequest(
-        textDocument: TextDocumentIdentifier(url: url),
+        textDocument: TextDocumentIdentifier(url),
         position: Position(line: 0, utf16index: 7)))
 
       XCTAssertEqual(resp.count, 1)
@@ -88,7 +88,7 @@ final class LocalClangTests: XCTestCase {
 
     do {
       let resp = try! sk.sendSync(SymbolInfoRequest(
-        textDocument: TextDocumentIdentifier(url: url),
+        textDocument: TextDocumentIdentifier(url),
         position: Position(line: 1, utf16index: 7)))
 
       XCTAssertEqual(resp.count, 1)
@@ -101,7 +101,7 @@ final class LocalClangTests: XCTestCase {
 
     do {
       let resp = try! sk.sendSync(SymbolInfoRequest(
-        textDocument: TextDocumentIdentifier(url: url),
+        textDocument: TextDocumentIdentifier(url),
         position: Position(line: 2, utf16index: 8)))
 
       XCTAssertEqual(resp.count, 1)
@@ -114,7 +114,7 @@ final class LocalClangTests: XCTestCase {
 
     do {
       let resp = try! sk.sendSync(SymbolInfoRequest(
-        textDocument: TextDocumentIdentifier(url: url),
+        textDocument: TextDocumentIdentifier(url),
         position: Position(line: 3, utf16index: 0)))
 
       XCTAssertEqual(resp.count, 0)
