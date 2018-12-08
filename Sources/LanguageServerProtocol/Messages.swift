@@ -345,14 +345,3 @@ public struct DefinitionRequest: TextDocumentRequest, Hashable {
 
   public var position: Position
 }
-
-public struct ReferencesRequest: RequestType, Hashable {
-  public static let method: String = "textDocument/references"
-  public typealias Response = [Location]
-
-  public var textDocument: TextDocumentIdentifier
-
-  public var position: Position
-
-  public var includeDeclaration: Bool?
-}
