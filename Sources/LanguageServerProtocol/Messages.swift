@@ -356,12 +356,3 @@ public struct ReferencesRequest: RequestType, Hashable {
 
   public var includeDeclaration: Bool?
 }
-
-public struct DocumentHighlightRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/documentHighlight"
-  public typealias Response = [DocumentHighlight]?
-
-  public var textDocument: TextDocumentIdentifier
-
-  public var position: Position
-}
