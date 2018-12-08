@@ -42,7 +42,7 @@ public final class JSONRPCConection {
     var requestType: _RequestType.Type
     var responseType: ResponseType.Type
     var queue: DispatchQueue
-    var replyHandler: (LSPResult<Any>) -> ()
+    var replyHandler: (LSPResult<Any>) -> Void
   }
 
   /// The set of currently outstanding outgoing requests along with information about how to decode and handle their responses.
@@ -296,7 +296,7 @@ extension JSONRPCConection: _IndirectConnection {
     }
   }
 
-  public func send<Request>(_ request: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> ()) -> RequestID where Request: RequestType {
+  public func send<Request>(_ request: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
 
     let id: RequestID = self.queue.sync {
       let id = nextRequestID()
