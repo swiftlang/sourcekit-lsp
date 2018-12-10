@@ -140,8 +140,7 @@ public final class JSONRPCConection {
     // Setup callback for response type.
     decoder.userInfo[.responseTypeCallbackKey] = { id in
       guard let outstanding = self.outstandingRequests[id] else {
-        // Unknown request!
-        // FIXME: Log
+        log("Unknown request for \(id)", level: .error)
         return nil
       }
       return outstanding.responseType
@@ -207,15 +206,13 @@ public final class JSONRPCConection {
       request._handle(receiveHandler!, id: id, connection: self)
     case .response(let response, id: let id):
       guard let outstanding = outstandingRequests.removeValue(forKey: id) else {
-        // Unknown request!
-        // FIXME: Log
+        log("Unknown request for \(id)", level: .error)
         return
       }
       outstanding.replyHandler(.success(response))
     case .errorResponse(let error, id: let id):
       guard let outstanding = outstandingRequests.removeValue(forKey: id) else {
-        // Unknown request!
-        // FIXME: Log
+        log("Unknown request for \(id)", level: .error)
         return
       }
       outstanding.replyHandler(.failure(error))
