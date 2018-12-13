@@ -18,6 +18,59 @@ import SKTestSupport
 import XCTest
 
 final class SwiftPMWorkspaceTests: XCTestCase {
+
+  func testNoPackage() {
+    let fs = InMemoryFileSystem()
+    let tempDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
+    try! fs.createFiles(root: tempDir.path, files: [
+      "pkg/Sources/lib/a.swift": "",
+    ])
+    let packageRoot = tempDir.path.appending(component: "pkg")
+    let tr = ToolchainRegistry.shared
+    XCTAssertThrowsError(try SwiftPMWorkspace(
+      workspacePath: packageRoot,
+      toolchainRegistry: tr,
+      fileSystem: fs))
+  }
+
+  func testUnparsablePackage() {
+    let fs = localFileSystem
+    let tempDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
+    try! fs.createFiles(root: tempDir.path, files: [
+      "pkg/Sources/lib/a.swift": "",
+      "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let pack
+          """
+    ])
+    let packageRoot = tempDir.path.appending(component: "pkg")
+    let tr = ToolchainRegistry.shared
+    XCTAssertThrowsError(try SwiftPMWorkspace(
+      workspacePath: packageRoot,
+      toolchainRegistry: tr,
+      fileSystem: fs))
+  }
+
+  func testNoToolchain() {
+    let fs = localFileSystem
+    let tempDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
+    try! fs.createFiles(root: tempDir.path, files: [
+      "pkg/Sources/lib/a.swift": "",
+      "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+            targets: [.target(name: "lib", dependencies: [])])
+          """
+    ])
+    let packageRoot = tempDir.path.appending(component: "pkg")
+    XCTAssertThrowsError(try SwiftPMWorkspace(
+      workspacePath: packageRoot,
+      toolchainRegistry: ToolchainRegistry(),
+      fileSystem: fs))
+  }
+
   func testBasicSwiftArgs() {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
