@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+/// A source code language identifier, such as "swift", or "objective-c".
 public enum Language: String, Codable, Hashable {
   case c
   case cpp // C++, not C preprocessor
@@ -29,6 +30,7 @@ public enum Language: String, Codable, Hashable {
     }
   }
 
+  /// Clang-compatible language name suitable for use with `-x <language>`.
   public var xflag: String? {
     switch self {
       case .swift: return "swift"
@@ -40,6 +42,7 @@ public enum Language: String, Codable, Hashable {
     }
   }
 
+  /// Clang-compatible language name for a header file. See `xflag`.
   public var xflagHeader: String? {
     return xflag.map { "\($0)-header" }
   }

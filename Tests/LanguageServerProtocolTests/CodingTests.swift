@@ -196,6 +196,14 @@ final class CodingTests: XCTestCase {
 
     checkCoding(RequestID.number(100), json: "100")
     checkCoding(RequestID.string("100"), json: "\"100\"")
+
+    checkCoding(Language.c, json: "\"c\"")
+    checkCoding(Language.cpp, json: "\"cpp\"")
+    checkCoding(Language.objective_c, json: "\"objective-c\"")
+    checkCoding(Language.objective_cpp, json: "\"objective-cpp\"")
+    checkCoding(Language.swift, json: "\"swift\"")
+    checkCoding(Language.unknown, json: "\"unknown\"")
+    checkDecoding(json: "\"asdfAF\"", expected: Language.unknown)
   }
 }
 
