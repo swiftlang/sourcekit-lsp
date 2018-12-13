@@ -120,4 +120,25 @@ final class LocalClangTests: XCTestCase {
       XCTAssertEqual(resp.count, 0)
     }
   }
+
+  func testFoldingRange() {
+    guard haveClangd else { return }
+    let url = URL(fileURLWithPath: "/a.cpp")
+    sk.allowUnexpectedNotification = true
+
+    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: url,
+      language: .cpp,
+      version: 1,
+      text: """
+      struct S {
+        void foo() {
+          int local = 1;
+        }
+      };
+      """)))
+
+    let resp = try! sk.sendSync(FoldingRangeRequest(textDocument: TextDocumentIdentifier(url)))
+    XCTAssertNil(resp)
+  }
 }
