@@ -95,19 +95,6 @@ public struct MessageDecodingError: Error, Hashable {
     self.id = id
     self.messageKind = messageKind
   }
-
-  public init(code: ErrorCode, message: String, requestID: RequestID? = nil, responseID: RequestID? = nil) {
-    self.code = code
-    self.message = message
-    self.id = requestID ?? responseID
-
-    switch (requestID, responseID) {
-    case (nil, nil): self.messageKind = .unknown
-    case (nil, _): self.messageKind = .response
-    case (_, nil): self.messageKind = .request
-    case (_, _): preconditionFailure("cannot be both a request and response")
-    }
-  }
 }
 
 extension MessageDecodingError {

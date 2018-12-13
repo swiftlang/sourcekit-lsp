@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+/// The serverity level of a Diagnostic, between hint and error.
 public enum DiagnosticSeverity: Int, Codable, Hashable {
   case error = 1
   case warning = 2
@@ -17,11 +18,13 @@ public enum DiagnosticSeverity: Int, Codable, Hashable {
   case hint = 4
 }
 
+/// A unique diagnostic code, which may be used identifier the diagnostic in e.g. documentation.
 public enum DiagnosticCode: Hashable {
   case number(Int)
   case string(String)
 }
 
+/// A diagnostic message such a compiler error or warning.
 public struct Diagnostic: Codable, Hashable {
 
   /// The primary position/range of the diagnostic.
@@ -30,7 +33,8 @@ public struct Diagnostic: Codable, Hashable {
   /// Whether this is a warning, error, etc.
   public var severity: DiagnosticSeverity?
 
-  /// The "code" of the diagnostice, which might be a number or string, typically providing a unique way to reference the diagnostic in e.g. documentation.
+  /// The "code" of the diagnostice, which might be a number or string, typically providing a unique
+  /// way to reference the diagnostic in e.g. documentation.
   public var code: DiagnosticCode?
 
   /// A human-readable description of the source of this diagnostic, e.g. "sourcekitd"
@@ -42,7 +46,14 @@ public struct Diagnostic: Codable, Hashable {
   /// Related diagnostic notes.
   public var relatedInformation: [DiagnosticRelatedInformation]?
 
-  public init(range: Range<Position>, severity: DiagnosticSeverity?, code: DiagnosticCode? = nil, source: String?, message: String, relatedInformation: [DiagnosticRelatedInformation]? = nil) {
+  public init(
+    range: Range<Position>,
+    severity: DiagnosticSeverity?,
+    code: DiagnosticCode? = nil,
+    source: String?,
+    message: String,
+    relatedInformation: [DiagnosticRelatedInformation]? = nil)
+  {
     self.range = PositionRange(range)
     self.severity = severity
     self.code = code
