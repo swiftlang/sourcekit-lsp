@@ -22,6 +22,8 @@ final class ClangLanguageServerShim: LanguageServer {
 
   let clangd: Connection
 
+  var capabilities: ServerCapabilities? = nil
+
   let buildSystem: BuildSystem
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
@@ -33,34 +35,63 @@ final class ClangLanguageServerShim: LanguageServer {
   }
 
   public override func _registerBuiltinHandlers() {
+    _register(ClangLanguageServerShim.initialize)
     _register(ClangLanguageServerShim.openDocument)
+    _register(ClangLanguageServerShim.foldingRange)
   }
 
   public override func _handleUnknown<R>(_ req: Request<R>) {
-    var to: Connection
     if req.clientID == ObjectIdentifier(clangd) {
-      to = client
+      forwardRequest(req, to: client)
     } else {
-      to = clangd
-    }
-
-    let id = to.send(req.params, queue: queue) { result in
-      req.reply(result)
-    }
-    req.cancellationToken.addCancellationHandler {
-      to.send(CancelRequest(id: id))
+      forwardRequest(req, to: clangd)
     }
   }
 
   public override func _handleUnknown<N>(_ note: Notification<N>) {
-    var to: Connection
     if note.clientID == ObjectIdentifier(clangd) {
-      to = client
+      client.send(note.params)
     } else {
-      to = clangd
+      clangd.send(note.params)
     }
+  }
 
-    to.send(note.params)
+  /// Forwards a request to the given connection, taking care of replying to the original request
+  /// and cancellation, while providing a callback with the response for additional processing.
+  ///
+  /// Immediately after `handler` returns, this passes the result to the original reply handler by
+  /// calling `request.reply(result)`.
+  ///
+  /// The cancellation token from the original request is automatically linked to the forwarded
+  /// request such that cancelling the original request will cancel the forwarded request.
+  ///
+  /// - Parameters:
+  ///   - request: The request to forward.
+  ///   - to: Where to forward the request (e.g. self.clangd).
+  ///   - handler: An optional closure that will be called with the result of the request.
+  func forwardRequest<R>(
+    _ request: Request<R>,
+    to: Connection,
+    _ handler: ((LSPResult<R.Response>) -> Void)? = nil)
+  {
+    let id = to.send(request.params, queue: queue) { result in
+      handler?(result)
+      request.reply(result)
+    }
+    request.cancellationToken.addCancellationHandler {
+      to.send(CancelRequest(id: id))
+    }
+  }
+}
+
+// MARK: - Request and notification handling
+
+extension ClangLanguageServerShim {
+
+  func initialize(_ req: Request<InitializeRequest>) {
+    forwardRequest(req, to: clangd) { result in
+      self.capabilities = result.success?.capabilities
+    }
   }
 
   func openDocument(_ note: Notification<DidOpenTextDocument>) {
@@ -79,6 +110,14 @@ final class ClangLanguageServerShim: LanguageServer {
     }
 
     clangd.send(note.params)
+  }
+
+  func foldingRange(_ req: Request<FoldingRangeRequest>) {
+    if capabilities?.foldingRangeProvider == true {
+      forwardRequest(req, to: clangd)
+    } else {
+      req.reply(.success(nil))
+    }
   }
 }
 
