@@ -109,7 +109,7 @@ SourceKit-LSP is still in early development, so you may run into rough edges wit
 | Workspace Symbols | ❌ | |
 | Refactoring | ❌ | |
 | Formatting | ❌ | |
-| Folding | ❌ | |
+| Folding | ✅ | |
 | Syntax Highlighting | ❌ | Not currently part of LSP. |
 | Document Symbols | ❌ |  |
 
