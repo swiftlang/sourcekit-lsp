@@ -552,6 +552,20 @@ extension SwiftLanguageServer {
 
       var ranges: [FoldingRange] = []
 
+      var hasReachedLimit: Bool {
+        let capabilities = self.clientCapabilities.textDocument?.foldingRange
+        guard let rangeLimit = capabilities?.rangeLimit else {
+          return false
+        }
+        return ranges.count >= rangeLimit
+      }
+
+      // If the limit is less than one, do nothing.
+      guard hasReachedLimit == false else {
+        req.reply([])
+        return
+      }
+
       // Merge successive comments into one big comment by adding their lengths.
       var currentComment: (offset: Int, length: Int)? = nil
 
@@ -561,24 +575,27 @@ extension SwiftLanguageServer {
            let offset: Int = value[self.keys.offset],
            let length: Int = value[self.keys.length]
         {
-          if let comment = currentComment {
-            if offset == comment.offset + comment.length {
-              currentComment?.length += length
-            } else {
-              self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toArray: &ranges)
-              currentComment = (offset: offset, length: length)
-            }
-          } else {
-            currentComment = (offset: offset, length: length)
+          if let comment = currentComment, comment.offset + comment.length == offset {
+            currentComment!.length += length
+            return true
           }
+          if let comment = currentComment {
+            self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toArray: &ranges)
+          }
+          currentComment = (offset: offset, length: length)
         }
-        return true
+        return hasReachedLimit == false
       }
 
       // Add the last stored comment.
-      if let comment = currentComment {
+      if let comment = currentComment, hasReachedLimit == false {
         self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toArray: &ranges)
         currentComment = nil
+      }
+
+      guard hasReachedLimit == false else {
+        req.reply(ranges)
+        return
       }
 
       var structureStack: [SKResponseArray] = [substructure]
@@ -589,6 +606,10 @@ extension SwiftLanguageServer {
              length > 0
           {
             self.addFoldingRange(offset: offset, length: length, in: snapshot, toArray: &ranges)
+            if hasReachedLimit {
+              structureStack = []
+              return false
+            }
           }
           if let substructure: SKResponseArray = value[self.keys.substructure] {
             structureStack.append(substructure)
@@ -605,14 +626,12 @@ extension SwiftLanguageServer {
   }
 
   func addFoldingRange(offset: Int, length: Int, kind: FoldingRangeKind? = nil, in snapshot: DocumentSnapshot, toArray ranges: inout [FoldingRange]) {
-    let capabilities = clientCapabilities.textDocument?.foldingRange
-    if let rangeLimit = capabilities?.rangeLimit, ranges.count == rangeLimit {
-      return
-    }
     guard let start: Position = snapshot.positionOf(utf8Offset: offset),
           let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
+      log("folding range failed to retrieve position of \(snapshot.document.url): \(offset)-\(offset + length)", level: .warning)
       return
     }
+    let capabilities = clientCapabilities.textDocument?.foldingRange
     let range: FoldingRange
     // If the client only supports folding full lines, ignore the end character's line.
     if capabilities?.lineFoldingOnly == true {
