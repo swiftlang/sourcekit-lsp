@@ -36,7 +36,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     let ws = try! SwiftPMWorkspace(
       workspacePath: packageRoot,
       toolchainRegistry: tr,
-      fileSystem: fs)!
+      fileSystem: fs)
 
     let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
     let build = buildPath(root: packageRoot)
@@ -83,7 +83,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     let ws = try! SwiftPMWorkspace(
       workspacePath: packageRoot,
       toolchainRegistry: tr,
-      fileSystem: fs)!
+      fileSystem: fs)
 
     let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
     let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
@@ -121,7 +121,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     let ws = try! SwiftPMWorkspace(
       workspacePath: packageRoot,
       toolchainRegistry: tr,
-      fileSystem: fs)!
+      fileSystem: fs)
 
     let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
     let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -157,7 +157,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     let ws = try! SwiftPMWorkspace(
       workspacePath: packageRoot,
       toolchainRegistry: tr,
-      fileSystem: fs)!
+      fileSystem: fs)
 
     let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
     let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
@@ -208,7 +208,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     let ws = try! SwiftPMWorkspace(
       workspacePath: packageRoot,
       toolchainRegistry: ToolchainRegistry.shared,
-      fileSystem: fs)!
+      fileSystem: fs)
 
     let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
     let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments

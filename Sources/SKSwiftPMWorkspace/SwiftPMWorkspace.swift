@@ -21,17 +21,25 @@ import PackageGraph
 import PackageLoading
 import Workspace
 
+/// Swift Package Manager build system and workspace support.
+///
+/// This class implements the `BuildSystem` interface to provide the build settings for a Swift
+/// Package Manager (SwiftPM) package. The settings are determined by loading the Package.swift
+/// manifest using `libSwiftPM` and constructing a build plan using the default (debug) parameters.
 public final class SwiftPMWorkspace {
 
   public enum Error: Swift.Error {
 
-    /// We could not find an appropriate toolchain for swiftpm to use for manifest loading.
+    /// Could not find a manifest (Package.swift file). This is not a package.
+    case noManifest(workspacePath: AbsolutePath)
+
+    /// Could not determine an appropriate toolchain for swiftpm to use for manifest loading.
     case cannotDetermineHostToolchain
   }
 
   let workspacePath: AbsolutePath
   let packageRoot: AbsolutePath
-  let packageGraph: PackageGraph
+  var packageGraph: PackageGraph
   let workspace: Workspace
   let buildParameters: BuildParameters
   let toolchainRegistry: ToolchainRegistry
@@ -40,58 +48,54 @@ public final class SwiftPMWorkspace {
   var fileToTarget: [AbsolutePath: TargetBuildDescription] = [:]
   var sourceDirToTarget: [AbsolutePath: TargetBuildDescription] = [:]
 
-  /// Creates a `BuildSystem` using the Swift Package Manager, if this workspace is part of a package.
+  /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
-  /// - returns: nil if `workspacePath` is not part of a package or there is an error.
-  public convenience init?(url: LanguageServerProtocol.URL, toolchainRegistry: ToolchainRegistry) {
-    do {
-      try self.init(workspacePath: try AbsolutePath(validating: url.path), toolchainRegistry: toolchainRegistry, fileSystem: localFileSystem)
-    } catch {
-      log("failed to create \(SwiftPMWorkspace.self): \(error)", level: .error)
-      return nil
-    }
-  }
-
-  /// Creates a `BuildSystem` using the Swift Package Manager, if this workspace is part of a package.
-  ///
-  /// - returns: nil if `workspacePath` is not part of a package.
-  /// - throws: If there is an error loading the package.
-  public init?(workspacePath: AbsolutePath, toolchainRegistry: ToolchainRegistry, fileSystem: FileSystem) throws {
-
+  /// - Parameters:
+  ///   - workspace: The workspace root path.
+  ///   - toolchainRegistry: The toolchain registry to use to provide the Swift compiler used for
+  ///     manifest parsing and runtime support.
+  /// - Throws: If there is an error loading the package, or no manifest is found.
+  public init(
+    workspacePath: AbsolutePath,
+    toolchainRegistry: ToolchainRegistry,
+    fileSystem: FileSystem = localFileSystem) throws
+  {
     self.workspacePath = workspacePath
     self.toolchainRegistry = toolchainRegistry
-    guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem: fileSystem) else {
-      log("workspace not a swiftpm package \(workspacePath)")
-      return nil
-    }
-    self.packageRoot = packageRoot
     self.fs = fileSystem
 
-    guard var swiftpmToolchain = toolchainRegistry.swiftPMHost else {
+    guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem) else {
+      throw Error.noManifest(workspacePath: workspacePath)
+    }
+
+    guard var swiftPMToolchain = toolchainRegistry.swiftPMHost else {
       throw Error.cannotDetermineHostToolchain
     }
 
+    self.packageRoot = packageRoot
+
     // FIXME: duplicating code from UserToolchain setup in swiftpm.
-    var sdkpath: AbsolutePath? = nil
+    var sdk: AbsolutePath? = nil
     var platformPath: AbsolutePath? = nil
+
     if case .darwin? = Platform.currentPlatform {
-      if let path = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx") {
-        sdkpath = try? AbsolutePath(validating: path.spm_chomp())
+      if let path = try? Process.checkNonZeroExit(args:
+        "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx")
+      {
+        sdk = try? AbsolutePath(validating: path.spm_chomp())
       }
-      if let path = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-platform-path", "--sdk", "macosx") {
+      if let path = try? Process.checkNonZeroExit(args:
+        "/usr/bin/xcrun", "--show-sdk-platform-path", "--sdk", "macosx")
+      {
         platformPath = try? AbsolutePath(validating: path.spm_chomp())
       }
     }
 
     var extraSwiftFlags: [String] = []
     var extraClangFlags: [String] = []
-    if let sdkpath = sdkpath {
-      extraSwiftFlags += [
-        "-sdk", sdkpath.asString
-      ]
-      extraClangFlags += [
-        "-isysroot", sdkpath.asString
-      ]
+    if let sdk = sdk {
+      extraSwiftFlags += ["-sdk", sdk.asString]
+      extraClangFlags += ["-isysroot", sdk.asString]
     }
 
     if let platformPath = platformPath {
@@ -103,10 +107,10 @@ public final class SwiftPMWorkspace {
       extraClangFlags += flags
     }
 
-    swiftpmToolchain.sdkRoot = sdkpath
-    swiftpmToolchain.extraCCFlags = extraClangFlags
-    swiftpmToolchain.extraSwiftCFlags = extraSwiftFlags
-    swiftpmToolchain.extraCPPFlags = extraClangFlags
+    swiftPMToolchain.sdkRoot = sdk
+    swiftPMToolchain.extraCCFlags = extraClangFlags
+    swiftPMToolchain.extraSwiftCFlags = extraSwiftFlags
+    swiftPMToolchain.extraCPPFlags = extraClangFlags
 
     let buildPath = packageRoot.appending(component: ".build")
 
@@ -114,32 +118,64 @@ public final class SwiftPMWorkspace {
       dataPath: buildPath,
       editablesPath: packageRoot.appending(component: "Packages"),
       pinsFile: packageRoot.appending(component: "Package.resolved"),
-      manifestLoader: ManifestLoader(manifestResources: swiftpmToolchain),
+      manifestLoader: ManifestLoader(manifestResources: swiftPMToolchain),
       delegate: BuildSettingProviderWorkspaceDelegate(),
       fileSystem: fs,
-      skipUpdate: true
-    )
-
-    // FIXME: make these configurable
+      skipUpdate: true)
 
     let triple = Triple.hostTriple
 
+    // FIXME: make these configurable
     self.buildParameters = BuildParameters(
       dataPath: buildPath.appending(component: triple.tripleString),
       configuration: .debug,
-      toolchain: swiftpmToolchain,
-      flags: BuildFlags()
-    )
+      toolchain: swiftPMToolchain,
+      flags: BuildFlags())
 
-    // FIXME: the rest of this should be done asynchronously.
+    self.packageGraph = PackageGraph(rootPackages: [])
+
+    try reloadPackage()
+  }
+
+  /// Creates a build system using the Swift Package Manager, if this workspace is a package.
+  ///
+  /// - Returns: nil if `workspacePath` is not part of a package or there is an error.
+  public convenience init?(url: LanguageServerProtocol.URL, toolchainRegistry: ToolchainRegistry) {
+    do {
+      try self.init(
+        workspacePath: try AbsolutePath(validating: url.path),
+        toolchainRegistry: toolchainRegistry,
+        fileSystem: localFileSystem)
+
+    } catch Error.noManifest(let path) {
+      log("could not find manifest, or not a SwiftPM package: \(path.asString)", level: .warning)
+      return nil
+    } catch {
+      log("failed to create \(SwiftPMWorkspace.self): \(error)", level: .error)
+      return nil
+    }
+  }
+}
+
+extension SwiftPMWorkspace {
+
+  /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
+  /// dependencies.
+  func reloadPackage() throws {
 
     let diags = DiagnosticsEngine(handlers: [{ diag in
       log(diag.localizedDescription, level: diag.behavior.asLogLevel)
     }])
 
-    self.packageGraph = self.workspace.loadPackageGraph(root: PackageGraphRootInput(packages: [packageRoot]), diagnostics: diags)
+    self.packageGraph = self.workspace.loadPackageGraph(
+      root: PackageGraphRootInput(packages: [packageRoot]),
+      diagnostics: diags)
 
-    let plan = try BuildPlan(buildParameters: buildParameters, graph: packageGraph, diagnostics: diags, fileSystem: self.fs)
+    let plan = try BuildPlan(
+      buildParameters: buildParameters,
+      graph: packageGraph,
+      diagnostics: diags,
+      fileSystem: self.fs)
 
     self.fileToTarget = [AbsolutePath: TargetBuildDescription](
       packageGraph.allTargets.flatMap { target in
@@ -374,7 +410,7 @@ extension ToolchainRegistry {
   }
 }
 
-private func findPackageDirectory(containing path: AbsolutePath, fileSystem fs: FileSystem) -> AbsolutePath? {
+private func findPackageDirectory(containing path: AbsolutePath, _ fs: FileSystem) -> AbsolutePath? {
   var path = path
   while !fs.isFile(path.appending(component: "Package.swift")) {
     if path.isRoot {
