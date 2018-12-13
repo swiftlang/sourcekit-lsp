@@ -208,6 +208,11 @@ struct sourcekitd_keys {
   let usr: sourcekitd_uid_t
   let annotated_decl: sourcekitd_uid_t
   let doc_full_as_xml: sourcekitd_uid_t
+  let syntactic_only: sourcekitd_uid_t
+  let substructure: sourcekitd_uid_t
+  let bodyoffset: sourcekitd_uid_t
+  let bodylength: sourcekitd_uid_t
+  let syntaxmap: sourcekitd_uid_t
 
   init(api: sourcekitd_functions_t) {
     request = api.uid_get_from_cstr("key.request")!
@@ -230,6 +235,11 @@ struct sourcekitd_keys {
     usr = api.uid_get_from_cstr("key.usr")!
     annotated_decl = api.uid_get_from_cstr("key.annotated_decl")!
     doc_full_as_xml = api.uid_get_from_cstr("key.doc.full_as_xml")!
+    syntactic_only = api.uid_get_from_cstr("key.syntactic_only")!
+    substructure = api.uid_get_from_cstr("key.substructure")!
+    bodyoffset = api.uid_get_from_cstr("key.bodyoffset")!
+    bodylength = api.uid_get_from_cstr("key.bodylength")!
+    syntaxmap = api.uid_get_from_cstr("key.syntaxmap")!
   }
 }
 
@@ -334,6 +344,9 @@ struct sourcekitd_values {
   let decl_generic_type_param: sourcekitd_uid_t
   let ref_generic_type_param: sourcekitd_uid_t
   let ref_module: sourcekitd_uid_t
+  let syntaxtype_comment: sourcekitd_uid_t
+  let syntaxtype_doccomment: sourcekitd_uid_t
+  let syntaxtype_doccomment_field: sourcekitd_uid_t
 
   let kind_keyword: sourcekitd_uid_t
 
@@ -418,6 +431,9 @@ struct sourcekitd_values {
     decl_generic_type_param = api.uid_get_from_cstr("source.lang.swift.decl.generic_type_param")!
     ref_generic_type_param = api.uid_get_from_cstr("source.lang.swift.ref.generic_type_param")!
     ref_module = api.uid_get_from_cstr("source.lang.swift.ref.module")!
+    syntaxtype_comment = api.uid_get_from_cstr("source.lang.swift.syntaxtype.comment")!
+    syntaxtype_doccomment = api.uid_get_from_cstr("source.lang.swift.syntaxtype.doccomment")!
+    syntaxtype_doccomment_field = api.uid_get_from_cstr("source.lang.swift.syntaxtype.doccomment.field")!
 
     kind_keyword = api.uid_get_from_cstr("source.lang.swift.keyword")!
   }

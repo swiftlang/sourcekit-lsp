@@ -83,7 +83,8 @@ final class CodingTests: XCTestCase {
       hoverProvider: nil,
       definitionProvider: nil,
       referencesProvider: nil,
-      documentHighlightProvider: nil)), id: .number(2), json: """
+      documentHighlightProvider: nil,
+      foldingRangeProvider: nil)), id: .number(2), json: """
     {
       "id" : 2,
       "jsonrpc" : "2.0",

@@ -23,6 +23,8 @@ public final class SwiftLanguageServer: LanguageServer {
 
   let buildSystem: BuildSystem
 
+  let clientCapabilities: ClientCapabilities
+
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
 
@@ -34,10 +36,11 @@ public final class SwiftLanguageServer: LanguageServer {
   var values: sourcekitd_values { return sourcekitd.values }
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, onExit: @escaping () -> Void = {}) throws {
+  public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, clientCapabilities: ClientCapabilities, onExit: @escaping () -> Void = {}) throws {
 
     self.sourcekitd = try SwiftSourceKitFramework(dylib: sourcekitd)
     self.buildSystem = buildSystem
+    self.clientCapabilities = clientCapabilities
     self.documentManager = DocumentManager()
     self.onExit = onExit
     super.init(client: client)
@@ -58,6 +61,7 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.completion)
     _register(SwiftLanguageServer.hover)
     _register(SwiftLanguageServer.documentSymbolHighlight)
+    _register(SwiftLanguageServer.foldingRange)
     _register(SwiftLanguageServer.symbolInfo)
   }
 
@@ -186,7 +190,8 @@ extension SwiftLanguageServer {
       hoverProvider: true,
       definitionProvider: nil,
       referencesProvider: nil,
-      documentHighlightProvider: true
+      documentHighlightProvider: true,
+      foldingRangeProvider: true
       )))
   }
 
@@ -519,6 +524,136 @@ extension SwiftLanguageServer {
     // FIXME: cancellation
     _ = handle
   }
+
+  func foldingRange(_ req: Request<FoldingRangeRequest>) {
+    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
+      log("failed to find snapshot for url \(req.params.textDocument.url)")
+      req.reply(nil)
+      return
+    }
+
+    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
+    skreq[keys.request] = requests.editor_open
+    skreq[keys.name] = "FoldingRanges:" + snapshot.document.url.path
+    skreq[keys.sourcetext] = snapshot.text
+    skreq[keys.syntactic_only] = 1
+
+    let handle = sourcekitd.send(skreq) { [weak self] result in
+      guard let self = self else { return }
+      guard let dict = result.success else {
+        req.reply(.failure(result.failure!))
+        return
+      }
+
+      guard let syntaxMap: SKResponseArray = dict[self.keys.syntaxmap],
+            let substructure: SKResponseArray = dict[self.keys.substructure] else {
+        return req.reply([])
+      }
+
+      var ranges: [FoldingRange] = []
+
+      var hasReachedLimit: Bool {
+        let capabilities = self.clientCapabilities.textDocument?.foldingRange
+        guard let rangeLimit = capabilities?.rangeLimit else {
+          return false
+        }
+        return ranges.count >= rangeLimit
+      }
+
+      // If the limit is less than one, do nothing.
+      guard hasReachedLimit == false else {
+        req.reply([])
+        return
+      }
+
+      // Merge successive comments into one big comment by adding their lengths.
+      var currentComment: (offset: Int, length: Int)? = nil
+
+      syntaxMap.forEach { _, value in
+        if let kind: sourcekitd_uid_t = value[self.keys.kind],
+           kind.isCommentKind(self.values),
+           let offset: Int = value[self.keys.offset],
+           let length: Int = value[self.keys.length]
+        {
+          if let comment = currentComment, comment.offset + comment.length == offset {
+            currentComment!.length += length
+            return true
+          }
+          if let comment = currentComment {
+            self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toArray: &ranges)
+          }
+          currentComment = (offset: offset, length: length)
+        }
+        return hasReachedLimit == false
+      }
+
+      // Add the last stored comment.
+      if let comment = currentComment, hasReachedLimit == false {
+        self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toArray: &ranges)
+        currentComment = nil
+      }
+
+      guard hasReachedLimit == false else {
+        req.reply(ranges)
+        return
+      }
+
+      var structureStack: [SKResponseArray] = [substructure]
+      while let substructure = structureStack.popLast() {
+        substructure.forEach { _, value in
+          if let offset: Int = value[self.keys.bodyoffset],
+             let length: Int = value[self.keys.bodylength],
+             length > 0
+          {
+            self.addFoldingRange(offset: offset, length: length, in: snapshot, toArray: &ranges)
+            if hasReachedLimit {
+              structureStack = []
+              return false
+            }
+          }
+          if let substructure: SKResponseArray = value[self.keys.substructure] {
+            structureStack.append(substructure)
+          }
+          return true
+        }
+      }
+
+      req.reply(ranges)
+    }
+
+    // FIXME: cancellation
+    _ = handle
+  }
+
+  func addFoldingRange(offset: Int, length: Int, kind: FoldingRangeKind? = nil, in snapshot: DocumentSnapshot, toArray ranges: inout [FoldingRange]) {
+    guard let start: Position = snapshot.positionOf(utf8Offset: offset),
+          let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
+      log("folding range failed to retrieve position of \(snapshot.document.url): \(offset)-\(offset + length)", level: .warning)
+      return
+    }
+    let capabilities = clientCapabilities.textDocument?.foldingRange
+    let range: FoldingRange
+    // If the client only supports folding full lines, ignore the end character's line.
+    if capabilities?.lineFoldingOnly == true {
+      let lastLineToFold = end.line - 1
+      if lastLineToFold <= start.line {
+        return
+      } else {
+        range = FoldingRange(startLine: start.line,
+                             startUTF16Index: nil,
+                             endLine: lastLineToFold,
+                             endUTF16Index: nil,
+                             kind: kind)
+      }
+    } else {
+      range = FoldingRange(startLine: start.line,
+                           startUTF16Index: start.utf16index,
+                           endLine: end.line,
+                           endUTF16Index: end.utf16index,
+                           kind: kind)
+    }
+    ranges.append(range)
+  }
 }
 
 extension DocumentSnapshot {
@@ -540,7 +675,7 @@ extension DocumentSnapshot {
   }
 }
 
-func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buildSettings: BuildSystem?) throws -> Connection {
+func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buildSettings: BuildSystem?, clientCapabilities: ClientCapabilities?) throws -> Connection {
 
   let connectionToSK = LocalConnection()
   let connectionToClient = LocalConnection()
@@ -548,7 +683,8 @@ func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buil
   let server = try SwiftLanguageServer(
     client: connectionToClient,
     sourcekitd: sourcekitd,
-    buildSystem: buildSettings ?? BuildSystemList()
+    buildSystem: buildSettings ?? BuildSystemList(),
+    clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil)
   )
 
   connectionToSK.start(handler: server)
@@ -558,6 +694,14 @@ func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buil
 }
 
 extension sourcekitd_uid_t {
+  func isCommentKind(_ vals: sourcekitd_values) -> Bool {
+    return self == vals.syntaxtype_comment || isDocCommentKind(vals)
+  }
+
+  func isDocCommentKind(_ vals: sourcekitd_values) -> Bool {
+    return self == vals.syntaxtype_doccomment || self == vals.syntaxtype_doccomment_field
+  }
+
   func asCompletionItemKind(_ vals: sourcekitd_values) -> CompletionItemKind? {
     switch self {
       case vals.kind_keyword:
