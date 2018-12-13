@@ -43,7 +43,7 @@ public final class SwiftPMWorkspace {
   let workspace: Workspace
   let buildParameters: BuildParameters
   let toolchainRegistry: ToolchainRegistry
-  let fs: FileSystem
+  let fileSystem: FileSystem
 
   var fileToTarget: [AbsolutePath: TargetBuildDescription] = [:]
   var sourceDirToTarget: [AbsolutePath: TargetBuildDescription] = [:]
@@ -62,7 +62,7 @@ public final class SwiftPMWorkspace {
   {
     self.workspacePath = workspacePath
     self.toolchainRegistry = toolchainRegistry
-    self.fs = fileSystem
+    self.fileSystem = fileSystem
 
     guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem) else {
       throw Error.noManifest(workspacePath: workspacePath)
@@ -120,7 +120,7 @@ public final class SwiftPMWorkspace {
       pinsFile: packageRoot.appending(component: "Package.resolved"),
       manifestLoader: ManifestLoader(manifestResources: swiftPMToolchain),
       delegate: BuildSettingProviderWorkspaceDelegate(),
-      fileSystem: fs,
+      fileSystem: fileSystem,
       skipUpdate: true)
 
     let triple = Triple.hostTriple
@@ -175,7 +175,7 @@ extension SwiftPMWorkspace {
       buildParameters: buildParameters,
       graph: packageGraph,
       diagnostics: diags,
-      fileSystem: self.fs)
+      fileSystem: fileSystem)
 
     self.fileToTarget = [AbsolutePath: TargetBuildDescription](
       packageGraph.allTargets.flatMap { target in
