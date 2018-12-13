@@ -9,10 +9,12 @@ extension SwiftPMWorkspaceTests {
         ("testBasicCXXArgs", testBasicCXXArgs),
         ("testBasicSwiftArgs", testBasicSwiftArgs),
         ("testDeploymentTargetSwift", testDeploymentTargetSwift),
+        ("testManifestArgs", testManifestArgs),
         ("testMultiFileSwift", testMultiFileSwift),
         ("testMultiTargetSwift", testMultiTargetSwift),
         ("testNoPackage", testNoPackage),
         ("testNoToolchain", testNoToolchain),
+        ("testUnknownFile", testUnknownFile),
         ("testUnparsablePackage", testUnparsablePackage),
     ]
 }
