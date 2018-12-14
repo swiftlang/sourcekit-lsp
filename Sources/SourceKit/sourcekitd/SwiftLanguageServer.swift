@@ -587,13 +587,8 @@ extension SwiftLanguageServer {
         currentComment = nil
       }
 
-      guard hasReachedLimit == false else {
-        req.reply(ranges)
-        return
-      }
-
       var structureStack: [SKResponseArray] = [substructure]
-      while let substructure = structureStack.popLast() {
+      while let substructure = structureStack.popLast(), !hasReachedLimit {
         substructure.forEach { _, value in
           if let offset: Int = value[self.keys.bodyoffset],
              let length: Int = value[self.keys.bodylength],
@@ -612,6 +607,7 @@ extension SwiftLanguageServer {
         }
       }
 
+      ranges.sort()
       req.reply(ranges)
     }
 
@@ -689,7 +685,12 @@ func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buil
 
 extension sourcekitd_uid_t {
   func isCommentKind(_ vals: sourcekitd_values) -> Bool {
-    return self == vals.syntaxtype_comment || isDocCommentKind(vals)
+    switch self {
+      case vals.syntaxtype_comment, vals.syntaxtype_comment_marker, vals.syntaxtype_comment_url:
+        return true
+      default:
+        return isDocCommentKind(vals)
+    }
   }
 
   func isDocCommentKind(_ vals: sourcekitd_values) -> Bool {

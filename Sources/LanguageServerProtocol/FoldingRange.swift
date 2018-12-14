@@ -52,7 +52,13 @@ public struct FoldingRange: ResponseType, Hashable {
   /// is used to categorize folding ranges and used by commands like 'Fold all comments'.
   public var kind: FoldingRangeKind?
 
-  public init(startLine: Int, startUTF16Index: Int? = nil, endLine: Int, endUTF16Index: Int? = nil, kind: FoldingRangeKind? = nil) {
+  public init(
+    startLine: Int,
+    startUTF16Index: Int? = nil,
+    endLine: Int,
+    endUTF16Index: Int? = nil,
+    kind: FoldingRangeKind? = nil)
+  {
     self.startLine = startLine
     self.startUTF16Index = startUTF16Index
     self.endLine = endLine
@@ -68,5 +74,20 @@ extension FoldingRange: Codable {
     case endLine
     case endUTF16Index = "endCharacter"
     case kind
+  }
+}
+
+extension FoldingRange: Comparable {
+
+  public static func <(lhs: FoldingRange, rhs: FoldingRange) -> Bool {
+    return lhs.comparableKey < rhs.comparableKey
+  }
+
+  private var comparableKey: (Int, Int, Int, Int, String) {
+    return (
+      startLine,
+      startUTF16Index ?? Int.max,
+      endLine, endUTF16Index ?? Int.max,
+      kind?.rawValue ?? "")
   }
 }
