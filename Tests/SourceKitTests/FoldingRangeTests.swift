@@ -107,70 +107,17 @@ final class FoldingRangeTests: XCTestCase {
     let request = getFoldingRangeRequest()
     let ranges = try! sk.sendSync(request)!
 
-    XCTAssertEqual(ranges.count, 9)
-
-    let dc1Range = ranges[0]
-    XCTAssertEqual(dc1Range.startLine, 0)
-    XCTAssertEqual(dc1Range.endLine, 2)
-    XCTAssertEqual(dc1Range.startUTF16Index, 0)
-    XCTAssertEqual(dc1Range.endUTF16Index, 0)
-    XCTAssertEqual(dc1Range.kind, .comment)
-
-    let dc2Range = ranges[1]
-    XCTAssertEqual(dc2Range.startLine, 3)
-    XCTAssertEqual(dc2Range.endLine, 13)
-    XCTAssertEqual(dc2Range.startUTF16Index, 0)
-    XCTAssertEqual(dc2Range.endUTF16Index, 2)
-    XCTAssertEqual(dc2Range.kind, .comment)
-
-    let c1Range = ranges[2]
-    XCTAssertEqual(c1Range.startLine, 15)
-    XCTAssertEqual(c1Range.endLine, 16)
-    XCTAssertEqual(c1Range.startUTF16Index, 2)
-    XCTAssertEqual(c1Range.endUTF16Index, 0)
-    XCTAssertEqual(c1Range.kind, .comment)
-
-    let c2Range = ranges[3]
-    XCTAssertEqual(c2Range.startLine, 16)
-    XCTAssertEqual(c2Range.endLine, 17)
-    XCTAssertEqual(c2Range.startUTF16Index, 2)
-    XCTAssertEqual(c2Range.endUTF16Index, 0)
-    XCTAssertEqual(c2Range.kind, .comment)
-
-    let c3Range = ranges[4]
-    XCTAssertEqual(c3Range.startLine, 17)
-    XCTAssertEqual(c3Range.endLine, 19)
-    XCTAssertEqual(c3Range.startUTF16Index, 2)
-    XCTAssertEqual(c3Range.endUTF16Index, 4)
-    XCTAssertEqual(c3Range.kind, .comment)
-
-    let c4Range = ranges[5]
-    XCTAssertEqual(c4Range.startLine, 26)
-    XCTAssertEqual(c4Range.endLine, 26)
-    XCTAssertEqual(c4Range.startUTF16Index, 2)
-    XCTAssertEqual(c4Range.endUTF16Index, 10)
-    XCTAssertEqual(c4Range.kind, .comment)
-
-    let structRange = ranges[6]
-    XCTAssertEqual(structRange.startLine, 14)
-    XCTAssertEqual(structRange.endLine, 27)
-    XCTAssertEqual(structRange.startUTF16Index, 10)
-    XCTAssertEqual(structRange.endUTF16Index, 0)
-    XCTAssertNil(structRange.kind)
-
-    let methodRange = ranges[7]
-    XCTAssertEqual(methodRange.startLine, 22)
-    XCTAssertEqual(methodRange.endLine, 25)
-    XCTAssertEqual(methodRange.startUTF16Index, 21)
-    XCTAssertEqual(methodRange.endUTF16Index, 2)
-    XCTAssertNil(methodRange.kind)
-
-    let guardRange = ranges[8]
-    XCTAssertEqual(guardRange.startLine, 23)
-    XCTAssertEqual(guardRange.endLine, 23)
-    XCTAssertEqual(guardRange.startUTF16Index, 22)
-    XCTAssertEqual(guardRange.endUTF16Index, 30)
-    XCTAssertNil(guardRange.kind)
+    XCTAssertEqual(ranges, [
+      FoldingRange(startLine: 0, startUTF16Index: 0, endLine: 2, endUTF16Index: 0, kind: .comment),
+      FoldingRange(startLine: 3, startUTF16Index: 0, endLine: 13, endUTF16Index: 2, kind: .comment),
+      FoldingRange(startLine: 15, startUTF16Index: 2, endLine: 16, endUTF16Index: 0, kind: .comment),
+      FoldingRange(startLine: 16, startUTF16Index: 2, endLine: 17, endUTF16Index: 0, kind: .comment),
+      FoldingRange(startLine: 17, startUTF16Index: 2, endLine: 19, endUTF16Index: 4, kind: .comment),
+      FoldingRange(startLine: 26, startUTF16Index: 2, endLine: 26, endUTF16Index: 10, kind: .comment),
+      FoldingRange(startLine: 14, startUTF16Index: 10, endLine: 27, endUTF16Index: 0, kind: nil),
+      FoldingRange(startLine: 22, startUTF16Index: 21, endLine: 25, endUTF16Index: 2, kind: nil),
+      FoldingRange(startLine: 23, startUTF16Index: 22, endLine: 23, endUTF16Index: 30, kind: nil),
+    ])
   }
 
   func testLineFoldingOnly() {
@@ -181,32 +128,13 @@ final class FoldingRangeTests: XCTestCase {
     let request = getFoldingRangeRequest()
     let ranges = try! sk.sendSync(request)!
 
-    XCTAssertEqual(ranges.count, 5)
-
-    let dc1Range = ranges[0]
-    XCTAssertEqual(dc1Range.startLine, 0)
-    XCTAssertEqual(dc1Range.endLine, 1)
-    XCTAssertEqual(dc1Range.kind, .comment)
-
-    let dc2Range = ranges[1]
-    XCTAssertEqual(dc2Range.startLine, 3)
-    XCTAssertEqual(dc2Range.endLine, 12)
-    XCTAssertEqual(dc2Range.kind, .comment)
-
-    let c3Range = ranges[2]
-    XCTAssertEqual(c3Range.startLine, 17)
-    XCTAssertEqual(c3Range.endLine, 18)
-    XCTAssertEqual(c3Range.kind, .comment)
-
-    let structRange = ranges[3]
-    XCTAssertEqual(structRange.startLine, 14)
-    XCTAssertEqual(structRange.endLine, 26)
-    XCTAssertNil(structRange.kind)
-
-    let methodRange = ranges[4]
-    XCTAssertEqual(methodRange.startLine, 22)
-    XCTAssertEqual(methodRange.endLine, 24)
-    XCTAssertNil(methodRange.kind)
+    XCTAssertEqual(ranges, [
+      FoldingRange(startLine: 0, endLine: 1, kind: .comment),
+      FoldingRange(startLine: 3, endLine: 12, kind: .comment),
+      FoldingRange(startLine: 17, endLine: 18, kind: .comment),
+      FoldingRange(startLine: 14, endLine: 26, kind: nil),
+      FoldingRange(startLine: 22, endLine: 24, kind: nil),
+    ])
   }
 
   func testRangeLimit() {
