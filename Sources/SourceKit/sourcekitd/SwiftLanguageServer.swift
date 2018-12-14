@@ -588,7 +588,7 @@ extension SwiftLanguageServer {
       }
 
       var structureStack: [SKResponseArray] = [substructure]
-      while let substructure = structureStack.popLast(), !hasReachedLimit {
+      while !hasReachedLimit, let substructure = structureStack.popLast() {
         substructure.forEach { _, value in
           if let offset: Int = value[self.keys.bodyoffset],
              let length: Int = value[self.keys.bodylength],
@@ -596,7 +596,6 @@ extension SwiftLanguageServer {
           {
             self.addFoldingRange(offset: offset, length: length, in: snapshot, toArray: &ranges)
             if hasReachedLimit {
-              structureStack = []
               return false
             }
           }
