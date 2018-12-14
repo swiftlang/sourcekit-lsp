@@ -51,6 +51,17 @@ final class FoldingRangeTests: XCTestCase {
       }
       /* c4 */
     }
+
+    //
+    // MARK: - A mark! -
+    //
+
+    //
+    // FIXME: a fixme
+    //
+
+    // a https://www.example.com URL
+
     """
 
   /// Connection and lifetime management for the service.
@@ -117,6 +128,9 @@ final class FoldingRangeTests: XCTestCase {
       FoldingRange(startLine: 22, startUTF16Index: 21, endLine: 25, endUTF16Index: 2, kind: nil),
       FoldingRange(startLine: 23, startUTF16Index: 22, endLine: 23, endUTF16Index: 30, kind: nil),
       FoldingRange(startLine: 26, startUTF16Index: 2, endLine: 26, endUTF16Index: 10, kind: .comment),
+      FoldingRange(startLine: 29, startUTF16Index: 0, endLine: 32, endUTF16Index: 0, kind: .comment),
+      FoldingRange(startLine: 33, startUTF16Index: 0, endLine: 36, endUTF16Index: 0, kind: .comment),
+      FoldingRange(startLine: 37, startUTF16Index: 0, endLine: 38, endUTF16Index: 0, kind: .comment),
     ])
   }
 
@@ -134,6 +148,8 @@ final class FoldingRangeTests: XCTestCase {
       FoldingRange(startLine: 14, endLine: 26, kind: nil),
       FoldingRange(startLine: 17, endLine: 18, kind: .comment),
       FoldingRange(startLine: 22, endLine: 24, kind: nil),
+      FoldingRange(startLine: 29, endLine: 31, kind: .comment),
+      FoldingRange(startLine: 33, endLine: 35, kind: .comment),
     ])
   }
 
@@ -155,11 +171,11 @@ final class FoldingRangeTests: XCTestCase {
 
     capabilities.rangeLimit = 5000
     initialize(capabilities: capabilities)
-    XCTAssertEqual(try! sk.sendSync(getFoldingRangeRequest())!.count, 9)
+    XCTAssertEqual(try! sk.sendSync(getFoldingRangeRequest())!.count, 12)
 
     capabilities.rangeLimit = nil
     initialize(capabilities: capabilities)
-    XCTAssertEqual(try! sk.sendSync(getFoldingRangeRequest())!.count, 9)
+    XCTAssertEqual(try! sk.sendSync(getFoldingRangeRequest())!.count, 12)
   }
 
   func testEmptyText() {

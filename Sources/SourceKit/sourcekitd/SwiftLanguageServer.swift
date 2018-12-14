@@ -691,7 +691,12 @@ func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buil
 
 extension sourcekitd_uid_t {
   func isCommentKind(_ vals: sourcekitd_values) -> Bool {
-    return self == vals.syntaxtype_comment || isDocCommentKind(vals)
+    switch self {
+      case vals.syntaxtype_comment, vals.syntaxtype_comment_marker, vals.syntaxtype_comment_url:
+        return true
+      default:
+        return isDocCommentKind(vals)
+    }
   }
 
   func isDocCommentKind(_ vals: sourcekitd_values) -> Bool {
