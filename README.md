@@ -77,9 +77,15 @@ Use the `swift-DEVELOPMENT-SNAPSHOT-2018-12-07-a` toolchain snapshot from https:
 
 ### Selecting the Toolchain
 
-After installing the toolchain, SourceKit-LSP needs to know how to find it. Your editor may have a way to do this directly via a configuration setting, or it may allow you to override the process environment variables used when launching `sourcekit-lsp`. See [Editors](Editors) for more information.
+After installing the toolchain, SourceKit-LSP needs to know the path to the toolchain.
 
-The simplest way to configure the toolchain is to set the following environment variable to the absolute path of the toolchain.
+* On macOS, the toolchain is installed in `/Library/Developer/Toolchains/` with an `.xctoolchain` extension. The most recently installed toolchain is symlinked as `/Library/Developer/Toolchains/swift-latest.xctoolchain`.  If you opted to install for the current user only in the installer, the same paths will be under the home directory, e.g. `~/Library/Developer/Toolchains/`.
+
+* On Linux, the toolchain is wherever the snapshot's `.tar.gz` file was extracted.
+
+Your editor may have a way to configure the toolchain path directly via a configuration setting, or it may allow you to override the process environment variables used when launching `sourcekit-lsp`. See [Editors](Editors) for more information.
+
+Otherwise, the simplest way to configure the toolchain is to set the following environment variable to the absolute path of the toolchain.
 
 ```sh
 SOURCEKIT_TOOLCHAIN_PATH=<toolchain>
