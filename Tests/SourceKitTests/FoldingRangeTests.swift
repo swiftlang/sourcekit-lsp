@@ -110,13 +110,13 @@ final class FoldingRangeTests: XCTestCase {
     XCTAssertEqual(ranges, [
       FoldingRange(startLine: 0, startUTF16Index: 0, endLine: 2, endUTF16Index: 0, kind: .comment),
       FoldingRange(startLine: 3, startUTF16Index: 0, endLine: 13, endUTF16Index: 2, kind: .comment),
+      FoldingRange(startLine: 14, startUTF16Index: 10, endLine: 27, endUTF16Index: 0, kind: nil),
       FoldingRange(startLine: 15, startUTF16Index: 2, endLine: 16, endUTF16Index: 0, kind: .comment),
       FoldingRange(startLine: 16, startUTF16Index: 2, endLine: 17, endUTF16Index: 0, kind: .comment),
       FoldingRange(startLine: 17, startUTF16Index: 2, endLine: 19, endUTF16Index: 4, kind: .comment),
-      FoldingRange(startLine: 26, startUTF16Index: 2, endLine: 26, endUTF16Index: 10, kind: .comment),
-      FoldingRange(startLine: 14, startUTF16Index: 10, endLine: 27, endUTF16Index: 0, kind: nil),
       FoldingRange(startLine: 22, startUTF16Index: 21, endLine: 25, endUTF16Index: 2, kind: nil),
       FoldingRange(startLine: 23, startUTF16Index: 22, endLine: 23, endUTF16Index: 30, kind: nil),
+      FoldingRange(startLine: 26, startUTF16Index: 2, endLine: 26, endUTF16Index: 10, kind: .comment),
     ])
   }
 
@@ -131,8 +131,8 @@ final class FoldingRangeTests: XCTestCase {
     XCTAssertEqual(ranges, [
       FoldingRange(startLine: 0, endLine: 1, kind: .comment),
       FoldingRange(startLine: 3, endLine: 12, kind: .comment),
-      FoldingRange(startLine: 17, endLine: 18, kind: .comment),
       FoldingRange(startLine: 14, endLine: 26, kind: nil),
+      FoldingRange(startLine: 17, endLine: 18, kind: .comment),
       FoldingRange(startLine: 22, endLine: 24, kind: nil),
     ])
   }

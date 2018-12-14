@@ -593,13 +593,8 @@ extension SwiftLanguageServer {
         currentComment = nil
       }
 
-      guard hasReachedLimit == false else {
-        req.reply(ranges)
-        return
-      }
-
       var structureStack: [SKResponseArray] = [substructure]
-      while let substructure = structureStack.popLast() {
+      while let substructure = structureStack.popLast(), !hasReachedLimit {
         substructure.forEach { _, value in
           if let offset: Int = value[self.keys.bodyoffset],
              let length: Int = value[self.keys.bodylength],
@@ -618,6 +613,7 @@ extension SwiftLanguageServer {
         }
       }
 
+      ranges.sort()
       req.reply(ranges)
     }
 
