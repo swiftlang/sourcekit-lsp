@@ -593,6 +593,89 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertNil(resp)
     }
   }
+
+  func testDocumentSymbolHighlight() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    sk.allowUnexpectedNotification = true
+
+    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: url,
+      language: .swift,
+      version: 1,
+      text: """
+      func test() {
+        let a = 1
+        let b = 2
+        let ccc = 3
+        _ = b
+        _ = ccc + ccc
+      }
+      """)))
+
+    do {
+      let resp = try! sk.sendSync(DocumentHighlightRequest(
+        textDocument: TextDocumentIdentifier(url),
+        position: Position(line: 0, utf16index: 0)))
+      XCTAssertEqual(resp?.count, 0)
+    }
+
+    do {
+      let resp = try! sk.sendSync(DocumentHighlightRequest(
+        textDocument: TextDocumentIdentifier(url),
+        position: Position(line: 1, utf16index: 6)))
+      XCTAssertEqual(resp?.count, 1)
+      if let highlight = resp?.first {
+        XCTAssertEqual(highlight.range.lowerBound.line, 1)
+        XCTAssertEqual(highlight.range.lowerBound.utf16index, 6)
+        XCTAssertEqual(highlight.range.upperBound.line, 1)
+        XCTAssertEqual(highlight.range.upperBound.utf16index, 7)
+      }
+    }
+
+    do {
+      let resp = try! sk.sendSync(DocumentHighlightRequest(
+        textDocument: TextDocumentIdentifier(url),
+        position: Position(line: 2, utf16index: 6)))
+      XCTAssertEqual(resp?.count, 2)
+      if let highlight = resp?.first {
+        XCTAssertEqual(highlight.range.lowerBound.line, 2)
+        XCTAssertEqual(highlight.range.lowerBound.utf16index, 6)
+        XCTAssertEqual(highlight.range.upperBound.line, 2)
+        XCTAssertEqual(highlight.range.upperBound.utf16index, 7)
+      }
+      if let highlight = resp?.dropFirst().first {
+        XCTAssertEqual(highlight.range.lowerBound.line, 4)
+        XCTAssertEqual(highlight.range.lowerBound.utf16index, 6)
+        XCTAssertEqual(highlight.range.upperBound.line, 4)
+        XCTAssertEqual(highlight.range.upperBound.utf16index, 7)
+      }
+    }
+
+    do {
+      let resp = try! sk.sendSync(DocumentHighlightRequest(
+        textDocument: TextDocumentIdentifier(url),
+        position: Position(line: 3, utf16index: 6)))
+      XCTAssertEqual(resp?.count, 3)
+      if let highlight = resp?.first {
+        XCTAssertEqual(highlight.range.lowerBound.line, 3)
+        XCTAssertEqual(highlight.range.lowerBound.utf16index, 6)
+        XCTAssertEqual(highlight.range.upperBound.line, 3)
+        XCTAssertEqual(highlight.range.upperBound.utf16index, 9)
+      }
+      if let highlight = resp?.dropFirst().first {
+        XCTAssertEqual(highlight.range.lowerBound.line, 5)
+        XCTAssertEqual(highlight.range.lowerBound.utf16index, 6)
+        XCTAssertEqual(highlight.range.upperBound.line, 5)
+        XCTAssertEqual(highlight.range.upperBound.utf16index, 9)
+      }
+      if let highlight = resp?.dropFirst(2).first {
+        XCTAssertEqual(highlight.range.lowerBound.line, 5)
+        XCTAssertEqual(highlight.range.lowerBound.utf16index, 12)
+        XCTAssertEqual(highlight.range.upperBound.line, 5)
+        XCTAssertEqual(highlight.range.upperBound.utf16index, 15)
+      }
+    }
+  }
 }
 
 final class FoldingRangeTests: XCTestCase {

@@ -29,6 +29,7 @@ extension LocalSwiftTests {
     // to regenerate.
     static let __allTests__LocalSwiftTests = [
         ("testCompletion", testCompletion),
+        ("testDocumentSymbolHighlight", testDocumentSymbolHighlight),
         ("testEditing", testEditing),
         ("testHover", testHover),
         ("testSymbolInfo", testSymbolInfo),

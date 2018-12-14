@@ -33,6 +33,11 @@ public struct DocumentHighlightRequest: TextDocumentRequest, Hashable {
 
   /// The document location at which to lookup symbol information.
   public var position: Position
+
+  public init(textDocument: TextDocumentIdentifier, position: Position) {
+    self.textDocument = textDocument
+    self.position = position
+  }
 }
 
 /// The kind of document highlight - read, write, or text (fuzzy).
