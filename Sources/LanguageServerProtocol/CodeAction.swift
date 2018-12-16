@@ -10,7 +10,24 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct CodeAction: Codable, Hashable {
+public struct CodeActionRequest: TextDocumentRequest, Hashable {
+    public static let method: String = "textDocument/codeAction"
+    public typealias Response = [CodeAction]?
+
+    public var textDocument: TextDocumentIdentifier
+
+    /// The range at which this code action should be applied.
+    public var range: PositionRange
+
+    public var context: CodeActionContext
+}
+
+public struct CodeActionContext: Codable, Hashable {
+
+    public var diagnostics: [Diagnostic]
+}
+
+public struct CodeAction: Codable, Hashable, ResponseType {
   public var title: String
 
   public var kind: CodeActionKind
@@ -23,5 +40,3 @@ public struct CodeAction: Codable, Hashable {
     self.edit = edit
   }
 }
-
-extension CodeAction: ResponseType {}

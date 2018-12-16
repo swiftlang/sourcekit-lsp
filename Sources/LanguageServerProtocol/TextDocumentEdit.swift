@@ -13,7 +13,7 @@
 /// Edit within a particular document.
 ///
 /// For an edit where the document is implied, use `TextEdit`.
-public struct TextDocumentEdit: Hashable, Codable {
+public struct TextDocumentEdit: Hashable, Codable, ResponseType {
 
   /// The potentially versioned document to which these edits apply.
   public var textDocument: VersionedTextDocumentIdentifier
@@ -26,8 +26,3 @@ public struct TextDocumentEdit: Hashable, Codable {
     self.edits = edits
   }
 }
-
-extension TextDocumentEdit: Equatable {}
-extension TextDocumentEdit: Hashable {}
-extension TextDocumentEdit: Codable {}
-extension TextDocumentEdit: ResponseType {}

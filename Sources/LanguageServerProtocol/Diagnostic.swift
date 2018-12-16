@@ -49,7 +49,7 @@ public struct Diagnostic: Codable, Hashable {
   public var fixits: [DiagnosticFixit]?
 
   public init(range: Range<Position>, severity: DiagnosticSeverity?, code: DiagnosticCode? = nil, source: String?, message: String, relatedInformation: [DiagnosticRelatedInformation]? = nil, diagnosticFixits: [DiagnosticFixit]? = nil) {
-    self.range = range
+    self.range = PositionRange(range)
     self.severity = severity
     self.code = code
     self.source = source
@@ -75,12 +75,12 @@ public struct DiagnosticRelatedInformation: Codable, Hashable {
 /// A code suggestion that can be automatically applied to fix a compile error.
 public struct DiagnosticFixit: Codable, Hashable {
 
-  public var range: Range<Position>
+  public var range: PositionRange
 
   public var fixit: String
 
   public init(range: Range<Position>, fixit: String) {
-    self.range = range
+    self.range = PositionRange(range)
     self.fixit = fixit
   }
 }

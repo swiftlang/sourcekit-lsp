@@ -57,7 +57,7 @@ public struct ServerCapabilities: Codable, Hashable {
     documentFormattingProvider: Bool? = nil,
     documentRangeFormattingProvider: Bool? = nil,
     documentOnTypeFormattingProvider: DocumentOnTypeFormattingOptions? = nil,
-    foldingRangeProvider: Bool? = nil
+    foldingRangeProvider: Bool? = nil,
     codeActionProvider: [CodeActionKind]? = nil
     )
   {
