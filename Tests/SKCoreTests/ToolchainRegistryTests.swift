@@ -85,7 +85,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr1.default)
     XCTAssert(tr1.toolchains.isEmpty)
 
-    tr1.scanForToolchains(xcode: xcodeDeveloper)
+    tr1.scanForToolchains(xcode: xcodeDeveloper, fs)
 
     XCTAssertEqual(tr1.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
     XCTAssertEqual(tr1.default?.path, toolchains.appending(component: "XcodeDefault.xctoolchain"))
