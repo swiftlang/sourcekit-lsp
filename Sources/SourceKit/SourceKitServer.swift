@@ -96,7 +96,7 @@ public final class SourceKitServer: LanguageServer {
     }
   }
 
-  public override  func _handleUnknown<R>(_ req: Request<R>) {
+  public override func _handleUnknown<R>(_ req: Request<R>) {
     if req.clientID == ObjectIdentifier(client) {
       return super._handleUnknown(req)
     }
@@ -111,7 +111,7 @@ public final class SourceKitServer: LanguageServer {
   }
 
   /// Handle an unknown notification.
-  public override  func _handleUnknown<N>(_ note: Notification<N>) {
+  public override func _handleUnknown<N>(_ note: Notification<N>) {
     if note.clientID == ObjectIdentifier(client) {
       return super._handleUnknown(note)
     }
