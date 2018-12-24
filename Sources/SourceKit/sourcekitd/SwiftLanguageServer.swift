@@ -100,7 +100,7 @@ public final class SwiftLanguageServer: LanguageServer {
       sknotes.forEach { (_, sknote) -> Bool in
         guard let note = getDiagnostic(sknote, for: snapshot) else { return true }
         notes?.append(DiagnosticRelatedInformation(
-          location: note.range.lowerBound,
+          location: Location(url: snapshot.document.url, range: note.range.asRange),
           message: note.message
         ))
         return true
