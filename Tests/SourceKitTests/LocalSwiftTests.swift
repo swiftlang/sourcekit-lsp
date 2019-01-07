@@ -220,6 +220,35 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertNotEqual(after, selfDot)
   }
 
+  func testCompletionPosition() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    sk.allowUnexpectedNotification = true
+
+    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: url,
+      language: .swift,
+      version: 12,
+      text: "foo")))
+
+    for col in 0 ... 3 {
+      let inOrAfterFoo = try! sk.sendSync(CompletionRequest(
+        textDocument: TextDocumentIdentifier(url),
+        position: Position(line: 0, utf16index: col)))
+      XCTAssertFalse(inOrAfterFoo.isIncomplete)
+      XCTAssertFalse(inOrAfterFoo.items.isEmpty)
+    }
+
+    let outOfRange1 = try! sk.sendSync(CompletionRequest(
+      textDocument: TextDocumentIdentifier(url),
+      position: Position(line: 0, utf16index: 4)))
+    XCTAssertTrue(outOfRange1.isIncomplete)
+
+    let outOfRange2 = try! sk.sendSync(CompletionRequest(
+      textDocument: TextDocumentIdentifier(url),
+      position: Position(line: 1, utf16index: 0)))
+    XCTAssertTrue(outOfRange2.isIncomplete)
+  }
+
   func testXMLToMarkdownDeclaration() {
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Declaration>func foo(_ bar: <Type usr="fake">Baz</Type>)</Declaration>
