@@ -87,10 +87,10 @@ if executable('sourcekit-lsp')
 endif
 ```
 
-(…assuming `sourckit-lsp` is in your PATH variable, otherwise replace `'sourcekit-lsp'` with path to your
-command location).
+(…assuming `sourckit-lsp` is in your PATH variable, otherwise replace `'sourcekit-lsp'` with the path to
+the sourcekit-lsp executable).
 
-That's it! As a test, open a source file in an Xcode project, put cursor on top of a symbol in normal mode and
+That's it! As a test, open a swift file, put cursor on top of a symbol in normal mode and
 run `:LspDefinition`. More commands is documented [here](https://github.com/prabirshrestha/vim-lsp#supported-commands).
 
 There are many Vim solutions for code completion. For instance, you may want to use LSP for omnifunc:
@@ -100,8 +100,6 @@ autocmd FileType swift setlocal omnifunc=lsp#complete
 ```
 
 With this added in `.vimrc`, you can use `<c-x><c-o>` in insert mode to trigger sourcekit-lsp completion.
-
-(Please contribute instructions for other autocomplete methods if you can!)
 
 ## Other Editors
 
