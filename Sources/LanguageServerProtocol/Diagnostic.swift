@@ -66,11 +66,11 @@ public struct Diagnostic: Codable, Hashable {
 /// A 'note' diagnostic attached to a primary diagonstic that provides additional information.
 public struct DiagnosticRelatedInformation: Codable, Hashable {
 
-  public var location: Position
+  public var location: Location
 
   public var message: String
 
-  public init(location: Position, message: String) {
+  public init(location: Location, message: String) {
     self.location = location
     self.message = message
   }
