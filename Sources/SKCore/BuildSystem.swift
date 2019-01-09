@@ -16,7 +16,7 @@ import Basic
 /// Provider of FileBuildSettings and other build-related information.
 ///
 /// The primary role of the build system is to answer queries for FileBuildSettings and (TODO) to
-/// notify clients when they change. The BuildSystem is also the source of related informatino,
+/// notify clients when they change. The BuildSystem is also the source of related information,
 /// such as where the index datastore is located.
 ///
 /// For example, a SwiftPMWorkspace provides compiler arguments for the files contained in a

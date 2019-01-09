@@ -10,13 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Unique identifier for a document.
+/// A workspace folder.
 public struct WorkspaceFolder: ResponseType, Hashable {
 
-  /// A URL that uniquely identifies the workspace.
+  /// A URL that uniquely identifies the workspace folder.
   public var url: URL
 
-  /// The name of the workspace (default: basename of url).
+  /// The name of the workspace folder (default: basename of url).
   public var name: String
 
   public init(url: URL, name: String? = nil) {

@@ -57,11 +57,12 @@ public final class SourceKitServer: LanguageServer {
     _register(SourceKitServer.shutdown)
     _register(SourceKitServer.exit)
 
-    registerWorkspaceNotfication(SourceKitServer.openDocument)
-    registerWorkspaceNotfication(SourceKitServer.closeDocument)
-    registerWorkspaceNotfication(SourceKitServer.changeDocument)
-    registerWorkspaceNotfication(SourceKitServer.willSaveDocument)
-    registerWorkspaceNotfication(SourceKitServer.didSaveDocument)
+    registerWorkspaceNotification(SourceKitServer.openDocument)
+    registerWorkspaceNotification(SourceKitServer.closeDocument)
+    registerWorkspaceNotification(SourceKitServer.changeDocument)
+    registerWorkspaceNotification(SourceKitServer.willSaveDocument)
+    registerWorkspaceNotification(SourceKitServer.didSaveDocument)
+    registerWorkspaceNotification(SourceKitServer.didChangeWorkspaceFolders)
     registerWorkspaceRequest(SourceKitServer.completion)
     registerWorkspaceRequest(SourceKitServer.hover)
     registerWorkspaceRequest(SourceKitServer.definition)
@@ -83,7 +84,7 @@ public final class SourceKitServer: LanguageServer {
     }
   }
 
-  func registerWorkspaceNotfication<N>(
+  func registerWorkspaceNotification<N>(
     _ noteHandler: @escaping (SourceKitServer) -> (Notification<N>, Workspace) -> Void)
   {
     _register { [unowned self] (note: Notification<N>) in
@@ -305,6 +306,13 @@ extension SourceKitServer {
 
   func didSaveDocument(_ note: Notification<DidSaveTextDocument>, workspace: Workspace) {
 
+  }
+
+  // MARK: - Workspace
+
+  func didChangeWorkspaceFolders(_ notification: Notification<DidChangeWorkspaceFolders>, workspace: Workspace) {
+    // update workspace.rootPaths
+    // reload services
   }
 
   // MARK: - Language features

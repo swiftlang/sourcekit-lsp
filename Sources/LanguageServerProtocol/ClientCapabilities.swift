@@ -42,6 +42,13 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
     /// Whether the client supports the `documentChanges` field of `WorkspaceEdit`.
     public var documentChanges: Bool? = nil
 
+    /// The resource operations the client supports. Clients should at least
+    /// support 'create', 'rename' and 'delete' files and folders.
+    public var resourceOperations: [ResourceOperationKind]? = nil
+
+    /// The failure handling strategy of a client if applying the workspace edit fails.
+    public var failureHandling: FailureHandlingKind? = nil
+
     public init(documentChanges: Bool? = nil) {
       self.documentChanges = documentChanges
     }
