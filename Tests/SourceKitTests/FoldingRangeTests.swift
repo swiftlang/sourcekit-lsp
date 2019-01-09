@@ -93,7 +93,7 @@ final class FoldingRangeTests: XCTestCase {
       trace: .off,
       workspaceFolders: nil))
 
-    workspace = connection.server!.workspace!
+    workspace = connection.server!.workspaces.first!
   }
 
   func getFoldingRangeRequest(text: String? = nil) -> FoldingRangeRequest {

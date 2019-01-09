@@ -43,7 +43,7 @@ final class LocalSwiftTests: XCTestCase {
         trace: .off,
         workspaceFolders: nil))
 
-    workspace = connection.server!.workspace!
+    workspace = connection.server!.workspaces.first!
   }
 
   override func tearDown() {
