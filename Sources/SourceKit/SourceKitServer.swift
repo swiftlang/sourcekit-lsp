@@ -73,31 +73,27 @@ public final class SourceKitServer: LanguageServer {
   }
 
   func registerWorkspaceRequest<R>(
-    _ requestHandler: @escaping (SourceKitServer) -> (Request<R>, Workspace) -> Void)
+    _ requestHandler: @escaping (SourceKitServer) -> (Request<R>) -> Void)
   {
-    for workspace in workspaces {
-      _register { [unowned self] (req: Request<R>) in
-        guard !self.workspaces.isEmpty else {
-          return req.reply(.failure(.serverNotInitialized))
-        }
-
-        requestHandler(self)(req, workspace)
+    _register { [unowned self] (req: Request<R>) in
+      guard !self.workspaces.isEmpty else {
+        return req.reply(.failure(.serverNotInitialized))
       }
+
+      requestHandler(self)(req)
     }
   }
 
   func registerWorkspaceNotification<N>(
-    _ noteHandler: @escaping (SourceKitServer) -> (Notification<N>, Workspace) -> Void)
+    _ noteHandler: @escaping (SourceKitServer) -> (Notification<N>) -> Void)
   {
-    for workspace in workspaces {
-      _register { [unowned self] (note: Notification<N>) in
-        guard !self.workspaces.isEmpty else {
-          log("received notification before \"initialize\", ignoring...", level: .error)
-          return
-        }
-
-        noteHandler(self)(note, workspace)
+    _register { [unowned self] (note: Notification<N>) in
+      guard !self.workspaces.isEmpty else {
+        log("received notification before \"initialize\", ignoring...", level: .error)
+        return
       }
+
+      noteHandler(self)(note)
     }
   }
 
@@ -206,6 +202,19 @@ public final class SourceKitServer: LanguageServer {
     workspace.documentService[url] = service
     return service
   }
+
+  func workspace(for url: URL) -> Workspace? {
+    guard self.workspaces.count > 1 else {
+      return self.workspaces.first
+    }
+
+    return self.workspaces.first(where: { (workspace) -> Bool in
+      guard let rootPath = workspace.configuration.rootPath,
+            let path = try? AbsolutePath(validating: url.path) else { return false }
+
+      return path.contains(rootPath)
+    })
+  }
 }
 
 // MARK: - Request and notification handling
@@ -290,7 +299,8 @@ extension SourceKitServer {
 
   // MARK: - Text synchronization
 
-  func openDocument(_ note: Notification<DidOpenTextDocument>, workspace: Workspace) {
+  func openDocument(_ note: Notification<DidOpenTextDocument>) {
+    guard let workspace = workspace(for: note.params.textDocument.url) else { return }
     workspace.documentManager.open(note)
 
     if let service = languageService(for: note.params.textDocument.url, note.params.textDocument.language, in: workspace) {
@@ -298,7 +308,8 @@ extension SourceKitServer {
     }
   }
 
-  func closeDocument(_ note: Notification<DidCloseTextDocument>, workspace: Workspace) {
+  func closeDocument(_ note: Notification<DidCloseTextDocument>) {
+    guard let workspace = workspace(for: note.params.textDocument.url) else { return }
     workspace.documentManager.close(note)
 
     if let service = workspace.documentService[note.params.textDocument.url] {
@@ -306,7 +317,8 @@ extension SourceKitServer {
     }
   }
 
-  func changeDocument(_ note: Notification<DidChangeTextDocument>, workspace: Workspace) {
+  func changeDocument(_ note: Notification<DidChangeTextDocument>) {
+    guard let workspace = workspace(for: note.params.textDocument.url) else { return }
     workspace.documentManager.edit(note)
 
     if let service = workspace.documentService[note.params.textDocument.url] {
@@ -314,17 +326,17 @@ extension SourceKitServer {
     }
   }
 
-  func willSaveDocument(_ note: Notification<WillSaveTextDocument>, workspace: Workspace) {
+  func willSaveDocument(_ note: Notification<WillSaveTextDocument>) {
 
   }
 
-  func didSaveDocument(_ note: Notification<DidSaveTextDocument>, workspace: Workspace) {
+  func didSaveDocument(_ note: Notification<DidSaveTextDocument>) {
 
   }
 
   // MARK: - Workspace
 
-  func didChangeWorkspaceFolders(_ notification: Notification<DidChangeWorkspaceFolders>, workspace: Workspace) {
+  func didChangeWorkspaceFolders(_ notification: Notification<DidChangeWorkspaceFolders>) {
     // TODO: reload services
     if let added = notification.params.event.added, !added.isEmpty {
 
@@ -337,34 +349,40 @@ extension SourceKitServer {
 
   // MARK: - Language features
 
-  func completion(_ req: Request<CompletionRequest>, workspace: Workspace) {
+  func completion(_ req: Request<CompletionRequest>) {
+    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
     toolchainTextDocumentRequest(
       req,
       workspace: workspace,
       fallback: CompletionList(isIncomplete: false, items: []))
   }
 
-  func hover(_ req: Request<HoverRequest>, workspace: Workspace) {
+  func hover(_ req: Request<HoverRequest>) {
+    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
-  func symbolInfo(_ req: Request<SymbolInfoRequest>, workspace: Workspace) {
+  func symbolInfo(_ req: Request<SymbolInfoRequest>) {
+    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: [])
   }
 
-  func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>, workspace: Workspace) {
+  func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
+    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }
 
-  func foldingRange(_ req: Request<FoldingRangeRequest>, workspace: Workspace) {
+  func foldingRange(_ req: Request<FoldingRangeRequest>) {
+    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }
 
-  func definition(_ req: Request<DefinitionRequest>, workspace: Workspace) {
+  func definition(_ req: Request<DefinitionRequest>) {
     // FIXME: sending yourself a request isn't very convenient
 
-    guard let service = workspace.documentService[req.params.textDocument.url] else {
+    guard let workspace = workspace(for: req.params.textDocument.url),
+          let service = workspace.documentService[req.params.textDocument.url] else {
       req.reply([])
       return
     }
@@ -416,10 +434,10 @@ extension SourceKitServer {
   }
 
   // FIXME: a lot of duplication with definition request
-  func references(_ req: Request<ReferencesRequest>, workspace: Workspace) {
+  func references(_ req: Request<ReferencesRequest>) {
     // FIXME: sending yourself a request isn't very convenient
-
-    guard let service = workspace.documentService[req.params.textDocument.url] else {
+    guard let workspace = workspace(for: req.params.textDocument.url),
+          let service = workspace.documentService[req.params.textDocument.url] else {
       req.reply([])
       return
     }
