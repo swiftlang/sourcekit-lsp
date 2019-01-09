@@ -26,16 +26,28 @@ import SKSwiftPMWorkspace
 /// Typically a workspace is contained in a root directory.
 public final class Workspace {
 
-  /// The root directory of the workspace.
-  public let rootPath: AbsolutePath?
+  /// Workspace configuration per root path
+  public struct Configuration {
+
+    /// The root directory of the workspace.
+    public var rootPath: AbsolutePath? = nil
+
+    /// The build settings provider to use for documents in this workspace.
+    public var buildSettings: BuildSystem
+
+    /// The index to use for documents in this worspace.
+    public var index: IndexStoreDB? = nil
+
+    init(rootPath: AbsolutePath? = nil, buildSettings: BuildSystem, index: IndexStoreDB? = nil) {
+      self.rootPath = rootPath
+      self.buildSettings = buildSettings
+      self.index = index
+    }
+  }
+
+  public let configuration: Configuration
 
   public let clientCapabilities: ClientCapabilities
-
-  /// The build settings provider to use for documents in this workspace.
-  public let buildSettings: BuildSystem
-
-  /// The source code index, if available.
-  public var index: IndexStoreDB? = nil
 
   /// Open documents.
   let documentManager: DocumentManager = DocumentManager()
@@ -49,10 +61,8 @@ public final class Workspace {
     buildSettings: BuildSystem,
     index: IndexStoreDB?)
   {
-    self.rootPath = rootPath
+    self.configuration = Configuration(rootPath: rootPath, buildSettings: buildSettings, index: index)
     self.clientCapabilities = clientCapabilities
-    self.buildSettings = buildSettings
-    self.index = index
   }
 
   /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
@@ -66,11 +76,10 @@ public final class Workspace {
     clientCapabilities: ClientCapabilities,
     toolchainRegistry: ToolchainRegistry
   ) throws {
-
-    self.rootPath = try AbsolutePath(validating: url.path)
     self.clientCapabilities = clientCapabilities
+
+    let rootPath = try AbsolutePath(validating: url.path)
     let settings = BuildSystemList()
-    self.buildSettings = settings
 
     settings.providers.insert(CompilationDatabaseBuildSystem(projectRoot: rootPath), at: 0)
 
@@ -78,17 +87,20 @@ public final class Workspace {
       settings.providers.insert(swiftpm, at: 0)
     }
 
-    if let storePath = buildSettings.indexStorePath,
-       let dbPath = buildSettings.indexDatabasePath,
+    var index: IndexStoreDB? = nil
+    if let storePath = settings.indexStorePath,
+       let dbPath = settings.indexDatabasePath,
        let libPath = toolchainRegistry.default?.libIndexStore
     {
       do {
         let lib = try IndexStoreLibrary(dylibPath: libPath.asString)
-        self.index = try IndexStoreDB(storePath: storePath.asString, databasePath: dbPath.asString, library: lib)
+        index = try IndexStoreDB(storePath: storePath.asString, databasePath: dbPath.asString, library: lib)
         log("opened IndexStoreDB at \(dbPath.asString) with store path \(storePath.asString)")
       } catch {
         log("failed to open IndexStoreDB: \(error.localizedDescription)", level: .error)
       }
     }
+
+    self.configuration = Configuration(rootPath: rootPath, buildSettings: settings, index: index)
   }
 }

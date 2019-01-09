@@ -122,7 +122,7 @@ public final class SourceKitServer: LanguageServer {
   }
 
   func toolchain(for url: URL, _ language: Language) -> Toolchain? {
-    if let id = workspace?.buildSettings.settings(for: url, language)?.preferredToolchain,
+    if let id = workspace?.configuration.buildSettings.settings(for: url, language)?.preferredToolchain,
        let toolchain = toolchainRegistry.toolchain(identifier:id)
     {
       return toolchain
@@ -168,7 +168,7 @@ public final class SourceKitServer: LanguageServer {
       let resp = try service.sendSync(InitializeRequest(
         processId: Int(getpid()),
         rootPath: nil,
-        rootURL: (workspace?.rootPath).map { URL(fileURLWithPath: $0.asString) },
+        rootURL: (workspace?.configuration.rootPath).map { URL(fileURLWithPath: $0.asString) },
         initializationOptions: InitializationOptions(),
         capabilities: workspace?.clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
@@ -361,7 +361,7 @@ extension SourceKitServer {
 
       let fallbackLocation = [symbol.bestLocalDeclaration].compactMap { $0 }
 
-      guard let usr = symbol.usr, let index = workspace.index else {
+      guard let usr = symbol.usr, let index = workspace.configuration.index else {
         return req.reply(fallbackLocation)
       }
 
@@ -415,7 +415,7 @@ extension SourceKitServer {
         return
       }
 
-      guard let usr = symbol.usr, let index = workspace.index else {
+      guard let usr = symbol.usr, let index = workspace.configuration.index else {
         req.reply([])
         return
       }
@@ -484,11 +484,11 @@ public func languageService(
 
   case .c, .cpp, .objective_c, .objective_cpp:
     guard let clangd = toolchain.clangd else { return nil }
-    return try makeJSONRPCClangServer(client: client, clangd: clangd, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings)
+    return try makeJSONRPCClangServer(client: client, clangd: clangd, buildSettings: (client as? SourceKitServer)?.workspace?.configuration.buildSettings)
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
-    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings, clientCapabilities: (client as? SourceKitServer)?.workspace?.clientCapabilities)
+    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, buildSettings: (client as? SourceKitServer)?.workspace?.configuration.buildSettings, clientCapabilities: (client as? SourceKitServer)?.workspace?.clientCapabilities)
 
   default:
     return nil
