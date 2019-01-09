@@ -63,7 +63,6 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.documentSymbolHighlight)
     _register(SwiftLanguageServer.foldingRange)
     _register(SwiftLanguageServer.symbolInfo)
-    _register(SwiftLanguageServer.didChangeWorkspaceFolders)
   }
 
   func getDiagnostic(_ diag: SKResponseDictionary, for snapshot: DocumentSnapshot) -> Diagnostic? {
@@ -212,19 +211,6 @@ extension SwiftLanguageServer {
   func exit(_ notification: Notification<Exit>) {
     api.shutdown()
     onExit()
-  }
-
-  // MARK: - Workspace
-
-  func didChangeWorkspaceFolders(_ notification: Notification<DidChangeWorkspaceFolders>) {
-    //TODO:
-    if let added = notification.params.event.added, !added.isEmpty {
-
-    }
-
-    if let removed = notification.params.event.removed, !removed.isEmpty {
-
-    }
   }
 
   // MARK: - Text synchronization

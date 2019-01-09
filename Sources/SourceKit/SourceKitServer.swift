@@ -34,7 +34,7 @@ public final class SourceKitServer: LanguageServer {
 
   var languageService: [LanguageServiceKey: Connection] = [:]
 
-  var workspace: Workspace?
+  var workspaces: [Workspace] = []
 
   let fs: FileSystem
 
@@ -75,25 +75,29 @@ public final class SourceKitServer: LanguageServer {
   func registerWorkspaceRequest<R>(
     _ requestHandler: @escaping (SourceKitServer) -> (Request<R>, Workspace) -> Void)
   {
-    _register { [unowned self] (req: Request<R>) in
-      guard let workspace = self.workspace else {
-        return req.reply(.failure(.serverNotInitialized))
-      }
+    for workspace in workspaces {
+      _register { [unowned self] (req: Request<R>) in
+        guard !self.workspaces.isEmpty else {
+          return req.reply(.failure(.serverNotInitialized))
+        }
 
-      requestHandler(self)(req, workspace)
+        requestHandler(self)(req, workspace)
+      }
     }
   }
 
   func registerWorkspaceNotification<N>(
     _ noteHandler: @escaping (SourceKitServer) -> (Notification<N>, Workspace) -> Void)
   {
-    _register { [unowned self] (note: Notification<N>) in
-      guard let workspace = self.workspace else {
-        log("received notification before \"initialize\", ignoring...", level: .error)
-        return
-      }
+    for workspace in workspaces {
+      _register { [unowned self] (note: Notification<N>) in
+        guard !self.workspaces.isEmpty else {
+          log("received notification before \"initialize\", ignoring...", level: .error)
+          return
+        }
 
-      noteHandler(self)(note, workspace)
+        noteHandler(self)(note, workspace)
+      }
     }
   }
 
@@ -121,8 +125,8 @@ public final class SourceKitServer: LanguageServer {
     client.send(note.params)
   }
 
-  func toolchain(for url: URL, _ language: Language) -> Toolchain? {
-    if let id = workspace?.configuration.buildSettings.settings(for: url, language)?.preferredToolchain,
+  func toolchain(for url: URL, in workspace: Workspace, _ language: Language) -> Toolchain? {
+    if let id = workspace.configuration.buildSettings.settings(for: url, language)?.preferredToolchain,
        let toolchain = toolchainRegistry.toolchain(identifier:id)
     {
       return toolchain
@@ -153,7 +157,7 @@ public final class SourceKitServer: LanguageServer {
     return nil
   }
 
-  func languageService(for toolchain: Toolchain, _ language: Language) -> Connection? {
+  func languageService(for toolchain: Toolchain, in workspace: Workspace, _ language: Language) -> Connection? {
     let key = LanguageServiceKey(toolchain: toolchain.identifier, language: language)
     if let service = languageService[key] {
       return service
@@ -161,16 +165,16 @@ public final class SourceKitServer: LanguageServer {
 
     // Start a new service.
     return orLog("failed to start language service", level: .error) {
-      guard let service = try SourceKit.languageService(for: toolchain, language, client: self) else {
+      guard let service = try SourceKit.languageService(for: toolchain, in: workspace, language, client: self) else {
         return nil
       }
 
       let resp = try service.sendSync(InitializeRequest(
         processId: Int(getpid()),
         rootPath: nil,
-        rootURL: (workspace?.configuration.rootPath).map { URL(fileURLWithPath: $0.asString) },
+        rootURL: (workspace.configuration.rootPath).map { URL(fileURLWithPath: $0.asString) },
         initializationOptions: InitializationOptions(),
-        capabilities: workspace?.clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil),
+        capabilities: workspace.clientCapabilities,
         trace: .off,
         workspaceFolders: nil))
 
@@ -191,8 +195,8 @@ public final class SourceKitServer: LanguageServer {
       return service
     }
 
-    guard let toolchain = toolchain(for: url, language),
-          let service = languageService(for: toolchain, language)
+    guard let toolchain = toolchain(for: url, in: workspace, language),
+          let service = languageService(for: toolchain, in: workspace, language)
     else {
       return nil
     }
@@ -211,29 +215,39 @@ extension SourceKitServer {
   // MARK: - General
 
   func initialize(_ req: Request<InitializeRequest>) {
+    var workspace: Workspace?
+
     if let url = req.params.rootURL {
-      self.workspace = try? Workspace(
-        url: url,
-        clientCapabilities: req.params.capabilities,
-        toolchainRegistry: toolchainRegistry
-      )
+      workspace = try? Workspace(url: url,
+                                 clientCapabilities: req.params.capabilities,
+                                 toolchainRegistry: toolchainRegistry)
     } else if let path = req.params.rootPath {
-      self.workspace = try? Workspace(
-        url: URL(fileURLWithPath: path),
-        clientCapabilities: req.params.capabilities,
-        toolchainRegistry: toolchainRegistry
-      )
+      workspace = try? Workspace(url: URL(fileURLWithPath: path),
+                                        clientCapabilities: req.params.capabilities,
+                                        toolchainRegistry: toolchainRegistry)
     }
 
-    if self.workspace == nil {
+    if workspace == nil {
       log("no workspace found", level: .warning)
 
-      self.workspace = Workspace(
+      workspace = Workspace(
         rootPath: nil,
         clientCapabilities: req.params.capabilities,
         buildSettings: BuildSystemList(),
         index: nil
       )
+    }
+
+    if let workspace = workspace {
+      self.workspaces.append(workspace)
+    }
+
+    if let workspaceFolders = req.params.workspaceFolders {
+      self.workspaces += workspaceFolders.compactMap({
+        try? Workspace(url: $0.url,
+                       clientCapabilities: req.params.capabilities,
+                       toolchainRegistry: toolchainRegistry)
+      })
     }
 
     req.reply(InitializeResult(capabilities: ServerCapabilities(
@@ -311,8 +325,14 @@ extension SourceKitServer {
   // MARK: - Workspace
 
   func didChangeWorkspaceFolders(_ notification: Notification<DidChangeWorkspaceFolders>, workspace: Workspace) {
-    // update workspace.rootPaths
-    // reload services
+    // TODO: reload services
+    if let added = notification.params.event.added, !added.isEmpty {
+
+    }
+
+    if let removed = notification.params.event.removed, !removed.isEmpty {
+
+    }
   }
 
   // MARK: - Language features
@@ -477,6 +497,7 @@ extension SourceKitServer {
 /// - throws: If there is a suitable service but it fails to launch, throws an error.
 public func languageService(
   for toolchain: Toolchain,
+  in workspace: Workspace,
   _ language: Language,
   client: MessageHandler) throws -> Connection?
 {
@@ -484,11 +505,11 @@ public func languageService(
 
   case .c, .cpp, .objective_c, .objective_cpp:
     guard let clangd = toolchain.clangd else { return nil }
-    return try makeJSONRPCClangServer(client: client, clangd: clangd, buildSettings: (client as? SourceKitServer)?.workspace?.configuration.buildSettings)
+    return try makeJSONRPCClangServer(client: client, clangd: clangd, buildSettings: workspace.configuration.buildSettings)
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
-    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, buildSettings: (client as? SourceKitServer)?.workspace?.configuration.buildSettings, clientCapabilities: (client as? SourceKitServer)?.workspace?.clientCapabilities)
+    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, buildSettings: workspace.configuration.buildSettings, clientCapabilities: workspace.clientCapabilities)
 
   default:
     return nil
