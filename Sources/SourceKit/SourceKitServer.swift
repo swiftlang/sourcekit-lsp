@@ -224,40 +224,23 @@ extension SourceKitServer {
   // MARK: - General
 
   func initialize(_ req: Request<InitializeRequest>) {
-    var workspace: Workspace?
+    self.workspaces = resolveWorkspaces(rootURL: req.params.rootURL,
+                                        rootPath: req.params.rootPath,
+                                        workspaceFolders: req.params.workspaceFolders,
+                                        workspace: { [unowned self] (url) -> Workspace in
+                                          guard let url = url else {
+                                            log("no workspace found", level: .warning)
 
-    if let url = req.params.rootURL {
-      workspace = try? Workspace(url: url,
-                                 clientCapabilities: req.params.capabilities,
-                                 toolchainRegistry: toolchainRegistry)
-    } else if let path = req.params.rootPath {
-      workspace = try? Workspace(url: URL(fileURLWithPath: path),
-                                        clientCapabilities: req.params.capabilities,
-                                        toolchainRegistry: toolchainRegistry)
-    }
+                                            return Workspace(rootPath: nil,
+                                                             clientCapabilities: req.params.capabilities,
+                                                             buildSettings: BuildSystemList(),
+                                                             index: nil)
+                                          }
 
-    if workspace == nil {
-      log("no workspace found", level: .warning)
-
-      workspace = Workspace(
-        rootPath: nil,
-        clientCapabilities: req.params.capabilities,
-        buildSettings: BuildSystemList(),
-        index: nil
-      )
-    }
-
-    if let workspace = workspace {
-      self.workspaces.append(workspace)
-    }
-
-    if let workspaceFolders = req.params.workspaceFolders {
-      self.workspaces += workspaceFolders.compactMap({
-        try? Workspace(url: $0.url,
-                       clientCapabilities: req.params.capabilities,
-                       toolchainRegistry: toolchainRegistry)
-      })
-    }
+                                          return try Workspace(url: url,
+                                                    clientCapabilities: req.params.capabilities,
+                                                    toolchainRegistry: self.toolchainRegistry)
+    })
 
     req.reply(InitializeResult(capabilities: ServerCapabilities(
       textDocumentSync: TextDocumentSyncOptions(
@@ -532,6 +515,34 @@ public func languageService(
   default:
     return nil
   }
+}
+
+private func resolveWorkspaces(rootURL: URL?, rootPath: String?, workspaceFolders: [WorkspaceFolder]?, workspace builder: (_ url: URL?) throws -> Workspace) -> [Workspace] {
+  var workspace: Workspace?
+
+  if let url = rootURL {
+    workspace = try? builder(url)
+  } else if let path = rootPath {
+    workspace = try? builder(URL(fileURLWithPath: path))
+  }
+
+  if workspace == nil {
+    workspace = try? builder(nil)
+  }
+
+  var workspaces: [Workspace] = []
+
+  if let workspace = workspace {
+    workspaces.append(workspace)
+  }
+
+  if let workspaceFolders = workspaceFolders {
+    workspaces += workspaceFolders.compactMap({ workspaceFolder in
+      try? builder(workspaceFolder.url)
+    })
+  }
+
+  return workspaces
 }
 
 public typealias Notification = LanguageServerProtocol.Notification
