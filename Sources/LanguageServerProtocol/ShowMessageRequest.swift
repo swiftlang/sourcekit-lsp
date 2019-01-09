@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Notification from the server containing a message for the client to display.
+/// Request from the server containing a message for the client to display.
 ///
 /// - Parameters:
 ///   - type: The kind of message.
