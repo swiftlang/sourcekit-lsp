@@ -76,6 +76,15 @@ public final class DocumentManager {
     }
   }
 
+  /// Opens a document with the given content and metadata.
+  ///
+  /// - returns: The initial contents of the file.
+  /// - throws: Error.alreadyOpen if the document is already open.
+  @discardableResult
+  public func open(_ document: Document) throws -> DocumentSnapshot {
+    return try self.open(document.url, language: document.language, version: document.latestVersion, text: document.latestLineTable.content)
+  }
+
   /// Closes the given document.
   ///
   /// - returns: The initial contents of the file.

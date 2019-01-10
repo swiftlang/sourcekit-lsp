@@ -36,6 +36,11 @@ public final class SourceKitServer: LanguageServer {
 
   var workspaces: [Workspace] = []
 
+  /// A special purpose workspace for the files that doesn't belong to any workspace in particular
+  var noRootWorkspace: Workspace? {
+    return self.workspaces.first(where: { $0.configuration.rootPath == nil })
+  }
+
   let fs: FileSystem
 
   let onExit: () -> Void
@@ -203,6 +208,10 @@ public final class SourceKitServer: LanguageServer {
     return service
   }
 
+  func workspace(for document: Document) -> Workspace? {
+    return workspace(for: document.url)
+  }
+
   func workspace(for url: URL) -> Workspace? {
     var workspace = self.workspaces.first(where: { (workspace) -> Bool in
       guard let rootPath = workspace.configuration.rootPath,
@@ -213,7 +222,7 @@ public final class SourceKitServer: LanguageServer {
 
     // The url is outside the workspaces
     if workspace == nil {
-      workspace = self.workspaces.first(where: { $0.configuration.rootPath == nil })
+      workspace = self.noRootWorkspace
     }
 
     return workspace
@@ -247,20 +256,22 @@ extension SourceKitServer {
                                         toolchainRegistry: toolchainRegistry)
     }
 
-    if workspace == nil && self.workspaces.isEmpty {
-      log("no workspace found", level: .warning)
-
-      workspace = Workspace(
-        rootPath: nil,
-        clientCapabilities: req.params.capabilities,
-        buildSettings: BuildSystemList(),
-        index: nil
-      )
-    }
-
     if let workspace = workspace {
       self.workspaces.append(workspace)
     }
+
+    if workspace == nil && self.workspaces.isEmpty {
+      log("no workspace found", level: .warning)
+    }
+
+    // Add "no rootPath" workspace.
+    let noRootWorkspace = Workspace(
+      rootPath: nil,
+      clientCapabilities: req.params.capabilities,
+      buildSettings: BuildSystemList(),
+      index: nil
+    )
+    self.workspaces.append(noRootWorkspace)
 
     req.reply(InitializeResult(capabilities: ServerCapabilities(
       textDocumentSync: TextDocumentSyncOptions(
@@ -341,21 +352,46 @@ extension SourceKitServer {
   // MARK: - Workspace
 
   func didChangeWorkspaceFolders(_ notification: Notification<DidChangeWorkspaceFolders>) {
-    if let added = notification.params.event.added, !added.isEmpty {
-      self.workspaces += added.compactMap({ [unowned self] (workspaceFolder) -> Workspace? in
+    if let addedFolders = notification.params.event.added, !addedFolders.isEmpty {
+      self.workspaces += addedFolders.compactMap({ [unowned self] (workspaceFolder) -> Workspace? in
         return try? Workspace(url: workspaceFolder.url,
                               clientCapabilities: self.workspaces.first?.clientCapabilities ?? ClientCapabilities(),
                               toolchainRegistry: self.toolchainRegistry)
       })
+
+      if let noRootWorkspace = self.noRootWorkspace {
+        try? reopenDocuments(from: noRootWorkspace)
+      }
     }
 
-    if let removed = notification.params.event.removed, !removed.isEmpty {
+    if let removedFolders = notification.params.event.removed, !removedFolders.isEmpty {
+      var removedWorkspaces: [Workspace] = []
       self.workspaces.removeAll { (workspace) -> Bool in
-        removed.contains(where: { (workspaceFolder) -> Bool in
+
+        let shouldRemove = removedFolders.contains(where: { (workspaceFolder) -> Bool in
           guard let rootPath = workspace.configuration.rootPath else { return false }
           return AbsolutePath(workspaceFolder.url.path) == rootPath
         })
+
+        if shouldRemove {
+          removedWorkspaces.append(workspace)
+        }
+
+        return shouldRemove
       }
+
+      // After the workspace is deleted, currently opened document becomes an orphan,
+      // so we move it to the "no rootPath" workspace where it belongs now
+      for workspace in removedWorkspaces {
+        try? reopenDocuments(from: workspace)
+      }
+    }
+  }
+
+  private func reopenDocuments(from srcWorkspace: Workspace) throws {
+    for (_, srcDocument) in srcWorkspace.documentManager.documents {
+      guard let dstWorkspace = self.workspace(for: srcDocument), srcWorkspace !== dstWorkspace else { continue }
+      try dstWorkspace.documentManager.open(srcDocument)
     }
   }
 
