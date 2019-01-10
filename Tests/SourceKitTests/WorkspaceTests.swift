@@ -38,7 +38,6 @@ final class WorkspaceTests: XCTestCase {
     let fs = InMemoryFileSystem()
     try! fs.createDirectory(AbsolutePath("/a"))
     try! fs.createDirectory(AbsolutePath("/b"))
-    try! fs.createDirectory(AbsolutePath("/qqq"))
 
     let folderA = WorkspaceFolder(url: URL(string: "/a")!)
     let fileAURL = URL(string: "/a/testa.swift")!
