@@ -14,6 +14,7 @@ import SKSupport
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SourceKit
+import Basic
 import class Foundation.Pipe
 
 public struct TestSourceKitServer {
@@ -38,7 +39,7 @@ public struct TestSourceKitServer {
   /// The server, if it is in the same process.
   public let server: SourceKitServer?
 
-  public init(connectionKind: ConnectionKind = .local) {
+  public init(connectionKind: ConnectionKind = .local, fileSystem: FileSystem = localFileSystem) {
      _ = initRequestsOnce
 
     switch connectionKind {
@@ -46,7 +47,7 @@ public struct TestSourceKitServer {
         let clientConnection = LocalConnection()
         let serverConnection = LocalConnection()
         client = TestClient(server: serverConnection)
-        server = SourceKitServer(client: clientConnection, onExit: {
+        server = SourceKitServer(client: clientConnection, fileSystem: fileSystem, onExit: {
           clientConnection.close()
         })
 

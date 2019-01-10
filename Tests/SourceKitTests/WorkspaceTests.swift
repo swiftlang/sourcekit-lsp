@@ -38,9 +38,19 @@ final class WorkspaceTests: XCTestCase {
     let fs = InMemoryFileSystem()
     try! fs.createDirectory(AbsolutePath("/a"))
     try! fs.createDirectory(AbsolutePath("/b"))
+    try! fs.createDirectory(AbsolutePath("/qqq"))
 
     let folderA = WorkspaceFolder(url: URL(string: "/a")!)
+    let fileAURL = URL(string: "/a/testa.swift")!
+    try! fs.writeFileContents(AbsolutePath(fileAURL.path), bytes: """
+      func
+      """)
+
     let folderB = WorkspaceFolder(url: URL(string: "/b")!)
+    let fileBURL = URL(string: "/b/testb.swift")!
+    try! fs.writeFileContents(AbsolutePath(fileBURL.path), bytes: """
+      class
+      """)
 
     var workspaceCapabilities = WorkspaceClientCapabilities()
     workspaceCapabilities.workspaceFolders = true
@@ -53,6 +63,29 @@ final class WorkspaceTests: XCTestCase {
       capabilities: ClientCapabilities(workspace: workspaceCapabilities, textDocument: nil),
       trace: .off,
       workspaceFolders: [folderA, folderB]))
+
+    XCTAssertEqual(connection.server?.workspaces.count, 2)
+    XCTAssertEqual(initResult.capabilities.workspace?.workspaceFolders?.supported, true)
+
+    try! sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: fileAURL,
+      language: .swift,
+      version: 1,
+      text: fs.readFileContents(AbsolutePath(fileAURL.path)).asReadableString))) { (note: Notification<PublishDiagnostics>) in
+        log("Received diagnostics for open - syntactic")
+        XCTAssertEqual(note.params.diagnostics.count, 1)
+        XCTAssertEqual("func", self.connection.server?.workspaces[0].documentManager.latestSnapshot(fileAURL)!.text)
+    }
+
+    try! sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: fileBURL,
+      language: .swift,
+      version: 1,
+      text: fs.readFileContents(AbsolutePath(fileBURL.path)).asReadableString))) { (note: Notification<PublishDiagnostics>) in
+        log("Received diagnostics for open - syntactic")
+        XCTAssertEqual(note.params.diagnostics.count, 1)
+        XCTAssertEqual("class", self.connection.server?.workspaces[1].documentManager.latestSnapshot(fileBURL)!.text)
+    }
   }
 
   override func tearDown() {
