@@ -60,16 +60,15 @@ public struct MessageActionItem: ResponseType, Hashable {
 ///   - message: The contents of the message.
 public struct ShowMessage: NotificationType, Hashable {
   public static let method: String = "window/showMessage"
-  
+
   /// The kind of message.
   public var type: WindowMessageType
-  
+
   /// The contents of the message.
   public var message: String
-  
+
   public init(type: WindowMessageType, message: String) {
     self.type = type
     self.message = message
   }
 }
-
