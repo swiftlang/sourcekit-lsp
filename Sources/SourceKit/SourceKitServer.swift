@@ -275,7 +275,8 @@ extension SourceKitServer {
       definitionProvider: true,
       referencesProvider: true,
       documentHighlightProvider: true,
-      foldingRangeProvider: true
+      foldingRangeProvider: true,
+      workspace: ServerWorkspaceCapabilities(workspaceFolders: ServerWorkspaceFoldersCapabilities(supported: true))
     )))
   }
 

@@ -42,6 +42,9 @@ public struct ServerCapabilities: Codable, Hashable {
   /// Whether the server provides "textDocument/foldingRange".
   public var foldingRangeProvider: Bool?
 
+  /// Workspace specific server capabilities
+  public var workspace: ServerWorkspaceCapabilities?
+
   // TODO: fill-in the rest.
 
   public init(
@@ -54,7 +57,8 @@ public struct ServerCapabilities: Codable, Hashable {
     documentFormattingProvider: Bool? = nil,
     documentRangeFormattingProvider: Bool? = nil,
     documentOnTypeFormattingProvider: DocumentOnTypeFormattingOptions? = nil,
-    foldingRangeProvider: Bool? = nil
+    foldingRangeProvider: Bool? = nil,
+    workspace: ServerWorkspaceCapabilities? = nil
     )
   {
     self.textDocumentSync = textDocumentSync
@@ -67,6 +71,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.documentRangeFormattingProvider = documentRangeFormattingProvider
     self.documentOnTypeFormattingProvider = documentOnTypeFormattingProvider
     self.foldingRangeProvider = foldingRangeProvider
+    self.workspace = workspace
   }
 
   public init(from decoder: Decoder) throws {
@@ -75,6 +80,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.hoverProvider = try container.decodeIfPresent(Bool.self, forKey: .hoverProvider)
     self.definitionProvider = try container.decodeIfPresent(Bool.self, forKey: .definitionProvider)
     self.foldingRangeProvider = try container.decodeIfPresent(Bool.self, forKey: .foldingRangeProvider)
+    self.workspace = try container.decodeIfPresent(ServerWorkspaceCapabilities.self, forKey: .workspace)
 
     if let textDocumentSync = try? container.decode(TextDocumentSyncOptions.self, forKey: .textDocumentSync) {
       self.textDocumentSync = textDocumentSync
@@ -163,5 +169,27 @@ public struct DocumentOnTypeFormattingOptions: Codable, Hashable {
   public init(triggerCharacters: [String]) {
     self.firstTriggerCharacter = triggerCharacters.first!
     self.moreTriggerCharacter = Array(triggerCharacters.dropFirst())
+  }
+}
+
+/// Capabilities of the server related to managing the workspace.
+public struct ServerWorkspaceCapabilities: Codable, Hashable {
+
+  /// The server supports workspace folder.
+  public var workspaceFolders: ServerWorkspaceFoldersCapabilities?
+
+  public init(workspaceFolders: ServerWorkspaceFoldersCapabilities? = nil) {
+    self.workspaceFolders = workspaceFolders
+  }
+}
+
+/// Capabilities of the server related to managing the workspace.
+public struct ServerWorkspaceFoldersCapabilities: Codable, Hashable {
+
+  /// The server has support for workspace folders
+  public var supported: Bool?
+
+  public init(supported: Bool = false) {
+    self.supported = supported
   }
 }
