@@ -204,16 +204,19 @@ public final class SourceKitServer: LanguageServer {
   }
 
   func workspace(for url: URL) -> Workspace? {
-    guard self.workspaces.count > 1 else {
-      return self.workspaces.first
-    }
-
-    return self.workspaces.first(where: { (workspace) -> Bool in
+    var workspace = self.workspaces.first(where: { (workspace) -> Bool in
       guard let rootPath = workspace.configuration.rootPath,
             let path = try? AbsolutePath(validating: url.path) else { return false }
 
       return path.contains(rootPath)
     })
+
+    // The url is outside the workspaces
+    if workspace == nil {
+      workspace = self.workspaces.first(where: { $0.configuration.rootPath == nil })
+    }
+
+    return workspace
   }
 }
 
