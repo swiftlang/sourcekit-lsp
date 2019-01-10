@@ -224,8 +224,16 @@ extension SourceKitServer {
   // MARK: - General
 
   func initialize(_ req: Request<InitializeRequest>) {
-    var workspace: Workspace?
 
+    if let workspaceFolders = req.params.workspaceFolders {
+      self.workspaces += workspaceFolders.compactMap({ workspaceFolder in
+        try? Workspace(url: workspaceFolder.url,
+                       clientCapabilities: req.params.capabilities,
+                       toolchainRegistry: toolchainRegistry)
+      })
+    }
+
+    var workspace: Workspace?
     if let url = req.params.rootURL {
       workspace = try? Workspace(url: url,
                                  clientCapabilities: req.params.capabilities,
@@ -236,7 +244,7 @@ extension SourceKitServer {
                                         toolchainRegistry: toolchainRegistry)
     }
 
-    if workspace == nil {
+    if workspace == nil && self.workspaces.isEmpty {
       log("no workspace found", level: .warning)
 
       workspace = Workspace(
@@ -249,14 +257,6 @@ extension SourceKitServer {
 
     if let workspace = workspace {
       self.workspaces.append(workspace)
-    }
-
-    if let workspaceFolders = req.params.workspaceFolders {
-      self.workspaces += workspaceFolders.compactMap({ workspaceFolder in
-        try? Workspace(url: workspaceFolder.url,
-                       clientCapabilities: req.params.capabilities,
-                       toolchainRegistry: toolchainRegistry)
-      })
     }
 
     req.reply(InitializeResult(capabilities: ServerCapabilities(
