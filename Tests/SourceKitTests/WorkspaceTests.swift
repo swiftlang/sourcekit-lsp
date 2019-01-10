@@ -64,7 +64,7 @@ final class WorkspaceTests: XCTestCase {
       trace: .off,
       workspaceFolders: [folderA, folderB]))
 
-    XCTAssertEqual(connection.server?.workspaces.count, 2)
+    XCTAssertEqual(connection.server?.workspaces.count, 3)
     XCTAssertEqual(initResult.capabilities.workspace?.workspaceFolders?.supported, true)
 
     try! sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
@@ -106,19 +106,19 @@ final class WorkspaceTests: XCTestCase {
       trace: .off,
       workspaceFolders: [folderA]))
 
-    XCTAssertEqual(connection.server?.workspaces.count, 1)
+    XCTAssertEqual(connection.server?.workspaces.count, 2)
 
     sk.send(DidChangeWorkspaceFolders(event:
       WorkspaceFoldersChangeEvent(added: [folderB])
     ))
 
-    XCTAssertTrue(wait(for: { $0?.workspaces.count == 2 }, object: connection.server))
+    XCTAssertTrue(wait(for: { $0?.workspaces.count == 3 }, object: connection.server))
 
     sk.send(DidChangeWorkspaceFolders(event:
       WorkspaceFoldersChangeEvent(removed: [folderA])
     ))
 
-    XCTAssertTrue(wait(for: { $0?.workspaces.count == 1 }, object: connection.server))
+    XCTAssertTrue(wait(for: { $0?.workspaces.count == 2 }, object: connection.server))
 #endif
   }
 
