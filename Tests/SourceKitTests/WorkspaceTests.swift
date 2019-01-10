@@ -35,6 +35,7 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testWorkspaceFolders() {
+#if os(macOS)
     let fs = InMemoryFileSystem()
     try! fs.createDirectory(AbsolutePath("/a"))
     try! fs.createDirectory(AbsolutePath("/b"))
@@ -85,6 +86,40 @@ final class WorkspaceTests: XCTestCase {
         XCTAssertEqual(note.params.diagnostics.count, 1)
         XCTAssertEqual("class", self.connection.server?.workspaces[1].documentManager.latestSnapshot(fileBURL)!.text)
     }
+#endif
+  }
+
+  func testAddingWorkspaceFolders() {
+#if os(macOS)
+    let folderA = WorkspaceFolder(url: URL(string: "/a")!)
+    let folderB = WorkspaceFolder(url: URL(string: "/b")!)
+
+    var workspaceCapabilities = WorkspaceClientCapabilities()
+    workspaceCapabilities.workspaceFolders = true
+
+    let _ = try! sk.sendSync(InitializeRequest(
+      processId: nil,
+      rootPath: nil,
+      rootURL: nil,
+      initializationOptions: nil,
+      capabilities: ClientCapabilities(workspace: workspaceCapabilities, textDocument: nil),
+      trace: .off,
+      workspaceFolders: [folderA]))
+
+    XCTAssertEqual(connection.server?.workspaces.count, 1)
+
+    sk.send(DidChangeWorkspaceFolders(event:
+      WorkspaceFoldersChangeEvent(added: [folderB])
+    ))
+
+    XCTAssertTrue(wait(for: { $0?.workspaces.count == 2 }, object: connection.server))
+
+    sk.send(DidChangeWorkspaceFolders(event:
+      WorkspaceFoldersChangeEvent(removed: [folderA])
+    ))
+
+    XCTAssertTrue(wait(for: { $0?.workspaces.count == 1 }, object: connection.server))
+#endif
   }
 
   override func tearDown() {

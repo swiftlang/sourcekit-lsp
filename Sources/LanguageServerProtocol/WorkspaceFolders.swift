@@ -27,7 +27,7 @@ public struct WorkspaceFoldersRequest: RequestType, Hashable {
 /// - Parameter event: The set of changes.
 ///
 /// Requires the `workspaceFolders` capability on both the client and server.
-public struct DidChangeWorkspaceFolders: NotificationType {
+public struct DidChangeWorkspaceFolders: NotificationType, Hashable {
     public static let method: String = "workspace/didChangeWorkspaceFolders"
 
     /// The set of changes.

@@ -54,6 +54,7 @@ extension WorkspaceTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__WorkspaceTests = [
+        ("testAddingWorkspaceFolders", testAddingWorkspaceFolders),
         ("testWorkspaceFolders", testWorkspaceFolders),
     ]
 }

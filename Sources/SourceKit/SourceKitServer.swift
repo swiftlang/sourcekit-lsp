@@ -350,7 +350,7 @@ extension SourceKitServer {
       self.workspaces.removeAll { (workspace) -> Bool in
         removed.contains(where: { (workspaceFolder) -> Bool in
           guard let rootPath = workspace.configuration.rootPath else { return false }
-          return workspaceFolder.url == rootPath.asURL
+          return AbsolutePath(workspaceFolder.url.path) == rootPath
         })
       }
     }
