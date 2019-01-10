@@ -58,7 +58,11 @@ public final class SwiftPMWorkspace {
   public init(
     workspacePath: AbsolutePath,
     toolchainRegistry: ToolchainRegistry,
-    fileSystem: FileSystem = localFileSystem) throws
+    fileSystem: FileSystem = localFileSystem,
+    buildPathFolder: String = ".build",
+    buildFlags: BuildFlags = BuildFlags(),
+    buildConfiguration: BuildConfiguration = .debug
+    ) throws
   {
     self.workspacePath = workspacePath
     self.toolchainRegistry = toolchainRegistry
@@ -112,7 +116,7 @@ public final class SwiftPMWorkspace {
     swiftPMToolchain.extraSwiftCFlags = extraSwiftFlags
     swiftPMToolchain.extraCPPFlags = extraClangFlags
 
-    let buildPath = packageRoot.appending(component: ".build")
+    let buildPath = packageRoot.appending(component: buildPathFolder)
 
     self.workspace = Workspace(
       dataPath: buildPath,
@@ -128,9 +132,9 @@ public final class SwiftPMWorkspace {
     // FIXME: make these configurable
     self.buildParameters = BuildParameters(
       dataPath: buildPath.appending(component: triple.tripleString),
-      configuration: .debug,
+      configuration: buildConfiguration,
       toolchain: swiftPMToolchain,
-      flags: BuildFlags())
+      flags: buildFlags)
 
     self.packageGraph = PackageGraph(rootPackages: [])
 

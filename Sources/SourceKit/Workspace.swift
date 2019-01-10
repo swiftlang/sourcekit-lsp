@@ -15,6 +15,8 @@ import SKCore
 import SKSupport
 import IndexStoreDB
 import Basic
+import Utility
+import PackageModel
 import SKSwiftPMWorkspace
 
 /// Represents the configuration and sate of a project or combination of projects being worked on
@@ -25,6 +27,22 @@ import SKSwiftPMWorkspace
 ///
 /// Typically a workspace is contained in a root directory.
 public final class Workspace {
+
+  /// Workspace configuration per root path
+  public struct Configuration {
+
+    let buildConfiguration: BuildConfiguration
+
+    let buildPath: String
+
+    let buildFlags: BuildFlags
+
+    init(buildConfiguration: BuildConfiguration = .debug, buildPath: String = ".build", buildFlags: BuildFlags = BuildFlags()) {
+      self.buildConfiguration = buildConfiguration
+      self.buildPath = buildPath
+      self.buildFlags = buildFlags
+    }
+  }
 
   /// The root directory of the workspace.
   public let rootPath: AbsolutePath?
@@ -37,6 +55,8 @@ public final class Workspace {
   /// The source code index, if available.
   public var index: IndexStoreDB? = nil
 
+  public let configuration: Configuration
+
   /// Open documents.
   let documentManager: DocumentManager = DocumentManager()
 
@@ -47,12 +67,16 @@ public final class Workspace {
     rootPath: AbsolutePath?,
     clientCapabilities: ClientCapabilities,
     buildSettings: BuildSystem,
-    index: IndexStoreDB?)
+    index: IndexStoreDB?,
+    serverConfiguration: SourceKitServer.Configuration)
   {
     self.rootPath = rootPath
     self.clientCapabilities = clientCapabilities
     self.buildSettings = buildSettings
     self.index = index
+    self.configuration = Configuration(buildConfiguration: serverConfiguration.buildConfiguration,
+                                       buildPath: serverConfiguration.buildPath,
+                                       buildFlags: serverConfiguration.buildFlags)
   }
 
   /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
@@ -64,7 +88,8 @@ public final class Workspace {
   public init(
     url: URL,
     clientCapabilities: ClientCapabilities,
-    toolchainRegistry: ToolchainRegistry
+    toolchainRegistry: ToolchainRegistry,
+    serverConfiguration: SourceKitServer.Configuration
   ) throws {
 
     self.rootPath = try AbsolutePath(validating: url.path)
@@ -90,5 +115,9 @@ public final class Workspace {
         log("failed to open IndexStoreDB: \(error.localizedDescription)", level: .error)
       }
     }
+
+    self.configuration = Configuration(buildConfiguration: serverConfiguration.buildConfiguration,
+                                       buildPath: serverConfiguration.buildPath,
+                                       buildFlags: serverConfiguration.buildFlags)
   }
 }
