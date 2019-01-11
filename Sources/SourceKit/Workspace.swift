@@ -28,22 +28,6 @@ import SKSwiftPMWorkspace
 /// Typically a workspace is contained in a root directory.
 public final class Workspace {
 
-  /// Workspace configuration per root path
-  public struct Configuration {
-
-    let buildConfiguration: BuildConfiguration
-
-    let buildPath: String
-
-    let buildFlags: BuildFlags
-
-    init(buildConfiguration: BuildConfiguration = .debug, buildPath: String = ".build", buildFlags: BuildFlags = BuildFlags()) {
-      self.buildConfiguration = buildConfiguration
-      self.buildPath = buildPath
-      self.buildFlags = buildFlags
-    }
-  }
-
   /// The root directory of the workspace.
   public let rootPath: AbsolutePath?
 
@@ -68,15 +52,13 @@ public final class Workspace {
     clientCapabilities: ClientCapabilities,
     buildSettings: BuildSystem,
     index: IndexStoreDB?,
-    serverConfiguration: SourceKitServer.Configuration)
+    configuration: Configuration)
   {
     self.rootPath = rootPath
     self.clientCapabilities = clientCapabilities
     self.buildSettings = buildSettings
     self.index = index
-    self.configuration = Configuration(buildConfiguration: serverConfiguration.buildConfiguration,
-                                       buildPath: serverConfiguration.buildPath,
-                                       buildFlags: serverConfiguration.buildFlags)
+    self.configuration = configuration
   }
 
   /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
@@ -89,12 +71,10 @@ public final class Workspace {
     url: URL,
     clientCapabilities: ClientCapabilities,
     toolchainRegistry: ToolchainRegistry,
-    serverConfiguration: SourceKitServer.Configuration
+    configuration: Configuration
   ) throws {
 
-    self.configuration = Configuration(buildConfiguration: serverConfiguration.buildConfiguration,
-                                       buildPath: serverConfiguration.buildPath,
-                                       buildFlags: serverConfiguration.buildFlags)
+    self.configuration = configuration
 
     self.rootPath = try AbsolutePath(validating: url.path)
     self.clientCapabilities = clientCapabilities
@@ -105,9 +85,7 @@ public final class Workspace {
 
     if let swiftpm = SwiftPMWorkspace(url: url,
                                       toolchainRegistry: toolchainRegistry,
-                                      buildPathFolder: configuration.buildPath,
-                                      buildFlags: configuration.buildFlags,
-                                      buildConfiguration: configuration.buildConfiguration
+                                      configuration: configuration
       ) {
       settings.providers.insert(swiftpm, at: 0)
     }

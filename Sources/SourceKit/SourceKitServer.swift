@@ -30,25 +30,6 @@ public typealias URL = Foundation.URL
 /// centrally, but this is transparent to the client.
 public final class SourceKitServer: LanguageServer {
 
-  /// Server configuration
-  public struct Configuration {
-
-    /// Build configuration
-    let buildConfiguration: BuildConfiguration
-
-    /// Build artefacts path
-    let buildPath: String
-
-    /// Additional build flags
-    let buildFlags: BuildFlags
-
-    public init(buildConfiguration: BuildConfiguration = .debug, buildPath: String = ".build", buildFlags: BuildFlags = BuildFlags()) {
-      self.buildConfiguration = buildConfiguration
-      self.buildPath = buildPath
-      self.buildFlags = buildFlags
-    }
-  }
-
   struct LanguageServiceKey: Hashable {
     var toolchain: String
     var language: Language
@@ -67,7 +48,7 @@ public final class SourceKitServer: LanguageServer {
   let onExit: () -> Void
 
   /// Creates a language server for the given client.
-  public init(client: Connection, fileSystem: FileSystem = localFileSystem, configuration: Configuration = Configuration(), onExit: @escaping () -> Void = {}) {
+  public init(client: Connection, fileSystem: FileSystem = localFileSystem, configuration: Configuration, onExit: @escaping () -> Void = {}) {
 
     self.fs = fileSystem
     self.toolchainRegistry = ToolchainRegistry.shared
@@ -242,13 +223,13 @@ extension SourceKitServer {
         url: url,
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: self.toolchainRegistry,
-        serverConfiguration: self.configuration)
+        configuration: self.configuration)
     } else if let path = req.params.rootPath {
       self.workspace = try? Workspace(
         url: URL(fileURLWithPath: path),
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: toolchainRegistry,
-        serverConfiguration: self.configuration)
+        configuration: self.configuration)
     }
 
     if self.workspace == nil {
@@ -259,7 +240,7 @@ extension SourceKitServer {
         clientCapabilities: req.params.capabilities,
         buildSettings: BuildSystemList(),
         index: nil,
-        serverConfiguration: self.configuration
+        configuration: self.configuration
       )
     }
 

@@ -14,6 +14,7 @@ import SourceKit
 import LanguageServerProtocolJSONRPC
 import LanguageServerProtocol
 import SKSupport
+import SKCore
 import SPMLibc
 import Dispatch
 import Utility
@@ -21,7 +22,7 @@ import PackageModel
 import Foundation
 import sourcekitd // Not needed here, but fixes debugging...
 
-func parseConfigurationArguments() throws -> SourceKitServer.Configuration {
+func parseConfigurationArguments() throws -> Configuration {
   let arguments = Array(ProcessInfo.processInfo.arguments.dropFirst())
   let parser = ArgumentParser(usage: "[options]", overview: "Language Server Protocol implementation for Swift and C-based languages")
   let loggingOption = parser.add(option: "--log-level", kind: LogLevel.self, usage: "Set the logging level (debug|info|warning|error) [default: \(LogLevel.default)]")
@@ -34,7 +35,7 @@ func parseConfigurationArguments() throws -> SourceKitServer.Configuration {
 
   let parsedArguments = try parser.parse(arguments)
 
-  var buildFlags = BuildFlags()
+  var buildFlags = ServerConfiguration.default.build.flags
   buildFlags.cCompilerFlags = parsedArguments.get(buildFlagsCc) ?? []
   buildFlags.cxxCompilerFlags = parsedArguments.get(buildFlagsCxx) ?? []
   buildFlags.linkerFlags = parsedArguments.get(buildFlagsLinker) ?? []
@@ -46,9 +47,10 @@ func parseConfigurationArguments() throws -> SourceKitServer.Configuration {
     Logger.shared.setLogLevel(environmentVariable: "SOURCEKIT_LOGGING")
   }
 
-  return SourceKitServer.Configuration(buildConfiguration: parsedArguments.get(buildConfigurationOption) ?? .debug,
-                                       buildPath: parsedArguments.get(buildPathOption) ?? "./.build",
-                                       buildFlags: buildFlags)
+  let buildConfiguration = ServerConfiguration.Build(configuration: parsedArguments.get(buildConfigurationOption) ?? ServerConfiguration.default.build.configuration,
+                                                    path: parsedArguments.get(buildPathOption) ?? ServerConfiguration.default.build.path,
+                                                    flags: buildFlags)
+  return ServerConfiguration(build: buildConfiguration)
 }
 
 let clientConnection = JSONRPCConection(inFD: STDIN_FILENO, outFD: STDOUT_FILENO, closeHandler: {
