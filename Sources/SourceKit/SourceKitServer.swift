@@ -228,7 +228,7 @@ extension SourceKitServer {
       self.workspace = try? Workspace(
         url: URL(fileURLWithPath: path),
         clientCapabilities: req.params.capabilities,
-        toolchainRegistry: toolchainRegistry,
+        toolchainRegistry: self.toolchainRegistry,
         configuration: self.configuration)
     }
 
