@@ -5,10 +5,10 @@
 //  Created by Marcin Krzyzanowski on 11/01/2019.
 //
 
+import SKCore
 import Foundation
 import Utility
 import PackageModel
-@testable import SKCore
 
 public struct TestConfiguration: Configuration {
 
