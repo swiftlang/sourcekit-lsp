@@ -24,6 +24,7 @@ import sourcekitd // Not needed here, but fixes debugging...
 func parseConfigurationArguments() throws -> SourceKitServer.Configuration {
   let arguments = Array(ProcessInfo.processInfo.arguments.dropFirst())
   let parser = ArgumentParser(usage: "[options]", overview: "Language Server Protocol implementation for Swift and C-based languages")
+  let loggingOption = parser.add(option: "--log-level", kind: LogLevel.self, usage: "Set the logging level (debug|info|warning|error) [default: \(LogLevel.default)]")
   let buildConfigurationOption = parser.add(option: "--configuration", shortName: "-c", kind: BuildConfiguration.self, usage: "Build with configuration (debug|release) [default: debug]")
   let buildPathOption = parser.add(option: "--build-path", kind: String.self, usage: "Specify build/cache directory [default: ./.build]")
   let buildFlagsCc = parser.add(option: "-Xcc", kind: [String].self, usage: "Pass flag through to all C compiler invocations")
@@ -39,12 +40,16 @@ func parseConfigurationArguments() throws -> SourceKitServer.Configuration {
   buildFlags.linkerFlags = parsedArguments.get(buildFlagsLinker) ?? []
   buildFlags.swiftCompilerFlags = parsedArguments.get(buildFlagsSwift) ?? []
 
+  if let logLevel = parsedArguments.get(loggingOption) {
+    Logger.shared.currentLevel = logLevel
+  } else {
+    Logger.shared.setLogLevel(environmentVariable: "SOURCEKIT_LOGGING")
+  }
+
   return SourceKitServer.Configuration(buildConfiguration: parsedArguments.get(buildConfigurationOption) ?? .debug,
                                        buildPath: parsedArguments.get(buildPathOption) ?? "./.build",
                                        buildFlags: buildFlags)
 }
-
-Logger.shared.setLogLevel(environmentVariable: "SOURCEKIT_LOGGING")
 
 let clientConnection = JSONRPCConection(inFD: STDIN_FILENO, outFD: STDOUT_FILENO, closeHandler: {
   exit(0)

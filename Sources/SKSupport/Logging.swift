@@ -12,18 +12,52 @@
 
 import Basic
 import Foundation
+import Utility
 
 #if canImport(os)
 import os // os_log
 #endif
 
-public enum LogLevel: Int, Equatable {
+public enum LogLevel: Int, Equatable, CustomStringConvertible, ArgumentKind {
   case error = 0
   case warning = 1
   case info = 2
   case debug = 3
 
   public static let `default`: LogLevel = .info
+
+  public var description: String {
+    switch self {
+    case .error:
+      return "error"
+    case .warning:
+      return "warning"
+    case .info:
+      return "info"
+    case .debug:
+      return "debug"
+    }
+  }
+
+  public init(argument: String) throws {
+    switch argument {
+    case "error":
+      self = .error
+    case "warning":
+      self = .warning
+    case "info":
+      self = .info
+    case "debug":
+      self = .debug
+    default:
+      self = LogLevel.default
+    }
+  }
+
+  /// Type of shell completion to provide for this argument.
+  public static var completion: ShellCompletion {
+    return ShellCompletion.none
+  }
 }
 
 /// Log the given message.
