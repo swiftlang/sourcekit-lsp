@@ -92,6 +92,10 @@ public final class Workspace {
     serverConfiguration: SourceKitServer.Configuration
   ) throws {
 
+    self.configuration = Configuration(buildConfiguration: serverConfiguration.buildConfiguration,
+                                       buildPath: serverConfiguration.buildPath,
+                                       buildFlags: serverConfiguration.buildFlags)
+
     self.rootPath = try AbsolutePath(validating: url.path)
     self.clientCapabilities = clientCapabilities
     let settings = BuildSystemList()
@@ -99,7 +103,12 @@ public final class Workspace {
 
     settings.providers.insert(CompilationDatabaseBuildSystem(projectRoot: rootPath), at: 0)
 
-    if let swiftpm = SwiftPMWorkspace(url: url, toolchainRegistry: toolchainRegistry) {
+    if let swiftpm = SwiftPMWorkspace(url: url,
+                                      toolchainRegistry: toolchainRegistry,
+                                      buildPathFolder: configuration.buildPath,
+                                      buildFlags: configuration.buildFlags,
+                                      buildConfiguration: configuration.buildConfiguration
+      ) {
       settings.providers.insert(swiftpm, at: 0)
     }
 
@@ -115,9 +124,5 @@ public final class Workspace {
         log("failed to open IndexStoreDB: \(error.localizedDescription)", level: .error)
       }
     }
-
-    self.configuration = Configuration(buildConfiguration: serverConfiguration.buildConfiguration,
-                                       buildPath: serverConfiguration.buildPath,
-                                       buildFlags: serverConfiguration.buildFlags)
   }
 }

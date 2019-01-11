@@ -59,9 +59,9 @@ public final class SwiftPMWorkspace {
     workspacePath: AbsolutePath,
     toolchainRegistry: ToolchainRegistry,
     fileSystem: FileSystem = localFileSystem,
-    buildPathFolder: String = ".build",
-    buildFlags: BuildFlags = BuildFlags(),
-    buildConfiguration: BuildConfiguration = .debug
+    buildPathFolder: String,
+    buildFlags: BuildFlags,
+    buildConfiguration: BuildConfiguration
     ) throws
   {
     self.workspacePath = workspacePath
@@ -144,12 +144,21 @@ public final class SwiftPMWorkspace {
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
   /// - Returns: nil if `workspacePath` is not part of a package or there is an error.
-  public convenience init?(url: LanguageServerProtocol.URL, toolchainRegistry: ToolchainRegistry) {
+  public convenience init?(url: LanguageServerProtocol.URL,
+                           toolchainRegistry: ToolchainRegistry,
+                           buildPathFolder: String,
+                           buildFlags: BuildFlags,
+                           buildConfiguration: BuildConfiguration
+) {
     do {
       try self.init(
         workspacePath: try AbsolutePath(validating: url.path),
         toolchainRegistry: toolchainRegistry,
-        fileSystem: localFileSystem)
+        fileSystem: localFileSystem,
+        buildPathFolder: buildPathFolder,
+        buildFlags: buildFlags,
+        buildConfiguration: buildConfiguration
+      )
 
     } catch Error.noManifest(let path) {
       log("could not find manifest, or not a SwiftPM package: \(path.asString)", level: .warning)
