@@ -228,10 +228,9 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! setenv("SOURCEKIT_TOOLCHAIN_PATH", value: binPath.parentDirectory.asString)
-    defer { try! setenv("SOURCEKIT_TOOLCHAIN_PATH", value: "") }
+    try! setenv("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: binPath.parentDirectory.asString)
 
-    tr.scanForToolchains(fs)
+    tr.scanForToolchains(environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"], fs)
 
     guard let tc = tr.toolchains.first(where: { tc in tc.path == binPath.parentDirectory }) else {
       XCTFail("couldn't find expected toolchain")
@@ -256,10 +255,10 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! setenv("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH", value: binPath.parentDirectory.asString)
+    try! setenv("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2", value: binPath.parentDirectory.asString)
 
     tr.scanForToolchains(
-      environmentVariables: ["TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH"],
+      environmentVariables: ["TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2"],
       setDefault: false,
       fs)
 
