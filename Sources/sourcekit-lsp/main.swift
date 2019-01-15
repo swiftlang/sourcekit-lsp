@@ -18,11 +18,10 @@ import SKCore
 import SPMLibc
 import Dispatch
 import Utility
-import PackageModel
 import Foundation
 import sourcekitd // Not needed here, but fixes debugging...
 
-func parseConfigurationArguments() throws -> Configuration {
+func parseConfigurationArguments() throws -> BuildSetup {
   let arguments = Array(ProcessInfo.processInfo.arguments.dropFirst())
   let parser = ArgumentParser(usage: "[options]", overview: "Language Server Protocol implementation for Swift and C-based languages")
   let loggingOption = parser.add(option: "--log-level", kind: LogLevel.self, usage: "Set the logging level (debug|info|warning|error) [default: \(LogLevel.default)]")
@@ -35,7 +34,7 @@ func parseConfigurationArguments() throws -> Configuration {
 
   let parsedArguments = try parser.parse(arguments)
 
-  var buildFlags = ServerConfiguration.default.build.flags
+  var buildFlags = BuildSetup.default.flags
   buildFlags.cCompilerFlags = parsedArguments.get(buildFlagsCc) ?? []
   buildFlags.cxxCompilerFlags = parsedArguments.get(buildFlagsCxx) ?? []
   buildFlags.linkerFlags = parsedArguments.get(buildFlagsLinker) ?? []
@@ -47,10 +46,9 @@ func parseConfigurationArguments() throws -> Configuration {
     Logger.shared.setLogLevel(environmentVariable: "SOURCEKIT_LOGGING")
   }
 
-  let buildConfiguration = ServerConfiguration.Build(configuration: parsedArguments.get(buildConfigurationOption) ?? ServerConfiguration.default.build.configuration,
-                                                    path: parsedArguments.get(buildPathOption) ?? ServerConfiguration.default.build.path,
-                                                    flags: buildFlags)
-  return ServerConfiguration(build: buildConfiguration)
+  return BuildSetup(configuration: parsedArguments.get(buildConfigurationOption) ?? BuildSetup.default.configuration,
+                    path: parsedArguments.get(buildPathOption) ?? BuildSetup.default.path,
+                    flags: buildFlags)
 }
 
 let clientConnection = JSONRPCConection(inFD: STDIN_FILENO, outFD: STDOUT_FILENO, closeHandler: {
@@ -61,7 +59,7 @@ Logger.shared.addLogHandler { message, _ in
   clientConnection.send(LogMessage(type: .log, message: message))
 }
 
-let server = SourceKitServer(client: clientConnection, configuration: try parseConfigurationArguments(), onExit: {
+let server = SourceKitServer(client: clientConnection, buildSetup: try parseConfigurationArguments(), onExit: {
   clientConnection.close()
 })
 clientConnection.start(receiveHandler: server)

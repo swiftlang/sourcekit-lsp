@@ -17,7 +17,6 @@ import IndexStoreDB
 import Basic
 import Utility
 import Dispatch
-import PackageModel
 import Foundation
 import SPMLibc
 
@@ -35,7 +34,7 @@ public final class SourceKitServer: LanguageServer {
     var language: Language
   }
 
-  let configuration: Configuration
+  let buildSetup: BuildSetup
 
   let toolchainRegistry: ToolchainRegistry
 
@@ -48,11 +47,11 @@ public final class SourceKitServer: LanguageServer {
   let onExit: () -> Void
 
   /// Creates a language server for the given client.
-  public init(client: Connection, fileSystem: FileSystem = localFileSystem, configuration: Configuration, onExit: @escaping () -> Void = {}) {
+  public init(client: Connection, fileSystem: FileSystem = localFileSystem, buildSetup: BuildSetup, onExit: @escaping () -> Void = {}) {
 
     self.fs = fileSystem
     self.toolchainRegistry = ToolchainRegistry.shared
-    self.configuration = configuration
+    self.buildSetup = buildSetup
     self.onExit = onExit
 
     super.init(client: client)
@@ -223,13 +222,13 @@ extension SourceKitServer {
         url: url,
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: self.toolchainRegistry,
-        configuration: self.configuration)
+        buildSetup: self.buildSetup)
     } else if let path = req.params.rootPath {
       self.workspace = try? Workspace(
         url: URL(fileURLWithPath: path),
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: self.toolchainRegistry,
-        configuration: self.configuration)
+        buildSetup: self.buildSetup)
     }
 
     if self.workspace == nil {
@@ -240,7 +239,7 @@ extension SourceKitServer {
         clientCapabilities: req.params.capabilities,
         buildSettings: BuildSystemList(),
         index: nil,
-        configuration: self.configuration
+        buildSetup: self.buildSetup
       )
     }
 

@@ -32,7 +32,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       workspacePath: packageRoot,
       toolchainRegistry: tr,
       fileSystem: fs,
-      configuration: TestConfiguration.default)
+      buildSetup: TestSourceKitServer.buildSetup)
     )
   }
 
@@ -53,7 +53,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       workspacePath: packageRoot,
       toolchainRegistry: tr,
       fileSystem: fs,
-      configuration: TestConfiguration.default))
+      buildSetup: TestSourceKitServer.buildSetup))
   }
 
   func testNoToolchain() {
@@ -73,7 +73,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       workspacePath: packageRoot,
       toolchainRegistry: ToolchainRegistry(),
       fileSystem: fs,
-      configuration: TestConfiguration.default))
+      buildSetup: TestSourceKitServer.buildSetup))
   }
 
   func testBasicSwiftArgs() {
@@ -95,7 +95,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       workspacePath: packageRoot,
       toolchainRegistry: tr,
       fileSystem: fs,
-      configuration: TestConfiguration.default)
+      buildSetup: TestSourceKitServer.buildSetup)
 
     let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
     let build = buildPath(root: packageRoot)
@@ -142,7 +142,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       workspacePath: packageRoot,
       toolchainRegistry: tr,
       fileSystem: fs,
-      configuration: TestConfiguration.default)
+      buildSetup: TestSourceKitServer.buildSetup)
 
     let source = packageRoot.appending(component: "Package.swift")
     let arguments = ws.settings(for: source.asURL, .swift)!.compilerArguments
@@ -171,7 +171,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       workspacePath: packageRoot,
       toolchainRegistry: tr,
       fileSystem: fs,
-      configuration: TestConfiguration.default)
+      buildSetup: TestSourceKitServer.buildSetup)
 
     let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
     let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
@@ -210,7 +210,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       workspacePath: packageRoot,
       toolchainRegistry: tr,
       fileSystem: fs,
-      configuration: TestConfiguration.default)
+      buildSetup: TestSourceKitServer.buildSetup)
 
     let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
     let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -247,7 +247,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       workspacePath: packageRoot,
       toolchainRegistry: tr,
       fileSystem: fs,
-      configuration: TestConfiguration.default)
+      buildSetup: TestSourceKitServer.buildSetup)
 
     let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
     let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -278,7 +278,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       workspacePath: packageRoot,
       toolchainRegistry: tr,
       fileSystem: fs,
-      configuration: TestConfiguration.default)
+      buildSetup: TestSourceKitServer.buildSetup)
 
     let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
     let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
@@ -339,7 +339,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       workspacePath: packageRoot,
       toolchainRegistry: ToolchainRegistry.shared,
       fileSystem: fs,
-      configuration: TestConfiguration.default)
+      buildSetup: TestSourceKitServer.buildSetup)
 
     let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
     let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
@@ -385,7 +385,7 @@ private func check(
 }
 
 private func buildPath(root: AbsolutePath) -> AbsolutePath {
-  if let absoluteBuildPath = try? AbsolutePath(validating: TestConfiguration.default.build.path) {
+  if let absoluteBuildPath = try? AbsolutePath(validating: TestSourceKitServer.buildSetup.path) {
     #if os(macOS)
       return absoluteBuildPath.appending(components: "x86_64-apple-macosx", "debug")
     #else
@@ -393,9 +393,9 @@ private func buildPath(root: AbsolutePath) -> AbsolutePath {
     #endif
   } else {
     #if os(macOS)
-      return root.appending(components: TestConfiguration.default.build.path, "x86_64-apple-macosx", "debug")
+      return root.appending(components: TestSourceKitServer.buildSetup.path, "x86_64-apple-macosx", "debug")
     #else
-      return root.appending(components: TestConfiguration.default.build.path, "x86_64-unknown-linux", "debug")
+      return root.appending(components: TestSourceKitServer.buildSetup.path, "x86_64-unknown-linux", "debug")
     #endif
   }
 }

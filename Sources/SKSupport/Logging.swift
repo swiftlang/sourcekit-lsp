@@ -18,13 +18,16 @@ import Utility
 import os // os_log
 #endif
 
-public enum LogLevel: Int, Equatable, CustomStringConvertible, ArgumentKind {
+public enum LogLevel: Int, Equatable {
   case error = 0
   case warning = 1
   case info = 2
   case debug = 3
 
   public static let `default`: LogLevel = .info
+}
+
+extension LogLevel: CustomStringConvertible {
 
   public var description: String {
     switch self {
@@ -38,6 +41,9 @@ public enum LogLevel: Int, Equatable, CustomStringConvertible, ArgumentKind {
       return "debug"
     }
   }
+}
+
+extension LogLevel: ArgumentKind {
 
   public init(argument: String) throws {
     switch argument {
