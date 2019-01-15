@@ -16,13 +16,6 @@ import Utility
 public enum BuildConfiguration: String {
   case debug
   case release
-
-  public var dirname: String {
-    switch self {
-    case .debug: return "debug"
-    case .release: return "release"
-    }
-  }
 }
 
 extension BuildConfiguration: ArgumentKind {
