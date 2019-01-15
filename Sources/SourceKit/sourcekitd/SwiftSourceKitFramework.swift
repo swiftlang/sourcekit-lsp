@@ -206,6 +206,7 @@ struct sourcekitd_keys {
   let filepath: sourcekitd_uid_t
   let ranges: sourcekitd_uid_t
   let usr: sourcekitd_uid_t
+  let typename: sourcekitd_uid_t
   let annotated_decl: sourcekitd_uid_t
   let doc_full_as_xml: sourcekitd_uid_t
   let syntactic_only: sourcekitd_uid_t
@@ -233,6 +234,7 @@ struct sourcekitd_keys {
     filepath = api.uid_get_from_cstr("key.filepath")!
     ranges = api.uid_get_from_cstr("key.ranges")!
     usr = api.uid_get_from_cstr("key.usr")!
+    typename = api.uid_get_from_cstr("key.typename")!
     annotated_decl = api.uid_get_from_cstr("key.annotated_decl")!
     doc_full_as_xml = api.uid_get_from_cstr("key.doc.full_as_xml")!
     syntactic_only = api.uid_get_from_cstr("key.syntactic_only")!

@@ -345,12 +345,12 @@ extension SwiftLanguageServer {
 
         let filterName: String? = value[self.keys.name]
         let insertText: String? = value[self.keys.sourcetext]
+        let typeName: String? = value[self.keys.typename]
 
         let kind: sourcekitd_uid_t? = value[self.keys.kind]
-
         result.items.append(CompletionItem(
           label: name,
-          detail: nil,
+          detail: typeName,
           sortText: nil,
           filterText: filterName,
           textEdit: nil,
