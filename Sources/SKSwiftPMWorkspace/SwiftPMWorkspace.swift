@@ -135,6 +135,14 @@ public final class SwiftPMWorkspace {
     self.packageGraph = PackageGraph(rootPackages: [])
 
     try reloadPackage()
+
+    if !fileSystem.exists(self.buildParameters.indexStore) {
+        let swiftBuildPath = swiftPMToolchain.swiftCompiler.parentDirectory.appending(component: "swift-build")
+        try Basic.Process.popen(arguments: [swiftBuildPath.asString,
+                                            "--package-path", packageRoot.asString,
+                                            "--configuration", buildParameters.configuration.rawValue,
+                                            "--build-path", buildPath.asString])
+    }
   }
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
