@@ -79,6 +79,7 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceRequest(SourceKitServer.documentSymbol)
     registerWorkspaceRequest(SourceKitServer.documentColor)
     registerWorkspaceRequest(SourceKitServer.colorPresentation)
+    registerWorkspaceRequest(SourceKitServer.codeAction)
   }
 
   func registerWorkspaceRequest<R>(
@@ -263,7 +264,10 @@ extension SourceKitServer {
       documentHighlightProvider: true,
       foldingRangeProvider: true,
       documentSymbolProvider: true,
-      colorProvider: true
+      colorProvider: true,
+      codeActionProvider: CodeActionOptions(
+        codeActionKinds: []
+      )
     )))
   }
 
@@ -354,6 +358,10 @@ extension SourceKitServer {
   }
 
   func colorPresentation(_ req: Request<ColorPresentationRequest>, workspace: Workspace) {
+    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  }
+
+  func codeAction(_ req: Request<CodeActionRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }
 
