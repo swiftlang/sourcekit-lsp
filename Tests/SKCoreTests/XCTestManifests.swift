@@ -37,8 +37,12 @@ extension ToolchainRegistryTests {
     static let __allTests__ToolchainRegistryTests = [
         ("testDefaultBasic", testDefaultBasic),
         ("testDefaultDarwin", testDefaultDarwin),
+        ("testDuplicateError", testDuplicateError),
+        ("testDuplicatePathError", testDuplicatePathError),
+        ("testDuplicateXcodeError", testDuplicateXcodeError),
         ("testDylibNames", testDylibNames),
         ("testFromDirectory", testFromDirectory),
+        ("testMultipleXcodes", testMultipleXcodes),
         ("testSearchDarwin", testSearchDarwin),
         ("testSearchExplicitEnv", testSearchExplicitEnv),
         ("testSearchExplicitEnvBuiltin", testSearchExplicitEnvBuiltin),

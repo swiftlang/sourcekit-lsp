@@ -121,9 +121,7 @@ public final class SourceKitServer: LanguageServer {
   }
 
   func toolchain(for url: URL, _ language: Language) -> Toolchain? {
-    if let id = workspace?.buildSettings.settings(for: url, language)?.preferredToolchain,
-       let toolchain = toolchainRegistry.toolchain(identifier:id)
-    {
+    if let toolchain = workspace?.buildSettings.settings(for: url, language)?.preferredToolchain {
       return toolchain
     }
 
