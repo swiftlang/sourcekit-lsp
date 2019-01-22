@@ -17,8 +17,8 @@
 /// of a BuildSystem query.
 public struct FileBuildSettings {
 
-  /// The identifier of the toolchain that is preferred for compiling this file, if any.
-  public var preferredToolchain: String? = nil
+  /// The Toolchain that is preferred for compiling this file, if any.
+  public var preferredToolchain: Toolchain? = nil
 
   /// The compiler arguments to use for this file.
   public var compilerArguments: [String]
@@ -27,7 +27,7 @@ public struct FileBuildSettings {
   public var workingDirectory: String? = nil
 
   public init(
-    preferredToolchain: String? = nil,
+    preferredToolchain: Toolchain? = nil,
     compilerArguments: [String],
     workingDirectory: String? = nil)
   {
