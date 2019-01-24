@@ -19,12 +19,10 @@
 ///
 /// - Parameter id: The request to cancel.
 public struct CancelRequest: NotificationType, Hashable {
-  public static let method: String = "$/cancelRequest"
+      public static let method: String = "$/cancelRequest"
 
-  /// The request to cancel.
-  public var id: RequestID
+      /// The request to cancel.
+      public var id: RequestID
 
-  public init(id: RequestID) {
-    self.id = id
-  }
+      public init(id: RequestID) { self.id = id }
 }

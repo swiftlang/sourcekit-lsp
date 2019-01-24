@@ -14,23 +14,19 @@ import Basic
 
 extension Result {
 
-  /// Project out the .success value, or nil.
-  public var success: Value? {
-    switch self {
-    case .success(let value):
-      return value
-    default:
-      return nil
-    }
-  }
+      /// Project out the .success value, or nil.
+      public var success: Value? {
+            switch self {
+            case .success(let value): return value
+            default: return nil
+            }
+      }
 
-  /// Project out the .failure value, or nil.
-  public var failure: ErrorType? {
-    switch self {
-    case .failure(let error):
-      return error
-    default:
-      return nil
-    }
-  }
+      /// Project out the .failure value, or nil.
+      public var failure: ErrorType? {
+            switch self {
+            case .failure(let error): return error
+            default: return nil
+            }
+      }
 }

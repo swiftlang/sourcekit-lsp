@@ -24,32 +24,32 @@
 ///
 /// - Returns: HoverResponse for the given location, which contains the `MarkupContent`.
 public struct HoverRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/hover"
-  public typealias Response = HoverResponse?
+      public static let method: String = "textDocument/hover"
+      public typealias Response = HoverResponse?
 
-  /// The document in which to lookup the symbol location.
-  public var textDocument: TextDocumentIdentifier
+      /// The document in which to lookup the symbol location.
+      public var textDocument: TextDocumentIdentifier
 
-  /// The document location at which to lookup symbol information.
-  public var position: Position
+      /// The document location at which to lookup symbol information.
+      public var position: Position
 
-  public init(textDocument: TextDocumentIdentifier, position: Position) {
-    self.textDocument = textDocument
-    self.position = position
-  }
+      public init(textDocument: TextDocumentIdentifier, position: Position) {
+            self.textDocument = textDocument
+            self.position = position
+      }
 }
 
 /// Documentation markup contents for a symbol found by the hover request.
 public struct HoverResponse: ResponseType, Hashable {
 
-  /// The documentation markup content.
-  public var contents: MarkupContent
+      /// The documentation markup content.
+      public var contents: MarkupContent
 
-  /// An optional range to visually distinguish during hover.
-  public var range: PositionRange?
+      /// An optional range to visually distinguish during hover.
+      public var range: PositionRange?
 
-  public init(contents: MarkupContent, range: Range<Position>?) {
-    self.contents = contents
-    self.range = range.map { PositionRange($0) }
-  }
+      public init(contents: MarkupContent, range: Range<Position>?) {
+            self.contents = contents
+            self.range = range.map { PositionRange($0) }
+      }
 }

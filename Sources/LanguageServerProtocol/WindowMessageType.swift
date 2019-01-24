@@ -13,8 +13,8 @@
 /// The type of message (error, etc.) for a ShowMessage or LogMessage request. Corresponds to `MessageType` in LSP.
 public enum WindowMessageType: Int, Codable, Hashable {
 
-  case error = 1
-  case warning = 2
-  case info = 3
-  case log = 4
+      case error = 1
+      case warning = 2
+      case info = 3
+      case log = 4
 }

@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import Basic
+import LanguageServerProtocol
 
 /// Provider of FileBuildSettings and other build-related information.
 ///
@@ -23,14 +23,14 @@ import Basic
 /// SwiftPM package root directory.
 public protocol BuildSystem {
 
-  /// The path to the raw index store data, if any.
-  var indexStorePath: AbsolutePath? { get }
+      /// The path to the raw index store data, if any.
+      var indexStorePath: AbsolutePath? { get }
 
-  /// The path to put the index database, if any.
-  var indexDatabasePath: AbsolutePath? { get }
+      /// The path to put the index database, if any.
+      var indexDatabasePath: AbsolutePath? { get }
 
-  /// Returns the settings for the given url and language mode, if known.
-  func settings(for: URL, _ language: Language) -> FileBuildSettings?
+      /// Returns the settings for the given url and language mode, if known.
+      func settings(for: URL, _ language: Language) -> FileBuildSettings?
 
-  // TODO: notifications when settings change.
+      // TODO: notifications when settings change.
 }

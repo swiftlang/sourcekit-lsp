@@ -25,35 +25,35 @@
 ///
 /// - Returns: A list of completion items to complete the code at the given position.
 public struct CompletionRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/completion"
-  public typealias Response = CompletionList
+      public static let method: String = "textDocument/completion"
+      public typealias Response = CompletionList
 
-  public var textDocument: TextDocumentIdentifier
+      public var textDocument: TextDocumentIdentifier
 
-  public var position: Position
+      public var position: Position
 
-  // public var context: CompletionContext?
+      // public var context: CompletionContext?
 
-  public init(textDocument: TextDocumentIdentifier, position: Position) {
-    self.textDocument = textDocument
-    self.position = position
-  }
+      public init(textDocument: TextDocumentIdentifier, position: Position) {
+            self.textDocument = textDocument
+            self.position = position
+      }
 }
 
 /// List of completion items. If this list has been filtered already, the `isIncomplete` flag
 /// indicates that the client should re-query code-completions if the filter text changes.
 public struct CompletionList: ResponseType, Hashable {
 
-  /// Whether the list of completions is "complete" or not.
-  ///
-  /// When this value is `true`, the client should re-query the server when doing further filtering.
-  public var isIncomplete: Bool
+      /// Whether the list of completions is "complete" or not.
+      ///
+      /// When this value is `true`, the client should re-query the server when doing further filtering.
+      public var isIncomplete: Bool
 
-  /// The resulting completions.
-  public var items: [CompletionItem]
+      /// The resulting completions.
+      public var items: [CompletionItem]
 
-  public init(isIncomplete: Bool, items: [CompletionItem]) {
-    self.isIncomplete = isIncomplete
-    self.items = items
-  }
+      public init(isIncomplete: Bool, items: [CompletionItem]) {
+            self.isIncomplete = isIncomplete
+            self.items = items
+      }
 }

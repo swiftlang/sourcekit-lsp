@@ -12,11 +12,11 @@
 
 public enum TextDocumentSaveReason: Int, Codable, Hashable {
 
-  case manual = 1
+      case manual = 1
 
-  /// Automatic save after a delay.
-  case afterDelay = 2
+      /// Automatic save after a delay.
+      case afterDelay = 2
 
-  /// Automatic save after the editor loses focus.
-  case focusOut = 3
+      /// Automatic save after the editor loses focus.
+      case focusOut = 3
 }

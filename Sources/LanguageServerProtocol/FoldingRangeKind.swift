@@ -15,18 +15,19 @@
 /// In LSP, this is a string, so we don't use a closed set.
 public struct FoldingRangeKind: RawRepresentable, Codable, Hashable {
 
-  public var rawValue: String
+      public var rawValue: String
 
-  public init(rawValue: String) {
-    self.rawValue = rawValue
-  }
+      public init(rawValue: String) { self.rawValue = rawValue }
 
-  /// Folding range for a comment.
-  public static let comment: FoldingRangeKind = FoldingRangeKind(rawValue: "comment")
+      /// Folding range for a comment.
+      public static let comment: FoldingRangeKind = FoldingRangeKind(
+            rawValue: "comment")
 
-  /// Folding range for imports or includes.
-  public static let imports: FoldingRangeKind = FoldingRangeKind(rawValue: "imports")
+      /// Folding range for imports or includes.
+      public static let imports: FoldingRangeKind = FoldingRangeKind(
+            rawValue: "imports")
 
-  /// Folding range for a region (e.g. C# `#region`).
-  public static let region: FoldingRangeKind = FoldingRangeKind(rawValue: "region")
+      /// Folding range for a region (e.g. C# `#region`).
+      public static let region: FoldingRangeKind = FoldingRangeKind(
+            rawValue: "region")
 }

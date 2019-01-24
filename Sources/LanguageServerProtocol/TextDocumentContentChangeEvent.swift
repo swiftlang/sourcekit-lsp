@@ -17,15 +17,17 @@
 /// The `range.end` and `rangeLength` are potentially redundant. Based on https://github.com/Microsoft/language-server-protocol/issues/9, servers should be lenient and accept either.
 public struct TextDocumentContentChangeEvent: Codable, Hashable {
 
-  public var range: PositionRange?
+      public var range: PositionRange?
 
-  public var rangeLength: Int?
+      public var rangeLength: Int?
 
-  public var text: String
+      public var text: String
 
-  public init(range: Range<Position>? = nil, rangeLength: Int? = nil, text: String) {
-    self.range = range.map { PositionRange($0) }
-    self.rangeLength = rangeLength
-    self.text = text
-  }
+      public init(
+            range: Range<Position>? = nil, rangeLength: Int? = nil, text: String
+      ) {
+            self.range = range.map { PositionRange($0) }
+            self.rangeLength = rangeLength
+            self.text = text
+      }
 }

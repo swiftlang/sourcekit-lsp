@@ -13,25 +13,23 @@
 /// Unique identifier for a document.
 public struct WorkspaceFolder: ResponseType, Hashable {
 
-  /// A URL that uniquely identifies the workspace.
-  public var url: URL
+      /// A URL that uniquely identifies the workspace.
+      public var url: URL
 
-  /// The name of the workspace (default: basename of url).
-  public var name: String
+      /// The name of the workspace (default: basename of url).
+      public var name: String
 
-  public init(url: URL, name: String? = nil) {
-    self.url = url
-    self.name = name ?? url.lastPathComponent
-    if self.name.isEmpty {
-      self.name = "unknown_workspace"
-    }
-  }
+      public init(url: URL, name: String? = nil) {
+            self.url = url
+            self.name = name ?? url.lastPathComponent
+            if self.name.isEmpty { self.name = "unknown_workspace" }
+      }
 }
 
 // Encode using the key "uri" to match LSP.
 extension WorkspaceFolder: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case url = "uri"
-    case name
-  }
+      private enum CodingKeys: String, CodingKey {
+            case url = "uri"
+            case name
+      }
 }

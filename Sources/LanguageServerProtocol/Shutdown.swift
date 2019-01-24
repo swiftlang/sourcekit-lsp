@@ -17,13 +17,13 @@
 ///
 /// - Returns: Void.
 public struct Shutdown: RequestType, Hashable {
-  public static let method: String = "shutdown"
-  public typealias Response = VoidResponse
+      public static let method: String = "shutdown"
+      public typealias Response = VoidResponse
 }
 
 /// Notification that the server process should exit.
 ///
 /// This notification will come after the shutdown request finishes.
 public struct Exit: NotificationType, Hashable {
-  public static let method: String = "exit"
+      public static let method: String = "exit"
 }

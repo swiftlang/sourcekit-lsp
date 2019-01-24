@@ -14,16 +14,18 @@ import Basic
 
 extension FileSystem {
 
-  /// Creates files from a dictionary of path to contents.
-  ///
-  /// - parameters:
-  ///   - root: The root directory that the paths are relative to.
-  ///   - files: Dictionary from path (relative to root) to contents.
-  public func createFiles(root: AbsolutePath = .root, files: [String: ByteString]) throws {
-    for (path, contents) in files {
-      let path = AbsolutePath(path, relativeTo: root)
-      try createDirectory(path.parentDirectory, recursive: true)
-      try writeFileContents(path, bytes: contents)
-    }
-  }
+      /// Creates files from a dictionary of path to contents.
+      ///
+      /// - parameters:
+      ///   - root: The root directory that the paths are relative to.
+      ///   - files: Dictionary from path (relative to root) to contents.
+      public func createFiles(
+            root: AbsolutePath = .root, files: [String: ByteString]
+      ) throws {
+            for (path, contents) in files {
+                  let path = AbsolutePath(path, relativeTo: root)
+                  try createDirectory(path.parentDirectory, recursive: true)
+                  try writeFileContents(path, bytes: contents)
+            }
+      }
 }

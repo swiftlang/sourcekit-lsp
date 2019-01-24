@@ -10,65 +10,60 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import Basic
+import LanguageServerProtocol
 import enum Utility.Platform
 
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
 public final class FallbackBuildSystem: BuildSystem {
 
-  /// The path to the SDK.
-  lazy var sdkpath: AbsolutePath? = {
-    if case .darwin? = Platform.currentPlatform,
-       let str = try? Process.checkNonZeroExit(
-         args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx"),
-       let path = try? AbsolutePath(validating: str.spm_chomp())
-    {
-      return path
-    }
-    return nil
-  }()
+      /// The path to the SDK.
+      lazy var sdkpath: AbsolutePath? = {
+            if case .darwin? = Platform.currentPlatform,
+                  let str = try? Process.checkNonZeroExit(
+                  args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx"),
+                  let path = try? AbsolutePath(validating: str.spm_chomp()) {
+                  return path
+            }
+            return nil
+      }()
 
-  public var indexStorePath: AbsolutePath? { return nil }
+      public var indexStorePath: AbsolutePath? { return nil }
 
-  public var indexDatabasePath: AbsolutePath? { return nil }
+      public var indexDatabasePath: AbsolutePath? { return nil }
 
-  public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
-    guard let path = try? AbsolutePath(validating: url.path) else {
-      return nil
-    }
+      public func settings(for url: URL, _ language: Language)
+            -> FileBuildSettings?
+      {
+            guard let path = try? AbsolutePath(validating: url.path) else {
+                  return nil
+            }
 
-    switch language {
-    case .swift:
-      return settingsSwift(path)
-    case .c, .cpp, .objective_c, .objective_cpp:
-      return settingsClang(path, language)
-    default:
-      return nil
-    }
-  }
+            switch language {
+            case .swift: return settingsSwift(path)
+            case .c, .cpp, .objective_c, .objective_cpp:
+                  return settingsClang(path, language)
+            default: return nil
+            }
+      }
 
-  func settingsSwift(_ path: AbsolutePath) -> FileBuildSettings {
-    var args: [String] = []
-    if let sdkpath = sdkpath {
-      args += [
-        "-sdk",
-        sdkpath.asString,
-      ]
-    }
-    args.append(path.asString)
-    return FileBuildSettings(preferredToolchain: nil, compilerArguments: args)
-  }
+      func settingsSwift(_ path: AbsolutePath) -> FileBuildSettings {
+            var args: [String] = []
+            if let sdkpath = sdkpath { args += ["-sdk", sdkpath.asString,] }
+            args.append(path.asString)
+            return FileBuildSettings(
+                  preferredToolchain: nil, compilerArguments: args)
+      }
 
-  func settingsClang(_ path: AbsolutePath, _ language: Language) -> FileBuildSettings {
-    var args: [String] = []
-    if let sdkpath = sdkpath {
-      args += [
-        "-isysroot",
-        sdkpath.asString,
-      ]
-    }
-    args.append(path.asString)
-    return FileBuildSettings(preferredToolchain: nil, compilerArguments: args)
-  }
+      func settingsClang(_ path: AbsolutePath, _ language: Language)
+            -> FileBuildSettings
+      {
+            var args: [String] = []
+            if let sdkpath = sdkpath {
+                  args += ["-isysroot", sdkpath.asString,]
+            }
+            args.append(path.asString)
+            return FileBuildSettings(
+                  preferredToolchain: nil, compilerArguments: args)
+      }
 }

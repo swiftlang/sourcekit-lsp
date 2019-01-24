@@ -17,22 +17,21 @@
 /// of a BuildSystem query.
 public struct FileBuildSettings {
 
-  /// The identifier of the toolchain that is preferred for compiling this file, if any.
-  public var preferredToolchain: String? = nil
+      /// The identifier of the toolchain that is preferred for compiling this file, if any.
+      public var preferredToolchain: String? = nil
 
-  /// The compiler arguments to use for this file.
-  public var compilerArguments: [String]
+      /// The compiler arguments to use for this file.
+      public var compilerArguments: [String]
 
-  /// The working directory to resolve any relative paths in `compilerArguments`.
-  public var workingDirectory: String? = nil
+      /// The working directory to resolve any relative paths in `compilerArguments`.
+      public var workingDirectory: String? = nil
 
-  public init(
-    preferredToolchain: String? = nil,
-    compilerArguments: [String],
-    workingDirectory: String? = nil)
-  {
-    self.preferredToolchain = preferredToolchain
-    self.compilerArguments = compilerArguments
-    self.workingDirectory = workingDirectory
-  }
+      public init(
+            preferredToolchain: String? = nil, compilerArguments: [String],
+            workingDirectory: String? = nil
+      ) {
+            self.preferredToolchain = preferredToolchain
+            self.compilerArguments = compilerArguments
+            self.workingDirectory = workingDirectory
+      }
 }

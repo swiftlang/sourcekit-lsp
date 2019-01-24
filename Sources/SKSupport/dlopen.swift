@@ -13,79 +13,72 @@
 import SPMLibc
 
 public final class DLHandle {
-  var rawValue: UnsafeMutableRawPointer? = nil
+      var rawValue: UnsafeMutableRawPointer? = nil
 
-  init(rawValue: UnsafeMutableRawPointer) {
-    self.rawValue = rawValue
-  }
+      init(rawValue: UnsafeMutableRawPointer) { self.rawValue = rawValue }
 
-  deinit {
-    precondition(rawValue == nil, "DLHandle must be closed or explicitly leaked before destroying")
-  }
-
-  public func close() throws {
-    if let handle = rawValue {
-      guard dlclose(handle) == 0 else {
-        throw DLError.dlclose(dlerror() ?? "unknown error")
+      deinit {
+            precondition(
+                  rawValue == nil,
+                  "DLHandle must be closed or explicitly leaked before destroying"
+            )
       }
-    }
-    rawValue = nil
-  }
 
-  public func leak() {
-    rawValue = nil
-  }
+      public func close() throws {
+            if let handle = rawValue {
+                  guard dlclose(handle) == 0 else {
+                        throw DLError.dlclose(dlerror() ?? "unknown error")
+                  }
+            }
+            rawValue = nil
+      }
+
+      public func leak() { rawValue = nil }
 }
 
 public struct DLOpenFlags: RawRepresentable, OptionSet {
 
-  public static let lazy: DLOpenFlags = DLOpenFlags(rawValue: RTLD_LAZY)
-  public static let now: DLOpenFlags = DLOpenFlags(rawValue: RTLD_NOW)
-  public static let local: DLOpenFlags = DLOpenFlags(rawValue: RTLD_LOCAL)
-  public static let global: DLOpenFlags = DLOpenFlags(rawValue: RTLD_GLOBAL)
+      public static let lazy: DLOpenFlags = DLOpenFlags(rawValue: RTLD_LAZY)
+      public static let now: DLOpenFlags = DLOpenFlags(rawValue: RTLD_NOW)
+      public static let local: DLOpenFlags = DLOpenFlags(rawValue: RTLD_LOCAL)
+      public static let global: DLOpenFlags = DLOpenFlags(rawValue: RTLD_GLOBAL)
 
-  // Platform-specific flags.
-  #if os(macOS)
-    public static let first: DLOpenFlags = DLOpenFlags(rawValue: RTLD_FIRST)
-    public static let deepBind: DLOpenFlags = DLOpenFlags(rawValue: 0)
-  #else
-    public static let first: DLOpenFlags = DLOpenFlags(rawValue: 0)
-    public static let deepBind: DLOpenFlags = DLOpenFlags(rawValue: RTLD_DEEPBIND)
-  #endif
+      // Platform-specific flags.
+      #if os(macOS)
+        public static let first: DLOpenFlags = DLOpenFlags(rawValue: RTLD_FIRST)
+        public static let deepBind: DLOpenFlags = DLOpenFlags(rawValue: 0)
+      #else
+        public static let first: DLOpenFlags = DLOpenFlags(rawValue: 0)
+        public static let deepBind: DLOpenFlags = DLOpenFlags(rawValue: RTLD_DEEPBIND)
+      #endif
 
-  public var rawValue: Int32
+      public var rawValue: Int32
 
-  public init(rawValue: Int32) {
-    self.rawValue = rawValue
-  }
+      public init(rawValue: Int32) { self.rawValue = rawValue }
 }
 
 public enum DLError: Swift.Error {
-  case dlopen(String)
-  case dlclose(String)
+      case dlopen(String)
+      case dlclose(String)
 }
 
 public func dlopen(_ path: String?, mode: DLOpenFlags) throws -> DLHandle {
-  guard let handle = SPMLibc.dlopen(path, mode.rawValue) else {
-    throw DLError.dlopen(dlerror() ?? "unknown error")
-  }
-  return DLHandle(rawValue: handle)
+      guard let handle = SPMLibc.dlopen(path, mode.rawValue) else {
+            throw DLError.dlopen(dlerror() ?? "unknown error")
+      }
+      return DLHandle(rawValue: handle)
 }
 
 public func dlsym<T>(_ handle: DLHandle, symbol: String) -> T? {
-  guard let ptr = dlsym(handle.rawValue!, symbol) else {
-    return nil
-  }
-  return unsafeBitCast(ptr, to: T.self)
+      guard let ptr = dlsym(handle.rawValue!, symbol) else { return nil }
+      return unsafeBitCast(ptr, to: T.self)
 }
 
-public func dlclose(_ handle: DLHandle) throws {
-  try handle.close()
-}
+public func dlclose(_ handle: DLHandle) throws { try handle.close() }
 
 public func dlerror() -> String? {
-  if let err: UnsafeMutablePointer<Int8> = dlerror() {
-    return String(cString: err)
-  }
-  return nil
+      if let err: UnsafeMutablePointer<Int8> = dlerror() {
+            return String(cString: err)
+      }
+      return nil
 }

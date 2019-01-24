@@ -15,17 +15,17 @@ import Foundation
 
 /// The home directory of the current user (same as returned by Foundation's `NSHomeDirectory` method).
 public var homeDirectoryForCurrentUser: AbsolutePath {
-  return AbsolutePath(NSHomeDirectory())
+      return AbsolutePath(NSHomeDirectory())
 }
 
 extension AbsolutePath {
 
-  /// Inititializes an absolute path from a string, expanding a leading `~` to `homeDirectoryForCurrentUser` first.
-  public init(expandingTilde path: String) {
-    if path.first == "~" {
-      self.init(homeDirectoryForCurrentUser, String(path.dropFirst(2)))
-    } else {
-      self.init(path)
-    }
-  }
+      /// Inititializes an absolute path from a string, expanding a leading `~` to `homeDirectoryForCurrentUser` first.
+      public init(expandingTilde path: String) {
+            if path.first == "~" {
+                  self.init(
+                        homeDirectoryForCurrentUser, String(path.dropFirst(2)))
+            }
+            else { self.init(path) }
+      }
 }

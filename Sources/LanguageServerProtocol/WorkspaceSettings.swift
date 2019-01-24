@@ -15,28 +15,26 @@
 /// This is typed as `Any` in the protocol, and this enum contains the formats we support.
 public enum WorkspaceSettingsChange: Codable, Hashable {
 
-  case clangd(ClangWorkspaceSettings)
-  case unknown
+      case clangd(ClangWorkspaceSettings)
+      case unknown
 
-  public init(from decoder: Decoder) throws {
-    // FIXME: doing trial deserialization only works if we have at least one non-optional unique
-    // key, which we don't yet.  For now, assume that if we add another kind of workspace settings
-    // it will rectify this issue.
-    if let settings = try? ClangWorkspaceSettings(from: decoder) {
-      self = .clangd(settings)
-    } else {
-      self = .unknown
-    }
-  }
+      public init(from decoder: Decoder) throws {
+            // FIXME: doing trial deserialization only works if we have at least one non-optional unique
+            // key, which we don't yet.  For now, assume that if we add another kind of workspace settings
+            // it will rectify this issue.
+            if let settings = try? ClangWorkspaceSettings(from: decoder) {
+                  self = .clangd(settings)
+            }
+            else { self = .unknown }
+      }
 
-  public func encode(to encoder: Encoder) throws {
-    switch self {
-    case .clangd(let settings):
-      try settings.encode(to: encoder)
-    case .unknown:
-      break // Nothing to do.
-    }
-  }
+      public func encode(to encoder: Encoder) throws {
+            switch self {
+            case .clangd(let settings): try settings.encode(to: encoder)
+            case .unknown:
+                  break  // Nothing to do.
+            }
+      }
 }
 
 /// Workspace settings for clangd, represented by a compilation database.
@@ -45,32 +43,32 @@ public enum WorkspaceSettingsChange: Codable, Hashable {
 /// compilation database to be managed in-memory, but they cannot be mixed.
 public struct ClangWorkspaceSettings: Codable, Hashable {
 
-  /// The path to a json compilation database.
-  public var compilationDatabasePath: String?
+      /// The path to a json compilation database.
+      public var compilationDatabasePath: String?
 
-  /// Mapping from file name to compilation command.
-  public var compilationDatabaseChanges: [String: ClangCompileCommand]?
+      /// Mapping from file name to compilation command.
+      public var compilationDatabaseChanges: [String: ClangCompileCommand]?
 
-  public init(
-    compilationDatabasePath: String? = nil,
-    compilationDatabaseChanges: [String: ClangCompileCommand]? = nil
-  ) {
-    self.compilationDatabasePath = compilationDatabasePath
-    self.compilationDatabaseChanges = compilationDatabaseChanges
-  }
+      public init(
+            compilationDatabasePath: String? = nil,
+            compilationDatabaseChanges: [String: ClangCompileCommand]? = nil
+      ) {
+            self.compilationDatabasePath = compilationDatabasePath
+            self.compilationDatabaseChanges = compilationDatabaseChanges
+      }
 }
 
 /// A single compile command for use in a clangd workspace settings.
 public struct ClangCompileCommand: Codable, Hashable {
 
-  /// The command (executable + compiler arguments).
-  public var compilationCommand: [String]
+      /// The command (executable + compiler arguments).
+      public var compilationCommand: [String]
 
-  /// The directory to perform the compilation in.
-  public var workingDirectory: String
+      /// The directory to perform the compilation in.
+      public var workingDirectory: String
 
-  public init(compilationCommand: [String], workingDirectory: String) {
-    self.compilationCommand = compilationCommand
-    self.workingDirectory = workingDirectory
-  }
+      public init(compilationCommand: [String], workingDirectory: String) {
+            self.compilationCommand = compilationCommand
+            self.workingDirectory = workingDirectory
+      }
 }

@@ -10,151 +10,142 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
 import Foundation
+import SKSupport
 
-enum CommentXMLError: Error {
-  case noRootElement
-}
+enum CommentXMLError: Error { case noRootElement }
 
 /// Converts from sourcekit's XML documentation format to Markdown.
 ///
 /// This code should go away and sourcekitd should return the Markdown directly.
 func xmlDocumentationToMarkdown(_ xmlString: String) throws -> String {
-  let xml = try XMLDocument(xmlString: xmlString)
-  guard let root = xml.rootElement() else {
-    throw CommentXMLError.noRootElement
-  }
+      let xml = try XMLDocument(xmlString: xmlString)
+      guard let root = xml.rootElement() else {
+            throw CommentXMLError.noRootElement
+      }
 
-  var convert = XMLToMarkdown()
-  convert.out.reserveCapacity(xmlString.utf16.count)
-  convert.toMarkdown(root)
-  return convert.out
+      var convert = XMLToMarkdown()
+      convert.out.reserveCapacity(xmlString.utf16.count)
+      convert.toMarkdown(root)
+      return convert.out
 }
 
 private struct XMLToMarkdown {
-  var out: String = ""
-  var indentCount: Int = 0
-  let indentWidth: Int = 4
-  var lineNumber: Int = 0
-  var inParam: Bool = false
+      var out: String = ""
+      var indentCount: Int = 0
+      let indentWidth: Int = 4
+      var lineNumber: Int = 0
+      var inParam: Bool = false
 
-  mutating func newlineIfNeeded(count: Int = 1) {
-    if !out.isEmpty && out.last! != "\n" {
-      newline(count: count)
-    }
-  }
-
-  mutating func newline(count: Int = 1) {
-    out += String(repeating: "\n", count: count)
-    out += String(repeating: " ", count: indentWidth * indentCount)
-  }
-
-  mutating func toMarkdown(_ node: XMLNode) {
-    switch node.kind {
-    case .element:
-      toMarkdown(node as! XMLElement)
-    default:
-      out += node.stringValue ?? ""
-    }
-  }
-
-  // [XMLNode]? is the type of XMLNode.children.
-  mutating func toMarkdown(_ nodes: [XMLNode]?, separator: String = "") {
-    nodes?.forEach {
-      toMarkdown($0)
-      out += separator
-    }
-  }
-
-  mutating func toMarkdown(_ node: XMLElement) {
-    switch node.name {
-    case "Declaration":
-      newlineIfNeeded(count: 2)
-      out += "```\n"
-      toMarkdown(node.children)
-      out += "\n```"
-
-    case "Name", "USR", "Direction":
-      break
-
-    case "Abstract", "Para":
-      if !inParam {
-        newlineIfNeeded(count: 2)
+      mutating func newlineIfNeeded(count: Int = 1) {
+            if !out.isEmpty && out.last! != "\n" { newline(count: count) }
       }
-      toMarkdown(node.children)
 
-    case "Discussion", "ResultDiscussion", "ThrowsDiscussion":
-      if !inParam {
-        newlineIfNeeded(count: 2)
+      mutating func newline(count: Int = 1) {
+            out += String(repeating: "\n", count: count)
+            out += String(repeating: " ", count: indentWidth * indentCount)
       }
-      out += "### "
-      switch node.name {
-      case "Discussion": out += "Discussion"
-      case "ResultDiscussion": out += "Returns"
-      case "ThrowsDiscussion": out += "Throws"
-      default: fatalError("handled in outer switch")
+
+      mutating func toMarkdown(_ node: XMLNode) {
+            switch node.kind {
+            case .element: toMarkdown(node as! XMLElement)
+            default: out += node.stringValue ?? ""
+            }
       }
-      newline(count: 2)
-      toMarkdown(node.children)
 
-    case "Parameters":
-      newlineIfNeeded(count: 2)
-      out += "- Parameters:"
-      indentCount += 1
-      toMarkdown(node.children)
-      indentCount -= 1
-
-    case "Parameter":
-      guard let name = node.elements(forName: "Name").first else { break }
-      newlineIfNeeded()
-      out += "- "
-      toMarkdown(name.children)
-      if let discussion = node.elements(forName: "Discussion").first {
-        out += ": "
-        inParam = true
-        toMarkdown(discussion.children)
-        inParam = false
+      // [XMLNode]? is the type of XMLNode.children.
+      mutating func toMarkdown(_ nodes: [XMLNode]?, separator: String = "") {
+            nodes?.forEach {
+                  toMarkdown($0)
+                  out += separator
+            }
       }
-      // FIXME: closure parameters would go here.
 
-    case "CodeListing":
-      lineNumber = 0
-      newlineIfNeeded(count: 2)
-      out += "```\n"
-      toMarkdown(node.children, separator: "\n")
-      out += "```"
+      mutating func toMarkdown(_ node: XMLElement) {
+            switch node.name {
+            case "Declaration":
+                  newlineIfNeeded(count: 2)
+                  out += "```\n"
+                  toMarkdown(node.children)
+                  out += "\n```"
 
-    case "zCodeLineNumbered":
-      lineNumber += 1
-      out += "\(lineNumber).\t"
-      toMarkdown(node.children)
+            case "Name", "USR", "Direction": break
 
-    case "codeVoice":
-      out += "`"
-      toMarkdown(node.children)
-      out += "`"
+            case "Abstract", "Para":
+                  if !inParam { newlineIfNeeded(count: 2) }
+                  toMarkdown(node.children)
 
-    case "emphasis":
-      out += "*"
-      toMarkdown(node.children)
-      out += "*"
+            case "Discussion", "ResultDiscussion", "ThrowsDiscussion":
+                  if !inParam { newlineIfNeeded(count: 2) }
+                  out += "### "
+                  switch node.name {
+                  case "Discussion": out += "Discussion"
+                  case "ResultDiscussion": out += "Returns"
+                  case "ThrowsDiscussion": out += "Throws"
+                  default: fatalError("handled in outer switch")
+                  }
+                  newline(count: 2)
+                  toMarkdown(node.children)
 
-    case "bold":
-      out += "**"
-      toMarkdown(node.children)
-      out += "**"
+            case "Parameters":
+                  newlineIfNeeded(count: 2)
+                  out += "- Parameters:"
+                  indentCount += 1
+                  toMarkdown(node.children)
+                  indentCount -= 1
 
-    case "h1", "h2", "h3", "h4", "h5", "h6":
-      newlineIfNeeded(count: 2)
-      let n = Int(node.name!.dropFirst())
-      out += String(repeating: "#", count: n!)
-      out += " "
-      toMarkdown(node.children)
-      out += "\n\n"
+            case "Parameter":
+                  guard let name = node.elements(forName: "Name").first else {
+                        break
+                  }
+                  newlineIfNeeded()
+                  out += "- "
+                  toMarkdown(name.children)
+                  if let discussion = node.elements(forName: "Discussion").first
+                  {
+                        out += ": "
+                        inParam = true
+                        toMarkdown(discussion.children)
+                        inParam = false
+                  }
+            // FIXME: closure parameters would go here.
 
-    default:
-      toMarkdown(node.children)
-    }
-  }
+            case "CodeListing":
+                  lineNumber = 0
+                  newlineIfNeeded(count: 2)
+                  out += "```\n"
+                  toMarkdown(node.children, separator: "\n")
+                  out += "```"
+
+            case "zCodeLineNumbered":
+                  lineNumber += 1
+                  out += "\(lineNumber).\t"
+                  toMarkdown(node.children)
+
+            case "codeVoice":
+                  out += "`"
+                  toMarkdown(node.children)
+                  out += "`"
+
+            case "emphasis":
+                  out += "*"
+                  toMarkdown(node.children)
+                  out += "*"
+
+            case "bold":
+                  out += "**"
+                  toMarkdown(node.children)
+                  out += "**"
+
+            case "h1", "h2", "h3", "h4", "h5", "h6":
+                  newlineIfNeeded(count: 2)
+                  let n = Int(node.name!.dropFirst())
+                  out += String(repeating: "#", count: n!)
+                  out += " "
+                  toMarkdown(node.children)
+                  out += "\n\n"
+
+            default: toMarkdown(node.children)
+            }
+      }
 }

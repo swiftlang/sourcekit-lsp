@@ -16,12 +16,12 @@
 ///
 /// - Parameter settings: The changed workspace settings.
 public struct DidChangeConfiguration: NotificationType {
-  public static let method: String = "workspace/didChangeConfiguration"
+      public static let method: String = "workspace/didChangeConfiguration"
 
-  /// The changed workspace settings.
-  public var settings: WorkspaceSettingsChange
+      /// The changed workspace settings.
+      public var settings: WorkspaceSettingsChange
 
-  public init(settings: WorkspaceSettingsChange) {
-    self.settings = settings
-  }
+      public init(settings: WorkspaceSettingsChange) {
+            self.settings = settings
+      }
 }

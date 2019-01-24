@@ -16,16 +16,16 @@
 ///   - type: The kind of log message.
 ///   - message: The contents of the message.
 public struct LogMessage: NotificationType, Hashable {
-  public static let method: String = "window/logMessage"
+      public static let method: String = "window/logMessage"
 
-  /// The kind of log message.
-  public var type: WindowMessageType
+      /// The kind of log message.
+      public var type: WindowMessageType
 
-  /// The contents of the message.
-  public var message: String
+      /// The contents of the message.
+      public var message: String
 
-  public init(type: WindowMessageType, message: String) {
-    self.type = type
-    self.message = message
-  }
+      public init(type: WindowMessageType, message: String) {
+            self.type = type
+            self.message = message
+      }
 }

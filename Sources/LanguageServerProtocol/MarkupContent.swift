@@ -10,28 +10,26 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 /// The kind of markup (plaintext or markdown).
 ///
 /// In LSP, this is a string, so we don't use a closed set.
 public struct MarkupKind: RawRepresentable, Codable, Hashable {
-  public var rawValue: String
-  public init(rawValue: String) {
-    self.rawValue = rawValue
-  }
+      public var rawValue: String
+      public init(rawValue: String) { self.rawValue = rawValue }
 
-  public static let plaintext: MarkupKind = MarkupKind(rawValue: "plaintext")
-  public static let markdown: MarkupKind = MarkupKind(rawValue: "markdown")
+      public static let plaintext: MarkupKind = MarkupKind(
+            rawValue: "plaintext")
+      public static let markdown: MarkupKind = MarkupKind(rawValue: "markdown")
 }
 
 public struct MarkupContent: Codable, Hashable {
 
-  public var kind: MarkupKind
+      public var kind: MarkupKind
 
-  public var value: String
+      public var value: String
 
-  public init(kind: MarkupKind, value: String) {
-    self.kind = kind
-    self.value = value
-  }
+      public init(kind: MarkupKind, value: String) {
+            self.kind = kind
+            self.value = value
+      }
 }

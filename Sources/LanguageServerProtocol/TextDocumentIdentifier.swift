@@ -18,17 +18,13 @@ public typealias URL = Foundation.URL
 /// Unique identifier for a document.
 public struct TextDocumentIdentifier: Hashable {
 
-  /// A URL that uniquely identifies the document.
-  public var url: URL
+      /// A URL that uniquely identifies the document.
+      public var url: URL
 
-  public init(_ url: URL) {
-    self.url = url
-  }
+      public init(_ url: URL) { self.url = url }
 }
 
 // Encode using the key "uri" to match LSP.
 extension TextDocumentIdentifier: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case url = "uri"
-  }
+      private enum CodingKeys: String, CodingKey { case url = "uri" }
 }

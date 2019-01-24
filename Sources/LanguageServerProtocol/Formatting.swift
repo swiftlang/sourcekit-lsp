@@ -20,14 +20,14 @@
 ///
 /// - Returns: An array of of text edits describing the formatting changes to the document, if any.
 public struct DocumentFormatting: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/formatting"
-  public typealias Response = [TextEdit]?
+      public static let method: String = "textDocument/formatting"
+      public typealias Response = [TextEdit]?
 
-  /// The document to format.
-  public var textDocument: TextDocumentIdentifier
+      /// The document to format.
+      public var textDocument: TextDocumentIdentifier
 
-  /// Options to customize the formatting.
-  public var options: FormattingOptions
+      /// Options to customize the formatting.
+      public var options: FormattingOptions
 }
 
 /// Request to format a specified range within a document.
@@ -42,17 +42,17 @@ public struct DocumentFormatting: TextDocumentRequest, Hashable {
 ///
 /// - Returns: An array of of text edits describing the formatting changes to the document, if any.
 public struct DocumentRangeFormatting: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/rangeFormatting"
-  public typealias Response = [TextEdit]?
+      public static let method: String = "textDocument/rangeFormatting"
+      public typealias Response = [TextEdit]?
 
-  /// The document in which to perform formatting.
-  public var textDocument: TextDocumentIdentifier
+      /// The document in which to perform formatting.
+      public var textDocument: TextDocumentIdentifier
 
-  /// The range to format within `textDocument`.
-  public var range: PositionRange
+      /// The range to format within `textDocument`.
+      public var range: PositionRange
 
-  /// Options to customize the formatting.
-  public var options: FormattingOptions
+      /// Options to customize the formatting.
+      public var options: FormattingOptions
 }
 
 /// Request to format part of a document during typing.
@@ -72,28 +72,28 @@ public struct DocumentRangeFormatting: TextDocumentRequest, Hashable {
 ///
 /// - Returns: An array of of text edits describing the formatting changes to the document, if any.
 public struct DocumentOnTypeFormatting: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/onTypeFormatting"
-  public typealias Response = [TextEdit]?
+      public static let method: String = "textDocument/onTypeFormatting"
+      public typealias Response = [TextEdit]?
 
-  /// The document in which to perform formatting.
-  public var textDocument: TextDocumentIdentifier
+      /// The document in which to perform formatting.
+      public var textDocument: TextDocumentIdentifier
 
-  /// The position at which the request was sent, which is immediately after the trigger character.
-  public var position: Position
+      /// The position at which the request was sent, which is immediately after the trigger character.
+      public var position: Position
 
-  /// The character that triggered the formatting.
-  public var ch: String
+      /// The character that triggered the formatting.
+      public var ch: String
 
-  /// Options to customize the formatting.
-  public var options: FormattingOptions
+      /// Options to customize the formatting.
+      public var options: FormattingOptions
 }
 
 /// Options to customize how document formatting requests are performed.
 public struct FormattingOptions: Codable, Hashable {
 
-  /// The number of space characters in a tab.
-  public var tabSize: Int
+      /// The number of space characters in a tab.
+      public var tabSize: Int
 
-  /// Whether to use spaces instead of tabs.
-  public var insertSpaces: Bool
+      /// Whether to use spaces instead of tabs.
+      public var insertSpaces: Bool
 }

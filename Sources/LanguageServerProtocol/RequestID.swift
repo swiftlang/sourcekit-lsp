@@ -10,39 +10,40 @@
 //
 //===----------------------------------------------------------------------===//
 
-public enum RequestID: Hashable{
-  case string(String)
-  case number(Int)
+public enum RequestID: Hashable {
+      case string(String)
+      case number(Int)
 }
 
 extension RequestID: Codable {
-  public init(from decoder: Decoder) throws {
-    let value = try decoder.singleValueContainer()
-    if let intValue = try? value.decode(Int.self) {
-      self = .number(intValue)
-    } else if let strValue = try? value.decode(String.self) {
-      self = .string(strValue)
-    } else {
-      throw MessageDecodingError.invalidRequest("could not decode request id")
-    }
-  }
+      public init(from decoder: Decoder) throws {
+            let value = try decoder.singleValueContainer()
+            if let intValue = try? value.decode(Int.self) {
+                  self = .number(intValue)
+            }
+            else if let strValue = try? value.decode(String.self) {
+                  self = .string(strValue)
+            }
+            else {
+                  throw MessageDecodingError.invalidRequest(
+                        "could not decode request id")
+            }
+      }
 
-  public func encode(to encoder: Encoder) throws {
-    var container = encoder.singleValueContainer()
-    switch self {
-    case .string(let value):
-      try container.encode(value)
-    case .number(let value):
-      try container.encode(value)
-    }
-  }
+      public func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            switch self {
+            case .string(let value): try container.encode(value)
+            case .number(let value): try container.encode(value)
+            }
+      }
 }
 
 extension RequestID: CustomStringConvertible {
-  public var description: String {
-    switch self {
-    case .number(let n): return String(n)
-    case .string(let s): return "\"\(s)\""
-    }
-  }
+      public var description: String {
+            switch self {
+            case .number(let n): return String(n)
+            case .string(let s): return "\"\(s)\""
+            }
+      }
 }

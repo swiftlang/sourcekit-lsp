@@ -13,14 +13,13 @@
 /// A linear congruential generator with user-specified seed value. Useful for generating a predictable "random" number sequence.
 public struct SimpleLCG: RandomNumberGenerator {
 
-  var state: UInt64
+      var state: UInt64
 
-  public init(seed: UInt64) {
-    state = seed
-  }
+      public init(seed: UInt64) { state = seed }
 
-  public mutating func next() -> UInt64 {
-    state = state &* 6364136223846793005 &+ 1442695040888963407
-    return state
-  }
+      public mutating func next() -> UInt64 {
+            state = state &* 6_364_136_223_846_793_005
+                  &+ 1_442_695_040_888_963_407
+            return state
+      }
 }

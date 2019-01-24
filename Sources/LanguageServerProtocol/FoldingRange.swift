@@ -21,73 +21,69 @@
 ///
 /// - Returns: A list of folding ranges for the given document.
 public struct FoldingRangeRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/foldingRange"
-  public typealias Response = [FoldingRange]?
+      public static let method: String = "textDocument/foldingRange"
+      public typealias Response = [FoldingRange]?
 
-  public var textDocument: TextDocumentIdentifier
+      public var textDocument: TextDocumentIdentifier
 
-  public init(textDocument: TextDocumentIdentifier) {
-    self.textDocument = textDocument
-  }
+      public init(textDocument: TextDocumentIdentifier) {
+            self.textDocument = textDocument
+      }
 }
 
 /// A single folding range result.
 public struct FoldingRange: ResponseType, Hashable {
 
-  /// The zero-based line number from where the folded range starts.
-  public var startLine: Int
+      /// The zero-based line number from where the folded range starts.
+      public var startLine: Int
 
-  /// The zero-based character offset from where the folded range starts.
-  /// If not defined, defaults to the length of the start line.
-  public var startUTF16Index: Int?
+      /// The zero-based character offset from where the folded range starts.
+      /// If not defined, defaults to the length of the start line.
+      public var startUTF16Index: Int?
 
-  /// The zero-based line number where the folded range ends.
-  public var endLine: Int
+      /// The zero-based line number where the folded range ends.
+      public var endLine: Int
 
-  /// The zero-based character offset before the folded range ends.
-  /// If not defined, defaults to the length of the end line.
-  public var endUTF16Index: Int?
+      /// The zero-based character offset before the folded range ends.
+      /// If not defined, defaults to the length of the end line.
+      public var endUTF16Index: Int?
 
-  /// Describes the kind of the folding range such as `comment' or 'region'. The kind
-  /// is used to categorize folding ranges and used by commands like 'Fold all comments'.
-  public var kind: FoldingRangeKind?
+      /// Describes the kind of the folding range such as `comment' or 'region'. The kind
+      /// is used to categorize folding ranges and used by commands like 'Fold all comments'.
+      public var kind: FoldingRangeKind?
 
-  public init(
-    startLine: Int,
-    startUTF16Index: Int? = nil,
-    endLine: Int,
-    endUTF16Index: Int? = nil,
-    kind: FoldingRangeKind? = nil)
-  {
-    self.startLine = startLine
-    self.startUTF16Index = startUTF16Index
-    self.endLine = endLine
-    self.endUTF16Index = endUTF16Index
-    self.kind = kind
-  }
+      public init(
+            startLine: Int, startUTF16Index: Int? = nil, endLine: Int,
+            endUTF16Index: Int? = nil, kind: FoldingRangeKind? = nil
+      ) {
+            self.startLine = startLine
+            self.startUTF16Index = startUTF16Index
+            self.endLine = endLine
+            self.endUTF16Index = endUTF16Index
+            self.kind = kind
+      }
 }
 
 extension FoldingRange: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case startLine
-    case startUTF16Index = "startCharacter"
-    case endLine
-    case endUTF16Index = "endCharacter"
-    case kind
-  }
+      private enum CodingKeys: String, CodingKey {
+            case startLine
+            case startUTF16Index = "startCharacter"
+            case endLine
+            case endUTF16Index = "endCharacter"
+            case kind
+      }
 }
 
 extension FoldingRange: Comparable {
 
-  public static func <(lhs: FoldingRange, rhs: FoldingRange) -> Bool {
-    return lhs.comparableKey < rhs.comparableKey
-  }
+      public static func < (lhs: FoldingRange, rhs: FoldingRange) -> Bool {
+            return lhs.comparableKey < rhs.comparableKey
+      }
 
-  private var comparableKey: (Int, Int, Int, Int, String) {
-    return (
-      startLine,
-      startUTF16Index ?? Int.max,
-      endLine, endUTF16Index ?? Int.max,
-      kind?.rawValue ?? "")
-  }
+      private var comparableKey: (Int, Int, Int, Int, String) {
+            return (
+                  startLine, startUTF16Index ?? Int.max, endLine,
+                  endUTF16Index ?? Int.max, kind?.rawValue ?? ""
+            )
+      }
 }

@@ -15,20 +15,20 @@
 /// For a location where the document is implied, use `Position` or `Range<Position>`.
 public struct Location: ResponseType, Hashable {
 
-  public var url: URL
+      public var url: URL
 
-  public var range: PositionRange
+      public var range: PositionRange
 
-  public init(url: URL, range: Range<Position>) {
-    self.url = url
-    self.range = PositionRange(range)
-  }
+      public init(url: URL, range: Range<Position>) {
+            self.url = url
+            self.range = PositionRange(range)
+      }
 }
 
 // Encode using the key "uri" to match LSP.
 extension Location: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case url = "uri"
-    case range
-  }
+      private enum CodingKeys: String, CodingKey {
+            case url = "uri"
+            case range
+      }
 }

@@ -23,12 +23,12 @@
 ///
 /// - Returns: The location of the definition(s).
 public struct DefinitionRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/definition"
-  public typealias Response = [Location]
+      public static let method: String = "textDocument/definition"
+      public typealias Response = [Location]
 
-  /// The document in which to lookup the symbol location.
-  public var textDocument: TextDocumentIdentifier
+      /// The document in which to lookup the symbol location.
+      public var textDocument: TextDocumentIdentifier
 
-  /// The document location at which to lookup symbol information.
-  public var position: Position
+      /// The document location at which to lookup symbol information.
+      public var position: Position
 }

@@ -10,27 +10,25 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKit
-import LanguageServerProtocolJSONRPC
+import Dispatch
 import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
 import SKSupport
 import SPMLibc
-import Dispatch
-import sourcekitd // Not needed here, but fixes debugging...
+import SourceKit
+import sourcekitd  // Not needed here, but fixes debugging...
 
 Logger.shared.setLogLevel(environmentVariable: "SOURCEKIT_LOGGING")
 
-let clientConnection = JSONRPCConection(inFD: STDIN_FILENO, outFD: STDOUT_FILENO, closeHandler: {
-  exit(0)
-})
+let clientConnection = JSONRPCConection(
+      inFD: STDIN_FILENO, outFD: STDOUT_FILENO, closeHandler: { exit(0) })
 
 Logger.shared.addLogHandler { message, _ in
-  clientConnection.send(LogMessage(type: .log, message: message))
+      clientConnection.send(LogMessage(type: .log, message: message))
 }
 
-let server = SourceKitServer(client: clientConnection, onExit: {
-  clientConnection.close()
-})
+let server = SourceKitServer(
+      client: clientConnection, onExit: { clientConnection.close() })
 clientConnection.start(receiveHandler: server)
 
 dispatchMain()

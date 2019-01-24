@@ -15,14 +15,16 @@
 /// For an edit where the document is implied, use `TextEdit`.
 public struct TextDocumentEdit: Hashable, Codable {
 
-  /// The potentially versioned document to which these edits apply.
-  public var textDocument: VersionedTextDocumentIdentifier
+      /// The potentially versioned document to which these edits apply.
+      public var textDocument: VersionedTextDocumentIdentifier
 
-  /// The edits to be applied, which must be non-overlapping.
-  public var edits: [TextEdit]
+      /// The edits to be applied, which must be non-overlapping.
+      public var edits: [TextEdit]
 
-  public init(textDocument: VersionedTextDocumentIdentifier, edits: [TextEdit]) {
-    self.textDocument = textDocument
-    self.edits = edits
-  }
+      public init(
+            textDocument: VersionedTextDocumentIdentifier, edits: [TextEdit]
+      ) {
+            self.textDocument = textDocument
+            self.edits = edits
+      }
 }

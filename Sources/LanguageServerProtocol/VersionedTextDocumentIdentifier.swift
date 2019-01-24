@@ -15,22 +15,22 @@
 /// Notionally a subtype of `TextDocumentIdentifier`.
 public struct VersionedTextDocumentIdentifier: Hashable {
 
-  /// A URL that uniquely identifies the document.
-  public var url: URL
+      /// A URL that uniquely identifies the document.
+      public var url: URL
 
-  /// The version number of this document, or nil if unknown.
-  public var version: Int?
+      /// The version number of this document, or nil if unknown.
+      public var version: Int?
 
-  public init(_ url: URL, version: Int?) {
-    self.url = url
-    self.version = version
-  }
+      public init(_ url: URL, version: Int?) {
+            self.url = url
+            self.version = version
+      }
 }
 
 // Encode using the key "uri" to match LSP.
 extension VersionedTextDocumentIdentifier: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case url = "uri"
-    case version
-  }
+      private enum CodingKeys: String, CodingKey {
+            case url = "uri"
+            case version
+      }
 }

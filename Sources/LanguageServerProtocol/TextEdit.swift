@@ -13,14 +13,14 @@
 /// Edit to a text document, replacing the contents of `range` with `text`.
 public struct TextEdit: ResponseType, Hashable {
 
-  /// The range of text to be replaced.
-  var range: PositionRange
+      /// The range of text to be replaced.
+      var range: PositionRange
 
-  /// The new text.
-  var newText: String
+      /// The new text.
+      var newText: String
 
-  public init(range: Range<Position>, newText: String) {
-    self.range = PositionRange(range)
-    self.newText = newText
-  }
+      public init(range: Range<Position>, newText: String) {
+            self.range = PositionRange(range)
+            self.newText = newText
+      }
 }

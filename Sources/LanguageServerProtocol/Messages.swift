@@ -18,22 +18,15 @@ import Basic
 /// If you are adding a message for testing only, you can register it dynamically using
 /// `MessageRegistry._register()` which allows you to avoid bloating the real server implementation.
 public let builtinRequests: [_RequestType.Type] = [
-  InitializeRequest.self,
-  Shutdown.self,
-  WorkspaceFoldersRequest.self,
-  CompletionRequest.self,
-  HoverRequest.self,
-  DefinitionRequest.self,
-  ReferencesRequest.self,
-  DocumentHighlightRequest.self,
-  DocumentFormatting.self,
-  DocumentRangeFormatting.self,
-  DocumentOnTypeFormatting.self,
-  FoldingRangeRequest.self,
+      InitializeRequest.self, Shutdown.self, WorkspaceFoldersRequest.self,
+      CompletionRequest.self, HoverRequest.self, DefinitionRequest.self,
+      ReferencesRequest.self, DocumentHighlightRequest.self,
+      DocumentFormatting.self, DocumentRangeFormatting.self,
+      DocumentOnTypeFormatting.self, FoldingRangeRequest.self,
 
-  // MARK: LSP Extension Requests
+      // MARK: LSP Extension Requests
 
-  SymbolInfoRequest.self,
+      SymbolInfoRequest.self,
 ]
 
 /// The set of known notifications.
@@ -42,25 +35,17 @@ public let builtinRequests: [_RequestType.Type] = [
 /// here. If you are adding a message for testing only, you can register it dynamically using
 /// `MessageRegistry._register()` which allows you to avoid bloating the real server implementation.
 public let builtinNotifications: [NotificationType.Type] = [
-  InitializedNotification.self,
-  Exit.self,
-  CancelRequest.self,
-  LogMessage.self,
-  DidChangeConfiguration.self,
-  DidChangeWorkspaceFolders.self,
-  DidOpenTextDocument.self,
-  DidCloseTextDocument.self,
-  DidChangeTextDocument.self,
-  DidSaveTextDocument.self,
-  WillSaveTextDocument.self,
-  PublishDiagnostics.self,
+      InitializedNotification.self, Exit.self, CancelRequest.self,
+      LogMessage.self, DidChangeConfiguration.self,
+      DidChangeWorkspaceFolders.self, DidOpenTextDocument.self,
+      DidCloseTextDocument.self, DidChangeTextDocument.self,
+      DidSaveTextDocument.self, WillSaveTextDocument.self,
+      PublishDiagnostics.self,
 ]
 
 // MARK: Miscellaneous Message Types
 
-public struct VoidResponse: ResponseType, Hashable {
-  public init() {}
-}
+public struct VoidResponse: ResponseType, Hashable { public init() {} }
 
 extension Optional: MessageType where Wrapped: MessageType {}
 extension Optional: ResponseType where Wrapped: ResponseType {}

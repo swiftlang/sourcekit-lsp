@@ -27,14 +27,14 @@
 ///
 /// - Parameter textDocument: The document identifier and initial contents.
 public struct DidOpenTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/didOpen"
+      public static let method: String = "textDocument/didOpen"
 
-  /// The document identifier and initial contents.
-  public var textDocument: TextDocumentItem
+      /// The document identifier and initial contents.
+      public var textDocument: TextDocumentItem
 
-  public init(textDocument: TextDocumentItem) {
-    self.textDocument = textDocument
-  }
+      public init(textDocument: TextDocumentItem) {
+            self.textDocument = textDocument
+      }
 }
 
 /// Notification that the given document is closed and no longer managed by the text synchronization
@@ -45,10 +45,10 @@ public struct DidOpenTextDocument: NotificationType, Hashable {
 ///
 /// - Parameter textDocument: The document to close, which must be currently open.
 public struct DidCloseTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/didClose"
+      public static let method: String = "textDocument/didClose"
 
-  /// The document to close, which must be currently open.
-  public var textDocument: TextDocumentIdentifier
+      /// The document to close, which must be currently open.
+      public var textDocument: TextDocumentIdentifier
 }
 
 /// Notification that the contents of the given document have been changed.
@@ -62,21 +62,21 @@ public struct DidCloseTextDocument: NotificationType, Hashable {
 ///   - textDocument: The document to change and its current version identifier.
 ///   - contentChanges: Edits to the document.
 public struct DidChangeTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/didChange"
+      public static let method: String = "textDocument/didChange"
 
-  /// The document to change and its current version identifier.
-  public var textDocument: VersionedTextDocumentIdentifier
+      /// The document to change and its current version identifier.
+      public var textDocument: VersionedTextDocumentIdentifier
 
-  /// Edits to the document.
-  public var contentChanges: [TextDocumentContentChangeEvent]
+      /// Edits to the document.
+      public var contentChanges: [TextDocumentContentChangeEvent]
 
-  public init(
-    textDocument: VersionedTextDocumentIdentifier,
-    contentChanges: [TextDocumentContentChangeEvent])
-  {
-    self.textDocument = textDocument
-    self.contentChanges = contentChanges
-  }
+      public init(
+            textDocument: VersionedTextDocumentIdentifier,
+            contentChanges: [TextDocumentContentChangeEvent]
+      ) {
+            self.textDocument = textDocument
+            self.contentChanges = contentChanges
+      }
 }
 
 /// Notification that the given document will be saved.
@@ -87,13 +87,13 @@ public struct DidChangeTextDocument: NotificationType, Hashable {
 ///
 /// Servers that support willSave should set the `willSave` text document sync option.
 public struct WillSaveTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/willSave"
+      public static let method: String = "textDocument/willSave"
 
-  /// The document that will be saved.
-  public var textDocument: TextDocumentIdentifier
+      /// The document that will be saved.
+      public var textDocument: TextDocumentIdentifier
 
-  /// Whether this is user-initiated save, auto-saved, etc.
-  public var reason: TextDocumentSaveReason
+      /// Whether this is user-initiated save, auto-saved, etc.
+      public var reason: TextDocumentSaveReason
 }
 
 /// Notification that the given document was saved.
@@ -104,13 +104,13 @@ public struct WillSaveTextDocument: NotificationType, Hashable {
 ///
 /// Servers that support didSave should set the `save` text document sync option.
 public struct DidSaveTextDocument: NotificationType, Hashable {
-  public static let method: String = "textDocument/didSave"
+      public static let method: String = "textDocument/didSave"
 
-  /// The document that was saved.
-  public var textDocument: TextDocumentIdentifier
+      /// The document that was saved.
+      public var textDocument: TextDocumentIdentifier
 
-  /// The content of the document at the time of save.
-  ///
-  /// Only provided if the server specified `includeText == true`.
-  public var text: String?
+      /// The content of the document at the time of save.
+      ///
+      /// Only provided if the server specified `includeText == true`.
+      public var text: String?
 }

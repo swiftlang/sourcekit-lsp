@@ -30,63 +30,61 @@
 /// This request is an extension to LSP supported by SourceKit-LSP and clangd. It does *not* require
 /// any additional client or server capabilities to use.
 public struct SymbolInfoRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "textDocument/symbolInfo"
-  public typealias Response = [SymbolDetails]
+      public static let method: String = "textDocument/symbolInfo"
+      public typealias Response = [SymbolDetails]
 
-  /// The document in which to lookup the symbol location.
-  public var textDocument: TextDocumentIdentifier
+      /// The document in which to lookup the symbol location.
+      public var textDocument: TextDocumentIdentifier
 
-  /// The document location at which to lookup symbol information.
-  public var position: Position
+      /// The document location at which to lookup symbol information.
+      public var position: Position
 
-  public init(textDocument: TextDocumentIdentifier, position: Position) {
-    self.textDocument = textDocument
-    self.position = position
-  }
+      public init(textDocument: TextDocumentIdentifier, position: Position) {
+            self.textDocument = textDocument
+            self.position = position
+      }
 }
 
 /// Detailed information about a symbol, such as the response to a `SymbolInfoRequest`
 /// **(LSP Extension)**.
 public struct SymbolDetails: ResponseType, Hashable {
 
-  /// The name of the symbol, if any.
-  public var name: String?
+      /// The name of the symbol, if any.
+      public var name: String?
 
-  /// The name of the containing type for the symbol, if any.
-  ///
-  /// For example, in the following snippet, the `containerName` of `foo()` is `C`.
-  ///
-  /// ```c++
-  /// class C {
-  ///   void foo() {}
-  /// }
-  /// ```
-  public var containerName: String?
+      /// The name of the containing type for the symbol, if any.
+      ///
+      /// For example, in the following snippet, the `containerName` of `foo()` is `C`.
+      ///
+      /// ```c++
+      /// class C {
+      ///   void foo() {}
+      /// }
+      /// ```
+      public var containerName: String?
 
-  /// The USR of the symbol, if any.
-  public var usr: String?
+      /// The USR of the symbol, if any.
+      public var usr: String?
 
-  /// An opaque identifier in a format known only to clangd.
-  // public var id: String?
+      /// An opaque identifier in a format known only to clangd.
+      // public var id: String?
 
-  /// Best known declaration or definition location without global knowledge.
-  ///
-  /// For a local or private variable, this is generally the canonical definition location -
-  /// appropriate as a response to a `textDocument/definition` request. For global symbols this is
-  /// the best known location within a single compilation unit. For example, in C++ this might be
-  /// the declaration location from a header as opposed to the definition in some other
-  /// translation unit.
-  public var bestLocalDeclaration: Location? = nil
+      /// Best known declaration or definition location without global knowledge.
+      ///
+      /// For a local or private variable, this is generally the canonical definition location -
+      /// appropriate as a response to a `textDocument/definition` request. For global symbols this is
+      /// the best known location within a single compilation unit. For example, in C++ this might be
+      /// the declaration location from a header as opposed to the definition in some other
+      /// translation unit.
+      public var bestLocalDeclaration: Location? = nil
 
-  public init(
-    name: String?,
-    containerName: String? = nil,
-    usr: String?,
-    bestLocalDeclaration: Location? = nil)
-  {
-    self.name = name
-    self.containerName = containerName
-    self.usr = usr
-    self.bestLocalDeclaration = bestLocalDeclaration
-  }
+      public init(
+            name: String?, containerName: String? = nil, usr: String?,
+            bestLocalDeclaration: Location? = nil
+      ) {
+            self.name = name
+            self.containerName = containerName
+            self.usr = usr
+            self.bestLocalDeclaration = bestLocalDeclaration
+      }
 }

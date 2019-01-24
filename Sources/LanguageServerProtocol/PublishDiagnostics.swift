@@ -25,23 +25,23 @@
 ///   - url: The document in which the diagnostics should be shown.
 ///   - diagnostics: The complete list of diagnostics in the document, if any.
 public struct PublishDiagnostics: NotificationType, Hashable {
-  public static let method: String = "textDocument/publishDiagnostics"
+      public static let method: String = "textDocument/publishDiagnostics"
 
-  /// The document in which the diagnostics should be shown.
-  public var url: URL
+      /// The document in which the diagnostics should be shown.
+      public var url: URL
 
-  /// The complete list of diagnostics in the document, if any.
-  public var diagnostics: [Diagnostic]
+      /// The complete list of diagnostics in the document, if any.
+      public var diagnostics: [Diagnostic]
 
-  public init(url: URL, diagnostics: [Diagnostic]) {
-    self.url = url
-    self.diagnostics = diagnostics
-  }
+      public init(url: URL, diagnostics: [Diagnostic]) {
+            self.url = url
+            self.diagnostics = diagnostics
+      }
 }
 
 extension PublishDiagnostics: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case url = "uri"
-    case diagnostics
-  }
+      private enum CodingKeys: String, CodingKey {
+            case url = "uri"
+            case diagnostics
+      }
 }

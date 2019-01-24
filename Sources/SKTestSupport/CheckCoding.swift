@@ -17,82 +17,92 @@ import XCTest
 ///
 /// - parameter value: The value to encode/decode.
 /// - parameter json: The expected json encoding.
-public func checkCoding<T>(_ value: T, json: String, file: StaticString = #file, line: UInt = #line) where T: Codable & Equatable {
-  let encoder = JSONEncoder()
-  encoder.outputFormatting.insert(.prettyPrinted)
-  if #available(macOS 10.13, *) {
-   encoder.outputFormatting.insert(.sortedKeys)
-  }
-  let data = try! encoder.encode(WrapFragment(value: value))
-  let wrappedStr = String(data: data, encoding: .utf8)!
+public func checkCoding<T>(
+      _ value: T, json: String, file: StaticString = #file, line: UInt = #line
+) where T: Codable & Equatable {
+      let encoder = JSONEncoder()
+      encoder.outputFormatting.insert(.prettyPrinted)
+      if #available(macOS 10.13, *) {
+       encoder.outputFormatting.insert(.sortedKeys)
+      }
+      let data = try! encoder.encode(WrapFragment(value: value))
+      let wrappedStr = String(data: data, encoding: .utf8)!
 
-  /// Strip off WrapFragment encoding `{"value":}` and extra indentation.
-  let pre = "{\n  \"value\" : "
-  let suff = "\n}"
-  XCTAssert(wrappedStr.hasPrefix(pre))
-  XCTAssert(wrappedStr.hasSuffix(suff))
-  let str = String(wrappedStr.dropFirst(pre.count).dropLast(suff.count))
-    // Remove extra indentation
-    .replacingOccurrences(of: "\n  ", with: "\n")
-    // Remove trailing whitespace to normalize between corelibs and Apple Foundation.
-    .trimmingTrailingWhitespace()
+      /// Strip off WrapFragment encoding `{"value":}` and extra indentation.
+      let pre = "{\n  \"value\" : "
+      let suff = "\n}"
+      XCTAssert(wrappedStr.hasPrefix(pre))
+      XCTAssert(wrappedStr.hasSuffix(suff))
+      let str = String(
+            wrappedStr.dropFirst(pre.count).dropLast(suff.count))// Remove extra indentation
+      .replacingOccurrences(
+            of: "\n  ", with: "\n")// Remove trailing whitespace to normalize between corelibs and Apple Foundation.
+      .trimmingTrailingWhitespace()
 
-  // Requires sortedKeys. Silently drop the check if it's not available.
-  if #available(macOS 10.13, *) {
-    XCTAssertEqual(json, str, file: file, line: line)
-  }
+      // Requires sortedKeys. Silently drop the check if it's not available.
+      if #available(macOS 10.13, *) {
+        XCTAssertEqual(json, str, file: file, line: line)
+      }
 
-  let decoder = JSONDecoder()
-  let decodedValue = try! decoder.decode(WrapFragment<T>.self, from: data).value
+      let decoder = JSONDecoder()
+      let decodedValue = try! decoder.decode(
+            WrapFragment<T>.self, from: data).value
 
-  XCTAssertEqual(value, decodedValue, file: file, line: line)
+      XCTAssertEqual(value, decodedValue, file: file, line: line)
 }
 
 /// JSONEncoder requires the top-level value to be encoded as a JSON container (array or object). Give it one.
-private struct WrapFragment<T>: Equatable, Codable where T: Equatable & Codable {
-  var value: T
-}
+private struct WrapFragment<T>: Equatable, Codable
+where T: Equatable & Codable { var value: T }
 
 /// Checks that decoding the given string is equal to the expected value.
 ///
 /// - parameter value: The value to encode/decode.
 /// - parameter json: The expected json encoding.
-public func checkDecoding<T>(json: String, expected value: T, file: StaticString = #file, line: UInt = #line) where T: Codable & Equatable {
+public func checkDecoding<T>(
+      json: String, expected value: T, file: StaticString = #file,
+      line: UInt = #line
+) where T: Codable & Equatable {
 
-  let wrappedStr = "{\"value\":\(json)}"
-  let data = wrappedStr.data(using: .utf8)!
-  let decoder = JSONDecoder()
-  let decodedValue = try! decoder.decode(WrapFragment<T>.self, from: data).value
+      let wrappedStr = "{\"value\":\(json)}"
+      let data = wrappedStr.data(using: .utf8)!
+      let decoder = JSONDecoder()
+      let decodedValue = try! decoder.decode(
+            WrapFragment<T>.self, from: data).value
 
-  XCTAssertEqual(value, decodedValue, file: file, line: line)
+      XCTAssertEqual(value, decodedValue, file: file, line: line)
 }
 
-public func checkCoding<T>(_ value: T, json: String, userInfo: [CodingUserInfoKey: Any] = [:], file: StaticString = #file, line: UInt = #line, body: (T) -> Void) where T: Codable {
-  let encoder = JSONEncoder()
-  encoder.outputFormatting.insert(.prettyPrinted)
-  if #available(macOS 10.13, *) {
-   encoder.outputFormatting.insert(.sortedKeys)
-  }
-  let data = try! encoder.encode(value)
-  let str = String(data: data, encoding: .utf8)!
-    // Remove trailing whitespace to normalize between corelibs and Apple Foundation.
-    .trimmingTrailingWhitespace()
+public func checkCoding<T>(
+      _ value: T, json: String, userInfo: [CodingUserInfoKey: Any] = [:],
+      file: StaticString = #file, line: UInt = #line, body: (T) -> Void
+) where T: Codable {
+      let encoder = JSONEncoder()
+      encoder.outputFormatting.insert(.prettyPrinted)
+      if #available(macOS 10.13, *) {
+       encoder.outputFormatting.insert(.sortedKeys)
+      }
+      let data = try! encoder.encode(value)
+      let str = String(
+            data: data, encoding: .utf8)!// Remove trailing whitespace to normalize between corelibs and Apple Foundation.
+      .trimmingTrailingWhitespace()
 
-  // Requires sortedKeys. Silently drop the check if it's not available.
-  if #available(macOS 10.13, *) {
-    XCTAssertEqual(json, str, file: file, line: line)
-  }
+      // Requires sortedKeys. Silently drop the check if it's not available.
+      if #available(macOS 10.13, *) {
+        XCTAssertEqual(json, str, file: file, line: line)
+      }
 
-  let decoder = JSONDecoder()
-  decoder.userInfo = userInfo
-  let decodedValue = try! decoder.decode(T.self, from: data)
+      let decoder = JSONDecoder()
+      decoder.userInfo = userInfo
+      let decodedValue = try! decoder.decode(T.self, from: data)
 
-  body(decodedValue)
+      body(decodedValue)
 }
 
 extension String {
-  // This is fileprivate because the implementation is really slow; to use it outside a test it should be optimized.
-  fileprivate func trimmingTrailingWhitespace() -> String {
-    return self.replacingOccurrences(of: "[ ]+\\n", with: "\n", options: .regularExpression)
-  }
+      // This is fileprivate because the implementation is really slow; to use it outside a test it should be optimized.
+      fileprivate func trimmingTrailingWhitespace() -> String {
+            return self.replacingOccurrences(
+                  of: "[ ]+\\n", with: "\n", options: .regularExpression)
+      }
 }

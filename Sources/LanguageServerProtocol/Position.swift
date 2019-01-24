@@ -13,27 +13,27 @@
 /// Position within a text document, expressed as a zero-based line and column (utf-16 code unit offset).
 public struct Position: Hashable {
 
-  /// Line number within a document (zero-based).
-  public var line: Int
+      /// Line number within a document (zero-based).
+      public var line: Int
 
-  /// UTF-16 code-unit offset from the start of a line (zero-based).
-  public var utf16index: Int
+      /// UTF-16 code-unit offset from the start of a line (zero-based).
+      public var utf16index: Int
 
-  public init(line: Int, utf16index: Int) {
-    self.line = line
-    self.utf16index = utf16index
-  }
+      public init(line: Int, utf16index: Int) {
+            self.line = line
+            self.utf16index = utf16index
+      }
 }
 
 extension Position: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case line
-    case utf16index = "character"
-  }
+      private enum CodingKeys: String, CodingKey {
+            case line
+            case utf16index = "character"
+      }
 }
 
 extension Position: Comparable {
-  public static func < (lhs: Position, rhs: Position) -> Bool {
-    return (lhs.line, lhs.utf16index) < (rhs.line, rhs.utf16index)
-  }
+      public static func < (lhs: Position, rhs: Position) -> Bool {
+            return (lhs.line, lhs.utf16index) < (rhs.line, rhs.utf16index)
+      }
 }
