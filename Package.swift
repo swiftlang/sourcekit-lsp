@@ -82,6 +82,6 @@ let package = Package(
         dependencies: ["SwiftPM"]),
       .testTarget(
         name: "SKSupportTests",
-        dependencies: ["SKSupport"]),
+        dependencies: ["SKSupport", "SKTestSupport"]),
     ]
 )

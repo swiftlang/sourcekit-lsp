@@ -15,7 +15,7 @@ import LanguageServerProtocolJSONRPC
 import SKTestSupport
 import XCTest
 
-class ConnectionPerfTests: XCTestCase {
+class ConnectionPerfTests: PerfTestCase {
 
   var connection: TestJSONRPCConnection! = nil
 
