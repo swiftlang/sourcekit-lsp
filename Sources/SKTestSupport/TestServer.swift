@@ -11,6 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import SKSupport
+import SKCore
+import Utility
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SourceKit
@@ -32,6 +34,10 @@ public struct TestSourceKitServer {
       serverConnection: JSONRPCConection)
   }
 
+  public static let buildSetup: BuildSetup = BuildSetup(configuration: .debug,
+                                                        path: ".build",
+                                                        flags: BuildFlags())
+
   public let client: TestClient
   let connImpl: ConnectionImpl
 
@@ -46,7 +52,7 @@ public struct TestSourceKitServer {
         let clientConnection = LocalConnection()
         let serverConnection = LocalConnection()
         client = TestClient(server: serverConnection)
-        server = SourceKitServer(client: clientConnection, onExit: {
+        server = SourceKitServer(client: clientConnection, buildSetup: TestSourceKitServer.buildSetup, onExit: {
           clientConnection.close()
         })
 
@@ -74,7 +80,7 @@ public struct TestSourceKitServer {
         )
 
         client = TestClient(server: clientConnection)
-        server = SourceKitServer(client: serverConnection, onExit: {
+        server = SourceKitServer(client: serverConnection, buildSetup: TestSourceKitServer.buildSetup, onExit: {
           serverConnection.close()
         })
 

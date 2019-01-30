@@ -12,6 +12,7 @@
 
 import Basic
 import Foundation
+import Utility
 
 #if canImport(os)
 import os // os_log
@@ -24,6 +25,45 @@ public enum LogLevel: Int, Equatable {
   case debug = 3
 
   public static let `default`: LogLevel = .info
+}
+
+extension LogLevel: CustomStringConvertible {
+
+  public var description: String {
+    switch self {
+    case .error:
+      return "error"
+    case .warning:
+      return "warning"
+    case .info:
+      return "info"
+    case .debug:
+      return "debug"
+    }
+  }
+}
+
+extension LogLevel: ArgumentKind {
+
+  public init(argument: String) throws {
+    switch argument {
+    case "error":
+      self = .error
+    case "warning":
+      self = .warning
+    case "info":
+      self = .info
+    case "debug":
+      self = .debug
+    default:
+      self = LogLevel.default
+    }
+  }
+
+  /// Type of shell completion to provide for this argument.
+  public static var completion: ShellCompletion {
+    return ShellCompletion.none
+  }
 }
 
 /// Log the given message.

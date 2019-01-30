@@ -15,6 +15,7 @@ import SKCore
 import SKSupport
 import IndexStoreDB
 import Basic
+import Utility
 import SKSwiftPMWorkspace
 
 /// Represents the configuration and sate of a project or combination of projects being worked on
@@ -34,6 +35,9 @@ public final class Workspace {
   /// The build settings provider to use for documents in this workspace.
   public let buildSettings: BuildSystem
 
+  /// Build setup
+  public let buildSetup: BuildSetup
+
   /// The source code index, if available.
   public var index: IndexStoreDB? = nil
 
@@ -47,12 +51,14 @@ public final class Workspace {
     rootPath: AbsolutePath?,
     clientCapabilities: ClientCapabilities,
     buildSettings: BuildSystem,
-    index: IndexStoreDB?)
+    index: IndexStoreDB?,
+    buildSetup: BuildSetup)
   {
     self.rootPath = rootPath
     self.clientCapabilities = clientCapabilities
     self.buildSettings = buildSettings
     self.index = index
+    self.buildSetup = buildSetup
   }
 
   /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
@@ -64,8 +70,11 @@ public final class Workspace {
   public init(
     url: URL,
     clientCapabilities: ClientCapabilities,
-    toolchainRegistry: ToolchainRegistry
+    toolchainRegistry: ToolchainRegistry,
+    buildSetup: BuildSetup
   ) throws {
+
+    self.buildSetup = buildSetup
 
     self.rootPath = try AbsolutePath(validating: url.path)
     self.clientCapabilities = clientCapabilities
@@ -74,7 +83,10 @@ public final class Workspace {
 
     settings.providers.insert(CompilationDatabaseBuildSystem(projectRoot: rootPath), at: 0)
 
-    if let swiftpm = SwiftPMWorkspace(url: url, toolchainRegistry: toolchainRegistry) {
+    if let swiftpm = SwiftPMWorkspace(url: url,
+                                      toolchainRegistry: toolchainRegistry,
+                                      buildSetup: buildSetup
+      ) {
       settings.providers.insert(swiftpm, at: 0)
     }
 

@@ -15,8 +15,12 @@ import SKCore
 import SKSupport
 import IndexStoreDB
 import Basic
+import Utility
 import Dispatch
+import Foundation
 import SPMLibc
+
+public typealias URL = Foundation.URL
 
 /// The SourceKit language server.
 ///
@@ -30,6 +34,8 @@ public final class SourceKitServer: LanguageServer {
     var language: Language
   }
 
+  let buildSetup: BuildSetup
+
   let toolchainRegistry: ToolchainRegistry
 
   var languageService: [LanguageServiceKey: Connection] = [:]
@@ -41,10 +47,11 @@ public final class SourceKitServer: LanguageServer {
   let onExit: () -> Void
 
   /// Creates a language server for the given client.
-  public init(client: Connection, fileSystem: FileSystem = localFileSystem, onExit: @escaping () -> Void = {}) {
+  public init(client: Connection, fileSystem: FileSystem = localFileSystem, buildSetup: BuildSetup, onExit: @escaping () -> Void = {}) {
 
     self.fs = fileSystem
     self.toolchainRegistry = ToolchainRegistry.shared
+    self.buildSetup = buildSetup
     self.onExit = onExit
 
     super.init(client: client)
@@ -212,14 +219,14 @@ extension SourceKitServer {
       self.workspace = try? Workspace(
         url: url,
         clientCapabilities: req.params.capabilities,
-        toolchainRegistry: toolchainRegistry
-      )
+        toolchainRegistry: self.toolchainRegistry,
+        buildSetup: self.buildSetup)
     } else if let path = req.params.rootPath {
       self.workspace = try? Workspace(
         url: URL(fileURLWithPath: path),
         clientCapabilities: req.params.capabilities,
-        toolchainRegistry: toolchainRegistry
-      )
+        toolchainRegistry: self.toolchainRegistry,
+        buildSetup: self.buildSetup)
     }
 
     if self.workspace == nil {
@@ -229,7 +236,8 @@ extension SourceKitServer {
         rootPath: nil,
         clientCapabilities: req.params.capabilities,
         buildSettings: BuildSystemList(),
-        index: nil
+        index: nil,
+        buildSetup: self.buildSetup
       )
     }
 
