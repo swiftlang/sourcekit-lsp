@@ -21,7 +21,7 @@ import Utility
 import Foundation
 import sourcekitd // Not needed here, but fixes debugging...
 
-func parseConfigurationArguments() throws -> BuildSetup {
+func parseArguments() throws -> BuildSetup {
   let arguments = Array(ProcessInfo.processInfo.arguments.dropFirst())
   let parser = ArgumentParser(usage: "[options]", overview: "Language Server Protocol implementation for Swift and C-based languages")
   let loggingOption = parser.add(option: "--log-level", kind: LogLevel.self, usage: "Set the logging level (debug|info|warning|error) [default: \(LogLevel.default)]")
@@ -59,15 +59,17 @@ Logger.shared.addLogHandler { message, _ in
   clientConnection.send(LogMessage(type: .log, message: message))
 }
 
-
-guard let parsedBuildSetup = orLog(level: .error, { try parseConfigurationArguments() }) else {
-  exit(1)
+let buildSetup: BuildSetup
+do {
+    buildSetup = try parseArguments()
+} catch {
+    fputs("error: \(error)\n", SPMLibc.stderr)
+    exit(1)
 }
 
-let server = SourceKitServer(client: clientConnection, buildSetup: parsedBuildSetup, onExit: {
+let server = SourceKitServer(client: clientConnection, buildSetup: buildSetup, onExit: {
     clientConnection.close()
 })
 clientConnection.start(receiveHandler: server)
-
 
 dispatchMain()
