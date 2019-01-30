@@ -61,14 +61,14 @@ Logger.shared.addLogHandler { message, _ in
 
 let buildSetup: BuildSetup
 do {
-    buildSetup = try parseArguments()
+  buildSetup = try parseArguments()
 } catch {
-    fputs("error: \(error)\n", SPMLibc.stderr)
-    exit(1)
+  fputs("error: \(error)\n", SPMLibc.stderr)
+  exit(1)
 }
 
 let server = SourceKitServer(client: clientConnection, buildSetup: buildSetup, onExit: {
-    clientConnection.close()
+  clientConnection.close()
 })
 clientConnection.start(receiveHandler: server)
 
