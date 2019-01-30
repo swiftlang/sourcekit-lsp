@@ -259,9 +259,9 @@ extension SourceKitServer {
                                  buildSetup: self.buildSetup)
     } else if let path = req.params.rootPath {
       workspace = try? Workspace(url: URL(fileURLWithPath: path),
-                                        clientCapabilities: req.params.capabilities,
-        toolchainRegistry: self.toolchainRegistry,
-        buildSetup: self.buildSetup)
+                                 clientCapabilities: req.params.capabilities,
+                                 toolchainRegistry: self.toolchainRegistry,
+                                 buildSetup: self.buildSetup)
     }
 
     if let workspace = workspace {
