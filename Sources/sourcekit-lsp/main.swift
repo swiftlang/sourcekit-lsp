@@ -27,10 +27,10 @@ func parseConfigurationArguments() throws -> BuildSetup {
   let loggingOption = parser.add(option: "--log-level", kind: LogLevel.self, usage: "Set the logging level (debug|info|warning|error) [default: \(LogLevel.default)]")
   let buildConfigurationOption = parser.add(option: "--configuration", shortName: "-c", kind: BuildConfiguration.self, usage: "Build with configuration (debug|release) [default: debug]")
   let buildPathOption = parser.add(option: "--build-path", kind: String.self, usage: "Specify build/cache directory [default: ./.build]")
-  let buildFlagsCc = parser.add(option: "-Xcc", kind: [String].self, usage: "Pass flag through to all C compiler invocations")
-  let buildFlagsCxx = parser.add(option: "-Xcxx", kind: [String].self, usage: "Pass flag through to all C++ compiler invocations")
-  let buildFlagsLinker = parser.add(option: "-Xlinker", kind: [String].self, usage: "Pass flag through to all linker invocations")
-  let buildFlagsSwift = parser.add(option: "-Xswiftc", kind: [String].self, usage: "Pass flag through to all Swift compiler invocations")
+  let buildFlagsCc = parser.add(option: "-Xcc", kind: [String].self, strategy: .oneByOne, usage: "Pass flag through to all C compiler invocations")
+  let buildFlagsCxx = parser.add(option: "-Xcxx", kind: [String].self, strategy: .oneByOne, usage: "Pass flag through to all C++ compiler invocations")
+  let buildFlagsLinker = parser.add(option: "-Xlinker", kind: [String].self, strategy: .oneByOne, usage: "Pass flag through to all linker invocations")
+  let buildFlagsSwift = parser.add(option: "-Xswiftc", kind: [String].self, strategy: .oneByOne, usage: "Pass flag through to all Swift compiler invocations")
 
   let parsedArguments = try parser.parse(arguments)
 
