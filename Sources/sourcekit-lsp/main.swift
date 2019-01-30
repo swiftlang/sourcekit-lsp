@@ -59,9 +59,15 @@ Logger.shared.addLogHandler { message, _ in
   clientConnection.send(LogMessage(type: .log, message: message))
 }
 
-let server = SourceKitServer(client: clientConnection, buildSetup: try parseConfigurationArguments(), onExit: {
-  clientConnection.close()
+
+guard let parsedBuildSetup = orLog(level: .error, { try parseConfigurationArguments() }) else {
+  exit(1)
+}
+
+let server = SourceKitServer(client: clientConnection, buildSetup: parsedBuildSetup, onExit: {
+    clientConnection.close()
 })
 clientConnection.start(receiveHandler: server)
+
 
 dispatchMain()
