@@ -228,10 +228,9 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! setenv("SOURCEKIT_TOOLCHAIN_PATH", value: binPath.parentDirectory.asString)
-    defer { try! setenv("SOURCEKIT_TOOLCHAIN_PATH", value: "") }
+    try! setenv("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: binPath.parentDirectory.asString)
 
-    tr.scanForToolchains(fs)
+    tr.scanForToolchains(environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"], fs)
 
     guard let tc = tr.toolchains.first(where: { tc in tc.path == binPath.parentDirectory }) else {
       XCTFail("couldn't find expected toolchain")
@@ -256,10 +255,10 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! setenv("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH", value: binPath.parentDirectory.asString)
+    try! setenv("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2", value: binPath.parentDirectory.asString)
 
     tr.scanForToolchains(
-      environmentVariables: ["TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH"],
+      environmentVariables: ["TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2"],
       setDefault: false,
       fs)
 
@@ -349,6 +348,70 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(Toolchain(AbsolutePath("/t3"), fs))
     makeToolchain(binPath: AbsolutePath("/t3/bin"), fs, sourcekitd: true)
     XCTAssertNotNil(Toolchain(AbsolutePath("/t3"), fs))
+  }
+
+  func testDuplicateError() {
+    let tr = ToolchainRegistry()
+    let toolchain = Toolchain(identifier: "a", displayName: "a", path: nil)
+    XCTAssertNoThrow(try tr.registerToolchain(toolchain), "Error registering toolchain")
+    XCTAssertThrowsError(try tr.registerToolchain(toolchain),
+                         "Expected error registering toolchain twice") { e in
+      guard let error = e as? ToolchainRegistry.Error, error == .duplicateToolchainIdentifier else {
+        XCTFail("Expected .duplicateToolchainIdentifier not \(e)")
+        return
+      }
+    }
+  }
+
+  func testDuplicatePathError() {
+    let tr = ToolchainRegistry()
+    let path = AbsolutePath("/foo/bar")
+    let first = Toolchain(identifier: "a", displayName: "a", path: path)
+    let second = Toolchain(identifier: "b", displayName: "b", path: path)
+    XCTAssertNoThrow(try tr.registerToolchain(first), "Error registering toolchain")
+    XCTAssertThrowsError(try tr.registerToolchain(second),
+                         "Expected error registering toolchain twice") { e in
+      guard let error = e as? ToolchainRegistry.Error, error == .duplicateToolchainPath else {
+        XCTFail("Error mismatch: expected duplicateToolchainPath not \(e)")
+        return
+      }
+    }
+  }
+
+  func testDuplicateXcodeError() {
+    let tr = ToolchainRegistry()
+    let xcodeToolchain = Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
+                                   displayName: "a",
+                                   path: AbsolutePath("/versionA"))
+    XCTAssertNoThrow(try tr.registerToolchain(xcodeToolchain), "Error registering toolchain")
+    XCTAssertThrowsError(try tr.registerToolchain(xcodeToolchain),
+                         "Expected error registering toolchain twice") { e in
+      guard let error = e as? ToolchainRegistry.Error, error == .duplicateToolchainPath else {
+        XCTFail("Error mismatch: expected duplicateToolchainPath not \(e)")
+        return
+      }
+    }
+  }
+
+  func testMultipleXcodes() {
+    let tr = ToolchainRegistry()
+    let pathA = AbsolutePath("/versionA")
+    let xcodeA = Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
+                           displayName: "a",
+                           path: pathA)
+    let pathB = AbsolutePath("/versionB")
+    let xcodeB = Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
+                           displayName: "b",
+                           path: pathB)
+    XCTAssertNoThrow(try tr.registerToolchain(xcodeA))
+    XCTAssertNoThrow(try tr.registerToolchain(xcodeB))
+    XCTAssert(tr.toolchain(path: pathA) === xcodeA)
+    XCTAssert(tr.toolchain(path: pathB) === xcodeB)
+
+    let toolchains = tr.toolchains(identifier: xcodeA.identifier)
+    XCTAssert(toolchains.count == 2)
+    XCTAssert(toolchains[0] === xcodeA)
+    XCTAssert(toolchains[1] === xcodeB)
   }
 }
 

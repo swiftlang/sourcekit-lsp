@@ -58,7 +58,8 @@ public final class SwiftPMWorkspace {
   public init(
     workspacePath: AbsolutePath,
     toolchainRegistry: ToolchainRegistry,
-    fileSystem: FileSystem = localFileSystem) throws
+    fileSystem: FileSystem = localFileSystem,
+    buildSetup: BuildSetup) throws
   {
     self.workspacePath = workspacePath
     self.toolchainRegistry = toolchainRegistry
@@ -112,7 +113,13 @@ public final class SwiftPMWorkspace {
     swiftPMToolchain.extraSwiftCFlags = extraSwiftFlags
     swiftPMToolchain.extraCPPFlags = extraClangFlags
 
-    let buildPath = packageRoot.appending(component: ".build")
+
+    let buildPath: AbsolutePath
+    if let absoluteBuildPath = try? AbsolutePath(validating: buildSetup.path) {
+      buildPath = absoluteBuildPath
+    } else {
+      buildPath = packageRoot.appending(component: buildSetup.path)
+    }
 
     self.workspace = Workspace(
       dataPath: buildPath,
@@ -125,12 +132,19 @@ public final class SwiftPMWorkspace {
 
     let triple = Triple.hostTriple
 
-    // FIXME: make these configurable
+    let swiftPMConfiguration: PackageModel.BuildConfiguration
+    switch buildSetup.configuration {
+    case .debug:
+      swiftPMConfiguration = .debug
+    case .release:
+      swiftPMConfiguration = .release
+    }
+
     self.buildParameters = BuildParameters(
       dataPath: buildPath.appending(component: triple.tripleString),
-      configuration: .debug,
+      configuration: swiftPMConfiguration,
       toolchain: swiftPMToolchain,
-      flags: BuildFlags())
+      flags: buildSetup.flags)
 
     self.packageGraph = PackageGraph(rootPackages: [])
 
@@ -140,13 +154,16 @@ public final class SwiftPMWorkspace {
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
   /// - Returns: nil if `workspacePath` is not part of a package or there is an error.
-  public convenience init?(url: LanguageServerProtocol.URL, toolchainRegistry: ToolchainRegistry) {
+  public convenience init?(url: LanguageServerProtocol.URL,
+                           toolchainRegistry: ToolchainRegistry,
+                           buildSetup: BuildSetup)
+  {
     do {
       try self.init(
         workspacePath: try AbsolutePath(validating: url.path),
         toolchainRegistry: toolchainRegistry,
-        fileSystem: localFileSystem)
-
+        fileSystem: localFileSystem,
+        buildSetup: buildSetup)
     } catch Error.noManifest(let path) {
       log("could not find manifest, or not a SwiftPM package: \(path.asString)", level: .warning)
       return nil

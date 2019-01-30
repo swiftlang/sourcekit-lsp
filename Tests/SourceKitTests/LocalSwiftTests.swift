@@ -186,7 +186,7 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertNotNil(abc)
     if let abc = abc {
       XCTAssertEqual(abc.kind, .property)
-      XCTAssertNil(abc.detail)
+      XCTAssertEqual(abc.detail, "Int")
       XCTAssertEqual(abc.filterText, "abc")
       // FIXME:
       XCTAssertNil(abc.textEdit)
@@ -197,7 +197,7 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertNotNil(test)
     if let test = test {
       XCTAssertEqual(test.kind, .method)
-      XCTAssertNil(test.detail)
+      XCTAssertEqual(test.detail, "Void")
       XCTAssertEqual(test.filterText, "test(a:)")
       // FIXME:
       XCTAssertNil(test.textEdit)

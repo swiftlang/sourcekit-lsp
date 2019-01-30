@@ -72,6 +72,35 @@ You will need the path to the `sourcekit-lsp` executable and the Swift toolchain
 
 There is an Emacs client for SourceKit-LSP in the [main Emacs LSP repository](https://github.com/emacs-lsp/lsp-sourcekit).
 
+## Vim 8
+
+Install [vim-lsp](https://github.com/prabirshrestha/vim-lsp). In your `.vimrc`, configure vim-lsp to use
+sourcekit-lsp for Swift source files like so:
+
+```
+if executable('sourcekit-lsp')
+    au User lsp_setup call lsp#register_server({
+        \ 'name': 'sourcekit-lsp',
+        \ 'cmd': {server_info->['sourcekit-lsp']},
+        \ 'whitelist': ['swift'],
+        \ })
+endif
+```
+
+(…assuming `sourckit-lsp` is in your PATH variable, otherwise replace `'sourcekit-lsp'` with the path to
+the sourcekit-lsp executable).
+
+That's it! As a test, open a swift file, put cursor on top of a symbol in normal mode and
+run `:LspDefinition`. More commands is documented [here](https://github.com/prabirshrestha/vim-lsp#supported-commands).
+
+There are many Vim solutions for code completion. For instance, you may want to use LSP for omnifunc:
+
+```
+autocmd FileType swift setlocal omnifunc=lsp#complete
+```
+
+With this added in `.vimrc`, you can use `<c-x><c-o>` in insert mode to trigger sourcekit-lsp completion.
+
 ## Other Editors
 
 SourceKit-LSP should work with any editor that supports the [Language Server Protocol](https://microsoft.github.io/language-server-protocol/)

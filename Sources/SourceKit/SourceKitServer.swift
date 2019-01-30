@@ -15,8 +15,12 @@ import SKCore
 import SKSupport
 import IndexStoreDB
 import Basic
+import Utility
 import Dispatch
+import Foundation
 import SPMLibc
+
+public typealias URL = Foundation.URL
 
 /// The SourceKit language server.
 ///
@@ -29,6 +33,8 @@ public final class SourceKitServer: LanguageServer {
     var toolchain: String
     var language: Language
   }
+
+  let buildSetup: BuildSetup
 
   let toolchainRegistry: ToolchainRegistry
 
@@ -46,10 +52,11 @@ public final class SourceKitServer: LanguageServer {
   let onExit: () -> Void
 
   /// Creates a language server for the given client.
-  public init(client: Connection, fileSystem: FileSystem = localFileSystem, onExit: @escaping () -> Void = {}) {
+  public init(client: Connection, fileSystem: FileSystem = localFileSystem, buildSetup: BuildSetup, onExit: @escaping () -> Void = {}) {
 
     self.fs = fileSystem
     self.toolchainRegistry = ToolchainRegistry.shared
+    self.buildSetup = buildSetup
     self.onExit = onExit
 
     super.init(client: client)
@@ -127,9 +134,7 @@ public final class SourceKitServer: LanguageServer {
   }
 
   func toolchain(for url: URL, in workspace: Workspace, _ language: Language) -> Toolchain? {
-    if let id = workspace.configuration.buildSettings.settings(for: url, language)?.preferredToolchain,
-       let toolchain = toolchainRegistry.toolchain(identifier:id)
-    {
+    if let toolchain = workspace.configuration.buildSettings.settings(for: url, language)?.preferredToolchain {
       return toolchain
     }
 
@@ -241,7 +246,8 @@ extension SourceKitServer {
       self.workspaces += workspaceFolders.compactMap({ workspaceFolder in
         try? Workspace(url: workspaceFolder.url,
                        clientCapabilities: req.params.capabilities,
-                       toolchainRegistry: toolchainRegistry)
+                       toolchainRegistry: toolchainRegistry,
+                       buildSetup: self.buildSetup)
       })
     }
 
@@ -249,11 +255,13 @@ extension SourceKitServer {
     if let url = req.params.rootURL {
       workspace = try? Workspace(url: url,
                                  clientCapabilities: req.params.capabilities,
-                                 toolchainRegistry: toolchainRegistry)
+                                 toolchainRegistry: self.toolchainRegistry,
+                                 buildSetup: self.buildSetup)
     } else if let path = req.params.rootPath {
       workspace = try? Workspace(url: URL(fileURLWithPath: path),
                                         clientCapabilities: req.params.capabilities,
-                                        toolchainRegistry: toolchainRegistry)
+        toolchainRegistry: self.toolchainRegistry,
+        buildSetup: self.buildSetup)
     }
 
     if let workspace = workspace {
@@ -269,7 +277,8 @@ extension SourceKitServer {
       rootPath: nil,
       clientCapabilities: req.params.capabilities,
       buildSettings: BuildSystemList(),
-      index: nil
+        index: nil,
+        buildSetup: self.buildSetup
     )
     self.workspaces.append(noRootWorkspace)
 
@@ -356,7 +365,8 @@ extension SourceKitServer {
       self.workspaces += addedFolders.compactMap({ [unowned self] (workspaceFolder) -> Workspace? in
         return try? Workspace(url: workspaceFolder.url,
                               clientCapabilities: self.workspaces.first?.clientCapabilities ?? ClientCapabilities(),
-                              toolchainRegistry: self.toolchainRegistry)
+                              toolchainRegistry: self.toolchainRegistry,
+                              buildSetup: self.buildSetup)
       })
 
       if let noRootWorkspace = self.noRootWorkspace {

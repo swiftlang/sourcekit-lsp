@@ -28,7 +28,12 @@ public final class ToolchainRegistry {
   var _toolchains: [Toolchain] = []
 
   /// The toolchains indexed by their identifier. **Must be accessed on `queue`**.
-  var toolchainIdentifiers: [String: Toolchain] = [:]
+  /// Multiple toolchains may exist for the XcodeDefault toolchain identifier.
+  var toolchainsByIdentifier: [String: [Toolchain]] = [:]
+
+  /// The toolchains indexed by their path. **Must be accessed on `queue`**.
+  /// Note: Not all toolchains have a path.
+  var toolchainsByPath: [AbsolutePath: Toolchain] = [:]
 
   /// The default toolchain. **Must be accessed on `queue`**.
   var _default: Toolchain? = nil
@@ -92,7 +97,7 @@ extension ToolchainRegistry {
     get {
       return queue.sync {
         if _default == nil {
-          if let tc = toolchainIdentifiers[darwinToolchainIdentifier] {
+          if let tc = toolchainsByIdentifier[darwinToolchainIdentifier]?.first {
             _default = tc
           } else {
             _default = _toolchains.first
@@ -108,8 +113,8 @@ extension ToolchainRegistry {
           _default = nil
           return
         }
-        precondition(toolchainIdentifiers[toolchain.identifier] === toolchain,
-          "default toolchain must be registered first")
+        precondition(_toolchains.contains { $0 === toolchain },
+                     "default toolchain must be registered first")
         _default = toolchain
       }
     }
@@ -132,8 +137,16 @@ extension ToolchainRegistry {
     return queue.sync { _toolchains }
   }
 
+  public func toolchains(identifier: String) -> [Toolchain] {
+    return queue.sync { toolchainsByIdentifier[identifier] ?? [] }
+  }
+
   public func toolchain(identifier: String) -> Toolchain? {
-    return queue.sync { toolchainIdentifiers[identifier] }
+    return toolchains(identifier: identifier).first
+  }
+
+  public func toolchain(path: AbsolutePath) -> Toolchain? {
+    return queue.sync { toolchainsByPath[path] }
   }
 }
 
@@ -143,6 +156,9 @@ extension ToolchainRegistry {
 
     /// There is already a toolchain with the given identifier.
     case duplicateToolchainIdentifier
+
+    /// There is already a toolchain with the given path.
+    case duplicateToolchainPath
 
     /// The toolchain does not exist, or has no tools.
     case invalidToolchain
@@ -157,10 +173,24 @@ extension ToolchainRegistry {
   }
 
   func _registerToolchain(_ toolchain: Toolchain) throws {
-    guard toolchainIdentifiers[toolchain.identifier] == nil else {
-      throw Error.duplicateToolchainIdentifier
+    // Non-XcodeDefault toolchain: disallow all duplicates.
+    if toolchain.identifier != ToolchainRegistry.darwinDefaultToolchainIdentifier {
+      guard toolchainsByIdentifier[toolchain.identifier] == nil else {
+        throw Error.duplicateToolchainIdentifier
+      }
     }
-    toolchainIdentifiers[toolchain.identifier] = toolchain
+
+    // Toolchain should always be unique by path if it is present.
+    if let path = toolchain.path {
+      guard toolchainsByPath[path] == nil else {
+        throw Error.duplicateToolchainPath
+      }
+      toolchainsByPath[path] = toolchain
+    }
+
+    var toolchains = toolchainsByIdentifier[toolchain.identifier] ?? []
+    toolchains.append(toolchain)
+    toolchainsByIdentifier[toolchain.identifier] = toolchains
     _toolchains.append(toolchain)
   }
 

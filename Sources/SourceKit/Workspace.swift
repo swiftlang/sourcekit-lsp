@@ -15,6 +15,7 @@ import SKCore
 import SKSupport
 import IndexStoreDB
 import Basic
+import Utility
 import SKSwiftPMWorkspace
 
 /// Represents the configuration and sate of a project or combination of projects being worked on
@@ -38,10 +39,14 @@ public final class Workspace {
     /// The index to use for documents in this worspace.
     public var index: IndexStoreDB? = nil
 
-    init(rootPath: AbsolutePath? = nil, buildSettings: BuildSystem, index: IndexStoreDB? = nil) {
+    /// Build setup
+    public let buildSetup: BuildSetup
+
+    init(rootPath: AbsolutePath? = nil, buildSettings: BuildSystem, index: IndexStoreDB? = nil, buildSetup: BuildSetup = .default) {
       self.rootPath = rootPath
       self.buildSettings = buildSettings
       self.index = index
+      self.buildSetup = buildSetup
     }
   }
 
@@ -59,9 +64,13 @@ public final class Workspace {
     rootPath: AbsolutePath?,
     clientCapabilities: ClientCapabilities,
     buildSettings: BuildSystem,
-    index: IndexStoreDB?)
+    index: IndexStoreDB?,
+    buildSetup: BuildSetup)
   {
-    self.configuration = Configuration(rootPath: rootPath, buildSettings: buildSettings, index: index)
+    self.configuration = Configuration(rootPath: rootPath,
+                                       buildSettings: buildSettings,
+                                       index: index,
+                                       buildSetup: buildSetup)
     self.clientCapabilities = clientCapabilities
   }
 
@@ -74,8 +83,10 @@ public final class Workspace {
   public init(
     url: URL,
     clientCapabilities: ClientCapabilities,
-    toolchainRegistry: ToolchainRegistry
+    toolchainRegistry: ToolchainRegistry,
+    buildSetup: BuildSetup
   ) throws {
+
     self.clientCapabilities = clientCapabilities
 
     let rootPath = try AbsolutePath(validating: url.path)
@@ -83,7 +94,10 @@ public final class Workspace {
 
     settings.providers.insert(CompilationDatabaseBuildSystem(projectRoot: rootPath), at: 0)
 
-    if let swiftpm = SwiftPMWorkspace(url: url, toolchainRegistry: toolchainRegistry) {
+    if let swiftpm = SwiftPMWorkspace(url: url,
+                                      toolchainRegistry: toolchainRegistry,
+                                      buildSetup: buildSetup
+      ) {
       settings.providers.insert(swiftpm, at: 0)
     }
 
@@ -101,6 +115,6 @@ public final class Workspace {
       }
     }
 
-    self.configuration = Configuration(rootPath: rootPath, buildSettings: settings, index: index)
+    self.configuration = Configuration(rootPath: rootPath, buildSettings: settings, index: index, buildSetup: buildSetup)
   }
 }
