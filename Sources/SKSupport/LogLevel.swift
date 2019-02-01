@@ -60,11 +60,19 @@ extension LogLevel: ArgumentKind {
     case "debug":
       self = .debug
     default:
-      // Also accept a numerical log level.
-      guard let value = Int(argument), let level = LogLevel(rawValue: value) else {
+
+      // Also accept a numerical log level, for parity with SOURCEKIT_LOGGING environment variable.
+      guard let value = Int(argument) else {
         throw ArgumentConversionError.unknown(value: argument)
       }
-      self = level
+
+      if let level = LogLevel(rawValue: value) {
+        self = level
+      } else if value > LogLevel.debug.rawValue  {
+        self = .debug
+      } else {
+        throw ArgumentConversionError.custom("numerical log level \(value) is out of range")
+      }
     }
   }
 

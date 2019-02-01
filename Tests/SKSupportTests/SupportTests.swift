@@ -244,7 +244,7 @@ final class SupportTests: XCTestCase {
       ("d", .error),
       ])
 
-    // too high - max out at .debyg
+    // too high - max out at .debug
     try! setenv("TEST_ENV_LOGGGING_err", value: "1000")
     testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_err")
 
@@ -258,6 +258,20 @@ final class SupportTests: XCTestCase {
       ("f", .info),
       ("g", .debug),
       ])
+
+    // By string.
+    try! setenv("TEST_ENV_LOGGGING_string", value: "error")
+    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
+    XCTAssertEqual(testLogger.currentLevel, .error)
+    try! setenv("TEST_ENV_LOGGGING_string", value: "warning")
+    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
+    XCTAssertEqual(testLogger.currentLevel, .warning)
+    try! setenv("TEST_ENV_LOGGGING_string", value: "info")
+    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
+    XCTAssertEqual(testLogger.currentLevel, .info)
+    try! setenv("TEST_ENV_LOGGGING_string", value: "debug")
+    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
+    XCTAssertEqual(testLogger.currentLevel, .debug)
 
     testLogger.currentLevel = .default
     testLogger.addLogHandler(obj)
