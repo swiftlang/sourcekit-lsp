@@ -19,7 +19,7 @@ public struct BuildSetup {
 
   /// Default configuration
   public static let `default` = BuildSetup(configuration: .debug,
-                                           path: "./.build",
+                                           path: ".build",
                                            flags: BuildFlags())
 
   /// Build configuration
