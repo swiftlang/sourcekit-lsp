@@ -385,7 +385,7 @@ private func check(
 }
 
 private func buildPath(root: AbsolutePath) -> AbsolutePath {
-  if let absoluteBuildPath = try? AbsolutePath(validating: TestSourceKitServer.buildSetup.path) {
+  if let absoluteBuildPath = TestSourceKitServer.buildSetup.path {
     #if os(macOS)
       return absoluteBuildPath.appending(components: "x86_64-apple-macosx", "debug")
     #else
@@ -393,9 +393,9 @@ private func buildPath(root: AbsolutePath) -> AbsolutePath {
     #endif
   } else {
     #if os(macOS)
-      return root.appending(components: TestSourceKitServer.buildSetup.path, "x86_64-apple-macosx", "debug")
+      return root.appending(components: ".build", "x86_64-apple-macosx", "debug")
     #else
-      return root.appending(components: TestSourceKitServer.buildSetup.path, "x86_64-unknown-linux", "debug")
+      return root.appending(components: ".build", "x86_64-unknown-linux", "debug")
     #endif
   }
 }

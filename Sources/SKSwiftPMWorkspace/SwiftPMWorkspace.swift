@@ -113,13 +113,7 @@ public final class SwiftPMWorkspace {
     swiftPMToolchain.extraSwiftCFlags = extraSwiftFlags
     swiftPMToolchain.extraCPPFlags = extraClangFlags
 
-
-    let buildPath: AbsolutePath
-    if let absoluteBuildPath = try? AbsolutePath(validating: buildSetup.path) {
-      buildPath = absoluteBuildPath
-    } else {
-      buildPath = packageRoot.appending(component: buildSetup.path)
-    }
+    let buildPath: AbsolutePath = buildSetup.path ?? packageRoot.appending(component: ".build")
 
     self.workspace = Workspace(
       dataPath: buildPath,
