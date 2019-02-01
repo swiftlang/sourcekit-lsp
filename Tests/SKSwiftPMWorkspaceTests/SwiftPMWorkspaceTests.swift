@@ -123,6 +123,44 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     check(aswift.asString, arguments: arguments)
   }
 
+  func testBuildSetup() {
+    // FIXME: should be possible to use InMemoryFileSystem.
+    let fs = localFileSystem
+    let tempDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
+    try! fs.createFiles(root: tempDir.path, files: [
+      "pkg/Sources/lib/a.swift": "",
+      "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+            targets: [.target(name: "lib", dependencies: [])])
+          """
+    ])
+    let packageRoot = tempDir.path.appending(component: "pkg")
+    let tr = ToolchainRegistry.shared
+
+    let config = BuildSetup(
+        configuration: .release,
+        path: packageRoot.appending(component: "non_default_build_path"),
+        flags: BuildFlags(xcc: ["-m32"], xcxx: [], xswiftc: ["-typecheck"], xlinker: []))
+
+    let ws = try! SwiftPMWorkspace(
+      workspacePath: packageRoot,
+      toolchainRegistry: tr,
+      fileSystem: fs,
+      buildSetup: config)
+
+    let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
+    let build = buildPath(root: packageRoot, config: config)
+
+    XCTAssertEqual(ws.buildPath, build)
+    let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
+
+    check("-typecheck", arguments: arguments)
+    check("-Xcc", "-m32", arguments: arguments)
+    check("-O", arguments: arguments)
+  }
+
   func testManifestArgs() {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
@@ -384,18 +422,22 @@ private func check(
   }
 }
 
-private func buildPath(root: AbsolutePath) -> AbsolutePath {
-  if let absoluteBuildPath = try? AbsolutePath(validating: TestSourceKitServer.buildSetup.path) {
+private func buildPath(
+  root: AbsolutePath,
+  config: BuildSetup = TestSourceKitServer.buildSetup) -> AbsolutePath
+{
+  let buildConfig = "\(config.configuration)"
+  if let absoluteBuildPath = config.path {
     #if os(macOS)
-      return absoluteBuildPath.appending(components: "x86_64-apple-macosx", "debug")
+      return absoluteBuildPath.appending(components: "x86_64-apple-macosx", buildConfig)
     #else
-      return absoluteBuildPath.appending(components: "x86_64-unknown-linux", "debug")
+      return absoluteBuildPath.appending(components: "x86_64-unknown-linux", buildConfig)
     #endif
   } else {
     #if os(macOS)
-      return root.appending(components: TestSourceKitServer.buildSetup.path, "x86_64-apple-macosx", "debug")
+      return root.appending(components: ".build", "x86_64-apple-macosx", buildConfig)
     #else
-      return root.appending(components: TestSourceKitServer.buildSetup.path, "x86_64-unknown-linux", "debug")
+      return root.appending(components: ".build", "x86_64-unknown-linux", buildConfig)
     #endif
   }
 }

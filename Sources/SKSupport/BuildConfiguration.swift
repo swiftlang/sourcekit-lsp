@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
 import Utility
 
 public enum BuildConfiguration: String {

@@ -35,7 +35,7 @@ public struct TestSourceKitServer {
   }
 
   public static let buildSetup: BuildSetup = BuildSetup(configuration: .debug,
-                                                        path: ".build",
+                                                        path: nil,
                                                         flags: BuildFlags())
 
   public let client: TestClient
