@@ -60,7 +60,11 @@ extension LogLevel: ArgumentKind {
     case "debug":
       self = .debug
     default:
-      self = LogLevel.default
+      // Also accept a numerical log level.
+      guard let value = Int(argument), let level = LogLevel(rawValue: value) else {
+        throw ArgumentConversionError.unknown(value: argument)
+      }
+      self = level
     }
   }
 
