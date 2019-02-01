@@ -12,59 +12,10 @@
 
 import Basic
 import Foundation
-import Utility
 
 #if canImport(os)
 import os // os_log
 #endif
-
-public enum LogLevel: Int, Equatable {
-  case error = 0
-  case warning = 1
-  case info = 2
-  case debug = 3
-
-  public static let `default`: LogLevel = .info
-}
-
-extension LogLevel: CustomStringConvertible {
-
-  public var description: String {
-    switch self {
-    case .error:
-      return "error"
-    case .warning:
-      return "warning"
-    case .info:
-      return "info"
-    case .debug:
-      return "debug"
-    }
-  }
-}
-
-extension LogLevel: ArgumentKind {
-
-  public init(argument: String) throws {
-    switch argument {
-    case "error":
-      self = .error
-    case "warning":
-      self = .warning
-    case "info":
-      self = .info
-    case "debug":
-      self = .debug
-    default:
-      self = LogLevel.default
-    }
-  }
-
-  /// Type of shell completion to provide for this argument.
-  public static var completion: ShellCompletion {
-    return ShellCompletion.none
-  }
-}
 
 /// Log the given message.
 ///
@@ -215,27 +166,3 @@ public class AnyLogHandler: LogHandler {
     handler(message, level)
   }
 }
-
-extension LogLevel: Comparable {
-  public static func < (lhs: LogLevel, rhs: LogLevel) -> Bool {
-    return lhs.rawValue < rhs.rawValue
-  }
-}
-
-#if canImport(os)
-extension LogLevel {
-  @available(OSX 10.12, *)
-  public var osLogType: OSLogType {
-    switch self {
-    case .debug:
-      return .debug
-    case .info:
-      return .info
-    case .warning:
-      return .default
-    case .error:
-      return .error
-    }
-  }
-}
-#endif
