@@ -172,7 +172,7 @@ public final class SourceKitServer: LanguageServer {
       let resp = try service.sendSync(InitializeRequest(
         processId: Int(getpid()),
         rootPath: nil,
-        rootURL: (workspace?.rootPath).map { URL(fileURLWithPath: $0.description) },
+        rootURL: (workspace?.rootPath).map { URL(fileURLWithPath: $0.pathString) },
         initializationOptions: InitializationOptions(),
         capabilities: workspace?.clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,

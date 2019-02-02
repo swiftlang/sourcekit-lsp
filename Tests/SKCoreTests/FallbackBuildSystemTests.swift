@@ -34,14 +34,14 @@ final class FallbackBuildSystemTests: XCTestCase {
     let args = settings.compilerArguments
     XCTAssertEqual(args, [
       "-sdk",
-      sdk.description,
-      source.description,
+      sdk.pathString,
+      source.pathString,
     ])
 
     bs.sdkpath = nil
 
     XCTAssertEqual(bs.settings(for: source.asURL, .swift)?.compilerArguments, [
-      source.description,
+      source.pathString,
     ])
   }
 
@@ -59,14 +59,14 @@ final class FallbackBuildSystemTests: XCTestCase {
     let args = settings.compilerArguments
     XCTAssertEqual(args, [
       "-isysroot",
-      sdk.description,
-      source.description,
+      sdk.pathString,
+      source.pathString,
     ])
 
     bs.sdkpath = nil
 
     XCTAssertEqual(bs.settings(for: source.asURL, .cpp)?.compilerArguments, [
-      source.description,
+      source.pathString,
     ])
   }
 
@@ -75,7 +75,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let bs = FallbackBuildSystem()
     bs.sdkpath = nil
     XCTAssertEqual(bs.settings(for: source.asURL, .c)?.compilerArguments, [
-      source.description,
+      source.pathString,
     ])
   }
 
@@ -84,7 +84,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let bs = FallbackBuildSystem()
     bs.sdkpath = nil
     XCTAssertEqual(bs.settings(for: source.asURL, .objective_c)?.compilerArguments, [
-      source.description,
+      source.pathString,
     ])
   }
 
@@ -93,7 +93,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let bs = FallbackBuildSystem()
     bs.sdkpath = nil
     XCTAssertEqual(bs.settings(for: source.asURL, .objective_cpp)?.compilerArguments, [
-      source.description,
+      source.pathString,
     ])
   }
 

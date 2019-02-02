@@ -197,7 +197,7 @@ final class ToolchainRegistryTests: XCTestCase {
     }
 
     XCTAssertEqual(tr.default?.identifier, tc.identifier)
-    XCTAssertEqual(tc.identifier, binPath.description)
+    XCTAssertEqual(tc.identifier, binPath.pathString)
     XCTAssertNil(tc.clang)
     XCTAssertNil(tc.clangd)
     XCTAssertNil(tc.swiftc)
@@ -215,7 +215,7 @@ final class ToolchainRegistryTests: XCTestCase {
     }
 
     XCTAssertEqual(tr.default?.identifier, tc.identifier)
-    XCTAssertEqual(tc2.identifier, binPath2.description)
+    XCTAssertEqual(tc2.identifier, binPath2.pathString)
     XCTAssertNotNil(tc2.sourcekitd)
   }
 
@@ -228,7 +228,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! setenv("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: binPath.parentDirectory.description)
+    try! setenv("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: binPath.parentDirectory.pathString)
 
     tr.scanForToolchains(environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"], fs)
 
@@ -238,7 +238,7 @@ final class ToolchainRegistryTests: XCTestCase {
     }
 
     XCTAssertEqual(tr.default?.identifier, tc.identifier)
-    XCTAssertEqual(tc.identifier, binPath.parentDirectory.description)
+    XCTAssertEqual(tc.identifier, binPath.parentDirectory.pathString)
     XCTAssertNil(tc.clang)
     XCTAssertNil(tc.clangd)
     XCTAssertNil(tc.swiftc)
@@ -255,7 +255,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! setenv("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2", value: binPath.parentDirectory.description)
+    try! setenv("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2", value: binPath.parentDirectory.pathString)
 
     tr.scanForToolchains(
       environmentVariables: ["TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2"],
@@ -267,7 +267,7 @@ final class ToolchainRegistryTests: XCTestCase {
       return
     }
 
-    XCTAssertEqual(tc.identifier, binPath.parentDirectory.description)
+    XCTAssertEqual(tc.identifier, binPath.parentDirectory.pathString)
     XCTAssertNil(tc.clang)
     XCTAssertNil(tc.clangd)
     XCTAssertNil(tc.swiftc)
@@ -298,7 +298,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(t1.swiftc)
 
     func chmodRX(_ path: AbsolutePath) {
-      XCTAssertEqual(chmod(path.description, S_IRUSR | S_IXUSR), 0)
+      XCTAssertEqual(chmod(path.pathString, S_IRUSR | S_IXUSR), 0)
     }
 
     chmodRX(path.appending(components: "bin", "clang"))
@@ -471,7 +471,7 @@ private func makeToolchain(
   let makeExec = { (path: AbsolutePath) in
     try! fs.writeFileContents(path , bytes: "")
     if shouldChmod {
-      XCTAssertEqual(chmod(path.description, S_IRUSR | S_IXUSR), 0)
+      XCTAssertEqual(chmod(path.pathString, S_IRUSR | S_IXUSR), 0)
     }
   }
 

@@ -95,10 +95,10 @@ public final class Workspace {
        let libPath = toolchainRegistry.default?.libIndexStore
     {
       do {
-        let lib = try IndexStoreLibrary(dylibPath: libPath.description)
+        let lib = try IndexStoreLibrary(dylibPath: libPath.pathString)
         self.index = try IndexStoreDB(
-          storePath: storePath.description,
-          databasePath: dbPath.description,
+          storePath: storePath.pathString,
+          databasePath: dbPath.pathString,
           library: lib)
         log("opened IndexStoreDB at \(dbPath) with store path \(storePath)")
       } catch {

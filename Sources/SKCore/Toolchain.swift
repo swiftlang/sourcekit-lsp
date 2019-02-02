@@ -107,7 +107,7 @@ extension Toolchain {
         path: path)
     } else {
       self.init(
-        identifier: path.description,
+        identifier: path.pathString,
         displayName: path.basename,
         path: path)
     }
