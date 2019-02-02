@@ -12,7 +12,7 @@
 
 @testable import SKCore
 import Basic
-import Utility
+import SPMUtility
 import XCTest
 import POSIX
 
@@ -186,7 +186,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! setenv("SOURCEKIT_PATH", value: "/bogus:\(binPath.asString):/bogus2")
+    try! setenv("SOURCEKIT_PATH", value: "/bogus:\(binPath):/bogus2")
     defer { try! setenv("SOURCEKIT_PATH", value: "") }
 
     tr.scanForToolchains(fs)
@@ -197,7 +197,7 @@ final class ToolchainRegistryTests: XCTestCase {
     }
 
     XCTAssertEqual(tr.default?.identifier, tc.identifier)
-    XCTAssertEqual(tc.identifier, binPath.asString)
+    XCTAssertEqual(tc.identifier, binPath.description)
     XCTAssertNil(tc.clang)
     XCTAssertNil(tc.clangd)
     XCTAssertNil(tc.swiftc)
@@ -205,7 +205,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tc.libIndexStore)
 
     let binPath2 = AbsolutePath("/other/my_toolchain/bin")
-    try! setenv("SOME_TEST_ENV_PATH", value: "/bogus:\(binPath2.asString):/bogus2")
+    try! setenv("SOME_TEST_ENV_PATH", value: "/bogus:\(binPath2):/bogus2")
     makeToolchain(binPath: binPath2, fs, sourcekitd: true)
     tr.scanForToolchains(pathVariables: ["NOPE", "SOME_TEST_ENV_PATH", "MORE_NOPE"], fs)
 
@@ -215,7 +215,7 @@ final class ToolchainRegistryTests: XCTestCase {
     }
 
     XCTAssertEqual(tr.default?.identifier, tc.identifier)
-    XCTAssertEqual(tc2.identifier, binPath2.asString)
+    XCTAssertEqual(tc2.identifier, binPath2.description)
     XCTAssertNotNil(tc2.sourcekitd)
   }
 
@@ -228,7 +228,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! setenv("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: binPath.parentDirectory.asString)
+    try! setenv("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: binPath.parentDirectory.description)
 
     tr.scanForToolchains(environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"], fs)
 
@@ -238,7 +238,7 @@ final class ToolchainRegistryTests: XCTestCase {
     }
 
     XCTAssertEqual(tr.default?.identifier, tc.identifier)
-    XCTAssertEqual(tc.identifier, binPath.parentDirectory.asString)
+    XCTAssertEqual(tc.identifier, binPath.parentDirectory.description)
     XCTAssertNil(tc.clang)
     XCTAssertNil(tc.clangd)
     XCTAssertNil(tc.swiftc)
@@ -255,7 +255,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! setenv("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2", value: binPath.parentDirectory.asString)
+    try! setenv("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2", value: binPath.parentDirectory.description)
 
     tr.scanForToolchains(
       environmentVariables: ["TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2"],
@@ -267,7 +267,7 @@ final class ToolchainRegistryTests: XCTestCase {
       return
     }
 
-    XCTAssertEqual(tc.identifier, binPath.parentDirectory.asString)
+    XCTAssertEqual(tc.identifier, binPath.parentDirectory.description)
     XCTAssertNil(tc.clang)
     XCTAssertNil(tc.clangd)
     XCTAssertNil(tc.swiftc)
@@ -298,7 +298,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(t1.swiftc)
 
     func chmodRX(_ path: AbsolutePath) {
-      XCTAssertEqual(chmod(path.asString, S_IRUSR | S_IXUSR), 0)
+      XCTAssertEqual(chmod(path.description, S_IRUSR | S_IXUSR), 0)
     }
 
     chmodRX(path.appending(components: "bin", "clang"))
@@ -471,7 +471,7 @@ private func makeToolchain(
   let makeExec = { (path: AbsolutePath) in
     try! fs.writeFileContents(path , bytes: "")
     if shouldChmod {
-      XCTAssertEqual(chmod(path.asString, S_IRUSR | S_IXUSR), 0)
+      XCTAssertEqual(chmod(path.description, S_IRUSR | S_IXUSR), 0)
     }
   }
 

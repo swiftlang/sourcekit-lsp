@@ -69,7 +69,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     }
 
     if compdb == nil {
-      log("could not open compilation database for \(path.asString)", level: .warning)
+      log("could not open compilation database for \(path)", level: .warning)
     }
 
     return compdb

@@ -149,7 +149,7 @@ func makeJSONRPCClangServer(client: MessageHandler, clangd: AbsolutePath, buildS
   if #available(OSX 10.13, *) {
     process.executableURL = clangd.asURL
   } else {
-    process.launchPath = clangd.asString
+    process.launchPath = clangd.description
   }
 
   process.arguments = [

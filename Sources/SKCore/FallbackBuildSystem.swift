@@ -12,7 +12,7 @@
 
 import LanguageServerProtocol
 import Basic
-import enum Utility.Platform
+import enum SPMUtility.Platform
 
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
 public final class FallbackBuildSystem: BuildSystem {
@@ -53,10 +53,10 @@ public final class FallbackBuildSystem: BuildSystem {
     if let sdkpath = sdkpath {
       args += [
         "-sdk",
-        sdkpath.asString,
+        sdkpath.description,
       ]
     }
-    args.append(path.asString)
+    args.append(path.description)
     return FileBuildSettings(preferredToolchain: nil, compilerArguments: args)
   }
 
@@ -65,10 +65,10 @@ public final class FallbackBuildSystem: BuildSystem {
     if let sdkpath = sdkpath {
       args += [
         "-isysroot",
-        sdkpath.asString,
+        sdkpath.description,
       ]
     }
-    args.append(path.asString)
+    args.append(path.description)
     return FileBuildSettings(preferredToolchain: nil, compilerArguments: args)
   }
 }

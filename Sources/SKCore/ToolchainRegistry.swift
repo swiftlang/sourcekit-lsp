@@ -12,7 +12,7 @@
 
 import SKSupport
 import Basic
-import Utility
+import SPMUtility
 import Dispatch
 import POSIX
 import Foundation

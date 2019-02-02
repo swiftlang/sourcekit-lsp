@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Utility
+import SPMUtility
 
 public enum BuildConfiguration: String {
   case debug
