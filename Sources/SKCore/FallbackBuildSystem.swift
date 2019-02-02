@@ -53,10 +53,10 @@ public final class FallbackBuildSystem: BuildSystem {
     if let sdkpath = sdkpath {
       args += [
         "-sdk",
-        sdkpath.description,
+        sdkpath.pathString,
       ]
     }
-    args.append(path.description)
+    args.append(path.pathString)
     return FileBuildSettings(preferredToolchain: nil, compilerArguments: args)
   }
 
@@ -65,10 +65,10 @@ public final class FallbackBuildSystem: BuildSystem {
     if let sdkpath = sdkpath {
       args += [
         "-isysroot",
-        sdkpath.description,
+        sdkpath.pathString,
       ]
     }
-    args.append(path.description)
+    args.append(path.pathString)
     return FileBuildSettings(preferredToolchain: nil, compilerArguments: args)
   }
 }
