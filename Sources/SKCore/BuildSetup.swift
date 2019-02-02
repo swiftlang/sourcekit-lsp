@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Basic
-import Utility
+import SPMUtility
 import SKSupport
 
 /// Build configuration

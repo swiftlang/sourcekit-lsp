@@ -42,7 +42,7 @@ final class SwiftSourceKitFramework {
 
   init(dylib path: AbsolutePath) throws {
     self.path = path
-    self.dylib = try dlopen(path.asString, mode: [.lazy, .local, .first, .deepBind])
+    self.dylib = try dlopen(path.description, mode: [.lazy, .local, .first, .deepBind])
 
     func dlsym_required<T>(_ handle: DLHandle, symbol: String) throws -> T {
       guard let sym: T = dlsym(handle, symbol: symbol) else {

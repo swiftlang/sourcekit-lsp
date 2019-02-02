@@ -14,7 +14,7 @@ import SKSwiftPMWorkspace
 import SKCore
 import PackageModel
 import Basic
-import Utility
+import SPMUtility
 import SKTestSupport
 import XCTest
 
@@ -118,9 +118,9 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     check("-target", "x86_64-unknown-linux", arguments: arguments)
 #endif
 
-    check("-I", build.asString, arguments: arguments)
+    check("-I", build.description, arguments: arguments)
 
-    check(aswift.asString, arguments: arguments)
+    check(aswift.description, arguments: arguments)
   }
 
   func testBuildSetup() {
@@ -186,7 +186,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     let arguments = ws.settings(for: source.asURL, .swift)!.compilerArguments
 
     check("-swift-version", "4.2", arguments: arguments)
-    check(source.asString, arguments: arguments)
+    check(source.description, arguments: arguments)
   }
 
   func testMultiFileSwift() {
@@ -215,11 +215,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
 
     let argumentsA = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
-    check(aswift.asString, arguments: argumentsA)
-    check(bswift.asString, arguments: argumentsA)
+    check(aswift.description, arguments: argumentsA)
+    check(bswift.description, arguments: argumentsA)
     let argumentsB = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
-    check(aswift.asString, arguments: argumentsB)
-    check(bswift.asString, arguments: argumentsB)
+    check(aswift.description, arguments: argumentsB)
+    check(bswift.description, arguments: argumentsB)
   }
 
   func testMultiTargetSwift() {
@@ -253,14 +253,17 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
     let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
     let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
-    check(aswift.asString, arguments: arguments)
-    checkNot(bswift.asString, arguments: arguments)
-    check("-I", packageRoot.appending(components: "Sources", "libC", "include").asString, arguments: arguments)
+    check(aswift.description, arguments: arguments)
+    checkNot(bswift.description, arguments: arguments)
+    check(
+      "-I", packageRoot.appending(components: "Sources", "libC", "include").description,
+      arguments: arguments)
 
     let argumentsB = ws.settings(for: bswift.asURL, .swift)!.compilerArguments
-    check(bswift.asString, arguments: argumentsB)
-    checkNot(aswift.asString, arguments: argumentsB)
-    checkNot("-I", packageRoot.appending(components: "Sources", "libC", "include").asString, arguments: argumentsB)
+    check(bswift.description, arguments: argumentsB)
+    checkNot(aswift.description, arguments: argumentsB)
+    checkNot("-I", packageRoot.appending(components: "Sources", "libC", "include").description,
+      arguments: argumentsB)
   }
 
   func testUnknownFile() {
@@ -338,23 +341,24 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       check("-target", "x86_64-unknown-linux", arguments: arguments)
   #endif
 
-      check("-I", packageRoot.appending(components: "Sources", "lib", "include").asString, arguments: arguments)
-      checkNot("-I", build.asString, arguments: arguments)
-      checkNot(bcxx.asString, arguments: arguments)
+      check("-I", packageRoot.appending(components: "Sources", "lib", "include").description,
+        arguments: arguments)
+      checkNot("-I", build.description, arguments: arguments)
+      checkNot(bcxx.description, arguments: arguments)
     }
 
     let args = ws.settings(for: acxx.asURL, .cpp)!.compilerArguments
     checkArgsCommon(args)
     check("-MD", "-MT", "dependencies",
-        "-MF", build.appending(components: "lib.build", "a.cpp.d").asString,
+        "-MF", build.appending(components: "lib.build", "a.cpp.d").description,
         arguments: args)
-    check("-c", acxx.asString, arguments: args)
-    check("-o", build.appending(components: "lib.build", "a.cpp.o").asString, arguments: args)
+    check("-c", acxx.description, arguments: args)
+    check("-o", build.appending(components: "lib.build", "a.cpp.o").description, arguments: args)
 
     let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
     let headerArgs = ws.settings(for: header.asURL, .cpp)!.compilerArguments
     checkArgsCommon(headerArgs)
-    check("-c", "-x", "c++-header", header.asString, arguments: headerArgs)
+    check("-c", "-x", "c++-header", header.description, arguments: headerArgs)
   }
 
   func testDeploymentTargetSwift() {

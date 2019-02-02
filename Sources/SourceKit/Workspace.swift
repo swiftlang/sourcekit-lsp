@@ -15,7 +15,7 @@ import SKCore
 import SKSupport
 import IndexStoreDB
 import Basic
-import Utility
+import SPMUtility
 import SKSwiftPMWorkspace
 
 /// Represents the configuration and sate of a project or combination of projects being worked on
@@ -95,9 +95,12 @@ public final class Workspace {
        let libPath = toolchainRegistry.default?.libIndexStore
     {
       do {
-        let lib = try IndexStoreLibrary(dylibPath: libPath.asString)
-        self.index = try IndexStoreDB(storePath: storePath.asString, databasePath: dbPath.asString, library: lib)
-        log("opened IndexStoreDB at \(dbPath.asString) with store path \(storePath.asString)")
+        let lib = try IndexStoreLibrary(dylibPath: libPath.description)
+        self.index = try IndexStoreDB(
+          storePath: storePath.description,
+          databasePath: dbPath.description,
+          library: lib)
+        log("opened IndexStoreDB at \(dbPath) with store path \(storePath)")
       } catch {
         log("failed to open IndexStoreDB: \(error.localizedDescription)", level: .error)
       }

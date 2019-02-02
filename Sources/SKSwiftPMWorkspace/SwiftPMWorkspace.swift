@@ -13,7 +13,7 @@
 import LanguageServerProtocol
 import SKCore
 import Basic
-import Utility
+import SPMUtility
 import SKSupport
 import Build
 import PackageModel
@@ -95,14 +95,14 @@ public final class SwiftPMWorkspace {
     var extraSwiftFlags: [String] = []
     var extraClangFlags: [String] = []
     if let sdk = sdk {
-      extraSwiftFlags += ["-sdk", sdk.asString]
-      extraClangFlags += ["-isysroot", sdk.asString]
+      extraSwiftFlags += ["-sdk", sdk.description]
+      extraClangFlags += ["-isysroot", sdk.description]
     }
 
     if let platformPath = platformPath {
       let flags = [
         "-F",
-        platformPath.appending(components: "Developer", "Library", "Frameworks").asString
+        platformPath.appending(components: "Developer", "Library", "Frameworks").description
       ]
       extraSwiftFlags += flags
       extraClangFlags += flags
@@ -159,7 +159,7 @@ public final class SwiftPMWorkspace {
         fileSystem: localFileSystem,
         buildSetup: buildSetup)
     } catch Error.noManifest(let path) {
-      log("could not find manifest, or not a SwiftPM package: \(path.asString)", level: .warning)
+      log("could not find manifest, or not a SwiftPM package: \(path)", level: .warning)
       return nil
     } catch {
       log("failed to create \(SwiftPMWorkspace.self): \(error)", level: .error)
@@ -277,7 +277,7 @@ extension SwiftPMWorkspace {
   /// Retrieve settings for a package manifest (Package.swift).
   func settings(forPackageManifest path: AbsolutePath) -> FileBuildSettings? {
     for package in packageGraph.packages where path == package.manifest.path {
-        let compilerArgs = workspace.interpreterFlags(for: package.path) + [path.asString]
+        let compilerArgs = workspace.interpreterFlags(for: package.path) + [path.description]
         return FileBuildSettings(
           preferredToolchain: nil,
           compilerArguments: compilerArgs
@@ -311,21 +311,21 @@ extension SwiftPMWorkspace {
       "-emit-dependencies",
       "-emit-module",
       "-emit-module-path",
-      buildPath.appending(component: "\(td.target.c99name).swiftmodule").asString,
+      buildPath.appending(component: "\(td.target.c99name).swiftmodule").description
       // -output-file-map <path>
     ]
     if td.target.type == .library || td.target.type == .test {
       args += ["-parse-as-library"]
     }
     args += ["-c"]
-    args += td.target.sources.paths.map { $0.asString }
-    args += ["-I", buildPath.asString]
+    args += td.target.sources.paths.map { $0.description }
+    args += ["-I", buildPath.description]
     args += td.compileArguments()
 
     return FileBuildSettings(
       preferredToolchain: nil,
       compilerArguments: args,
-      workingDirectory: workspacePath.asString)
+      workingDirectory: workspacePath.description)
   }
 
   /// Retrieve settings for the given C-family language file, which is part of a known target build
@@ -348,7 +348,7 @@ extension SwiftPMWorkspace {
         "-MT",
         "dependencies",
         "-MF",
-        compilePath.deps.asString,
+        compilePath.deps.description,
       ]
     }
 
@@ -368,27 +368,27 @@ extension SwiftPMWorkspace {
     if let compilePath = compilePath {
       args += [
         "-c",
-        compilePath.source.asString,
+        compilePath.source.description,
         "-o",
-        compilePath.object.asString
+        compilePath.object.description
       ]
     } else if path.extension == "h" {
       args += ["-c"]
       if let xflag = language.xflagHeader {
         args += ["-x", xflag]
       }
-      args += [path.asString]
+      args += [path.description]
     } else {
       args += [
         "-c",
-        path.asString,
+        path.description,
       ]
     }
 
     return FileBuildSettings(
       preferredToolchain: nil,
       compilerArguments: args,
-      workingDirectory: workspacePath.asString)
+      workingDirectory: workspacePath.description)
   }
 }
 

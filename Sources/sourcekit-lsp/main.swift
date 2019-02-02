@@ -18,7 +18,7 @@ import SKCore
 import SPMLibc
 import Dispatch
 import Basic
-import Utility
+import SPMUtility
 import Foundation
 import sourcekitd // Not needed here, but fixes debugging...
 
