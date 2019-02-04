@@ -45,6 +45,9 @@ open class PerfTestCase: XCTestCase {
     {
       block()
     }
+    public func measure(block: () -> Void) {
+      block()
+    }
   #endif
 #endif
 
