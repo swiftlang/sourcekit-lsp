@@ -37,7 +37,7 @@ let package = Package(
 
       .target(
         name: "SKSwiftPMWorkspace",
-        dependencies: ["SwiftPM", "SKCore"]),
+        dependencies: ["SwiftPM-auto", "SKCore"]),
       .testTarget(
         name: "SKSwiftPMWorkspaceTests",
         dependencies: ["SKSwiftPMWorkspace", "SKTestSupport"]),
@@ -76,10 +76,7 @@ let package = Package(
       // useful to any Swift package. Similar in spirit to SwiftPM's Basic module.
       .target(
         name: "SKSupport",
-        // FIXME: this should be "Utility", not the full SwiftPM library. Right now that creates
-        // multiple definition warnings at run time because SwiftPM is dynamically linked and
-        // Utility is static.
-        dependencies: ["SwiftPM"]),
+        dependencies: ["SPMUtility"]),
       .testTarget(
         name: "SKSupportTests",
         dependencies: ["SKSupport", "SKTestSupport"]),
