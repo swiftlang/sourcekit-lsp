@@ -140,7 +140,7 @@ public final class SwiftPMWorkspace {
       toolchain: swiftPMToolchain,
       flags: buildSetup.flags)
 
-    self.packageGraph = PackageGraph(rootPackages: [])
+    self.packageGraph = PackageGraph(rootPackages: [], requiredDependencies: [])
 
     try reloadPackage()
   }
