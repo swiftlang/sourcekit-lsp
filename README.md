@@ -104,7 +104,7 @@ SourceKit-LSP is still in early development, so you may run into rough edges wit
 | Feature | Status | Notes |
 |---------|:------:|-------|
 | Swift | ✅ | |
-| C/C++/ObjC | ❌ | [clangd](https://clang.llvm.org/extra/clangd.html) is not available in the recommended toolchain. You can try out C/C++/ObjC support by building clangd from source and putting it in `PATH`.
+| C/C++/ObjC | ❌ | As of `swift-DEVELOPMENT-SNAPSHOT-2019-02-14-a` [clangd](https://clang.llvm.org/extra/clangd.html) is available but hitting frequent assertion failures.
 | Code completion | ✅ | |
 | Quick Help (Hover) | ✅ | |
 | Diagnostics | ✅ | |

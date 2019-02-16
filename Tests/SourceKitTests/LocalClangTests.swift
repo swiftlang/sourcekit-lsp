@@ -20,7 +20,7 @@ import XCTest
 final class LocalClangTests: XCTestCase {
 
   /// Whether to fail tests if clangd cannot be found.
-  static let requireClangd: Bool = false
+  static let requireClangd: Bool = true
 
   /// Whether clangd exists in the toolchain.
   var haveClangd: Bool = false
