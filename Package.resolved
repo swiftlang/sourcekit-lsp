@@ -6,7 +6,7 @@
         "repositoryURL": "https://github.com/apple/indexstore-db.git",
         "state": {
           "branch": "master",
-          "revision": "bbe9a1ccc6d575260075fba247bf4b25729d7953",
+          "revision": "0921902a3124305c87913153610567d5a297de2f",
           "version": null
         }
       },
@@ -15,7 +15,7 @@
         "repositoryURL": "https://github.com/apple/swift-llbuild.git",
         "state": {
           "branch": "master",
-          "revision": "06a25536b8d7f6b43f93139dea15dd8f7873b8d9",
+          "revision": "b350222a15432d19083d0a1ebb05e66cc57759f1",
           "version": null
         }
       },
@@ -24,7 +24,7 @@
         "repositoryURL": "https://github.com/apple/swift-package-manager.git",
         "state": {
           "branch": "master",
-          "revision": "d8821ba5eff37b77839c1f74769a798d775a1e8a",
+          "revision": "70bf4231ee1fe28129d70ddb9c87b58947531ef4",
           "version": null
         }
       }
