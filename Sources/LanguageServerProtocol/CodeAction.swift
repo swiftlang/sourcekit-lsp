@@ -57,7 +57,7 @@ public struct CodeActionContext: Codable, Hashable {
   /// so servers can omit computing them.
   public var only: [CodeActionKind]?
 
-  public init(diagnostics: [Diagnostic] = [], only: [CodeActionKind]?) {
+  public init(diagnostics: [Diagnostic] = [], only: [CodeActionKind]? = nil) {
     self.diagnostics = diagnostics
     self.only = only
   }

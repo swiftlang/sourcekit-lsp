@@ -63,8 +63,8 @@ public let builtinNotifications: [NotificationType.Type] = [
 /// The set of known commands.
 ///
 /// All commands provided by the server should be listed here.
-public let builtinCommands: [CommandDataType.Type] = [
-  SemanticRefactorCommandDataType.self
+public let builtinCommands: [Command.Type] = [
+  SemanticRefactorCommand.self
 ]
 
 // MARK: Miscellaneous Message Types
