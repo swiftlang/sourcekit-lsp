@@ -114,8 +114,12 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     check("-target", "x86_64-apple-macosx10.10", arguments: arguments)
     check("-sdk", arguments: arguments)
     check("-F", arguments: arguments)
-#else
-    check("-target", "x86_64-unknown-linux", arguments: arguments)
+#elseif os(Linux)
+    #if arch(powerpc64le)
+      check("-target", "powerpc64le-unknown-linux", arguments: arguments)
+    #else
+      check("-target", "x86_64-unknown-linux", arguments: arguments)
+    #endif
 #endif
 
     check("-I", build.pathString, arguments: arguments)
@@ -337,8 +341,12 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       check("-target", "x86_64-apple-macosx10.10", arguments: arguments)
       check("-isysroot", arguments: arguments)
       check("-F", arguments: arguments)
-  #else
-      check("-target", "x86_64-unknown-linux", arguments: arguments)
+  #elseif os(Linux)
+      #if arch(powerpc64le)
+        check("-target", "powerpc64le-unknown-linux", arguments: arguments)
+      #else
+        check("-target", "x86_64-unknown-linux", arguments: arguments)
+      #endif
   #endif
 
       check("-I", packageRoot.appending(components: "Sources", "lib", "include").pathString,
@@ -388,9 +396,14 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     check("-target", arguments: arguments) // Only one!
 #if os(macOS)
     check("-target", "x86_64-apple-macosx10.13", arguments: arguments)
-#else
-    check("-target", "x86_64-unknown-linux", arguments: arguments)
+#elseif os(Linux)
+    #if arch(powerpc64le)
+      check("-target", "powerpc64le-unknown-linux", arguments: arguments)
+    #else
+      check("-target", "x86_64-unknown-linux", arguments: arguments)
+    #endif
 #endif
+
   }
 }
 
@@ -434,14 +447,22 @@ private func buildPath(
   if let absoluteBuildPath = config.path {
     #if os(macOS)
       return absoluteBuildPath.appending(components: "x86_64-apple-macosx", buildConfig)
-    #else
-      return absoluteBuildPath.appending(components: "x86_64-unknown-linux", buildConfig)
+    #elseif os(Linux)
+      #if arch(powerpc64le)
+        return absoluteBuildPath.appending(components: "powerpc64le-unknown-linux", buildConfig)
+      #else
+        return absoluteBuildPath.appending(components: "x86_64-unknown-linux", buildConfig)
+      #endif
     #endif
   } else {
     #if os(macOS)
       return root.appending(components: ".build", "x86_64-apple-macosx", buildConfig)
-    #else
-      return root.appending(components: ".build", "x86_64-unknown-linux", buildConfig)
+    #elseif os(Linux)
+        #if arch(powerpc64le)
+          return root.appending(components: ".build", "powerpc64le-unknown-linux", buildConfig)
+        #else
+          return root.appending(components: ".build", "x86_64-unknown-linux", buildConfig)
+        #endif
     #endif
   }
 }
