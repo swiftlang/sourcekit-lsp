@@ -39,6 +39,7 @@ You will need the path to the `sourcekit-lsp` executable and the Swift toolchain
           "scopes": ["source.swift"],
           "syntaxes": [
             "Packages/Swift/Syntaxes/Swift.tmLanguage",
+            "Packages/Decent Swift Syntax/Swift.sublime-syntax",
           ],
           "languageId": "swift"
         },
