@@ -12,34 +12,104 @@
 
 import SKSupport
 
+/// Represents the identifiers of SourceKit-LSP's supported commands.
+public enum CommandIdentifier: String, Codable, CaseIterable {
+  case semanticRefactor = "sourcekit.lsp.semantic.refactoring.command"
+}
+
 /// Represents a reference to a command identified by a string. Used as the result of
 /// requests that returns actions to the user, later used as the parameter of
 /// workspace/executeCommand if the user wishes to execute said command.
-public protocol Command {
-  /// The internal identifier for this command.
-  static var command: String { get set }
+public enum Command: Hashable {
+  case semanticRefactor(TextDocumentIdentifier, SemanticRefactorCommandArgs)
+
+  /// The title of this command.
+  public var title: String {
+    switch self {
+    case let .semanticRefactor(_, args):
+      return args.title
+    }
+  }
+
+  /// The internal identifier of this command.
+  public var identifier: CommandIdentifier {
+    switch self {
+    case .semanticRefactor:
+      return CommandIdentifier.semanticRefactor
+    }
+  }
+
   /// The arguments related to this command.
-  /// This is [Any]? in the LSP, but internally we treat it
-  /// differently to make it easier to create and (de)serialize commands.
-  var arguments: CommandArgsType? { get set }
-}
+  /// This is [Any]? in the LSP, but treated differently here
+  /// to make it easier to create and (de)serialize commands.
+  public var arguments: CommandArgs? {
+    switch self {
+    case let .semanticRefactor(_, args):
+      return args
+    }
+  }
 
-/// A `CommandDataType` represents the arguments required to execute a `Command`.
-public protocol CommandArgsType: Codable {
-  var textDocument: TextDocumentIdentifier { get set }
-}
-
-public struct SemanticRefactorCommand: Command {
-  public static let command = "sourcekit.lsp.semantic.refactoring.command"
-
-  public var arguments: SemanticRefactorCommandArgs?
-
-  public init(arguments: SemanticRefactorCommandArgs) {
-    self.arguments = arguments
+  /// The documented related to this command.
+  public var textDocument: TextDocumentIdentifier {
+    switch self {
+    case let .semanticRefactor(textDocument, _):
+      return textDocument
+    }
   }
 }
 
-public struct SemanticRefactorCommandArgs: CommandArgsType {
+public protocol CommandArgs: Codable {}
+extension TextDocumentIdentifier: CommandArgs {}
+
+extension Command: Codable {
+
+  public enum CodingKeys: String, CodingKey {
+    case title
+    case command
+    case arguments
+  }
+
+  public enum CodingError: Error {
+    case unknownCommand
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let identifier = try container.decode(String.self, forKey: .command)
+    var argumentsContainer = try container.nestedUnkeyedContainer(forKey: .arguments)
+    // Command arguments are sent to the LSP as a [Any]? [textDocument, arguments?] array.
+    let textDocument = try argumentsContainer.decode(TextDocumentIdentifier.self)
+    switch identifier {
+    case CommandIdentifier.semanticRefactor.rawValue:
+      let args = try argumentsContainer.decode(SemanticRefactorCommandArgs.self)
+      self = .semanticRefactor(textDocument, args)
+    default:
+      log("Failed to decode Command: Unknown identifier \(identifier)", level: .warning)
+      throw CodingError.unknownCommand
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(title, forKey: .title)
+    try container.encode(identifier, forKey: .command)
+    var argumentsContainer = container.nestedUnkeyedContainer(forKey: .arguments)
+    // Command arguments are sent to the LSP as a [Any]? [textDocument, arguments?] array.
+    try argumentsContainer.encode(textDocument)
+    try arguments?.encode(toArgumentsEncoder: &argumentsContainer)
+  }
+}
+
+extension CommandArgs {
+  func encode(toArgumentsEncoder encoder: inout UnkeyedEncodingContainer) throws {
+    try encoder.encode(self)
+  }
+}
+
+public struct SemanticRefactorCommandArgs: CommandArgs, Hashable {
+
+  /// The name of this refactoring action.
+  public var title: String
 
   /// The sourcekitd identifier of the refactoring action.
   public var actionString: String
@@ -53,11 +123,8 @@ public struct SemanticRefactorCommandArgs: CommandArgsType {
   /// The length of the range to refactor.
   public var length: Int
 
-  public var textDocument: TextDocumentIdentifier
-
-  public init(actionString: String, line: Int, column: Int, length: Int, textDocument: TextDocumentIdentifier) {
+  public init(title: String, actionString: String, line: Int, column: Int, length: Int) {
     self.title = title
-    self.textDocument = textDocument
     self.actionString = actionString
     self.line = line
     self.column = column
