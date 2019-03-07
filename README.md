@@ -23,10 +23,13 @@ SourceKit-LSP is built using the [Swift Package Manager](https://github.com/appl
 For a standard debug build:
 
 ```sh
+$ swift package update
 $ swift build
 ```
 
 After building, the server will be located at `.build/debug/sourcekit-lsp`, or a similar path, if you passed any custom options to `swift build`. Editors will generally need to be provided with this path in order to run the newly built server - see [Editors](Editors) for more information about configuration.
+
+SourceKit-LSP is designed to build against the latest SwiftPM, so if you run into any issue make sure you have the most up-to-date dependencies by running `swift package update`.
 
 ### Building on Linux
 
