@@ -66,12 +66,15 @@ def main():
 
   swiftpm_args = get_swiftpm_options(args)
 
+  env = os.environ
+  # Set the toolchain used in tests at runtime
+  env['SOURCEKIT_TOOLCHAIN_PATH'] = args.toolchain
+  # Use local dependencies (i.e. checked out next sourcekit-lsp).
+  env['SWIFTCI_USE_LOCAL_DEPS'] = "1"
+
   if args.action == 'build':
-    swiftpm('build', swift_exec, swiftpm_args)
+    swiftpm('build', swift_exec, swiftpm_args, env)
   elif args.action == 'test':
-    # Set the toolchain used in tests at runtime
-    env = os.environ
-    env['SOURCEKIT_TOOLCHAIN_PATH'] = args.toolchain
     swiftpm('test', swift_exec, swiftpm_args, env)
   else:
     assert False, 'unknown action \'{}\''.format(args.action)
