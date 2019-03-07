@@ -24,8 +24,7 @@ final class SupportPerfTests: PerfTestCase {
       "\t", "\n"
     ] + (32...126).map { Character(UnicodeScalar($0)) }
 
-    // The debug performance is shockingly bad.
-    #if DEBUG
+    #if DEBUG || !ENABLE_PERF_TESTS
     let iterations = 1_000
     #else
     let iterations = 10_000
@@ -54,8 +53,7 @@ final class SupportPerfTests: PerfTestCase {
       "\t", "\n"
       ] + (32...126).map { Character(UnicodeScalar($0)) }
 
-    // The debug performance is shockingly bad.
-    #if DEBUG
+    #if DEBUG || !ENABLE_PERF_TESTS
     let iterations = 1_000
     let size = 1_000
     #else
