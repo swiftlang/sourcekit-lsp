@@ -13,7 +13,6 @@
 import XCTest
 @testable import SKSupport
 import Basic
-import POSIX
 
 final class SupportTests: XCTestCase {
 
@@ -184,8 +183,8 @@ final class SupportTests: XCTestCase {
 
     testLogger.currentLevel = .default
 
-    try! setenv("TEST_ENV_LOGGGING_1", value: "1")
-    try! setenv("TEST_ENV_LOGGGING_0", value: "0")
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_1", value: "1")
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_0", value: "0")
     // .warning
     testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_1")
 
@@ -221,7 +220,7 @@ final class SupportTests: XCTestCase {
       ])
 
     // invalid - no change
-    try! setenv("TEST_ENV_LOGGGING_err", value: "")
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_err", value: "")
     testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_err")
 
     log("d", level: .error)
@@ -233,7 +232,7 @@ final class SupportTests: XCTestCase {
       ])
 
     // invalid - no change
-    try! setenv("TEST_ENV_LOGGGING_err", value: "a3")
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_err", value: "a3")
     testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_err")
 
     log("d", level: .error)
@@ -245,7 +244,7 @@ final class SupportTests: XCTestCase {
       ])
 
     // too high - max out at .debug
-    try! setenv("TEST_ENV_LOGGGING_err", value: "1000")
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_err", value: "1000")
     testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_err")
 
     log("d", level: .error)
@@ -260,16 +259,16 @@ final class SupportTests: XCTestCase {
       ])
 
     // By string.
-    try! setenv("TEST_ENV_LOGGGING_string", value: "error")
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_string", value: "error")
     testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
     XCTAssertEqual(testLogger.currentLevel, .error)
-    try! setenv("TEST_ENV_LOGGGING_string", value: "warning")
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_string", value: "warning")
     testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
     XCTAssertEqual(testLogger.currentLevel, .warning)
-    try! setenv("TEST_ENV_LOGGGING_string", value: "info")
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_string", value: "info")
     testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
     XCTAssertEqual(testLogger.currentLevel, .info)
-    try! setenv("TEST_ENV_LOGGGING_string", value: "debug")
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_string", value: "debug")
     testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
     XCTAssertEqual(testLogger.currentLevel, .debug)
 

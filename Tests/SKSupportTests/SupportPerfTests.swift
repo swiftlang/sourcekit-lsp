@@ -13,7 +13,6 @@
 @testable import SKSupport
 import SKTestSupport
 import Basic
-import POSIX
 import XCTest
 
 final class SupportPerfTests: PerfTestCase {
