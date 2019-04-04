@@ -36,7 +36,7 @@ SourceKit-LSP is designed to build against the latest SwiftPM, so if you run int
 The C++ code in the index requires `libdispatch`, but unlike Swift code, it cannot find it automatically on Linux. You can work around this by adding a search path manually.
 
 ```sh
-$ swift build -Xcxx -I<path_to_swift_toolchain>/usr/lib/swift
+$ swift build -Xcxx -I<path_to_swift_toolchain>/usr/lib/swift -I<path_to_swift_toolchain>/usr/lib/swift/Block
 ```
 
 ### Using the Generated Xcode Project
