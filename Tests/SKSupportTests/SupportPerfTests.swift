@@ -47,7 +47,6 @@ final class SupportPerfTests: PerfTestCase {
   }
 
   func testLineTableSingleCharEditPerf() {
-
     let characters: [Character] = [
       "\t", "\n"
       ] + (32...126).map { Character(UnicodeScalar($0)) }
@@ -72,9 +71,9 @@ final class SupportPerfTests: PerfTestCase {
       self.startMeasuring()
 
       for _ in 1...iterations {
-        let line = (0..<(t.count-1)).randomElement(using: &lcg)!
-        let col = (0 ..< t[line].utf16.count).randomElement(using: &lcg)!
-        let len = Bool.random() ? 1 : 0
+        let line = (0 ..< (t.count-1)).randomElement(using: &lcg) ?? 0
+        let col = (0 ..< t[line].utf16.count).randomElement(using: &lcg) ?? 0
+        let len = t[line].isEmpty ? 0 : Bool.random() ? 1 : 0
         var newText = String(characters.randomElement(using: &lcg)!)
         if len == 1 && Bool.random(using: &lcg) {
           newText = "" // deletion
