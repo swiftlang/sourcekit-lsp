@@ -63,6 +63,7 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.documentSymbolHighlight)
     _register(SwiftLanguageServer.foldingRange)
     _register(SwiftLanguageServer.symbolInfo)
+    _register(SwiftLanguageServer.documentSymbol)
   }
 
   func getDiagnostic(_ diag: SKResponseDictionary, for snapshot: DocumentSnapshot) -> Diagnostic? {
@@ -191,7 +192,8 @@ extension SwiftLanguageServer {
       definitionProvider: nil,
       referencesProvider: nil,
       documentHighlightProvider: true,
-      foldingRangeProvider: true
+      foldingRangeProvider: true,
+      documentSymbolProvider: true
       )))
   }
 
@@ -469,6 +471,117 @@ extension SwiftLanguageServer {
 
       req.reply([cursorInfo.symbolInfo])
     }
+  }
+
+  func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
+    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
+      log("failed to find snapshot for url \(req.params.textDocument.url)")
+      req.reply(nil)
+      return
+    }
+
+    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
+    skreq[keys.request] = requests.editor_open
+    skreq[keys.name] = snapshot.document.url.path
+    skreq[keys.sourcefile] = snapshot.document.url.path
+    let handle = sourcekitd.send(skreq) { [weak self] result in
+      guard let self = self else { return }
+      guard let dict = result.success else {
+        req.reply(.failure(result.failure!))
+        return
+      }
+      guard let results: SKResponseArray = dict[self.keys.substructure] else {
+        return req.reply([])
+      }
+
+      /// Translate sourcekit symbol kinds into LSP kinds.
+      func symbolKind(sourcekitSymbolKind: sourcekitd_uid_t) -> SymbolKind? {
+        switch sourcekitSymbolKind {
+          case self.values.decl_class:
+            return .class
+          case self.values.decl_function_method_instance,
+            self.values.decl_function_method_static:
+            return .method
+          case self.values.decl_var_instance:
+            return .property
+          case self.values.decl_enum:
+            return .enum
+          case self.values.decl_enumelement:
+            return .enumMember
+          case self.values.decl_protocol:
+            return .interface
+          case self.values.decl_function_free:
+            return .function
+          case self.values.decl_var_global:
+            return .variable
+          case self.values.decl_struct:
+            return .struct
+          case self.values.decl_generic_type_param:
+            return .typeParameter
+          case self.values.decl_extension:
+            // There are no extensions in LSP, so I return something vaguely similar
+            return .namespace
+          default:
+            return nil
+        }
+      }
+
+      func documentSymbol(value: SKResponseDictionary) -> DocumentSymbol? {
+        guard let name: String = value[self.keys.name],
+          let kind: SymbolKind = value[self.keys.kind].flatMap(symbolKind(sourcekitSymbolKind:)),
+          let offset: Int = value[self.keys.offset],
+          let start: Position = snapshot.positionOf(utf8Offset: offset),
+          let length: Int = value[self.keys.length],
+          let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
+          return nil
+        }
+        
+        let range = PositionRange(start..<end)
+        let selectionRange: PositionRange
+        if let nameOffset: Int = value[self.keys.nameoffset],
+          let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
+          let nameLength: Int = value[self.keys.namelength],
+          let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
+          selectionRange = PositionRange(nameStart..<nameEnd)
+        } else {
+          selectionRange = range
+        }
+
+        let children: [DocumentSymbol]?
+        if let substructure: SKResponseArray = value[self.keys.substructure] {
+          children = documentSymbols(array: substructure)
+        } else {
+          children = nil
+        }
+        return DocumentSymbol(
+          name: name,
+          detail: nil,
+          kind: kind,
+          deprecated: nil,
+          range: range,
+          selectionRange: selectionRange,
+          children: children
+        )
+      }
+
+      func documentSymbols(array: SKResponseArray) -> [DocumentSymbol] {
+        var result: [DocumentSymbol] = []
+        array.forEach { (i: Int, value: SKResponseDictionary) in
+          if let documentSymbol = documentSymbol(value: value) {
+            result.append(documentSymbol)
+          } else if let substructure: SKResponseArray = value[self.keys.substructure] {
+            result += documentSymbols(array: substructure)
+          }
+          return true
+        }
+        return result
+      }
+      
+      req.reply(documentSymbols(array: results))
+    }
+    // FIXME: cancellation
+    _ = handle
+    return
   }
 
   func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
