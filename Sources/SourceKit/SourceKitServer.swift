@@ -169,8 +169,13 @@ public final class SourceKitServer: LanguageServer {
         return nil
       }
 
+      #if os(Windows)
+        let pid: Int = unsafeBitCast(GetCurrentProcess(), to: Int.self)
+      #else
+        let pid: Int = Int(getpid())
+      #endif
       let resp = try service.sendSync(InitializeRequest(
-        processId: Int(getpid()),
+        processId: pid,
         rootPath: nil,
         rootURL: (workspace?.rootPath).map { URL(fileURLWithPath: $0.pathString) },
         initializationOptions: InitializationOptions(),
