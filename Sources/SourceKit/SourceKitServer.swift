@@ -169,11 +169,7 @@ public final class SourceKitServer: LanguageServer {
         return nil
       }
 
-      #if os(Windows)
-        let pid: Int = unsafeBitCast(GetCurrentProcess(), to: Int.self)
-      #else
-        let pid: Int = Int(getpid())
-      #endif
+      let pid = Int(ProcessInfo.processInfo.processIdentifier)
       let resp = try service.sendSync(InitializeRequest(
         processId: pid,
         rootPath: nil,
