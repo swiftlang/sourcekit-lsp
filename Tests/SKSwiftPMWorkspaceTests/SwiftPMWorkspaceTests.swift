@@ -16,6 +16,7 @@ import PackageModel
 import Basic
 import SPMUtility
 import SKTestSupport
+import Build
 import XCTest
 
 final class SwiftPMWorkspaceTests: XCTestCase {
@@ -111,11 +112,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
     check("-target", arguments: arguments) // Only one!
 #if os(macOS)
-    check("-target", "x86_64-apple-macosx10.10", arguments: arguments)
+    check("-target", Triple.hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
     check("-sdk", arguments: arguments)
     check("-F", arguments: arguments)
 #else
-    check("-target", "x86_64-unknown-linux", arguments: arguments)
+    check("-target", Triple.hostTriple.tripleString, arguments: arguments)
 #endif
 
     check("-I", build.pathString, arguments: arguments)
@@ -334,11 +335,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       checkNot("-arch", arguments: arguments)
       check("-target", arguments: arguments) // Only one!
   #if os(macOS)
-      check("-target", "x86_64-apple-macosx10.10", arguments: arguments)
+      check("-target", Triple.hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
       check("-isysroot", arguments: arguments)
       check("-F", arguments: arguments)
   #else
-      check("-target", "x86_64-unknown-linux", arguments: arguments)
+      check("-target", Triple.hostTriple.tripleString, arguments: arguments)
   #endif
 
       check("-I", packageRoot.appending(components: "Sources", "lib", "include").pathString,
@@ -387,9 +388,9 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
     check("-target", arguments: arguments) // Only one!
 #if os(macOS)
-    check("-target", "x86_64-apple-macosx10.13", arguments: arguments)
+    check("-target", Triple.hostTriple.tripleString(forPlatformVersion: "10.13"), arguments: arguments)
 #else
-    check("-target", "x86_64-unknown-linux", arguments: arguments)
+    check("-target", Triple.hostTriple.tripleString, arguments: arguments)
 #endif
   }
 }
@@ -430,18 +431,6 @@ private func buildPath(
   root: AbsolutePath,
   config: BuildSetup = TestSourceKitServer.buildSetup) -> AbsolutePath
 {
-  let buildConfig = "\(config.configuration)"
-  if let absoluteBuildPath = config.path {
-    #if os(macOS)
-      return absoluteBuildPath.appending(components: "x86_64-apple-macosx", buildConfig)
-    #else
-      return absoluteBuildPath.appending(components: "x86_64-unknown-linux", buildConfig)
-    #endif
-  } else {
-    #if os(macOS)
-      return root.appending(components: ".build", "x86_64-apple-macosx", buildConfig)
-    #else
-      return root.appending(components: ".build", "x86_64-unknown-linux", buildConfig)
-    #endif
-  }
+  let buildPath = config.path ?? root.appending(component: ".build")
+  return buildPath.appending(components: Triple.hostTriple.tripleString, "\(config.configuration)")
 }
