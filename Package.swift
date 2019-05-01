@@ -7,8 +7,7 @@ let package = Package(
     products: [
     ],
     dependencies: [
-      .package(url: "https://github.com/apple/swift-package-manager.git", .branch("master")),
-      .package(url: "https://github.com/apple/indexstore-db.git", .branch("master")),
+      // See 'Dependencies' below.
     ],
     targets: [
       .target(
@@ -82,3 +81,28 @@ let package = Package(
         dependencies: ["SKSupport", "SKTestSupport"]),
     ]
 )
+
+// MARK: Dependencies
+
+// When building with the swift build-script, use local dependencies whose contents are controlled
+// by the external environment. This allows sourcekit-lsp to take advantage of the automation used
+// for building the swift toolchain, such as `update-checkout`, or cross-repo PR tests.
+
+#if os(Linux)
+import Glibc
+#else
+import Darwin.C
+#endif
+
+if getenv("SWIFTCI_USE_LOCAL_DEPS") == nil {
+  // Building standalone.
+  package.dependencies += [
+    .package(url: "https://github.com/apple/indexstore-db.git", .branch("master")),
+    .package(url: "https://github.com/apple/swift-package-manager.git", .branch("master")),
+  ]
+} else {
+  package.dependencies += [
+    .package(path: "../indexstore-db"),
+    .package(path: "../swiftpm"),
+  ]
+}
