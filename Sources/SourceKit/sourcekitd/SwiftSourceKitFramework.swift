@@ -42,7 +42,11 @@ final class SwiftSourceKitFramework {
 
   init(dylib path: AbsolutePath) throws {
     self.path = path
+    #if os(Windows)
+    self.dylib = try dlopen(path.pathString, mode: [])
+    #else
     self.dylib = try dlopen(path.pathString, mode: [.lazy, .local, .first, .deepBind])
+    #endif
 
     func dlsym_required<T>(_ handle: DLHandle, symbol: String) throws -> T {
       guard let sym: T = dlsym(handle, symbol: symbol) else {
@@ -54,7 +58,7 @@ final class SwiftSourceKitFramework {
     // Workaround rdar://problem/43656704 by not constructing the value directly.
     // self.api = sourcekitd_functions_t(
     let ptr = UnsafeMutablePointer<sourcekitd_functions_t>.allocate(capacity: 1)
-    bzero(UnsafeMutableRawPointer(ptr), MemoryLayout<sourcekitd_functions_t>.stride)
+    memset(UnsafeMutableRawPointer(ptr), 0, MemoryLayout<sourcekitd_functions_t>.stride)
     var api = ptr.pointee
     ptr.deallocate()
 

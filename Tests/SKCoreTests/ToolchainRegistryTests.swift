@@ -14,7 +14,6 @@
 import Basic
 import SPMUtility
 import XCTest
-import POSIX
 
 final class ToolchainRegistryTests: XCTestCase {
   func testDefaultBasic() {
@@ -186,8 +185,8 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! setenv("SOURCEKIT_PATH", value: "/bogus:\(binPath):/bogus2")
-    defer { try! setenv("SOURCEKIT_PATH", value: "") }
+    try! ProcessEnv.setVar("SOURCEKIT_PATH", value: "/bogus:\(binPath):/bogus2")
+    defer { try! ProcessEnv.setVar("SOURCEKIT_PATH", value: "") }
 
     tr.scanForToolchains(fs)
 
@@ -205,7 +204,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tc.libIndexStore)
 
     let binPath2 = AbsolutePath("/other/my_toolchain/bin")
-    try! setenv("SOME_TEST_ENV_PATH", value: "/bogus:\(binPath2):/bogus2")
+    try! ProcessEnv.setVar("SOME_TEST_ENV_PATH", value: "/bogus:\(binPath2):/bogus2")
     makeToolchain(binPath: binPath2, fs, sourcekitd: true)
     tr.scanForToolchains(pathVariables: ["NOPE", "SOME_TEST_ENV_PATH", "MORE_NOPE"], fs)
 
@@ -228,7 +227,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! setenv("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: binPath.parentDirectory.pathString)
+    try! ProcessEnv.setVar("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: binPath.parentDirectory.pathString)
 
     tr.scanForToolchains(environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"], fs)
 
@@ -255,7 +254,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! setenv("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2", value: binPath.parentDirectory.pathString)
+    try! ProcessEnv.setVar("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2", value: binPath.parentDirectory.pathString)
 
     tr.scanForToolchains(
       environmentVariables: ["TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2"],

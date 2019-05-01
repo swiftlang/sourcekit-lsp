@@ -169,8 +169,9 @@ public final class SourceKitServer: LanguageServer {
         return nil
       }
 
+      let pid = Int(ProcessInfo.processInfo.processIdentifier)
       let resp = try service.sendSync(InitializeRequest(
-        processId: Int(getpid()),
+        processId: pid,
         rootPath: nil,
         rootURL: (workspace?.rootPath).map { URL(fileURLWithPath: $0.pathString) },
         initializationOptions: InitializationOptions(),
