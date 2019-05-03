@@ -13,9 +13,14 @@
 import SPMLibc
 
 public final class DLHandle {
-  var rawValue: UnsafeMutableRawPointer? = nil
+  #if os(Windows)
+    typealias Handle = HMODULE
+  #else
+    typealias Handle = UnsafeMutableRawPointer
+  #endif
+  var rawValue: Handle? = nil
 
-  init(rawValue: UnsafeMutableRawPointer) {
+  init(rawValue: Handle) {
     self.rawValue = rawValue
   }
 
@@ -25,9 +30,15 @@ public final class DLHandle {
 
   public func close() throws {
     if let handle = rawValue {
-      guard dlclose(handle) == 0 else {
-        throw DLError.dlclose(dlerror() ?? "unknown error")
-      }
+      #if os(Windows)
+        guard FreeLibrary(handle) != 0 else {
+          throw DLError.close("Failed to FreeLibrary: \(GetLastError())")
+        }
+      #else
+        guard dlclose(handle) == 0 else {
+          throw DLError.close(dlerror() ?? "unknown error")
+        }
+      #endif
     }
     rawValue = nil
   }
@@ -39,6 +50,7 @@ public final class DLHandle {
 
 public struct DLOpenFlags: RawRepresentable, OptionSet {
 
+  #if !os(Windows)
   public static let lazy: DLOpenFlags = DLOpenFlags(rawValue: RTLD_LAZY)
   public static let now: DLOpenFlags = DLOpenFlags(rawValue: RTLD_NOW)
   public static let local: DLOpenFlags = DLOpenFlags(rawValue: RTLD_LOCAL)
@@ -52,6 +64,7 @@ public struct DLOpenFlags: RawRepresentable, OptionSet {
     public static let first: DLOpenFlags = DLOpenFlags(rawValue: 0)
     public static let deepBind: DLOpenFlags = DLOpenFlags(rawValue: RTLD_DEEPBIND)
   #endif
+  #endif
 
   public var rawValue: Int32
 
@@ -61,21 +74,33 @@ public struct DLOpenFlags: RawRepresentable, OptionSet {
 }
 
 public enum DLError: Swift.Error {
-  case dlopen(String)
-  case dlclose(String)
+  case `open`(String)
+  case close(String)
 }
 
 public func dlopen(_ path: String?, mode: DLOpenFlags) throws -> DLHandle {
-  guard let handle = SPMLibc.dlopen(path, mode.rawValue) else {
-    throw DLError.dlopen(dlerror() ?? "unknown error")
-  }
+  #if os(Windows)
+    guard let handle = path?.withCString(encodedAs: UTF16.self, LoadLibraryW) else {
+      throw DLError.open("LoadLibraryW failed: \(GetLastError())")
+    }
+  #else
+    guard let handle = SPMLibc.dlopen(path, mode.rawValue) else {
+      throw DLError.open(dlerror() ?? "unknown error")
+    }
+  #endif
   return DLHandle(rawValue: handle)
 }
 
 public func dlsym<T>(_ handle: DLHandle, symbol: String) -> T? {
+  #if os(Windows)
+  guard let ptr = GetProcAddress(handle.rawValue!, symbol) else {
+    return nil
+  }
+  #else
   guard let ptr = dlsym(handle.rawValue!, symbol) else {
     return nil
   }
+  #endif
   return unsafeBitCast(ptr, to: T.self)
 }
 
@@ -83,9 +108,11 @@ public func dlclose(_ handle: DLHandle) throws {
   try handle.close()
 }
 
+#if !os(Windows)
 public func dlerror() -> String? {
   if let err: UnsafeMutablePointer<Int8> = dlerror() {
     return String(cString: err)
   }
   return nil
 }
+#endif
