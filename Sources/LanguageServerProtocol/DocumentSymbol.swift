@@ -73,13 +73,14 @@ public struct DocumentSymbol: Hashable, Codable, ResponseType {
     deprecated: Bool?,
     range: PositionRange,
     selectionRange: PositionRange,
-    children: [DocumentSymbol]?) {
-      self.name = name
-      self.detail = detail
-      self.kind = kind
-      self.deprecated = deprecated
-      self.range = range
-      self.selectionRange = selectionRange
-      self.children = children
-    }
+    children: [DocumentSymbol]?)
+  {
+    self.name = name
+    self.detail = detail
+    self.kind = kind
+    self.deprecated = deprecated
+    self.range = range
+    self.selectionRange = selectionRange
+    self.children = children
+  }
 }

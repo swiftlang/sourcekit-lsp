@@ -496,58 +496,23 @@ extension SwiftLanguageServer {
         return req.reply([])
       }
 
-      /// Translate sourcekit symbol kinds into LSP kinds.
-      func symbolKind(sourcekitSymbolKind: sourcekitd_uid_t) -> SymbolKind? {
-        switch sourcekitSymbolKind {
-          case self.values.decl_class:
-            return .class
-          case self.values.decl_function_method_instance,
-            self.values.decl_function_method_static, 
-            self.values.decl_function_method_class:
-            return .method
-          case self.values.decl_var_instance, 
-            self.values.decl_var_class, 
-            self.values.decl_var_static:
-            return .property
-          case self.values.decl_enum:
-            return .enum
-          case self.values.decl_enumelement:
-            return .enumMember
-          case self.values.decl_protocol:
-            return .interface
-          case self.values.decl_function_free:
-            return .function
-          case self.values.decl_var_global, 
-            self.values.decl_var_local:
-            return .variable
-          case self.values.decl_struct:
-            return .struct
-          case self.values.decl_generic_type_param:
-            return .typeParameter
-          case self.values.decl_extension:
-            // There are no extensions in LSP, so I return something vaguely similar
-            return .namespace
-          default:
-            return nil
-        }
-      }
-
       func documentSymbol(value: SKResponseDictionary) -> DocumentSymbol? {
         guard let name: String = value[self.keys.name],
-          let kind: SymbolKind = value[self.keys.kind].flatMap(symbolKind(sourcekitSymbolKind:)),
-          let offset: Int = value[self.keys.offset],
-          let start: Position = snapshot.positionOf(utf8Offset: offset),
-          let length: Int = value[self.keys.length],
-          let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
+              let uid: sourcekitd_uid_t = value[self.keys.kind],
+              let kind: SymbolKind = uid.asSymbolKind(self.values),
+              let offset: Int = value[self.keys.offset],
+              let start: Position = snapshot.positionOf(utf8Offset: offset),
+              let length: Int = value[self.keys.length],
+              let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
           return nil
         }
         
         let range = PositionRange(start..<end)
         let selectionRange: PositionRange
         if let nameOffset: Int = value[self.keys.nameoffset],
-          let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
-          let nameLength: Int = value[self.keys.namelength],
-          let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
+           let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
+           let nameLength: Int = value[self.keys.namelength],
+           let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
           selectionRange = PositionRange(nameStart..<nameEnd)
         } else {
           selectionRange = range
@@ -559,15 +524,13 @@ extension SwiftLanguageServer {
         } else {
           children = nil
         }
-        return DocumentSymbol(
-          name: name,
-          detail: nil,
-          kind: kind,
-          deprecated: nil,
-          range: range,
-          selectionRange: selectionRange,
-          children: children
-        )
+        return DocumentSymbol(name: name,
+                              detail: nil,
+                              kind: kind,
+                              deprecated: nil,
+                              range: range,
+                              selectionRange: selectionRange,
+                              children: children)
       }
 
       func documentSymbols(array: SKResponseArray) -> [DocumentSymbol] {
@@ -873,6 +836,41 @@ extension sourcekitd_uid_t {
            vals.decl_var_global,
            vals.decl_var_parameter:
         return .variable
+      default:
+        return nil
+    }
+  }
+
+  func asSymbolKind(_ vals: sourcekitd_values) -> SymbolKind? {
+    switch self {
+      case vals.decl_class:
+        return .class
+      case vals.decl_function_method_instance,
+           vals.decl_function_method_static, 
+           vals.decl_function_method_class:
+        return .method
+      case vals.decl_var_instance, 
+           vals.decl_var_static,
+           vals.decl_var_class:
+        return .property
+      case vals.decl_enum:
+        return .enum
+      case vals.decl_enumelement:
+        return .enumMember
+      case vals.decl_protocol:
+        return .interface
+      case vals.decl_function_free:
+        return .function
+      case vals.decl_var_global, 
+           vals.decl_var_local:
+        return .variable
+      case vals.decl_struct:
+        return .struct
+      case vals.decl_generic_type_param:
+        return .typeParameter
+      case vals.decl_extension:
+        // There are no extensions in LSP, so I return something vaguely similar
+        return .namespace
       default:
         return nil
     }
