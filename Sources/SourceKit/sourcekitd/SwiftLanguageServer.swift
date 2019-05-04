@@ -482,8 +482,10 @@ extension SwiftLanguageServer {
 
     let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.editor_open
-    skreq[keys.name] = snapshot.document.url.path
+    skreq[keys.name] = "DocumentSymbols:" + snapshot.document.url.path
     skreq[keys.sourcetext] = snapshot.text
+    skreq[keys.syntactic_only] = 1
+
     let handle = sourcekitd.send(skreq) { [weak self] result in
       guard let self = self else { return }
       guard let dict = result.success else {
