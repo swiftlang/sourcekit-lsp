@@ -120,7 +120,7 @@ SourceKit-LSP is still in early development, so you may run into rough edges wit
 | Formatting | ❌ | |
 | Folding | ✅ | |
 | Syntax Highlighting | ❌ | Not currently part of LSP. |
-| Document Symbols | ❌ |  |
+| Document Symbols | ✅ |  |
 
 
 ### Caveats
