@@ -483,7 +483,7 @@ extension SwiftLanguageServer {
     let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.editor_open
     skreq[keys.name] = snapshot.document.url.path
-    skreq[keys.sourcefile] = snapshot.document.url.path
+    skreq[keys.sourcetext] = snapshot.text
     let handle = sourcekitd.send(skreq) { [weak self] result in
       guard let self = self else { return }
       guard let dict = result.success else {
@@ -500,9 +500,12 @@ extension SwiftLanguageServer {
           case self.values.decl_class:
             return .class
           case self.values.decl_function_method_instance,
-            self.values.decl_function_method_static:
+            self.values.decl_function_method_static, 
+            self.values.decl_function_method_class:
             return .method
-          case self.values.decl_var_instance:
+          case self.values.decl_var_instance, 
+            self.values.decl_var_class, 
+            self.values.decl_var_static:
             return .property
           case self.values.decl_enum:
             return .enum
@@ -512,7 +515,8 @@ extension SwiftLanguageServer {
             return .interface
           case self.values.decl_function_free:
             return .function
-          case self.values.decl_var_global:
+          case self.values.decl_var_global, 
+            self.values.decl_var_local:
             return .variable
           case self.values.decl_struct:
             return .struct
