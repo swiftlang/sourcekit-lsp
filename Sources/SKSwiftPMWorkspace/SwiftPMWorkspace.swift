@@ -82,7 +82,7 @@ public final class SwiftPMWorkspace {
       dataPath: buildPath,
       editablesPath: packageRoot.appending(component: "Packages"),
       pinsFile: packageRoot.appending(component: "Package.resolved"),
-      manifestLoader: ManifestLoader(manifestResources: toolchain.manifestResources),
+      manifestLoader: ManifestLoader(manifestResources: toolchain.manifestResources, cacheDir: buildPath),
       delegate: BuildSettingProviderWorkspaceDelegate(),
       fileSystem: fileSystem,
       skipUpdate: true)
