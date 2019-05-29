@@ -104,11 +104,9 @@ With this added in `.vimrc`, you can use `<c-x><c-o>` in insert mode to trigger 
 
 ## Theia Cloud IDE
 
-How to use `theiaide/theia-swift` image?
+You can use SourceKit-LSP with Theia by using the `theiaide/theia-swift` image. To use the image you need to have [Docker](https://docs.docker.com/get-started/) installed first.
 
-To use image you need to have [Docker](https://docs.docker.com/get-started/) installed first.
-
-This script pulls the image and runs Theia IDE on http://localhost:3000 with the current directory as a workspace.
+The following command pulls the image and runs Theia IDE on http://localhost:3000 with the current directory as a workspace.
 
     docker run -it -p 3000:3000 -v "$(pwd):/home/project:cached" theiaide/theia-swift:next
 
