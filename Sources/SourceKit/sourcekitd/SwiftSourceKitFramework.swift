@@ -359,6 +359,7 @@ struct sourcekitd_values {
   let syntaxtype_comment_url: sourcekitd_uid_t
   let syntaxtype_doccomment: sourcekitd_uid_t
   let syntaxtype_doccomment_field: sourcekitd_uid_t
+  let expr_object_literal: sourcekitd_uid_t
 
   let kind_keyword: sourcekitd_uid_t
 
@@ -448,6 +449,7 @@ struct sourcekitd_values {
     syntaxtype_comment_url = api.uid_get_from_cstr("source.lang.swift.syntaxtype.comment.url")!
     syntaxtype_doccomment = api.uid_get_from_cstr("source.lang.swift.syntaxtype.doccomment")!
     syntaxtype_doccomment_field = api.uid_get_from_cstr("source.lang.swift.syntaxtype.doccomment.field")!
+    expr_object_literal = api.uid_get_from_cstr("source.lang.swift.expr.object_literal")!
 
     kind_keyword = api.uid_get_from_cstr("source.lang.swift.keyword")!
   }

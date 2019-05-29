@@ -45,6 +45,9 @@ public struct ServerCapabilities: Codable, Hashable {
   /// Whether the server provides "textDocument/documentSymbol"
   public var documentSymbolProvider: Bool?
 
+  /// Whether the server provides "textDocument/documentColor" and "textDocument/colorPresentation".
+  public var colorProvider: Bool?
+
   // TODO: fill-in the rest.
 
   public init(
@@ -58,7 +61,8 @@ public struct ServerCapabilities: Codable, Hashable {
     documentRangeFormattingProvider: Bool? = nil,
     documentOnTypeFormattingProvider: DocumentOnTypeFormattingOptions? = nil,
     foldingRangeProvider: Bool? = nil,
-    documentSymbolProvider: Bool? = nil
+    documentSymbolProvider: Bool? = nil,
+    colorProvider: Bool? = nil
     )
   {
     self.textDocumentSync = textDocumentSync
@@ -72,6 +76,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.documentOnTypeFormattingProvider = documentOnTypeFormattingProvider
     self.foldingRangeProvider = foldingRangeProvider
     self.documentSymbolProvider = documentSymbolProvider
+    self.colorProvider = colorProvider
   }
 
   public init(from decoder: Decoder) throws {
@@ -81,6 +86,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.definitionProvider = try container.decodeIfPresent(Bool.self, forKey: .definitionProvider)
     self.foldingRangeProvider = try container.decodeIfPresent(Bool.self, forKey: .foldingRangeProvider)
     self.documentSymbolProvider = try container.decodeIfPresent(Bool.self, forKey: .documentSymbolProvider)
+    self.colorProvider = try container.decodeIfPresent(Bool.self, forKey: .colorProvider)
 
     if let textDocumentSync = try? container.decode(TextDocumentSyncOptions.self, forKey: .textDocumentSync) {
       self.textDocumentSync = textDocumentSync

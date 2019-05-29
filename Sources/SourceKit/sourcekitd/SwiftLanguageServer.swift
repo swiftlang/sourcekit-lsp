@@ -64,6 +64,8 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.foldingRange)
     _register(SwiftLanguageServer.symbolInfo)
     _register(SwiftLanguageServer.documentSymbol)
+    _register(SwiftLanguageServer.documentColor)
+    _register(SwiftLanguageServer.colorPresentation)
   }
 
   func getDiagnostic(_ diag: SKResponseDictionary, for snapshot: DocumentSnapshot) -> Diagnostic? {
@@ -193,7 +195,8 @@ extension SwiftLanguageServer {
       referencesProvider: nil,
       documentHighlightProvider: true,
       foldingRangeProvider: true,
-      documentSymbolProvider: true
+      documentSymbolProvider: true,
+      colorProvider: true
       )))
   }
 
@@ -551,6 +554,108 @@ extension SwiftLanguageServer {
     // FIXME: cancellation
     _ = handle
     return
+  }
+
+  func documentColor(_ req: Request<DocumentColorRequest>) {
+    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
+      log("failed to find snapshot for url \(req.params.textDocument.url)")
+      req.reply(nil)
+      return
+    }
+
+    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
+    skreq[keys.request] = requests.editor_open
+    skreq[keys.name] = "DocumentColor:" + snapshot.document.url.path
+    skreq[keys.sourcetext] = snapshot.text
+    skreq[keys.syntactic_only] = 1
+
+    let handle = sourcekitd.send(skreq) { [weak self] result in      
+      guard let self = self else { return }
+      guard let dict = result.success else {
+        req.reply(.failure(result.failure!))
+        return
+      }
+      
+      guard let results: SKResponseArray = dict[self.keys.substructure] else {
+        return req.reply([])
+      }
+      
+      func colorInformation(dict: SKResponseDictionary) -> ColorInformation? {
+        guard let kind: sourcekitd_uid_t = dict[self.keys.kind],
+              kind == self.values.expr_object_literal,
+              let name: String = dict[self.keys.name],
+              name == "colorLiteral",
+              let offset: Int = dict[self.keys.offset],
+              let start: Position = snapshot.positionOf(utf8Offset: offset),
+              let length: Int = dict[self.keys.length],
+              let end: Position = snapshot.positionOf(utf8Offset: offset + length),
+              let substructure: SKResponseArray = dict[self.keys.substructure] else {
+          return nil
+        }
+        var red, green, blue, alpha: Double?
+        substructure.forEach{ (i: Int, value: SKResponseDictionary) in
+          guard let name: String = value[self.keys.name],
+                let bodyoffset: Int = value[self.keys.bodyoffset],
+                let bodylength: Int = value[self.keys.bodylength] else {
+            return true
+          }
+          let view = snapshot.text.utf8
+          let bodyStart = view.index(view.startIndex, offsetBy: bodyoffset)
+          let bodyEnd = view.index(view.startIndex, offsetBy: bodyoffset+bodylength)
+          let value = String(view[bodyStart..<bodyEnd]).flatMap(Double.init)
+          switch name {
+            case "red":
+              red = value
+            case "green":
+              green = value
+            case "blue":
+              blue = value
+            case "alpha":
+              alpha = value
+            default:
+              break
+          }
+          return true
+        }
+        if let red = red,
+           let green = green,
+           let blue = blue,
+           let alpha = alpha {
+          let color = Color(red: red, green: green, blue: blue, alpha: alpha)
+          return ColorInformation(range: start..<end, color: color)
+        } else {
+          return nil
+        }
+      }
+      
+      func colorInformation(array: SKResponseArray) -> [ColorInformation] {
+        var result: [ColorInformation] = []
+        array.forEach { (i: Int, value: SKResponseDictionary) in
+          if let documentSymbol = colorInformation(dict: value) {
+            result.append(documentSymbol)
+          } else if let substructure: SKResponseArray = value[self.keys.substructure] {
+            result += colorInformation(array: substructure)
+
+          }
+          return true
+        }
+        return result
+      }
+
+      req.reply(colorInformation(array: results))
+    }
+    // FIXME: cancellation
+    _ = handle
+  }
+
+  func colorPresentation(_ req: Request<ColorPresentationRequest>) {
+    let color = req.params.color
+    // Empty string as a label breaks vs code color picker
+    let label = "Color Literal"
+    let newText = "#colorLiteral(red: \(color.red), green: \(color.green), blue: \(color.blue), alpha: \(color.alpha))"
+    let textEdit = TextEdit(range: req.params.range.asRange, newText: newText)
+    let presentation = ColorPresentation(label: label, textEdit: textEdit, additionalTextEdits: nil)
+    req.reply([presentation])
   }
 
   func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
