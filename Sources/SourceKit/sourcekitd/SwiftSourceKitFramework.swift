@@ -218,6 +218,8 @@ struct sourcekitd_keys {
   let bodyoffset: sourcekitd_uid_t
   let bodylength: sourcekitd_uid_t
   let syntaxmap: sourcekitd_uid_t
+  let namelength: sourcekitd_uid_t
+  let nameoffset: sourcekitd_uid_t
 
   init(api: sourcekitd_functions_t) {
     request = api.uid_get_from_cstr("key.request")!
@@ -246,6 +248,8 @@ struct sourcekitd_keys {
     bodyoffset = api.uid_get_from_cstr("key.bodyoffset")!
     bodylength = api.uid_get_from_cstr("key.bodylength")!
     syntaxmap = api.uid_get_from_cstr("key.syntaxmap")!
+    namelength = api.uid_get_from_cstr("key.namelength")!
+    nameoffset = api.uid_get_from_cstr("key.nameoffset")!
   }
 }
 
