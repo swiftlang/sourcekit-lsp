@@ -102,6 +102,29 @@ autocmd FileType swift setlocal omnifunc=lsp#complete
 
 With this added in `.vimrc`, you can use `<c-x><c-o>` in insert mode to trigger sourcekit-lsp completion.
 
+## Theia Cloud IDE
+
+You can use SourceKit-LSP with Theia by using the `theiaide/theia-swift` image. To use the image you need to have [Docker](https://docs.docker.com/get-started/) installed first.
+
+The following command pulls the image and runs Theia IDE on http://localhost:3000 with the current directory as a workspace.
+
+    docker run -it -p 3000:3000 -v "$(pwd):/home/project:cached" theiaide/theia-swift:next
+
+You can pass additional arguments to Theia after the image name, for example to enable debugging:
+
+    docker run -it -p 3000:3000 --expose 9229 -p 9229:9229 -v "$(pwd):/home/project:cached" theiaide/theia-swift:next --inspect=0.0.0.0:9229
+
+Image Variants
+
+`theiaide/theia-swift:latest`
+This image is based on the latest stable released version.
+
+`theiaide/theia-swift:next`
+This image is based on the nightly published version.
+
+theia-swift-docker source [theia-apps](https://github.com/theia-ide/theia-apps)
+
+
 ## Other Editors
 
 SourceKit-LSP should work with any editor that supports the [Language Server Protocol](https://microsoft.github.io/language-server-protocol/)
