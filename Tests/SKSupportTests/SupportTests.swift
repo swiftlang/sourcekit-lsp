@@ -20,24 +20,24 @@ final class SupportTests: XCTestCase {
     enum MyError: Error, Equatable {
       case err1, err2
     }
-    typealias MyResult<T> = Result<T, MyError>
+    typealias MyResult<T> = Swift.Result<T, MyError>
 
-    XCTAssertEqual(MyResult(1), .success(1))
-    XCTAssertNotEqual(MyResult(2), .success(1))
-    XCTAssertNotEqual(MyResult(.err1), .success(1))
-    XCTAssertEqual(MyResult(.err1), MyResult<Int>.failure(.err1))
-    XCTAssertNotEqual(MyResult(.err1), MyResult<Int>.failure(.err2))
+    XCTAssertEqual(MyResult.success(1), .success(1))
+    XCTAssertNotEqual(MyResult.success(2), .success(1))
+    XCTAssertNotEqual(MyResult.failure(.err1), .success(1))
+    XCTAssertEqual(MyResult.failure(.err1), MyResult<Int>.failure(.err1))
+    XCTAssertNotEqual(MyResult.failure(.err1), MyResult<Int>.failure(.err2))
   }
 
   func testResultProjection() {
     enum MyError: Error, Equatable {
       case err1, err2
     }
-    typealias MyResult<T> = Result<T, MyError>
+    typealias MyResult<T> = Swift.Result<T, MyError>
 
-    XCTAssertEqual(MyResult(1).success, 1)
-    XCTAssertNil(MyResult(.err1).success)
-    XCTAssertNil(MyResult(1).failure)
+    XCTAssertEqual(MyResult.success(1).success, 1)
+    XCTAssertNil(MyResult.failure(.err1).success)
+    XCTAssertNil(MyResult.success(1).failure)
     XCTAssertEqual(MyResult<Int>.failure(.err1).failure, .err1)
   }
 
