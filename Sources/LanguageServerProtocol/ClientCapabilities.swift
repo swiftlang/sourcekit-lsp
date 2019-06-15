@@ -220,10 +220,10 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
         /// The code action kind values that the client can support.
         ///
         /// If specified, the client *also* guarantees that it will handle unknown kinds gracefully.
-        public var valueSet: [LanguageServerProtocol.CodeActionKind]? = nil
+        public var valueSet: [LanguageServerProtocol.CodeActionKind]
       }
 
-      public var codeActionKind: CodeActionKind? = nil
+      public var codeActionKind: CodeActionKind
     }
 
     public var codeActionLiteralSupport: CodeActionLiteralSupport? = nil

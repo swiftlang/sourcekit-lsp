@@ -49,7 +49,7 @@ public struct ServerCapabilities: Codable, Hashable {
   public var colorProvider: Bool?
 
   /// Whether the server provides "textDocument/codeAction".
-  public var codeActionProvider: CodeActionOptions?
+  public var codeActionProvider: CodeActionServerCapabilities?
 
   // TODO: fill-in the rest.
 
@@ -65,8 +65,8 @@ public struct ServerCapabilities: Codable, Hashable {
     documentOnTypeFormattingProvider: DocumentOnTypeFormattingOptions? = nil,
     foldingRangeProvider: Bool? = nil,
     documentSymbolProvider: Bool? = nil,
-    colorProvider: Bool? = nil
-    codeActionProvider: CodeActionOptions? = nil
+    colorProvider: Bool? = nil,
+    codeActionProvider: CodeActionServerCapabilities? = nil
     )
   {
     self.textDocumentSync = textDocumentSync
@@ -91,7 +91,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.foldingRangeProvider = try container.decodeIfPresent(Bool.self, forKey: .foldingRangeProvider)
     self.documentSymbolProvider = try container.decodeIfPresent(Bool.self, forKey: .documentSymbolProvider)
     self.colorProvider = try container.decodeIfPresent(Bool.self, forKey: .colorProvider)
-    self.codeActionProvider = try container.decodeIfPresent(CodeActionOptions.self, forKey: .codeActionProvider)
+    self.codeActionProvider = try container.decodeIfPresent(CodeActionServerCapabilities.self, forKey: .codeActionProvider)
 
     if let textDocumentSync = try? container.decode(TextDocumentSyncOptions.self, forKey: .textDocumentSync) {
       self.textDocumentSync = textDocumentSync
@@ -180,6 +180,49 @@ public struct DocumentOnTypeFormattingOptions: Codable, Hashable {
   public init(triggerCharacters: [String]) {
     self.firstTriggerCharacter = triggerCharacters.first!
     self.moreTriggerCharacter = Array(triggerCharacters.dropFirst())
+  }
+}
+
+/// Wrapper type for a server's CodeActions' capabilities.
+/// If the client supports CodeAction literals, the server can return specific information about
+/// how CodeActions will be sent. Otherwise, the server's capabilities are determined by a boolean.
+public struct CodeActionServerCapabilities: Codable, Hashable {
+
+  public var supportsCodeActions: Bool
+  public var codeActionOptions: CodeActionOptions?
+
+  public init(clientCapabilities: TextDocumentClientCapabilities.CodeAction?,
+              codeActionOptions: CodeActionOptions?,
+              supportsCodeActions: Bool) {
+    if clientCapabilities?.codeActionLiteralSupport != nil {
+      self.codeActionOptions = nil
+    } else {
+      self.codeActionOptions = codeActionOptions
+    }
+    self.supportsCodeActions = supportsCodeActions
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    if let codeActionOptions = try? container.decode(CodeActionOptions.self) {
+      self.codeActionOptions = codeActionOptions
+      self.supportsCodeActions = true
+    } else if let supportsCodeActions = try? container.decode(Bool.self) {
+      self.supportsCodeActions = supportsCodeActions
+      self.codeActionOptions = nil
+    } else {
+      let error = "CodeActionServerCapabilities cannot be decoded: Unrecognized type."
+      throw DecodingError.dataCorruptedError(in: container, debugDescription: error)
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.singleValueContainer()
+    if let codeActionOptions = codeActionOptions {
+      try container.encode(codeActionOptions)
+    } else {
+      try container.encode(supportsCodeActions)
+    }
   }
 }
 

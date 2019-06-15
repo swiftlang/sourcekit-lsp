@@ -198,9 +198,13 @@ extension SwiftLanguageServer {
       foldingRangeProvider: true,
       documentSymbolProvider: true,
       colorProvider: true,
-      codeActionProvider: CodeActionOptions(
-        codeActionKinds: [])
-      )))
+      codeActionProvider: CodeActionServerCapabilities(
+        clientCapabilities: request.params.capabilities.textDocument?.codeAction,
+        codeActionOptions: CodeActionOptions(
+          codeActionKinds: nil
+        ),
+        supportsCodeActions: false // TODO: Turn it on after a provider is implemented.
+    ))))
   }
 
   func clientInitialized(_: Notification<InitializedNotification>) {
@@ -852,7 +856,10 @@ extension SwiftLanguageServer {
     let wantedActionKinds = req.params.context.only
     let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
     retrieveCodeActions(req, providers: providers.map { $0.provider }) { codeActions in
-      req.reply(codeActions)
+      let capabilities = self.clientCapabilities.textDocument?.codeAction
+      let response = CodeActionRequestResponse(codeActions: codeActions,
+                                               clientCapabilities: capabilities)
+      req.reply(response)
     }
   }
 

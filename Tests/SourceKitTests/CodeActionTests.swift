@@ -18,78 +18,91 @@ import XCTest
 @testable import SourceKit
 
 final class CodeActionTests: XCTestCase {
+  func testCodeActionResponseLegacySupport() {
+    let command = Command(title: "Title", command: "Command", arguments: [1,"f",2.2])
+    let codeAction = CodeAction(title: "1")
+    let codeAction2 = CodeAction(title: "2", command: command)
 
-  /// Connection and lifetime management for the service.
-  var connection: TestSourceKitServer! = nil
+    var capabilities: TextDocumentClientCapabilities.CodeAction
+    var capabilityJson: String
+    var data: Data
+    var response: CodeActionRequestResponse
+    capabilityJson =
+    """
+     {
+       "dynamicRegistration": true,
+       "codeActionLiteralSupport" : {
+         "codeActionKind": {
+           "valueSet": []
+         }
+       }
+     }
+    """
+    data = capabilityJson.data(using: .utf8)!
+    capabilities = try! JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
+                                             from: data)
+    response = .init(codeActions: [codeAction, codeAction2], clientCapabilities: capabilities)
+    let actions = try! JSONDecoder().decode([CodeAction].self, from: JSONEncoder().encode(response))
+    XCTAssertEqual(actions, [codeAction, codeAction2])
 
-  /// The primary interface to make requests to the SourceKitServer.
-  var sk: TestClient! = nil
-
-  /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
-  var workspace: Workspace! = nil
-
-  override func setUp() {
-    connection = TestSourceKitServer()
-    sk = connection.client
-    _ = try! sk.sendSync(InitializeRequest(
-      processId: nil,
-      rootPath: nil,
-      rootURL: nil,
-      initializationOptions: nil,
-      capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
-      trace: .off,
-      workspaceFolders: nil))
-
-    workspace = connection.server!.workspace!
-  }
-
-  override func tearDown() {
-    workspace = nil
-    sk = nil
-    connection = nil
-  }
-
-  func testCommandEncoding() {
-    let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
-
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
-      language: .swift,
-      version: 12,
-      text: "")))
-
-    let json = """
+    capabilityJson =
+    """
     {
-      "command" : "sourcekit.lsp.semantic.refactoring.command",
-      "arguments" : [{"uri" : "file:///a.swift"}, {
-        "title" : "Localize String",
-        "actionString" : "source.refactoring.kind.localize.string",
-        "line" : 1,
-        "column" : 10,
-        "length" : 5
-      }]
+      "dynamicRegistration": true
     }
     """
+    data = capabilityJson.data(using: .utf8)!
+    capabilities = try! JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
+                                             from: data)
+    response = .init(codeActions: [codeAction, codeAction2], clientCapabilities: capabilities)
+    let commands = try! JSONDecoder().decode([Command].self, from: JSONEncoder().encode(response))
+    XCTAssertEqual(commands, [command])
+  }
 
-    let data = json.data(using: .utf8)!
-    let decoder = JSONDecoder()
-    let decodedCommand = try! decoder.decode(Command.self, from: data)
+  func testCodeActionResponseRespectsSupportedKinds() {
+    let unspecifiedAction = CodeAction(title: "Unspecified")
+    let refactorAction = CodeAction(title: "Refactor", kind: .refactor)
+    let quickfixAction = CodeAction(title: "Quickfix", kind: .quickFix)
+    let actions = [unspecifiedAction, refactorAction, quickfixAction]
 
-    let textDocument = TextDocumentIdentifier(url)
+    var capabilities: TextDocumentClientCapabilities.CodeAction
+    var capabilityJson: String
+    var data: Data
+    var response: CodeActionRequestResponse
+    capabilityJson =
+    """
+    {
+      "dynamicRegistration": true,
+      "codeActionLiteralSupport" : {
+        "codeActionKind": {
+          "valueSet": ["refactor"]
+        }
+      }
+    }
+    """
+    data = capabilityJson.data(using: .utf8)!
+    capabilities = try! JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
+                                             from: data)
 
-    let args = SemanticRefactorCommandArgs(title: "Localize String",
-                                           actionString: "source.refactoring.kind.localize.string",
-                                           line: 1,
-                                           column: 10,
-                                           length: 5)
+    response = .init(codeActions: actions, clientCapabilities: capabilities)
+    XCTAssertEqual(response.codeActions, [unspecifiedAction, refactorAction])
 
-    let command = Command.semanticRefactor(textDocument, args)
-    XCTAssertEqual(decodedCommand, command)
+    capabilityJson =
+    """
+    {
+      "dynamicRegistration": true,
+      "codeActionLiteralSupport" : {
+        "codeActionKind": {
+          "valueSet": []
+        }
+      }
+    }
+    """
+    data = capabilityJson.data(using: .utf8)!
+    capabilities = try! JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
+                                             from: data)
 
-    let enc = try! JSONEncoder().encode(command)
-    let dec = try! JSONDecoder().decode(Command.self, from: enc)
-
-    XCTAssertEqual(dec, command)
+    response = .init(codeActions: actions, clientCapabilities: capabilities)
+    XCTAssertEqual(response.codeActions, [unspecifiedAction])
   }
 }

@@ -265,10 +265,13 @@ extension SourceKitServer {
       foldingRangeProvider: true,
       documentSymbolProvider: true,
       colorProvider: true,
-      codeActionProvider: CodeActionOptions(
-        codeActionKinds: []
-      )
-    )))
+      codeActionProvider: CodeActionServerCapabilities(
+        clientCapabilities: req.params.capabilities.textDocument?.codeAction,
+        codeActionOptions: CodeActionOptions(
+          codeActionKinds: nil
+        ),
+        supportsCodeActions: false // TODO: Turn it on after a provider is implemented.
+    ))))
   }
 
   func clientInitialized(_: Notification<InitializedNotification>) {

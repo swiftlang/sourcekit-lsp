@@ -60,11 +60,6 @@ public let builtinNotifications: [NotificationType.Type] = [
   PublishDiagnostics.self,
 ]
 
-/// The set of known commands.
-///
-/// All commands provided by the server should be listed here.
-public let builtinCommands: [CommandIdentifier] = CommandIdentifier.allCases
-
 // MARK: Miscellaneous Message Types
 
 public struct VoidResponse: ResponseType, Hashable {

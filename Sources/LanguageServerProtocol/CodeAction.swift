@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
+
 public typealias CodeActionProviderCompletion = (([CodeAction]) -> Void)
 public typealias CodeActionProvider = ((CodeActionRequest, CodeActionProviderCompletion) -> Void)
 
@@ -29,7 +31,7 @@ public typealias CodeActionProvider = ((CodeActionRequest, CodeActionProviderCom
 /// - Returns: A list of code actions for the given range and context.
 public struct CodeActionRequest: TextDocumentRequest, Hashable {
   public static let method: String = "textDocument/codeAction"
-  public typealias Response = [CodeAction]?
+  public typealias Response = CodeActionRequestResponse?
 
   /// The range for which the command was invoked.
   public var range: PositionRange
@@ -44,6 +46,61 @@ public struct CodeActionRequest: TextDocumentRequest, Hashable {
     self.range = PositionRange(range)
     self.context = context
     self.textDocument = textDocument
+  }
+}
+
+/// Wrapper type for the response of a CodeAction request.
+/// If the client supports CodeAction literals, the encoded type will be the CodeAction array itself.
+/// Otherwise, the encoded value will be an array of CodeActions' inner Command structs.
+public struct CodeActionRequestResponse: ResponseType, Codable {
+  public var codeActions: [CodeAction]
+  public var commands: [Command]
+
+  public init(codeActions: [CodeAction], clientCapabilities: TextDocumentClientCapabilities.CodeAction?) {
+    if let literalSupport = clientCapabilities?.codeActionLiteralSupport {
+      let supportedKinds = literalSupport.codeActionKind.valueSet
+      self.codeActions = codeActions.filter {
+        if let kind = $0.kind {
+          return supportedKinds.contains(kind)
+        } else {
+          // The client guarantees that unsupported kinds will be treated,
+          // so it's probably safe to include unspecified kinds into the result.
+          return true
+        }
+      }
+      self.commands = []
+    } else {
+      self.codeActions = []
+      self.commands = codeActions.compactMap { $0.command }
+    }
+  }
+
+  public init(from decoder: Decoder) throws {
+    var container = try decoder.unkeyedContainer()
+    var codeActions = [CodeAction]()
+    var commands = [Command]()
+    while container.isAtEnd == false {
+      if let codeAction = try container.decodeIfPresent(CodeAction.self) {
+        codeActions.append(codeAction)
+      } else if let command = try container.decodeIfPresent(Command.self) {
+        commands.append(command)
+      } else {
+        let error = "CodeActionRequestResponse has neither a CodeAction or a Command."
+        throw DecodingError.dataCorruptedError(in: container, debugDescription: error)
+      }
+    }
+    self.codeActions = codeActions
+    self.commands = commands
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.unkeyedContainer()
+    for codeAction in codeActions {
+      try container.encode(codeAction)
+    }
+    for command in commands {
+      try container.encode(command)
+    }
   }
 }
 
@@ -63,7 +120,7 @@ public struct CodeActionContext: Codable, Hashable {
   }
 }
 
-public struct CodeAction: Codable, ResponseType {
+public struct CodeAction: Codable, Equatable, ResponseType {
 
   /// A short, human-readable, title for this code action.
   public var title: String

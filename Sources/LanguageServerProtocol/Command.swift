@@ -12,122 +12,165 @@
 
 import SKSupport
 
-/// Represents the identifiers of SourceKit-LSP's supported commands.
-public enum CommandIdentifier: String, Codable, CaseIterable {
-  case semanticRefactor = "sourcekit.lsp.semantic.refactoring.command"
-}
-
 /// Represents a reference to a command identified by a string. Used as the result of
 /// requests that returns actions to the user, later used as the parameter of
 /// workspace/executeCommand if the user wishes to execute said command.
-public enum Command: Hashable {
-  case semanticRefactor(TextDocumentIdentifier, SemanticRefactorCommandArgs)
+public struct Command: Codable, Hashable {
 
   /// The title of this command.
-  public var title: String {
-    switch self {
-    case let .semanticRefactor(_, args):
-      return args.title
-    }
-  }
-
-  /// The internal identifier of this command.
-  public var identifier: CommandIdentifier {
-    switch self {
-    case .semanticRefactor:
-      return CommandIdentifier.semanticRefactor
-    }
-  }
-
-  /// The arguments related to this command.
-  /// This is [Any]? in the LSP, but treated differently here
-  /// to make it easier to create and (de)serialize commands.
-  public var arguments: CommandArgs? {
-    switch self {
-    case let .semanticRefactor(_, args):
-      return args
-    }
-  }
-
-  /// The documented related to this command.
-  public var textDocument: TextDocumentIdentifier {
-    switch self {
-    case let .semanticRefactor(textDocument, _):
-      return textDocument
-    }
-  }
-}
-
-public protocol CommandArgs: Codable {}
-extension TextDocumentIdentifier: CommandArgs {}
-
-extension Command: Codable {
-
-  public enum CodingKeys: String, CodingKey {
-    case title
-    case command
-    case arguments
-  }
-
-  public enum CodingError: Error {
-    case unknownCommand
-  }
-
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    let identifier = try container.decode(String.self, forKey: .command)
-    var argumentsContainer = try container.nestedUnkeyedContainer(forKey: .arguments)
-    // Command arguments are sent to the LSP as a [Any]? [textDocument, arguments?] array.
-    let textDocument = try argumentsContainer.decode(TextDocumentIdentifier.self)
-    switch identifier {
-    case CommandIdentifier.semanticRefactor.rawValue:
-      let args = try argumentsContainer.decode(SemanticRefactorCommandArgs.self)
-      self = .semanticRefactor(textDocument, args)
-    default:
-      log("Failed to decode Command: Unknown identifier \(identifier)", level: .warning)
-      throw CodingError.unknownCommand
-    }
-  }
-
-  public func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode(title, forKey: .title)
-    try container.encode(identifier, forKey: .command)
-    var argumentsContainer = container.nestedUnkeyedContainer(forKey: .arguments)
-    // Command arguments are sent to the LSP as a [Any]? [textDocument, arguments?] array.
-    try argumentsContainer.encode(textDocument)
-    try arguments?.encode(toArgumentsEncoder: &argumentsContainer)
-  }
-}
-
-extension CommandArgs {
-  func encode(toArgumentsEncoder encoder: inout UnkeyedEncodingContainer) throws {
-    try encoder.encode(self)
-  }
-}
-
-public struct SemanticRefactorCommandArgs: CommandArgs, Hashable {
-
-  /// The name of this refactoring action.
   public var title: String
 
-  /// The sourcekitd identifier of the refactoring action.
-  public var actionString: String
+  /// The internal identifier of this command.
+  public var command: String
 
-  /// The starting line of the range to refactor.
-  public var line: Int
+  /// The arguments related to this command.
+  public var arguments: [AnyCommandArgument]?
 
-  /// The starting column of the range to refactor.
-  public var column: Int
-
-  /// The length of the range to refactor.
-  public var length: Int
-
-  public init(title: String, actionString: String, line: Int, column: Int, length: Int) {
+  public init(title: String, command: String, arguments: [AnyCommandArgument]?) {
     self.title = title
-    self.actionString = actionString
-    self.line = line
-    self.column = column
-    self.length = length
+    self.command = command
+    self.arguments = arguments
+  }
+}
+
+public protocol CommandArgumentType: Codable, Hashable {}
+
+extension Int: CommandArgumentType {}
+extension Bool: CommandArgumentType {}
+extension Double: CommandArgumentType {}
+extension String: CommandArgumentType {}
+extension Array: CommandArgumentType where Element: CommandArgumentType {}
+extension Dictionary: CommandArgumentType where Key: CommandArgumentType, Value: CommandArgumentType {}
+
+/// A type-erased `CommandArgumentType` value.
+public struct AnyCommandArgument {
+  public let value: Any?
+
+  public init<T>(_ value: T?) {
+    self.value = value
+  }
+}
+
+extension AnyCommandArgument: Hashable {
+  public static func == (lhs: AnyCommandArgument, rhs: AnyCommandArgument) -> Bool {
+    switch (lhs.value, rhs.value) {
+    case let (lhs as Int, rhs as Int):
+      return lhs == rhs
+    case let (lhs as Bool, rhs as Bool):
+      return lhs == rhs
+    case let (lhs as Double, rhs as Double):
+      return lhs == rhs
+    case let (lhs as String, rhs as String):
+      return lhs == rhs
+    case let (lhs as [AnyCommandArgument], rhs as [AnyCommandArgument]):
+      return lhs == rhs
+    case let (lhs as [AnyCommandArgument: AnyCommandArgument],
+              rhs as [AnyCommandArgument: AnyCommandArgument]):
+      return lhs == rhs
+    default:
+      return false
+    }
+  }
+
+  public func hash(into hasher: inout Hasher) {
+    switch value {
+    case let value as Int:
+      value.hash(into: &hasher)
+    case let value as Bool:
+      value.hash(into: &hasher)
+    case let value as Double:
+      value.hash(into: &hasher)
+    case let value as String:
+      value.hash(into: &hasher)
+    case let value as [AnyCommandArgument]:
+      value.hash(into: &hasher)
+    case let value as [AnyCommandArgument: AnyCommandArgument]:
+      value.hash(into: &hasher)
+    default:
+      return
+    }
+  }
+}
+
+extension AnyCommandArgument: Decodable {
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    if let value = try? container.decode(Int.self) {
+      self.init(value)
+    } else if let value = try? container.decode(Bool.self) {
+      self.init(value)
+    } else if let value = try? container.decode(Double.self) {
+      self.init(value)
+    } else if let value = try? container.decode(String.self) {
+      self.init(value)
+    } else if let value = try? container.decode([AnyCommandArgument].self) {
+      self.init(value)
+    } else if let value = try? container.decode([AnyCommandArgument: AnyCommandArgument].self) {
+      self.init(value)
+    } else {
+      let error = "AnyCommandArgument cannot be decoded: Unrecognized type."
+      throw DecodingError.dataCorruptedError(in: container, debugDescription: error)
+    }
+  }
+}
+
+extension AnyCommandArgument: Encodable {
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.singleValueContainer()
+    switch value {
+    case let value as Int:
+      try container.encode(value)
+    case let value as Bool:
+      try container.encode(value)
+    case let value as Double:
+      try container.encode(value)
+    case let value as String:
+      try container.encode(value)
+    case let value as [AnyCommandArgument]:
+      try container.encode(value)
+    case let value as [AnyCommandArgument: AnyCommandArgument]:
+      try container.encode(value)
+    default:
+      let error = "AnyCommandArgument cannot be encoded: Unrecognized type."
+      let context = EncodingError.Context(codingPath: container.codingPath, debugDescription: error)
+      throw EncodingError.invalidValue(value as Any, context)
+    }
+  }
+}
+
+extension AnyCommandArgument: ExpressibleByIntegerLiteral {}
+extension AnyCommandArgument: ExpressibleByBooleanLiteral {}
+extension AnyCommandArgument: ExpressibleByFloatLiteral {}
+extension AnyCommandArgument: ExpressibleByStringLiteral {}
+extension AnyCommandArgument: ExpressibleByArrayLiteral {}
+extension AnyCommandArgument: ExpressibleByDictionaryLiteral {}
+
+extension AnyCommandArgument {
+  public init(integerLiteral value: Int) {
+    self.init(value)
+  }
+
+  public init(booleanLiteral value: Bool) {
+    self.init(value)
+  }
+
+  public init(floatLiteral value: Double) {
+    self.init(value)
+  }
+
+  public init(extendedGraphemeClusterLiteral value: String) {
+    self.init(value)
+  }
+
+  public init(stringLiteral value: String) {
+    self.init(value)
+  }
+
+  public init(arrayLiteral elements: Any...) {
+    self.init(elements)
+  }
+
+  public init(dictionaryLiteral elements: (AnyHashable, Any)...) {
+    self.init(elements)
   }
 }
