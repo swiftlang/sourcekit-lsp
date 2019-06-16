@@ -635,7 +635,6 @@ extension SwiftLanguageServer {
             result.append(documentSymbol)
           } else if let substructure: SKResponseArray = value[self.keys.substructure] {
             result += colorInformation(array: substructure)
-
           }
           return true
         }
@@ -650,7 +649,7 @@ extension SwiftLanguageServer {
 
   func colorPresentation(_ req: Request<ColorPresentationRequest>) {
     let color = req.params.color
-    // Empty string as a label breaks vs code color picker
+    // Empty string as a label breaks VSCode color picker
     let label = "Color Literal"
     let newText = "#colorLiteral(red: \(color.red), green: \(color.green), blue: \(color.blue), alpha: \(color.alpha))"
     let textEdit = TextEdit(range: req.params.range.asRange, newText: newText)

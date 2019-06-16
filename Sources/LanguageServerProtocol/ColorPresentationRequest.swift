@@ -31,7 +31,7 @@ public struct ColorPresentationRequest: TextDocumentRequest, Hashable {
   /// The color information to request presentations for.
   public var color: Color
 
-	/// The range where the color would be inserted. Serves as a context.
+  /// The range where the color would be inserted. Serves as a context.
   public var range: PositionRange
 
   public init(
