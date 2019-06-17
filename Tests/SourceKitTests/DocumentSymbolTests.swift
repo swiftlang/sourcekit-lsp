@@ -1,3 +1,15 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the Swift.org open source project
+//
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Licensed under Apache License v2.0 with Runtime Library Exception
+//
+// See https://swift.org/LICENSE.txt for license information
+// See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+//
+//===----------------------------------------------------------------------===//
+
 import LanguageServerProtocol
 import SKSupport
 import SKTestSupport
@@ -40,7 +52,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     workspace = connection.server!.workspace!
   }
 
-  func getDocumentSymbolRequest(text: String) -> DocumentSymbolRequest {
+  func performDocumentSymbolRequest(text: String) -> [DocumentSymbol] {
     let url = URL(fileURLWithPath: "/a.swift")
     sk.allowUnexpectedNotification = true
 
@@ -51,7 +63,8 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
       text: text
     )))
 
-    return DocumentSymbolRequest(textDocument: TextDocumentIdentifier(url))
+    let request = DocumentSymbolRequest(textDocument: TextDocumentIdentifier(url))
+    return try! sk.sendSync(request)!
   }
 
   func range(from startTuple: (Int, Int), to endTuple: (Int, Int)) -> PositionRange {
@@ -65,8 +78,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     initialize(capabilities: capabilities)
 
     let text = ""
-    let request = getDocumentSymbolRequest(text: text)
-    let symbols = try! sk.sendSync(request)!
+    let symbols = performDocumentSymbolRequest(text: text)
     XCTAssertEqual(symbols, [])
   }
 
@@ -77,8 +89,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     let text = """
     struct Foo { }
     """
-    let request = getDocumentSymbolRequest(text: text)
-    let symbols = try! sk.sendSync(request)!
+    let symbols = performDocumentSymbolRequest(text: text)
 
     XCTAssertEqual(symbols, [
       DocumentSymbol(
@@ -101,8 +112,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     struct Żółć { }
     struct 🍰 { }
     """
-    let request = getDocumentSymbolRequest(text: text)
-    let symbols = try! sk.sendSync(request)!
+    let symbols = performDocumentSymbolRequest(text: text)
 
     // while not ascii, these are still single code unit
     let żółćRange = range(from: (0, 0), to: (0, 15))
@@ -149,8 +159,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
       case ninth(someName: Int)
     }
     """
-    let request = getDocumentSymbolRequest(text: text)
-    let symbols = try! sk.sendSync(request)!
+    let symbols = performDocumentSymbolRequest(text: text)
 
     XCTAssertEqual(symbols, [
       DocumentSymbol(
@@ -324,8 +333,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
       }
     }
     """
-    let request = getDocumentSymbolRequest(text: text)
-    let symbols = try! sk.sendSync(request)!
+    let symbols = performDocumentSymbolRequest(text: text)
 
     XCTAssertEqual(symbols, [
       DocumentSymbol(
