@@ -497,7 +497,7 @@ extension SwiftLanguageServer {
       }
 
       func documentSymbol(value: SKResponseDictionary) -> DocumentSymbol? {
-        guard let name: String = value[self.keys.name],
+        guard let signature: String = value[self.keys.name],
               let uid: sourcekitd_uid_t = value[self.keys.kind],
               let kind: SymbolKind = uid.asSymbolKind(self.values),
               let offset: Int = value[self.keys.offset],
@@ -506,14 +506,15 @@ extension SwiftLanguageServer {
               let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
           return nil
         }
-        
+
+        let name = String(signature.prefix(while: { $0.isLetter || $0.isSymbol }))
+
         let range = PositionRange(start..<end)
         let selectionRange: PositionRange
-        if let nameOffset: Int = value[self.keys.nameoffset],
-           let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
-           let nameLength: Int = value[self.keys.namelength],
-           let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
-          selectionRange = PositionRange(nameStart..<nameEnd)
+        if let signatureOffset: Int = value[self.keys.nameoffset],
+           let signatureStart: Position = snapshot.positionOf(utf8Offset: signatureOffset),
+           let nameEnd: Position = snapshot.positionOf(utf8Offset: signatureOffset + name.utf8.count) {
+          selectionRange = PositionRange(signatureStart..<nameEnd)
         } else {
           selectionRange = range
         }
@@ -524,8 +525,9 @@ extension SwiftLanguageServer {
         } else {
           children = nil
         }
+
         return DocumentSymbol(name: name,
-                              detail: nil,
+                              detail: signature,
                               kind: kind,
                               deprecated: nil,
                               range: range,
