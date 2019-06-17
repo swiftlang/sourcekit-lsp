@@ -19,7 +19,7 @@ import XCTest
 
 final class CodeActionTests: XCTestCase {
   func testCodeActionResponseLegacySupport() {
-    let command = Command(title: "Title", command: "Command", arguments: [1,"f",2.2])
+    let command = Command(title: "Title", command: "Command", arguments: [1,"f",2.2, nil])
     let codeAction = CodeAction(title: "1")
     let codeAction2 = CodeAction(title: "2", command: command)
 

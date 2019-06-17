@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import SKSupport
+import class Foundation.NSNull
 
 /// Represents a reference to a command identified by a string. Used as the result of
 /// requests that returns actions to the user, later used as the parameter of
@@ -24,48 +25,41 @@ public struct Command: Codable, Hashable {
   public var command: String
 
   /// The arguments related to this command.
-  public var arguments: [AnyCommandArgument]?
+  public var arguments: [CommandArgumentType]?
 
-  public init(title: String, command: String, arguments: [AnyCommandArgument]?) {
+  public init(title: String, command: String, arguments: [CommandArgumentType]?) {
     self.title = title
     self.command = command
     self.arguments = arguments
   }
 }
 
-public protocol CommandArgumentType: Codable, Hashable {}
-
-extension Int: CommandArgumentType {}
-extension Bool: CommandArgumentType {}
-extension Double: CommandArgumentType {}
-extension String: CommandArgumentType {}
-extension Array: CommandArgumentType where Element: CommandArgumentType {}
-extension Dictionary: CommandArgumentType where Key: CommandArgumentType, Value: CommandArgumentType {}
-
-/// A type-erased `CommandArgumentType` value.
-public struct AnyCommandArgument {
-  public let value: Any?
-
-  public init<T>(_ value: T?) {
-    self.value = value
-  }
+public enum CommandArgumentType {
+  case null
+  case int(Int)
+  case bool(Bool)
+  case double(Double)
+  case string(String)
+  case array([CommandArgumentType])
+  case dictionary([String: CommandArgumentType])
 }
 
-extension AnyCommandArgument: Hashable {
-  public static func == (lhs: AnyCommandArgument, rhs: AnyCommandArgument) -> Bool {
-    switch (lhs.value, rhs.value) {
-    case let (lhs as Int, rhs as Int):
+extension CommandArgumentType: Hashable {
+  public static func == (lhs: CommandArgumentType, rhs: CommandArgumentType) -> Bool {
+    switch (lhs, rhs) {
+    case (.null, .null):
+      return true
+    case let (.int(lhs), .int(rhs)):
       return lhs == rhs
-    case let (lhs as Bool, rhs as Bool):
+    case let (.bool(lhs), .bool(rhs)):
       return lhs == rhs
-    case let (lhs as Double, rhs as Double):
+    case let (.double(lhs), .double(rhs)):
       return lhs == rhs
-    case let (lhs as String, rhs as String):
+    case let (.string(lhs), .string(rhs)):
       return lhs == rhs
-    case let (lhs as [AnyCommandArgument], rhs as [AnyCommandArgument]):
+    case let (.array(lhs), .array(rhs)):
       return lhs == rhs
-    case let (lhs as [AnyCommandArgument: AnyCommandArgument],
-              rhs as [AnyCommandArgument: AnyCommandArgument]):
+    case let (.dictionary(lhs), .dictionary(rhs)):
       return lhs == rhs
     default:
       return false
@@ -73,40 +67,42 @@ extension AnyCommandArgument: Hashable {
   }
 
   public func hash(into hasher: inout Hasher) {
-    switch value {
-    case let value as Int:
+    switch self {
+    case .null:
+      NSNull().hash(into: &hasher)
+    case let .int(value):
       value.hash(into: &hasher)
-    case let value as Bool:
+    case let .bool(value):
       value.hash(into: &hasher)
-    case let value as Double:
+    case let .double(value):
       value.hash(into: &hasher)
-    case let value as String:
+    case let .string(value):
       value.hash(into: &hasher)
-    case let value as [AnyCommandArgument]:
+    case let .array(value):
       value.hash(into: &hasher)
-    case let value as [AnyCommandArgument: AnyCommandArgument]:
+    case let .dictionary(value):
       value.hash(into: &hasher)
-    default:
-      return
     }
   }
 }
 
-extension AnyCommandArgument: Decodable {
+extension CommandArgumentType: Decodable {
   public init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
-    if let value = try? container.decode(Int.self) {
-      self.init(value)
+    if container.decodeNil() {
+      self = .null
+    } else if let value = try? container.decode(Int.self) {
+      self = .int(value)
     } else if let value = try? container.decode(Bool.self) {
-      self.init(value)
+      self = .bool(value)
     } else if let value = try? container.decode(Double.self) {
-      self.init(value)
+      self = .double(value)
     } else if let value = try? container.decode(String.self) {
-      self.init(value)
-    } else if let value = try? container.decode([AnyCommandArgument].self) {
-      self.init(value)
-    } else if let value = try? container.decode([AnyCommandArgument: AnyCommandArgument].self) {
-      self.init(value)
+      self = .string(value)
+    } else if let value = try? container.decode([CommandArgumentType].self) {
+      self = .array(value)
+    } else if let value = try? container.decode([String: CommandArgumentType].self) {
+      self = .dictionary(value)
     } else {
       let error = "AnyCommandArgument cannot be decoded: Unrecognized type."
       throw DecodingError.dataCorruptedError(in: container, debugDescription: error)
@@ -114,63 +110,67 @@ extension AnyCommandArgument: Decodable {
   }
 }
 
-extension AnyCommandArgument: Encodable {
+extension CommandArgumentType: Encodable {
   public func encode(to encoder: Encoder) throws {
     var container = encoder.singleValueContainer()
-    switch value {
-    case let value as Int:
+    switch self {
+    case .null:
+      try container.encodeNil()
+    case let .int(value):
       try container.encode(value)
-    case let value as Bool:
+    case let .bool(value):
       try container.encode(value)
-    case let value as Double:
+    case let .double(value):
       try container.encode(value)
-    case let value as String:
+    case let .string(value):
       try container.encode(value)
-    case let value as [AnyCommandArgument]:
+    case let .array(value):
       try container.encode(value)
-    case let value as [AnyCommandArgument: AnyCommandArgument]:
+    case let .dictionary(value):
       try container.encode(value)
-    default:
-      let error = "AnyCommandArgument cannot be encoded: Unrecognized type."
-      let context = EncodingError.Context(codingPath: container.codingPath, debugDescription: error)
-      throw EncodingError.invalidValue(value as Any, context)
     }
   }
 }
 
-extension AnyCommandArgument: ExpressibleByIntegerLiteral {}
-extension AnyCommandArgument: ExpressibleByBooleanLiteral {}
-extension AnyCommandArgument: ExpressibleByFloatLiteral {}
-extension AnyCommandArgument: ExpressibleByStringLiteral {}
-extension AnyCommandArgument: ExpressibleByArrayLiteral {}
-extension AnyCommandArgument: ExpressibleByDictionaryLiteral {}
+extension CommandArgumentType: ExpressibleByNilLiteral {}
+extension CommandArgumentType: ExpressibleByIntegerLiteral {}
+extension CommandArgumentType: ExpressibleByBooleanLiteral {}
+extension CommandArgumentType: ExpressibleByFloatLiteral {}
+extension CommandArgumentType: ExpressibleByStringLiteral {}
+extension CommandArgumentType: ExpressibleByArrayLiteral {}
+extension CommandArgumentType: ExpressibleByDictionaryLiteral {}
 
-extension AnyCommandArgument {
+extension CommandArgumentType {
+  public init(nilLiteral _: ()) {
+    self = .null
+  }
+
   public init(integerLiteral value: Int) {
-    self.init(value)
+    self = .int(value)
   }
 
   public init(booleanLiteral value: Bool) {
-    self.init(value)
+    self = .bool(value)
   }
 
   public init(floatLiteral value: Double) {
-    self.init(value)
+    self = .double(value)
   }
 
   public init(extendedGraphemeClusterLiteral value: String) {
-    self.init(value)
+    self = .string(value)
   }
 
   public init(stringLiteral value: String) {
-    self.init(value)
+    self = .string(value)
   }
 
-  public init(arrayLiteral elements: Any...) {
-    self.init(elements)
+  public init(arrayLiteral elements: CommandArgumentType...) {
+    self = .array(elements)
   }
 
-  public init(dictionaryLiteral elements: (AnyHashable, Any)...) {
-    self.init(elements)
+  public init(dictionaryLiteral elements: (String, CommandArgumentType)...) {
+    let dict  = [String: CommandArgumentType](elements, uniquingKeysWith: { first, _ in first })
+    self = .dictionary(dict)
   }
 }

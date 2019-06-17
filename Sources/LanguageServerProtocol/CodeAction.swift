@@ -13,7 +13,9 @@
 import Foundation
 
 public typealias CodeActionProviderCompletion = (([CodeAction]) -> Void)
-public typealias CodeActionProvider = ((CodeActionRequest, CodeActionProviderCompletion) -> Void)
+// FIXME: It would be better for the completion to be non-optional, but we can't add
+// @escaping outside of function declarations.
+public typealias CodeActionProvider = ((CodeActionRequest, CodeActionProviderCompletion?) -> Void)
 
 /// Request for returning all possible code actions for a given text document and range.
 ///

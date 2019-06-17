@@ -15,6 +15,7 @@ import SKCore
 import SKSupport
 import Basic
 import sourcekitd
+import class Foundation.DispatchQueue
 import struct Foundation.CharacterSet
 
 public final class SwiftLanguageServer: LanguageServer {
@@ -872,7 +873,9 @@ extension SwiftLanguageServer {
     var codeActions = [CodeAction]()
     for i in 0..<providers.count {
       providers[i](req.params) { actions in
-        codeActions += actions
+        DispatchQueue.global(qos: .userInitiated).sync(flags: .barrier) {
+          codeActions += actions
+        }
         providersLeftToProcess.remove(i)
         if providersLeftToProcess.isEmpty {
           completion(codeActions)
