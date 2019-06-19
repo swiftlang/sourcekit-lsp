@@ -17,7 +17,9 @@ import Foundation
 /// The set of known Swift commands.
 ///
 /// All commands from the Swift LSP should be listed here.
-public let builtinSwiftCommands: [String] = []
+public let builtinSwiftCommands: [String] = [
+  SemanticRefactorCommand.self
+].map { $0.identifier }
 
 /// A `Command` that should be executed by Swift's language server.
 public protocol SwiftCommand: Codable, Hashable {

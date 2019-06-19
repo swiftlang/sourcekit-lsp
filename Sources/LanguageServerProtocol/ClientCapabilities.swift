@@ -221,12 +221,23 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
         ///
         /// If specified, the client *also* guarantees that it will handle unknown kinds gracefully.
         public var valueSet: [LanguageServerProtocol.CodeActionKind]
+
+        public init(valueSet: [LanguageServerProtocol.CodeActionKind]) {
+          self.valueSet = valueSet
+        }
       }
 
       public var codeActionKind: CodeActionKind
+
+      public init(codeActionKind: CodeActionKind) {
+        self.codeActionKind = codeActionKind
+      }
     }
 
     public var codeActionLiteralSupport: CodeActionLiteralSupport? = nil
+
+    public init() {
+    }
   }
 
   /// Capabilities specific to `textDocument/publishDiagnostics`.

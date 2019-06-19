@@ -203,7 +203,7 @@ extension SwiftLanguageServer {
       codeActionProvider: CodeActionServerCapabilities(
         clientCapabilities: request.params.capabilities.textDocument?.codeAction,
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
-        supportsCodeActions: false), // TODO: Turn it on after a provider is implemented.
+        supportsCodeActions: true),
       executeCommandProvider: ExecuteCommandOptions(
         commands: builtinSwiftCommands)
     )))
@@ -857,8 +857,8 @@ extension SwiftLanguageServer {
 
   func codeAction(_ req: Request<CodeActionRequest>) {
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
+      (retrieveRefactorCodeActions, .refactor)
       //TODO: Implement the providers.
-      //(retrieveRefactorCodeActions, .refactor),
       //(retrieveQuickFixCodeActions, .quickFix)
     ]
     let wantedActionKinds = req.params.context.only
@@ -892,9 +892,105 @@ extension SwiftLanguageServer {
     }
   }
 
+  func retrieveRefactorCodeActions(_ params: CodeActionRequest, completion: @escaping CodeActionProviderCompletion) {
+    guard let snapshot = documentManager.latestSnapshot(params.textDocument.url) else {
+      log("failed to find snapshot for url \(params.textDocument.url)")
+      completion([])
+      return
+    }
+    guard let startOffset = snapshot.utf8Offset(of: params.range.lowerBound),
+          let endOffset = snapshot.utf8Offset(of: params.range.upperBound) else
+    {
+        completion([])
+        return
+    }
+    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
+    skreq[keys.request] = requests.cursorinfo
+    skreq[keys.sourcefile] = snapshot.document.url.path
+    skreq[keys.offset] = startOffset
+    let length = endOffset - startOffset
+    skreq[keys.length] = length
+    skreq[keys.retrieve_refactor_actions] = 1
+    if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
+      skreq[keys.compilerargs] = settings.compilerArguments
+    }
+
+    let handle = sourcekitd.send(skreq) { [weak self] result in
+      guard let self = self else {
+        completion([])
+        return
+      }
+      guard let dict = result.success else {
+        log("failed to find refactor actions: \(result.failure!)")
+        completion([])
+        return
+      }
+      guard let results: SKResponseArray = dict[self.keys.refactor_actions] else {
+        completion([])
+        return
+      }
+      var codeActions = [CodeAction]()
+      results.forEach { _, value in
+        if let name: String = value[self.keys.actionname],
+           let actionuid: sourcekitd_uid_t = value[self.keys.actionuid],
+           let ptr = self.sourcekitd.api.uid_get_string_ptr(actionuid)
+        {
+          let actionName = String(cString: ptr)
+          //TODO: Global refactoring.
+          guard actionName != "source.refactoring.kind.rename.global" else {
+            return true
+          }
+          let swiftCommand = SemanticRefactorCommand(title: name,
+                                                     actionString: actionName,
+                                                     line: params.range.lowerBound.line,
+                                                     column: params.range.lowerBound.utf16index,
+                                                     length: length,
+                                                     textDocument: params.textDocument)
+          do {
+            let command = try swiftCommand.asCommand()
+            let codeAction = CodeAction(title: name, kind: .refactor, command: command)
+            codeActions.append(codeAction)
+          } catch {
+            log("Failed to convert SwiftCommand to Command type: \(error)")
+          }
+        }
+        return true
+      }
+
+      completion(codeActions)
+    }
+
+    // FIXME: cancellation
+    _ = handle
+  }
+
   func executeCommand(_ req: Request<ExecuteCommandRequest>) {
-    //TODO: Implement commands.
-    return req.reply(nil)
+    let params = req.params
+    //TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
+    guard let swiftCommand = params.swiftCommand(ofType: SemanticRefactorCommand.self) else {
+      log("semantic refactoring: unknown command \(params.command)", level: .warning)
+      return req.reply(nil)
+    }
+    let url = swiftCommand.textDocument.url
+    semanticRefactoring(swiftCommand) { result in
+      guard case let .success(refactor) = result else {
+        if case let .failure(error) = result {
+          log("semantic refactoring failed \(url): \(error)", level: .warning)
+        }
+        return req.reply(nil)
+      }
+      let edit = refactor.edit
+      let editReq = ApplyEditRequest(label: refactor.title, edit: edit)
+      do {
+        let response = try self.client.sendSync(editReq)
+        if response?.applied == false {
+          log("client refused to apply edit for \(refactor.title)!", level: .warning)
+        }
+      } catch {
+        log("applyEdit failed: \(error)", level: .warning)
+      }
+      req.reply(nil)
+    }
   }
 
   func applyEdit(label: String, edit: WorkspaceEdit) {

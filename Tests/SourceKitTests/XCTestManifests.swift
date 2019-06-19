@@ -9,6 +9,8 @@ extension CodeActionTests {
         ("testCodeActionResponseLegacySupport", testCodeActionResponseLegacySupport),
         ("testCodeActionResponseRespectsSupportedKinds", testCodeActionResponseRespectsSupportedKinds),
         ("testCommandEncoding", testCommandEncoding),
+        ("testEmptyCodeActionResult", testEmptyCodeActionResult),
+        ("testSemanticRefactorCodeActionResult", testSemanticRefactorCodeActionResult),
     ]
 }
 
@@ -42,7 +44,7 @@ extension ExecuteCommandTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__ExecuteCommandTests = [
-        ("testCommandIsRoutedToTheCorrectServer", testCommandIsRoutedToTheCorrectServer),
+        ("testSemanticRefactoring", testSemanticRefactoring),
     ]
 }
 

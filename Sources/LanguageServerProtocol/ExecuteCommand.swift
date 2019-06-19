@@ -45,7 +45,7 @@ public struct ExecuteCommandRequest: RequestType {
     guard case .dictionary(let dictionary)? = arguments?.last else {
       return nil
     }
-    guard let data = try? JSONSerialization.data(withJSONObject: dictionary, options: []) else {
+    guard let data = try? JSONEncoder().encode(dictionary) else {
       return nil
     }
     return try? JSONDecoder().decode(SourceKitLSPCommandMetadata.self, from: data)

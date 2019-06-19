@@ -207,6 +207,8 @@ struct sourcekitd_keys {
   let severity: sourcekitd_uid_t
   let line: sourcekitd_uid_t
   let column: sourcekitd_uid_t
+  let endline: sourcekitd_uid_t
+  let endcolumn: sourcekitd_uid_t
   let filepath: sourcekitd_uid_t
   let ranges: sourcekitd_uid_t
   let usr: sourcekitd_uid_t
@@ -220,6 +222,13 @@ struct sourcekitd_keys {
   let syntaxmap: sourcekitd_uid_t
   let namelength: sourcekitd_uid_t
   let nameoffset: sourcekitd_uid_t
+  let retrieve_refactor_actions: sourcekitd_uid_t
+  let refactor_actions: sourcekitd_uid_t
+  let actionname: sourcekitd_uid_t
+  let actionuid: sourcekitd_uid_t
+  let categorizededits: sourcekitd_uid_t
+  let edits: sourcekitd_uid_t
+  let text: sourcekitd_uid_t
 
   init(api: sourcekitd_functions_t) {
     request = api.uid_get_from_cstr("key.request")!
@@ -237,6 +246,8 @@ struct sourcekitd_keys {
     severity = api.uid_get_from_cstr("key.severity")!
     line = api.uid_get_from_cstr("key.line")!
     column = api.uid_get_from_cstr("key.column")!
+    endline = api.uid_get_from_cstr("key.endline")!
+    endcolumn = api.uid_get_from_cstr("key.endcolumn")!
     filepath = api.uid_get_from_cstr("key.filepath")!
     ranges = api.uid_get_from_cstr("key.ranges")!
     usr = api.uid_get_from_cstr("key.usr")!
@@ -250,6 +261,13 @@ struct sourcekitd_keys {
     syntaxmap = api.uid_get_from_cstr("key.syntaxmap")!
     namelength = api.uid_get_from_cstr("key.namelength")!
     nameoffset = api.uid_get_from_cstr("key.nameoffset")!
+    retrieve_refactor_actions = api.uid_get_from_cstr("key.retrieve_refactor_actions")!
+    refactor_actions = api.uid_get_from_cstr("key.refactor_actions")!
+    actionname = api.uid_get_from_cstr("key.actionname")!
+    actionuid = api.uid_get_from_cstr("key.actionuid")!
+    categorizededits = api.uid_get_from_cstr("key.categorizededits")!
+    edits = api.uid_get_from_cstr("key.edits")!
+    text = api.uid_get_from_cstr("key.text")!
   }
 }
 
@@ -261,6 +279,7 @@ struct sourcekitd_requests {
   let codecomplete: sourcekitd_uid_t
   let cursorinfo: sourcekitd_uid_t
   let relatedidents: sourcekitd_uid_t
+  let semantic_refactoring: sourcekitd_uid_t
 
   init(api: sourcekitd_functions_t) {
     editor_open = api.uid_get_from_cstr("source.request.editor.open")!
@@ -269,6 +288,7 @@ struct sourcekitd_requests {
     codecomplete = api.uid_get_from_cstr("source.request.codecomplete")!
     cursorinfo = api.uid_get_from_cstr("source.request.cursorinfo")!
     relatedidents = api.uid_get_from_cstr("source.request.relatedidents")!
+    semantic_refactoring = api.uid_get_from_cstr("source.request.semantic.refactoring")!
   }
 }
 

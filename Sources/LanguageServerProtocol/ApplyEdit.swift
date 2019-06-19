@@ -27,7 +27,7 @@ public struct ApplyEditRequest: RequestType {
   /// The edits to apply.
   public var edit: WorkspaceEdit
 
-  public init(label: String? = nil, edit: WorkspaceEdit) {
+  public init(label: String?, edit: WorkspaceEdit) {
     self.label = label
     self.edit = edit
   }
