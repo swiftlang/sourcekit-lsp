@@ -123,15 +123,19 @@ public struct CodeAction: Codable, Equatable, ResponseType {
   /// The diagnostics that this code action resolves, if applicable.
   public var diagnostics: [Diagnostic]?
 
+  /// The workspace edit this code action performs.
+  public var edit: WorkspaceEdit?
+
   /// A command this code action executes.
   /// If a code action provides an edit and a command,
   /// first the edit is executed and then the command.
   public var command: Command?
 
-  public init(title: String, kind: CodeActionKind? = nil, diagnostics: [Diagnostic]? = nil, command: Command? = nil) {
+  public init(title: String, kind: CodeActionKind? = nil, diagnostics: [Diagnostic]? = nil, edit: WorkspaceEdit? = nil, command: Command? = nil) {
     self.title = title
     self.kind = kind
     self.diagnostics = diagnostics
+    self.edit = edit
     self.command = command
   }
 }
