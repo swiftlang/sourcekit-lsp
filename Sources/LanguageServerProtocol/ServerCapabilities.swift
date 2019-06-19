@@ -51,6 +51,9 @@ public struct ServerCapabilities: Codable, Hashable {
   /// Whether the server provides "textDocument/codeAction".
   public var codeActionProvider: CodeActionServerCapabilities?
 
+  /// Whether the server provides "workspace/executeCommand".
+  public var executeCommandProvider: ExecuteCommandOptions?
+
   // TODO: fill-in the rest.
 
   public init(
@@ -66,7 +69,8 @@ public struct ServerCapabilities: Codable, Hashable {
     foldingRangeProvider: Bool? = nil,
     documentSymbolProvider: Bool? = nil,
     colorProvider: Bool? = nil,
-    codeActionProvider: CodeActionServerCapabilities? = nil
+    codeActionProvider: CodeActionServerCapabilities? = nil,
+    executeCommandProvider: ExecuteCommandOptions? = nil
     )
   {
     self.textDocumentSync = textDocumentSync
@@ -82,6 +86,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.documentSymbolProvider = documentSymbolProvider
     self.colorProvider = colorProvider
     self.codeActionProvider = codeActionProvider
+    self.executeCommandProvider = executeCommandProvider
   }
 
   public init(from decoder: Decoder) throws {
@@ -93,6 +98,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.documentSymbolProvider = try container.decodeIfPresent(Bool.self, forKey: .documentSymbolProvider)
     self.colorProvider = try container.decodeIfPresent(Bool.self, forKey: .colorProvider)
     self.codeActionProvider = try container.decodeIfPresent(CodeActionServerCapabilities.self, forKey: .codeActionProvider)
+    self.executeCommandProvider = try container.decodeIfPresent(ExecuteCommandOptions.self, forKey: .executeCommandProvider)
 
     if let textDocumentSync = try? container.decode(TextDocumentSyncOptions.self, forKey: .textDocumentSync) {
       self.textDocumentSync = textDocumentSync
@@ -232,5 +238,15 @@ public struct CodeActionOptions: Codable, Hashable {
 
   public init(codeActionKinds: [CodeActionKind]?) {
     self.codeActionKinds = codeActionKinds
+  }
+}
+
+public struct ExecuteCommandOptions: Codable, Hashable {
+
+  /// The commands to be executed on this server.
+  public var commands: [String]
+
+  public init(commands: [String]) {
+    self.commands = commands
   }
 }

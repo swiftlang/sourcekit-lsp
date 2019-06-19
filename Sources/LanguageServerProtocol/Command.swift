@@ -33,7 +33,7 @@ public struct Command: Codable, Hashable {
   }
 }
 
-public enum CommandArgumentType: Hashable {
+public enum CommandArgumentType: Hashable, ResponseType {
   case null
   case int(Int)
   case bool(Bool)
