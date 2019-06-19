@@ -80,6 +80,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.documentOnTypeFormattingProvider = documentOnTypeFormattingProvider
     self.foldingRangeProvider = foldingRangeProvider
     self.documentSymbolProvider = documentSymbolProvider
+    self.colorProvider = colorProvider
     self.codeActionProvider = codeActionProvider
   }
 
@@ -186,30 +187,27 @@ public struct DocumentOnTypeFormattingOptions: Codable, Hashable {
 /// Wrapper type for a server's CodeActions' capabilities.
 /// If the client supports CodeAction literals, the server can return specific information about
 /// how CodeActions will be sent. Otherwise, the server's capabilities are determined by a boolean.
-public struct CodeActionServerCapabilities: Codable, Hashable {
+public enum CodeActionServerCapabilities: Codable, Hashable {
 
-  public var supportsCodeActions: Bool
-  public var codeActionOptions: CodeActionOptions?
+  case supportsCodeActionRequests(Bool)
+  case supportsCodeActionRequestsWithLiterals(CodeActionOptions)
 
   public init(clientCapabilities: TextDocumentClientCapabilities.CodeAction?,
-              codeActionOptions: CodeActionOptions?,
+              codeActionOptions: CodeActionOptions,
               supportsCodeActions: Bool) {
     if clientCapabilities?.codeActionLiteralSupport != nil {
-      self.codeActionOptions = nil
+      self = .supportsCodeActionRequestsWithLiterals(codeActionOptions)
     } else {
-      self.codeActionOptions = codeActionOptions
+      self = .supportsCodeActionRequests(supportsCodeActions)
     }
-    self.supportsCodeActions = supportsCodeActions
   }
 
   public init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
-    if let codeActionOptions = try? container.decode(CodeActionOptions.self) {
-      self.codeActionOptions = codeActionOptions
-      self.supportsCodeActions = true
-    } else if let supportsCodeActions = try? container.decode(Bool.self) {
-      self.supportsCodeActions = supportsCodeActions
-      self.codeActionOptions = nil
+    if let supportsCodeActions = try? container.decode(Bool.self) {
+      self = .supportsCodeActionRequests(supportsCodeActions)
+    } else if let codeActionOptions = try? container.decode(CodeActionOptions.self) {
+      self = .supportsCodeActionRequestsWithLiterals(codeActionOptions)
     } else {
       let error = "CodeActionServerCapabilities cannot be decoded: Unrecognized type."
       throw DecodingError.dataCorruptedError(in: container, debugDescription: error)
@@ -218,10 +216,11 @@ public struct CodeActionServerCapabilities: Codable, Hashable {
 
   public func encode(to encoder: Encoder) throws {
     var container = encoder.singleValueContainer()
-    if let codeActionOptions = codeActionOptions {
+    switch self {
+    case .supportsCodeActionRequestsWithLiterals(let codeActionOptions):
       try container.encode(codeActionOptions)
-    } else {
-      try container.encode(supportsCodeActions)
+    case .supportsCodeActionRequests(let supportCodeActions):
+      try container.encode(supportCodeActions)
     }
   }
 }

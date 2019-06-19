@@ -19,7 +19,7 @@ import XCTest
 
 final class CodeActionTests: XCTestCase {
   func testCodeActionResponseLegacySupport() {
-    let command = Command(title: "Title", command: "Command", arguments: [1,"f",2.2, nil])
+    let command = Command(title: "Title", command: "Command", arguments: [1, "text", 2.2, nil])
     let codeAction = CodeAction(title: "1")
     let codeAction2 = CodeAction(title: "2", command: command)
 
@@ -85,7 +85,7 @@ final class CodeActionTests: XCTestCase {
                                              from: data)
 
     response = .init(codeActions: actions, clientCapabilities: capabilities)
-    XCTAssertEqual(response.codeActions, [unspecifiedAction, refactorAction])
+    XCTAssertEqual(response, .codeActions([unspecifiedAction, refactorAction]))
 
     capabilityJson =
     """
@@ -103,6 +103,15 @@ final class CodeActionTests: XCTestCase {
                                              from: data)
 
     response = .init(codeActions: actions, clientCapabilities: capabilities)
-    XCTAssertEqual(response.codeActions, [unspecifiedAction])
+    XCTAssertEqual(response, .codeActions([unspecifiedAction]))
+  }
+
+  func testCommandEncoding() {
+    let dictionary: CommandArgumentType = ["1": [nil, 2], "2": "text", "3": ["4": [1, 2]]]
+    let array: CommandArgumentType = [1, [2,"string"], dictionary]
+    let arguments: CommandArgumentType = [1, 2.2, "text", nil, array, dictionary]
+    let command = Command(title: "Command", command: "command.id", arguments: [arguments, arguments])
+    let decoded = try! JSONDecoder().decode(Command.self, from: JSONEncoder().encode(command))
+    XCTAssertEqual(decoded, command)
   }
 }

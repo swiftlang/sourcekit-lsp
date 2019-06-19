@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import SKSupport
-import class Foundation.NSNull
 
 /// Represents a reference to a command identified by a string. Used as the result of
 /// requests that returns actions to the user, later used as the parameter of
@@ -34,7 +33,7 @@ public struct Command: Codable, Hashable {
   }
 }
 
-public enum CommandArgumentType {
+public enum CommandArgumentType: Hashable {
   case null
   case int(Int)
   case bool(Bool)
@@ -42,48 +41,6 @@ public enum CommandArgumentType {
   case string(String)
   case array([CommandArgumentType])
   case dictionary([String: CommandArgumentType])
-}
-
-extension CommandArgumentType: Hashable {
-  public static func == (lhs: CommandArgumentType, rhs: CommandArgumentType) -> Bool {
-    switch (lhs, rhs) {
-    case (.null, .null):
-      return true
-    case let (.int(lhs), .int(rhs)):
-      return lhs == rhs
-    case let (.bool(lhs), .bool(rhs)):
-      return lhs == rhs
-    case let (.double(lhs), .double(rhs)):
-      return lhs == rhs
-    case let (.string(lhs), .string(rhs)):
-      return lhs == rhs
-    case let (.array(lhs), .array(rhs)):
-      return lhs == rhs
-    case let (.dictionary(lhs), .dictionary(rhs)):
-      return lhs == rhs
-    default:
-      return false
-    }
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    switch self {
-    case .null:
-      NSNull().hash(into: &hasher)
-    case let .int(value):
-      value.hash(into: &hasher)
-    case let .bool(value):
-      value.hash(into: &hasher)
-    case let .double(value):
-      value.hash(into: &hasher)
-    case let .string(value):
-      value.hash(into: &hasher)
-    case let .array(value):
-      value.hash(into: &hasher)
-    case let .dictionary(value):
-      value.hash(into: &hasher)
-    }
-  }
 }
 
 extension CommandArgumentType: Decodable {
@@ -116,47 +73,47 @@ extension CommandArgumentType: Encodable {
     switch self {
     case .null:
       try container.encodeNil()
-    case let .int(value):
+    case .int(let value):
       try container.encode(value)
-    case let .bool(value):
+    case .bool(let value):
       try container.encode(value)
-    case let .double(value):
+    case .double(let value):
       try container.encode(value)
-    case let .string(value):
+    case .string(let value):
       try container.encode(value)
-    case let .array(value):
+    case .array(let value):
       try container.encode(value)
-    case let .dictionary(value):
+    case .dictionary(let value):
       try container.encode(value)
     }
   }
 }
 
-extension CommandArgumentType: ExpressibleByNilLiteral {}
-extension CommandArgumentType: ExpressibleByIntegerLiteral {}
-extension CommandArgumentType: ExpressibleByBooleanLiteral {}
-extension CommandArgumentType: ExpressibleByFloatLiteral {}
-extension CommandArgumentType: ExpressibleByStringLiteral {}
-extension CommandArgumentType: ExpressibleByArrayLiteral {}
-extension CommandArgumentType: ExpressibleByDictionaryLiteral {}
-
-extension CommandArgumentType {
+extension CommandArgumentType: ExpressibleByNilLiteral {
   public init(nilLiteral _: ()) {
     self = .null
   }
+}
 
+extension CommandArgumentType: ExpressibleByIntegerLiteral {
   public init(integerLiteral value: Int) {
     self = .int(value)
   }
+}
 
+extension CommandArgumentType: ExpressibleByBooleanLiteral {
   public init(booleanLiteral value: Bool) {
     self = .bool(value)
   }
+}
 
+extension CommandArgumentType: ExpressibleByFloatLiteral {
   public init(floatLiteral value: Double) {
     self = .double(value)
   }
+}
 
+extension CommandArgumentType: ExpressibleByStringLiteral {
   public init(extendedGraphemeClusterLiteral value: String) {
     self = .string(value)
   }
@@ -164,11 +121,15 @@ extension CommandArgumentType {
   public init(stringLiteral value: String) {
     self = .string(value)
   }
+}
 
+extension CommandArgumentType: ExpressibleByArrayLiteral {
   public init(arrayLiteral elements: CommandArgumentType...) {
     self = .array(elements)
   }
+}
 
+extension CommandArgumentType: ExpressibleByDictionaryLiteral {
   public init(dictionaryLiteral elements: (String, CommandArgumentType)...) {
     let dict  = [String: CommandArgumentType](elements, uniquingKeysWith: { first, _ in first })
     self = .dictionary(dict)

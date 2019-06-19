@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -52,14 +52,14 @@ public struct CodeActionRequest: TextDocumentRequest, Hashable {
 /// Wrapper type for the response of a CodeAction request.
 /// If the client supports CodeAction literals, the encoded type will be the CodeAction array itself.
 /// Otherwise, the encoded value will be an array of CodeActions' inner Command structs.
-public struct CodeActionRequestResponse: ResponseType, Codable {
-  public var codeActions: [CodeAction]
-  public var commands: [Command]
+public enum CodeActionRequestResponse: ResponseType, Codable, Equatable {
+  case codeActions([CodeAction])
+  case commands([Command])
 
   public init(codeActions: [CodeAction], clientCapabilities: TextDocumentClientCapabilities.CodeAction?) {
     if let literalSupport = clientCapabilities?.codeActionLiteralSupport {
       let supportedKinds = literalSupport.codeActionKind.valueSet
-      self.codeActions = codeActions.filter {
+      self = .codeActions(codeActions.filter {
         if let kind = $0.kind {
           return supportedKinds.contains(kind)
         } else {
@@ -67,39 +67,31 @@ public struct CodeActionRequestResponse: ResponseType, Codable {
           // so it's probably safe to include unspecified kinds into the result.
           return true
         }
-      }
-      self.commands = []
+      })
     } else {
-      self.codeActions = []
-      self.commands = codeActions.compactMap { $0.command }
+      self = .commands(codeActions.compactMap { $0.command })
     }
   }
 
   public init(from decoder: Decoder) throws {
-    var container = try decoder.unkeyedContainer()
-    var codeActions = [CodeAction]()
-    var commands = [Command]()
-    while container.isAtEnd == false {
-      if let codeAction = try container.decodeIfPresent(CodeAction.self) {
-        codeActions.append(codeAction)
-      } else if let command = try container.decodeIfPresent(Command.self) {
-        commands.append(command)
-      } else {
-        let error = "CodeActionRequestResponse has neither a CodeAction or a Command."
-        throw DecodingError.dataCorruptedError(in: container, debugDescription: error)
-      }
+    let container = try decoder.singleValueContainer()
+    if let codeActions = try? container.decode([CodeAction].self) {
+      self = .codeActions(codeActions)
+    } else if let commands = try? container.decode([Command].self) {
+      self = .commands(commands)
+    } else {
+      let error = "CodeActionRequestResponse has neither a CodeAction or a Command."
+      throw DecodingError.dataCorruptedError(in: container, debugDescription: error)
     }
-    self.codeActions = codeActions
-    self.commands = commands
   }
 
   public func encode(to encoder: Encoder) throws {
-    var container = encoder.unkeyedContainer()
-    for codeAction in codeActions {
-      try container.encode(codeAction)
-    }
-    for command in commands {
-      try container.encode(command)
+    var container = encoder.singleValueContainer()
+    switch self {
+    case .codeActions(let codeActions):
+      try container.encode(codeActions)
+    case .commands(let commands):
+      try container.encode(commands)
     }
   }
 }

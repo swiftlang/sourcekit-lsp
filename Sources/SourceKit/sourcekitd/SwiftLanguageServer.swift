@@ -15,7 +15,7 @@ import SKCore
 import SKSupport
 import Basic
 import sourcekitd
-import class Foundation.DispatchQueue
+import Dispatch
 import struct Foundation.CharacterSet
 
 public final class SwiftLanguageServer: LanguageServer {
@@ -201,11 +201,9 @@ extension SwiftLanguageServer {
       colorProvider: true,
       codeActionProvider: CodeActionServerCapabilities(
         clientCapabilities: request.params.capabilities.textDocument?.codeAction,
-        codeActionOptions: CodeActionOptions(
-          codeActionKinds: nil
-        ),
-        supportsCodeActions: false // TODO: Turn it on after a provider is implemented.
-    ))))
+        codeActionOptions: CodeActionOptions(codeActionKinds: nil),
+        supportsCodeActions: false) // TODO: Turn it on after a provider is implemented.
+    )))
   }
 
   func clientInitialized(_: Notification<InitializedNotification>) {
@@ -869,17 +867,18 @@ extension SwiftLanguageServer {
       completion([])
       return
     }
-    var providersLeftToProcess = Set<Int>(0..<providers.count)
     var codeActions = [CodeAction]()
+    let dispatchGroup = DispatchGroup()
+    (0..<providers.count).forEach { _ in dispatchGroup.enter() }
+    dispatchGroup.notify(queue: queue) {
+      completion(codeActions)
+    }
     for i in 0..<providers.count {
       providers[i](req.params) { actions in
-        DispatchQueue.global(qos: .userInitiated).sync(flags: .barrier) {
+        self.queue.sync {
           codeActions += actions
         }
-        providersLeftToProcess.remove(i)
-        if providersLeftToProcess.isEmpty {
-          completion(codeActions)
-        }
+        dispatchGroup.leave()
       }
     }
   }
