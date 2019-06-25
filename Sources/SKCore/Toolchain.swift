@@ -46,6 +46,9 @@ public final class Toolchain {
   /// The path to the clangd language server if available.
   public var clangd: AbsolutePath?
 
+  /// The path to the ClangdXPC.framework if available.
+  public var clangdXPCFramework: AbsolutePath?
+
   /// The path to the Swift language server if available.
   public var sourcekitd: AbsolutePath?
 
@@ -59,6 +62,7 @@ public final class Toolchain {
     clang: AbsolutePath? = nil,
     swiftc: AbsolutePath? = nil,
     clangd: AbsolutePath? = nil,
+    clangdXPCFramework: AbsolutePath? = nil,
     sourcekitd: AbsolutePath? = nil,
     libIndexStore: AbsolutePath? = nil)
   {
@@ -68,6 +72,7 @@ public final class Toolchain {
     self.clang = clang
     self.swiftc = swiftc
     self.clangd = clangd
+    self.clangdXPCFramework = clangdXPCFramework
     self.sourcekitd = sourcekitd
     self.libIndexStore = libIndexStore
   }
@@ -86,6 +91,7 @@ extension Toolchain {
   /// lib/sourcekitd.framework/sourcekitd
   ///    /libsourcekitdInProc.{so,dylib}
   ///    /libIndexStore.{so,dylib}
+  ///    /ClangdXPC.framework/ClangdXPC
   /// ```
   ///
   /// The above directory layout can found relative to `path` in the following ways:
@@ -142,6 +148,11 @@ extension Toolchain {
     let clangdPath = binPath.appending(component: "clangd")
     if fs.isExecutableFile(clangdPath) {
       self.clangd = clangdPath
+      foundAny = true
+    }
+    let clangdFrameworkPath = libPath.appending(components: "ClangdXPC.framework", "ClangdXPC")
+    if fs.isExecutableFile(clangdFrameworkPath) {
+      self.clangdXPCFramework = clangdFrameworkPath
       foundAny = true
     }
 
