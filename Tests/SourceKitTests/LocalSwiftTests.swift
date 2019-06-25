@@ -623,6 +623,62 @@ final class LocalSwiftTests: XCTestCase {
     }
   }
 
+  func testHoverNameEscaping() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    sk.allowUnexpectedNotification = true
+
+    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: url,
+      language: .swift,
+      version: 1,
+      text: """
+      /// this is **bold** documentation
+      func test(_ a: Int, _ b: Int) { }
+      /// this is *italic* documentation
+      func *%*(lhs: String, rhs: String) { }
+      """)))
+
+    do {
+      let resp = try! sk.sendSync(HoverRequest(
+        textDocument: TextDocumentIdentifier(url),
+        position: Position(line: 1, utf16index: 7)))
+
+      XCTAssertNotNil(resp)
+      if let hover = resp {
+        XCTAssertNil(hover.range)
+        XCTAssertEqual(hover.contents.kind, .markdown)
+        XCTAssertEqual(hover.contents.value, ##"""
+          # test\(\_\:\_\:\)
+          ```
+          func test(_ a: Int, _ b: Int)
+          ```
+
+          this is **bold** documentation
+          """##)
+      }
+    }
+
+    do {
+      let resp = try! sk.sendSync(HoverRequest(
+        textDocument: TextDocumentIdentifier(url),
+        position: Position(line: 3, utf16index: 7)))
+
+      XCTAssertNotNil(resp)
+      if let hover = resp {
+        XCTAssertNil(hover.range)
+        XCTAssertEqual(hover.contents.kind, .markdown)
+        XCTAssertEqual(hover.contents.value, ##"""
+          # \*\%\*\(\_\:\_\:\)
+          ```
+          func *%* (lhs: String, rhs: String)
+          ```
+
+          this is *italic* documentation
+          """##)
+      }
+    }
+  }
+
   func testDocumentSymbolHighlight() {
     let url = URL(fileURLWithPath: "/a.swift")
     sk.allowUnexpectedNotification = true

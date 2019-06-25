@@ -58,6 +58,7 @@ extension LocalSwiftTests {
         ("testDocumentSymbolHighlight", testDocumentSymbolHighlight),
         ("testEditing", testEditing),
         ("testHover", testHover),
+        ("testHoverNameEscaping", testHoverNameEscaping),
         ("testSymbolInfo", testSymbolInfo),
         ("testXMLToMarkdownComment", testXMLToMarkdownComment),
         ("testXMLToMarkdownDeclaration", testXMLToMarkdownDeclaration),

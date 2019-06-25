@@ -444,7 +444,22 @@ extension SwiftLanguageServer {
         return
       }
 
-      var result = "# \(name)"
+      /// Prepend backslash to all ASCII punctuation, to prevent it
+      /// from being interpreted as markdown.
+      ///
+      /// Any ASCII punctuation character may be backslash-escaped.
+      /// https://spec.commonmark.org/0.29/#backslash-escapes
+      func escapeMarkdown(_ str: String) -> String {
+        func isAsciiPunctuation(_ char: Character) -> Bool {
+          let asciiPunctuation = Set<Character>(##"""
+          !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
+          """##)
+          return asciiPunctuation.contains(char)
+        }
+        return String(str.flatMap({ isAsciiPunctuation($0) ? ["\\", $0] : [$0] }))
+      }
+
+      var result = "# \(escapeMarkdown(name))"
       if let doc = cursorInfo.documentationXML {
         result += """
 
