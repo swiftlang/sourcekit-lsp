@@ -648,7 +648,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertNil(hover.range)
         XCTAssertEqual(hover.contents.kind, .markdown)
         XCTAssertEqual(hover.contents.value, ##"""
-          # test\(\_\:\_\:\)
+          # test(\_:\_:)
           ```
           func test(_ a: Int, _ b: Int)
           ```
@@ -668,7 +668,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertNil(hover.range)
         XCTAssertEqual(hover.contents.kind, .markdown)
         XCTAssertEqual(hover.contents.value, ##"""
-          # \*\%\*\(\_\:\_\:\)
+          # \*%\*(\_:\_:)
           ```
           func *%* (lhs: String, rhs: String)
           ```
