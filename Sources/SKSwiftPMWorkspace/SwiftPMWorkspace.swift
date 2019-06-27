@@ -101,7 +101,8 @@ public final class SwiftPMWorkspace {
       dataPath: buildPath.appending(component: triple.tripleString),
       configuration: swiftPMConfiguration,
       toolchain: toolchain,
-      flags: buildSetup.flags)
+      flags: buildSetup.flags,
+      shouldEnableManifestCaching: true)
 
     self.packageGraph = PackageGraph(rootPackages: [], requiredDependencies: [])
 
