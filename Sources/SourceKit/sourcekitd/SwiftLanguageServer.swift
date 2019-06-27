@@ -15,6 +15,7 @@ import SKCore
 import SKSupport
 import Basic
 import sourcekitd
+import Dispatch
 import struct Foundation.CharacterSet
 
 public final class SwiftLanguageServer: LanguageServer {
@@ -66,6 +67,7 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.documentSymbol)
     _register(SwiftLanguageServer.documentColor)
     _register(SwiftLanguageServer.colorPresentation)
+    _register(SwiftLanguageServer.codeAction)
   }
 
   func getDiagnostic(_ diag: SKResponseDictionary, for snapshot: DocumentSnapshot) -> Diagnostic? {
@@ -196,8 +198,12 @@ extension SwiftLanguageServer {
       documentHighlightProvider: true,
       foldingRangeProvider: true,
       documentSymbolProvider: true,
-      colorProvider: true
-      )))
+      colorProvider: true,
+      codeActionProvider: CodeActionServerCapabilities(
+        clientCapabilities: request.params.capabilities.textDocument?.codeAction,
+        codeActionOptions: CodeActionOptions(codeActionKinds: nil),
+        supportsCodeActions: false) // TODO: Turn it on after a provider is implemented.
+    )))
   }
 
   func clientInitialized(_: Notification<InitializedNotification>) {
@@ -844,6 +850,43 @@ extension SwiftLanguageServer {
                            kind: kind)
     }
     ranges.append(range)
+  }
+
+  func codeAction(_ req: Request<CodeActionRequest>) {
+    let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
+      //TODO: Implement the providers.
+      //(retrieveRefactorCodeActions, .refactor),
+      //(retrieveQuickFixCodeActions, .quickFix)
+    ]
+    let wantedActionKinds = req.params.context.only
+    let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
+    retrieveCodeActions(req, providers: providers.map { $0.provider }) { codeActions in
+      let capabilities = self.clientCapabilities.textDocument?.codeAction
+      let response = CodeActionRequestResponse(codeActions: codeActions,
+                                               clientCapabilities: capabilities)
+      req.reply(response)
+    }
+  }
+
+  func retrieveCodeActions(_ req: Request<CodeActionRequest>, providers: [CodeActionProvider], completion: @escaping CodeActionProviderCompletion) {
+    guard providers.isEmpty == false else {
+      completion([])
+      return
+    }
+    var codeActions = [CodeAction]()
+    let dispatchGroup = DispatchGroup()
+    (0..<providers.count).forEach { _ in dispatchGroup.enter() }
+    dispatchGroup.notify(queue: queue) {
+      completion(codeActions)
+    }
+    for i in 0..<providers.count {
+      providers[i](req.params) { actions in
+        self.queue.sync {
+          codeActions += actions
+        }
+        dispatchGroup.leave()
+      }
+    }
   }
 }
 

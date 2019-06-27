@@ -48,6 +48,9 @@ public struct ServerCapabilities: Codable, Hashable {
   /// Whether the server provides "textDocument/documentColor" and "textDocument/colorPresentation".
   public var colorProvider: Bool?
 
+  /// Whether the server provides "textDocument/codeAction".
+  public var codeActionProvider: CodeActionServerCapabilities?
+
   // TODO: fill-in the rest.
 
   public init(
@@ -62,7 +65,8 @@ public struct ServerCapabilities: Codable, Hashable {
     documentOnTypeFormattingProvider: DocumentOnTypeFormattingOptions? = nil,
     foldingRangeProvider: Bool? = nil,
     documentSymbolProvider: Bool? = nil,
-    colorProvider: Bool? = nil
+    colorProvider: Bool? = nil,
+    codeActionProvider: CodeActionServerCapabilities? = nil
     )
   {
     self.textDocumentSync = textDocumentSync
@@ -77,6 +81,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.foldingRangeProvider = foldingRangeProvider
     self.documentSymbolProvider = documentSymbolProvider
     self.colorProvider = colorProvider
+    self.codeActionProvider = codeActionProvider
   }
 
   public init(from decoder: Decoder) throws {
@@ -87,6 +92,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.foldingRangeProvider = try container.decodeIfPresent(Bool.self, forKey: .foldingRangeProvider)
     self.documentSymbolProvider = try container.decodeIfPresent(Bool.self, forKey: .documentSymbolProvider)
     self.colorProvider = try container.decodeIfPresent(Bool.self, forKey: .colorProvider)
+    self.codeActionProvider = try container.decodeIfPresent(CodeActionServerCapabilities.self, forKey: .codeActionProvider)
 
     if let textDocumentSync = try? container.decode(TextDocumentSyncOptions.self, forKey: .textDocumentSync) {
       self.textDocumentSync = textDocumentSync
@@ -175,5 +181,56 @@ public struct DocumentOnTypeFormattingOptions: Codable, Hashable {
   public init(triggerCharacters: [String]) {
     self.firstTriggerCharacter = triggerCharacters.first!
     self.moreTriggerCharacter = Array(triggerCharacters.dropFirst())
+  }
+}
+
+/// Wrapper type for a server's CodeActions' capabilities.
+/// If the client supports CodeAction literals, the server can return specific information about
+/// how CodeActions will be sent. Otherwise, the server's capabilities are determined by a boolean.
+public enum CodeActionServerCapabilities: Codable, Hashable {
+
+  case supportsCodeActionRequests(Bool)
+  case supportsCodeActionRequestsWithLiterals(CodeActionOptions)
+
+  public init(clientCapabilities: TextDocumentClientCapabilities.CodeAction?,
+              codeActionOptions: CodeActionOptions,
+              supportsCodeActions: Bool) {
+    if clientCapabilities?.codeActionLiteralSupport != nil {
+      self = .supportsCodeActionRequestsWithLiterals(codeActionOptions)
+    } else {
+      self = .supportsCodeActionRequests(supportsCodeActions)
+    }
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    if let supportsCodeActions = try? container.decode(Bool.self) {
+      self = .supportsCodeActionRequests(supportsCodeActions)
+    } else if let codeActionOptions = try? container.decode(CodeActionOptions.self) {
+      self = .supportsCodeActionRequestsWithLiterals(codeActionOptions)
+    } else {
+      let error = "CodeActionServerCapabilities cannot be decoded: Unrecognized type."
+      throw DecodingError.dataCorruptedError(in: container, debugDescription: error)
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.singleValueContainer()
+    switch self {
+    case .supportsCodeActionRequestsWithLiterals(let codeActionOptions):
+      try container.encode(codeActionOptions)
+    case .supportsCodeActionRequests(let supportCodeActions):
+      try container.encode(supportCodeActions)
+    }
+  }
+}
+
+public struct CodeActionOptions: Codable, Hashable {
+
+  /// CodeActionKinds that this server may return.
+  public var codeActionKinds: [CodeActionKind]?
+
+  public init(codeActionKinds: [CodeActionKind]?) {
+    self.codeActionKinds = codeActionKinds
   }
 }
