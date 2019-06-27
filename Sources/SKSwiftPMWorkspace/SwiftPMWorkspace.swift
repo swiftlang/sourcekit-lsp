@@ -266,22 +266,25 @@ extension SwiftPMWorkspace {
     forSwiftFile path: AbsolutePath,
     _ td: SwiftTargetBuildDescription) -> FileBuildSettings?
   {
+    guard td.target.sources.paths.first(where: { $0 == path }) != nil else {
+      log("could not find \(path) in the target: \(td.target.name).", level: .warning)
+      return nil
+    }
+
     // FIXME: this is re-implementing llbuild's constructCommandLineArgs.
     var args: [String] = [
       "-module-name",
       td.target.c99name,
-      "-incremental",
       "-emit-dependencies",
       "-emit-module",
       "-emit-module-path",
       buildPath.appending(component: "\(td.target.c99name).swiftmodule").pathString
-      // -output-file-map <path>
     ]
     if td.target.type == .library || td.target.type == .test {
       args += ["-parse-as-library"]
     }
     args += ["-c"]
-    args += td.target.sources.paths.map { $0.pathString }
+    args += [path.pathString]
     args += ["-I", buildPath.pathString]
     args += td.compileArguments()
 
