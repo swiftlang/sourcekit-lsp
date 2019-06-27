@@ -444,7 +444,13 @@ extension SwiftLanguageServer {
         return
       }
 
-      var result = "# \(name)"
+      /// Prepend backslash to `*` and `_`, to prevent them
+      /// from being interpreted as markdown.
+      func escapeNameMarkdown(_ str: String) -> String {
+        return String(str.flatMap({ ($0 == "*" || $0 == "_") ? ["\\", $0] : [$0] }))
+      }
+
+      var result = "# \(escapeNameMarkdown(name))"
       if let doc = cursorInfo.documentationXML {
         result += """
 
