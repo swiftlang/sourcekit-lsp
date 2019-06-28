@@ -80,6 +80,7 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceRequest(SourceKitServer.documentColor)
     registerWorkspaceRequest(SourceKitServer.colorPresentation)
     registerWorkspaceRequest(SourceKitServer.codeAction)
+    registerWorkspaceRequest(SourceKitServer.rename)
   }
 
   func registerWorkspaceRequest<R>(
@@ -269,7 +270,8 @@ extension SourceKitServer {
         clientCapabilities: req.params.capabilities.textDocument?.codeAction,
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
         supportsCodeActions: false // TODO: Turn it on after a provider is implemented.
-      )
+      ),
+      renameProvider: true
     )))
   }
 
@@ -365,6 +367,52 @@ extension SourceKitServer {
 
   func codeAction(_ req: Request<CodeActionRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  }
+
+  func rename(_ req: Request<RenameRequest>, workspace: Workspace) {
+    guard let service = workspace.documentService[req.params.textDocument.url] else {
+      req.reply(nil)
+      return
+    }
+
+    let id = service.send(SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position), queue: queue) { result in
+      guard let symbols: [SymbolDetails] = result.success ?? nil, 
+            let symbol = symbols.first,
+            let name = symbol.name else {
+        if let error = result.failure {
+          req.reply(.failure(error))
+        } else {
+          req.reply(nil)
+        }
+        return
+      }
+      guard let usr = symbol.usr, let index = workspace.index else {
+        req.reply(nil)
+        return
+      }
+      // Is there a better way to get a base name of a function?
+      let baseName = String(name.prefix(while: { $0 != "(" }))
+      // TODO: Check if these roles are correct
+      let occurences = index.occurrences(ofUSR: usr, roles: [.declaration, .definition, .reference, .read, .write, .call, .dynamic, .addressOf, .implicit, .childOf, .baseOf, .overrideOf, .receivedBy, .calledBy, .extendedBy, .accessorOf, .containedBy, .ibTypeOf, .specializationOf])
+      let occurencesByUrl = [URL:[SymbolOccurrence]](grouping: occurences, by: { URL(fileURLWithPath: $0.location.path) })
+      let editsByUrl = occurencesByUrl.mapValues { occurences in
+        return occurences.map { (occur: SymbolOccurrence) -> TextEdit in
+          let start = Position(
+            line: occur.location.line - 1, // 1-based -> 0-based
+            // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+            utf16index: occur.location.utf8Column - 1)
+          let end = Position(
+            line: occur.location.line - 1, // 1-based -> 0-based
+            // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+            utf16index: occur.location.utf8Column + baseName.utf16.count - 1)
+          return TextEdit(range: start..<end, newText: req.params.newName)
+        }
+      }
+      req.reply(WorkspaceEdit(changes: editsByUrl))
+    }
+    req.cancellationToken.addCancellationHandler { [weak service] in
+      service?.send(CancelRequest(id: id))
+    }
   }
 
   func definition(_ req: Request<DefinitionRequest>, workspace: Workspace) {

@@ -34,6 +34,7 @@ public let builtinRequests: [_RequestType.Type] = [
   DocumentColorRequest.self,
   ColorPresentationRequest.self,
   CodeActionRequest.self,
+  RenameRequest.self,
 
   // MARK: LSP Extension Requests
 
