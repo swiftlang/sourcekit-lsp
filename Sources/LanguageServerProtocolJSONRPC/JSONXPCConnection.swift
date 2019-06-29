@@ -101,13 +101,16 @@ public final class JSONXPCConnection: Connection {
             }
             let instance = Unmanaged<JSONXPCConnection>.fromOpaque(pointer).takeUnretainedValue()
 
-            guard let result = "LSP".withCString ({
-                xpc_dictionary_get_string(event, $0)
+            var length = 0
+            guard let result = "LSP".withCString ({ (lsp_s: UnsafePointer<CChar>) -> UnsafeRawPointer? in
+                return withUnsafeMutablePointer(to: &length) {
+                    xpc_dictionary_get_data(event, lsp_s, $0)
+                }
             }) else {
                 log("ignoring malformed XPC message", level: .error)
                 return
             }
-            let data = Data(bytes: result, count: strlen(result))
+            let data = Data(bytes: result, count: length)
 
             do {
                 let decoder = JSONDecoder()
@@ -186,13 +189,10 @@ public final class JSONXPCConnection: Connection {
 
     func send(messageData data: Data) {
         let dict = xpc_dictionary_create(nil, nil, 0)
-        // FIXME: Send the data directly instead of using an XPC string once
-        // Clangd supports it.
-        let jsonValue = String(data: data, encoding: .utf8)!
         "LSP".withCString {
             let lsp_s = $0
-            jsonValue.withCString {
-                xpc_dictionary_set_string(dict, lsp_s, $0)
+            data.withUnsafeBytes {
+                xpc_dictionary_set_data(dict, lsp_s, $0, data.count)
             }
         }
         xpc_connection_send_message(conn, dict)

@@ -69,7 +69,7 @@ final class LocalClangdXPCTests: XCTestCase {
             connection.close()
             group.leave()
         }
-        group.wait()
+        _ = group.wait(timeout: .now() + 10)
         XCTAssertNotNil(initializeResult)
         framework.unload()
     }
