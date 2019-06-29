@@ -358,6 +358,13 @@ extension SwiftLanguageServer {
         let insertText: String? = value[self.keys.sourcetext]
         let typeName: String? = value[self.keys.typename]
 
+        let clientCompletionCapabilities = self.clientCapabilities.textDocument?.completion
+        let clientSupportsSnippets = clientCompletionCapabilities?.completionItem?.snippetSupport == true
+        let text = insertText.map {
+          self.rewriteSourceKitPlaceholders(inString: $0, clientSupportsSnippets: clientSupportsSnippets)
+        }
+        let isInsertTextSnippet = clientSupportsSnippets && text != insertText
+
         let kind: sourcekitd_uid_t? = value[self.keys.kind]
         result.items.append(CompletionItem(
           label: name,
@@ -365,8 +372,8 @@ extension SwiftLanguageServer {
           sortText: nil,
           filterText: filterName,
           textEdit: nil,
-          insertText: insertText.map { self.rewriteCompletionPlacholders($0) },
-          insertTextFormat: .snippet,
+          insertText: text,
+          insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
           kind: kind?.asCompletionItemKind(self.values) ?? .value,
           deprecated: nil
         ))
@@ -383,20 +390,18 @@ extension SwiftLanguageServer {
     _ = handle
   }
 
-  func rewriteCompletionPlacholders(_ completion: String) -> String {
-    if !completion.contains("<#") {
-      return completion
-    }
-
-    var result = completion
+  func rewriteSourceKitPlaceholders(inString string: String, clientSupportsSnippets: Bool) -> String {
+    var result = string
     var index = 1
     while let start = result.range(of: "<#") {
       guard let end = result[start.upperBound...].range(of: "#>") else {
-        log("invalid placholder in \(completion)", level: .debug)
-        return completion
+        log("invalid placeholder in \(string)", level: .debug)
+        return string
       }
       // FIXME: add name to placeholder
-      result.replaceSubrange(start.lowerBound..<end.upperBound, with: "${\(index):value}")
+      let displayName = "value"
+      let placeholder = clientSupportsSnippets ? "${\(index):\(displayName)}" : displayName
+      result.replaceSubrange(start.lowerBound..<end.upperBound, with: placeholder)
       index += 1
     }
     return result
