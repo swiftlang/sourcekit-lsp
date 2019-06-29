@@ -142,8 +142,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.filterText, "test(a:)")
       // FIXME:
       XCTAssertNil(test.textEdit)
-      // FIXME: should be "a" in the placeholder.
-      XCTAssertEqual(test.insertText, "test(a: ${1:value})")
+      XCTAssertEqual(test.insertText, "test(a: ${1:Int})")
       XCTAssertEqual(test.insertTextFormat, .snippet)
     }
 
@@ -160,7 +159,6 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.filterText, "test(a:)")
       // FIXME:
       XCTAssertNil(test.textEdit)
-      // FIXME: should be "a" in the placeholder.
       XCTAssertEqual(test.insertText, "test(a: )")
       XCTAssertEqual(test.insertTextFormat, .plain)
     }

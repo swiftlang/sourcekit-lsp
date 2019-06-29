@@ -393,13 +393,16 @@ extension SwiftLanguageServer {
   func rewriteSourceKitPlaceholders(inString string: String, clientSupportsSnippets: Bool) -> String {
     var result = string
     var index = 1
-    while let start = result.range(of: "<#") {
-      guard let end = result[start.upperBound...].range(of: "#>") else {
+    while let start = result.range(of: EditorPlaceholder.placeholderPrefix) {
+      guard let end = result[start.upperBound...].range(of: EditorPlaceholder.placeholderSuffix) else {
         log("invalid placeholder in \(string)", level: .debug)
         return string
       }
-      // FIXME: add name to placeholder
-      let displayName = "value"
+      let rawPlaceholder = String(result[start.lowerBound..<end.upperBound])
+      guard let displayName = EditorPlaceholder(rawPlaceholder)?.displayName else {
+        log("failed to decode placeholder \(rawPlaceholder) in \(string)", level: .debug)
+        return string
+      }
       let placeholder = clientSupportsSnippets ? "${\(index):\(displayName)}" : ""
       result.replaceSubrange(start.lowerBound..<end.upperBound, with: placeholder)
       index += 1
