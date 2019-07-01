@@ -17,7 +17,7 @@ import XCTest
 
 @testable import SourceKit
 
-final class CompletionTests: XCTestCase {
+final class SwiftCompletionTests: XCTestCase {
 
   typealias CompletionCapabilities = TextDocumentClientCapabilities.Completion
 
@@ -121,8 +121,7 @@ final class CompletionTests: XCTestCase {
 
   func testCompletionSnippetSupport() {
     var capabilities = CompletionCapabilities()
-    capabilities.completionItem = .init()
-    capabilities.completionItem?.snippetSupport = true
+    capabilities.completionItem = CompletionCapabilities.CompletionItem(snippetSupport: true)
 
     initializeServer(capabilities: capabilities)
     let url = URL(fileURLWithPath: "/a.swift")
@@ -162,7 +161,7 @@ final class CompletionTests: XCTestCase {
       // FIXME:
       XCTAssertNil(test.textEdit)
       // FIXME: should be "a" in the placeholder.
-      XCTAssertEqual(test.insertText, "test(a: value)")
+      XCTAssertEqual(test.insertText, "test(a: )")
       XCTAssertEqual(test.insertTextFormat, .plain)
     }
   }

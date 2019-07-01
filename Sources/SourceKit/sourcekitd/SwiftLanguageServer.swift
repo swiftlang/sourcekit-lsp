@@ -400,7 +400,7 @@ extension SwiftLanguageServer {
       }
       // FIXME: add name to placeholder
       let displayName = "value"
-      let placeholder = clientSupportsSnippets ? "${\(index):\(displayName)}" : displayName
+      let placeholder = clientSupportsSnippets ? "${\(index):\(displayName)}" : ""
       result.replaceSubrange(start.lowerBound..<end.upperBound, with: placeholder)
       index += 1
     }
