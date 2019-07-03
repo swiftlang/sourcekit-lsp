@@ -15,7 +15,7 @@ import SKCore
 import SKSupport
 import IndexStoreDB
 import Basic
-import Utility
+import SPMUtility
 import Dispatch
 import Foundation
 import SPMLibc
@@ -82,6 +82,10 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceRequest(SourceKitServer.documentSymbolHighlight)
     registerWorkspaceRequest(SourceKitServer.foldingRange)
     registerWorkspaceRequest(SourceKitServer.symbolInfo)
+    registerWorkspaceRequest(SourceKitServer.documentSymbol)
+    registerWorkspaceRequest(SourceKitServer.documentColor)
+    registerWorkspaceRequest(SourceKitServer.colorPresentation)
+    registerWorkspaceRequest(SourceKitServer.codeAction)
   }
 
   func registerWorkspaceRequest<R>(
@@ -175,10 +179,11 @@ public final class SourceKitServer: LanguageServer {
         return nil
       }
 
+      let pid = Int(ProcessInfo.processInfo.processIdentifier)
       let resp = try service.sendSync(InitializeRequest(
-        processId: Int(getpid()),
+        processId: pid,
         rootPath: nil,
-        rootURL: (workspace.configuration.rootPath).map { URL(fileURLWithPath: $0.asString) },
+        rootURL: (workspace.configuration.rootPath).map { URL(fileURLWithPath: $0.pathString) },
         initializationOptions: InitializationOptions(),
         capabilities: workspace.clientCapabilities,
         trace: .off,
@@ -299,7 +304,14 @@ extension SourceKitServer {
       referencesProvider: true,
       documentHighlightProvider: true,
       foldingRangeProvider: true,
-      workspace: ServerWorkspaceCapabilities(workspaceFolders: ServerWorkspaceFoldersCapabilities(supported: true))
+      workspace: ServerWorkspaceCapabilities(workspaceFolders: ServerWorkspaceFoldersCapabilities(supported: true)),
+      documentSymbolProvider: true,
+      colorProvider: true,
+      codeActionProvider: CodeActionServerCapabilities(
+        clientCapabilities: req.params.capabilities.textDocument?.codeAction,
+        codeActionOptions: CodeActionOptions(codeActionKinds: nil),
+        supportsCodeActions: false // TODO: Turn it on after a provider is implemented.
+      )
     )))
   }
 
@@ -432,6 +444,26 @@ extension SourceKitServer {
   }
 
   func foldingRange(_ req: Request<FoldingRangeRequest>) {
+    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
+    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  }
+
+  func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
+    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
+    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  }
+
+  func documentColor(_ req: Request<DocumentColorRequest>) {
+    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
+    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  }
+
+  func colorPresentation(_ req: Request<ColorPresentationRequest>) {
+    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
+    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  }
+
+  func codeAction(_ req: Request<CodeActionRequest>) {
     guard let workspace = workspace(for: req.params.textDocument.url) else { return }
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }

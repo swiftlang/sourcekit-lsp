@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
-import Utility
+import Basic
+import SPMUtility
 import SKSupport
 
 /// Build configuration
@@ -19,19 +19,19 @@ public struct BuildSetup {
 
   /// Default configuration
   public static let `default` = BuildSetup(configuration: .debug,
-                                           path: "./.build",
+                                           path: nil,
                                            flags: BuildFlags())
 
-  /// Build configuration
+  /// Build configuration (debug|release).
   public let configuration: BuildConfiguration
 
-  /// Build artefacts directory path
-  public let path: String
+  /// Build artefacts directory path. If nil, the build system may choose a default value.
+  public let path: AbsolutePath?
 
   /// Additional build flags
   public let flags: BuildFlags
 
-  public init(configuration: BuildConfiguration, path: String, flags: BuildFlags) {
+  public init(configuration: BuildConfiguration, path: AbsolutePath?, flags: BuildFlags) {
     self.configuration = configuration
     self.path = path
     self.flags = flags

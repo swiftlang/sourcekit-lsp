@@ -8,6 +8,7 @@ extension SwiftPMWorkspaceTests {
     static let __allTests__SwiftPMWorkspaceTests = [
         ("testBasicCXXArgs", testBasicCXXArgs),
         ("testBasicSwiftArgs", testBasicSwiftArgs),
+        ("testBuildSetup", testBuildSetup),
         ("testDeploymentTargetSwift", testDeploymentTargetSwift),
         ("testManifestArgs", testManifestArgs),
         ("testMultiFileSwift", testMultiFileSwift),

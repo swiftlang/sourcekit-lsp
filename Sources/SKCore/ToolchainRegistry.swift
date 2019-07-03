@@ -12,9 +12,8 @@
 
 import SKSupport
 import Basic
-import Utility
+import SPMUtility
 import Dispatch
-import POSIX
 import Foundation
 
 /// Set of known toolchains.
@@ -43,7 +42,7 @@ public final class ToolchainRegistry {
 
   /// The currently selected toolchain identifier on Darwin.
   public internal(set) lazy var darwinToolchainOverride: String? = {
-    if let id = getenv("TOOLCHAINS"), !id.isEmpty, id != "default" {
+    if let id = ProcessEnv.vars["TOOLCHAINS"], !id.isEmpty, id != "default" {
       return id
     }
     return nil
@@ -278,7 +277,7 @@ extension ToolchainRegistry {
   {
     var shouldSetDefault = setDefault
     for envVar in environmentVariables {
-      if let pathStr = getenv(envVar),
+      if let pathStr = ProcessEnv.vars[envVar],
          let path = try? AbsolutePath(validating: pathStr),
          let toolchain = try? _registerToolchain(path, fileSystem),
          shouldSetDefault
@@ -301,7 +300,7 @@ extension ToolchainRegistry {
 
   func _scanForToolchains(pathVariables: [String], _ fileSystem: FileSystem) {
     pathVariables.lazy.flatMap { envVar in
-      getEnvSearchPaths(pathString: getenv(envVar), currentWorkingDirectory: nil)
+      getEnvSearchPaths(pathString: ProcessEnv.vars[envVar], currentWorkingDirectory: nil)
     }
     .forEach { path in
       _ = try? _registerToolchain(path, fileSystem)

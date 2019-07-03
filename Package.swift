@@ -7,8 +7,7 @@ let package = Package(
     products: [
     ],
     dependencies: [
-      .package(url: "https://github.com/apple/swift-package-manager.git", .branch("master")),
-      .package(url: "https://github.com/apple/indexstore-db.git", .branch("master")),
+      // See 'Dependencies' below.
     ],
     targets: [
       .target(
@@ -37,7 +36,7 @@ let package = Package(
 
       .target(
         name: "SKSwiftPMWorkspace",
-        dependencies: ["SwiftPM", "SKCore"]),
+        dependencies: ["SwiftPM-auto", "SKCore"]),
       .testTarget(
         name: "SKSwiftPMWorkspaceTests",
         dependencies: ["SKSwiftPMWorkspace", "SKTestSupport"]),
@@ -76,12 +75,34 @@ let package = Package(
       // useful to any Swift package. Similar in spirit to SwiftPM's Basic module.
       .target(
         name: "SKSupport",
-        // FIXME: this should be "Utility", not the full SwiftPM library. Right now that creates
-        // multiple definition warnings at run time because SwiftPM is dynamically linked and
-        // Utility is static.
-        dependencies: ["SwiftPM"]),
+        dependencies: ["SPMUtility"]),
       .testTarget(
         name: "SKSupportTests",
         dependencies: ["SKSupport", "SKTestSupport"]),
     ]
 )
+
+// MARK: Dependencies
+
+// When building with the swift build-script, use local dependencies whose contents are controlled
+// by the external environment. This allows sourcekit-lsp to take advantage of the automation used
+// for building the swift toolchain, such as `update-checkout`, or cross-repo PR tests.
+
+#if os(Linux)
+import Glibc
+#else
+import Darwin.C
+#endif
+
+if getenv("SWIFTCI_USE_LOCAL_DEPS") == nil {
+  // Building standalone.
+  package.dependencies += [
+    .package(url: "https://github.com/apple/indexstore-db.git", .branch("master")),
+    .package(url: "https://github.com/apple/swift-package-manager.git", .branch("master")),
+  ]
+} else {
+  package.dependencies += [
+    .package(path: "../indexstore-db"),
+    .package(path: "../swiftpm"),
+  ]
+}

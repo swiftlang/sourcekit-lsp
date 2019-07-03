@@ -12,7 +12,7 @@
 
 import SKSupport
 import SKCore
-import Utility
+import SPMUtility
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SourceKit
@@ -36,7 +36,7 @@ public struct TestSourceKitServer {
   }
 
   public static let buildSetup: BuildSetup = BuildSetup(configuration: .debug,
-                                                        path: ".build",
+                                                        path: nil,
                                                         flags: BuildFlags())
 
   public let client: TestClient

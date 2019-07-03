@@ -34,7 +34,7 @@ extension Connection {
       semaphore.signal()
     }
     semaphore.wait()
-    return try result!.dematerialize()
+    return try result!.get()
   }
 }
 

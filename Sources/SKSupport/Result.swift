@@ -10,12 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Basic
-
-extension Result {
+extension Swift.Result {
 
   /// Project out the .success value, or nil.
-  public var success: Value? {
+  public var success: Success? {
     switch self {
     case .success(let value):
       return value
@@ -25,7 +23,7 @@ extension Result {
   }
 
   /// Project out the .failure value, or nil.
-  public var failure: ErrorType? {
+  public var failure: Failure? {
     switch self {
     case .failure(let error):
       return error

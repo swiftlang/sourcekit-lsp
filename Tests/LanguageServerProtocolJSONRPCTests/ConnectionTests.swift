@@ -41,7 +41,7 @@ class ConnectionTests: XCTestCase {
     let expectation = self.expectation(description: "response received")
 
     _ = client.send(EchoRequest(string: "hello!")) { resp in
-      XCTAssertEqual(try! resp.dematerialize(), "hello!")
+      XCTAssertEqual(try! resp.get(), "hello!")
       expectation.fulfill()
     }
 
@@ -96,7 +96,7 @@ class ConnectionTests: XCTestCase {
     let expectation2 = self.expectation(description: "response received 2")
 
     _ = client.send(EchoError(code: nil)) { resp in
-      XCTAssertEqual(try! resp.dematerialize(), VoidResponse())
+      XCTAssertEqual(try! resp.get(), VoidResponse())
       expectation.fulfill()
     }
 
@@ -156,7 +156,7 @@ class ConnectionTests: XCTestCase {
     // Nothing bad should happen; check that the next request works.
 
     _ = client.send(EchoRequest(string: "hello!")) { resp in
-      XCTAssertEqual(try! resp.dematerialize(), "hello!")
+      XCTAssertEqual(try! resp.get(), "hello!")
       expectation.fulfill()
     }
 
@@ -173,7 +173,7 @@ class ConnectionTests: XCTestCase {
     // Nothing bad should happen; check that the next request works.
 
     _ = client.send(EchoRequest(string: "hello!")) { resp in
-      XCTAssertEqual(try! resp.dematerialize(), "hello!")
+      XCTAssertEqual(try! resp.get(), "hello!")
       expectation.fulfill()
     }
 

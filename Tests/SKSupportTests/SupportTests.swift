@@ -13,7 +13,6 @@
 import XCTest
 @testable import SKSupport
 import Basic
-import POSIX
 
 final class SupportTests: XCTestCase {
 
@@ -21,24 +20,24 @@ final class SupportTests: XCTestCase {
     enum MyError: Error, Equatable {
       case err1, err2
     }
-    typealias MyResult<T> = Result<T, MyError>
+    typealias MyResult<T> = Swift.Result<T, MyError>
 
-    XCTAssertEqual(MyResult(1), .success(1))
-    XCTAssertNotEqual(MyResult(2), .success(1))
-    XCTAssertNotEqual(MyResult(.err1), .success(1))
-    XCTAssertEqual(MyResult(.err1), MyResult<Int>.failure(.err1))
-    XCTAssertNotEqual(MyResult(.err1), MyResult<Int>.failure(.err2))
+    XCTAssertEqual(MyResult.success(1), .success(1))
+    XCTAssertNotEqual(MyResult.success(2), .success(1))
+    XCTAssertNotEqual(MyResult.failure(.err1), .success(1))
+    XCTAssertEqual(MyResult.failure(.err1), MyResult<Int>.failure(.err1))
+    XCTAssertNotEqual(MyResult.failure(.err1), MyResult<Int>.failure(.err2))
   }
 
   func testResultProjection() {
     enum MyError: Error, Equatable {
       case err1, err2
     }
-    typealias MyResult<T> = Result<T, MyError>
+    typealias MyResult<T> = Swift.Result<T, MyError>
 
-    XCTAssertEqual(MyResult(1).success, 1)
-    XCTAssertNil(MyResult(.err1).success)
-    XCTAssertNil(MyResult(1).failure)
+    XCTAssertEqual(MyResult.success(1).success, 1)
+    XCTAssertNil(MyResult.failure(.err1).success)
+    XCTAssertNil(MyResult.success(1).failure)
     XCTAssertEqual(MyResult<Int>.failure(.err1).failure, .err1)
   }
 
@@ -184,8 +183,8 @@ final class SupportTests: XCTestCase {
 
     testLogger.currentLevel = .default
 
-    try! setenv("TEST_ENV_LOGGGING_1", value: "1")
-    try! setenv("TEST_ENV_LOGGGING_0", value: "0")
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_1", value: "1")
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_0", value: "0")
     // .warning
     testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_1")
 
@@ -221,7 +220,7 @@ final class SupportTests: XCTestCase {
       ])
 
     // invalid - no change
-    try! setenv("TEST_ENV_LOGGGING_err", value: "")
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_err", value: "")
     testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_err")
 
     log("d", level: .error)
@@ -233,7 +232,7 @@ final class SupportTests: XCTestCase {
       ])
 
     // invalid - no change
-    try! setenv("TEST_ENV_LOGGGING_err", value: "a3")
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_err", value: "a3")
     testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_err")
 
     log("d", level: .error)
@@ -244,8 +243,8 @@ final class SupportTests: XCTestCase {
       ("d", .error),
       ])
 
-    // too high - max out at .debyg
-    try! setenv("TEST_ENV_LOGGGING_err", value: "1000")
+    // too high - max out at .debug
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_err", value: "1000")
     testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_err")
 
     log("d", level: .error)
@@ -258,6 +257,20 @@ final class SupportTests: XCTestCase {
       ("f", .info),
       ("g", .debug),
       ])
+
+    // By string.
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_string", value: "error")
+    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
+    XCTAssertEqual(testLogger.currentLevel, .error)
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_string", value: "warning")
+    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
+    XCTAssertEqual(testLogger.currentLevel, .warning)
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_string", value: "info")
+    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
+    XCTAssertEqual(testLogger.currentLevel, .info)
+    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_string", value: "debug")
+    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
+    XCTAssertEqual(testLogger.currentLevel, .debug)
 
     testLogger.currentLevel = .default
     testLogger.addLogHandler(obj)

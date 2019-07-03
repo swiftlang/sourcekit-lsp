@@ -14,8 +14,9 @@ import SKSwiftPMWorkspace
 import SKCore
 import PackageModel
 import Basic
-import Utility
+import SPMUtility
 import SKTestSupport
+import Build
 import XCTest
 
 final class SwiftPMWorkspaceTests: XCTestCase {
@@ -111,16 +112,54 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
     check("-target", arguments: arguments) // Only one!
 #if os(macOS)
-    check("-target", "x86_64-apple-macosx10.10", arguments: arguments)
+    check("-target", Triple.hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
     check("-sdk", arguments: arguments)
     check("-F", arguments: arguments)
 #else
-    check("-target", "x86_64-unknown-linux", arguments: arguments)
+    check("-target", Triple.hostTriple.tripleString, arguments: arguments)
 #endif
 
-    check("-I", build.asString, arguments: arguments)
+    check("-I", build.pathString, arguments: arguments)
 
-    check(aswift.asString, arguments: arguments)
+    check(aswift.pathString, arguments: arguments)
+  }
+
+  func testBuildSetup() {
+    // FIXME: should be possible to use InMemoryFileSystem.
+    let fs = localFileSystem
+    let tempDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
+    try! fs.createFiles(root: tempDir.path, files: [
+      "pkg/Sources/lib/a.swift": "",
+      "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+            targets: [.target(name: "lib", dependencies: [])])
+          """
+    ])
+    let packageRoot = tempDir.path.appending(component: "pkg")
+    let tr = ToolchainRegistry.shared
+
+    let config = BuildSetup(
+        configuration: .release,
+        path: packageRoot.appending(component: "non_default_build_path"),
+        flags: BuildFlags(xcc: ["-m32"], xcxx: [], xswiftc: ["-typecheck"], xlinker: []))
+
+    let ws = try! SwiftPMWorkspace(
+      workspacePath: packageRoot,
+      toolchainRegistry: tr,
+      fileSystem: fs,
+      buildSetup: config)
+
+    let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
+    let build = buildPath(root: packageRoot, config: config)
+
+    XCTAssertEqual(ws.buildPath, build)
+    let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
+
+    check("-typecheck", arguments: arguments)
+    check("-Xcc", "-m32", arguments: arguments)
+    check("-O", arguments: arguments)
   }
 
   func testManifestArgs() {
@@ -148,7 +187,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     let arguments = ws.settings(for: source.asURL, .swift)!.compilerArguments
 
     check("-swift-version", "4.2", arguments: arguments)
-    check(source.asString, arguments: arguments)
+    check(source.pathString, arguments: arguments)
   }
 
   func testMultiFileSwift() {
@@ -177,11 +216,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
 
     let argumentsA = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
-    check(aswift.asString, arguments: argumentsA)
-    check(bswift.asString, arguments: argumentsA)
+    check(aswift.pathString, arguments: argumentsA)
+    check(bswift.pathString, arguments: argumentsA)
     let argumentsB = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
-    check(aswift.asString, arguments: argumentsB)
-    check(bswift.asString, arguments: argumentsB)
+    check(aswift.pathString, arguments: argumentsB)
+    check(bswift.pathString, arguments: argumentsB)
   }
 
   func testMultiTargetSwift() {
@@ -215,14 +254,17 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
     let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
     let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
-    check(aswift.asString, arguments: arguments)
-    checkNot(bswift.asString, arguments: arguments)
-    check("-I", packageRoot.appending(components: "Sources", "libC", "include").asString, arguments: arguments)
+    check(aswift.pathString, arguments: arguments)
+    checkNot(bswift.pathString, arguments: arguments)
+    check(
+      "-I", packageRoot.appending(components: "Sources", "libC", "include").pathString,
+      arguments: arguments)
 
     let argumentsB = ws.settings(for: bswift.asURL, .swift)!.compilerArguments
-    check(bswift.asString, arguments: argumentsB)
-    checkNot(aswift.asString, arguments: argumentsB)
-    checkNot("-I", packageRoot.appending(components: "Sources", "libC", "include").asString, arguments: argumentsB)
+    check(bswift.pathString, arguments: argumentsB)
+    checkNot(aswift.pathString, arguments: argumentsB)
+    checkNot("-I", packageRoot.appending(components: "Sources", "libC", "include").pathString,
+      arguments: argumentsB)
   }
 
   func testUnknownFile() {
@@ -293,30 +335,31 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       checkNot("-arch", arguments: arguments)
       check("-target", arguments: arguments) // Only one!
   #if os(macOS)
-      check("-target", "x86_64-apple-macosx10.10", arguments: arguments)
+      check("-target", Triple.hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
       check("-isysroot", arguments: arguments)
       check("-F", arguments: arguments)
   #else
-      check("-target", "x86_64-unknown-linux", arguments: arguments)
+      check("-target", Triple.hostTriple.tripleString, arguments: arguments)
   #endif
 
-      check("-I", packageRoot.appending(components: "Sources", "lib", "include").asString, arguments: arguments)
-      checkNot("-I", build.asString, arguments: arguments)
-      checkNot(bcxx.asString, arguments: arguments)
+      check("-I", packageRoot.appending(components: "Sources", "lib", "include").pathString,
+        arguments: arguments)
+      checkNot("-I", build.pathString, arguments: arguments)
+      checkNot(bcxx.pathString, arguments: arguments)
     }
 
     let args = ws.settings(for: acxx.asURL, .cpp)!.compilerArguments
     checkArgsCommon(args)
     check("-MD", "-MT", "dependencies",
-        "-MF", build.appending(components: "lib.build", "a.cpp.d").asString,
+        "-MF", build.appending(components: "lib.build", "a.cpp.d").pathString,
         arguments: args)
-    check("-c", acxx.asString, arguments: args)
-    check("-o", build.appending(components: "lib.build", "a.cpp.o").asString, arguments: args)
+    check("-c", acxx.pathString, arguments: args)
+    check("-o", build.appending(components: "lib.build", "a.cpp.o").pathString, arguments: args)
 
     let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
     let headerArgs = ws.settings(for: header.asURL, .cpp)!.compilerArguments
     checkArgsCommon(headerArgs)
-    check("-c", "-x", "c++-header", header.asString, arguments: headerArgs)
+    check("-c", "-x", "c++-header", header.pathString, arguments: headerArgs)
   }
 
   func testDeploymentTargetSwift() {
@@ -345,9 +388,9 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
     check("-target", arguments: arguments) // Only one!
 #if os(macOS)
-    check("-target", "x86_64-apple-macosx10.13", arguments: arguments)
+    check("-target", Triple.hostTriple.tripleString(forPlatformVersion: "10.13"), arguments: arguments)
 #else
-    check("-target", "x86_64-unknown-linux", arguments: arguments)
+    check("-target", Triple.hostTriple.tripleString, arguments: arguments)
 #endif
   }
 }
@@ -384,18 +427,10 @@ private func check(
   }
 }
 
-private func buildPath(root: AbsolutePath) -> AbsolutePath {
-  if let absoluteBuildPath = try? AbsolutePath(validating: TestSourceKitServer.buildSetup.path) {
-    #if os(macOS)
-      return absoluteBuildPath.appending(components: "x86_64-apple-macosx", "debug")
-    #else
-      return absoluteBuildPath.appending(components: "x86_64-unknown-linux", "debug")
-    #endif
-  } else {
-    #if os(macOS)
-      return root.appending(components: TestSourceKitServer.buildSetup.path, "x86_64-apple-macosx", "debug")
-    #else
-      return root.appending(components: TestSourceKitServer.buildSetup.path, "x86_64-unknown-linux", "debug")
-    #endif
-  }
+private func buildPath(
+  root: AbsolutePath,
+  config: BuildSetup = TestSourceKitServer.buildSetup) -> AbsolutePath
+{
+  let buildPath = config.path ?? root.appending(component: ".build")
+  return buildPath.appending(components: Triple.hostTriple.tripleString, "\(config.configuration)")
 }

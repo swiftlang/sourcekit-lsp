@@ -22,7 +22,7 @@ $ cd Editors/vscode
 $ npm run createDevPackage
 ```
 
-You can install the package from the command-line if you have the `code` executable on your `PATH`:
+You can install the package from the command-line using the `code` command if available (see [Launching from the command line](https://code.visualstudio.com/docs/setup/mac#_launching-from-the-command-line)).
 
 ```
 code --install-extension out/sourcekit-lsp-vscode-dev.vsix

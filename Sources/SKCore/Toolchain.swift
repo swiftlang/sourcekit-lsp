@@ -12,7 +12,7 @@
 
 import SKSupport
 import Basic
-import Utility
+import SPMUtility
 
 /// A Toolchain is a collection of related compilers and libraries meant to be used together to
 /// build and edit source code.
@@ -107,7 +107,7 @@ extension Toolchain {
         path: path)
     } else {
       self.init(
-        identifier: path.asString,
+        identifier: path.pathString,
         displayName: path.basename,
         path: path)
     }

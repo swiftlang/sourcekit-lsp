@@ -196,7 +196,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     /// Whether the client supports dynamic registaration of this request.
     public var dynamicRegistration: Bool? = nil
 
-    /// Capabilities specific to `SignatureInformation`.
+    /// Capabilities specific to `SymbolKind`.
     public struct SymbolKind: Hashable, Codable {
 
       /// The symbol kind values that the client can support.
@@ -208,6 +208,9 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     }
 
     public var symbolKind: SymbolKind? = nil
+
+    public init() {
+    }
   }
 
   /// Capabilities specific to the `textDocument/codeAction` request.
@@ -224,10 +227,10 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
         /// The code action kind values that the client can support.
         ///
         /// If specified, the client *also* guarantees that it will handle unknown kinds gracefully.
-        public var valueSet: [LanguageServerProtocol.CodeActionKind]? = nil
+        public var valueSet: [LanguageServerProtocol.CodeActionKind]
       }
 
-      public var codeActionKind: CodeActionKind? = nil
+      public var codeActionKind: CodeActionKind
     }
 
     public var codeActionLiteralSupport: CodeActionLiteralSupport? = nil

@@ -10,19 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
-import Utility
+import SPMUtility
 
 public enum BuildConfiguration: String {
   case debug
   case release
 }
 
-extension BuildConfiguration: ArgumentKind {
-  public init(argument: String) throws {
-    self = BuildConfiguration(rawValue: argument) ?? .debug
-  }
-
+extension BuildConfiguration: StringEnumArgument {
   /// Type of shell completion to provide for this argument.
   public static var completion: ShellCompletion {
     return ShellCompletion.none
