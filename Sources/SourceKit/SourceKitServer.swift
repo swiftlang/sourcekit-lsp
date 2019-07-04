@@ -88,15 +88,15 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceRequest(SourceKitServer.codeAction)
   }
 
-  func registerWorkspaceRequest<R>(
-    _ requestHandler: @escaping (SourceKitServer) -> (Request<R>) -> Void)
+  func registerWorkspaceRequest<R: TextDocumentRequest>(
+    _ requestHandler: @escaping (SourceKitServer) -> (Request<R>, Workspace) -> Void)
   {
     _register { [unowned self] (req: Request<R>) in
-      guard !self.workspaces.isEmpty else {
+      guard !self.workspaces.isEmpty,
+        let workspace = self.workspace(for: req.params.textDocument.url) else {
         return req.reply(.failure(.serverNotInitialized))
       }
-
-      requestHandler(self)(req)
+      requestHandler(self)(req, workspace)
     }
   }
 
@@ -423,60 +423,49 @@ extension SourceKitServer {
 
   // MARK: - Language features
 
-  func completion(_ req: Request<CompletionRequest>) {
-    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
+  func completion(_ req: Request<CompletionRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(
       req,
       workspace: workspace,
       fallback: CompletionList(isIncomplete: false, items: []))
   }
 
-  func hover(_ req: Request<HoverRequest>) {
-    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
+  func hover(_ req: Request<HoverRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
-  func symbolInfo(_ req: Request<SymbolInfoRequest>) {
-    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
+  func symbolInfo(_ req: Request<SymbolInfoRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: [])
   }
 
-  func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
-    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
+  func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }
 
-  func foldingRange(_ req: Request<FoldingRangeRequest>) {
-    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
+  func foldingRange(_ req: Request<FoldingRangeRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }
 
-  func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
-    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
+  func documentSymbol(_ req: Request<DocumentSymbolRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }
 
-  func documentColor(_ req: Request<DocumentColorRequest>) {
-    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
+  func documentColor(_ req: Request<DocumentColorRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }
 
-  func colorPresentation(_ req: Request<ColorPresentationRequest>) {
-    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
+  func colorPresentation(_ req: Request<ColorPresentationRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }
 
-  func codeAction(_ req: Request<CodeActionRequest>) {
-    guard let workspace = workspace(for: req.params.textDocument.url) else { return }
+  func codeAction(_ req: Request<CodeActionRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }
 
-  func definition(_ req: Request<DefinitionRequest>) {
+  func definition(_ req: Request<DefinitionRequest>, workspace: Workspace) {
     // FIXME: sending yourself a request isn't very convenient
-
-    guard let workspace = workspace(for: req.params.textDocument.url),
-          let service = workspace.documentService[req.params.textDocument.url] else {
+    guard let service = workspace.documentService[req.params.textDocument.url] else {
       req.reply([])
       return
     }
@@ -528,10 +517,9 @@ extension SourceKitServer {
   }
 
   // FIXME: a lot of duplication with definition request
-  func references(_ req: Request<ReferencesRequest>) {
+  func references(_ req: Request<ReferencesRequest>, workspace: Workspace) {
     // FIXME: sending yourself a request isn't very convenient
-    guard let workspace = workspace(for: req.params.textDocument.url),
-          let service = workspace.documentService[req.params.textDocument.url] else {
+    guard let service = workspace.documentService[req.params.textDocument.url] else {
       req.reply([])
       return
     }

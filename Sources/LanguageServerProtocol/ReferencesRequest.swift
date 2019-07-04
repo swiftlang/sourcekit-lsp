@@ -23,7 +23,7 @@
 ///   - includeDeclaration: Whether to include the declaration in the list of symbols.
 ///
 /// - Returns: An array of locations, one for each reference.
-public struct ReferencesRequest: RequestType, Hashable {
+public struct ReferencesRequest: TextDocumentRequest, Hashable {
   public static let method: String = "textDocument/references"
   public typealias Response = [Location]
 
