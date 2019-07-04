@@ -10,30 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Request from the server to the client to fetch configuration settings from the client.
-///
-/// Clients that support workspace folders should set the `workspaceFolders` client capability.
-///
-/// - Note: the format of the settings is implementation-defined.
-///
-/// - Returns: Configuration settings. If the client can't provide a configuration setting for
-///            a given scope then nil need to be present in the returned array.
-public struct ConfigurationRequest: RequestType, Hashable {
-    public static let method: String = "workspace/configuration"
-    public typealias Response = [WorkspaceSettingsChange?]
-
-    /// The order of the returned configuration settings correspond to the order of the items.
-    public var items: [ConfigurationItem]
-}
-
-public struct ConfigurationItem: Codable, Hashable {
-    /// The scope to get the configuration section for.
-    public var scope: URL?
-
-    /// The configuration section asked for.
-    public var section: String?
-}
-
 /// Notification from the client that the configuration of the workspace has changed.
 ///
 /// - Note: the format of the settings is implementation-defined.
