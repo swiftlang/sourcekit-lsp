@@ -16,16 +16,16 @@ public enum FailureHandlingKind: String, Codable, Hashable {
     /// fails. All operations executed before the failing operation stay executed.
     case abort
 
-    /// All operations are executed transactional. That means they either all
+    /// All operations are executed transactionally. That means they either all
     /// succeed or no changes at all are applied to the workspace.
     case transactional
 
-    /// If the workspace edit contains only textual file changes they are executed transactional.
+    /// If the workspace edit contains only textual file changes they are executed transactionally.
     /// If resource changes (create, rename or delete file) are part of the change the failure
     /// handling strategy is abort.
     case textOnlyTransactional
 
     /// The client tries to undo the operations already executed. But there is no
-    /// guarantee that this is succeeding.
+    /// guarantee that this succeeds.
     case undo
 }
