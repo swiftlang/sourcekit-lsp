@@ -42,11 +42,6 @@ public final class SourceKitServer: LanguageServer {
 
   var workspaces: [Workspace] = []
 
-  /// A special purpose workspace for the files that doesn't belong to any workspace in particular
-  var noRootWorkspace: Workspace? {
-    return self.workspaces.first(where: { $0.configuration.rootPath == nil })
-  }
-
   let fs: FileSystem
 
   let onExit: () -> Void
@@ -223,19 +218,12 @@ public final class SourceKitServer: LanguageServer {
   }
 
   func workspace(for url: URL) -> Workspace? {
-    var workspace = self.workspaces.first(where: { (workspace) -> Bool in
+    return self.workspaces.first(where: { (workspace) -> Bool in
       guard let rootPath = workspace.configuration.rootPath,
             let path = try? AbsolutePath(validating: url.path) else { return false }
 
       return path.contains(rootPath)
-    })
-
-    // The url is outside the workspaces
-    if workspace == nil {
-      workspace = self.noRootWorkspace
-    }
-
-    return workspace
+    }) ?? .noRoot
   }
 }
 
@@ -282,14 +270,7 @@ extension SourceKitServer {
     }
 
     // Add "no rootPath" workspace.
-    let noRootWorkspace = Workspace(
-      rootPath: nil,
-      clientCapabilities: req.params.capabilities,
-      buildSettings: BuildSystemList(),
-        index: nil,
-        buildSetup: self.buildSetup
-    )
-    self.workspaces.append(noRootWorkspace)
+    self.workspaces.append(.noRoot)
 
     req.reply(InitializeResult(capabilities: ServerCapabilities(
       textDocumentSync: TextDocumentSyncOptions(
@@ -385,9 +366,7 @@ extension SourceKitServer {
                               buildSetup: self.buildSetup)
       })
 
-      if let noRootWorkspace = self.noRootWorkspace {
-        try? reopenDocuments(from: noRootWorkspace)
-      }
+      try? reopenDocuments(from: .noRoot)
     }
 
     if let removedFolders = notification.params.event.removed, !removedFolders.isEmpty {

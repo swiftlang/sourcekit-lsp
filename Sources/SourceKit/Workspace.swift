@@ -60,7 +60,14 @@ public final class Workspace {
   /// Language service for an open document, if available.
   var documentService: [URL: Connection] = [:]
 
-  public init(
+  /// A special purpose workspace for the files that doesn't belong to any workspace in particular
+  static let noRoot = Workspace(rootPath: nil,
+                                clientCapabilities: ClientCapabilities(),
+                                buildSettings: BuildSystemList(),
+                                index: nil,
+                                buildSetup: .default)
+
+  private init(
     rootPath: AbsolutePath?,
     clientCapabilities: ClientCapabilities,
     buildSettings: BuildSystem,
