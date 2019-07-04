@@ -71,7 +71,7 @@ final class WorkspaceTests: XCTestCase {
       url: fileAURL,
       language: .swift,
       version: 1,
-      text: fs.readFileContents(AbsolutePath(fileAURL.path)).asReadableString))) { (note: Notification<PublishDiagnostics>) in
+      text: fs.readFileContents(AbsolutePath(fileAURL.path)).cString))) { (note: Notification<PublishDiagnostics>) in
         log("Received diagnostics for open - syntactic")
         XCTAssertEqual(note.params.diagnostics.count, 1)
         XCTAssertEqual("func", self.connection.server?.workspaces[0].documentManager.latestSnapshot(fileAURL)!.text)
@@ -81,7 +81,7 @@ final class WorkspaceTests: XCTestCase {
       url: fileBURL,
       language: .swift,
       version: 1,
-      text: fs.readFileContents(AbsolutePath(fileBURL.path)).asReadableString))) { (note: Notification<PublishDiagnostics>) in
+      text: fs.readFileContents(AbsolutePath(fileBURL.path)).cString))) { (note: Notification<PublishDiagnostics>) in
         log("Received diagnostics for open - syntactic")
         XCTAssertEqual(note.params.diagnostics.count, 1)
         XCTAssertEqual("class", self.connection.server?.workspaces[1].documentManager.latestSnapshot(fileBURL)!.text)

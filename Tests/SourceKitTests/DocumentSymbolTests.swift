@@ -49,7 +49,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
       trace: .off,
       workspaceFolders: nil))
 
-    workspace = connection.server!.workspace!
+    workspace = connection.server!.workspaces.first
   }
 
   func performDocumentSymbolRequest(text: String) -> [DocumentSymbol] {

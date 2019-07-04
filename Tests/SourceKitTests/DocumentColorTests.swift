@@ -46,7 +46,7 @@ final class DocumentColorTests: XCTestCase {
       trace: .off,
       workspaceFolders: nil))
 
-    workspace = connection.server!.workspace!
+    workspace = connection.server!.workspaces.first
   }
 
   func performDocumentColorRequest(text: String) -> [ColorInformation] {
