@@ -249,10 +249,14 @@ extension SourceKitServer {
 
     if let workspaceFolders = req.params.workspaceFolders {
       self.workspaces += workspaceFolders.compactMap({ workspaceFolder in
-        try? Workspace(url: workspaceFolder.url,
+        guard let workspace = try? Workspace(url: workspaceFolder.url,
                        clientCapabilities: req.params.capabilities,
                        toolchainRegistry: toolchainRegistry,
-                       buildSetup: self.buildSetup)
+                       buildSetup: self.buildSetup) else {
+          log("Unable to use path: \(workspaceFolder.url.absoluteString) as a workspace.", level: .warning)
+          return nil
+        }
+        return workspace
       })
     }
 
