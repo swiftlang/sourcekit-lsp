@@ -132,6 +132,14 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
       /// Whether the client supports the `preselect` property on a CompletionItem.
       public var preselectSupport: Bool? = nil
+
+      public init(snippetSupport: Bool? = nil, commitCharactersSupport: Bool? = nil, documentationFormat: [MarkupKind]? = nil, deprecatedSupport: Bool? = nil, preselectSupport: Bool? = nil) {
+        self.snippetSupport = snippetSupport
+        self.commitCharactersSupport = commitCharactersSupport
+        self.documentationFormat = documentationFormat
+        self.deprecatedSupport = deprecatedSupport
+        self.preselectSupport = preselectSupport
+      }
     }
 
     /// Capabilities specific to `CompletionItemKind`.
@@ -143,6 +151,10 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
       ///
       /// If specified, the client *also* guarantees that it will handle unknown kinds gracefully.
       public var valueSet: [LanguageServerProtocol.CompletionItemKind]? = nil
+
+      public init(valueSet: [LanguageServerProtocol.CompletionItemKind]? = nil) {
+        self.valueSet = valueSet
+      }
     }
 
     // MARK: Properties
@@ -156,6 +168,12 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
     /// Whether the client supports sending context information in a `textDocument/completion` request.
     public var contextSupport: Bool? = nil
+
+    public init(completionItem: CompletionItem? = nil, completionItemKind: CompletionItemKind? = nil, contextSupport: Bool? = nil) {
+      self.completionItem = completionItem
+      self.completionItemKind = completionItemKind
+      self.contextSupport = contextSupport
+    }
   }
 
   /// Capabilities specific to the `textDocument/hover` request.
