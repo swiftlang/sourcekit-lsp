@@ -71,6 +71,7 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceNotfication(SourceKitServer.didSaveDocument)
     registerWorkspaceRequest(SourceKitServer.completion)
     registerWorkspaceRequest(SourceKitServer.hover)
+    registerWorkspaceRequest(SourceKitServer.workspaceSymbols)
     registerWorkspaceRequest(SourceKitServer.definition)
     registerWorkspaceRequest(SourceKitServer.references)
     registerWorkspaceRequest(SourceKitServer.documentSymbolHighlight)
@@ -269,7 +270,8 @@ extension SourceKitServer {
         clientCapabilities: req.params.capabilities.textDocument?.codeAction,
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
         supportsCodeActions: false // TODO: Turn it on after a provider is implemented.
-      )
+      ),
+      workspaceSymbolProvider: true
     )))
   }
 
@@ -336,6 +338,47 @@ extension SourceKitServer {
 
   func hover(_ req: Request<HoverRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  }
+
+  func findWorkspaceSymbols(matching: String) -> [SymbolOccurrence] {
+    var symbolOccurenceResults: [SymbolOccurrence] = []
+    workspace?.index?.forEachCanonicalSymbolOccurrence(
+      containing: matching,
+      anchorStart: false,
+      anchorEnd: false,
+      subsequence: true,
+      ignoreCase: true
+    ) {symbol in
+      if !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) {
+        symbolOccurenceResults.append(symbol)
+      }
+      return true
+    }
+    return symbolOccurenceResults
+  }
+
+  func workspaceSymbols(_ req: Request<WorkspaceSymbolsRequest>, workspace: Workspace) {
+    let symbols = findWorkspaceSymbols(
+      matching: req.params.query
+    ).map({symbolOccurrence -> SymbolInformation in
+      let symbolPosition = Position(
+        line: symbolOccurrence.location.line - 1, // 1-based -> 0-based
+        // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+        utf16index: symbolOccurrence.location.utf8Column - 1)
+
+      let symbolLocation = Location(
+        url: URL(fileURLWithPath: symbolOccurrence.location.path),
+        range: Range(symbolPosition))
+      // TODO: symbol kind, detail, and containerName should be added
+      return SymbolInformation(
+        name: symbolOccurrence.symbol.name,
+        detail: nil,
+        kind: .variable,
+        deprecated: false,
+        location: symbolLocation,
+        containerName: nil)
+    })
+    req.reply(symbols)
   }
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
