@@ -21,35 +21,16 @@ public let builtinSwiftCommands: [String] = []
 
 /// A `Command` that should be executed by Swift's language server.
 public protocol SwiftCommand: Codable, Hashable {
+  static var identifier: String { get }
   var title: String { get set }
-  static var swiftCommandIdentifier: String { get }
 }
 
 extension SwiftCommand {
-  public static var identifier: String {
-    return Command.swiftCommandIdentifierPrefix + Self.swiftCommandIdentifier
-  }
-
   /// Converts this `SwiftCommand` to a generic LSP `Command` object.
   public func asCommand() throws -> Command {
     let data = try JSONEncoder().encode(self)
     let argument = try JSONDecoder().decode(CommandArgumentType.self, from: data)
     return Command(title: title, command: Self.identifier, arguments: [argument])
-  }
-}
-
-extension Command {
-  /// The prefix applied to the identifier of Swift-specific LSP `Command`s.
-  fileprivate static var swiftCommandIdentifierPrefix: String {
-    return "swift.lsp."
-  }
-
-  /// Returns true if the provided command identifier should be handled by Swift's language server.
-  ///
-  /// - Parameters:
-  ///   - command: The command identifier.
-  public static func isCommandIdentifierFromSwiftLSP(_ command: String) -> Bool {
-    return command.hasPrefix(Command.swiftCommandIdentifierPrefix)
   }
 }
 
@@ -77,7 +58,7 @@ extension ExecuteCommandRequest {
 }
 
 public struct SemanticRefactorCommand: SwiftCommand {
-  public static var swiftCommandIdentifier: String {
+  public static var identifier: String {
     return "semantic.refactor.command"
   }
 

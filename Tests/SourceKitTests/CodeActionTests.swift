@@ -105,6 +105,42 @@ final class CodeActionTests: XCTestCase {
     XCTAssertEqual(response, .codeActions([unspecifiedAction]))
   }
 
+  func testCodeActionResponseCommandMetadataInjection() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    let textDocument = TextDocumentIdentifier(url)
+    let expectedMetadata: CommandArgumentType = {
+      let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
+      let data = try! JSONEncoder().encode(metadata)
+      return try! JSONDecoder().decode(CommandArgumentType.self, from: data)
+    }()
+    XCTAssertEqual(expectedMetadata, .dictionary(["textDocument": ["uri": "file:///a.swift"]]))
+    let command = Command(title: "Title", command: "Command", arguments: [1, "text", 2.2, nil])
+    let codeAction = CodeAction(title: "1")
+    let codeAction2 = CodeAction(title: "2", command: command)
+    let request = CodeActionRequest(range: Position(line: 0, utf16index: 0)..<Position(line: 1, utf16index: 1),
+                                    context: .init(diagnostics: [], only: nil),
+                                    textDocument: textDocument)
+    var response = request.injectMetadata(atResponse: .commands([command]))
+    XCTAssertEqual(response,
+          .commands([
+            Command(title: command.title,
+                    command: command.command,
+                    arguments: command.arguments! + [expectedMetadata])
+          ])
+    )
+    response = request.injectMetadata(atResponse: .codeActions([codeAction, codeAction2]))
+    XCTAssertEqual(response,
+          .codeActions([codeAction,
+            CodeAction(title: codeAction2.title,
+                       command: Command(title: command.title,
+                                        command: command.command,
+                                        arguments: command.arguments! + [expectedMetadata]))
+          ])
+    )
+    response = request.injectMetadata(atResponse: nil)
+    XCTAssertNil(response)
+  }
+
   func testCommandEncoding() {
     let dictionary: LSPAny = ["1": [nil, 2], "2": "text", "3": ["4": [1, 2]]]
     let array: LSPAny = [1, [2,"string"], dictionary]

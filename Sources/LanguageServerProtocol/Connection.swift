@@ -78,7 +78,7 @@ public final class LocalConnection {
 
   var state: State = .ready
 
-  public internal(set) var handler: MessageHandler? = nil
+  var handler: MessageHandler? = nil
 
   public init() {}
 
