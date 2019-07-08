@@ -368,32 +368,23 @@ extension SourceKitServer {
   }
 
   func codeAction(_ req: Request<CodeActionRequest>, workspace: Workspace) {
-    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+    toolchainTextDocumentRequest(req, workspace: workspace, replyHandler: { result in
+      switch result {
+      case .success(let reply):
+        return .success(req.params.injectMetadata(atResponse: reply))
+      default:
+        return result
+      }
+    }, fallback: nil)
   }
 
   func executeCommand(_ req: Request<ExecuteCommandRequest>, workspace: Workspace) {
-    guard let service = serviceFor(executeCommandRequest: req.params, workspace: workspace) else {
+    guard let url = req.params.textDocument?.url else {
+      log("attempted to perform executeCommand request without an url!", level: .error)
       req.reply(nil)
       return
     }
-    let id = service.send(req.params, queue: DispatchQueue.global()) { result in
-      req.reply(result)
-    }
-    req.cancellationToken.addCancellationHandler { [weak service] in
-      service?.send(CancelRequest(id: id))
-    }
-  }
-
-  func serviceFor(executeCommandRequest req: ExecuteCommandRequest, workspace: Workspace) -> Connection? {
-    // FIXME: ExecuteCommand requests have no URL associated to it, but we need to determine the server
-    // that it gets sent to. There should be a better way to do this.
-    let connections = workspace.documentService.values.compactMap { $0 as? LocalConnection }
-    let isSwiftCommand = Command.isCommandIdentifierFromSwiftLSP(req.command)
-    if isSwiftCommand {
-      return connections.first { $0.handler is SwiftLanguageServer }
-    } else {
-      return connections.first { $0.handler is ClangLanguageServerShim }
-    }
+    sendRequest(req, url: url, workspace: workspace, fallback: nil)
   }
 
   func definition(_ req: Request<DefinitionRequest>, workspace: Workspace) {
@@ -508,16 +499,27 @@ extension SourceKitServer {
   func toolchainTextDocumentRequest<PositionRequest>(
     _ req: Request<PositionRequest>,
     workspace: Workspace,
+    replyHandler: ((LSPResult<PositionRequest.Response>) -> LSPResult<PositionRequest.Response>)? = nil,
     fallback: @autoclosure () -> PositionRequest.Response)
   where PositionRequest: TextDocumentRequest
   {
-    guard let service = workspace.documentService[req.params.textDocument.url] else {
+    sendRequest(req, url: req.params.textDocument.url, workspace: workspace, replyHandler: replyHandler, fallback: fallback)
+  }
+
+  func sendRequest<PositionRequest>(
+    _ req: Request<PositionRequest>,
+    url: URL,
+    workspace: Workspace,
+    replyHandler: ((LSPResult<PositionRequest.Response>) -> LSPResult<PositionRequest.Response>)? = nil,
+    fallback: @autoclosure () -> PositionRequest.Response)
+  {
+    guard let service = workspace.documentService[url] else {
       req.reply(fallback())
       return
     }
 
     let id = service.send(req.params, queue: DispatchQueue.global()) { result in
-      req.reply(result)
+      req.reply(replyHandler?(result) ?? result)
     }
     req.cancellationToken.addCancellationHandler { [weak service] in
       service?.send(CancelRequest(id: id))
