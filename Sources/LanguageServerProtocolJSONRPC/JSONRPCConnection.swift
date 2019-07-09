@@ -239,8 +239,8 @@ public final class JSONRPCConection {
     header.utf8.map{$0}.withUnsafeBytes { buffer in
       dispatchData.append(buffer)
     }
-    messageData.withUnsafeBytes { pointer in
-      dispatchData.append(UnsafeRawBufferPointer(start: pointer, count: messageData.count))
+    messageData.withUnsafeBytes { rawBufferPointer in
+      dispatchData.append(rawBufferPointer)
     }
 
     send(rawData: dispatchData)
