@@ -80,6 +80,8 @@ extension SKTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__SKTests = [
+        ("testCodeCompleteSwiftTibs", testCodeCompleteSwiftTibs),
+        ("testIndexSwiftModules", testIndexSwiftModules),
         ("testInitJSON", testInitJSON),
         ("testInitLocal", testInitLocal),
     ]

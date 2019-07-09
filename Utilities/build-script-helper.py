@@ -5,6 +5,7 @@ from __future__ import print_function
 import argparse
 import os
 import platform
+import shutil
 import subprocess
 import sys
 
@@ -12,6 +13,11 @@ def swiftpm(action, swift_exec, swiftpm_args, env=None):
   cmd = [swift_exec, action] + swiftpm_args
   print(' '.join(cmd))
   subprocess.check_call(cmd, env=env)
+
+def swiftpm_bin_path(swift_exec, swiftpm_args, env=None):
+  cmd = [swift_exec, 'build', '--show-bin-path'] + swiftpm_args
+  print(' '.join(cmd))
+  return subprocess.check_output(cmd, env=env).strip()
 
 def get_swiftpm_options(args):
   swiftpm_args = [
@@ -79,6 +85,10 @@ def main():
   if args.action == 'build':
     swiftpm('build', swift_exec, swiftpm_args, env)
   elif args.action == 'test':
+    bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
+    tests = os.path.join(bin_path, 'sk-tests')
+    print('Cleaning ' + tests)
+    shutil.rmtree(tests, ignore_errors=True)
     swiftpm('test', swift_exec, swiftpm_args, env)
   else:
     assert False, 'unknown action \'{}\''.format(args.action)

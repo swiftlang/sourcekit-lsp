@@ -1,0 +1,7 @@
+{
+  "targets": [
+    { "name": "A", "sources": ["a.swift"] },
+    { "name": "B", "sources": ["b.swift"], "dependencies": ["A"] },
+    { "name": "C", "sources": ["c.swift"], "dependencies": ["B"] },
+  ]
+}
