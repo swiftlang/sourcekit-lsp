@@ -82,7 +82,7 @@ SourceKit-LSP depends on tools such as `sourcekitd` and `clangd`, which it loads
 Use the latest toolchain snapshot from https://swift.org/download/#snapshots. SourceKit-LSP is designed to be used with the latest toolchain snapshot of the corresponding branch.
 
 | SourceKit-LSP branch | Toolchain |
-|----------------------+-----------|
+|:---------------------|:----------|
 | master               | Trunk Development (master) |
 | swift-5.1-branch     | Swift 5.1 Development |
 
