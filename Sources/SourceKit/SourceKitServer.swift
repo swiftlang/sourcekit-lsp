@@ -479,7 +479,9 @@ extension SourceKitServer {
       req.reply(nil)
       return
     }
-    sendRequest(req, url: url, workspace: workspace, fallback: nil)
+    var params = req.params
+    params.arguments = params.argumentsWithoutLSPMetadata
+    sendRequest(req, params: params, url: url, workspace: workspace, fallback: nil)
   }
 
   func definition(_ req: Request<DefinitionRequest>, workspace: Workspace) {
@@ -652,11 +654,12 @@ extension SourceKitServer {
     fallback: @autoclosure () -> PositionRequest.Response)
   where PositionRequest: TextDocumentRequest
   {
-    sendRequest(req, url: req.params.textDocument.url, workspace: workspace, resultHandler: resultHandler, fallback: fallback)
+    sendRequest(req, params: req.params, url: req.params.textDocument.url, workspace: workspace, resultHandler: resultHandler, fallback: fallback)
   }
 
   func sendRequest<PositionRequest>(
     _ req: Request<PositionRequest>,
+    params: PositionRequest,
     url: URL,
     workspace: Workspace,
     resultHandler: ((LSPResult<PositionRequest.Response>) -> LSPResult<PositionRequest.Response>)? = nil,
@@ -667,7 +670,7 @@ extension SourceKitServer {
       return
     }
 
-    let id = service.send(req.params, queue: DispatchQueue.global()) { result in
+    let id = service.send(params, queue: DispatchQueue.global()) { result in
       req.reply(resultHandler?(result) ?? result)
     }
     req.cancellationToken.addCancellationHandler { [weak service] in

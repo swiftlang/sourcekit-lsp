@@ -48,30 +48,6 @@ public struct CodeActionRequest: TextDocumentRequest, Hashable {
     self.context = context
     self.textDocument = textDocument
   }
-
-  public func injectMetadata(atResponse response: CodeActionRequestResponse?) -> CodeActionRequestResponse? {
-    let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
-    guard let data = try? JSONEncoder().encode(metadata),
-          let metadataArgument = try? JSONDecoder().decode(CommandArgumentType.self, from: data) else
-    {
-      log("failed to inject metadata in codeAction response", level: .error)
-      return nil
-    }
-    switch response {
-    case .codeActions(var codeActions)?:
-      for i in 0..<codeActions.count {
-        codeActions[i].command?.arguments?.append(metadataArgument)
-      }
-      return .codeActions(codeActions)
-    case .commands(var commands)?:
-      for i in 0..<commands.count {
-        commands[i].arguments?.append(metadataArgument)
-      }
-      return .commands(commands)
-    case nil:
-      return nil
-    }
-  }
 }
 
 /// Wrapper type for the response of a CodeAction request.

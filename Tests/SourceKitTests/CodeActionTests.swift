@@ -113,7 +113,7 @@ final class CodeActionTests: XCTestCase {
       let data = try! JSONEncoder().encode(metadata)
       return try! JSONDecoder().decode(CommandArgumentType.self, from: data)
     }()
-    XCTAssertEqual(expectedMetadata, .dictionary(["textDocument": ["uri": "file:///a.swift"]]))
+    XCTAssertEqual(expectedMetadata, .dictionary(["sourcekitlsp_textDocument": ["uri": "file:///a.swift"]]))
     let command = Command(title: "Title", command: "Command", arguments: [1, "text", 2.2, nil])
     let codeAction = CodeAction(title: "1")
     let codeAction2 = CodeAction(title: "2", command: command)

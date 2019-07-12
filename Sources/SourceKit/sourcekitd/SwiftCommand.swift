@@ -22,14 +22,15 @@ public let builtinSwiftCommands: [String] = []
 /// A `Command` that should be executed by Swift's language server.
 public protocol SwiftCommand: Codable, Hashable {
   static var identifier: String { get }
+  static func decode(fromDictionary dictionary: [String: CommandArgumentType]) -> Self?
   var title: String { get set }
+  func asCommandArgument() -> CommandArgumentType
 }
 
 extension SwiftCommand {
   /// Converts this `SwiftCommand` to a generic LSP `Command` object.
   public func asCommand() throws -> Command {
-    let data = try JSONEncoder().encode(self)
-    let argument = try JSONDecoder().decode(CommandArgumentType.self, from: data)
+    let argument = asCommandArgument()
     return Command(title: title, command: Self.identifier, arguments: [argument])
   }
 }
@@ -50,14 +51,12 @@ extension ExecuteCommandRequest {
     guard case let .dictionary(dictionary) = argument else {
       return nil
     }
-    guard let data = try? JSONEncoder().encode(dictionary) else {
-      return nil
-    }
-    return try? JSONDecoder().decode(type, from: data)
+    return type.decode(fromDictionary: dictionary)
   }
 }
 
 public struct SemanticRefactorCommand: SwiftCommand {
+
   public static var identifier: String {
     return "semantic.refactor.command"
   }
@@ -80,6 +79,26 @@ public struct SemanticRefactorCommand: SwiftCommand {
   /// The text document related to the refactoring action.
   public var textDocument: TextDocumentIdentifier
 
+  public static func decode(fromDictionary dictionary: [String: CommandArgumentType]) -> SemanticRefactorCommand? {
+    guard case .dictionary(let dict)? = dictionary[CodingKeys.textDocument.stringValue],
+          case .string(let title)? = dictionary[CodingKeys.title.stringValue],
+          case .string(let actionString)? = dictionary[CodingKeys.actionString.stringValue],
+          case .int(let line)? = dictionary[CodingKeys.line.stringValue],
+          case .int(let column)? = dictionary[CodingKeys.column.stringValue],
+          case .int(let length)? = dictionary[CodingKeys.length.stringValue],
+          case .string(let urlString)? = dict[TextDocumentIdentifier.CodingKeys.url.stringValue],
+          let url = URL(string: urlString) else
+    {
+      return nil
+    }
+    return SemanticRefactorCommand(title: title,
+                                   actionString: actionString,
+                                   line: line,
+                                   column: column,
+                                   length: length,
+                                   textDocument: TextDocumentIdentifier(url))
+  }
+
   public init(title: String, actionString: String, line: Int, column: Int, length: Int, textDocument: TextDocumentIdentifier) {
     self.title = title
     self.actionString = actionString
@@ -87,5 +106,17 @@ public struct SemanticRefactorCommand: SwiftCommand {
     self.column = column
     self.length = length
     self.textDocument = textDocument
+  }
+
+  public func asCommandArgument() -> CommandArgumentType {
+    let textDocumentArgument = CommandArgumentType.dictionary(
+      [TextDocumentIdentifier.CodingKeys.url.stringValue: .string(textDocument.url.absoluteString)]
+    )
+    return .dictionary([CodingKeys.title.stringValue: .string(title),
+                        CodingKeys.actionString.stringValue: .string(actionString),
+                        CodingKeys.line.stringValue: .int(line),
+                        CodingKeys.column.stringValue: .int(column),
+                        CodingKeys.length.stringValue: .int(length),
+                        CodingKeys.textDocument.stringValue: textDocumentArgument])
   }
 }

@@ -35,35 +35,8 @@ public struct ExecuteCommandRequest: RequestType {
   /// Arguments that the command should be invoked with.
   public var arguments: [CommandArgumentType]?
 
-  /// The document in which the command was invoked.
-  public var textDocument: TextDocumentIdentifier? {
-    return metadata?.textDocument
-  }
-
-  /// Optional metadata containing SourceKit-LSP infomration about this command.
-  public var metadata: SourceKitLSPCommandMetadata? {
-    guard case .dictionary(let dictionary)? = arguments?.last else {
-      return nil
-    }
-    guard let data = try? JSONEncoder().encode(dictionary) else {
-      return nil
-    }
-    return try? JSONDecoder().decode(SourceKitLSPCommandMetadata.self, from: data)
-  }
-
   public init(command: String, arguments: [CommandArgumentType]?) {
     self.command = command
     self.arguments = arguments
-  }
-}
-
-/// Represents metadata that SourceKit-LSP injects at every command returned by code actions.
-/// The ExecuteCommand is not a TextDocumentRequest, so metadata is injected to allow SourceKit-LSP
-/// to determine where a command should be executed.
-public struct SourceKitLSPCommandMetadata: Codable, Hashable {
-  public var textDocument: TextDocumentIdentifier
-
-  public init(textDocument: TextDocumentIdentifier) {
-    self.textDocument = textDocument
   }
 }

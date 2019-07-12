@@ -28,7 +28,7 @@ public struct TextDocumentIdentifier: Hashable {
 
 // Encode using the key "uri" to match LSP.
 extension TextDocumentIdentifier: Codable {
-  private enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case url = "uri"
   }
 }
