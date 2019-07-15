@@ -74,7 +74,8 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
 
     public var symbolKind: SymbolKind? = nil
 
-    public init(symbolKind: SymbolKind? = nil) {
+    public init(dynamicRegistration: Bool? = nil, symbolKind: SymbolKind? = nil) {
+      self.dynamicRegistration = dynamicRegistration
       self.symbolKind = symbolKind
     }
   }
