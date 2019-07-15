@@ -14,11 +14,11 @@
 public struct Language: RawRepresentable, Codable, Equatable, Hashable {
   public typealias LanguageId = String
 
-  public static let c = Language(rawValue: "c")
-  public static let cpp = Language(rawValue: "cpp") // C++, not C preprocessor
-  public static let objective_c = Language(rawValue: "objective-c")
-  public static let objective_cpp = Language(rawValue: "objective-cpp")
-  public static let swift = Language(rawValue: "swift")
+  public static let c: Language = Language(rawValue: "c")
+  public static let cpp: Language = Language(rawValue: "cpp") // C++, not C preprocessor
+  public static let objective_c: Language = Language(rawValue: "objective-c")
+  public static let objective_cpp: Language = Language(rawValue: "objective-cpp")
+  public static let swift: Language = Language(rawValue: "swift")
 
   public let rawValue: LanguageId
   public init(rawValue: LanguageId) {
@@ -40,10 +40,6 @@ public struct Language: RawRepresentable, Codable, Equatable, Hashable {
   /// Clang-compatible language name for a header file. See `xflag`.
   public var xflagHeader: String? {
     return xflag.map { "\($0)-header" }
-  }
-
-  public static func ~= (lhs: Language, rhs: Language) -> Bool {
-    return lhs.rawValue == rhs.rawValue
   }
 }
 
