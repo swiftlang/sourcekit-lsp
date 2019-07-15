@@ -49,6 +49,10 @@ public struct DidCloseTextDocument: NotificationType, Hashable {
 
   /// The document to close, which must be currently open.
   public var textDocument: TextDocumentIdentifier
+
+  public init(textDocument: TextDocumentIdentifier) {
+    self.textDocument = textDocument
+  }
 }
 
 /// Notification that the contents of the given document have been changed.
