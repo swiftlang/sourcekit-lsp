@@ -19,6 +19,8 @@
 public struct Shutdown: RequestType, Hashable {
   public static let method: String = "shutdown"
   public typealias Response = VoidResponse
+
+  public init() { }
 }
 
 /// Notification that the server process should exit.
@@ -26,4 +28,5 @@ public struct Shutdown: RequestType, Hashable {
 /// This notification will come after the shutdown request finishes.
 public struct Exit: NotificationType, Hashable {
   public static let method: String = "exit"
+  public init() { }
 }
