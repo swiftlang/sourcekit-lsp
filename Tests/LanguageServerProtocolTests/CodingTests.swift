@@ -203,7 +203,6 @@ final class CodingTests: XCTestCase {
     checkCoding(Language.objective_cpp, json: "\"objective-cpp\"")
     checkCoding(Language.swift, json: "\"swift\"")
     checkCoding(Language.unknown, json: "\"unknown\"")
-    checkDecoding(json: "\"asdfAF\"", expected: Language.unknown)
 
     checkCoding(DiagnosticCode.number(123), json: "123")
     checkCoding(DiagnosticCode.string("hi"), json: "\"hi\"")
