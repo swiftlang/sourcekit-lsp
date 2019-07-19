@@ -29,6 +29,10 @@ final class SwiftCompletionTests: XCTestCase {
       func test(a: Int) {
         self.abc
       }
+
+      func test(_ b: Int) {
+        self.abc
+      }
     }
     """
 
@@ -127,14 +131,22 @@ final class SwiftCompletionTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.swift")
     openDocument(url: url)
 
-    func getTestMethodCompletion() -> CompletionItem? {
+    func getTestMethodCompletion(_ position: Position, label: String) -> CompletionItem? {
       let selfDot = try! sk.sendSync(CompletionRequest(
         textDocument: TextDocumentIdentifier(url),
-        position: Position(line: 4, utf16index: 9)))
-      return selfDot.items.first { $0.label == "test(a: Int)" }
+        position: position))
+      return selfDot.items.first { $0.label == label }
     }
 
-    var test = getTestMethodCompletion()
+    func getTestMethodACompletion() -> CompletionItem? {
+      return getTestMethodCompletion(Position(line: 4, utf16index: 9), label: "test(a: Int)")
+    }
+
+    func getTestMethodBCompletion() -> CompletionItem? {
+      return getTestMethodCompletion(Position(line: 8, utf16index: 9), label: "test(b: Int)")
+    }
+
+    var test = getTestMethodACompletion()
     XCTAssertNotNil(test)
     if let test = test {
       XCTAssertEqual(test.kind, .method)
@@ -142,8 +154,19 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.filterText, "test(a:)")
       // FIXME:
       XCTAssertNil(test.textEdit)
-      // FIXME: should be "a" in the placeholder.
-      XCTAssertEqual(test.insertText, "test(a: ${1:value})")
+      XCTAssertEqual(test.insertText, "test(a: ${1:Int})")
+      XCTAssertEqual(test.insertTextFormat, .snippet)
+    }
+
+    test = getTestMethodBCompletion()
+    XCTAssertNotNil(test)
+    if let test = test {
+      XCTAssertEqual(test.kind, .method)
+      XCTAssertEqual(test.detail, "Void")
+      XCTAssertEqual(test.filterText, "test(:)")
+      // FIXME:
+      XCTAssertNil(test.textEdit)
+      XCTAssertEqual(test.insertText, "test(${1:b: Int})")
       XCTAssertEqual(test.insertTextFormat, .snippet)
     }
 
@@ -152,7 +175,7 @@ final class SwiftCompletionTests: XCTestCase {
     initializeServer(capabilities: capabilities)
     openDocument(url: url)
 
-    test = getTestMethodCompletion()
+    test = getTestMethodACompletion()
     XCTAssertNotNil(test)
     if let test = test {
       XCTAssertEqual(test.kind, .method)
@@ -160,8 +183,19 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.filterText, "test(a:)")
       // FIXME:
       XCTAssertNil(test.textEdit)
-      // FIXME: should be "a" in the placeholder.
       XCTAssertEqual(test.insertText, "test(a: )")
+      XCTAssertEqual(test.insertTextFormat, .plain)
+    }
+
+    test = getTestMethodBCompletion()
+    XCTAssertNotNil(test)
+    if let test = test {
+      XCTAssertEqual(test.kind, .method)
+      XCTAssertEqual(test.detail, "Void")
+      XCTAssertEqual(test.filterText, "test(:)")
+      // FIXME:
+      XCTAssertNil(test.textEdit)
+      XCTAssertEqual(test.insertText, "test()")
       XCTAssertEqual(test.insertTextFormat, .plain)
     }
   }

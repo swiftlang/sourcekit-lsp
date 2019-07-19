@@ -66,6 +66,7 @@ extension LocalSwiftTests {
     static let __allTests__LocalSwiftTests = [
         ("testDocumentSymbolHighlight", testDocumentSymbolHighlight),
         ("testEditing", testEditing),
+        ("testEditorPlaceholderParsing", testEditorPlaceholderParsing),
         ("testHover", testHover),
         ("testHoverNameEscaping", testHoverNameEscaping),
         ("testSymbolInfo", testSymbolInfo),
