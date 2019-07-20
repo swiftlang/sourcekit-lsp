@@ -71,6 +71,7 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceNotfication(SourceKitServer.didSaveDocument)
     registerWorkspaceRequest(SourceKitServer.completion)
     registerWorkspaceRequest(SourceKitServer.hover)
+    registerWorkspaceRequest(SourceKitServer.workspaceSymbols)
     registerWorkspaceRequest(SourceKitServer.definition)
     registerWorkspaceRequest(SourceKitServer.references)
     registerWorkspaceRequest(SourceKitServer.documentSymbolHighlight)
@@ -269,7 +270,8 @@ extension SourceKitServer {
         clientCapabilities: req.params.capabilities.textDocument?.codeAction,
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
         supportsCodeActions: false // TODO: Turn it on after a provider is implemented.
-      )
+      ),
+      workspaceSymbolProvider: true
     )))
   }
 
@@ -336,6 +338,51 @@ extension SourceKitServer {
 
   func hover(_ req: Request<HoverRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  }
+
+  /// Find all symbols in the workspace that include a string in their name.
+  /// - returns: An array of SymbolOccurrences that match the string.
+  func findWorkspaceSymbols(matching: String) -> [SymbolOccurrence] {
+    var symbolOccurenceResults: [SymbolOccurrence] = []
+    workspace?.index?.forEachCanonicalSymbolOccurrence(
+      containing: matching,
+      anchorStart: false,
+      anchorEnd: false,
+      subsequence: true,
+      ignoreCase: true
+    ) {symbol in
+      if !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) {
+        symbolOccurenceResults.append(symbol)
+      }
+      return true
+    }
+    return symbolOccurenceResults
+  }
+
+  /// Handle a workspace/symbols request, returning the SymbolInformation.
+  /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
+  func workspaceSymbols(_ req: Request<WorkspaceSymbolsRequest>, workspace: Workspace) {
+    let symbols = findWorkspaceSymbols(
+      matching: req.params.query
+    ).map({symbolOccurrence -> SymbolInformation in
+      let symbolPosition = Position(
+        line: symbolOccurrence.location.line - 1, // 1-based -> 0-based
+        // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+        utf16index: symbolOccurrence.location.utf8Column - 1)
+
+      let symbolLocation = Location(
+        url: URL(fileURLWithPath: symbolOccurrence.location.path),
+        range: Range(symbolPosition))
+
+      return SymbolInformation(
+        name: symbolOccurrence.symbol.name,
+        kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
+        deprecated: nil,
+        location: symbolLocation,
+        containerName: symbolOccurrence.getContainerName()
+      )
+    })
+    req.reply(symbols)
   }
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
@@ -523,3 +570,48 @@ public func languageService(
 
 public typealias Notification = LanguageServerProtocol.Notification
 public typealias Diagnostic = LanguageServerProtocol.Diagnostic
+
+extension IndexSymbolKind {
+  func asLspSymbolKind() -> SymbolKind {
+    switch self {
+    case .class: 
+      return .class
+    case .classMethod, .instanceMethod, .staticMethod: 
+      return .method
+    case .instanceProperty, .staticProperty, .classProperty: 
+      return .property
+    case .enum: 
+      return .enum
+    case .enumConstant: 
+      return .enumMember
+    case .protocol: 
+      return .interface
+    case .function, .conversionFunction: 
+      return .function
+    case .variable: 
+      return .variable
+    case .struct: 
+      return .struct
+    case .parameter: 
+      return .typeParameter
+
+    default:
+      return .null
+    }
+  }
+}
+
+extension SymbolOccurrence {
+  /// Get the name of the symbol that is a parent of this symbol, if one exists
+  func getContainerName() -> String? {
+    var foundChildRelation: SymbolRelation?
+    self.forEachRelation { relation in
+      if relation.roles.contains(.childOf) {
+        foundChildRelation = relation
+        return false
+      }
+      return true
+    }
+    return foundChildRelation?.symbol.name
+  }
+}
