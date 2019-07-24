@@ -51,6 +51,9 @@ public struct ServerCapabilities: Codable, Hashable {
   /// Whether the server provides "textDocument/codeAction".
   public var codeActionProvider: CodeActionServerCapabilities?
 
+  /// Whether the server provides "textDocument/implementation".
+  public var implementationProvider: Bool?
+  
   // TODO: fill-in the rest.
 
   public init(
@@ -66,7 +69,8 @@ public struct ServerCapabilities: Codable, Hashable {
     foldingRangeProvider: Bool? = nil,
     documentSymbolProvider: Bool? = nil,
     colorProvider: Bool? = nil,
-    codeActionProvider: CodeActionServerCapabilities? = nil
+    codeActionProvider: CodeActionServerCapabilities? = nil,
+    implementationProvider: Bool? = nil
     )
   {
     self.textDocumentSync = textDocumentSync
@@ -82,6 +86,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.documentSymbolProvider = documentSymbolProvider
     self.colorProvider = colorProvider
     self.codeActionProvider = codeActionProvider
+    self.implementationProvider = implementationProvider
   }
 
   public init(from decoder: Decoder) throws {
@@ -93,6 +98,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.documentSymbolProvider = try container.decodeIfPresent(Bool.self, forKey: .documentSymbolProvider)
     self.colorProvider = try container.decodeIfPresent(Bool.self, forKey: .colorProvider)
     self.codeActionProvider = try container.decodeIfPresent(CodeActionServerCapabilities.self, forKey: .codeActionProvider)
+    self.implementationProvider = try container.decodeIfPresent(Bool.self, forKey: .implementationProvider)
 
     if let textDocumentSync = try? container.decode(TextDocumentSyncOptions.self, forKey: .textDocumentSync) {
       self.textDocumentSync = textDocumentSync

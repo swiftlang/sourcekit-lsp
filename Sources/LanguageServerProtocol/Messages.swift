@@ -24,6 +24,7 @@ public let builtinRequests: [_RequestType.Type] = [
   CompletionRequest.self,
   HoverRequest.self,
   DefinitionRequest.self,
+  ImplementationRequest.self,
   ReferencesRequest.self,
   DocumentHighlightRequest.self,
   DocumentFormatting.self,

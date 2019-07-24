@@ -85,7 +85,8 @@ final class CodingTests: XCTestCase {
       referencesProvider: nil,
       documentHighlightProvider: nil,
       foldingRangeProvider: nil,
-      codeActionProvider: nil)), id: .number(2), json: """
+      codeActionProvider: nil,
+      implementationProvider: nil)), id: .number(2), json: """
     {
       "id" : 2,
       "jsonrpc" : "2.0",
