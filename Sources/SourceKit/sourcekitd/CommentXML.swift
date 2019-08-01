@@ -13,6 +13,10 @@
 import SKSupport
 import Foundation
 
+#if canImport(FoundationXML)
+import FoundationXML
+#endif
+
 enum CommentXMLError: Error {
   case noRootElement
 }
