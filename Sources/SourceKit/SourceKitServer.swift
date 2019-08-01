@@ -604,14 +604,6 @@ extension IndexSymbolKind {
 extension SymbolOccurrence {
   /// Get the name of the symbol that is a parent of this symbol, if one exists
   func getContainerName() -> String? {
-    var foundChildRelation: SymbolRelation?
-    self.forEachRelation { relation in
-      if relation.roles.contains(.childOf) {
-        foundChildRelation = relation
-        return false
-      }
-      return true
-    }
-    return foundChildRelation?.symbol.name
+    return relations.first(where: { $0.roles.contains(.childOf) })?.symbol.name
   }
 }
