@@ -40,7 +40,7 @@ public final class SourceKitServer: LanguageServer {
 
   var languageService: [LanguageServiceKey: Connection] = [:]
 
-  var workspace: Workspace?
+  public var workspace: Workspace?
 
   let fs: FileSystem
 

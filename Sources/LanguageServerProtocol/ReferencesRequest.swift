@@ -35,4 +35,10 @@ public struct ReferencesRequest: RequestType, Hashable {
 
   /// Whether to include the declaration in the list of symbols, or just the references.
   public var includeDeclaration: Bool?
+
+  public init(textDocument: TextDocumentIdentifier, position: Position, includeDeclaration: Bool? = nil) {
+    self.textDocument = textDocument
+    self.position = position
+    self.includeDeclaration = includeDeclaration
+  }
 }
