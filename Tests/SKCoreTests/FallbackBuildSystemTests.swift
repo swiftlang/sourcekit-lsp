@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 @testable import SKCore
-
+import LanguageServerProtocol
 import Basic
 import XCTest
 
@@ -100,6 +100,6 @@ final class FallbackBuildSystemTests: XCTestCase {
   func testUnknown() {
     let source = AbsolutePath("/my/source.mm")
     let bs = FallbackBuildSystem()
-    XCTAssertNil(bs.settings(for: source.asURL, .unknown))
+    XCTAssertNil(bs.settings(for: source.asURL, Language(rawValue: "unknown")))
   }
 }
