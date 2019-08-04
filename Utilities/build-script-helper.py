@@ -38,6 +38,9 @@ def get_swiftpm_options(args):
       # Dispatch headers
       '-Xcxx', '-I', '-Xcxx',
       os.path.join(args.toolchain, 'usr', 'lib', 'swift'),
+      # For <Block.h>
+      '-Xcxx', '-I', '-Xcxx',
+      os.path.join(args.toolchain, 'usr', 'lib', 'swift', 'Block'),
     ]
 
   return swiftpm_args
