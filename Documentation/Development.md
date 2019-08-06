@@ -38,7 +38,7 @@ SourceKit test projects should be put in the `Tests/INPUTS` directory. Generally
 
 ```
 Tests/
-  Inputs/
+  INPUTS/
     MyTestProj/
       a.swift
       b.swift
