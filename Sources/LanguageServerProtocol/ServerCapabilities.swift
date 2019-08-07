@@ -51,6 +51,9 @@ public struct ServerCapabilities: Codable, Hashable {
   /// Whether the server provides "textDocument/codeAction".
   public var codeActionProvider: CodeActionServerCapabilities?
 
+  /// The server provides workspace symbol support.
+  public var workspaceSymbolProvider: Bool?
+
   /// Whether the server provides "textDocument/implementation".
   public var implementationProvider: Bool?
   
@@ -70,6 +73,7 @@ public struct ServerCapabilities: Codable, Hashable {
     documentSymbolProvider: Bool? = nil,
     colorProvider: Bool? = nil,
     codeActionProvider: CodeActionServerCapabilities? = nil,
+    workspaceSymbolProvider: Bool? = nil,
     implementationProvider: Bool? = nil
     )
   {
@@ -86,6 +90,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.documentSymbolProvider = documentSymbolProvider
     self.colorProvider = colorProvider
     self.codeActionProvider = codeActionProvider
+    self.workspaceSymbolProvider = workspaceSymbolProvider
     self.implementationProvider = implementationProvider
   }
 
@@ -98,6 +103,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.documentSymbolProvider = try container.decodeIfPresent(Bool.self, forKey: .documentSymbolProvider)
     self.colorProvider = try container.decodeIfPresent(Bool.self, forKey: .colorProvider)
     self.codeActionProvider = try container.decodeIfPresent(CodeActionServerCapabilities.self, forKey: .codeActionProvider)
+    self.workspaceSymbolProvider = try container.decodeIfPresent(Bool.self, forKey: .workspaceSymbolProvider)
     self.implementationProvider = try container.decodeIfPresent(Bool.self, forKey: .implementationProvider)
 
     if let textDocumentSync = try? container.decode(TextDocumentSyncOptions.self, forKey: .textDocumentSync) {

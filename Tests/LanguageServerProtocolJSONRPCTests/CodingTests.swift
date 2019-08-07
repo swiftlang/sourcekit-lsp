@@ -86,6 +86,7 @@ final class CodingTests: XCTestCase {
       documentHighlightProvider: nil,
       foldingRangeProvider: nil,
       codeActionProvider: nil,
+      workspaceSymbolProvider: nil,
       implementationProvider: nil)), id: .number(2), json: """
     {
       "id" : 2,

@@ -51,27 +51,9 @@ $ swift package generate-xcodeproj --xcconfig-overrides overrides.xcconfig
 $ open SourceKitLSP.xcodeproj
 ```
 
-## Debugging
+## Development
 
-You can attach LLDB to SourceKit-LSP and set breakpoints to debug. You may want to instruct LLDB to wait for the sourcekit-lsp process to launch and then start your editor, which will typically launch
-SourceKit-LSP as soon as you open a Swift file:
-
-
-```sh
-$ lldb -w -n sourcekit-lsp
-```
-
-If you are using the Xcode project, go to Debug, Attach to Process by PID or Name.
-
-### Print SourceKit Logs
-
-You can configure SourceKit-LSP to print log information from SourceKit to stderr by setting the following environment variable:
-
-```sh
-SOURCEKIT_LOGGING="N"
-```
-
-Where "N" configures the log verbosity and is one of the following numbers: 0 (error), 1 (warning), 2 (info), or 3 (debug).
+For more information about developing SourceKit-LSP, see [Development](Documentation/Development.md).
 
 ## Toolchains
 
@@ -125,7 +107,7 @@ SourceKit-LSP is still in early development, so you may run into rough edges wit
 | Jump to Definition | ✅ | |
 | Find References | ✅ | |
 | Background Indexing | ❌ | Build project to update the index using [Indexing While Building](#indexing-while-building) |
-| Workspace Symbols | ❌ | |
+| Workspace Symbols | ✅ | |
 | Refactoring | ❌ | |
 | Formatting | ❌ | |
 | Folding | ✅ | |
