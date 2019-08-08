@@ -262,6 +262,7 @@ extension SourceKitServer {
       ),
       hoverProvider: true,
       definitionProvider: true,
+      implementationProvider: true,
       referencesProvider: true,
       documentHighlightProvider: true,
       foldingRangeProvider: true,
@@ -272,8 +273,7 @@ extension SourceKitServer {
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
         supportsCodeActions: false // TODO: Turn it on after a provider is implemented.
       ),
-      workspaceSymbolProvider: true,
-      implementationProvider: true
+      workspaceSymbolProvider: true
     )))
   }
 
@@ -497,8 +497,6 @@ extension SourceKitServer {
       if occurs.isEmpty {
         occurs = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
       }
-
-      // FIXME: overrided method logic
 
       let locations = occurs.compactMap { occur -> Location? in
         if occur.location.path.isEmpty {

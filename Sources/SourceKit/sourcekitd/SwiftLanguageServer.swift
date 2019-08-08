@@ -194,6 +194,7 @@ extension SwiftLanguageServer {
         triggerCharacters: ["."]),
       hoverProvider: true,
       definitionProvider: nil,
+      implementationProvider: true,
       referencesProvider: nil,
       documentHighlightProvider: true,
       foldingRangeProvider: true,
@@ -202,8 +203,7 @@ extension SwiftLanguageServer {
       codeActionProvider: CodeActionServerCapabilities(
         clientCapabilities: request.params.capabilities.textDocument?.codeAction,
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
-        supportsCodeActions: false), // TODO: Turn it on after a provider is implemented.
-      implementationProvider: true
+        supportsCodeActions: false) // TODO: Turn it on after a provider is implemented.
     )))
   }
 

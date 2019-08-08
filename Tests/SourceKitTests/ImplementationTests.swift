@@ -24,11 +24,11 @@ final class ImplementationTests: XCTestCase {
     try ws.openDocument(ws.testLoc("a.swift").url, language: .swift)
     try ws.openDocument(ws.testLoc("b.swift").url, language: .swift)
 
-    func impls(at testLoc: TestLocation) throws -> [Location] {
-      let textDocument = TextDocumentIdentifier(testLoc.url)
+    func impls(at testLoc: TestLocation) throws -> Set<Location> {
+      let textDocument = testLoc.docIdentifier
       let request = ImplementationRequest(textDocument: textDocument, position: Position(testLoc))
       let implementations = try ws.sk.sendSync(request)
-      return implementations
+      return Set(implementations)
     }
     func testLoc(_ name: String) -> TestLocation {
       ws.testLoc(name)
@@ -54,7 +54,7 @@ final class ImplementationTests: XCTestCase {
     try XCTAssertEqual(impls(at: testLoc("Trematothoracinae")), [])
 
     try XCTAssertEqual(impls(at: testLoc("Prozaiczne")), [loc("MurkwiaConformance2"), loc("SepulkaConformance1")])
-    // FIXME: non-ascii characters break Tibs `TestLocation`s
+    // FIXME: For some reason we get a location in the middle of a symbol for PćmaŁagodnaConformance 
     // try XCTAssertEqual(impls(at: testLoc("Sepulkowate")), [loc("MurkwiaConformance1"), loc("SepulkaConformance2"), loc("PćmaŁagodnaConformance"), loc("PćmaZwyczajnaConformance")])
     // FIXME: sourcekit returns wrong locations for the function (subclasses that don't override it, and extensions that don't implement it)
     // try XCTAssertEqual(impls(at: testLoc("rozpocznijSepulenie")), [loc("MurkwiaFunc"), loc("SepulkaFunc"), loc("PćmaŁagodnaFunc"), loc("PćmaZwyczajnaFunc")])
