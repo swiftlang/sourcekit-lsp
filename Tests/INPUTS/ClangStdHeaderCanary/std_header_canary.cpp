@@ -5,5 +5,5 @@
 #include <cstdint>
 
 void test() {
-  uint64_t /*unused_b*/b;
+  uint64_t /*unused_b*/b/*<unused_b:end*/;
 }
