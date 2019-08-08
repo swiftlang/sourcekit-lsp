@@ -142,7 +142,6 @@ final class LocalClangTests: XCTestCase {
     XCTAssertNil(resp)
   }
 
-
   func testClangStdHeaderCanary() throws {
     guard let ws = try staticSourceKitTibsWorkspace(name: "ClangStdHeaderCanary") else { return }
     if ToolchainRegistry.shared.default?.clangd == nil { return }
@@ -154,7 +153,7 @@ final class LocalClangTests: XCTestCase {
     ws.sk.handleNextNotification { (note: Notification<PublishDiagnostics>) in
       XCTAssertEqual(note.params.diagnostics, [
         Diagnostic(
-          range: Position(loc) ..< Position(line: loc.line - 1, utf16index: loc.column),
+          range: Position(loc) ..< Position(ws.testLoc("unused_b:end")),
           severity: .warning,
           source: nil,
           message: "Unused variable 'b'")
