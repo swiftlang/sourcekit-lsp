@@ -67,7 +67,7 @@ public final class SwiftPMWorkspace {
       throw Error.noManifest(workspacePath: workspacePath)
     }
 
-    self.packageRoot = packageRoot
+    self.packageRoot = resolveSymlinks(packageRoot)
 
     guard let destinationToolchainBinDir = toolchainRegistry.default?.path?.appending(components: "usr", "bin") else {
         throw Error.cannotDetermineHostToolchain
@@ -199,7 +199,7 @@ extension SwiftPMWorkspace: BuildSystem {
       return nil
     }
 
-    if let td = self.fileToTarget[path] {
+    if let td = targetDescription(for: path) {
       return settings(for: path, language, td)
     }
 
@@ -209,6 +209,21 @@ extension SwiftPMWorkspace: BuildSystem {
 
     if path.extension == "h" {
       return settings(forHeader: path, language)
+    }
+
+    return nil
+  }
+
+  /// Returns the resolved target description for the given file, if one is known.
+  func targetDescription(for file: AbsolutePath) -> TargetBuildDescription? {
+    if let td = fileToTarget[file] {
+      return td
+    }
+
+    let realpath = resolveSymlinks(file)
+    if realpath != file, let td = fileToTarget[realpath] {
+      fileToTarget[file] = td
+      return td
     }
 
     return nil
@@ -239,26 +254,44 @@ extension SwiftPMWorkspace {
 
   /// Retrieve settings for a package manifest (Package.swift).
   func settings(forPackageManifest path: AbsolutePath) -> FileBuildSettings? {
-    for package in packageGraph.packages where path == package.manifest.path {
+    func impl(_ path: AbsolutePath) -> FileBuildSettings? {
+      for package in packageGraph.packages where path == package.manifest.path {
         let compilerArgs = workspace.interpreterFlags(for: package.path) + [path.pathString]
         return FileBuildSettings(
           preferredToolchain: nil,
           compilerArguments: compilerArgs
         )
+      }
+      return nil
     }
-    return nil
+    
+    if let result = impl(path) { 
+      return result
+    }
+
+    let canonicalPath = resolveSymlinks(path)
+    return canonicalPath == path ? nil : impl(canonicalPath)
   }
 
   /// Retrieve settings for a given header file.
   public func settings(forHeader path: AbsolutePath, _ language: Language) -> FileBuildSettings? {
-    var dir = path.parentDirectory
-    while !dir.isRoot {
-      if let td = sourceDirToTarget[dir] {
-        return settings(for: path, language, td)
+    func impl(_ path: AbsolutePath) -> FileBuildSettings? {
+      var dir = path.parentDirectory
+      while !dir.isRoot {
+        if let td = sourceDirToTarget[dir] {
+          return settings(for: path, language, td)
+        }
+        dir = dir.parentDirectory
       }
-      dir = dir.parentDirectory
+      return nil
     }
-    return nil
+    
+    if let result = impl(path) { 
+      return result
+    }
+
+    let canonicalPath = resolveSymlinks(path)
+    return canonicalPath == path ? nil : impl(canonicalPath)
   }
 
   /// Retrieve settings for the given swift file, which is part of a known target build description.
