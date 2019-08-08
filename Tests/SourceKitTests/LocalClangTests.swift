@@ -141,4 +141,33 @@ final class LocalClangTests: XCTestCase {
     let resp = try! sk.sendSync(FoldingRangeRequest(textDocument: TextDocumentIdentifier(url)))
     XCTAssertNil(resp)
   }
+
+
+  func testClangStdHeaderCanary() throws {
+    guard let ws = try staticSourceKitTibsWorkspace(name: "ClangStdHeaderCanary") else { return }
+    if ToolchainRegistry.shared.default?.clangd == nil { return }
+
+    let loc = ws.testLoc("unused_b")
+
+    let expectation = XCTestExpectation(description: "diagnostics")
+
+    ws.sk.handleNextNotification { (note: Notification<PublishDiagnostics>) in
+      XCTAssertEqual(note.params.diagnostics, [
+        Diagnostic(
+          range: Position(loc) ..< Position(line: loc.line - 1, utf16index: loc.column),
+          severity: .warning,
+          source: nil,
+          message: "Unused variable 'b'")
+      ])
+
+      expectation.fulfill()
+    }
+
+    try ws.openDocument(loc.url, language: .cpp)
+
+    let result = XCTWaiter.wait(for: [expectation], timeout: 15)
+    if result != .completed {
+      fatalError("error \(result) waiting for diagnostics notification")
+    }
+  }
 }

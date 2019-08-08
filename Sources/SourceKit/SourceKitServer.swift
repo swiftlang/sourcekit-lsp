@@ -556,8 +556,8 @@ public func languageService(
   switch language {
 
   case .c, .cpp, .objective_c, .objective_cpp:
-    guard let clangd = toolchain.clangd else { return nil }
-    return try makeJSONRPCClangServer(client: client, clangd: clangd, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings)
+    guard toolchain.clangd != nil else { return nil }
+    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings)
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
