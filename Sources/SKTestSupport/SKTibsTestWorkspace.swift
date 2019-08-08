@@ -121,8 +121,7 @@ extension TestLocation {
 
 extension Position {
   public init(_ loc: TestLocation) {
-    // FIXME: utf16 vfs utf8 column
-    self.init(line: loc.line - 1, utf16index: loc.column - 1)
+    self.init(line: loc.line - 1, utf16index: loc.utf16Column - 1)
   }
 }
 
