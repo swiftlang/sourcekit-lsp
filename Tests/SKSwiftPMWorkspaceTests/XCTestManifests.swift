@@ -15,6 +15,8 @@ extension SwiftPMWorkspaceTests {
         ("testMultiTargetSwift", testMultiTargetSwift),
         ("testNoPackage", testNoPackage),
         ("testNoToolchain", testNoToolchain),
+        ("testSymlinkInWorkspaceCXX", testSymlinkInWorkspaceCXX),
+        ("testSymlinkInWorkspaceSwift", testSymlinkInWorkspaceSwift),
         ("testUnknownFile", testUnknownFile),
         ("testUnparsablePackage", testUnparsablePackage),
     ]
