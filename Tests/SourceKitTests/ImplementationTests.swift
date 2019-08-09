@@ -34,7 +34,7 @@ final class ImplementationTests: XCTestCase {
       ws.testLoc(name)
     }  
     func loc(_ name: String) -> Location {
-      Location(ws.testLoc(name))
+      Location(badUTF16: ws.testLoc(name))
     }
     
     try XCTAssertEqual(impls(at: testLoc("Protocol")), [loc("StructConformance")])
@@ -54,8 +54,7 @@ final class ImplementationTests: XCTestCase {
     try XCTAssertEqual(impls(at: testLoc("Trematothoracinae")), [])
 
     try XCTAssertEqual(impls(at: testLoc("Prozaiczne")), [loc("MurkwiaConformance2"), loc("SepulkaConformance1")])
-    // FIXME: For some reason we get a location in the middle of a symbol for PćmaŁagodnaConformance 
-    // try XCTAssertEqual(impls(at: testLoc("Sepulkowate")), [loc("MurkwiaConformance1"), loc("SepulkaConformance2"), loc("PćmaŁagodnaConformance"), loc("PćmaZwyczajnaConformance")])
+    try XCTAssertEqual(impls(at: testLoc("Sepulkowate")), [loc("MurkwiaConformance1"), loc("SepulkaConformance2"), loc("PćmaŁagodnaConformance"), loc("PćmaZwyczajnaConformance")])
     // FIXME: sourcekit returns wrong locations for the function (subclasses that don't override it, and extensions that don't implement it)
     // try XCTAssertEqual(impls(at: testLoc("rozpocznijSepulenie")), [loc("MurkwiaFunc"), loc("SepulkaFunc"), loc("PćmaŁagodnaFunc"), loc("PćmaZwyczajnaFunc")])
     try XCTAssertEqual(impls(at: testLoc("Murkwia")), [])
