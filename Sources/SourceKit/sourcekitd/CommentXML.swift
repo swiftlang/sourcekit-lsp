@@ -24,7 +24,7 @@ enum CommentXMLError: Error {
 /// Converts from sourcekit's XML documentation format to Markdown.
 ///
 /// This code should go away and sourcekitd should return the Markdown directly.
-func xmlDocumentationToMarkdown(_ xmlString: String) throws -> String {
+public func xmlDocumentationToMarkdown(_ xmlString: String) throws -> String {
   let xml = try XMLDocument(xmlString: xmlString)
   guard let root = xml.rootElement() else {
     throw CommentXMLError.noRootElement

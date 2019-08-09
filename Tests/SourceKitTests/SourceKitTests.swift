@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@testable import SourceKit
+import SourceKit
 import LanguageServerProtocol
 import Basic
 import SPMUtility
