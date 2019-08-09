@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@testable import SKCore
+import SKCore
 import LanguageServerProtocol
 import Basic
 import XCTest
