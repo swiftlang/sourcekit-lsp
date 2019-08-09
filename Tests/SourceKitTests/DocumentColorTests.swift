@@ -14,7 +14,7 @@ import SKSupport
 import SKTestSupport
 import XCTest
 
-@testable import LanguageServerProtocol
+import LanguageServerProtocol
 @testable import SourceKit
 
 final class DocumentColorTests: XCTestCase {
