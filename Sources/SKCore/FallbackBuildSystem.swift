@@ -17,8 +17,10 @@ import enum SPMUtility.Platform
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
 public final class FallbackBuildSystem: BuildSystem {
 
+  public init() {}
+
   /// The path to the SDK.
-  lazy var sdkpath: AbsolutePath? = {
+  public lazy var sdkpath: AbsolutePath? = {
     if case .darwin? = Platform.currentPlatform,
        let str = try? Process.checkNonZeroExit(
          args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx"),

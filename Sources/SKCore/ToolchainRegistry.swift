@@ -41,7 +41,7 @@ public final class ToolchainRegistry {
   var queue: DispatchQueue = DispatchQueue(label: "toolchain-registry-queue")
 
   /// The currently selected toolchain identifier on Darwin.
-  public internal(set) lazy var darwinToolchainOverride: String? = {
+  public lazy var darwinToolchainOverride: String? = {
     if let id = ProcessEnv.vars["TOOLCHAINS"], !id.isEmpty, id != "default" {
       return id
     }
@@ -151,7 +151,7 @@ extension ToolchainRegistry {
 
 extension ToolchainRegistry {
 
-  enum Error: Swift.Error {
+  public enum Error: Swift.Error {
 
     /// There is already a toolchain with the given identifier.
     case duplicateToolchainIdentifier

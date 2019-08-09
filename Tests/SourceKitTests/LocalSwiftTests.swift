@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SourceKit
 import LanguageServerProtocol
 import SKSupport
 import SKTestSupport
@@ -17,8 +18,6 @@ import XCTest
 
 // Workaround ambiguity with Foundation.
 typealias Notification = LanguageServerProtocol.Notification
-
-@testable import SourceKit
 
 final class LocalSwiftTests: XCTestCase {
 

@@ -14,8 +14,7 @@ import LanguageServerProtocol
 import SKSupport
 import SKTestSupport
 import XCTest
-
-@testable import SourceKit
+import SourceKit
 
 final class SwiftCompletionTests: XCTestCase {
 

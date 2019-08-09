@@ -35,21 +35,20 @@ public func log(_ message: String, level: LogLevel = .default) {
 /// - parameter messageProducer: The async callback to produce the message.
 /// - parameter currentLevel: The current log level is provided to the callback, which can be used to avoid expensive processing, for example by reducing the verbosity.
 public func logAsync(level: LogLevel = .default, messageProducer: @escaping (_ currentLevel: LogLevel) -> String?) {
-  let logger = Logger.shared
-  logger.logQueue.async {
-    if let message = messageProducer(Logger.shared.currentLevel) {
-      // Use `async: false` since we're already async'd on `logQueue` and we want to preserve ordering.
-      logger.log(message, level: level, async: false)
-    }
-  }
+  Logger.shared.logAsync(level: level, messageProducer: messageProducer)
 }
 
 /// Like `try?`, but logs the error on failure.
-public func orLog<R>(_ prefix: String = "", level: LogLevel = .default, _ block: () throws -> R?) -> R? {
+public func orLog<R>(
+  _ prefix: String = "",
+  level: LogLevel = .default,
+  logger: Logger = Logger.shared,
+  _ block: () throws -> R?) -> R?
+{
   do {
     return try block()
   } catch {
-    log("\(prefix)\(prefix.isEmpty ? "" : " ")\(error)", level: level)
+    logger.log("\(prefix)\(prefix.isEmpty ? "" : " ")\(error)", level: level)
     return nil
   }
 }
@@ -62,8 +61,7 @@ public protocol LogHandler: AnyObject {
 public final class Logger {
 
   /// The shared logger instance.
-  public internal(set)
-  static var shared: Logger = .init()
+  public internal(set) static var shared: Logger = .init()
 
   let logQueue: DispatchQueue = DispatchQueue(label: "log-queue", qos: .utility)
 
@@ -83,6 +81,11 @@ public final class Logger {
   }
 
   var handlers: [LogHandler] = []
+
+  public init(disableOSLog: Bool = false, disableNSLog: Bool = false) {
+    self.disableOSLog = disableOSLog
+    self.disableNSLog = disableNSLog
+  }
 
   public func addLogHandler(_ handler: LogHandler) {
     logQueue.async {
@@ -111,7 +114,33 @@ public final class Logger {
     }
   }
 
-  public func log(_ message: String, level: LogLevel, async: Bool = true) {
+  /// Log the given message.
+  ///
+  /// If `level >= currentLevel`, it will be emitted. However, the converse is not necessarily true: on platforms that provide `os_log`, the message may be emitted by `os_log` according to its own rules about log level.
+  ///
+  /// Additional message handlers will only be called if `level >= currentLevel`.
+  ///
+  /// - parameter message: The message to print.
+  /// - parameter level: The `LogLevel` of the message, used to determine whether it is emitted.
+  public func log(_ message: String, level: LogLevel = .default) {
+    self.log(message, level: level, async: true)
+  }
+
+  /// Log a message that is produced asynchronously by a callback, which is useful for logging messages that are expensive to compute and can be safely produced asynchronously. The callback is guaranteed to be called exactly once.
+  ///
+  /// - parameter level: The `LogLevel` of the message, used to determine whether it is emitted.
+  /// - parameter messageProducer: The async callback to produce the message.
+  /// - parameter currentLevel: The current log level is provided to the callback, which can be used to avoid expensive processing, for example by reducing the verbosity.
+  public func logAsync(level: LogLevel = .default, messageProducer: @escaping (_ currentLevel: LogLevel) -> String?) {
+    self.logQueue.async {
+      if let message = messageProducer(self.currentLevel) {
+        // Use `async: false` since we're already async'd on `logQueue` and we want to preserve ordering.
+        self.log(message, level: level, async: false)
+      }
+    }
+  }
+
+  func log(_ message: String, level: LogLevel = .default, async: Bool) {
 
     let currentLevel = self.currentLevel
 
@@ -150,6 +179,9 @@ public final class Logger {
       handler.handle(message, level: level)
     }
   }
+
+  /// *For Testing*. Flush the logging queue before returning.
+  public func flush() { logQueue.sync {} }
 }
 
 public class AnyLogHandler: LogHandler {

@@ -13,9 +13,8 @@
 import SKSupport
 import SKTestSupport
 import XCTest
-
-@testable import LanguageServerProtocol
-@testable import SourceKit
+import LanguageServerProtocol
+import SourceKit
 
 final class DocumentColorTests: XCTestCase {
   /// Connection and lifetime management for the service.

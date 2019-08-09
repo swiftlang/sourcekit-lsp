@@ -14,13 +14,18 @@ import Basic
 import Foundation
 
 /// A helper type for decoding the Info.plist or ToolchainInfo.plist file from an .xctoolchain.
-struct XCToolchainPlist {
+public struct XCToolchainPlist {
 
   /// The toolchain identifer e.g. "com.apple.dt.toolchain.XcodeDefault".
-  var identifier: String
+  public var identifier: String
 
   /// The toolchain's human-readable name.
-  var displayName: String?
+  public var displayName: String?
+
+  public init(identifier: String, displayName: String? = nil) {
+    self.identifier = identifier
+    self.displayName = displayName
+  }
 }
 
 extension XCToolchainPlist {
@@ -79,7 +84,7 @@ extension XCToolchainPlist: Codable {
     case DisplayName
   }
 
-  init(from decoder: Decoder) throws {
+  public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     if let identifier = try container.decodeIfPresent(String.self, forKey: .Identifier) {
       self.identifier = identifier
@@ -90,7 +95,7 @@ extension XCToolchainPlist: Codable {
   }
 
   /// Encode the info plist. **For testing**.
-  func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     if identifier.starts(with: "com.apple") {
       try container.encode(identifier, forKey: .Identifier)

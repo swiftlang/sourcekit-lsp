@@ -29,10 +29,6 @@ def get_swiftpm_options(args):
   if args.verbose:
     swiftpm_args += ['--verbose']
 
-  if args.configuration == 'release':
-    # Enable running tests that use @testable in release builds.
-    swiftpm_args += ['-Xswiftc', '-enable-testing']
-
   if platform.system() != 'Darwin':
     swiftpm_args += [
       # Dispatch headers

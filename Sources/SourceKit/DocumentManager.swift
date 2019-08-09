@@ -15,10 +15,10 @@ import LanguageServerProtocol
 import Dispatch
 
 public struct DocumentSnapshot {
-  var document: Document
-  var version: Int
-  var lineTable: LineTable
-  var text: String { return lineTable.content }
+  public var document: Document
+  public var version: Int
+  public var lineTable: LineTable
+  public var text: String { return lineTable.content }
 
   public init(document: Document, version: Int, lineTable: LineTable) {
     self.document = document
