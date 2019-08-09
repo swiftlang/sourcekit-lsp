@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@testable import LanguageServerProtocolJSONRPC
+import LanguageServerProtocolJSONRPC
 import LanguageServerProtocol
 import SKTestSupport
 import XCTest
@@ -47,7 +47,7 @@ class ConnectionTests: XCTestCase {
 
     waitForExpectations(timeout: 10)
 
-    XCTAssertEqual(connection.serverConnection.requestBuffer, [])
+    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
   func testMessageBuffer() {
@@ -67,13 +67,13 @@ class ConnectionTests: XCTestCase {
     let note2Str: String = "Content-Length: \(note2.count)\r\n\r\n\(String(data: note2, encoding: .utf8)!)"
 
     for b in note1Str.utf8.dropLast() {
-      clientConnection.send(rawData: [b].withUnsafeBytes { DispatchData(bytes: $0) })
+      clientConnection.send(_rawData: [b].withUnsafeBytes { DispatchData(bytes: $0) })
     }
 
-    clientConnection.send(rawData: [note1Str.utf8.last!, note2Str.utf8.first!].withUnsafeBytes { DispatchData(bytes: $0) })
+    clientConnection.send(_rawData: [note1Str.utf8.last!, note2Str.utf8.first!].withUnsafeBytes { DispatchData(bytes: $0) })
 
     waitForExpectations(timeout: 10)
-    XCTAssertEqual(connection.serverConnection.requestBuffer, [note2Str.utf8.first!])
+    XCTAssertEqual(connection.serverConnection._requestBuffer, [note2Str.utf8.first!])
 
     let expectation2 = self.expectation(description: "note received")
 
@@ -83,11 +83,11 @@ class ConnectionTests: XCTestCase {
     }
 
     for b in note2Str.utf8.dropFirst() {
-      clientConnection.send(rawData: [b].withUnsafeBytes { DispatchData(bytes: $0) })
+      clientConnection.send(_rawData: [b].withUnsafeBytes { DispatchData(bytes: $0) })
     }
 
     waitForExpectations(timeout: 10)
-    XCTAssertEqual(connection.serverConnection.requestBuffer, [])
+    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
   func testEchoError() {
@@ -107,7 +107,7 @@ class ConnectionTests: XCTestCase {
 
     waitForExpectations(timeout: 10)
 
-    XCTAssertEqual(connection.serverConnection.requestBuffer, [])
+    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
   func testEchoNote() {
@@ -123,7 +123,7 @@ class ConnectionTests: XCTestCase {
 
     waitForExpectations(timeout: 10)
 
-    XCTAssertEqual(connection.serverConnection.requestBuffer, [])
+    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
   func testUnknownRequest() {
@@ -198,57 +198,5 @@ class ConnectionTests: XCTestCase {
     connection.clientConnection.close()
 
     waitForExpectations(timeout: 10)
-  }
-
-  // FIXME: DispatchIO doesn't like us closing the pipes manually; need a better way to test this.
-  func DISABLED_testCloseClientFD() {
-    //let closedClient = self.expectation(description: "closed client")
-    let closedServer = self.expectation(description: "closed server")
-
-    connection.clientConnection.closeHandler = {
-      //closedClient.fulfill()
-    }
-    connection.serverConnection.closeHandler = {
-      closedServer.fulfill()
-    }
-
-    connection.clientToServer.fileHandleForWriting.closeFile()
-    connection.serverToClient.fileHandleForReading.closeFile()
-
-    // FIXME: FIXME: SR-9010: these APIs require waiting on specific expectations.
-    // wait(for: [closedServer], timeout: 10)
-    waitForExpectations(timeout: 10)
-
-    connection.clientConnection.send(EchoNotification(string: "hi"))
-    connection.clientConnection.sendQueue.sync {}
-
-    // FIXME: why doesn't the write fail? It should be symmetric with testCloseServerFD!
-    // wait(for: [closedClient], timeout: 10)
-  }
-
-  // FIXME: DispatchIO doesn't like us closing the pipes manually; need a better way to test this.
-  func DISABLED_testCloseServerFD() {
-    let closedClient = self.expectation(description: "closed client")
-    let closedServer = self.expectation(description: "closed server")
-
-    connection.clientConnection.closeHandler = {
-      closedClient.fulfill()
-    }
-    connection.serverConnection.closeHandler = {
-      closedServer.fulfill()
-    }
-
-    connection.serverToClient.fileHandleForWriting.closeFile()
-    connection.clientToServer.fileHandleForReading.closeFile()
-
-// FIXME: SR-9010: these APIs require waiting on specific expectations.
-#if os(macOS)
-    wait(for: [closedClient], timeout: 10)
-
-    connection.serverConnection.send(EchoNotification(string: "hi"))
-    connection.serverConnection.sendQueue.sync {}
-
-    wait(for: [closedServer], timeout: 10)
-#endif
   }
 }

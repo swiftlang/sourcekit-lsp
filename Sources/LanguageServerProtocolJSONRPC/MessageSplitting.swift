@@ -13,19 +13,25 @@
 import LanguageServerProtocol
 import SKSupport
 
-struct JSONRPCMessageHeader: Hashable {
+public struct JSONRPCMessageHeader: Hashable {
   static let contentLengthKey: [UInt8] = [UInt8]("Content-Length".utf8)
   static let separator: [UInt8] = [UInt8]("\r\n".utf8)
   static let colon: UInt8 = ":".utf8.spm_only!
   static let invalidKeyBytes: [UInt8] = [colon] + separator
 
-  var contentLength: Int? = nil
+  public var contentLength: Int? = nil
+
+  public init(contentLength: Int? = nil) {
+    self.contentLength = contentLength
+  }
 }
 
 extension RandomAccessCollection where Element == UInt8 {
 
   /// Returns the first message range and header in `self`, or nil.
-  func jsonrpcSplitMessage() throws -> ((SubSequence, header: JSONRPCMessageHeader), SubSequence)? {
+  public func jsonrpcSplitMessage()
+    throws -> ((SubSequence, header: JSONRPCMessageHeader), SubSequence)?
+  {
     guard let (header, rest) = try jsonrcpParseHeader() else { return nil }
     guard let contentLength = header.contentLength else {
       throw MessageDecodingError.parseError("missing Content-Length header")
@@ -34,7 +40,7 @@ extension RandomAccessCollection where Element == UInt8 {
     return ((rest.prefix(contentLength), header: header), rest.dropFirst(contentLength))
   }
 
-  func jsonrcpParseHeader() throws -> (JSONRPCMessageHeader, SubSequence)? {
+  public func jsonrcpParseHeader() throws -> (JSONRPCMessageHeader, SubSequence)? {
     var header = JSONRPCMessageHeader()
     var slice = self[...]
     while let (kv, rest) = try slice.jsonrpcParseHeaderField() {
@@ -55,7 +61,7 @@ extension RandomAccessCollection where Element == UInt8 {
     return nil
   }
 
-  func jsonrpcParseHeaderField() throws -> ((key: SubSequence, value: SubSequence)?, SubSequence)? {
+  public func jsonrpcParseHeaderField() throws -> ((key: SubSequence, value: SubSequence)?, SubSequence)? {
     if starts(with: JSONRPCMessageHeader.separator) {
       return (nil, dropFirst(JSONRPCMessageHeader.separator.count))
     } else if first == JSONRPCMessageHeader.separator.first {

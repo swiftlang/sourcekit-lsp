@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@testable import LanguageServerProtocolJSONRPC
+import LanguageServerProtocolJSONRPC
 import LanguageServerProtocol
 import XCTest
 import SKTestSupport

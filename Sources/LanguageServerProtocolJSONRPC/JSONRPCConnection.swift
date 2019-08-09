@@ -33,8 +33,8 @@ public final class JSONRPCConection {
   /// Current state of the connection, used to ensure correct usage.
   var state: State
 
-  /// Buffer of received bytes that haven't been parsed.
-  var requestBuffer: [UInt8] = []
+  /// *Public for testing* Buffer of received bytes that haven't been parsed.
+  public var _requestBuffer: [UInt8] = []
 
   private var _nextRequestID: Int = 0
 
@@ -103,19 +103,19 @@ public final class JSONRPCConection {
       }
 
       // Parse and handle any messages in `buffer + data`, leaving any remaining unparsed bytes in `buffer`.
-      if self.requestBuffer.isEmpty {
+      if self._requestBuffer.isEmpty {
         data.withUnsafeBytes { (pointer: UnsafePointer<UInt8>) in
           let rest = self.parseAndHandleMessages(from: UnsafeBufferPointer(start: pointer, count: data.count))
-          self.requestBuffer.append(contentsOf: rest)
+          self._requestBuffer.append(contentsOf: rest)
         }
       } else {
-        self.requestBuffer.append(contentsOf: data)
+        self._requestBuffer.append(contentsOf: data)
         var unused = 0
-        self.requestBuffer.withUnsafeBufferPointer { buffer in
+        self._requestBuffer.withUnsafeBufferPointer { buffer in
           let rest = self.parseAndHandleMessages(from: buffer)
           unused = rest.count
         }
-        self.requestBuffer.removeFirst(self.requestBuffer.count - unused)
+        self._requestBuffer.removeFirst(self._requestBuffer.count - unused)
       }
     }
   }
@@ -219,7 +219,8 @@ public final class JSONRPCConection {
     }
   }
 
-  func send(rawData dispatchData: DispatchData) {
+  /// *Public for testing*.
+  public func send(_rawData dispatchData: DispatchData) {
     guard readyToSend() else { return }
 
     sendIO.write(offset: 0, data: dispatchData, queue: sendQueue) { [weak self] done, _, errorCode in
@@ -243,7 +244,7 @@ public final class JSONRPCConection {
       dispatchData.append(rawBufferPointer)
     }
 
-    send(rawData: dispatchData)
+    send(_rawData: dispatchData)
   }
 
   func send(encoding: (JSONEncoder) throws -> Data) {
