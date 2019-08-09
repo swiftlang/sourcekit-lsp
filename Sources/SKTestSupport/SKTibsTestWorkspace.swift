@@ -121,14 +121,25 @@ extension TestLocation {
 
 extension Position {
   public init(_ loc: TestLocation) {
-    // FIXME: utf16 vfs utf8 column
-    self.init(line: loc.line - 1, utf16index: loc.column - 1)
+    self.init(line: loc.line - 1, utf16index: loc.utf16Column - 1)
+  }
+
+  /// Incorrectly use the UTF-8 column index in place of the UTF-16 one, to match the incorrect
+  /// implementation in SourceKitServer when using the index.
+  public init(badUTF16 loc: TestLocation) {
+    self.init(line: loc.line - 1, utf16index: loc.utf8Column - 1)
   }
 }
 
 extension Location {
   public init(_ loc: TestLocation) {
     self.init(url: loc.url, range: Range(Position(loc)))
+  }
+
+  /// Incorrectly use the UTF-8 column index in place of the UTF-16 one, to match the incorrect
+  /// implementation in SourceKitServer when using the index.
+  public init(badUTF16 loc: TestLocation) {
+    self.init(url: loc.url, range: Range(Position(badUTF16: loc)))
   }
 }
 
