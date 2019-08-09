@@ -60,8 +60,8 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    let note1 = try! JSONEncoder().encode(Message.notification(EchoNotification(string: "hello!")))
-    let note2 = try! JSONEncoder().encode(Message.notification(EchoNotification(string: "no way!")))
+    let note1 = try! JSONEncoder().encode(JSONRPCMessage.notification(EchoNotification(string: "hello!")))
+    let note2 = try! JSONEncoder().encode(JSONRPCMessage.notification(EchoNotification(string: "no way!")))
 
     let note1Str: String = "Content-Length: \(note1.count)\r\n\r\n\(String(data: note1, encoding: .utf8)!)"
     let note2Str: String = "Content-Length: \(note2.count)\r\n\r\n\(String(data: note2, encoding: .utf8)!)"

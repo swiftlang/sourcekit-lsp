@@ -12,7 +12,8 @@
 
 import LanguageServerProtocol
 
-enum Message {
+/// A single JSONRPC message suitable for encoding/decoding.
+enum JSONRPCMessage {
   case notification(NotificationType)
   case request(_RequestType, id: RequestID)
   case response(ResponseType, id: RequestID)
@@ -23,7 +24,7 @@ extension CodingUserInfoKey {
   public static let responseTypeCallbackKey: CodingUserInfoKey = CodingUserInfoKey(rawValue: "lsp.jsonrpc.responseTypeCallback")!
 }
 
-extension Message: Codable {
+extension JSONRPCMessage: Codable {
 
   typealias ResponseTypeCallback = (RequestID) -> ResponseType.Type?
 
