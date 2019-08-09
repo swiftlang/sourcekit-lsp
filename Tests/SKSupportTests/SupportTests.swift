@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import XCTest
-@testable import SKSupport
+import SKSupport
 import Basic
 
 final class SupportTests: XCTestCase {
@@ -107,10 +107,8 @@ final class SupportTests: XCTestCase {
     let orig = Logger.shared
     defer { Logger.shared = orig }
 
-    let testLogger = Logger()
+    let testLogger = Logger(disableOSLog: true, disableNSLog: true)
     Logger.shared = testLogger
-    testLogger.disableNSLog = true
-    testLogger.disableOSLog = true
 
     var messages: [(String, LogLevel)] = []
     let obj = testLogger.addLogHandler { message, level in
@@ -118,7 +116,7 @@ final class SupportTests: XCTestCase {
     }
 
     func check(_ messages: inout [(String, LogLevel)], expected: [(String, LogLevel)], file: StaticString = #file, line: UInt = #line) {
-      testLogger.logQueue.sync {}
+      testLogger.flush()
       XCTAssert(messages == expected, "\(messages) does not match expected \(expected)", file: file, line: line)
       messages.removeAll()
     }

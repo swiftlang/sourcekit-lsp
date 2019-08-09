@@ -62,8 +62,7 @@ public protocol LogHandler: AnyObject {
 public final class Logger {
 
   /// The shared logger instance.
-  public internal(set)
-  static var shared: Logger = .init()
+  public static var shared: Logger = .init()
 
   let logQueue: DispatchQueue = DispatchQueue(label: "log-queue", qos: .utility)
 
@@ -83,6 +82,11 @@ public final class Logger {
   }
 
   var handlers: [LogHandler] = []
+
+  public init(disableOSLog: Bool = false, disableNSLog: Bool = false) {
+    self.disableOSLog = disableOSLog
+    self.disableNSLog = disableNSLog
+  }
 
   public func addLogHandler(_ handler: LogHandler) {
     logQueue.async {
@@ -150,6 +154,9 @@ public final class Logger {
       handler.handle(message, level: level)
     }
   }
+
+  /// *For Testing*. Flush the logging queue before returning.
+  public func flush() { logQueue.sync {} }
 }
 
 public class AnyLogHandler: LogHandler {
