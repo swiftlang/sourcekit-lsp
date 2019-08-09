@@ -37,6 +37,7 @@ public final class SwiftPMWorkspace {
     case cannotDetermineHostToolchain
   }
 
+  public weak var delegate: BuildSystemDelegate?
   let workspacePath: AbsolutePath
   let packageRoot: AbsolutePath
   var packageGraph: PackageGraph

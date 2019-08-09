@@ -20,6 +20,8 @@ import LanguageServerProtocol
 /// one compilation database, located at the project root.
 public final class CompilationDatabaseBuildSystem {
 
+  public weak var delegate: BuildSystemDelegate?
+
   /// The compilation database.
   var compdb: CompilationDatabase? = nil
 

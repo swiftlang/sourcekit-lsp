@@ -12,6 +12,7 @@
 
 import LanguageServerProtocol
 import Basic
+import Foundation
 
 /// Provider of FileBuildSettings and other build-related information.
 ///
@@ -22,6 +23,9 @@ import Basic
 /// For example, a SwiftPMWorkspace provides compiler arguments for the files contained in a
 /// SwiftPM package root directory.
 public protocol BuildSystem {
+
+  /// Delegate to receive notification callbacks from the build system.
+  var delegate: BuildSystemDelegate? { get set }
 
   /// The path to the raw index store data, if any.
   var indexStorePath: AbsolutePath? { get }
@@ -34,6 +38,13 @@ public protocol BuildSystem {
 
   /// Returns the toolchain to use to compile this file
   func toolchain(for: URL, _ language: Language) -> Toolchain?
+}
 
-  // TODO: notifications when settings change.
+/// Interface for BuildSystem notifications.
+///
+/// A BuildSystem can provide notifications when the state of files changes,
+/// eg when build products become available or flags change.
+public protocol BuildSystemDelegate: class {
+  /// Called when the flags or dependent products change for a set of documents.
+  func refreshDocuments(_: [URL])
 }

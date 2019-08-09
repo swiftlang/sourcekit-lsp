@@ -26,6 +26,11 @@ public final class BuildSystemList {
 
 extension BuildSystemList: BuildSystem {
 
+  public var delegate: BuildSystemDelegate? {
+    get { return providers.first?.delegate }
+    set { if var first = providers.first { first.delegate = newValue } }
+  }
+
   public var indexStorePath: AbsolutePath? { return providers.first?.indexStorePath }
 
   public var indexDatabasePath: AbsolutePath? { return providers.first?.indexDatabasePath }

@@ -54,6 +54,7 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.cancelRequest)
     _register(SwiftLanguageServer.shutdown)
     _register(SwiftLanguageServer.exit)
+    _register(SwiftLanguageServer.didChangeConfiguration)
     _register(SwiftLanguageServer.openDocument)
     _register(SwiftLanguageServer.closeDocument)
     _register(SwiftLanguageServer.changeDocument)
@@ -223,6 +224,19 @@ extension SwiftLanguageServer {
   func exit(_ notification: Notification<Exit>) {
     api.shutdown()
     onExit()
+  }
+
+  // MARK: - Workspace
+
+  func didChangeConfiguration(notification: Notification<DidChangeConfiguration>) {
+    switch notification.params.settings {
+    case .clangd:
+      break
+    case .documentUpdated(let settings):
+      handleDocumentUpdate(url: settings.url)
+    case .unknown:
+      break
+    }
   }
 
   // MARK: - Text synchronization

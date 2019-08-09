@@ -227,13 +227,15 @@ extension SourceKitServer {
         url: url,
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: self.toolchainRegistry,
-        buildSetup: self.buildSetup)
+        buildSetup: self.buildSetup,
+        delegate: self)
     } else if let path = req.params.rootPath {
       self.workspace = try? Workspace(
         url: URL(fileURLWithPath: path),
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: self.toolchainRegistry,
-        buildSetup: self.buildSetup)
+        buildSetup: self.buildSetup,
+        delegate: self)
     }
 
     if self.workspace == nil {
@@ -657,4 +659,28 @@ extension SymbolOccurrence {
   func getContainerName() -> String? {
     return relations.first(where: { $0.roles.contains(.childOf) })?.symbol.name
   }
+}
+
+// MARK: - BuildSystemDelegate
+
+extension SourceKitServer: BuildSystemDelegate {
+
+  public func refreshDocuments(_ urls: [URL]) {
+    guard let workspace = self.workspace else { return }
+    let refreshedDocuments = Set(urls)
+    let openedDocuments = workspace.documentManager.openDocuments()
+    for url in openedDocuments {
+      if !refreshedDocuments.contains(url) { continue }
+
+      log("refreshing diagnostics for \(url)")
+      if let snapshot = workspace.documentManager.latestSnapshot(url),
+        let service = languageService(for: url, snapshot.document.language, in: workspace) {
+        service.send(
+          DidChangeConfiguration(settings:
+            .documentUpdated(
+              DocumentUpdatedBuildSettings(url: url, language: snapshot.document.language))))
+      }
+    }
+  }
+
 }

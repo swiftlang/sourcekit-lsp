@@ -135,6 +135,12 @@ public final class DocumentManager {
       return document.latestSnapshot
     }
   }
+
+  public func openDocuments() -> [URL] {
+    return queue.sync {
+      return Array.init(documents.keys)
+    }
+  }
 }
 
 extension DocumentManager {

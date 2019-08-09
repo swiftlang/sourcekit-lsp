@@ -1,0 +1,5 @@
+{
+    "indexStorePath": "/tmp/index/store",
+    "serverPath": "server.py",
+    "serverFlags": []
+}

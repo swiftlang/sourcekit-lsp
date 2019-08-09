@@ -31,6 +31,8 @@ public final class FallbackBuildSystem: BuildSystem {
     return nil
   }()
 
+  public weak var delegate: BuildSystemDelegate?
+
   public var indexStorePath: AbsolutePath? { return nil }
 
   public var indexDatabasePath: AbsolutePath? { return nil }

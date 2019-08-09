@@ -723,4 +723,42 @@ final class LocalSwiftTests: XCTestCase {
     data = EditorPlaceholder(text)
     XCTAssertNil(data)
   }
+
+  func testDocumentUpdate() {
+    let url = URL(fileURLWithPath: "/a.swift")
+
+    sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: url,
+      language: .swift,
+      version: 12,
+      text: """
+      func
+      """
+    )), { (note: Notification<PublishDiagnostics>) in
+      log("Received diagnostics for open - syntactic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(url)!.text)
+    }, { (note: Notification<PublishDiagnostics>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(
+        note.params.diagnostics.first?.range.lowerBound,
+        Position(line: 0, utf16index: 4))
+    })
+
+    // refresh the document, we should get the same notifications
+    connection.server?.refreshDocuments([url])
+
+    let expectation = XCTestExpectation(description: "refresh")
+    sk.handleNextNotification { (note: Notification<PublishDiagnostics>) in
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(url)!.text)
+      expectation.fulfill()
+    }
+
+    let result = XCTWaiter.wait(for: [expectation], timeout: 15)
+    if result != .completed {
+      fatalError("error \(result) waiting for diagnostics notification")
+    }
+  }
 }

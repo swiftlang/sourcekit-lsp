@@ -1,0 +1,5 @@
+{
+    "indexStorePath": "/tmp/index/store",
+    "serverPath": "/usr/bin/true",
+    "serverFlags": ["-a", "-b"]
+}
