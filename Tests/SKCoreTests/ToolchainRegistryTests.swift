@@ -165,6 +165,12 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNotNil(tc)
     XCTAssertEqual(tc?.identifier, "org.fake.explicit")
 
+    let tcBin = Toolchain(path.appending(components: "usr", "bin"), fs)
+    XCTAssertNotNil(tcBin)
+    XCTAssertEqual(tc?.identifier, tcBin?.identifier)
+    XCTAssertEqual(tc?.path, tcBin?.path)
+    XCTAssertEqual(tc?.displayName, tcBin?.displayName)
+
     let overrideReg = ToolchainRegistry(fs)
     overrideReg.darwinToolchainOverride = "org.fake.global.B"
     XCTAssertEqual(overrideReg.darwinToolchainIdentifier, "org.fake.global.B")

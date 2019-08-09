@@ -93,23 +93,14 @@ extension Toolchain {
   /// * `path/bin`, `path/lib`
   /// * `path/usr/bin`, `path/usr/lib`
   ///
-  /// If `path` has an ".xctoolchain" extension, we try to read an Info.plist file to provide the
+  /// If `path` contains an ".xctoolchain", we try to read an Info.plist file to provide the
   /// toolchain identifier, etc.  Otherwise this information is derived from the path.
   convenience public init?(_ path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) {
-    if path.extension == "xctoolchain",
-       let infoPlist = orLog("", {
-         try XCToolchainPlist(fromDirectory: path, fileSystem) })
-    {
-      self.init(
-        identifier: infoPlist.identifier,
-        displayName:
-          infoPlist.displayName ?? String(path.basename.dropLast(path.suffix?.count ?? 0)),
-        path: path)
+    if let (infoPlist, xctoolchainPath) = containingXCToolchain(path, fileSystem) {
+      let displayName = infoPlist.displayName ?? xctoolchainPath.basenameWithoutExt
+      self.init(identifier: infoPlist.identifier, displayName: displayName, path: xctoolchainPath)
     } else {
-      self.init(
-        identifier: path.pathString,
-        displayName: path.basename,
-        path: path)
+      self.init(identifier: path.pathString, displayName: path.basename, path: path)
     }
 
     if !searchForTools(path, fileSystem) {
@@ -174,4 +165,22 @@ extension Toolchain {
 
     return foundAny
   }
+}
+
+/// Find a containing xctoolchain with plist, if available.
+func containingXCToolchain(
+  _ path: AbsolutePath,
+  _ fileSystem: FileSystem) -> (XCToolchainPlist, AbsolutePath)?
+{
+  var path = path
+  while !path.isRoot {
+    if path.extension == "xctoolchain" {
+      if let infoPlist = orLog("", { try XCToolchainPlist(fromDirectory: path, fileSystem) }) {
+        return (infoPlist, path)
+      }
+      return nil
+    }
+    path = path.parentDirectory
+  }
+  return nil
 }
