@@ -18,7 +18,7 @@ import Basic
 import SPMUtility
 import SKSwiftPMWorkspace
 
-/// Represents the configuration and sate of a project or combination of projects being worked on
+/// Represents the configuration and state of a project or combination of projects being worked on
 /// together.
 ///
 /// In LSP, this represents the per-workspace state that is typically only available after the
@@ -82,13 +82,16 @@ public final class Workspace {
     let settings = BuildSystemList()
     self.buildSettings = settings
 
-    settings.providers.insert(CompilationDatabaseBuildSystem(projectRoot: rootPath), at: 0)
-
-    if let swiftpm = SwiftPMWorkspace(url: url,
-                                      toolchainRegistry: toolchainRegistry,
-                                      buildSetup: buildSetup
-      ) {
-      settings.providers.insert(swiftpm, at: 0)
+    if let buildServer = BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup),
+      buildServer.initialize() {
+      settings.providers.insert(buildServer, at: 0)
+    } else {
+      settings.providers.insert(CompilationDatabaseBuildSystem(projectRoot: rootPath), at: 0)
+      if let swiftpm = SwiftPMWorkspace(url: url,
+                                        toolchainRegistry: toolchainRegistry,
+                                        buildSetup: buildSetup) {
+        settings.providers.insert(swiftpm, at: 0)
+      }
     }
 
     if let storePath = buildSettings.indexStorePath,

@@ -18,6 +18,7 @@ let package = Package(
         name: "SourceKit",
 
         dependencies: [
+          "BuildServerProtocol",
           "LanguageServerProtocol",
           "SKCore",
           "Csourcekitd",
@@ -50,7 +51,7 @@ let package = Package(
       // suitable for use in other packages.
       .target(
         name: "SKCore",
-        dependencies: ["LanguageServerProtocol"]),
+        dependencies: ["BuildServerProtocol", "LanguageServerProtocol", "LanguageServerProtocolJSONRPC"]),
       .testTarget(
         name: "SKCoreTests",
         dependencies: ["SKCore", "SKTestSupport"]),
@@ -70,6 +71,11 @@ let package = Package(
       .testTarget(
         name: "LanguageServerProtocolTests",
         dependencies: ["LanguageServerProtocol", "SKTestSupport"]),
+
+      // BuildServerProtocol: connection between build server and language server to provide build and index info
+      .target(
+        name: "BuildServerProtocol",
+        dependencies: ["LanguageServerProtocolJSONRPC", "LanguageServerProtocol"]),
 
       // SKSupport: Data structures, algorithms and platform-abstraction code that might be generally
       // useful to any Swift package. Similar in spirit to SwiftPM's Basic module.
