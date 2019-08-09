@@ -150,7 +150,7 @@ public final class JSONRPCConection {
 
     MESSAGE_LOOP: while true {
       do {
-        guard let ((messageBytes, _), rest) = try bytes.splitMessage() else {
+        guard let ((messageBytes, _), rest) = try bytes.jsonrpcSplitMessage() else {
           return bytes
         }
         bytes = rest
