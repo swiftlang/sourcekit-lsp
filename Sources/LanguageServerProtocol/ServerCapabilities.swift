@@ -24,6 +24,9 @@ public struct ServerCapabilities: Codable, Hashable {
   /// Whether the server provides "textDocument/definition".
   public var definitionProvider: Bool?
 
+  /// Whether the server provides "textDocument/implementation".
+  public var implementationProvider: Bool?
+
   /// Whether the server provides "textDocument/references".
   public var referencesProvider: Bool?
 
@@ -53,7 +56,7 @@ public struct ServerCapabilities: Codable, Hashable {
 
   /// The server provides workspace symbol support.
   public var workspaceSymbolProvider: Bool?
-
+  
   // TODO: fill-in the rest.
 
   public init(
@@ -61,6 +64,7 @@ public struct ServerCapabilities: Codable, Hashable {
     completionProvider: CompletionOptions? = nil,
     hoverProvider: Bool? = nil,
     definitionProvider: Bool? = nil,
+    implementationProvider: Bool? = nil,
     referencesProvider: Bool? = nil,
     documentHighlightProvider: Bool? = nil,
     documentFormattingProvider: Bool? = nil,
@@ -77,6 +81,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.completionProvider = completionProvider
     self.hoverProvider = hoverProvider
     self.definitionProvider = definitionProvider
+    self.implementationProvider = implementationProvider
     self.referencesProvider = referencesProvider
     self.documentHighlightProvider = documentHighlightProvider
     self.documentFormattingProvider = documentFormattingProvider
@@ -94,6 +99,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.completionProvider = try container.decodeIfPresent(CompletionOptions.self, forKey: .completionProvider)
     self.hoverProvider = try container.decodeIfPresent(Bool.self, forKey: .hoverProvider)
     self.definitionProvider = try container.decodeIfPresent(Bool.self, forKey: .definitionProvider)
+    self.implementationProvider = try container.decodeIfPresent(Bool.self, forKey: .implementationProvider)
     self.foldingRangeProvider = try container.decodeIfPresent(Bool.self, forKey: .foldingRangeProvider)
     self.documentSymbolProvider = try container.decodeIfPresent(Bool.self, forKey: .documentSymbolProvider)
     self.colorProvider = try container.decodeIfPresent(Bool.self, forKey: .colorProvider)

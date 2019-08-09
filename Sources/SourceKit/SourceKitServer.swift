@@ -73,6 +73,7 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceRequest(SourceKitServer.hover)
     registerWorkspaceRequest(SourceKitServer.workspaceSymbols)
     registerWorkspaceRequest(SourceKitServer.definition)
+    registerWorkspaceRequest(SourceKitServer.implementation)
     registerWorkspaceRequest(SourceKitServer.references)
     registerWorkspaceRequest(SourceKitServer.documentSymbolHighlight)
     registerWorkspaceRequest(SourceKitServer.foldingRange)
@@ -261,6 +262,7 @@ extension SourceKitServer {
       ),
       hoverProvider: true,
       definitionProvider: true,
+      implementationProvider: true,
       referencesProvider: true,
       documentHighlightProvider: true,
       foldingRangeProvider: true,
@@ -462,6 +464,55 @@ extension SourceKitServer {
       }
 
       req.reply(locations.isEmpty ? fallbackLocation : locations)
+    }
+    req.cancellationToken.addCancellationHandler { [weak service] in
+      service?.send(CancelRequest(id: id))
+    }
+  }
+
+  // FIXME: a lot of duplication with definition request
+  func implementation(_ req: Request<ImplementationRequest>, workspace: Workspace) {
+    // FIXME: sending yourself a request isn't very convenient
+
+    guard let service = workspace.documentService[req.params.textDocument.url] else {
+      req.reply([])
+      return
+    }
+
+    let id = service.send(SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position), queue: queue) { result in
+      guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
+        if let error = result.failure {
+          req.reply(.failure(error))
+        } else {
+          req.reply([])
+        }
+        return
+      }
+
+      guard let usr = symbol.usr, let index = workspace.index else {
+        return req.reply([])
+      }
+    
+      var occurs = index.occurrences(ofUSR: usr, roles: .baseOf)
+      if occurs.isEmpty {
+        occurs = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
+      }
+
+      let locations = occurs.compactMap { occur -> Location? in
+        if occur.location.path.isEmpty {
+          return nil
+        }
+        return Location(
+          url: URL(fileURLWithPath: occur.location.path),
+          range: Range(Position(
+            line: occur.location.line - 1, // 1-based -> 0-based
+            // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+            utf16index: occur.location.utf8Column - 1
+            ))
+        )
+      }
+
+      req.reply(locations)
     }
     req.cancellationToken.addCancellationHandler { [weak service] in
       service?.send(CancelRequest(id: id))

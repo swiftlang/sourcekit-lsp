@@ -82,6 +82,7 @@ final class CodingTests: XCTestCase {
         triggerCharacters: ["."]),
       hoverProvider: nil,
       definitionProvider: nil,
+      implementationProvider: nil,
       referencesProvider: nil,
       documentHighlightProvider: nil,
       foldingRangeProvider: nil,

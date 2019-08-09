@@ -194,6 +194,7 @@ extension SwiftLanguageServer {
         triggerCharacters: ["."]),
       hoverProvider: true,
       definitionProvider: nil,
+      implementationProvider: true,
       referencesProvider: nil,
       documentHighlightProvider: true,
       foldingRangeProvider: true,
