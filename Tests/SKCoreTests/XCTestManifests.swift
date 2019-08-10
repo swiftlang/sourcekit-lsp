@@ -42,6 +42,8 @@ extension ToolchainRegistryTests {
         ("testDuplicateXcodeError", testDuplicateXcodeError),
         ("testDylibNames", testDylibNames),
         ("testFromDirectory", testFromDirectory),
+        ("testInstallPath", testInstallPath),
+        ("testInstallPathVsEnv", testInstallPathVsEnv),
         ("testMultipleXcodes", testMultipleXcodes),
         ("testSearchDarwin", testSearchDarwin),
         ("testSearchExplicitEnv", testSearchExplicitEnv),
