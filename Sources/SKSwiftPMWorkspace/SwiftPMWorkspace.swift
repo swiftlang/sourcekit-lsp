@@ -69,7 +69,7 @@ public final class SwiftPMWorkspace {
 
     self.packageRoot = resolveSymlinks(packageRoot)
 
-    guard let destinationToolchainBinDir = toolchainRegistry.default?.path?.appending(components: "usr", "bin") else {
+    guard let destinationToolchainBinDir = toolchainRegistry.default?.swiftc?.parentDirectory else {
         throw Error.cannotDetermineHostToolchain
     }
 

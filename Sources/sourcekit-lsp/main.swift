@@ -69,6 +69,9 @@ do {
   exit(1)
 }
 
+let installPath = AbsolutePath(Bundle.main.bundlePath)
+ToolchainRegistry.shared = ToolchainRegistry(installPath: installPath, localFileSystem)
+
 let server = SourceKitServer(client: clientConnection, buildSetup: buildSetup, onExit: {
   clientConnection.close()
 })

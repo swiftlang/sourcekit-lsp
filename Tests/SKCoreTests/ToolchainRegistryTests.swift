@@ -165,6 +165,18 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNotNil(tc)
     XCTAssertEqual(tc?.identifier, "org.fake.explicit")
 
+    let tcBin = Toolchain(path.appending(components: "usr", "bin"), fs)
+    XCTAssertNotNil(tcBin)
+    XCTAssertEqual(tc?.identifier, tcBin?.identifier)
+    XCTAssertEqual(tc?.path, tcBin?.path)
+    XCTAssertEqual(tc?.displayName, tcBin?.displayName)
+
+
+    let trInstall = ToolchainRegistry()
+    trInstall.scanForToolchains(installPath: path.appending(components: "usr", "bin"), environmentVariables: [], xcodes: [], xctoolchainSearchPaths: [], pathVariables: [], fs)
+    XCTAssertEqual(trInstall.default?.identifier, "org.fake.explicit")
+    XCTAssertEqual(trInstall.default?.path, path)
+
     let overrideReg = ToolchainRegistry(fs)
     overrideReg.darwinToolchainOverride = "org.fake.global.B"
     XCTAssertEqual(overrideReg.darwinToolchainIdentifier, "org.fake.global.B")
@@ -411,6 +423,36 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssert(toolchains.count == 2)
     XCTAssert(toolchains[0] === xcodeA)
     XCTAssert(toolchains[1] === xcodeB)
+  }
+
+  func testInstallPath() {
+    let fs = InMemoryFileSystem()
+    makeToolchain(binPath: AbsolutePath("/t1/bin"), fs, sourcekitd: true)
+
+    let trEmpty = ToolchainRegistry(installPath: nil, fs)
+    XCTAssertNil(trEmpty.default)
+
+    let tr1 = ToolchainRegistry(installPath: AbsolutePath("/t1/bin"), fs)
+    XCTAssertEqual(tr1.default?.path, AbsolutePath("/t1/bin"))
+    XCTAssertNotNil(tr1.default?.sourcekitd)
+
+    let tr2 = ToolchainRegistry(installPath: AbsolutePath("/t2/bin"), fs)
+    XCTAssertNil(tr2.default)
+  }
+
+  func testInstallPathVsEnv() {
+    let fs = InMemoryFileSystem()
+    makeToolchain(binPath: AbsolutePath("/t1/bin"), fs, sourcekitd: true)
+    makeToolchain(binPath: AbsolutePath("/t2/bin"), fs, sourcekitd: true)
+
+    try! ProcessEnv.setVar("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: "/t2/bin")
+
+    let tr = ToolchainRegistry()
+    tr.scanForToolchains(installPath: AbsolutePath("/t1/bin"), environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"], fs)
+    XCTAssertEqual(tr.toolchains.count, 2)
+
+    // Env variable wins.
+    XCTAssertEqual(tr.default?.path, AbsolutePath("/t2/bin"))
   }
 }
 
