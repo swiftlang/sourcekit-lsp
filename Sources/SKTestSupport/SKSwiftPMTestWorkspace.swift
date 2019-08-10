@@ -107,26 +107,15 @@ extension SKSwiftPMTestWorkspace {
     index.pollForUnitChangesAndWait()
   }
 
-  public enum Error: Swift.Error {
-    case buildFailure(Foundation.Process.TerminationReason, exitCode: Int32)
-  }
-
   func build() throws {
-    let p = Process()
-    p.launchPath = String(toolchain.swiftc!.pathString.dropLast())
-    p.arguments = [
+    try Basic.Process.checkNonZeroExit(arguments: [
+      String(toolchain.swiftc!.pathString.dropLast()),
       "build",
       "--package-path", sources.rootDirectory.path,
       "--build-path", buildDir.path,
       "-Xswiftc", "-index-ignore-system-modules",
       "-Xcc", "-index-ignore-system-symbols",
-    ]
-
-    p.launch()
-    p.waitUntilExit()
-    if p.terminationReason != .exit || p.terminationStatus != 0 {
-      throw Error.buildFailure(p.terminationReason, exitCode: p.terminationStatus)
-    }
+    ])
   }
 }
 
