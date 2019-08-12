@@ -78,6 +78,7 @@ def main():
     parser.add_argument('--ninja-bin', metavar='PATH', help='ninja binary to use for testing')
     parser.add_argument('--build-path', metavar='PATH', default='.build', help='build in the given path')
     parser.add_argument('--configuration', '-c', default='debug', help='build using configuration (release|debug)')
+    parser.add_argument('--no-local-deps', action='store_true', help='use normal remote dependencies when building')
     parser.add_argument('--verbose', '-v', action='store_true', help='enable verbose output')
 
   subparsers = parser.add_subparsers(title='subcommands', dest='action', metavar='action')
@@ -108,7 +109,8 @@ def main():
   # Set the toolchain used in tests at runtime
   env['SOURCEKIT_TOOLCHAIN_PATH'] = args.toolchain
   # Use local dependencies (i.e. checked out next sourcekit-lsp).
-  env['SWIFTCI_USE_LOCAL_DEPS'] = "1"
+  if not args.no_local_deps:
+    env['SWIFTCI_USE_LOCAL_DEPS'] = "1"
 
   if args.ninja_bin:
     env['NINJA_BIN'] = args.ninja_bin
