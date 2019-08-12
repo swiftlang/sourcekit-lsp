@@ -15,6 +15,7 @@ def swiftpm(action, swift_exec, swiftpm_args, env=None):
   subprocess.check_call(cmd, env=env)
 
 def swiftpm_bin_path(swift_exec, swiftpm_args, env=None):
+  swiftpm_args = filter(lambda arg: arg != '-v' and arg != '--verbose', swiftpm_args)
   cmd = [swift_exec, 'build', '--show-bin-path'] + swiftpm_args
   print(' '.join(cmd))
   return subprocess.check_output(cmd, env=env).strip()
@@ -29,7 +30,13 @@ def get_swiftpm_options(args):
   if args.verbose:
     swiftpm_args += ['--verbose']
 
-  if platform.system() != 'Darwin':
+  if platform.system() == 'Darwin':
+    swiftpm_args += [
+      # Relative library rpath for swift; will only be used when /usr/lib/swift
+      # is not available.
+      '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../lib/swift/macosx',
+    ]
+  else:
     swiftpm_args += [
       # Dispatch headers
       '-Xcxx', '-I', '-Xcxx',
@@ -37,9 +44,31 @@ def get_swiftpm_options(args):
       # For <Block.h>
       '-Xcxx', '-I', '-Xcxx',
       os.path.join(args.toolchain, 'usr', 'lib', 'swift', 'Block'),
+      # Library rpath for swift, dispatch, Foundation, etc. when installing
+      '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/linux',
     ]
 
   return swiftpm_args
+
+def install(swiftpm_bin_path, toolchain):
+  toolchain_bin = os.path.join(toolchain, 'usr', 'bin')
+  for exe in ['sourcekit-lsp']:
+    install_binary(exe, swiftpm_bin_path, toolchain_bin, toolchain)
+
+def install_binary(exe, source_dir, install_dir, toolchain):
+  cmd = ['rsync', '-a', os.path.join(source_dir, exe), install_dir]
+  print(' '.join(cmd))
+  subprocess.check_call(cmd)
+
+  if platform.system() == 'Darwin':
+    result_path = os.path.join(install_dir, exe)
+    stdlib_rpath = os.path.join(toolchain, 'usr', 'lib', 'swift', 'macosx')
+    delete_rpath(stdlib_rpath, result_path)
+
+def delete_rpath(rpath, binary):
+  cmd = ["install_name_tool", "-delete_rpath", rpath, binary]
+  print(' '.join(cmd))
+  subprocess.check_call(cmd)
 
 def main():
   parser = argparse.ArgumentParser(description='Build along with the Swift build-script.')
@@ -49,6 +78,7 @@ def main():
     parser.add_argument('--ninja-bin', metavar='PATH', help='ninja binary to use for testing')
     parser.add_argument('--build-path', metavar='PATH', default='.build', help='build in the given path')
     parser.add_argument('--configuration', '-c', default='debug', help='build using configuration (release|debug)')
+    parser.add_argument('--no-local-deps', action='store_true', help='use normal remote dependencies when building')
     parser.add_argument('--verbose', '-v', action='store_true', help='enable verbose output')
 
   subparsers = parser.add_subparsers(title='subcommands', dest='action', metavar='action')
@@ -57,6 +87,9 @@ def main():
 
   test_parser = subparsers.add_parser('test', help='test the package')
   add_common_args(test_parser)
+
+  install_parser = subparsers.add_parser('install', help='build the package')
+  add_common_args(install_parser)
 
   args = parser.parse_args(sys.argv[1:])
 
@@ -76,7 +109,8 @@ def main():
   # Set the toolchain used in tests at runtime
   env['SOURCEKIT_TOOLCHAIN_PATH'] = args.toolchain
   # Use local dependencies (i.e. checked out next sourcekit-lsp).
-  env['SWIFTCI_USE_LOCAL_DEPS'] = "1"
+  if not args.no_local_deps:
+    env['SWIFTCI_USE_LOCAL_DEPS'] = "1"
 
   if args.ninja_bin:
     env['NINJA_BIN'] = args.ninja_bin
@@ -89,6 +123,10 @@ def main():
     print('Cleaning ' + tests)
     shutil.rmtree(tests, ignore_errors=True)
     swiftpm('test', swift_exec, swiftpm_args, env)
+  elif args.action == 'install':
+    bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
+    swiftpm('build', swift_exec, swiftpm_args, env)
+    install(bin_path, args.toolchain)
   else:
     assert False, 'unknown action \'{}\''.format(args.action)
 
