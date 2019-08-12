@@ -15,6 +15,7 @@ def swiftpm(action, swift_exec, swiftpm_args, env=None):
   subprocess.check_call(cmd, env=env)
 
 def swiftpm_bin_path(swift_exec, swiftpm_args, env=None):
+  swiftpm_args = filter(lambda arg: arg != '-v' and arg != '--verbose', swiftpm_args)
   cmd = [swift_exec, 'build', '--show-bin-path'] + swiftpm_args
   print(' '.join(cmd))
   return subprocess.check_output(cmd, env=env).strip()
