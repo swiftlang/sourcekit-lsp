@@ -216,7 +216,6 @@ extension SwiftPMWorkspace: BuildSystem {
 
   public func toolchain(for: LanguageServerProtocol.URL, _ language: Language) -> SKCore.Toolchain? {
     return nil
-    
   }
 
   /// Returns the resolved target description for the given file, if one is known.
