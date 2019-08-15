@@ -28,7 +28,6 @@ final class FallbackBuildSystemTests: XCTestCase {
     XCTAssertNil(bs.indexDatabasePath)
 
     let settings = bs.settings(for: source.asURL, .swift)!
-    XCTAssertNil(settings.preferredToolchain)
     XCTAssertNil(settings.workingDirectory)
 
     let args = settings.compilerArguments
@@ -53,7 +52,6 @@ final class FallbackBuildSystemTests: XCTestCase {
     bs.sdkpath = sdk
 
     let settings = bs.settings(for: source.asURL, .cpp)!
-    XCTAssertNil(settings.preferredToolchain)
     XCTAssertNil(settings.workingDirectory)
 
     let args = settings.compilerArguments

@@ -107,7 +107,7 @@ public final class Logger {
   }
 
   public func setLogLevel(environmentVariable: String) {
-    if let string = Process.env[environmentVariable],
+    if let string = ProcessEnv.vars[environmentVariable],
        let level = try? LogLevel(argument: string)
     {
       currentLevel = level

@@ -50,6 +50,8 @@ public final class FallbackBuildSystem: BuildSystem {
     }
   }
 
+  public func toolchain(for: URL, _ language: Language) -> Toolchain? { return nil }
+
   func settingsSwift(_ path: AbsolutePath) -> FileBuildSettings {
     var args: [String] = []
     if let sdkpath = sdkpath {

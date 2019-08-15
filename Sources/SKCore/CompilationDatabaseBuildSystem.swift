@@ -48,6 +48,8 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     )
   }
 
+  public func toolchain(for: URL, _ language: Language) -> Toolchain? { return nil }
+
   func database(for url: URL) -> CompilationDatabase? {
     if let path = try? AbsolutePath(validating: url.path) {
       return database(for: path)

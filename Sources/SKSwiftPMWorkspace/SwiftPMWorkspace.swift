@@ -214,6 +214,11 @@ extension SwiftPMWorkspace: BuildSystem {
     return nil
   }
 
+  public func toolchain(for: LanguageServerProtocol.URL, _ language: Language) -> SKCore.Toolchain? {
+    return nil
+    
+  }
+
   /// Returns the resolved target description for the given file, if one is known.
   func targetDescription(for file: AbsolutePath) -> TargetBuildDescription? {
     if let td = fileToTarget[file] {
