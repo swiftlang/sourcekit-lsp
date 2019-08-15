@@ -45,7 +45,6 @@ public struct TestSourceKitServer {
   public let server: SourceKitServer?
 
   public init(connectionKind: ConnectionKind = .local) {
-     _ = initRequestsOnce
 
     switch connectionKind {
       case .local:
@@ -71,10 +70,12 @@ public struct TestSourceKitServer {
         _ = Unmanaged.passRetained(serverToClient)
 
         let clientConnection = JSONRPCConection(
+          messageRegistry: MessageRegistry.lspMessageRegistry,
           inFD: serverToClient.fileHandleForReading.fileDescriptor,
           outFD: clientToServer.fileHandleForWriting.fileDescriptor
         )
         let serverConnection = JSONRPCConection(
+          messageRegistry: MessageRegistry.lspMessageRegistry,
           inFD: clientToServer.fileHandleForReading.fileDescriptor,
           outFD: serverToClient.fileHandleForWriting.fileDescriptor
         )

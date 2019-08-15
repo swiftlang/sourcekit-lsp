@@ -10,22 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Dispatch
 
 public final class MessageRegistry {
 
-  private(set)
-  var methodToRequest: [String: _RequestType.Type] = {
-    Dictionary(uniqueKeysWithValues: builtinRequests.map { ($0.method, $0) })
-  }()
+  public static let lspMessageRegistry: MessageRegistry =
+    MessageRegistry(requests: builtinRequests, notifications: builtinNotifications)
 
-  private(set)
-  var methodToNotification: [String: NotificationType.Type] = {
-    Dictionary(uniqueKeysWithValues: builtinNotifications.map { ($0.method, $0) })
-  }()
+  private let methodToRequest: [String: _RequestType.Type]
+  private let methodToNotification: [String: NotificationType.Type]
 
-  /// The global message registry.
-  public static let shared: MessageRegistry = .init()
+  public init(requests: [_RequestType.Type], notifications: [NotificationType.Type]) {
+    self.methodToRequest = Dictionary(uniqueKeysWithValues: requests.map { ($0.method, $0) })
+    self.methodToNotification = Dictionary(uniqueKeysWithValues: notifications.map { ($0.method, $0) })
+  }
 
   /// Returns the type of the message named `method`, or nil if it is unknown.
   public func requestType(for method: String) -> _RequestType.Type? {
@@ -37,15 +34,4 @@ public final class MessageRegistry {
     return methodToNotification[method]
   }
 
-  /// Adds a new message type to the registry. **For test messages only; not thread-safe!**.
-  public func _register(_ type: _RequestType.Type) {
-    precondition(methodToRequest[type.method] == nil)
-    methodToRequest[type.method] = type
-  }
-
-  /// Adds a new message type to the registry. **For test messages only; not thread-safe!**.
-  public func _register(_ type: NotificationType.Type) {
-    precondition(methodToNotification[type.method] == nil)
-    methodToNotification[type.method] = type
-  }
 }

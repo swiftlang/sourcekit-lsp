@@ -53,7 +53,11 @@ func parseArguments() throws -> BuildSetup {
     flags: buildFlags)
 }
 
-let clientConnection = JSONRPCConection(inFD: STDIN_FILENO, outFD: STDOUT_FILENO, closeHandler: {
+let clientConnection = JSONRPCConection(
+  messageRegistry: MessageRegistry.lspMessageRegistry,
+  inFD: STDIN_FILENO,
+  outFD: STDOUT_FILENO,
+  closeHandler: {
   exit(0)
 })
 
