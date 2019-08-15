@@ -59,7 +59,7 @@ public final class FallbackBuildSystem: BuildSystem {
       ]
     }
     args.append(path.pathString)
-    return FileBuildSettings(preferredToolchain: nil, compilerArguments: args)
+    return FileBuildSettings(compilerArguments: args)
   }
 
   func settingsClang(_ path: AbsolutePath, _ language: Language) -> FileBuildSettings {
@@ -71,6 +71,6 @@ public final class FallbackBuildSystem: BuildSystem {
       ]
     }
     args.append(path.pathString)
-    return FileBuildSettings(preferredToolchain: nil, compilerArguments: args)
+    return FileBuildSettings(compilerArguments: args)
   }
 }

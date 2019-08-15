@@ -43,7 +43,6 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     guard let db = database(for: url),
           let cmd = db[url].first else { return nil }
     return FileBuildSettings(
-      preferredToolchain: nil, // FIXME: infer from path
       compilerArguments: Array(cmd.commandLine.dropFirst()),
       workingDirectory: cmd.directory
     )
