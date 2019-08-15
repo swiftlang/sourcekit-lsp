@@ -43,11 +43,12 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     guard let db = database(for: url),
           let cmd = db[url].first else { return nil }
     return FileBuildSettings(
-      preferredToolchain: nil, // FIXME: infer from path
       compilerArguments: Array(cmd.commandLine.dropFirst()),
       workingDirectory: cmd.directory
     )
   }
+
+  public func toolchain(for: URL, _ language: Language) -> Toolchain? { return nil }
 
   func database(for url: URL) -> CompilationDatabase? {
     if let path = try? AbsolutePath(validating: url.path) {

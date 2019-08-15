@@ -38,4 +38,8 @@ extension BuildSystemList: BuildSystem {
     }
     return nil
   }
+
+  public func toolchain(for url: URL, _ language: Language) -> Toolchain? {
+    return providers.first?.toolchain(for: url, language)
+  }
 }

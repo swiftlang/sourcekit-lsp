@@ -214,6 +214,10 @@ extension SwiftPMWorkspace: BuildSystem {
     return nil
   }
 
+  public func toolchain(for: LanguageServerProtocol.URL, _ language: Language) -> SKCore.Toolchain? {
+    return nil
+  }
+
   /// Returns the resolved target description for the given file, if one is known.
   func targetDescription(for file: AbsolutePath) -> TargetBuildDescription? {
     if let td = fileToTarget[file] {
@@ -257,10 +261,7 @@ extension SwiftPMWorkspace {
     func impl(_ path: AbsolutePath) -> FileBuildSettings? {
       for package in packageGraph.packages where path == package.manifest.path {
         let compilerArgs = workspace.interpreterFlags(for: package.path) + [path.pathString]
-        return FileBuildSettings(
-          preferredToolchain: nil,
-          compilerArguments: compilerArgs
-        )
+        return FileBuildSettings(compilerArguments: compilerArgs)
       }
       return nil
     }
@@ -319,7 +320,6 @@ extension SwiftPMWorkspace {
     args += td.compileArguments()
 
     return FileBuildSettings(
-      preferredToolchain: nil,
       compilerArguments: args,
       workingDirectory: workspacePath.pathString)
   }
@@ -382,7 +382,6 @@ extension SwiftPMWorkspace {
     }
 
     return FileBuildSettings(
-      preferredToolchain: nil,
       compilerArguments: args,
       workingDirectory: workspacePath.pathString)
   }

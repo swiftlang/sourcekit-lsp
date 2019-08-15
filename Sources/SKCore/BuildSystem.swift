@@ -32,5 +32,8 @@ public protocol BuildSystem {
   /// Returns the settings for the given url and language mode, if known.
   func settings(for: URL, _ language: Language) -> FileBuildSettings?
 
+  /// Returns the toolchain to use to compile this file
+  func toolchain(for: URL, _ language: Language) -> Toolchain?
+
   // TODO: notifications when settings change.
 }

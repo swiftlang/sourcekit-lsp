@@ -50,6 +50,8 @@ public final class FallbackBuildSystem: BuildSystem {
     }
   }
 
+  public func toolchain(for: URL, _ language: Language) -> Toolchain? { return nil }
+
   func settingsSwift(_ path: AbsolutePath) -> FileBuildSettings {
     var args: [String] = []
     if let sdkpath = sdkpath {
@@ -59,7 +61,7 @@ public final class FallbackBuildSystem: BuildSystem {
       ]
     }
     args.append(path.pathString)
-    return FileBuildSettings(preferredToolchain: nil, compilerArguments: args)
+    return FileBuildSettings(compilerArguments: args)
   }
 
   func settingsClang(_ path: AbsolutePath, _ language: Language) -> FileBuildSettings {
@@ -71,6 +73,6 @@ public final class FallbackBuildSystem: BuildSystem {
       ]
     }
     args.append(path.pathString)
-    return FileBuildSettings(preferredToolchain: nil, compilerArguments: args)
+    return FileBuildSettings(compilerArguments: args)
   }
 }

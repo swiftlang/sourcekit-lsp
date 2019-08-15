@@ -12,13 +12,9 @@
 
 /// Build settings for a single file.
 ///
-/// Encapsulates all the settings needed to compile a single file, including the compiler arguments,
-/// working directory, and preferred toolchain if any. FileBuildSettings are typically the result
-/// of a BuildSystem query.
+/// Encapsulates all the settings needed to compile a single file, including the compiler arguments
+/// and working directory. FileBuildSettings are typically the result of a BuildSystem query.
 public struct FileBuildSettings {
-
-  /// The Toolchain that is preferred for compiling this file, if any.
-  public var preferredToolchain: Toolchain? = nil
 
   /// The compiler arguments to use for this file.
   public var compilerArguments: [String]
@@ -27,11 +23,9 @@ public struct FileBuildSettings {
   public var workingDirectory: String? = nil
 
   public init(
-    preferredToolchain: Toolchain? = nil,
     compilerArguments: [String],
     workingDirectory: String? = nil)
   {
-    self.preferredToolchain = preferredToolchain
     self.compilerArguments = compilerArguments
     self.workingDirectory = workingDirectory
   }
