@@ -15,6 +15,7 @@ import SKCore
 import SKSupport
 import Basic
 import sourcekitd
+import Dispatch
 import struct Foundation.CharacterSet
 
 public final class SwiftLanguageServer: LanguageServer {
@@ -63,6 +64,10 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.documentSymbolHighlight)
     _register(SwiftLanguageServer.foldingRange)
     _register(SwiftLanguageServer.symbolInfo)
+    _register(SwiftLanguageServer.documentSymbol)
+    _register(SwiftLanguageServer.documentColor)
+    _register(SwiftLanguageServer.colorPresentation)
+    _register(SwiftLanguageServer.codeAction)
   }
 
   func getDiagnostic(_ diag: SKResponseDictionary, for snapshot: DocumentSnapshot) -> Diagnostic? {
@@ -189,10 +194,17 @@ extension SwiftLanguageServer {
         triggerCharacters: ["."]),
       hoverProvider: true,
       definitionProvider: nil,
+      implementationProvider: true,
       referencesProvider: nil,
       documentHighlightProvider: true,
-      foldingRangeProvider: true
-      )))
+      foldingRangeProvider: true,
+      documentSymbolProvider: true,
+      colorProvider: true,
+      codeActionProvider: CodeActionServerCapabilities(
+        clientCapabilities: request.params.capabilities.textDocument?.codeAction,
+        codeActionOptions: CodeActionOptions(codeActionKinds: nil),
+        supportsCodeActions: false) // TODO: Turn it on after a provider is implemented.
+    )))
   }
 
   func clientInitialized(_: Notification<InitializedNotification>) {
@@ -347,6 +359,13 @@ extension SwiftLanguageServer {
         let insertText: String? = value[self.keys.sourcetext]
         let typeName: String? = value[self.keys.typename]
 
+        let clientCompletionCapabilities = self.clientCapabilities.textDocument?.completion
+        let clientSupportsSnippets = clientCompletionCapabilities?.completionItem?.snippetSupport == true
+        let text = insertText.map {
+          self.rewriteSourceKitPlaceholders(inString: $0, clientSupportsSnippets: clientSupportsSnippets)
+        }
+        let isInsertTextSnippet = clientSupportsSnippets && text != insertText
+
         let kind: sourcekitd_uid_t? = value[self.keys.kind]
         result.items.append(CompletionItem(
           label: name,
@@ -354,8 +373,8 @@ extension SwiftLanguageServer {
           sortText: nil,
           filterText: filterName,
           textEdit: nil,
-          insertText: insertText.map { self.rewriteCompletionPlacholders($0) },
-          insertTextFormat: .snippet,
+          insertText: text,
+          insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
           kind: kind?.asCompletionItemKind(self.values) ?? .value,
           deprecated: nil
         ))
@@ -372,20 +391,21 @@ extension SwiftLanguageServer {
     _ = handle
   }
 
-  func rewriteCompletionPlacholders(_ completion: String) -> String {
-    if !completion.contains("<#") {
-      return completion
-    }
-
-    var result = completion
+  func rewriteSourceKitPlaceholders(inString string: String, clientSupportsSnippets: Bool) -> String {
+    var result = string
     var index = 1
-    while let start = result.range(of: "<#") {
-      guard let end = result[start.upperBound...].range(of: "#>") else {
-        log("invalid placholder in \(completion)", level: .debug)
-        return completion
+    while let start = result.range(of: EditorPlaceholder.placeholderPrefix) {
+      guard let end = result[start.upperBound...].range(of: EditorPlaceholder.placeholderSuffix) else {
+        log("invalid placeholder in \(string)", level: .debug)
+        return string
       }
-      // FIXME: add name to placeholder
-      result.replaceSubrange(start.lowerBound..<end.upperBound, with: "${\(index):value}")
+      let rawPlaceholder = String(result[start.lowerBound..<end.upperBound])
+      guard let displayName = EditorPlaceholder(rawPlaceholder)?.displayName else {
+        log("failed to decode placeholder \(rawPlaceholder) in \(string)", level: .debug)
+        return string
+      }
+      let placeholder = clientSupportsSnippets ? "${\(index):\(displayName)}" : ""
+      result.replaceSubrange(start.lowerBound..<end.upperBound, with: placeholder)
       index += 1
     }
     return result
@@ -439,7 +459,13 @@ extension SwiftLanguageServer {
         return
       }
 
-      var result = "# \(name)"
+      /// Prepend backslash to `*` and `_`, to prevent them
+      /// from being interpreted as markdown.
+      func escapeNameMarkdown(_ str: String) -> String {
+        return String(str.flatMap({ ($0 == "*" || $0 == "_") ? ["\\", $0] : [$0] }))
+      }
+
+      var result = "# \(escapeNameMarkdown(name))"
       if let doc = cursorInfo.documentationXML {
         result += """
 
@@ -469,6 +495,187 @@ extension SwiftLanguageServer {
 
       req.reply([cursorInfo.symbolInfo])
     }
+  }
+
+  func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
+    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
+      log("failed to find snapshot for url \(req.params.textDocument.url)")
+      req.reply(nil)
+      return
+    }
+
+    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
+    skreq[keys.request] = requests.editor_open
+    skreq[keys.name] = "DocumentSymbols:" + snapshot.document.url.path
+    skreq[keys.sourcetext] = snapshot.text
+    skreq[keys.syntactic_only] = 1
+
+    let handle = sourcekitd.send(skreq) { [weak self] result in
+      guard let self = self else { return }
+      guard let dict = result.success else {
+        req.reply(.failure(result.failure!))
+        return
+      }
+      guard let results: SKResponseArray = dict[self.keys.substructure] else {
+        return req.reply([])
+      }
+
+      func documentSymbol(value: SKResponseDictionary) -> DocumentSymbol? {
+        guard let name: String = value[self.keys.name],
+              let uid: sourcekitd_uid_t = value[self.keys.kind],
+              let kind: SymbolKind = uid.asSymbolKind(self.values),
+              let offset: Int = value[self.keys.offset],
+              let start: Position = snapshot.positionOf(utf8Offset: offset),
+              let length: Int = value[self.keys.length],
+              let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
+          return nil
+        }
+        
+        let range = PositionRange(start..<end)
+        let selectionRange: PositionRange
+        if let nameOffset: Int = value[self.keys.nameoffset],
+           let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
+           let nameLength: Int = value[self.keys.namelength],
+           let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
+          selectionRange = PositionRange(nameStart..<nameEnd)
+        } else {
+          selectionRange = range
+        }
+
+        let children: [DocumentSymbol]?
+        if let substructure: SKResponseArray = value[self.keys.substructure] {
+          children = documentSymbols(array: substructure)
+        } else {
+          children = nil
+        }
+        return DocumentSymbol(name: name,
+                              detail: nil,
+                              kind: kind,
+                              deprecated: nil,
+                              range: range,
+                              selectionRange: selectionRange,
+                              children: children)
+      }
+
+      func documentSymbols(array: SKResponseArray) -> [DocumentSymbol] {
+        var result: [DocumentSymbol] = []
+        array.forEach { (i: Int, value: SKResponseDictionary) in
+          if let documentSymbol = documentSymbol(value: value) {
+            result.append(documentSymbol)
+          } else if let substructure: SKResponseArray = value[self.keys.substructure] {
+            result += documentSymbols(array: substructure)
+          }
+          return true
+        }
+        return result
+      }
+      
+      req.reply(documentSymbols(array: results))
+    }
+    // FIXME: cancellation
+    _ = handle
+    return
+  }
+
+  func documentColor(_ req: Request<DocumentColorRequest>) {
+    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
+      log("failed to find snapshot for url \(req.params.textDocument.url)")
+      req.reply(nil)
+      return
+    }
+
+    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
+    skreq[keys.request] = requests.editor_open
+    skreq[keys.name] = "DocumentColor:" + snapshot.document.url.path
+    skreq[keys.sourcetext] = snapshot.text
+    skreq[keys.syntactic_only] = 1
+
+    let handle = sourcekitd.send(skreq) { [weak self] result in      
+      guard let self = self else { return }
+      guard let dict = result.success else {
+        req.reply(.failure(result.failure!))
+        return
+      }
+      
+      guard let results: SKResponseArray = dict[self.keys.substructure] else {
+        return req.reply([])
+      }
+      
+      func colorInformation(dict: SKResponseDictionary) -> ColorInformation? {
+        guard let kind: sourcekitd_uid_t = dict[self.keys.kind],
+              kind == self.values.expr_object_literal,
+              let name: String = dict[self.keys.name],
+              name == "colorLiteral",
+              let offset: Int = dict[self.keys.offset],
+              let start: Position = snapshot.positionOf(utf8Offset: offset),
+              let length: Int = dict[self.keys.length],
+              let end: Position = snapshot.positionOf(utf8Offset: offset + length),
+              let substructure: SKResponseArray = dict[self.keys.substructure] else {
+          return nil
+        }
+        var red, green, blue, alpha: Double?
+        substructure.forEach{ (i: Int, value: SKResponseDictionary) in
+          guard let name: String = value[self.keys.name],
+                let bodyoffset: Int = value[self.keys.bodyoffset],
+                let bodylength: Int = value[self.keys.bodylength] else {
+            return true
+          }
+          let view = snapshot.text.utf8
+          let bodyStart = view.index(view.startIndex, offsetBy: bodyoffset)
+          let bodyEnd = view.index(view.startIndex, offsetBy: bodyoffset+bodylength)
+          let value = String(view[bodyStart..<bodyEnd]).flatMap(Double.init)
+          switch name {
+            case "red":
+              red = value
+            case "green":
+              green = value
+            case "blue":
+              blue = value
+            case "alpha":
+              alpha = value
+            default:
+              break
+          }
+          return true
+        }
+        if let red = red,
+           let green = green,
+           let blue = blue,
+           let alpha = alpha {
+          let color = Color(red: red, green: green, blue: blue, alpha: alpha)
+          return ColorInformation(range: start..<end, color: color)
+        } else {
+          return nil
+        }
+      }
+      
+      func colorInformation(array: SKResponseArray) -> [ColorInformation] {
+        var result: [ColorInformation] = []
+        array.forEach { (i: Int, value: SKResponseDictionary) in
+          if let documentSymbol = colorInformation(dict: value) {
+            result.append(documentSymbol)
+          } else if let substructure: SKResponseArray = value[self.keys.substructure] {
+            result += colorInformation(array: substructure)
+          }
+          return true
+        }
+        return result
+      }
+
+      req.reply(colorInformation(array: results))
+    }
+    // FIXME: cancellation
+    _ = handle
+  }
+
+  func colorPresentation(_ req: Request<ColorPresentationRequest>) {
+    let color = req.params.color
+    // Empty string as a label breaks VSCode color picker
+    let label = "Color Literal"
+    let newText = "#colorLiteral(red: \(color.red), green: \(color.green), blue: \(color.blue), alpha: \(color.alpha))"
+    let textEdit = TextEdit(range: req.params.range.asRange, newText: newText)
+    let presentation = ColorPresentation(label: label, textEdit: textEdit, additionalTextEdits: nil)
+    req.reply([presentation])
   }
 
   func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
@@ -653,6 +860,43 @@ extension SwiftLanguageServer {
     }
     ranges.append(range)
   }
+
+  func codeAction(_ req: Request<CodeActionRequest>) {
+    let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
+      //TODO: Implement the providers.
+      //(retrieveRefactorCodeActions, .refactor),
+      //(retrieveQuickFixCodeActions, .quickFix)
+    ]
+    let wantedActionKinds = req.params.context.only
+    let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
+    retrieveCodeActions(req, providers: providers.map { $0.provider }) { codeActions in
+      let capabilities = self.clientCapabilities.textDocument?.codeAction
+      let response = CodeActionRequestResponse(codeActions: codeActions,
+                                               clientCapabilities: capabilities)
+      req.reply(response)
+    }
+  }
+
+  func retrieveCodeActions(_ req: Request<CodeActionRequest>, providers: [CodeActionProvider], completion: @escaping CodeActionProviderCompletion) {
+    guard providers.isEmpty == false else {
+      completion([])
+      return
+    }
+    var codeActions = [CodeAction]()
+    let dispatchGroup = DispatchGroup()
+    (0..<providers.count).forEach { _ in dispatchGroup.enter() }
+    dispatchGroup.notify(queue: queue) {
+      completion(codeActions)
+    }
+    for i in 0..<providers.count {
+      providers[i](req.params) { actions in
+        self.queue.sync {
+          codeActions += actions
+        }
+        dispatchGroup.leave()
+      }
+    }
+  }
 }
 
 extension DocumentSnapshot {
@@ -754,6 +998,41 @@ extension sourcekitd_uid_t {
            vals.decl_var_global,
            vals.decl_var_parameter:
         return .variable
+      default:
+        return nil
+    }
+  }
+
+  func asSymbolKind(_ vals: sourcekitd_values) -> SymbolKind? {
+    switch self {
+      case vals.decl_class:
+        return .class
+      case vals.decl_function_method_instance,
+           vals.decl_function_method_static, 
+           vals.decl_function_method_class:
+        return .method
+      case vals.decl_var_instance, 
+           vals.decl_var_static,
+           vals.decl_var_class:
+        return .property
+      case vals.decl_enum:
+        return .enum
+      case vals.decl_enumelement:
+        return .enumMember
+      case vals.decl_protocol:
+        return .interface
+      case vals.decl_function_free:
+        return .function
+      case vals.decl_var_global, 
+           vals.decl_var_local:
+        return .variable
+      case vals.decl_struct:
+        return .struct
+      case vals.decl_generic_type_param:
+        return .typeParameter
+      case vals.decl_extension:
+        // There are no extensions in LSP, so I return something vaguely similar
+        return .namespace
       default:
         return nil
     }

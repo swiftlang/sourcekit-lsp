@@ -41,7 +41,7 @@ public final class ToolchainRegistry {
   var queue: DispatchQueue = DispatchQueue(label: "toolchain-registry-queue")
 
   /// The currently selected toolchain identifier on Darwin.
-  public internal(set) lazy var darwinToolchainOverride: String? = {
+  public lazy var darwinToolchainOverride: String? = {
     if let id = ProcessEnv.vars["TOOLCHAINS"], !id.isEmpty, id != "default" {
       return id
     }
@@ -68,6 +68,7 @@ extension ToolchainRegistry {
   ///
   /// If called with the default values, creates a toolchain registry that searches:
   /// * env SOURCEKIT_TOOLCHAIN_PATH <-- will override default toolchain
+  /// * installPath <-- will override default toolchain
   /// * (Darwin) The currently selected Xcode
   /// * (Darwin) [~]/Library/Developer/Toolchains
   /// * env SOURCEKIT_PATH, PATH
@@ -77,9 +78,9 @@ extension ToolchainRegistry {
   /// let tr = ToolchainRegistry()
   /// tr.scanForToolchains()
   /// ```
-  public convenience init(_ fileSystem: FileSystem) {
+  public convenience init(installPath: AbsolutePath? = nil, _ fileSystem: FileSystem) {
     self.init()
-    scanForToolchains(fileSystem)
+    scanForToolchains(installPath: installPath, fileSystem)
   }
 }
 
@@ -151,7 +152,7 @@ extension ToolchainRegistry {
 
 extension ToolchainRegistry {
 
-  enum Error: Swift.Error {
+  public enum Error: Swift.Error {
 
     /// There is already a toolchain with the given identifier.
     case duplicateToolchainIdentifier
@@ -222,18 +223,12 @@ extension ToolchainRegistry {
   ///
   /// If called with the default values, creates a toolchain registry that searches:
   /// * env SOURCEKIT_TOOLCHAIN_PATH <-- will override default toolchain
+  /// * installPath <-- will override default toolchain
   /// * (Darwin) The currently selected Xcode
   /// * (Darwin) [~]/Library/Developer/Toolchains
   /// * env SOURCEKIT_PATH, PATH
-  ///
-  /// This is equivalent to
-  /// ```
-  /// tr.scanForToolchains(environmentVariables: environmentVariables, setDefault: true)
-  /// xcodes.forEach { tr.scanForToolchains(xcode: $0) }
-  /// xctoolchainSearchPaths.forEach { tr.scanForToolchains(xctoolchainSearchPath: $0) }
-  /// tr.scanForToolchains(pathVariables: pathVariables)
-  /// ```
   public func scanForToolchains(
+    installPath: AbsolutePath? = nil,
     environmentVariables: [String] = ["SOURCEKIT_TOOLCHAIN_PATH"],
     xcodes: [AbsolutePath] = [currentXcodeDeveloperPath].compactMap({$0}),
     xctoolchainSearchPaths: [AbsolutePath] = [
@@ -245,6 +240,12 @@ extension ToolchainRegistry {
   {
     queue.sync {
       _scanForToolchains(environmentVariables: environmentVariables, setDefault: true, fileSystem)
+      if let installPath = installPath,
+        let toolchain = try? _registerToolchain(installPath, fileSystem),
+        _default == nil
+      {
+        _default = toolchain
+      }
       xcodes.forEach { _scanForToolchains(xcode: $0, fileSystem) }
       xctoolchainSearchPaths.forEach { _scanForToolchains(xctoolchainSearchPath: $0, fileSystem) }
       _scanForToolchains(pathVariables: pathVariables, fileSystem)

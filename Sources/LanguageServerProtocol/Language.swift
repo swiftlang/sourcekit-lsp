@@ -11,23 +11,18 @@
 //===----------------------------------------------------------------------===//
 
 /// A source code language identifier, such as "swift", or "objective-c".
-public enum Language: String, Codable, Hashable {
-  case c
-  case cpp // C++, not C preprocessor
-  case objective_c = "objective-c"
-  case objective_cpp = "objective-cpp"
-  case swift
+public struct Language: RawRepresentable, Codable, Equatable, Hashable {
+  public typealias LanguageId = String
 
-  case unknown
+  public static let c: Language = Language(rawValue: "c")
+  public static let cpp: Language = Language(rawValue: "cpp") // C++, not C preprocessor
+  public static let objective_c: Language = Language(rawValue: "objective-c")
+  public static let objective_cpp: Language = Language(rawValue: "objective-cpp")
+  public static let swift: Language = Language(rawValue: "swift")
 
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    let str = try container.decode(String.self)
-    if let value = Language(rawValue: str) {
-      self = value
-    } else {
-      self = .unknown
-    }
+  public let rawValue: LanguageId
+  public init(rawValue: LanguageId) {
+    self.rawValue = rawValue
   }
 
   /// Clang-compatible language name suitable for use with `-x <language>`.
@@ -38,12 +33,18 @@ public enum Language: String, Codable, Hashable {
       case .cpp: return "c++"
       case .objective_c: return "objective-c"
       case .objective_cpp: return "objective-c++"
-      case .unknown: return nil
+      default: return nil
     }
   }
 
   /// Clang-compatible language name for a header file. See `xflag`.
   public var xflagHeader: String? {
     return xflag.map { "\($0)-header" }
+  }
+}
+
+extension Language: CustomStringConvertible {
+  public var description: String {
+    return rawValue
   }
 }

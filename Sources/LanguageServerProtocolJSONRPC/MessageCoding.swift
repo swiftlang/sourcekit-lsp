@@ -12,7 +12,8 @@
 
 import LanguageServerProtocol
 
-enum Message {
+/// *Public For Testing*. A single JSONRPC message suitable for encoding/decoding.
+public enum JSONRPCMessage {
   case notification(NotificationType)
   case request(_RequestType, id: RequestID)
   case response(ResponseType, id: RequestID)
@@ -23,11 +24,11 @@ extension CodingUserInfoKey {
   public static let responseTypeCallbackKey: CodingUserInfoKey = CodingUserInfoKey(rawValue: "lsp.jsonrpc.responseTypeCallback")!
 }
 
-extension Message: Codable {
+extension JSONRPCMessage: Codable {
 
-  typealias ResponseTypeCallback = (RequestID) -> ResponseType.Type?
+  public typealias ResponseTypeCallback = (RequestID) -> ResponseType.Type?
 
-  public enum CodingKeys: String, CodingKey {
+  private enum CodingKeys: String, CodingKey {
     case jsonrpc
     case method
     case id
@@ -120,7 +121,7 @@ extension Message: Codable {
     }
   }
 
-  func encode(to encoder: Encoder) throws {
+  public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode("2.0", forKey: .jsonrpc)
 

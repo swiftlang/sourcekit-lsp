@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@testable import LanguageServerProtocol
+import LanguageServerProtocol
 
 import XCTest
 

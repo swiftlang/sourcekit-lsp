@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@testable import SKSupport
+import SKSupport
 import SKTestSupport
 import Basic
 import XCTest

@@ -40,7 +40,7 @@ public final class SourceKitServer: LanguageServer {
 
   var languageService: [LanguageServiceKey: Connection] = [:]
 
-  var workspace: Workspace?
+  public var workspace: Workspace?
 
   let fs: FileSystem
 
@@ -71,11 +71,17 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceNotfication(SourceKitServer.didSaveDocument)
     registerWorkspaceRequest(SourceKitServer.completion)
     registerWorkspaceRequest(SourceKitServer.hover)
+    registerWorkspaceRequest(SourceKitServer.workspaceSymbols)
     registerWorkspaceRequest(SourceKitServer.definition)
+    registerWorkspaceRequest(SourceKitServer.implementation)
     registerWorkspaceRequest(SourceKitServer.references)
     registerWorkspaceRequest(SourceKitServer.documentSymbolHighlight)
     registerWorkspaceRequest(SourceKitServer.foldingRange)
     registerWorkspaceRequest(SourceKitServer.symbolInfo)
+    registerWorkspaceRequest(SourceKitServer.documentSymbol)
+    registerWorkspaceRequest(SourceKitServer.documentColor)
+    registerWorkspaceRequest(SourceKitServer.colorPresentation)
+    registerWorkspaceRequest(SourceKitServer.codeAction)
   }
 
   func registerWorkspaceRequest<R>(
@@ -128,7 +134,7 @@ public final class SourceKitServer: LanguageServer {
   }
 
   func toolchain(for url: URL, _ language: Language) -> Toolchain? {
-    if let toolchain = workspace?.buildSettings.settings(for: url, language)?.preferredToolchain {
+    if let toolchain = workspace?.buildSettings.toolchain(for: url, language) {
       return toolchain
     }
 
@@ -256,9 +262,18 @@ extension SourceKitServer {
       ),
       hoverProvider: true,
       definitionProvider: true,
+      implementationProvider: true,
       referencesProvider: true,
       documentHighlightProvider: true,
-      foldingRangeProvider: true
+      foldingRangeProvider: true,
+      documentSymbolProvider: true,
+      colorProvider: true,
+      codeActionProvider: CodeActionServerCapabilities(
+        clientCapabilities: req.params.capabilities.textDocument?.codeAction,
+        codeActionOptions: CodeActionOptions(codeActionKinds: nil),
+        supportsCodeActions: false // TODO: Turn it on after a provider is implemented.
+      ),
+      workspaceSymbolProvider: true
     )))
   }
 
@@ -327,6 +342,51 @@ extension SourceKitServer {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }
 
+  /// Find all symbols in the workspace that include a string in their name.
+  /// - returns: An array of SymbolOccurrences that match the string.
+  func findWorkspaceSymbols(matching: String) -> [SymbolOccurrence] {
+    var symbolOccurenceResults: [SymbolOccurrence] = []
+    workspace?.index?.forEachCanonicalSymbolOccurrence(
+      containing: matching,
+      anchorStart: false,
+      anchorEnd: false,
+      subsequence: true,
+      ignoreCase: true
+    ) {symbol in
+      if !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) {
+        symbolOccurenceResults.append(symbol)
+      }
+      return true
+    }
+    return symbolOccurenceResults
+  }
+
+  /// Handle a workspace/symbols request, returning the SymbolInformation.
+  /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
+  func workspaceSymbols(_ req: Request<WorkspaceSymbolsRequest>, workspace: Workspace) {
+    let symbols = findWorkspaceSymbols(
+      matching: req.params.query
+    ).map({symbolOccurrence -> SymbolInformation in
+      let symbolPosition = Position(
+        line: symbolOccurrence.location.line - 1, // 1-based -> 0-based
+        // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+        utf16index: symbolOccurrence.location.utf8Column - 1)
+
+      let symbolLocation = Location(
+        url: URL(fileURLWithPath: symbolOccurrence.location.path),
+        range: Range(symbolPosition))
+
+      return SymbolInformation(
+        name: symbolOccurrence.symbol.name,
+        kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
+        deprecated: nil,
+        location: symbolLocation,
+        containerName: symbolOccurrence.getContainerName()
+      )
+    })
+    req.reply(symbols)
+  }
+
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
   func symbolInfo(_ req: Request<SymbolInfoRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: [])
@@ -337,6 +397,22 @@ extension SourceKitServer {
   }
 
   func foldingRange(_ req: Request<FoldingRangeRequest>, workspace: Workspace) {
+    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  }
+
+  func documentSymbol(_ req: Request<DocumentSymbolRequest>, workspace: Workspace) {
+    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  }
+
+  func documentColor(_ req: Request<DocumentColorRequest>, workspace: Workspace) {
+    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  }
+
+  func colorPresentation(_ req: Request<ColorPresentationRequest>, workspace: Workspace) {
+    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  }
+
+  func codeAction(_ req: Request<CodeActionRequest>, workspace: Workspace) {
     toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
   }
 
@@ -388,6 +464,55 @@ extension SourceKitServer {
       }
 
       req.reply(locations.isEmpty ? fallbackLocation : locations)
+    }
+    req.cancellationToken.addCancellationHandler { [weak service] in
+      service?.send(CancelRequest(id: id))
+    }
+  }
+
+  // FIXME: a lot of duplication with definition request
+  func implementation(_ req: Request<ImplementationRequest>, workspace: Workspace) {
+    // FIXME: sending yourself a request isn't very convenient
+
+    guard let service = workspace.documentService[req.params.textDocument.url] else {
+      req.reply([])
+      return
+    }
+
+    let id = service.send(SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position), queue: queue) { result in
+      guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
+        if let error = result.failure {
+          req.reply(.failure(error))
+        } else {
+          req.reply([])
+        }
+        return
+      }
+
+      guard let usr = symbol.usr, let index = workspace.index else {
+        return req.reply([])
+      }
+    
+      var occurs = index.occurrences(ofUSR: usr, roles: .baseOf)
+      if occurs.isEmpty {
+        occurs = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
+      }
+
+      let locations = occurs.compactMap { occur -> Location? in
+        if occur.location.path.isEmpty {
+          return nil
+        }
+        return Location(
+          url: URL(fileURLWithPath: occur.location.path),
+          range: Range(Position(
+            line: occur.location.line - 1, // 1-based -> 0-based
+            // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+            utf16index: occur.location.utf8Column - 1
+            ))
+        )
+      }
+
+      req.reply(locations)
     }
     req.cancellationToken.addCancellationHandler { [weak service] in
       service?.send(CancelRequest(id: id))
@@ -482,8 +607,8 @@ public func languageService(
   switch language {
 
   case .c, .cpp, .objective_c, .objective_cpp:
-    guard let clangd = toolchain.clangd else { return nil }
-    return try makeJSONRPCClangServer(client: client, clangd: clangd, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings)
+    guard toolchain.clangd != nil else { return nil }
+    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings)
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
@@ -496,3 +621,40 @@ public func languageService(
 
 public typealias Notification = LanguageServerProtocol.Notification
 public typealias Diagnostic = LanguageServerProtocol.Diagnostic
+
+extension IndexSymbolKind {
+  func asLspSymbolKind() -> SymbolKind {
+    switch self {
+    case .class: 
+      return .class
+    case .classMethod, .instanceMethod, .staticMethod: 
+      return .method
+    case .instanceProperty, .staticProperty, .classProperty: 
+      return .property
+    case .enum: 
+      return .enum
+    case .enumConstant: 
+      return .enumMember
+    case .protocol: 
+      return .interface
+    case .function, .conversionFunction: 
+      return .function
+    case .variable: 
+      return .variable
+    case .struct: 
+      return .struct
+    case .parameter: 
+      return .typeParameter
+
+    default:
+      return .null
+    }
+  }
+}
+
+extension SymbolOccurrence {
+  /// Get the name of the symbol that is a parent of this symbol, if one exists
+  func getContainerName() -> String? {
+    return relations.first(where: { $0.roles.contains(.childOf) })?.symbol.name
+  }
+}
