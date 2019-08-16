@@ -4,8 +4,80 @@ This document contains notes about development and testing of SourceKit-LSP.
 
 ## Table of Contents
 
+* [Getting Started Developing SourceKit-LSP](#getting-started-developing-sourcekit-lsp)
+* [Building SourceKit-LSP](#building-sourcekit-lsp)
+* [Toolchains](#toolchains)
 * [Debugging](#debugging)
 * [Writing Tests](#writing-tests)
+
+## Getting Started Developing SourceKit-LSP
+
+SourceKit-LSP is under heavy development, and requires the use of a Swift development toolchain.
+
+1. Install the latest master toolchain snapshot from https://swift.org/download/#snapshots. **If you're looking for swift-5.1 support**, use the `swift-5.1-branch` of SourceKit-LSP with the latest swift-5.1 toolchain snapshot. See [Toolchains](#toolchains) for more information.
+
+2. Build the language server executable `sourcekit-lsp` using `swift build`. See [Building](#building-sourcekit-lsp) for more information.
+
+3. Configure your editor to use the newly built `sourcekit-lsp` executable and the toolchain snapshot. See [Editors](../Editors) for more information about editor integration.
+
+4. Build the project you are editing with `swift build` using the toolchain snapshot. The language server depends on the build to provide module dependencies and to update the global index.
+
+## Building SourceKit-LSP
+
+Install the latest snapshot from https://swift.org/download/#snapshots. SourceKit-LSP builds with the latest toolchain snapshot of the corresponding branch (e.g. to build the *master* branch, use the latest *master* snapshot of the toolchain). See [Toolchains](#toolchains) for more information about supported toolchains.
+
+SourceKit-LSP is built using the [Swift Package Manager](https://github.com/apple/swift-package-manager). For a standard debug build on the command line:
+
+### macOS
+
+```sh
+$ export TOOLCHAINS=swift
+$ swift package update
+$ swift build
+```
+
+### Linux
+
+```sh
+$ export PATH="<path_to_swift_toolchain>/usr/bin:${PATH}"
+$ swift package update
+$ swift build -Xcxx -I<path_to_swift_toolchain>/usr/lib/swift -Xcxx -I<path_to_swift_toolchain>/usr/lib/swift/Block
+```
+
+After building, the server will be located at `.build/debug/sourcekit-lsp`, or a similar path, if you passed any custom options to `swift build`. Editors will generally need to be provided with this path in order to run the newly built server - see [Editors](../Editors) for more information about configuration.
+
+SourceKit-LSP is designed to build against the latest SwiftPM, so if you run into any issue make sure you have the most up-to-date dependencies by running `swift package update`.
+
+## Toolchains
+
+SourceKit-LSP depends on tools such as `sourcekitd` and `clangd`, which it loads at runtime from an installed toolchain.
+
+### Recommended Toolchain
+
+Use the latest toolchain snapshot from https://swift.org/download/#snapshots. SourceKit-LSP is designed to be used with the latest toolchain snapshot of the corresponding branch.
+
+| SourceKit-LSP branch | Toolchain |
+|:---------------------|:----------|
+| master               | Trunk Development (master) |
+| swift-5.1-branch     | Swift 5.1 Development |
+
+*Note*: there is no branch of SourceKit-LSP that supports Swift 5.0.
+
+### Selecting the Toolchain
+
+After installing the toolchain, SourceKit-LSP needs to know the path to the toolchain.
+
+* On macOS, the toolchain is installed in `/Library/Developer/Toolchains/` with an `.xctoolchain` extension. The most recently installed toolchain is symlinked as `/Library/Developer/Toolchains/swift-latest.xctoolchain`.  If you opted to install for the current user only in the installer, the same paths will be under the home directory, e.g. `~/Library/Developer/Toolchains/`.
+
+* On Linux, the toolchain is wherever the snapshot's `.tar.gz` file was extracted.
+
+Your editor may have a way to configure the toolchain path directly via a configuration setting, or it may allow you to override the process environment variables used when launching `sourcekit-lsp`. See [Editors](../Editors) for more information.
+
+Otherwise, the simplest way to configure the toolchain is to set the following environment variable to the absolute path of the toolchain.
+
+```sh
+SOURCEKIT_TOOLCHAIN_PATH=<toolchain>
+```
 
 ## Debugging
 

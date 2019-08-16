@@ -49,7 +49,7 @@ Settings for SourceKit-LSP can be found in `Preferences > Settings` under
 `sourcekit-lsp.`.
 
 * Server Path: The path of the sourcekit-lsp executable
-* Toolchain Path: The path of the swift toolchain (sets `SOURCEKIT_TOOLCHAIN_PATH`)
+* Toolchain Path: (optional) The path of the swift toolchain (sets `SOURCEKIT_TOOLCHAIN_PATH`). By default, sourcekit-lsp uses the toolchain it is installed in.
 
 The extension will find the `sourcekit-lsp` executable automatically if it is in
 `PATH`, or it can be provided manually using this setting.
