@@ -17,8 +17,10 @@ import enum SPMUtility.Platform
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
 public final class FallbackBuildSystem: BuildSystem {
 
+  public init() {}
+
   /// The path to the SDK.
-  lazy var sdkpath: AbsolutePath? = {
+  public lazy var sdkpath: AbsolutePath? = {
     if case .darwin? = Platform.currentPlatform,
        let str = try? Process.checkNonZeroExit(
          args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx"),
@@ -48,6 +50,8 @@ public final class FallbackBuildSystem: BuildSystem {
     }
   }
 
+  public func toolchain(for: URL, _ language: Language) -> Toolchain? { return nil }
+
   func settingsSwift(_ path: AbsolutePath) -> FileBuildSettings {
     var args: [String] = []
     if let sdkpath = sdkpath {
@@ -57,7 +61,7 @@ public final class FallbackBuildSystem: BuildSystem {
       ]
     }
     args.append(path.pathString)
-    return FileBuildSettings(preferredToolchain: nil, compilerArguments: args)
+    return FileBuildSettings(compilerArguments: args)
   }
 
   func settingsClang(_ path: AbsolutePath, _ language: Language) -> FileBuildSettings {
@@ -69,6 +73,6 @@ public final class FallbackBuildSystem: BuildSystem {
       ]
     }
     args.append(path.pathString)
-    return FileBuildSettings(preferredToolchain: nil, compilerArguments: args)
+    return FileBuildSettings(compilerArguments: args)
   }
 }

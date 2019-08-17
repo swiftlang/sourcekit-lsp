@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SourceKit
 import LanguageServerProtocol
 import SKSupport
 import SKTestSupport
@@ -17,8 +18,6 @@ import XCTest
 
 // Workaround ambiguity with Foundation.
 typealias Notification = LanguageServerProtocol.Notification
-
-@testable import SourceKit
 
 final class LocalSwiftTests: XCTestCase {
 
@@ -156,97 +155,6 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 1, utf16index: 4))
     })
 #endif
-  }
-
-  func testCompletion() {
-    let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
-
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
-      language: .swift,
-      version: 12,
-      text: """
-    struct S {
-      var abc: Int
-
-      func test(a: Int) {
-        self.abc
-      }
-    }
-    """)))
-
-    let selfDot = try! sk.sendSync(CompletionRequest(
-      textDocument: TextDocumentIdentifier(url),
-      position: Position(line: 4, utf16index: 9)))
-
-    XCTAssertEqual(selfDot.isIncomplete, false)
-    XCTAssertGreaterThanOrEqual(selfDot.items.count, 2)
-    let abc = selfDot.items.first { $0.label == "abc" }
-    XCTAssertNotNil(abc)
-    if let abc = abc {
-      XCTAssertEqual(abc.kind, .property)
-      XCTAssertEqual(abc.detail, "Int")
-      XCTAssertEqual(abc.filterText, "abc")
-      // FIXME:
-      XCTAssertNil(abc.textEdit)
-      XCTAssertEqual(abc.insertText, "abc")
-      XCTAssertEqual(abc.insertTextFormat, .snippet)
-    }
-    let test = selfDot.items.first { $0.label == "test(a: Int)" }
-    XCTAssertNotNil(test)
-    if let test = test {
-      XCTAssertEqual(test.kind, .method)
-      XCTAssertEqual(test.detail, "Void")
-      XCTAssertEqual(test.filterText, "test(a:)")
-      // FIXME:
-      XCTAssertNil(test.textEdit)
-      // FIXME: should be "a" in the placeholder.
-      XCTAssertEqual(test.insertText, "test(a: ${1:value})")
-      XCTAssertEqual(test.insertTextFormat, .snippet)
-    }
-
-    for col in 10...12 {
-      let inIdent = try! sk.sendSync(CompletionRequest(
-        textDocument: TextDocumentIdentifier(url),
-        position: Position(line: 4, utf16index: col)))
-      // If we switch to server-side filtering this will change.
-      XCTAssertEqual(inIdent, selfDot)
-    }
-
-    let after = try! sk.sendSync(CompletionRequest(
-      textDocument: TextDocumentIdentifier(url),
-      position: Position(line: 4, utf16index: 13)))
-    XCTAssertNotEqual(after, selfDot)
-  }
-
-  func testCompletionPosition() {
-    let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
-
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
-      language: .swift,
-      version: 12,
-      text: "foo")))
-
-    for col in 0 ... 3 {
-      let inOrAfterFoo = try! sk.sendSync(CompletionRequest(
-        textDocument: TextDocumentIdentifier(url),
-        position: Position(line: 0, utf16index: col)))
-      XCTAssertFalse(inOrAfterFoo.isIncomplete)
-      XCTAssertFalse(inOrAfterFoo.items.isEmpty)
-    }
-
-    let outOfRange1 = try! sk.sendSync(CompletionRequest(
-      textDocument: TextDocumentIdentifier(url),
-      position: Position(line: 0, utf16index: 4)))
-    XCTAssertTrue(outOfRange1.isIncomplete)
-
-    let outOfRange2 = try! sk.sendSync(CompletionRequest(
-      textDocument: TextDocumentIdentifier(url),
-      position: Position(line: 1, utf16index: 0)))
-    XCTAssertTrue(outOfRange2.isIncomplete)
   }
 
   func testXMLToMarkdownDeclaration() {
@@ -623,6 +531,62 @@ final class LocalSwiftTests: XCTestCase {
     }
   }
 
+  func testHoverNameEscaping() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    sk.allowUnexpectedNotification = true
+
+    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: url,
+      language: .swift,
+      version: 1,
+      text: """
+      /// this is **bold** documentation
+      func test(_ a: Int, _ b: Int) { }
+      /// this is *italic* documentation
+      func *%*(lhs: String, rhs: String) { }
+      """)))
+
+    do {
+      let resp = try! sk.sendSync(HoverRequest(
+        textDocument: TextDocumentIdentifier(url),
+        position: Position(line: 1, utf16index: 7)))
+
+      XCTAssertNotNil(resp)
+      if let hover = resp {
+        XCTAssertNil(hover.range)
+        XCTAssertEqual(hover.contents.kind, .markdown)
+        XCTAssertEqual(hover.contents.value, ##"""
+          # test(\_:\_:)
+          ```
+          func test(_ a: Int, _ b: Int)
+          ```
+
+          this is **bold** documentation
+          """##)
+      }
+    }
+
+    do {
+      let resp = try! sk.sendSync(HoverRequest(
+        textDocument: TextDocumentIdentifier(url),
+        position: Position(line: 3, utf16index: 7)))
+
+      XCTAssertNotNil(resp)
+      if let hover = resp {
+        XCTAssertNil(hover.range)
+        XCTAssertEqual(hover.contents.kind, .markdown)
+        XCTAssertEqual(hover.contents.value, ##"""
+          # \*%\*(\_:\_:)
+          ```
+          func *%* (lhs: String, rhs: String)
+          ```
+
+          this is *italic* documentation
+          """##)
+      }
+    }
+  }
+
   func testDocumentSymbolHighlight() {
     let url = URL(fileURLWithPath: "/a.swift")
     sk.allowUnexpectedNotification = true
@@ -704,5 +668,59 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(highlight.range.upperBound.utf16index, 15)
       }
     }
+  }
+
+  func testEditorPlaceholderParsing() {
+    var text = "<#basic placeholder" +
+    "#>" // Need to end this in another line so Xcode doesn't treat it as a real placeholder
+    var data = EditorPlaceholder(text)
+    XCTAssertNotNil(data)
+    if let data = data {
+      XCTAssertEqual(data, .basic("basic placeholder"))
+      XCTAssertEqual(data.displayName, "basic placeholder")
+    }
+    text = "<#T##x: Int##Int" +
+    "#>"
+    data = EditorPlaceholder(text)
+    XCTAssertNotNil(data)
+    if let data = data {
+      XCTAssertEqual(data, .typed(displayName: "x: Int", type: "Int", typeForExpansion: "Int"))
+      XCTAssertEqual(data.displayName, "x: Int")
+    }
+    text = "<#T##x: Int##Blah##()->Int" +
+    "#>"
+    data = EditorPlaceholder(text)
+    XCTAssertNotNil(data)
+    if let data = data {
+      XCTAssertEqual(data, .typed(displayName: "x: Int", type: "Blah", typeForExpansion: "()->Int"))
+      XCTAssertEqual(data.displayName, "x: Int")
+    }
+    text = "<#T##Int" +
+    "#>"
+    data = EditorPlaceholder(text)
+    XCTAssertNotNil(data)
+    if let data = data {
+      XCTAssertEqual(data, .typed(displayName: "Int", type: "Int", typeForExpansion: "Int"))
+      XCTAssertEqual(data.displayName, "Int")
+    }
+    text = "<#foo"
+    data = EditorPlaceholder(text)
+    XCTAssertNil(data)
+    text = " <#foo"
+    data = EditorPlaceholder(text)
+    XCTAssertNil(data)
+    text = "foo"
+    data = EditorPlaceholder(text)
+    XCTAssertNil(data)
+    text = "foo#>"
+    data = EditorPlaceholder(text)
+    XCTAssertNil(data)
+    text = "<#foo#"
+    data = EditorPlaceholder(text)
+    XCTAssertNil(data)
+    text = " <#foo" +
+    "#>"
+    data = EditorPlaceholder(text)
+    XCTAssertNil(data)
   }
 }

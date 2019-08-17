@@ -14,8 +14,7 @@ import LanguageServerProtocol
 import SKSupport
 import SKTestSupport
 import XCTest
-
-@testable import SourceKit
+import SourceKit
 
 final class FoldingRangeTests: XCTestCase {
 
@@ -96,7 +95,7 @@ final class FoldingRangeTests: XCTestCase {
     workspace = connection.server!.workspace!
   }
 
-  func getFoldingRangeRequest(text: String? = nil) -> FoldingRangeRequest {
+  func performFoldingRangeRequest(text: String? = nil) -> [FoldingRange] {
     let url = URL(fileURLWithPath: "/a.swift")
     sk.allowUnexpectedNotification = true
 
@@ -107,7 +106,8 @@ final class FoldingRangeTests: XCTestCase {
       text:
       text ?? self.text)))
 
-    return FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
+    let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
+    return try! sk.sendSync(request)!
   }
 
   func testPartialLineFolding() {
@@ -115,8 +115,7 @@ final class FoldingRangeTests: XCTestCase {
     capabilities.lineFoldingOnly = false
     initialize(capabilities: capabilities)
 
-    let request = getFoldingRangeRequest()
-    let ranges = try! sk.sendSync(request)!
+    let ranges = performFoldingRangeRequest()
 
     XCTAssertEqual(ranges, [
       FoldingRange(startLine: 0, startUTF16Index: 0, endLine: 2, endUTF16Index: 0, kind: .comment),
@@ -139,8 +138,7 @@ final class FoldingRangeTests: XCTestCase {
     capabilities.lineFoldingOnly = true
     initialize(capabilities: capabilities)
 
-    let request = getFoldingRangeRequest()
-    let ranges = try! sk.sendSync(request)!
+    let ranges = performFoldingRangeRequest()
 
     XCTAssertEqual(ranges, [
       FoldingRange(startLine: 0, endLine: 1, kind: .comment),
@@ -159,31 +157,30 @@ final class FoldingRangeTests: XCTestCase {
 
     capabilities.rangeLimit = -100
     initialize(capabilities: capabilities)
-    XCTAssertEqual(try! sk.sendSync(getFoldingRangeRequest())!.count, 0)
+    XCTAssertEqual(performFoldingRangeRequest().count, 0)
 
     capabilities.rangeLimit = 0
     initialize(capabilities: capabilities)
-    XCTAssertEqual(try! sk.sendSync(getFoldingRangeRequest())!.count, 0)
+    XCTAssertEqual(performFoldingRangeRequest().count, 0)
 
     capabilities.rangeLimit = 4
     initialize(capabilities: capabilities)
-    XCTAssertEqual(try! sk.sendSync(getFoldingRangeRequest())!.count, 4)
+    XCTAssertEqual(performFoldingRangeRequest().count, 4)
 
     capabilities.rangeLimit = 5000
     initialize(capabilities: capabilities)
-    XCTAssertEqual(try! sk.sendSync(getFoldingRangeRequest())!.count, 12)
+    XCTAssertEqual(performFoldingRangeRequest().count, 12)
 
     capabilities.rangeLimit = nil
     initialize(capabilities: capabilities)
-    XCTAssertEqual(try! sk.sendSync(getFoldingRangeRequest())!.count, 12)
+    XCTAssertEqual(performFoldingRangeRequest().count, 12)
   }
 
   func testEmptyText() {
     let capabilities = FoldingRangeCapabilities()
     initialize(capabilities: capabilities)
 
-    let request = getFoldingRangeRequest(text: "")
-    let ranges = try! sk.sendSync(request)!
+    let ranges = performFoldingRangeRequest(text: "")
 
     XCTAssertEqual(ranges.count, 0)
   }

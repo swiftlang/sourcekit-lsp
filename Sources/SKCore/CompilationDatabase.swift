@@ -30,6 +30,13 @@ public struct CompilationDatabaseCompileCommand: Equatable {
 
   /// The name of the build output, or nil.
   public var output: String? = nil
+
+  public init(directory: String, filename: String, commandLine: [String], output: String? = nil) {
+    self.directory = directory
+    self.filename = filename
+    self.commandLine = commandLine
+    self.output = output
+  }
 }
 
 extension CompilationDatabase.Command {

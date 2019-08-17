@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@testable import SKCore
+import SKCore
 import Basic
 import SKTestSupport
 import XCTest

@@ -42,7 +42,6 @@ public final class SwiftPMWorkspace {
   var packageGraph: PackageGraph
   let workspace: Workspace
   let buildParameters: BuildParameters
-  let toolchainRegistry: ToolchainRegistry
   let fileSystem: FileSystem
 
   var fileToTarget: [AbsolutePath: TargetBuildDescription] = [:]
@@ -62,56 +61,20 @@ public final class SwiftPMWorkspace {
     buildSetup: BuildSetup) throws
   {
     self.workspacePath = workspacePath
-    self.toolchainRegistry = toolchainRegistry
     self.fileSystem = fileSystem
 
     guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem) else {
       throw Error.noManifest(workspacePath: workspacePath)
     }
 
-    guard var swiftPMToolchain = toolchainRegistry.swiftPMHost else {
-      throw Error.cannotDetermineHostToolchain
+    self.packageRoot = resolveSymlinks(packageRoot)
+
+    guard let destinationToolchainBinDir = toolchainRegistry.default?.swiftc?.parentDirectory else {
+        throw Error.cannotDetermineHostToolchain
     }
 
-    self.packageRoot = packageRoot
-
-    // FIXME: duplicating code from UserToolchain setup in swiftpm.
-    var sdk: AbsolutePath? = nil
-    var platformPath: AbsolutePath? = nil
-
-    if case .darwin? = Platform.currentPlatform {
-      if let path = try? Process.checkNonZeroExit(args:
-        "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx")
-      {
-        sdk = try? AbsolutePath(validating: path.spm_chomp())
-      }
-      if let path = try? Process.checkNonZeroExit(args:
-        "/usr/bin/xcrun", "--show-sdk-platform-path", "--sdk", "macosx")
-      {
-        platformPath = try? AbsolutePath(validating: path.spm_chomp())
-      }
-    }
-
-    var extraSwiftFlags: [String] = []
-    var extraClangFlags: [String] = []
-    if let sdk = sdk {
-      extraSwiftFlags += ["-sdk", sdk.pathString]
-      extraClangFlags += ["-isysroot", sdk.pathString]
-    }
-
-    if let platformPath = platformPath {
-      let flags = [
-        "-F",
-        platformPath.appending(components: "Developer", "Library", "Frameworks").pathString
-      ]
-      extraSwiftFlags += flags
-      extraClangFlags += flags
-    }
-
-    swiftPMToolchain.sdkRoot = sdk
-    swiftPMToolchain.extraCCFlags = extraClangFlags
-    swiftPMToolchain.extraSwiftCFlags = extraSwiftFlags
-    swiftPMToolchain.extraCPPFlags = extraClangFlags
+    let destination = try Destination.hostDestination(destinationToolchainBinDir)
+    let toolchain = try UserToolchain(destination: destination)
 
     let buildPath: AbsolutePath = buildSetup.path ?? packageRoot.appending(component: ".build")
 
@@ -119,7 +82,7 @@ public final class SwiftPMWorkspace {
       dataPath: buildPath,
       editablesPath: packageRoot.appending(component: "Packages"),
       pinsFile: packageRoot.appending(component: "Package.resolved"),
-      manifestLoader: ManifestLoader(manifestResources: swiftPMToolchain),
+      manifestLoader: ManifestLoader(manifestResources: toolchain.manifestResources, cacheDir: buildPath),
       delegate: BuildSettingProviderWorkspaceDelegate(),
       fileSystem: fileSystem,
       skipUpdate: true)
@@ -137,7 +100,7 @@ public final class SwiftPMWorkspace {
     self.buildParameters = BuildParameters(
       dataPath: buildPath.appending(component: triple.tripleString),
       configuration: swiftPMConfiguration,
-      toolchain: swiftPMToolchain,
+      toolchain: toolchain,
       flags: buildSetup.flags)
 
     self.packageGraph = PackageGraph(rootPackages: [], requiredDependencies: [])
@@ -236,7 +199,7 @@ extension SwiftPMWorkspace: BuildSystem {
       return nil
     }
 
-    if let td = self.fileToTarget[path] {
+    if let td = targetDescription(for: path) {
       return settings(for: path, language, td)
     }
 
@@ -246,6 +209,25 @@ extension SwiftPMWorkspace: BuildSystem {
 
     if path.extension == "h" {
       return settings(forHeader: path, language)
+    }
+
+    return nil
+  }
+
+  public func toolchain(for: LanguageServerProtocol.URL, _ language: Language) -> SKCore.Toolchain? {
+    return nil
+  }
+
+  /// Returns the resolved target description for the given file, if one is known.
+  func targetDescription(for file: AbsolutePath) -> TargetBuildDescription? {
+    if let td = fileToTarget[file] {
+      return td
+    }
+
+    let realpath = resolveSymlinks(file)
+    if realpath != file, let td = fileToTarget[realpath] {
+      fileToTarget[file] = td
+      return td
     }
 
     return nil
@@ -276,26 +258,41 @@ extension SwiftPMWorkspace {
 
   /// Retrieve settings for a package manifest (Package.swift).
   func settings(forPackageManifest path: AbsolutePath) -> FileBuildSettings? {
-    for package in packageGraph.packages where path == package.manifest.path {
+    func impl(_ path: AbsolutePath) -> FileBuildSettings? {
+      for package in packageGraph.packages where path == package.manifest.path {
         let compilerArgs = workspace.interpreterFlags(for: package.path) + [path.pathString]
-        return FileBuildSettings(
-          preferredToolchain: nil,
-          compilerArguments: compilerArgs
-        )
+        return FileBuildSettings(compilerArguments: compilerArgs)
+      }
+      return nil
     }
-    return nil
+    
+    if let result = impl(path) { 
+      return result
+    }
+
+    let canonicalPath = resolveSymlinks(path)
+    return canonicalPath == path ? nil : impl(canonicalPath)
   }
 
   /// Retrieve settings for a given header file.
   public func settings(forHeader path: AbsolutePath, _ language: Language) -> FileBuildSettings? {
-    var dir = path.parentDirectory
-    while !dir.isRoot {
-      if let td = sourceDirToTarget[dir] {
-        return settings(for: path, language, td)
+    func impl(_ path: AbsolutePath) -> FileBuildSettings? {
+      var dir = path.parentDirectory
+      while !dir.isRoot {
+        if let td = sourceDirToTarget[dir] {
+          return settings(for: path, language, td)
+        }
+        dir = dir.parentDirectory
       }
-      dir = dir.parentDirectory
+      return nil
     }
-    return nil
+    
+    if let result = impl(path) { 
+      return result
+    }
+
+    let canonicalPath = resolveSymlinks(path)
+    return canonicalPath == path ? nil : impl(canonicalPath)
   }
 
   /// Retrieve settings for the given swift file, which is part of a known target build description.
@@ -323,7 +320,6 @@ extension SwiftPMWorkspace {
     args += td.compileArguments()
 
     return FileBuildSettings(
-      preferredToolchain: nil,
       compilerArguments: args,
       workingDirectory: workspacePath.pathString)
   }
@@ -386,56 +382,8 @@ extension SwiftPMWorkspace {
     }
 
     return FileBuildSettings(
-      preferredToolchain: nil,
       compilerArguments: args,
       workingDirectory: workspacePath.pathString)
-  }
-}
-
-/// A SwiftPM-compatible toolchain.
-///
-/// Appropriate for both building a pacakge (Build.Toolchain) and for loading the package manifest
-/// (ManifestResourceProvider).
-private struct SwiftPMToolchain: Build.Toolchain, ManifestResourceProvider {
-  var swiftCompiler: AbsolutePath
-  var clangCompiler: AbsolutePath
-  var libDir: AbsolutePath
-  var sdkRoot: AbsolutePath?
-  var extraCCFlags: [String]
-  var extraSwiftCFlags: [String]
-  var extraCPPFlags: [String]
-  var dynamicLibraryExtension: String
-
-  func getClangCompiler() throws -> AbsolutePath { return clangCompiler }
-}
-
-extension ToolchainRegistry {
-
-  /// A toolchain appropriate for using to load swiftpm manifests.
-  fileprivate var swiftPMHost: SwiftPMToolchain? {
-    var swiftc: AbsolutePath? = self.default?.swiftc
-    var clang: AbsolutePath? = self.default?.clang
-    if swiftc == nil {
-      swiftc = toolchains.first(where: { $0.swiftc != nil })?.swiftc
-    }
-    if clang == nil {
-      clang = toolchains.first(where: { $0.clang != nil })?.clang
-    }
-
-    if swiftc == nil || clang == nil {
-      return nil
-    }
-
-    return SwiftPMToolchain(
-      swiftCompiler: swiftc!,
-      clangCompiler: clang!,
-      libDir: swiftc!.parentDirectory.parentDirectory.appending(components: "lib", "swift", "pm"),
-      sdkRoot: nil,
-      extraCCFlags: [],
-      extraSwiftCFlags: [],
-      extraCPPFlags: [],
-      dynamicLibraryExtension: Platform.currentPlatform?.dynamicLibraryExtension ?? "so"
-    )
   }
 }
 

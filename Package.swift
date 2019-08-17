@@ -1,4 +1,4 @@
-// swift-tools-version:4.2
+// swift-tools-version:5.1
 
 import PackageDescription
 
@@ -29,7 +29,7 @@ let package = Package(
 
       .target(
         name: "SKTestSupport",
-        dependencies: ["SourceKit"]),
+        dependencies: ["SourceKit", "ISDBTestSupport", "tibs"]),
       .testTarget(
         name: "SourceKitTests",
         dependencies: ["SourceKit", "SKTestSupport"]),

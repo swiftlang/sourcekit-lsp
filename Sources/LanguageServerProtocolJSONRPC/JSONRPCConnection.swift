@@ -33,8 +33,8 @@ public final class JSONRPCConection {
   /// Current state of the connection, used to ensure correct usage.
   var state: State
 
-  /// Buffer of received bytes that haven't been parsed.
-  var requestBuffer: [UInt8] = []
+  /// *Public for testing* Buffer of received bytes that haven't been parsed.
+  public var _requestBuffer: [UInt8] = []
 
   private var _nextRequestID: Int = 0
 
@@ -103,19 +103,19 @@ public final class JSONRPCConection {
       }
 
       // Parse and handle any messages in `buffer + data`, leaving any remaining unparsed bytes in `buffer`.
-      if self.requestBuffer.isEmpty {
+      if self._requestBuffer.isEmpty {
         data.withUnsafeBytes { (pointer: UnsafePointer<UInt8>) in
           let rest = self.parseAndHandleMessages(from: UnsafeBufferPointer(start: pointer, count: data.count))
-          self.requestBuffer.append(contentsOf: rest)
+          self._requestBuffer.append(contentsOf: rest)
         }
       } else {
-        self.requestBuffer.append(contentsOf: data)
+        self._requestBuffer.append(contentsOf: data)
         var unused = 0
-        self.requestBuffer.withUnsafeBufferPointer { buffer in
+        self._requestBuffer.withUnsafeBufferPointer { buffer in
           let rest = self.parseAndHandleMessages(from: buffer)
           unused = rest.count
         }
-        self.requestBuffer.removeFirst(self.requestBuffer.count - unused)
+        self._requestBuffer.removeFirst(self._requestBuffer.count - unused)
       }
     }
   }
@@ -144,19 +144,19 @@ public final class JSONRPCConection {
         return nil
       }
       return outstanding.responseType
-    } as Message.ResponseTypeCallback
+    } as JSONRPCMessage.ResponseTypeCallback
 
     var bytes = bytes[...]
 
     MESSAGE_LOOP: while true {
       do {
-        guard let ((messageBytes, _), rest) = try bytes.splitMessage() else {
+        guard let ((messageBytes, _), rest) = try bytes.jsonrpcSplitMessage() else {
           return bytes
         }
         bytes = rest
 
         let pointer = UnsafeMutableRawPointer(mutating: UnsafeBufferPointer(rebasing: messageBytes).baseAddress!)
-        let message = try decoder.decode(Message.self, from: Data(bytesNoCopy: pointer, count: messageBytes.count, deallocator: .none))
+        let message = try decoder.decode(JSONRPCMessage.self, from: Data(bytesNoCopy: pointer, count: messageBytes.count, deallocator: .none))
 
         handle(message)
 
@@ -166,7 +166,7 @@ public final class JSONRPCConection {
           case .request:
             if let id = error.id {
               send { encoder in
-                try encoder.encode(Message.errorResponse(ResponseError(error), id: id))
+                try encoder.encode(JSONRPCMessage.errorResponse(ResponseError(error), id: id))
               }
               continue MESSAGE_LOOP
             }
@@ -198,7 +198,7 @@ public final class JSONRPCConection {
   }
 
   /// Handle a single message by dispatching it to `receiveHandler` or an appropriate reply handler.
-  func handle(_ message: Message) {
+  func handle(_ message: JSONRPCMessage) {
     switch message {
     case .notification(let notification):
       notification._handle(receiveHandler!, connection: self)
@@ -219,7 +219,8 @@ public final class JSONRPCConection {
     }
   }
 
-  func send(rawData dispatchData: DispatchData) {
+  /// *Public for testing*.
+  public func send(_rawData dispatchData: DispatchData) {
     guard readyToSend() else { return }
 
     sendIO.write(offset: 0, data: dispatchData, queue: sendQueue) { [weak self] done, _, errorCode in
@@ -239,11 +240,11 @@ public final class JSONRPCConection {
     header.utf8.map{$0}.withUnsafeBytes { buffer in
       dispatchData.append(buffer)
     }
-    messageData.withUnsafeBytes { pointer in
-      dispatchData.append(UnsafeRawBufferPointer(start: pointer, count: messageData.count))
+    messageData.withUnsafeBytes { rawBufferPointer in
+      dispatchData.append(rawBufferPointer)
     }
 
-    send(rawData: dispatchData)
+    send(_rawData: dispatchData)
   }
 
   func send(encoding: (JSONEncoder) throws -> Data) {
@@ -289,7 +290,7 @@ extension JSONRPCConection: _IndirectConnection {
   public func send<Notification>(_ notification: Notification) where Notification: NotificationType {
     guard readyToSend() else { return }
     send { encoder in
-      return try encoder.encode(Message.notification(notification))
+      return try encoder.encode(JSONRPCMessage.notification(notification))
     }
   }
 
@@ -316,7 +317,7 @@ extension JSONRPCConection: _IndirectConnection {
     }
 
     send { encoder in
-      return try encoder.encode(Message.request(request, id: id))
+      return try encoder.encode(JSONRPCMessage.request(request, id: id))
     }
 
     return id
@@ -328,9 +329,9 @@ extension JSONRPCConection: _IndirectConnection {
     send { encoder in
       switch response {
       case .success(let result):
-        return try encoder.encode(Message.response(result, id: id))
+        return try encoder.encode(JSONRPCMessage.response(result, id: id))
       case .failure(let error):
-        return try encoder.encode(Message.errorResponse(error, id: id))
+        return try encoder.encode(JSONRPCMessage.errorResponse(error, id: id))
       }
     }
   }

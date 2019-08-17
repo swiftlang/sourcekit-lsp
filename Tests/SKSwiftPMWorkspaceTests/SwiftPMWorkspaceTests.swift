@@ -90,7 +90,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
             targets: [.target(name: "lib", dependencies: [])])
           """
     ])
-    let packageRoot = tempDir.path.appending(component: "pkg")
+    let packageRoot = resolveSymlinks(tempDir.path.appending(component: "pkg"))
     let tr = ToolchainRegistry.shared
     let ws = try! SwiftPMWorkspace(
       workspacePath: packageRoot,
@@ -183,7 +183,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       fileSystem: fs,
       buildSetup: TestSourceKitServer.buildSetup)
 
-    let source = packageRoot.appending(component: "Package.swift")
+    let source = resolveSymlinks(packageRoot.appending(component: "Package.swift"))
     let arguments = ws.settings(for: source.asURL, .swift)!.compilerArguments
 
     check("-swift-version", "4.2", arguments: arguments)
@@ -204,7 +204,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
             targets: [.target(name: "lib", dependencies: [])])
           """
     ])
-    let packageRoot = tempDir.path.appending(component: "pkg")
+    let packageRoot = resolveSymlinks(tempDir.path.appending(component: "pkg"))
     let tr = ToolchainRegistry.shared
     let ws = try! SwiftPMWorkspace(
       workspacePath: packageRoot,
@@ -243,7 +243,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
             ])
           """
     ])
-    let packageRoot = tempDir.path.appending(component: "pkg")
+    let packageRoot = resolveSymlinks(tempDir.path.appending(component: "pkg"))
     let tr = ToolchainRegistry.shared
     let ws = try! SwiftPMWorkspace(
       workspacePath: packageRoot,
@@ -314,7 +314,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
             cxxLanguageStandard: .cxx14)
           """
     ])
-    let packageRoot = tempDir.path.appending(component: "pkg")
+    let packageRoot = resolveSymlinks(tempDir.path.appending(component: "pkg"))
     let tr = ToolchainRegistry.shared
     let ws = try! SwiftPMWorkspace(
       workspacePath: packageRoot,
@@ -392,6 +392,99 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 #else
     check("-target", Triple.hostTriple.tripleString, arguments: arguments)
 #endif
+  }
+
+  func testSymlinkInWorkspaceSwift() {
+    // FIXME: should be possible to use InMemoryFileSystem.
+    let fs = localFileSystem
+    let tempDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
+
+    try! fs.createFiles(root: tempDir.path, files: [
+      "pkg_real/Sources/lib/a.swift": "",
+      "pkg_real/Package.swift": """
+      // swift-tools-version:4.2
+      import PackageDescription
+      let package = Package(name: "a", products: [], dependencies: [],
+      targets: [.target(name: "lib", dependencies: [])])
+      """
+    ])
+    let packageRoot = tempDir.path.appending(component: "pkg")
+
+    try! FileManager.default.createSymbolicLink(
+      atPath: packageRoot.pathString,
+      withDestinationPath: "pkg_real")
+
+    let tr = ToolchainRegistry.shared
+    let ws = try! SwiftPMWorkspace(
+      workspacePath: packageRoot,
+      toolchainRegistry: tr,
+      fileSystem: fs,
+      buildSetup: TestSourceKitServer.buildSetup)
+
+    let aswift1 = packageRoot.appending(components: "Sources", "lib", "a.swift")
+    let aswift2 = tempDir.path
+      .appending(component: "pkg_real")
+      .appending(components: "Sources", "lib", "a.swift")
+    let manifest = packageRoot.appending(components: "Package.swift")
+
+    let arguments1 = ws.settings(for: aswift1.asURL, .swift)?.compilerArguments
+    let arguments2 = ws.settings(for: aswift2.asURL, .swift)?.compilerArguments
+    XCTAssertNotNil(arguments1)
+    XCTAssertNotNil(arguments2)
+    XCTAssertEqual(arguments1, arguments2)
+
+    checkNot(aswift1.pathString, arguments: arguments1 ?? [])
+    check(resolveSymlinks(aswift1).pathString, arguments: arguments1 ?? [])
+
+    let argsManifest = ws.settings(for: manifest.asURL, .swift)?.compilerArguments
+    XCTAssertNotNil(argsManifest)
+
+    checkNot(manifest.pathString, arguments: argsManifest ?? [])
+    check(resolveSymlinks(manifest).pathString, arguments: argsManifest ?? [])
+  }
+
+  func testSymlinkInWorkspaceCXX() {
+    // FIXME: should be possible to use InMemoryFileSystem.
+    let fs = localFileSystem
+    let tempDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
+    try! fs.createFiles(root: tempDir.path, files: [
+      "pkg_real/Sources/lib/a.cpp": "",
+      "pkg_real/Sources/lib/b.cpp": "",
+      "pkg_real/Sources/lib/include/a.h": "",
+      "pkg_real/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+            targets: [.target(name: "lib", dependencies: [])],
+            cxxLanguageStandard: .cxx14)
+          """
+    ])
+
+    let packageRoot = tempDir.path.appending(component: "pkg")
+
+    try! FileManager.default.createSymbolicLink(
+      atPath: packageRoot.pathString,
+      withDestinationPath: "pkg_real")
+
+    let tr = ToolchainRegistry.shared
+    let ws = try! SwiftPMWorkspace(
+      workspacePath: packageRoot,
+      toolchainRegistry: tr,
+      fileSystem: fs,
+      buildSetup: TestSourceKitServer.buildSetup)
+
+    let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
+    let ah = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
+
+    let argsCxx = ws.settings(for: acxx.asURL, .cpp)?.compilerArguments
+    XCTAssertNotNil(argsCxx)
+    check(acxx.pathString, arguments: argsCxx ?? [])
+    checkNot(resolveSymlinks(acxx).pathString, arguments: argsCxx ?? [])
+
+    let argsH = ws.settings(for: ah.asURL, .cpp)?.compilerArguments
+    XCTAssertNotNil(argsH)
+    checkNot(ah.pathString, arguments: argsH ?? [])
+    check(resolveSymlinks(ah).pathString, arguments: argsH ?? [])
   }
 }
 

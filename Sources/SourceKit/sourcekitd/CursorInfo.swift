@@ -113,7 +113,7 @@ extension SwiftLanguageServer {
   func cursorInfo(
     _ url: URL,
     _ position: Position,
-    _ completion: @escaping (Result<CursorInfo?, CursorInfoError>) -> Void)
+    _ completion: @escaping (Swift.Result<CursorInfo?, CursorInfoError>) -> Void)
   {
     guard let snapshot = documentManager.latestSnapshot(url) else {
       return completion(.failure(.unknownDocument(url)))

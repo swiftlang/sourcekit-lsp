@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@testable import LanguageServerProtocolJSONRPC
+import LanguageServerProtocolJSONRPC
 import LanguageServerProtocol
 import XCTest
 import SKTestSupport
@@ -82,9 +82,12 @@ final class CodingTests: XCTestCase {
         triggerCharacters: ["."]),
       hoverProvider: nil,
       definitionProvider: nil,
+      implementationProvider: nil,
       referencesProvider: nil,
       documentHighlightProvider: nil,
-      foldingRangeProvider: nil)), id: .number(2), json: """
+      foldingRangeProvider: nil,
+      codeActionProvider: nil,
+      workspaceSymbolProvider: nil)), id: .number(2), json: """
     {
       "id" : 2,
       "jsonrpc" : "2.0",
@@ -184,7 +187,7 @@ final class CodingTests: XCTestCase {
     {"jsonrpc":"2.0","method":"$/cancelRequest","params":{}}
     """)
 
-    let responseTypeCallback: Message.ResponseTypeCallback = {
+    let responseTypeCallback: JSONRPCMessage.ResponseTypeCallback = {
       return $0 == .string("unknown") ? nil : InitializeResult.self
     }
 
@@ -213,9 +216,9 @@ final class CodingTests: XCTestCase {
 }
 
 private func checkMessageCoding<Request>(_ value: Request, id: RequestID, json: String, file: StaticString = #file, line: UInt = #line) where Request: RequestType & Equatable {
-  checkCoding(Message.request(value, id: id), json: json, file: file, line: line) {
+  checkCoding(JSONRPCMessage.request(value, id: id), json: json, file: file, line: line) {
 
-    guard case Message.request(let decodedValueOpaque, let decodedID) = $0, let decodedValue = decodedValueOpaque as? Request else {
+    guard case JSONRPCMessage.request(let decodedValueOpaque, let decodedID) = $0, let decodedValue = decodedValueOpaque as? Request else {
       XCTFail("decodedValue \($0) does not match expected \(value)", file: file, line: line)
       return
     }
@@ -226,9 +229,9 @@ private func checkMessageCoding<Request>(_ value: Request, id: RequestID, json: 
 }
 
 private func checkMessageCoding<Notification>(_ value: Notification, json: String, file: StaticString = #file, line: UInt = #line) where Notification: NotificationType & Equatable {
-  checkCoding(Message.notification(value), json: json, file: file, line: line) {
+  checkCoding(JSONRPCMessage.notification(value), json: json, file: file, line: line) {
 
-    guard case Message.notification(let decodedValueOpaque) = $0, let decodedValue = decodedValueOpaque as? Notification else {
+    guard case JSONRPCMessage.notification(let decodedValueOpaque) = $0, let decodedValue = decodedValueOpaque as? Notification else {
       XCTFail("decodedValue \($0) does not match expected \(value)", file: file, line: line)
       return
     }
@@ -239,13 +242,13 @@ private func checkMessageCoding<Notification>(_ value: Notification, json: Strin
 
 private func checkMessageCoding<Response>(_ value: Response, id: RequestID, json: String, file: StaticString = #file, line: UInt = #line) where Response: ResponseType & Equatable {
 
-  let callback: Message.ResponseTypeCallback = {
+  let callback: JSONRPCMessage.ResponseTypeCallback = {
     return $0 == .string("unknown") ? nil : Response.self
   }
 
-  checkCoding(Message.response(value, id: id), json: json, userInfo: [.responseTypeCallbackKey: callback], file: file, line: line) {
+  checkCoding(JSONRPCMessage.response(value, id: id), json: json, userInfo: [.responseTypeCallbackKey: callback], file: file, line: line) {
 
-    guard case Message.response(let decodedValueOpaque, let decodedID) = $0, let decodedValue = decodedValueOpaque as? Response else {
+    guard case JSONRPCMessage.response(let decodedValueOpaque, let decodedID) = $0, let decodedValue = decodedValueOpaque as? Response else {
       XCTFail("decodedValue \($0) does not match expected \(value)", file: file, line: line)
       return
     }
@@ -256,9 +259,9 @@ private func checkMessageCoding<Response>(_ value: Response, id: RequestID, json
 }
 
 private func checkMessageCoding(_ value: ResponseError, id: RequestID, json: String, file: StaticString = #file, line: UInt = #line) {
-  checkCoding(Message.errorResponse(value, id: id), json: json, file: file, line: line) {
+  checkCoding(JSONRPCMessage.errorResponse(value, id: id), json: json, file: file, line: line) {
 
-    guard case Message.errorResponse(let decodedValue, let decodedID) = $0 else {
+    guard case JSONRPCMessage.errorResponse(let decodedValue, let decodedID) = $0 else {
       XCTFail("decodedValue \($0) does not match expected \(value)", file: file, line: line)
       return
     }
@@ -274,7 +277,7 @@ private func checkMessageDecodingError(_ expected: MessageDecodingError, json: S
   decoder.userInfo = userInfo
 
   do {
-    _ = try decoder.decode(Message.self, from: data)
+    _ = try decoder.decode(JSONRPCMessage.self, from: data)
     XCTFail("expected error not seen", file: file, line: line)
   } catch let error as MessageDecodingError {
     XCTAssertEqual(expected, error, file: file, line: line)

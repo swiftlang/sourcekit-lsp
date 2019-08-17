@@ -10,10 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Basic
-
 /// A convenience wrapper for `Result` where the error is a `ResponseError`.
-public typealias LSPResult<T> = Result<T, ResponseError>
+public typealias LSPResult<T> = Swift.Result<T, ResponseError>
 
 /// Error code suitable for use between language server and client.
 public struct ErrorCode: RawRepresentable, Codable, Hashable {

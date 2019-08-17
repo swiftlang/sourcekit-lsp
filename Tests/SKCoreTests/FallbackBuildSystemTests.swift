@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-@testable import SKCore
-
+import SKCore
+import LanguageServerProtocol
 import Basic
 import XCTest
 
@@ -28,7 +28,6 @@ final class FallbackBuildSystemTests: XCTestCase {
     XCTAssertNil(bs.indexDatabasePath)
 
     let settings = bs.settings(for: source.asURL, .swift)!
-    XCTAssertNil(settings.preferredToolchain)
     XCTAssertNil(settings.workingDirectory)
 
     let args = settings.compilerArguments
@@ -53,7 +52,6 @@ final class FallbackBuildSystemTests: XCTestCase {
     bs.sdkpath = sdk
 
     let settings = bs.settings(for: source.asURL, .cpp)!
-    XCTAssertNil(settings.preferredToolchain)
     XCTAssertNil(settings.workingDirectory)
 
     let args = settings.compilerArguments
@@ -100,6 +98,6 @@ final class FallbackBuildSystemTests: XCTestCase {
   func testUnknown() {
     let source = AbsolutePath("/my/source.mm")
     let bs = FallbackBuildSystem()
-    XCTAssertNil(bs.settings(for: source.asURL, .unknown))
+    XCTAssertNil(bs.settings(for: source.asURL, Language(rawValue: "unknown")))
   }
 }

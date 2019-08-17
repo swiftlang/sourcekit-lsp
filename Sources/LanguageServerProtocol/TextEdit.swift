@@ -14,10 +14,10 @@
 public struct TextEdit: ResponseType, Hashable {
 
   /// The range of text to be replaced.
-  var range: PositionRange
+  public var range: PositionRange
 
   /// The new text.
-  var newText: String
+  public var newText: String
 
   public init(range: Range<Position>, newText: String) {
     self.range = PositionRange(range)

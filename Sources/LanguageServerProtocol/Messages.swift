@@ -23,13 +23,19 @@ public let builtinRequests: [_RequestType.Type] = [
   WorkspaceFoldersRequest.self,
   CompletionRequest.self,
   HoverRequest.self,
+  WorkspaceSymbolsRequest.self,
   DefinitionRequest.self,
+  ImplementationRequest.self,
   ReferencesRequest.self,
   DocumentHighlightRequest.self,
   DocumentFormatting.self,
   DocumentRangeFormatting.self,
   DocumentOnTypeFormatting.self,
   FoldingRangeRequest.self,
+  DocumentSymbolRequest.self,
+  DocumentColorRequest.self,
+  ColorPresentationRequest.self,
+  CodeActionRequest.self,
 
   // MARK: LSP Extension Requests
 

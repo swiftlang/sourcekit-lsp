@@ -31,6 +31,10 @@ public struct ClientCapabilities: Hashable, Codable {
 public struct DynamicRegistrationCapability: Hashable, Codable {
   /// Whether the client supports dynamic registaration of this feature.
   public var dynamicRegistration: Bool? = nil
+
+  public init(dynamicRegistration: Bool? = nil) {
+    self.dynamicRegistration = dynamicRegistration
+  }
 }
 
 /// Capabilities of the client editor/IDE related to managing the workspace.
@@ -50,9 +54,6 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
   /// Capabilities specific to the `workspace/symbol` request.
   public struct Symbol: Hashable, Codable {
 
-    /// Whether the client supports dynamic registaration of this request.
-    public var dynamicRegistration: Bool? = nil
-
     /// Capabilities specific to `SymbolKind`.
     public struct SymbolKind: Hashable, Codable {
 
@@ -62,9 +63,21 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
       ///
       /// If specified, the client *also* guarantees that it will handle unknown kinds gracefully.
       public var valueSet: [LanguageServerProtocol.SymbolKind]? = nil
+
+      public init(valueSet: [LanguageServerProtocol.SymbolKind]? = nil) {
+        self.valueSet = valueSet
+      }
     }
 
+    /// Whether the client supports dynamic registaration of this request.
+    public var dynamicRegistration: Bool? = nil
+
     public var symbolKind: SymbolKind? = nil
+
+    public init(dynamicRegistration: Bool? = nil, symbolKind: SymbolKind? = nil) {
+      self.dynamicRegistration = dynamicRegistration
+      self.symbolKind = symbolKind
+    }
   }
 
   // MARK: Properties
@@ -88,7 +101,15 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
   /// Whether the client supports the `workspace/configuration` request.
   public var configuration: Bool? = nil
 
-  public init() {
+  public init(applyEdit: Bool? = nil, workspaceEdit: WorkspaceEdit? = nil, didChangeConfiguration: DynamicRegistrationCapability? = nil, didChangeWatchedFiles: DynamicRegistrationCapability? = nil, symbol: Symbol? = nil, executeCommand: DynamicRegistrationCapability? = nil, workspaceFolders: Bool? = nil, configuration: Bool? = nil) {
+    self.applyEdit = applyEdit
+    self.workspaceEdit = workspaceEdit
+    self.didChangeConfiguration = didChangeConfiguration
+    self.didChangeWatchedFiles = didChangeWatchedFiles
+    self.symbol = symbol
+    self.executeCommand = executeCommand
+    self.workspaceFolders = workspaceFolders
+    self.configuration = configuration
   }
 }
 
@@ -110,6 +131,13 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
     /// Whether the client supports the did-save notification.
     public var didSave: Bool? = nil
+
+    public init(dynamicRegistration: Bool? = nil, willSave: Bool? = nil, willSaveWaitUntil: Bool? = nil, didSave: Bool? = nil) {
+      self.dynamicRegistration = dynamicRegistration
+      self.willSave = willSave
+      self.willSaveWaitUntil = willSaveWaitUntil
+      self.didSave = didSave
+    }
   }
 
   /// Capabilities specific to the `textDocument/...` change notifications.
@@ -132,6 +160,14 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
       /// Whether the client supports the `preselect` property on a CompletionItem.
       public var preselectSupport: Bool? = nil
+
+      public init(snippetSupport: Bool? = nil, commitCharactersSupport: Bool? = nil, documentationFormat: [MarkupKind]? = nil, deprecatedSupport: Bool? = nil, preselectSupport: Bool? = nil) {
+        self.snippetSupport = snippetSupport
+        self.commitCharactersSupport = commitCharactersSupport
+        self.documentationFormat = documentationFormat
+        self.deprecatedSupport = deprecatedSupport
+        self.preselectSupport = preselectSupport
+      }
     }
 
     /// Capabilities specific to `CompletionItemKind`.
@@ -143,6 +179,10 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
       ///
       /// If specified, the client *also* guarantees that it will handle unknown kinds gracefully.
       public var valueSet: [LanguageServerProtocol.CompletionItemKind]? = nil
+
+      public init(valueSet: [LanguageServerProtocol.CompletionItemKind]? = nil) {
+        self.valueSet = valueSet
+      }
     }
 
     // MARK: Properties
@@ -156,6 +196,13 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
     /// Whether the client supports sending context information in a `textDocument/completion` request.
     public var contextSupport: Bool? = nil
+
+    public init(dynamicRegistration: Bool? = nil, completionItem: CompletionItem? = nil, completionItemKind: CompletionItemKind? = nil, contextSupport: Bool? = nil) {
+      self.dynamicRegistration = dynamicRegistration
+      self.completionItem = completionItem
+      self.completionItemKind = completionItemKind
+      self.contextSupport = contextSupport
+    }
   }
 
   /// Capabilities specific to the `textDocument/hover` request.
@@ -166,30 +213,41 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
     /// Formats supported by the client for the `Hover.content` property from most to least preferred.
     public var contentFormat: [MarkupKind]? = nil
+
+    public init(dynamicRegistration: Bool? = nil, contentFormat: [MarkupKind]? = nil) {
+      self.dynamicRegistration = dynamicRegistration
+      self.contentFormat = contentFormat
+    }
   }
 
   /// Capabilities specific to the `textDocument/signatureHelp` request.
   public struct SignatureHelp: Hashable, Codable {
 
-    /// Whether the client supports dynamic registaration of this request.
-    public var dynamicRegistration: Bool? = nil
-
     /// Capabilities specific to `SignatureInformation`.
     public struct SignatureInformation: Hashable, Codable {
       /// Documentation formats supported by the client from most to least preferred.
       public var signatureInformation: [MarkupKind]? = nil
+
+      public init(signatureInformation: [MarkupKind]? = nil) {
+        self.signatureInformation = signatureInformation
+      }
     }
 
+    /// Whether the client supports dynamic registaration of this request.
+    public var dynamicRegistration: Bool? = nil
+
     public var signatureInformation: SignatureInformation? = nil
+
+    public init(dynamicRegistration: Bool? = nil, signatureInformation: SignatureInformation? = nil) {
+      self.dynamicRegistration = dynamicRegistration
+      self.signatureInformation = signatureInformation
+    }
   }
 
   /// Capabilities specific to the `textDocument/documentSymbol` request.
   public struct DocumentSymbol: Hashable, Codable {
 
-    /// Whether the client supports dynamic registaration of this request.
-    public var dynamicRegistration: Bool? = nil
-
-    /// Capabilities specific to `SignatureInformation`.
+    /// Capabilities specific to `SymbolKind`.
     public struct SymbolKind: Hashable, Codable {
 
       /// The symbol kind values that the client can support.
@@ -198,16 +256,25 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
       ///
       /// If specified, the client *also* guarantees that it will handle unknown kinds gracefully.
       public var valueSet: [LanguageServerProtocol.SymbolKind]? = nil
+
+      public init(valueSet: [LanguageServerProtocol.SymbolKind]? = nil) {
+        self.valueSet = valueSet
+      }
     }
 
+    /// Whether the client supports dynamic registaration of this request.
+    public var dynamicRegistration: Bool? = nil
+
     public var symbolKind: SymbolKind? = nil
+
+    public init(dynamicRegistration: Bool? = nil, symbolKind: SymbolKind? = nil) {
+      self.dynamicRegistration = dynamicRegistration
+      self.symbolKind = symbolKind
+    }
   }
 
   /// Capabilities specific to the `textDocument/codeAction` request.
   public struct CodeAction: Hashable, Codable {
-
-    /// Whether the client supports dynamic registaration of this request.
-    public var dynamicRegistration: Bool? = nil
 
     /// Liteals accepted by the client in response to a `textDocument/codeAction` request.
     public struct CodeActionLiteralSupport: Hashable, Codable {
@@ -217,19 +284,39 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
         /// The code action kind values that the client can support.
         ///
         /// If specified, the client *also* guarantees that it will handle unknown kinds gracefully.
-        public var valueSet: [LanguageServerProtocol.CodeActionKind]? = nil
+        public var valueSet: [LanguageServerProtocol.CodeActionKind]
+
+        public init(valueSet: [LanguageServerProtocol.CodeActionKind]) {
+          self.valueSet = valueSet
+        }
       }
 
-      public var codeActionKind: CodeActionKind? = nil
+      /// Whether the client supports dynamic registaration of this request.
+      public var dynamicRegistration: Bool? = nil
+
+      public var codeActionKind: CodeActionKind
+
+      public init(dynamicRegistration: Bool? = nil, codeActionKind: CodeActionKind) {
+        self.dynamicRegistration = dynamicRegistration
+        self.codeActionKind = codeActionKind
+      }
     }
 
     public var codeActionLiteralSupport: CodeActionLiteralSupport? = nil
+
+    public init(codeActionLiteralSupport: CodeActionLiteralSupport? = nil) {
+      self.codeActionLiteralSupport = codeActionLiteralSupport
+    }
   }
 
   /// Capabilities specific to `textDocument/publishDiagnostics`.
   public struct PublishDiagnostics: Hashable, Codable {
     /// Whether the client accepts diagnostics with related information.
     public var relatedInformation: Bool? = nil
+
+    public init(relatedInformation: Bool? = nil) {
+      self.relatedInformation = relatedInformation
+    }
   }
 
   /// Capabilities specific to `textDocument/foldingRange`.
@@ -245,7 +332,10 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     /// ignore specified `startUTF16Index` and `endUTF16Index` properties in a FoldingRange.
     public var lineFoldingOnly: Bool? = nil
 
-    public init() {
+    public init(dynamicRegistration: Bool? = nil, rangeLimit: Int? = nil, lineFoldingOnly: Bool? = nil) {
+      self.dynamicRegistration = dynamicRegistration
+      self.rangeLimit = rangeLimit
+      self.lineFoldingOnly = lineFoldingOnly
     }
   }
 
@@ -291,6 +381,32 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
   public var foldingRange: FoldingRange? = nil
 
-  public init() {
+  public init(synchronization: Synchronization? = nil, completion: Completion? = nil, hover: Hover? = nil,
+              signatureHelp: SignatureHelp? = nil, references: DynamicRegistrationCapability? = nil, documentHighlight: DynamicRegistrationCapability? = nil,
+              documentSymbol: DocumentSymbol? = nil, formatting: DynamicRegistrationCapability? = nil, rangeFormatting: DynamicRegistrationCapability? = nil,
+              onTypeFormatting: DynamicRegistrationCapability? = nil, definition: DynamicRegistrationCapability? = nil, typeDefinition: DynamicRegistrationCapability? = nil,
+              implementation: DynamicRegistrationCapability? = nil, codeAction: CodeAction? = nil, codeLens: DynamicRegistrationCapability? = nil,
+              documentLink: DynamicRegistrationCapability? = nil, colorProvider: DynamicRegistrationCapability? = nil, rename: DynamicRegistrationCapability? = nil,
+              publishDiagnostics: PublishDiagnostics? = nil, foldingRange: FoldingRange? = nil) {
+    self.synchronization = synchronization
+    self.completion = completion
+    self.hover = hover
+    self.signatureHelp = signatureHelp
+    self.references = references
+    self.documentHighlight = documentHighlight
+    self.documentSymbol = documentSymbol
+    self.formatting = formatting
+    self.rangeFormatting = rangeFormatting
+    self.onTypeFormatting = onTypeFormatting
+    self.definition = definition
+    self.typeDefinition = typeDefinition
+    self.implementation = implementation
+    self.codeAction = codeAction
+    self.codeLens = codeLens
+    self.documentLink = documentLink
+    self.colorProvider = colorProvider
+    self.rename = rename
+    self.publishDiagnostics = publishDiagnostics
+    self.foldingRange = foldingRange
   }
 }

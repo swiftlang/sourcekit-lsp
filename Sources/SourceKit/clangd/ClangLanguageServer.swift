@@ -26,11 +26,14 @@ final class ClangLanguageServerShim: LanguageServer {
 
   let buildSystem: BuildSystem
 
+  let clang: AbsolutePath?
+
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, clangd: Connection, buildSystem: BuildSystem) throws {
+  public init(client: Connection, clangd: Connection, buildSystem: BuildSystem, clang: AbsolutePath?) throws {
 
     self.clangd = clangd
     self.buildSystem = buildSystem
+    self.clang = clang
     super.init(client: client)
   }
 
@@ -106,7 +109,7 @@ extension ClangLanguageServerShim {
     if let settings = settings {
       clangd.send(DidChangeConfiguration(settings: .clangd(
         ClangWorkspaceSettings(
-          compilationDatabaseChanges: [url.path: ClangCompileCommand(settings)]))))
+          compilationDatabaseChanges: [url.path: ClangCompileCommand(settings, clang: clang)]))))
     }
 
     clangd.send(note.params)
@@ -121,7 +124,11 @@ extension ClangLanguageServerShim {
   }
 }
 
-func makeJSONRPCClangServer(client: MessageHandler, clangd: AbsolutePath, buildSettings: BuildSystem?) throws -> Connection {
+func makeJSONRPCClangServer(client: MessageHandler, toolchain: Toolchain, buildSettings: BuildSystem?) throws -> Connection {
+
+  guard let clangd = toolchain.clangd else {
+    preconditionFailure("missing clang from toolchain \(toolchain.identifier)")
+  }
 
   let clientToServer: Pipe = Pipe()
   let serverToClient: Pipe = Pipe()
@@ -137,8 +144,8 @@ func makeJSONRPCClangServer(client: MessageHandler, clangd: AbsolutePath, buildS
   let shim = try ClangLanguageServerShim(
     client: connectionToClient,
     clangd: connection,
-    buildSystem: buildSettings ?? BuildSystemList()
-  )
+    buildSystem: buildSettings ?? BuildSystemList(),
+    clang: toolchain.clang)
 
   connectionToShim.start(handler: shim)
   connectionToClient.start(handler: client)
@@ -172,10 +179,10 @@ func makeJSONRPCClangServer(client: MessageHandler, clangd: AbsolutePath, buildS
 }
 
 extension ClangCompileCommand {
-  init(_ settings: FileBuildSettings) {
+  init(_ settings: FileBuildSettings, clang: AbsolutePath?) {
     // Clang expects the first argument to be the program name, like argv.
     self.init(
-      compilationCommand: ["clang"] + settings.compilerArguments,
+      compilationCommand: [clang?.pathString ?? "clang"] + settings.compilerArguments,
       workingDirectory: settings.workingDirectory ?? "")
   }
 }
