@@ -134,7 +134,7 @@ func makeJSONRPCClangServer(client: MessageHandler, toolchain: Toolchain, buildS
   let serverToClient: Pipe = Pipe()
 
   let connection = JSONRPCConection(
-    messageRegistry: MessageRegistry.lspMessageRegistry,
+    protocol: MessageRegistry.lspProtocol,
     inFD: serverToClient.fileHandleForReading.fileDescriptor,
     outFD: clientToServer.fileHandleForWriting.fileDescriptor
   )

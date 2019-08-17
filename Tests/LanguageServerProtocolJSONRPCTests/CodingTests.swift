@@ -215,7 +215,7 @@ final class CodingTests: XCTestCase {
   }
 }
 
-let defaultCodingInfo: [CodingUserInfoKey: Any] = [CodingUserInfoKey.messageRegistryKey:MessageRegistry.lspMessageRegistry]
+let defaultCodingInfo: [CodingUserInfoKey: Any] = [CodingUserInfoKey.messageRegistryKey:MessageRegistry.lspProtocol]
 
 private func checkMessageCoding<Request>(_ value: Request, id: RequestID, json: String, file: StaticString = #file, line: UInt = #line) where Request: RequestType & Equatable {
   checkCoding(JSONRPCMessage.request(value, id: id), json: json, userInfo: defaultCodingInfo, file: file, line: line) {

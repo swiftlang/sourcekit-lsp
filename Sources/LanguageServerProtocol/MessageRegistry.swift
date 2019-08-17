@@ -13,7 +13,7 @@
 
 public final class MessageRegistry {
 
-  public static let lspMessageRegistry: MessageRegistry =
+  public static let lspProtocol: MessageRegistry =
     MessageRegistry(requests: builtinRequests, notifications: builtinNotifications)
 
   private let methodToRequest: [String: _RequestType.Type]

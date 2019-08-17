@@ -70,12 +70,12 @@ public struct TestSourceKitServer {
         _ = Unmanaged.passRetained(serverToClient)
 
         let clientConnection = JSONRPCConection(
-          messageRegistry: MessageRegistry.lspMessageRegistry,
+          protocol: MessageRegistry.lspProtocol,
           inFD: serverToClient.fileHandleForReading.fileDescriptor,
           outFD: clientToServer.fileHandleForWriting.fileDescriptor
         )
         let serverConnection = JSONRPCConection(
-          messageRegistry: MessageRegistry.lspMessageRegistry,
+          protocol: MessageRegistry.lspProtocol,
           inFD: clientToServer.fileHandleForReading.fileDescriptor,
           outFD: serverToClient.fileHandleForWriting.fileDescriptor
         )

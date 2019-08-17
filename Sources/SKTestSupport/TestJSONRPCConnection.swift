@@ -34,13 +34,13 @@ public struct TestJSONRPCConnection {
     _ = Unmanaged.passRetained(serverToClient)
 
     clientConnection = JSONRPCConection(
-      messageRegistry: testMessageRegistry,
+      protocol: testMessageRegistry,
       inFD: serverToClient.fileHandleForReading.fileDescriptor,
       outFD: clientToServer.fileHandleForWriting.fileDescriptor
     )
 
     serverConnection = JSONRPCConection(
-      messageRegistry: testMessageRegistry,
+      protocol: testMessageRegistry,
       inFD: clientToServer.fileHandleForReading.fileDescriptor,
       outFD: serverToClient.fileHandleForWriting.fileDescriptor
     )

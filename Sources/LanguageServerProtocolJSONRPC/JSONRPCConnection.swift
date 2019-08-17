@@ -51,7 +51,7 @@ public final class JSONRPCConection {
 
   var closeHandler: () -> Void
 
-  public init(messageRegistry: MessageRegistry, inFD: Int32, outFD: Int32, closeHandler: @escaping () -> Void = {}) {
+  public init(protocol messageRegistry: MessageRegistry, inFD: Int32, outFD: Int32, closeHandler: @escaping () -> Void = {}) {
     state = .created
     self.closeHandler = closeHandler
     self.messageRegistry = messageRegistry
