@@ -22,6 +22,7 @@ public enum JSONRPCMessage {
 
 extension CodingUserInfoKey {
   public static let responseTypeCallbackKey: CodingUserInfoKey = CodingUserInfoKey(rawValue: "lsp.jsonrpc.responseTypeCallback")!
+  public static let messageRegistryKey: CodingUserInfoKey = CodingUserInfoKey(rawValue: "lsp.jsonrpc.messageRegistry")!
 }
 
 extension JSONRPCMessage: Codable {
@@ -39,6 +40,9 @@ extension JSONRPCMessage: Codable {
 
   public init(from decoder: Decoder) throws {
 
+    guard let messageRegistry = decoder.userInfo[.messageRegistryKey] as? MessageRegistry else {
+      fatalError("missing or invalid messageRegistryKey on decoder")
+    }
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let jsonrpc = try container.decodeIfPresent(String.self, forKey: .jsonrpc)
     let id = try container.decodeIfPresent(RequestID.self, forKey: .id)
@@ -58,7 +62,7 @@ extension JSONRPCMessage: Codable {
       case (nil, let method?, _, nil):
         msgKind = .notification
 
-        guard let messageType = MessageRegistry.shared.notificationType(for: method) else {
+        guard let messageType = messageRegistry.notificationType(for: method) else {
           throw MessageDecodingError.methodNotFound(method)
         }
 
@@ -69,7 +73,7 @@ extension JSONRPCMessage: Codable {
       case (let id?, let method?, _, nil):
         msgKind = .request
 
-        guard let messageType = MessageRegistry.shared.requestType(for: method) else {
+        guard let messageType = messageRegistry.requestType(for: method) else {
           throw MessageDecodingError.methodNotFound(method)
         }
 

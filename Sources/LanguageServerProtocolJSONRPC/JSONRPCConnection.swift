@@ -25,6 +25,7 @@ public final class JSONRPCConection {
   let sendQueue: DispatchQueue = DispatchQueue(label: "jsonrpc-send-queue", qos: .userInitiated)
   let receiveIO: DispatchIO
   let sendIO: DispatchIO
+  let messageRegistry: MessageRegistry
 
   enum State {
     case created, running, closed
@@ -50,9 +51,10 @@ public final class JSONRPCConection {
 
   var closeHandler: () -> Void
 
-  public init(inFD: Int32, outFD: Int32, closeHandler: @escaping () -> Void = {}) {
+  public init(protocol messageRegistry: MessageRegistry, inFD: Int32, outFD: Int32, closeHandler: @escaping () -> Void = {}) {
     state = .created
     self.closeHandler = closeHandler
+    self.messageRegistry = messageRegistry
 
     receiveIO = DispatchIO(type: .stream, fileDescriptor: inFD, queue: queue) { (error: Int32) in
       if error != 0 {
@@ -136,6 +138,9 @@ public final class JSONRPCConection {
   func parseAndHandleMessages(from bytes: UnsafeBufferPointer<UInt8>) -> UnsafeBufferPointer<UInt8>.SubSequence {
 
     let decoder = JSONDecoder()
+
+    // Set message registry to use for model decoding.
+    decoder.userInfo[.messageRegistryKey] = messageRegistry
 
     // Setup callback for response type.
     decoder.userInfo[.responseTypeCallbackKey] = { id in

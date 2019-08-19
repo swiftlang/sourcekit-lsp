@@ -191,7 +191,7 @@ final class CodingTests: XCTestCase {
       return $0 == .string("unknown") ? nil : InitializeResult.self
     }
 
-    let info = [CodingUserInfoKey.responseTypeCallbackKey: responseTypeCallback]
+    let info = defaultCodingInfo.merging([CodingUserInfoKey.responseTypeCallbackKey: responseTypeCallback]) { (_, new) in new }
 
     checkMessageDecodingError(MessageDecodingError.invalidRequest("message not recognized as request, response or notification", id: .number(2)), json: """
     {"jsonrpc":"2.0","id":2,"params":{}}
@@ -215,8 +215,10 @@ final class CodingTests: XCTestCase {
   }
 }
 
+let defaultCodingInfo: [CodingUserInfoKey: Any] = [CodingUserInfoKey.messageRegistryKey:MessageRegistry.lspProtocol]
+
 private func checkMessageCoding<Request>(_ value: Request, id: RequestID, json: String, file: StaticString = #file, line: UInt = #line) where Request: RequestType & Equatable {
-  checkCoding(JSONRPCMessage.request(value, id: id), json: json, file: file, line: line) {
+  checkCoding(JSONRPCMessage.request(value, id: id), json: json, userInfo: defaultCodingInfo, file: file, line: line) {
 
     guard case JSONRPCMessage.request(let decodedValueOpaque, let decodedID) = $0, let decodedValue = decodedValueOpaque as? Request else {
       XCTFail("decodedValue \($0) does not match expected \(value)", file: file, line: line)
@@ -229,7 +231,7 @@ private func checkMessageCoding<Request>(_ value: Request, id: RequestID, json: 
 }
 
 private func checkMessageCoding<Notification>(_ value: Notification, json: String, file: StaticString = #file, line: UInt = #line) where Notification: NotificationType & Equatable {
-  checkCoding(JSONRPCMessage.notification(value), json: json, file: file, line: line) {
+  checkCoding(JSONRPCMessage.notification(value), json: json, userInfo: defaultCodingInfo, file: file, line: line) {
 
     guard case JSONRPCMessage.notification(let decodedValueOpaque) = $0, let decodedValue = decodedValueOpaque as? Notification else {
       XCTFail("decodedValue \($0) does not match expected \(value)", file: file, line: line)
@@ -246,7 +248,10 @@ private func checkMessageCoding<Response>(_ value: Response, id: RequestID, json
     return $0 == .string("unknown") ? nil : Response.self
   }
 
-  checkCoding(JSONRPCMessage.response(value, id: id), json: json, userInfo: [.responseTypeCallbackKey: callback], file: file, line: line) {
+  var codingInfo = defaultCodingInfo
+  codingInfo[.responseTypeCallbackKey] = callback
+
+  checkCoding(JSONRPCMessage.response(value, id: id), json: json, userInfo: codingInfo, file: file, line: line) {
 
     guard case JSONRPCMessage.response(let decodedValueOpaque, let decodedID) = $0, let decodedValue = decodedValueOpaque as? Response else {
       XCTFail("decodedValue \($0) does not match expected \(value)", file: file, line: line)
@@ -259,7 +264,7 @@ private func checkMessageCoding<Response>(_ value: Response, id: RequestID, json
 }
 
 private func checkMessageCoding(_ value: ResponseError, id: RequestID, json: String, file: StaticString = #file, line: UInt = #line) {
-  checkCoding(JSONRPCMessage.errorResponse(value, id: id), json: json, file: file, line: line) {
+  checkCoding(JSONRPCMessage.errorResponse(value, id: id), json: json, userInfo: defaultCodingInfo, file: file, line: line) {
 
     guard case JSONRPCMessage.errorResponse(let decodedValue, let decodedID) = $0 else {
       XCTFail("decodedValue \($0) does not match expected \(value)", file: file, line: line)
@@ -271,7 +276,7 @@ private func checkMessageCoding(_ value: ResponseError, id: RequestID, json: Str
   }
 }
 
-private func checkMessageDecodingError(_ expected: MessageDecodingError, json: String, userInfo: [CodingUserInfoKey: Any] = [:], file: StaticString = #file, line: UInt = #line) {
+private func checkMessageDecodingError(_ expected: MessageDecodingError, json: String, userInfo: [CodingUserInfoKey: Any] = defaultCodingInfo, file: StaticString = #file, line: UInt = #line) {
   let data = json.data(using: .utf8)!
   let decoder = JSONDecoder()
   decoder.userInfo = userInfo

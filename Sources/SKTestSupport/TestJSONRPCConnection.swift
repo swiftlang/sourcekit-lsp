@@ -19,8 +19,6 @@ import XCTest
 // Workaround ambiguity with Foundation.
 public typealias Notification = LanguageServerProtocol.Notification
 
-public let initRequestsOnce: Void = registerTestRequests()
-
 public struct TestJSONRPCConnection {
   public let clientToServer: Pipe = Pipe()
   public let serverToClient: Pipe = Pipe()
@@ -30,19 +28,19 @@ public struct TestJSONRPCConnection {
   public let serverConnection: JSONRPCConection
 
   public init() {
-    _ = initRequestsOnce
-
     // FIXME: DispatchIO doesn't like when the Pipes close behind its back even after the tests
     // finish. Until we fix the lifetime, leak.
     _ = Unmanaged.passRetained(clientToServer)
     _ = Unmanaged.passRetained(serverToClient)
 
     clientConnection = JSONRPCConection(
+      protocol: testMessageRegistry,
       inFD: serverToClient.fileHandleForReading.fileDescriptor,
       outFD: clientToServer.fileHandleForWriting.fileDescriptor
     )
 
     serverConnection = JSONRPCConection(
+      protocol: testMessageRegistry,
       inFD: clientToServer.fileHandleForReading.fileDescriptor,
       outFD: serverToClient.fileHandleForWriting.fileDescriptor
     )
@@ -67,8 +65,6 @@ public struct TestLocalConnection {
   public let serverConnection: LocalConnection = .init()
 
   public init() {
-    _ = initRequestsOnce
-
     client = TestClient(server: serverConnection)
     server = TestServer(client: clientConnection)
 
@@ -230,16 +226,9 @@ public final class TestServer: LanguageServer {
 
 // MARK: Test requests.
 
-public func registerTestRequests() {
-  [
-    EchoRequest.self,
-    EchoError.self,
-  ].forEach { MessageRegistry.shared._register($0) }
-
-  [
-    EchoNotification.self,
-  ].forEach { MessageRegistry.shared._register($0) }
-}
+private let testMessageRegistry = MessageRegistry(
+  requests: [EchoRequest.self, EchoError.self],
+  notifications: [EchoNotification.self])
 
 extension String: ResponseType {}
 
