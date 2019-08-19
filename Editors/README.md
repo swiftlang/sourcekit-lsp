@@ -12,14 +12,14 @@ After installing the extension, settings for SourceKit-LSP can be found in `Pref
 `sourcekit-lsp.`.
 
 * `sourcekit-lsp.serverPath`: The path to sourcekit-lsp executable
-* `sourcekit-lsp.toolchainPath`: The path to the swift toolchain (sets `SOURCEKIT_TOOLCHAIN_PATH`)
+* `sourcekit-lsp.toolchainPath`: (optional) The path of the swift toolchain (sets `SOURCEKIT_TOOLCHAIN_PATH`). By default, sourcekit-lsp uses the toolchain it is installed in.
 * `sourcekit-lsp.tracing.server`: Traces the communication between VS Code and the SourceKit-LSP language server
 
 ## Sublime Text
 
 Before using SourceKit-LSP with Sublime Text, you will need to install the LSP package from Package Control. To configure SourceKit-LSP, open the LSP package's settings. The following snippet should be enough to get started with Swift.
 
-You will need the path to the `sourcekit-lsp` executable and the Swift toolchain for the "command" and "env" sections.
+You will need the path to the `sourcekit-lsp` executable for the "command" section.
 
 ```json
 {
@@ -32,7 +32,8 @@ You will need the path to the `sourcekit-lsp` executable and the Swift toolchain
         "<path to sourcekit-lsp>"
       ],
       "env": {
-        "SOURCEKIT_TOOLCHAIN_PATH": "<path to toolchain>",
+        // To override the toolchain, uncomment the following:
+        // "SOURCEKIT_TOOLCHAIN_PATH": "<path to toolchain>",
       },
       "languages": [
         {
