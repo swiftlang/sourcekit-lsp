@@ -82,6 +82,7 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceRequest(SourceKitServer.documentColor)
     registerWorkspaceRequest(SourceKitServer.colorPresentation)
     registerWorkspaceRequest(SourceKitServer.codeAction)
+    registerWorkspaceRequest(SourceKitServer.pollIndex)
   }
 
   func registerWorkspaceRequest<R>(
@@ -582,6 +583,11 @@ extension SourceKitServer {
     req.cancellationToken.addCancellationHandler { [weak service] in
       service?.send(CancelRequest(id: id))
     }
+  }
+
+  func pollIndex(_ req: Request<PollIndex>, workspace: Workspace) {
+    workspace.index?.pollForUnitChangesAndWait()
+    req.reply(VoidResponse())
   }
 
   func toolchainTextDocumentRequest<PositionRequest>(
