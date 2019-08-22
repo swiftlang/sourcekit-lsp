@@ -27,6 +27,9 @@ public final class JSONRPCConection {
   let sendIO: DispatchIO
   let messageRegistry: MessageRegistry
 
+  /// *For Testing* Whether to wait for requests to finish before handling the next message.
+  let syncRequests: Bool
+
   enum State {
     case created, running, closed
   }
@@ -51,10 +54,17 @@ public final class JSONRPCConection {
 
   var closeHandler: () -> Void
 
-  public init(protocol messageRegistry: MessageRegistry, inFD: Int32, outFD: Int32, closeHandler: @escaping () -> Void = {}) {
+  public init(
+    protocol messageRegistry: MessageRegistry,
+    inFD: Int32,
+    outFD: Int32,
+    syncRequests: Bool = false,
+    closeHandler: @escaping () -> Void = {})
+  {
     state = .created
     self.closeHandler = closeHandler
     self.messageRegistry = messageRegistry
+    self.syncRequests = syncRequests
 
     receiveIO = DispatchIO(type: .stream, fileDescriptor: inFD, queue: queue) { (error: Int32) in
       if error != 0 {
@@ -208,7 +218,7 @@ public final class JSONRPCConection {
     case .notification(let notification):
       notification._handle(receiveHandler!, connection: self)
     case .request(let request, id: let id):
-      request._handle(receiveHandler!, id: id, connection: self)
+      request._handle(receiveHandler!, id: id, connection: self, sync: syncRequests)
     case .response(let response, id: let id):
       guard let outstanding = outstandingRequests.removeValue(forKey: id) else {
         log("Unknown request for \(id)", level: .error)
