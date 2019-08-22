@@ -24,26 +24,26 @@ public struct Command: Codable, Hashable {
   public var command: String
 
   /// The arguments related to this command.
-  public var arguments: [CommandArgumentType]?
+  public var arguments: [LSPAny]?
 
-  public init(title: String, command: String, arguments: [CommandArgumentType]?) {
+  public init(title: String, command: String, arguments: [LSPAny]?) {
     self.title = title
     self.command = command
     self.arguments = arguments
   }
 }
 
-public enum CommandArgumentType: Hashable {
+public enum LSPAny: Hashable {
   case null
   case int(Int)
   case bool(Bool)
   case double(Double)
   case string(String)
-  case array([CommandArgumentType])
-  case dictionary([String: CommandArgumentType])
+  case array([LSPAny])
+  case dictionary([String: LSPAny])
 }
 
-extension CommandArgumentType: Decodable {
+extension LSPAny: Decodable {
   public init(from decoder: Decoder) throws {
     let container = try decoder.singleValueContainer()
     if container.decodeNil() {
@@ -56,9 +56,9 @@ extension CommandArgumentType: Decodable {
       self = .double(value)
     } else if let value = try? container.decode(String.self) {
       self = .string(value)
-    } else if let value = try? container.decode([CommandArgumentType].self) {
+    } else if let value = try? container.decode([LSPAny].self) {
       self = .array(value)
-    } else if let value = try? container.decode([String: CommandArgumentType].self) {
+    } else if let value = try? container.decode([String: LSPAny].self) {
       self = .dictionary(value)
     } else {
       let error = "AnyCommandArgument cannot be decoded: Unrecognized type."
@@ -67,7 +67,7 @@ extension CommandArgumentType: Decodable {
   }
 }
 
-extension CommandArgumentType: Encodable {
+extension LSPAny: Encodable {
   public func encode(to encoder: Encoder) throws {
     var container = encoder.singleValueContainer()
     switch self {
@@ -89,31 +89,31 @@ extension CommandArgumentType: Encodable {
   }
 }
 
-extension CommandArgumentType: ExpressibleByNilLiteral {
+extension LSPAny: ExpressibleByNilLiteral {
   public init(nilLiteral _: ()) {
     self = .null
   }
 }
 
-extension CommandArgumentType: ExpressibleByIntegerLiteral {
+extension LSPAny: ExpressibleByIntegerLiteral {
   public init(integerLiteral value: Int) {
     self = .int(value)
   }
 }
 
-extension CommandArgumentType: ExpressibleByBooleanLiteral {
+extension LSPAny: ExpressibleByBooleanLiteral {
   public init(booleanLiteral value: Bool) {
     self = .bool(value)
   }
 }
 
-extension CommandArgumentType: ExpressibleByFloatLiteral {
+extension LSPAny: ExpressibleByFloatLiteral {
   public init(floatLiteral value: Double) {
     self = .double(value)
   }
 }
 
-extension CommandArgumentType: ExpressibleByStringLiteral {
+extension LSPAny: ExpressibleByStringLiteral {
   public init(extendedGraphemeClusterLiteral value: String) {
     self = .string(value)
   }
@@ -123,15 +123,15 @@ extension CommandArgumentType: ExpressibleByStringLiteral {
   }
 }
 
-extension CommandArgumentType: ExpressibleByArrayLiteral {
-  public init(arrayLiteral elements: CommandArgumentType...) {
+extension LSPAny: ExpressibleByArrayLiteral {
+  public init(arrayLiteral elements: LSPAny...) {
     self = .array(elements)
   }
 }
 
-extension CommandArgumentType: ExpressibleByDictionaryLiteral {
-  public init(dictionaryLiteral elements: (String, CommandArgumentType)...) {
-    let dict  = [String: CommandArgumentType](elements, uniquingKeysWith: { first, _ in first })
+extension LSPAny: ExpressibleByDictionaryLiteral {
+  public init(dictionaryLiteral elements: (String, LSPAny)...) {
+    let dict  = [String: LSPAny](elements, uniquingKeysWith: { first, _ in first })
     self = .dictionary(dict)
   }
 }
