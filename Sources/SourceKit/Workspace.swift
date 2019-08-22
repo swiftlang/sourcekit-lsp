@@ -71,7 +71,8 @@ public final class Workspace {
     url: URL,
     clientCapabilities: ClientCapabilities,
     toolchainRegistry: ToolchainRegistry,
-    buildSetup: BuildSetup
+    buildSetup: BuildSetup,
+    indexOptions: IndexOptions = IndexOptions()
   ) throws {
 
     self.buildSetup = buildSetup
@@ -99,11 +100,23 @@ public final class Workspace {
         self.index = try IndexStoreDB(
           storePath: storePath.pathString,
           databasePath: dbPath.pathString,
-          library: lib)
+          library: lib,
+          listenToUnitEvents: indexOptions.listenToUnitEvents)
         log("opened IndexStoreDB at \(dbPath) with store path \(storePath)")
       } catch {
         log("failed to open IndexStoreDB: \(error.localizedDescription)", level: .error)
       }
     }
+  }
+}
+
+public struct IndexOptions {
+
+  /// *For Testing* Whether the index should listen to unit events, or wait for
+  /// explicit calls to pollForUnitChangesAndWait().
+  public var listenToUnitEvents: Bool
+
+  public init(listenToUnitEvents: Bool = false) {
+    self.listenToUnitEvents = listenToUnitEvents
   }
 }

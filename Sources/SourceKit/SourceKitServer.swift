@@ -222,18 +222,28 @@ extension SourceKitServer {
   // MARK: - General
 
   func initialize(_ req: Request<InitializeRequest>) {
+
+    var indexOptions = IndexOptions()
+    if case .dictionary(let options) = req.params.initializationOptions {
+      if case .bool(let listenToUnitEvents) = options["listenToUnitEvents"] {
+        indexOptions.listenToUnitEvents = listenToUnitEvents
+      }
+    }
+
     if let url = req.params.rootURL {
       self.workspace = try? Workspace(
         url: url,
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: self.toolchainRegistry,
-        buildSetup: self.buildSetup)
+        buildSetup: self.buildSetup,
+        indexOptions: indexOptions)
     } else if let path = req.params.rootPath {
       self.workspace = try? Workspace(
         url: URL(fileURLWithPath: path),
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: self.toolchainRegistry,
-        buildSetup: self.buildSetup)
+        buildSetup: self.buildSetup,
+        indexOptions: indexOptions)
     }
 
     if self.workspace == nil {
