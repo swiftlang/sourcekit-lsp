@@ -180,7 +180,7 @@ public final class SourceKitServer: LanguageServer {
         processId: pid,
         rootPath: nil,
         rootURL: (workspace?.rootPath).map { URL(fileURLWithPath: $0.pathString) },
-        initializationOptions: InitializationOptions(),
+        initializationOptions: nil,
         capabilities: workspace?.clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
         workspaceFolders: nil))
