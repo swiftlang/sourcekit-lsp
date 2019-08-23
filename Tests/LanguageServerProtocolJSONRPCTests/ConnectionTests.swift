@@ -199,4 +199,43 @@ class ConnectionTests: XCTestCase {
 
     waitForExpectations(timeout: 10)
   }
+
+
+  /// We can explicitly close a connection, but the connection also
+  /// automatically closes itself if the pipe is closed (or has an error).
+  /// DispatchIO can make its callback at any time, so this test is to try to
+  /// provoke a race between those things and ensure the closeHandler is called
+  /// exactly once.
+  func testCloseRace() {
+    for _ in 0...100 {
+      let to = Pipe()
+      let from = Pipe()
+      let expectation = self.expectation(description: "closed")
+      expectation.assertForOverFulfill = true
+
+      let conn = JSONRPCConection(
+        protocol: MessageRegistry(requests: [], notifications: []),
+        inFD: to.fileHandleForReading.fileDescriptor,
+        outFD: from.fileHandleForWriting.fileDescriptor,
+        closeHandler: {
+        // We get an error from XCTest if this is fulfilled more than once.
+        expectation.fulfill()
+      })
+
+      final class DummyHandler: MessageHandler {
+        func handle<N: NotificationType>(_: N, from: ObjectIdentifier) {}
+        func handle<R: RequestType>(_: R, id: RequestID, from: ObjectIdentifier, reply: @escaping (LSPResult<R.Response>) -> Void) {}
+      }
+
+      conn.start(receiveHandler: DummyHandler())
+
+
+      close(to.fileHandleForWriting.fileDescriptor)
+      // 100 us was chosen empirically to encourage races.
+      usleep(100)
+      conn.close()
+
+      waitForExpectations(timeout: 10)
+    }
+  }
 }

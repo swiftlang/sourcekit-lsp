@@ -101,12 +101,12 @@ public final class JSONRPCConection {
     receiveIO.read(offset: 0, length: Int.max, queue: queue) { done, data, errorCode in
       guard errorCode == 0 else {
         log("IO error \(errorCode)", level: .error)
-        if done { self.close() }
+        if done { self._close() }
         return
       }
 
       if done {
-        self.close()
+        self._close()
         return
       }
 
@@ -281,6 +281,11 @@ public final class JSONRPCConection {
 
   /// Close the connection.
   public func close() {
+    queue.sync { _close() }
+  }
+
+  /// Close the connection. *Must be called on `queue`.*
+  func _close() {
     guard state == .running else { return }
 
     log("\(JSONRPCConection.self): closing...")
