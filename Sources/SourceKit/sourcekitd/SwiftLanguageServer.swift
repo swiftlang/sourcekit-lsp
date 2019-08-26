@@ -122,7 +122,7 @@ public final class SwiftLanguageServer: LanguageServer {
     )
   }
 
-  func publicDiagnostics(_ diags: SKResponseArray?, for snapshot: DocumentSnapshot) {
+  func publishDiagnostics(_ diags: SKResponseArray?, for snapshot: DocumentSnapshot) {
     // Note: we make the notification even if there are no diagnostics to clear the current state.
     var result: [Diagnostic] = []
     diags?.forEach { _, diag in
@@ -150,7 +150,7 @@ public final class SwiftLanguageServer: LanguageServer {
     req[keys.sourcetext] = ""
 
     if let dict = self.sourcekitd.sendSync(req).success {
-      publicDiagnostics(dict[keys.diagnostics], for: snapshot)
+      publishDiagnostics(dict[keys.diagnostics], for: snapshot)
     }
   }
 }
@@ -247,7 +247,7 @@ extension SwiftLanguageServer {
       return
     }
 
-    publicDiagnostics(dict[keys.diagnostics], for: snapshot)
+    publishDiagnostics(dict[keys.diagnostics], for: snapshot)
   }
 
   func closeDocument(_ note: Notification<DidCloseTextDocument>) {
@@ -290,7 +290,7 @@ extension SwiftLanguageServer {
     }
 
     if let dict = lastResponse, let snapshot = snapshot {
-      publicDiagnostics(dict[keys.diagnostics], for: snapshot)
+      publishDiagnostics(dict[keys.diagnostics], for: snapshot)
     }
   }
 
