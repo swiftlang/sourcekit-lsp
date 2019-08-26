@@ -106,9 +106,9 @@ final class CodeActionTests: XCTestCase {
   }
 
   func testCommandEncoding() {
-    let dictionary: CommandArgumentType = ["1": [nil, 2], "2": "text", "3": ["4": [1, 2]]]
-    let array: CommandArgumentType = [1, [2,"string"], dictionary]
-    let arguments: CommandArgumentType = [1, 2.2, "text", nil, array, dictionary]
+    let dictionary: LSPAny = ["1": [nil, 2], "2": "text", "3": ["4": [1, 2]]]
+    let array: LSPAny = [1, [2,"string"], dictionary]
+    let arguments: LSPAny = [1, 2.2, "text", nil, array, dictionary]
     let command = Command(title: "Command", command: "command.id", arguments: [arguments, arguments])
     let decoded = try! JSONDecoder().decode(Command.self, from: JSONEncoder().encode(command))
     XCTAssertEqual(decoded, command)

@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Dispatch
+
 public protocol MessageType: Codable {}
 
 /// `RequestType` with no associated type or same-type requirements. Most users should prefer
@@ -20,7 +22,13 @@ public protocol _RequestType: MessageType {
   static var method: String { get }
 
   /// *Implementation detail*. Dispatch `self` to the given handler and reply on `connection`.
-  func _handle(_ handler: MessageHandler, id: RequestID, connection: _IndirectConnection)
+  ///
+  /// `sync: true` should only be used for testing.
+  func _handle(
+    _ handler: MessageHandler,
+    id: RequestID,
+    connection: _IndirectConnection,
+    sync: Bool)
 }
 
 /// A request, which must have a unique `method` name as well as an associated response type.
@@ -44,10 +52,20 @@ public protocol NotificationType: MessageType {
 public protocol ResponseType: MessageType {}
 
 extension RequestType {
-  public func _handle(_ handler: MessageHandler, id: RequestID, connection: _IndirectConnection) {
+  public func _handle(
+    _ handler: MessageHandler,
+    id: RequestID,
+    connection: _IndirectConnection,
+    sync: Bool)
+  {
+    let semaphore: DispatchSemaphore? = sync ? .init(value: 0) : nil
+
     handler.handle(self, id: id, from: ObjectIdentifier(connection)) { response in
       connection.sendReply(response, id: id)
+      semaphore?.signal()
     }
+
+    semaphore?.wait()
   }
 }
 

@@ -48,7 +48,7 @@ public struct InitializeRequest: RequestType, Hashable {
   public var rootURL: URL?
 
   /// User-provided options.
-  public var initializationOptions: InitializationOptions? = nil
+  public var initializationOptions: LSPAny? = nil
 
   /// The capabilities provided by the client editor.
   public var capabilities: ClientCapabilities
@@ -69,7 +69,7 @@ public struct InitializeRequest: RequestType, Hashable {
     processId: Int? = nil,
     rootPath: String? = nil,
     rootURL: URL?,
-    initializationOptions: InitializationOptions? = nil,
+    initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities,
     trace: Tracing = .off,
     workspaceFolders: [WorkspaceFolder]?)

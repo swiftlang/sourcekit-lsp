@@ -82,6 +82,7 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceRequest(SourceKitServer.documentColor)
     registerWorkspaceRequest(SourceKitServer.colorPresentation)
     registerWorkspaceRequest(SourceKitServer.codeAction)
+    registerWorkspaceRequest(SourceKitServer.pollIndex)
   }
 
   func registerWorkspaceRequest<R>(
@@ -180,7 +181,7 @@ public final class SourceKitServer: LanguageServer {
         processId: pid,
         rootPath: nil,
         rootURL: (workspace?.rootPath).map { URL(fileURLWithPath: $0.pathString) },
-        initializationOptions: InitializationOptions(),
+        initializationOptions: nil,
         capabilities: workspace?.clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
         workspaceFolders: nil))
@@ -222,18 +223,28 @@ extension SourceKitServer {
   // MARK: - General
 
   func initialize(_ req: Request<InitializeRequest>) {
+
+    var indexOptions = IndexOptions()
+    if case .dictionary(let options) = req.params.initializationOptions {
+      if case .bool(let listenToUnitEvents) = options["listenToUnitEvents"] {
+        indexOptions.listenToUnitEvents = listenToUnitEvents
+      }
+    }
+
     if let url = req.params.rootURL {
       self.workspace = try? Workspace(
         url: url,
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: self.toolchainRegistry,
-        buildSetup: self.buildSetup)
+        buildSetup: self.buildSetup,
+        indexOptions: indexOptions)
     } else if let path = req.params.rootPath {
       self.workspace = try? Workspace(
         url: URL(fileURLWithPath: path),
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: self.toolchainRegistry,
-        buildSetup: self.buildSetup)
+        buildSetup: self.buildSetup,
+        indexOptions: indexOptions)
     }
 
     if self.workspace == nil {
@@ -572,6 +583,11 @@ extension SourceKitServer {
     req.cancellationToken.addCancellationHandler { [weak service] in
       service?.send(CancelRequest(id: id))
     }
+  }
+
+  func pollIndex(_ req: Request<PollIndex>, workspace: Workspace) {
+    workspace.index?.pollForUnitChangesAndWait()
+    req.reply(VoidResponse())
   }
 
   func toolchainTextDocumentRequest<PositionRequest>(

@@ -27,6 +27,7 @@ extension ConnectionTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__ConnectionTests = [
+        ("testCloseRace", testCloseRace),
         ("testEcho", testEcho),
         ("testEchoError", testEchoError),
         ("testEchoNote", testEchoNote),

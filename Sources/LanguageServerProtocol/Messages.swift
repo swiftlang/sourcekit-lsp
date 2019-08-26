@@ -40,6 +40,7 @@ public let builtinRequests: [_RequestType.Type] = [
   // MARK: LSP Extension Requests
 
   SymbolInfoRequest.self,
+  PollIndex.self,
 ]
 
 /// The set of known notifications.
