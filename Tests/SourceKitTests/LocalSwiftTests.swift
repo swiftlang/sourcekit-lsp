@@ -52,9 +52,6 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testEditing() {
-
-// FIXME: See comment on sendNoteSync.
-#if os(macOS)
     let url = URL(fileURLWithPath: "/a.swift")
 
     sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
@@ -163,7 +160,6 @@ final class LocalSwiftTests: XCTestCase {
         note.params.diagnostics.first?.range.lowerBound,
         Position(line: 1, utf16index: 4))
     })
-#endif
   }
 
   func testXMLToMarkdownDeclaration() {
