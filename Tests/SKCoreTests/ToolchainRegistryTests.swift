@@ -289,47 +289,47 @@ final class ToolchainRegistryTests: XCTestCase {
   func testFromDirectory() {
     // This test uses the real file system because the in-memory system doesn't support marking files executable.
     let fs = localFileSystem
-    let tempDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
+    try! withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+      let path = tempDir.appending(components: "A.xctoolchain", "usr")
+      makeToolchain(
+        binPath: path.appending(component: "bin"), fs,
+        clang: true,
+        clangd: true,
+        swiftc: true,
+        shouldChmod: false,
+        sourcekitd: true)
 
-    let path = tempDir.path.appending(components: "A.xctoolchain", "usr")
-    makeToolchain(
-      binPath: path.appending(component: "bin"), fs,
-      clang: true,
-      clangd: true,
-      swiftc: true,
-      shouldChmod: false,
-      sourcekitd: true)
+      try! fs.writeFileContents(path.appending(components: "bin", "other") , bytes: "")
 
-    try! fs.writeFileContents(path.appending(components: "bin", "other") , bytes: "")
+      let t1 = Toolchain(path.parentDirectory, fs)!
+      XCTAssertNotNil(t1.sourcekitd)
+      XCTAssertNil(t1.clang)
+      XCTAssertNil(t1.clangd)
+      XCTAssertNil(t1.swiftc)
 
-    let t1 = Toolchain(path.parentDirectory, fs)!
-    XCTAssertNotNil(t1.sourcekitd)
-    XCTAssertNil(t1.clang)
-    XCTAssertNil(t1.clangd)
-    XCTAssertNil(t1.swiftc)
+      func chmodRX(_ path: AbsolutePath) {
+        XCTAssertEqual(chmod(path.pathString, S_IRUSR | S_IXUSR), 0)
+      }
 
-    func chmodRX(_ path: AbsolutePath) {
-      XCTAssertEqual(chmod(path.pathString, S_IRUSR | S_IXUSR), 0)
+      chmodRX(path.appending(components: "bin", "clang"))
+      chmodRX(path.appending(components: "bin", "clangd"))
+      chmodRX(path.appending(components: "bin", "swiftc"))
+      chmodRX(path.appending(components: "bin", "other"))
+
+      let t2 = Toolchain(path.parentDirectory, fs)!
+      XCTAssertNotNil(t2.sourcekitd)
+      XCTAssertNotNil(t2.clang)
+      XCTAssertNotNil(t2.clangd)
+      XCTAssertNotNil(t2.swiftc)
+
+      let tr = ToolchainRegistry()
+      let t3 = try! tr.registerToolchain(path.parentDirectory, fs)
+      XCTAssertEqual(t3.identifier, t2.identifier)
+      XCTAssertEqual(t3.sourcekitd, t2.sourcekitd)
+      XCTAssertEqual(t3.clang, t2.clang)
+      XCTAssertEqual(t3.clangd, t2.clangd)
+      XCTAssertEqual(t3.swiftc, t2.swiftc)
     }
-
-    chmodRX(path.appending(components: "bin", "clang"))
-    chmodRX(path.appending(components: "bin", "clangd"))
-    chmodRX(path.appending(components: "bin", "swiftc"))
-    chmodRX(path.appending(components: "bin", "other"))
-
-    let t2 = Toolchain(path.parentDirectory, fs)!
-    XCTAssertNotNil(t2.sourcekitd)
-    XCTAssertNotNil(t2.clang)
-    XCTAssertNotNil(t2.clangd)
-    XCTAssertNotNil(t2.swiftc)
-
-    let tr = ToolchainRegistry()
-    let t3 = try! tr.registerToolchain(path.parentDirectory, fs)
-    XCTAssertEqual(t3.identifier, t2.identifier)
-    XCTAssertEqual(t3.sourcekitd, t2.sourcekitd)
-    XCTAssertEqual(t3.clang, t2.clang)
-    XCTAssertEqual(t3.clangd, t2.clangd)
-    XCTAssertEqual(t3.swiftc, t2.swiftc)
   }
 
   func testDylibNames() {
