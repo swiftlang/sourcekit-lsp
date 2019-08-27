@@ -80,7 +80,9 @@ final class LocalSwiftTests: XCTestCase {
       .init(range: Range(Position(line: 0, utf16index: 4)), text: " foo() {}\n")
     ]), { (note: Notification<PublishDiagnostics>) in
       log("Received diagnostics for edit 1 - syntactic")
-      XCTAssertEqual(note.params.diagnostics.count, 0)
+      // 1 = remaining semantic error
+      // 0 = semantic update finished already
+      XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual("func foo() {}\n", self.workspace.documentManager.latestSnapshot(url)!.text)
     }, { (note: Notification<PublishDiagnostics>) in
       log("Received diagnostics for edit 1 - semantic")
@@ -91,7 +93,9 @@ final class LocalSwiftTests: XCTestCase {
       .init(range: Range(Position(line: 1, utf16index: 0)), text: "_ = bar()")
       ]), { (note: Notification<PublishDiagnostics>) in
         log("Received diagnostics for edit 2 - syntactic")
-        XCTAssertEqual(note.params.diagnostics.count, 0)
+        // 1 = semantic update finished already
+        // 0 = only syntactic
+        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
         XCTAssertEqual("""
         func foo() {}
         _ = bar()
@@ -108,7 +112,9 @@ final class LocalSwiftTests: XCTestCase {
       .init(range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 7), text: "foo")
       ]), { (note: Notification<PublishDiagnostics>) in
         log("Received diagnostics for edit 3 - syntactic")
-        XCTAssertEqual(note.params.diagnostics.count, 0)
+        // 1 = remaining semantic error
+        // 0 = semantic update finished already
+        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
         XCTAssertEqual("""
         func foo() {}
         _ = foo()
@@ -122,7 +128,9 @@ final class LocalSwiftTests: XCTestCase {
       .init(range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 7), text: "fooTypo")
       ]), { (note: Notification<PublishDiagnostics>) in
         log("Received diagnostics for edit 4 - syntactic")
-        XCTAssertEqual(note.params.diagnostics.count, 0)
+        // 1 = semantic update finished already
+        // 0 = only syntactic
+        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
         XCTAssertEqual("""
         func foo() {}
         _ = fooTypo()
@@ -142,7 +150,8 @@ final class LocalSwiftTests: XCTestCase {
       """)
       ]), { (note: Notification<PublishDiagnostics>) in
         log("Received diagnostics for edit 5 - syntactic")
-        XCTAssertEqual(note.params.diagnostics.count, 0)
+        // Could be remaining semantic error or new one.
+        XCTAssertEqual(note.params.diagnostics.count, 1)
         XCTAssertEqual("""
         func bar() {}
         _ = foo()

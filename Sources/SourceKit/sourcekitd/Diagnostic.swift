@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import SKSupport
 import sourcekitd
 
 extension Diagnostic {
@@ -70,5 +71,59 @@ extension Diagnostic {
       source: "sourcekitd",
       message: message,
       relatedInformation: notes)
+  }
+}
+
+struct CachedDiagnostic {
+  var diagnostic: Diagnostic
+  var stage: DiagnosticStage
+}
+
+extension CachedDiagnostic {
+  init?(_ diag: SKResponseDictionary, in snapshot: DocumentSnapshot) {
+    let sk = diag.sourcekitd
+    guard let diagnostic = Diagnostic(diag, in: snapshot) else { return nil }
+    self.diagnostic = diagnostic
+    let stageUID: sourcekitd_uid_t? = diag[sk.keys.diagnostic_stage]
+    self.stage = stageUID.flatMap { DiagnosticStage($0, sourcekitd: sk) } ?? .parse
+  }
+}
+
+/// Returns the new diagnostics after merging in any existing diagnostics from a higher diagnostic
+/// stage that should not be cleared yet.
+///
+/// Sourcekitd returns parse diagnostics immediately after edits, but we do not want to clear the
+/// semantic diagnostics until we have semantic level diagnostics from after the edit.
+func mergeDiagnostics(old: [CachedDiagnostic], new: [CachedDiagnostic], stage: DiagnosticStage) -> [CachedDiagnostic] {
+  if stage == .sema {
+    return new
+  }
+
+#if DEBUG
+  if let sema = new.first(where: { $0.stage == .sema }) {
+    log("unexpected semantic diagnostic in parse diagnostics \(sema.diagnostic)", level: .warning)
+  }
+#endif
+  return new.filter { $0.stage == .parse } + old.filter { $0.stage == .sema }
+}
+
+/// Whether a diagostic is semantic or syntatic (parse).
+enum DiagnosticStage: Hashable {
+  case parse
+  case sema
+}
+
+extension DiagnosticStage {
+  init?(_ uid: sourcekitd_uid_t, sourcekitd: SwiftSourceKitFramework) {
+    switch uid {
+      case sourcekitd.values.diag_stage_parse:
+        self = .parse
+      case sourcekitd.values.diag_stage_sema:
+        self = .sema
+      default:
+        let desc = sourcekitd.api.uid_get_string_ptr(uid).map { String(cString: $0) }
+        log("unknown diagnostic stage \(desc ?? "nil")", level: .warning)
+        return nil
+    }
   }
 }

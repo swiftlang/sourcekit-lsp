@@ -29,6 +29,8 @@ public final class SwiftLanguageServer: LanguageServer {
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
 
+  var currentDiagnostics: [CachedDiagnostic] = []
+
   let onExit: () -> Void
 
   var api: sourcekitd_functions_t { return sourcekitd.api }
@@ -70,16 +72,28 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.codeAction)
   }
 
-  func publishDiagnostics(_ diags: SKResponseArray?, for snapshot: DocumentSnapshot) {
+  func publishDiagnostics(
+    response: SKResponseDictionary,
+    for snapshot: DocumentSnapshot)
+  {
+    let stageUID: sourcekitd_uid_t? = response[sourcekitd.keys.diagnostic_stage]
+    let stage = stageUID.flatMap { DiagnosticStage($0, sourcekitd: sourcekitd) } ?? .sema
+
     // Note: we make the notification even if there are no diagnostics to clear the current state.
-    var result: [Diagnostic] = []
-    diags?.forEach { _, diag in
-      if let diag = Diagnostic(diag, in: snapshot) {
-        result.append(diag)
+    var newDiags: [CachedDiagnostic] = []
+    response[keys.diagnostics]?.forEach { _, diag in
+      if let diag = CachedDiagnostic(diag, in: snapshot) {
+        newDiags.append(diag)
       }
       return true
     }
-    client.send(PublishDiagnostics(url: snapshot.document.url, diagnostics: result))
+
+    let result = mergeDiagnostics(old: currentDiagnostics, new: newDiags, stage: stage)
+    currentDiagnostics = result
+
+    client.send(PublishDiagnostics(
+      url: snapshot.document.url,
+      diagnostics: result.map { $0.diagnostic }))
   }
 
   func handleDocumentUpdate(url: URL) {
@@ -98,7 +112,7 @@ public final class SwiftLanguageServer: LanguageServer {
     req[keys.sourcetext] = ""
 
     if let dict = self.sourcekitd.sendSync(req).success {
-      publishDiagnostics(dict[keys.diagnostics], for: snapshot)
+      publishDiagnostics(response: dict, for: snapshot)
     }
   }
 }
@@ -195,7 +209,7 @@ extension SwiftLanguageServer {
       return
     }
 
-    publishDiagnostics(dict[keys.diagnostics], for: snapshot)
+    publishDiagnostics(response: dict, for: snapshot)
   }
 
   func closeDocument(_ note: Notification<DidCloseTextDocument>) {
@@ -238,7 +252,7 @@ extension SwiftLanguageServer {
     }
 
     if let dict = lastResponse, let snapshot = snapshot {
-      publishDiagnostics(dict[keys.diagnostics], for: snapshot)
+      publishDiagnostics(response: dict, for: snapshot)
     }
   }
 
