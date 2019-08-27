@@ -70,63 +70,11 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.codeAction)
   }
 
-  func getDiagnostic(_ diag: SKResponseDictionary, for snapshot: DocumentSnapshot) -> Diagnostic? {
-
-    // FIXME: this assumes that the diagnostics are all in the same file.
-
-    guard let message: String = diag[keys.description] else { return nil }
-
-    var position: Position? = nil
-    if let line: Int = diag[keys.line], let utf8Column: Int = diag[keys.column], line > 0, utf8Column > 0 {
-      position = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: utf8Column - 1)
-    } else if let utf8Offset: Int = diag[keys.offset] {
-      position = snapshot.positionOf(utf8Offset: utf8Offset)
-    }
-
-    if position == nil {
-      return nil
-    }
-
-    var severity: DiagnosticSeverity? = nil
-    if let uid: sourcekitd_uid_t = diag[keys.severity] {
-      switch uid {
-      case values.diag_error:
-        severity = .error
-      case values.diag_warning:
-        severity = .warning
-      default:
-        break
-      }
-    }
-
-    var notes: [DiagnosticRelatedInformation]? = nil
-    if let sknotes: SKResponseArray = diag[keys.diagnostics] {
-      notes = []
-      sknotes.forEach { (_, sknote) -> Bool in
-        guard let note = getDiagnostic(sknote, for: snapshot) else { return true }
-        notes?.append(DiagnosticRelatedInformation(
-          location: Location(url: snapshot.document.url, range: note.range.asRange),
-          message: note.message
-        ))
-        return true
-      }
-    }
-
-    return Diagnostic(
-      range: Range(position!),
-      severity: severity,
-      code: nil,
-      source: "sourcekitd",
-      message: message,
-      relatedInformation: notes
-    )
-  }
-
   func publishDiagnostics(_ diags: SKResponseArray?, for snapshot: DocumentSnapshot) {
     // Note: we make the notification even if there are no diagnostics to clear the current state.
     var result: [Diagnostic] = []
     diags?.forEach { _, diag in
-      if let diag = getDiagnostic(diag, for: snapshot) {
+      if let diag = Diagnostic(diag, in: snapshot) {
         result.append(diag)
       }
       return true
