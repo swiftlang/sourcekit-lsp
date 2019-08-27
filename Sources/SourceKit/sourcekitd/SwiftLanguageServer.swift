@@ -29,6 +29,8 @@ public final class SwiftLanguageServer: LanguageServer {
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
 
+  var currentDiagnostics: [CachedDiagnostic] = []
+
   let onExit: () -> Void
 
   var api: sourcekitd_functions_t { return sourcekitd.api }
@@ -70,68 +72,28 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.codeAction)
   }
 
-  func getDiagnostic(_ diag: SKResponseDictionary, for snapshot: DocumentSnapshot) -> Diagnostic? {
+  func publishDiagnostics(
+    response: SKResponseDictionary,
+    for snapshot: DocumentSnapshot)
+  {
+    let stageUID: sourcekitd_uid_t? = response[sourcekitd.keys.diagnostic_stage]
+    let stage = stageUID.flatMap { DiagnosticStage($0, sourcekitd: sourcekitd) } ?? .sema
 
-    // FIXME: this assumes that the diagnostics are all in the same file.
-
-    guard let message: String = diag[keys.description] else { return nil }
-
-    var position: Position? = nil
-    if let line: Int = diag[keys.line], let utf8Column: Int = diag[keys.column], line > 0, utf8Column > 0 {
-      position = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: utf8Column - 1)
-    } else if let utf8Offset: Int = diag[keys.offset] {
-      position = snapshot.positionOf(utf8Offset: utf8Offset)
-    }
-
-    if position == nil {
-      return nil
-    }
-
-    var severity: DiagnosticSeverity? = nil
-    if let uid: sourcekitd_uid_t = diag[keys.severity] {
-      switch uid {
-      case values.diag_error:
-        severity = .error
-      case values.diag_warning:
-        severity = .warning
-      default:
-        break
-      }
-    }
-
-    var notes: [DiagnosticRelatedInformation]? = nil
-    if let sknotes: SKResponseArray = diag[keys.diagnostics] {
-      notes = []
-      sknotes.forEach { (_, sknote) -> Bool in
-        guard let note = getDiagnostic(sknote, for: snapshot) else { return true }
-        notes?.append(DiagnosticRelatedInformation(
-          location: Location(url: snapshot.document.url, range: note.range.asRange),
-          message: note.message
-        ))
-        return true
-      }
-    }
-
-    return Diagnostic(
-      range: Range(position!),
-      severity: severity,
-      code: nil,
-      source: "sourcekitd",
-      message: message,
-      relatedInformation: notes
-    )
-  }
-
-  func publicDiagnostics(_ diags: SKResponseArray?, for snapshot: DocumentSnapshot) {
     // Note: we make the notification even if there are no diagnostics to clear the current state.
-    var result: [Diagnostic] = []
-    diags?.forEach { _, diag in
-      if let diag = getDiagnostic(diag, for: snapshot) {
-        result.append(diag)
+    var newDiags: [CachedDiagnostic] = []
+    response[keys.diagnostics]?.forEach { _, diag in
+      if let diag = CachedDiagnostic(diag, in: snapshot) {
+        newDiags.append(diag)
       }
       return true
     }
-    client.send(PublishDiagnostics(url: snapshot.document.url, diagnostics: result))
+
+    let result = mergeDiagnostics(old: currentDiagnostics, new: newDiags, stage: stage)
+    currentDiagnostics = result
+
+    client.send(PublishDiagnostics(
+      url: snapshot.document.url,
+      diagnostics: result.map { $0.diagnostic }))
   }
 
   func handleDocumentUpdate(url: URL) {
@@ -150,7 +112,7 @@ public final class SwiftLanguageServer: LanguageServer {
     req[keys.sourcetext] = ""
 
     if let dict = self.sourcekitd.sendSync(req).success {
-      publicDiagnostics(dict[keys.diagnostics], for: snapshot)
+      publishDiagnostics(response: dict, for: snapshot)
     }
   }
 }
@@ -247,7 +209,7 @@ extension SwiftLanguageServer {
       return
     }
 
-    publicDiagnostics(dict[keys.diagnostics], for: snapshot)
+    publishDiagnostics(response: dict, for: snapshot)
   }
 
   func closeDocument(_ note: Notification<DidCloseTextDocument>) {
@@ -290,7 +252,7 @@ extension SwiftLanguageServer {
     }
 
     if let dict = lastResponse, let snapshot = snapshot {
-      publicDiagnostics(dict[keys.diagnostics], for: snapshot)
+      publishDiagnostics(response: dict, for: snapshot)
     }
   }
 

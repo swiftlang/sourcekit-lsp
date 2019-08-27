@@ -204,6 +204,7 @@ struct sourcekitd_keys {
   let kind: sourcekitd_uid_t
   let notification: sourcekitd_uid_t
   let diagnostics: sourcekitd_uid_t
+  let diagnostic_stage: sourcekitd_uid_t
   let severity: sourcekitd_uid_t
   let line: sourcekitd_uid_t
   let column: sourcekitd_uid_t
@@ -234,6 +235,7 @@ struct sourcekitd_keys {
     kind = api.uid_get_from_cstr("key.kind")!
     notification = api.uid_get_from_cstr("key.notification")!
     diagnostics = api.uid_get_from_cstr("key.diagnostics")!
+    diagnostic_stage = api.uid_get_from_cstr("key.diagnostic_stage")!
     severity = api.uid_get_from_cstr("key.severity")!
     line = api.uid_get_from_cstr("key.line")!
     column = api.uid_get_from_cstr("key.column")!
@@ -278,6 +280,8 @@ struct sourcekitd_values {
   let diag_error: sourcekitd_uid_t
   let diag_warning: sourcekitd_uid_t
   let diag_note: sourcekitd_uid_t
+  let diag_stage_parse: sourcekitd_uid_t
+  let diag_stage_sema: sourcekitd_uid_t
 
   // MARK: Symbol Kinds
 
@@ -368,6 +372,8 @@ struct sourcekitd_values {
     diag_error = api.uid_get_from_cstr("source.diagnostic.severity.error")!
     diag_warning = api.uid_get_from_cstr("source.diagnostic.severity.warning")!
     diag_note = api.uid_get_from_cstr("source.diagnostic.severity.note")!
+    diag_stage_parse = api.uid_get_from_cstr("source.diagnostic.stage.swift.parse")!
+    diag_stage_sema = api.uid_get_from_cstr("source.diagnostic.stage.swift.sema")!
 
     // MARK: Symbol Kinds
 

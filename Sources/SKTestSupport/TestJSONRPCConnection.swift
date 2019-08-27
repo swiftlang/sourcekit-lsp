@@ -143,9 +143,6 @@ extension TestClient: Connection {
   }
 
 
-// FIXME: SR-9010: these APIs require waiting on specific expectations.
-#if os(macOS)
-
   /// Send a notification and expect a notification in reply synchronously.
   /// For testing notifications that behave like requests  - e.g. didChange & publishDiagnostics.
   public func sendNoteSync<NSend, NReply>(_ notification: NSend, _ handler: @escaping (Notification<NReply>) -> Void) where NSend: NotificationType {
@@ -192,7 +189,6 @@ extension TestClient: Connection {
       fatalError("error \(result) waiting for notification in response to \(notification)")
     }
   }
-#endif
 }
 
 public final class TestServer: LanguageServer {
