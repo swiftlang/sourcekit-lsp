@@ -58,7 +58,11 @@ public final class BuildServerBuildSystem {
   }
 
   deinit {
-    _ = try? self.buildServer?.sendSync(ShutdownBuild())
+    do {
+      _ = try self.buildServer?.sendSync(ShutdownBuild())
+    } catch {
+      log("error shutting down build server: \(error)")
+    }
     self.buildServer?.send(ExitBuildNotification())
   }
 
