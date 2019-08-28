@@ -75,7 +75,7 @@ let package = Package(
       // BuildServerProtocol: connection between build server and language server to provide build and index info
       .target(
         name: "BuildServerProtocol",
-        dependencies: ["LanguageServerProtocolJSONRPC", "LanguageServerProtocol"]),
+        dependencies: ["LanguageServerProtocol"]),
 
       // SKSupport: Data structures, algorithms and platform-abstraction code that might be generally
       // useful to any Swift package. Similar in spirit to SwiftPM's Basic module.
