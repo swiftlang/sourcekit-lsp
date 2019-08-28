@@ -19,6 +19,8 @@ import LanguageServerProtocol
 public struct ShutdownBuild: RequestType {
   public static let method: String = "build/shutdown"
   public typealias Response = VoidResponse
+
+  public init() {}
 }
 
 /// Like the language server protocol, a notification to ask the
@@ -27,4 +29,6 @@ public struct ShutdownBuild: RequestType {
 /// otherwise with error code 1.
 public struct ExitBuildNotification: NotificationType {
   public static let method: String = "build/exit"
+
+  public init() {}
 }

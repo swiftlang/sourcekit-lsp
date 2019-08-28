@@ -57,6 +57,11 @@ public final class BuildServerBuildSystem {
     }
   }
 
+  deinit {
+    _ = try? self.buildServer?.sendSync(ShutdownBuild())
+    self.buildServer?.send(ExitBuildNotification())
+  }
+
   private func initializeBuildServer() throws {
     let serverPath = AbsolutePath(serverConfig.argv[0], relativeTo: projectRoot)
     let flags = Array(serverConfig.argv[1...])
@@ -78,6 +83,7 @@ public final class BuildServerBuildSystem {
     let handler = BuildServerHandler()
     let buildServer = try makeJSONRPCBuildServer(client: handler, serverPath: serverPath, serverFlags: flags)
     let response = try buildServer.sendSync(initializeRequest)
+    buildServer.send(InitializedBuildNotification())
     log("initialized build server \(response.displayName)")
     self.buildServer = buildServer
     self.handler = handler
