@@ -85,9 +85,32 @@ public final class BuildServerBuildSystem {
     let response = try buildServer.sendSync(initializeRequest)
     buildServer.send(InitializedBuildNotification())
     log("initialized build server \(response.displayName)")
+
+    // see if index store was set as part of the server metadata
+    if let indexStorePath = readReponseDataKey(data: response.data, key: "indexStorePath") {
+      self.indexStorePath = AbsolutePath(indexStorePath, relativeTo: self.projectRoot)
+    }
     self.buildServer = buildServer
     self.handler = handler
   }
+}
+
+private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
+  switch data {
+  case .dictionary(let dataDict):
+    if let val = dataDict[key] {
+      switch val {
+      case .string(let stringVal):
+        return stringVal
+      default:
+        break
+      }
+  }
+  default:
+    break
+  }
+
+  return nil
 }
 
 final class BuildServerHandler: LanguageServerEndpoint {

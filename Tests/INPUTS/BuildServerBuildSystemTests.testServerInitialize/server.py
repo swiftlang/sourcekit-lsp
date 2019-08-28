@@ -25,11 +25,12 @@ while True:
                 "rootUri": "blah",
                 "capabilities": {"languageIds": ["a", "b"]},
                 "data": {
-                    "index_store_path": "some/index/store/path"
+                    "indexStorePath": "some/index/store/path"
                 }
             }
         }
-    else:
+    # ignore notifications
+    elif "id" in message:
         response = {
             "jsonrpc": "2.0",
             "id": message["id"],
