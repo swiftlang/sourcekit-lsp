@@ -36,6 +36,7 @@ public final class BuildServerBuildSystem {
     self.buildFolder = buildFolder
     self.projectRoot = projectRoot
     self.serverConfig = config
+    try self.initializeBuildServer()
   }
 
   /// Creates a build system using the Build Server Protocol config.
