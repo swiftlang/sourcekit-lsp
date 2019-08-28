@@ -18,10 +18,8 @@ import LanguageServerProtocol
 /// that asks the server to exit.
 public struct ShutdownBuild: RequestType {
   public static let method: String = "build/shutdown"
-  public typealias Response = ShutdownBuildResult
+  public typealias Response = VoidResponse
 }
-
-public struct ShutdownBuildResult: ResponseType { }
 
 /// Like the language server protocol, a notification to ask the
 /// server to exit its process. The server should exit with success
