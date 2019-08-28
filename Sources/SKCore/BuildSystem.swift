@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import LanguageServerProtocol
 import TSCBasic
 
@@ -45,4 +46,8 @@ public protocol BuildSystem: AnyObject {
   /// Unregister the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
   func unregisterForChangeNotifications(for: URL)
+
+  /// Returns the build targets in the workspace
+  func buildTargets(reply: @escaping ([BuildTarget]?) -> Void)
+
 }

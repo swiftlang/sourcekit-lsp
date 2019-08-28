@@ -14,6 +14,7 @@ import SKCore
 import TSCBasic
 import LanguageServerProtocol
 import Foundation
+import BuildServerProtocol
 
 final class BuildServerBuildSystemTests: XCTestCase {
 
@@ -65,6 +66,36 @@ final class BuildServerBuildSystemTests: XCTestCase {
     }
   }
 
+  func testBuildTargets() {
+    let root = AbsolutePath(
+      inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
+    let buildFolder = AbsolutePath(NSTemporaryDirectory())
+    let buildSystem = try? BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
+    XCTAssertNotNil(buildSystem)
+
+    let expectation = XCTestExpectation(description: "build target expectation")
+    buildSystem?.buildTargets(reply: { targets in
+      XCTAssertNotNil(targets)
+      XCTAssertEqual(targets, [
+                     BuildTarget(id: BuildTargetIdentifier(uri: URL(string: "first_target")!),
+                                 displayName: "First Target",
+                                 baseDirectory: URL(fileURLWithPath: "/some/dir"),
+                                 tags: [.Library, .Test],
+                                 capabilities: BuildTargetCapabilities(canCompile: true, canTest: true, canRun: false),
+                                 languageIds: ["a", "b"],
+                                 dependencies: []),
+                     BuildTarget(id: BuildTargetIdentifier(uri: URL(string: "second_target")!),
+                                 displayName: "Second Target",
+                                 baseDirectory: URL(fileURLWithPath: "/some/dir"),
+                                 tags: [.Library, .Test],
+                                 capabilities: BuildTargetCapabilities(canCompile: true, canTest: false, canRun: false),
+                                 languageIds: ["a", "b"],
+                                 dependencies: [BuildTargetIdentifier(uri: URL(string: "first_target")!)]),
+                     ])
+      expectation.fulfill()
+    })
+    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 1), .completed)
+  }
 }
 
 final class TestDelegate: BuildSystemDelegate {

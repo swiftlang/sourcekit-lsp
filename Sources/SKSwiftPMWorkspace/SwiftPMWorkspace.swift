@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import LanguageServerProtocol
 import SKCore
 import TSCBasic
@@ -231,6 +232,10 @@ extension SwiftPMWorkspace: BuildSystem {
   /// line flag changes, dependency changes, etc.
   public func unregisterForChangeNotifications(for url: LanguageServerProtocol.URL) {
     // TODO: Support for change detection (via file watching)
+  }
+
+  public func buildTargets(reply: @escaping ([BuildTarget]?) -> Void) {
+    // TODO: add target support for SwiftPM
   }
 
   /// Returns the resolved target description for the given file, if one is known.

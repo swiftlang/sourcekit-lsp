@@ -118,7 +118,7 @@ extension JSONRPCMessage: Codable {
 
     } catch DecodingError.typeMismatch(_, let context) {
       let path = context.codingPath.map { $0.stringValue }.joined(separator: ".")
-      throw MessageDecodingError.invalidParams("type mistmatch at \(path) : \(context.debugDescription)", id: id, messageKind: msgKind)
+      throw MessageDecodingError.invalidParams("type mismatch at \(path) : \(context.debugDescription)", id: id, messageKind: msgKind)
 
     } catch {
       throw MessageDecodingError.parseError(error.localizedDescription, id: id, messageKind: msgKind)

@@ -6,6 +6,8 @@ import LanguageServerProtocol
 public struct BuildTargets: RequestType, Hashable {
   public static let method: String = "workspace/buildTargets"
   public typealias Response = BuildTargetsResult
+
+  public init() {}
 }
 
 public struct BuildTargetsResult: ResponseType, Hashable {
@@ -34,7 +36,7 @@ public struct BuildTarget: Codable, Hashable {
   /// - display icons or colors in the user interface.
   /// Pre-defined tags are listed in `BuildTargetTag` but clients and servers
   /// are free to define new tags for custom purposes.
-  public var tags: [String]
+  public var tags: [BuildTargetTag]
 
   /// The capabilities of this build target. 
   public var capabilities: BuildTargetCapabilities
@@ -45,13 +47,33 @@ public struct BuildTarget: Codable, Hashable {
 
   /// The direct upstream build target dependencies of this build target 
   public var dependencies: [BuildTargetIdentifier]
+
+  public init(id: BuildTargetIdentifier,
+              displayName: String?,
+              baseDirectory: URL?,
+              tags: [BuildTargetTag],
+              capabilities: BuildTargetCapabilities,
+              languageIds: [String],
+              dependencies: [BuildTargetIdentifier]) {
+    self.id = id
+    self.displayName = displayName
+    self.baseDirectory = baseDirectory
+    self.tags = tags
+    self.capabilities = capabilities
+    self.languageIds = languageIds
+    self.dependencies = dependencies
+  }
 }
 
 public struct BuildTargetIdentifier: Codable, Hashable {
   public var uri: URL
+
+  public init(uri: URL) {
+    self.uri = uri
+  }
 }
 
-public enum BuildTargetTag: String {
+public enum BuildTargetTag: String, Codable {
   /// Target contains re-usable functionality for downstream targets. May have any
    /// combination of capabilities. 
    case Library = "library"
@@ -88,4 +110,10 @@ public struct BuildTargetCapabilities: Codable, Hashable {
 
   /// This target can be run by the BSP server. 
   public var canRun: Bool
+
+  public init(canCompile: Bool, canTest: Bool, canRun: Bool) {
+    self.canCompile = canCompile
+    self.canTest = canTest
+    self.canRun = canRun
+  }
 }
