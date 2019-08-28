@@ -33,7 +33,6 @@ public final class BuildServerBuildSystem {
   public init(projectRoot: AbsolutePath, buildFolder: AbsolutePath?, fileSystem: FileSystem = localFileSystem) throws {
     let configPath = projectRoot.appending(component: "buildServer.json")
     let config = try loadBuildServerConfig(path: configPath, fileSystem: fileSystem)
-
     self.buildFolder = buildFolder
     self.projectRoot = projectRoot
     self.serverConfig = config
@@ -48,17 +47,16 @@ public final class BuildServerBuildSystem {
 
     do {
       try self.init(projectRoot: projectRoot!, buildFolder: buildSetup.path)
+    } catch _ as FileSystemError {
+      // config file was missing, no build server for this workspace
+      return nil
     } catch {
-      log("failed to load build server config: \(error)", level: .error)
+      log("failed to start build server: \(error)", level: .error)
       return nil
     }
   }
 
-  /// Creates the RPC connection to the server specified in the config
-  /// and sends an initialize request.
-  ///
-  /// - Returns: false if the server fails to start or returns an error during initialization.
-  public func initialize() -> Bool {
+  private func initializeBuildServer() throws {
     let serverPath = AbsolutePath(serverConfig.argv[0], relativeTo: projectRoot)
     let flags = Array(serverConfig.argv[1...])
     let languages = [
@@ -76,18 +74,12 @@ public final class BuildServerBuildSystem {
       rootUri: self.projectRoot.asURL,
       capabilities: BuildClientCapabilities(languageIds: languages))
 
-    do {
-      let handler = BuildServerHandler()
-      let buildServer = try makeJSONRPCBuildServer(client: handler, serverPath: serverPath, serverFlags: flags)
-      let response = try buildServer.sendSync(initializeRequest)
-      log("initialized build server \(response.displayName)")
-      self.buildServer = buildServer
-      self.handler = handler
-      return true
-    } catch {
-      log("failed to initialize build server: \(error)")
-      return false
-    }
+    let handler = BuildServerHandler()
+    let buildServer = try makeJSONRPCBuildServer(client: handler, serverPath: serverPath, serverFlags: flags)
+    let response = try buildServer.sendSync(initializeRequest)
+    log("initialized build server \(response.displayName)")
+    self.buildServer = buildServer
+    self.handler = handler
   }
 }
 
@@ -113,10 +105,12 @@ extension BuildServerBuildSystem: BuildSystem {
 }
 
 private func loadBuildServerConfig(path: AbsolutePath, fileSystem: FileSystem) throws -> BuildServerConfig {
-  return try BuildServerConfig(json: JSON.init(bytes: fileSystem.readFileContents(path)))
+  let decoder = JSONDecoder()
+  let fileData = try fileSystem.readFileContents(path).contents
+  return try decoder.decode(BuildServerConfig.self, from: Data(fileData))
 }
 
-struct BuildServerConfig: JSONMappable {
+struct BuildServerConfig: Codable {
   /// The name of the build tool.
   let name: String
 
@@ -131,21 +125,6 @@ struct BuildServerConfig: JSONMappable {
 
   /// Command arguments runnable via system processes to start a BSP server.
   let argv: [String]
-
-  init(json: JSON) throws {
-    name = try json.get("name")
-    version = try json.get("version")
-    bspVersion = try json.get("bspVersion")
-    languages = try json.get("languages")
-    argv = try json.get("argv")
-    if argv.count < 1 {
-      throw BuildServerError.invalidConfig
-    }
-  }
-}
-
-enum BuildServerError: Error {
-  case invalidConfig
 }
 
 private func makeJSONRPCBuildServer(client: MessageHandler, serverPath: AbsolutePath, serverFlags: [String]?) throws -> Connection {

@@ -82,8 +82,7 @@ public final class Workspace {
     let settings = BuildSystemList()
     self.buildSettings = settings
 
-    if let buildServer = BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup),
-      buildServer.initialize() {
+    if let buildServer = BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
       settings.providers.insert(buildServer, at: 0)
     } else {
       settings.providers.insert(CompilationDatabaseBuildSystem(projectRoot: rootPath), at: 0)
