@@ -1,7 +1,0 @@
-{
-    "name": "client name",
-    "version": "10",
-    "bspVersion": "2.0",
-    "languages": [],
-    "argv": ["path/to/server"]
-}
