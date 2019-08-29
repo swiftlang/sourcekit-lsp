@@ -79,9 +79,9 @@ public struct InitializeBuildResult: ResponseType, Hashable {
   public var capabilities: BuildServerCapabilities
 
   /// Optional metadata about the server
-  public var data: [String:String]?
+  public var data: LSPAny?
 
-  public init(displayName: String, version: String, bspVersion: String, capabilities: BuildServerCapabilities, data: [String:String]? = nil) {
+  public init(displayName: String, version: String, bspVersion: String, capabilities: BuildServerCapabilities, data: LSPAny? = nil) {
     self.displayName = displayName
     self.version = version
     self.bspVersion = bspVersion
