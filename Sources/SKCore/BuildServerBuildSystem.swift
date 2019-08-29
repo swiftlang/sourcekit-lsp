@@ -137,7 +137,9 @@ extension BuildServerBuildSystem: BuildSystem {
   }
 
   public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
-    // TODO: add `textDocument/sourceKitOptions` request and response
+    if let response = try? self.buildServer?.sendSync(SourceKitOptions(uri: url)) {
+      return FileBuildSettings(compilerArguments: response.options, workingDirectory: response.workingDirectory)
+    }
     return nil
   }
 
