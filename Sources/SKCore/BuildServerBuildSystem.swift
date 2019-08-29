@@ -61,11 +61,11 @@ public final class BuildServerBuildSystem {
     let serverPath = AbsolutePath(serverConfig.argv[0], relativeTo: projectRoot)
     let flags = Array(serverConfig.argv[1...])
     let languages = [
-      Language.c.rawValue,
-      Language.cpp.rawValue,
-      Language.objective_c.rawValue,
-      Language.objective_cpp.rawValue,
-      Language.swift.rawValue,
+      Language.c,
+      Language.cpp,
+      Language.objective_c,
+      Language.objective_cpp,
+      Language.swift,
     ]
 
     let initializeRequest = InitializeBuild(

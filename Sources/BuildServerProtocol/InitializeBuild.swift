@@ -58,9 +58,9 @@ public struct BuildClientCapabilities: Codable, Hashable {
   /// The ID strings for each language is defined in the LSP.
   /// The server must never respond with build targets for other
   /// languages than those that appear in this list.
-  public var languageIds: [String]
+  public var languageIds: [Language]
 
-  public init(languageIds: [String]) {
+  public init(languageIds: [Language]) {
     self.languageIds = languageIds
   }
 }
@@ -118,25 +118,25 @@ public struct BuildServerCapabilities: Codable, Hashable {
 }
 
 public struct CompileProvider: Codable, Hashable {
-  public var languageIds: [String]
+  public var languageIds: [Language]
 
-  public init(languageIds: [String]) {
+  public init(languageIds: [Language]) {
     self.languageIds = languageIds
   }
 }
 
 public struct RunProvider: Codable, Hashable {
-  public var languageIds: [String]
+  public var languageIds: [Language]
 
-  public init(languageIds: [String]) {
+  public init(languageIds: [Language]) {
     self.languageIds = languageIds
   }
 }
 
 public struct TestProvider: Codable, Hashable {
-  public var languageIds: [String]
+  public var languageIds: [Language]
 
-  public init(languageIds: [String]) {
+  public init(languageIds: [Language]) {
     self.languageIds = languageIds
   }
 }
