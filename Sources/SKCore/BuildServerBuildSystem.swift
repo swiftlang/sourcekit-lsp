@@ -58,12 +58,14 @@ public final class BuildServerBuildSystem {
   }
 
   deinit {
-    do {
-      _ = try self.buildServer?.sendSync(ShutdownBuild())
-    } catch {
-      log("error shutting down build server: \(error)")
+    if let buildServer = self.buildServer {
+      _ = buildServer.send(ShutdownBuild(), queue: DispatchQueue.global(), reply: { result in
+        if let error = result.failure {
+          log("error shutting down build server: \(error)")
+        }
+        buildServer.send(ExitBuildNotification())
+      })
     }
-    self.buildServer?.send(ExitBuildNotification())
   }
 
   private func initializeBuildServer() throws {
