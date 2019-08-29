@@ -102,18 +102,9 @@ public final class BuildServerBuildSystem {
 }
 
 private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
-  switch data {
-  case .dictionary(let dataDict):
-    if let val = dataDict[key] {
-      switch val {
-      case .string(let stringVal):
-        return stringVal
-      default:
-        break
-      }
-  }
-  default:
-    break
+  if case .dictionary(let dataDict)? = data,
+    case .string(let stringVal)? = dataDict[key] {
+    return stringVal
   }
 
   return nil
