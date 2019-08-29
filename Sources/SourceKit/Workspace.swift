@@ -14,8 +14,8 @@ import LanguageServerProtocol
 import SKCore
 import SKSupport
 import IndexStoreDB
-import Basic
-import SPMUtility
+import TSCBasic
+import TSCUtility
 import SKSwiftPMWorkspace
 
 /// Represents the configuration and state of a project or combination of projects being worked on

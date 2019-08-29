@@ -81,7 +81,7 @@ let package = Package(
       // useful to any Swift package. Similar in spirit to SwiftPM's Basic module.
       .target(
         name: "SKSupport",
-        dependencies: ["SPMUtility"]),
+        dependencies: ["TSCUtility"]),
       .testTarget(
         name: "SKSupportTests",
         dependencies: ["SKSupport", "SKTestSupport"]),

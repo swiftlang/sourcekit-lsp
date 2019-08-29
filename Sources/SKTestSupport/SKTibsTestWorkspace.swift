@@ -16,8 +16,8 @@ import SKCore
 import IndexStoreDB
 import ISDBTibs
 import ISDBTestSupport
-import Basic
-import SPMUtility
+import TSCBasic
+import TSCUtility
 import XCTest
 import Foundation
 

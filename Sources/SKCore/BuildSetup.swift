@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Basic
-import SPMUtility
+import TSCBasic
+import TSCUtility
 import SKSupport
 
 /// Build configuration

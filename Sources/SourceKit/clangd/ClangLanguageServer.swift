@@ -12,7 +12,7 @@
 
 import SKSupport
 import SKCore
-import Basic
+import TSCBasic
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import Foundation

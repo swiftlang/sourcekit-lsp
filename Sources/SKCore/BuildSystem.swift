@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import Basic
+import TSCBasic
 
 /// Provider of FileBuildSettings and other build-related information.
 ///

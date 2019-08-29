@@ -12,8 +12,8 @@
 
 import SourceKit
 import LanguageServerProtocol
-import Basic
-import SPMUtility
+import TSCBasic
+import TSCUtility
 import SKCore
 import SKTestSupport
 import IndexStoreDB

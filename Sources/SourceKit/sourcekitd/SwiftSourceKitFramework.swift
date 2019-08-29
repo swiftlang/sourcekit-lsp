@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import Basic
+import TSCBasic
 import SKSupport
 import sourcekitd
 

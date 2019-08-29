@@ -12,7 +12,7 @@
 
 import SKCore
 import LanguageServerProtocol
-import Basic
+import TSCBasic
 import XCTest
 
 final class FallbackBuildSystemTests: XCTestCase {

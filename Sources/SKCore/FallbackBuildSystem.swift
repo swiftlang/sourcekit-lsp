@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import Basic
-import enum SPMUtility.Platform
+import TSCBasic
+import enum TSCUtility.Platform
 
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
 public final class FallbackBuildSystem: BuildSystem {

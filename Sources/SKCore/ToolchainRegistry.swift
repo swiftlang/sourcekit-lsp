@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import SKSupport
-import Basic
-import SPMUtility
+import TSCBasic
+import TSCUtility
 import Dispatch
 import Foundation
 

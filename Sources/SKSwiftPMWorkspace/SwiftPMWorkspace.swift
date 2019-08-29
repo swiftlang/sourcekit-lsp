@@ -12,8 +12,8 @@
 
 import LanguageServerProtocol
 import SKCore
-import Basic
-import SPMUtility
+import TSCBasic
+import TSCUtility
 import SKSupport
 import Build
 import PackageModel
@@ -410,7 +410,7 @@ public final class BuildSettingProviderWorkspaceDelegate: WorkspaceDelegate {
 
   public func fetchingWillBegin(repository: String) {}
 
-  public func fetchingDidFinish(repository: String, diagnostic: Basic.Diagnostic?) {}
+  public func fetchingDidFinish(repository: String, diagnostic: TSCBasic.Diagnostic?) {}
 
   public func cloning(repository: String) {}
 
@@ -419,7 +419,7 @@ public final class BuildSettingProviderWorkspaceDelegate: WorkspaceDelegate {
   public func managedDependenciesDidUpdate(_ dependencies: AnySequence<ManagedDependency>) {}
 }
 
-extension Basic.Diagnostic.Behavior {
+extension TSCBasic.Diagnostic.Behavior {
   var asLogLevel: LogLevel {
     switch self {
     case .error: return .error

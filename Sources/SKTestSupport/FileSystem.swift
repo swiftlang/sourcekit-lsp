@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Basic
+import TSCBasic
 
 extension FileSystem {
 

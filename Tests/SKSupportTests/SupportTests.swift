@@ -12,7 +12,7 @@
 
 import XCTest
 import SKSupport
-import Basic
+import TSCBasic
 
 final class SupportTests: XCTestCase {
 

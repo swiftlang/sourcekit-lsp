@@ -17,8 +17,8 @@ import SKCore
 import IndexStoreDB
 import ISDBTibs
 import ISDBTestSupport
-import Basic
-import SPMUtility
+import TSCBasic
+import TSCUtility
 import XCTest
 import Foundation
 
@@ -108,7 +108,7 @@ extension SKSwiftPMTestWorkspace {
   }
 
   func build() throws {
-    try Basic.Process.checkNonZeroExit(arguments: [
+    try TSCBasic.Process.checkNonZeroExit(arguments: [
       String(toolchain.swiftc!.pathString.dropLast()),
       "build",
       "--package-path", sources.rootDirectory.path,

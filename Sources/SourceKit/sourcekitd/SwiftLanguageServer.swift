@@ -13,7 +13,7 @@
 import LanguageServerProtocol
 import SKCore
 import SKSupport
-import Basic
+import TSCBasic
 import sourcekitd
 import Dispatch
 import struct Foundation.CharacterSet

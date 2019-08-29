@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SPMUtility
+import TSCUtility
 
 #if canImport(os)
 import os
