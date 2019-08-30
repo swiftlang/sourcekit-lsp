@@ -24,6 +24,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
     let buildSystem = try? BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     XCTAssertNotNil(buildSystem)
+    XCTAssertEqual(buildSystem!.indexStorePath, AbsolutePath("some/index/store/path", relativeTo: root))
   }
 
 }

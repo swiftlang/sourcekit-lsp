@@ -143,4 +143,6 @@ public struct TestProvider: Codable, Hashable {
 
 public struct InitializedBuildNotification: NotificationType {
   public static let method: String = "build/initialized"
+
+  public init() {}
 }

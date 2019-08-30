@@ -14,6 +14,7 @@ while True:
     sys.stdin.readline()
     message = json.loads(sys.stdin.read(length))
 
+    response = None
     if message["method"] == "build/initialize":
         response = {
             "jsonrpc": "2.0",
@@ -25,21 +26,32 @@ while True:
                 "rootUri": "blah",
                 "capabilities": {"languageIds": ["a", "b"]},
                 "data": {
-                    "index_store_path": "some/index/store/path"
+                    "indexStorePath": "some/index/store/path"
                 }
             }
         }
-    else:
+    elif message["method"] == "build/initialized":
+        continue
+    elif message["method"] == "build/shutdown":
+        response = {
+            "jsonrpc": "2.0",
+            "id": message["id"],
+            "result": None
+        }
+    elif message["method"] == "build/exit":
+        break
+    # ignore other notifications
+    elif "id" in message:
         response = {
             "jsonrpc": "2.0",
             "id": message["id"],
             "error": {
                 "code": 123,
-                "message": "unhandled method",
+                "message": "unhandled method {}".format(message["method"]),
             }
         }
 
-    responseStr = json.dumps(response)
-    sys.stdout.write("Content-Length: {}\r\n\r\n{}".format(len(responseStr), responseStr))
-    sys.stdout.flush()
-
+    if response:
+        responseStr = json.dumps(response)
+        sys.stdout.write("Content-Length: {}\r\n\r\n{}".format(len(responseStr), responseStr))
+        sys.stdout.flush()

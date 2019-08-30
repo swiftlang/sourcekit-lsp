@@ -57,6 +57,17 @@ public final class BuildServerBuildSystem {
     }
   }
 
+  deinit {
+    if let buildServer = self.buildServer {
+      _ = buildServer.send(ShutdownBuild(), queue: DispatchQueue.global(), reply: { result in
+        if let error = result.failure {
+          log("error shutting down build server: \(error)")
+        }
+        buildServer.send(ExitBuildNotification())
+      })
+    }
+  }
+
   private func initializeBuildServer() throws {
     let serverPath = AbsolutePath(serverConfig.argv[0], relativeTo: projectRoot)
     let flags = Array(serverConfig.argv[1...])
@@ -78,10 +89,25 @@ public final class BuildServerBuildSystem {
     let handler = BuildServerHandler()
     let buildServer = try makeJSONRPCBuildServer(client: handler, serverPath: serverPath, serverFlags: flags)
     let response = try buildServer.sendSync(initializeRequest)
+    buildServer.send(InitializedBuildNotification())
     log("initialized build server \(response.displayName)")
+
+    // see if index store was set as part of the server metadata
+    if let indexStorePath = readReponseDataKey(data: response.data, key: "indexStorePath") {
+      self.indexStorePath = AbsolutePath(indexStorePath, relativeTo: self.projectRoot)
+    }
     self.buildServer = buildServer
     self.handler = handler
   }
+}
+
+private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
+  if case .dictionary(let dataDict)? = data,
+    case .string(let stringVal)? = dataDict[key] {
+    return stringVal
+  }
+
+  return nil
 }
 
 final class BuildServerHandler: LanguageServerEndpoint {
