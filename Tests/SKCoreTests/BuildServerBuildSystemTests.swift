@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 import XCTest
 import SKCore
-import Basic
+import TSCBasic
 import LanguageServerProtocol
 
 final class BuildServerBuildSystemTests: XCTestCase {
