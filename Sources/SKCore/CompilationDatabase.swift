@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import SKSupport
-import Basic
+import TSCBasic
 import Foundation
 
 /// A single compilation database command.

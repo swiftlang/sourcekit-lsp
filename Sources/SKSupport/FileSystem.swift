@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Basic
+import TSCBasic
 import Foundation
 
 /// The home directory of the current user (same as returned by Foundation's `NSHomeDirectory` method).

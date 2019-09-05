@@ -14,11 +14,11 @@ import LanguageServerProtocol
 import SKCore
 import SKSupport
 import IndexStoreDB
-import Basic
-import SPMUtility
+import TSCBasic
+import TSCUtility
 import Dispatch
 import Foundation
-import SPMLibc
+import TSCLibc
 
 public typealias URL = Foundation.URL
 

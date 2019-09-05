@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SPMLibc
+import TSCLibc
 
 public final class DLHandle {
   #if os(Windows)
@@ -84,7 +84,7 @@ public func dlopen(_ path: String?, mode: DLOpenFlags) throws -> DLHandle {
       throw DLError.open("LoadLibraryW failed: \(GetLastError())")
     }
   #else
-    guard let handle = SPMLibc.dlopen(path, mode.rawValue) else {
+    guard let handle = TSCLibc.dlopen(path, mode.rawValue) else {
       throw DLError.open(dlerror() ?? "unknown error")
     }
   #endif

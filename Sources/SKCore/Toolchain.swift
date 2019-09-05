@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import SKSupport
-import Basic
-import SPMUtility
+import TSCBasic
+import TSCUtility
 
 /// A Toolchain is a collection of related compilers and libraries meant to be used together to
 /// build and edit source code.

@@ -15,10 +15,10 @@ import LanguageServerProtocolJSONRPC
 import LanguageServerProtocol
 import SKSupport
 import SKCore
-import SPMLibc
+import TSCLibc
 import Dispatch
-import Basic
-import SPMUtility
+import TSCBasic
+import TSCUtility
 import Foundation
 import sourcekitd // Not needed here, but fixes debugging...
 
@@ -62,7 +62,7 @@ let sync: Bool
 do {
   (buildSetup, sync) = try parseArguments()
 } catch {
-  fputs("error: \(error)\n", SPMLibc.stderr)
+  fputs("error: \(error)\n", TSCLibc.stderr)
   exit(1)
 }
 

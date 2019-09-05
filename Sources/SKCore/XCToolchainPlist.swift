@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Basic
+import TSCBasic
 import Foundation
 
 /// A helper type for decoding the Info.plist or ToolchainInfo.plist file from an .xctoolchain.

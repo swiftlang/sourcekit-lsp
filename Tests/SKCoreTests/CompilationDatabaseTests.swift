@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import SKCore
-import Basic
+import TSCBasic
 import SKTestSupport
 import XCTest
 

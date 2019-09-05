@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import SKSupport
-import Basic
+import TSCBasic
 import LanguageServerProtocol
 
 /// A `BuildSystem` based on loading clang-compatible compilation database(s).

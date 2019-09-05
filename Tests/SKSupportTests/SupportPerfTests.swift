@@ -12,7 +12,7 @@
 
 import SKSupport
 import SKTestSupport
-import Basic
+import TSCBasic
 import XCTest
 
 final class SupportPerfTests: PerfTestCase {

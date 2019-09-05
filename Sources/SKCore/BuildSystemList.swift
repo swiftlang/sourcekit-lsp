@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Basic
+import TSCBasic
 import LanguageServerProtocol
 
 /// Provides build settings from a list of build systems in priority order.

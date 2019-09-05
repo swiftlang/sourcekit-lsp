@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SPMLibc
+import TSCLibc
 
 extension UInt8 {
   @inlinable

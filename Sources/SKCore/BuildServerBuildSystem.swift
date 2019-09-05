@@ -9,7 +9,7 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
-import Basic
+import TSCBasic
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKSupport

@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import SKCore
-import Basic
-import SPMUtility
+import TSCBasic
+import TSCUtility
 import XCTest
 
 final class ToolchainRegistryTests: XCTestCase {

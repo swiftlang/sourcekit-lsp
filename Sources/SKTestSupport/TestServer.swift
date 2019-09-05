@@ -12,7 +12,7 @@
 
 import SKSupport
 import SKCore
-import SPMUtility
+import TSCUtility
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SourceKit

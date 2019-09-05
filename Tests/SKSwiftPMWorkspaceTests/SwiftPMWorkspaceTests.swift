@@ -13,8 +13,8 @@
 import SKSwiftPMWorkspace
 import SKCore
 import PackageModel
-import Basic
-import SPMUtility
+import TSCBasic
+import TSCUtility
 import SKTestSupport
 import Build
 import XCTest
