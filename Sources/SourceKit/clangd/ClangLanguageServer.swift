@@ -29,8 +29,8 @@ final class ClangLanguageServerShim: LanguageServer {
   let clang: AbsolutePath?
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, clangd: Connection, buildSystem: BuildSystem, clang: AbsolutePath?) throws {
-
+  public init(client: Connection, clangd: Connection, buildSystem: BuildSystem,
+              clang: AbsolutePath?) throws {
     self.clangd = clangd
     self.buildSystem = buildSystem
     self.clang = clang
@@ -39,6 +39,7 @@ final class ClangLanguageServerShim: LanguageServer {
 
   public override func _registerBuiltinHandlers() {
     _register(ClangLanguageServerShim.initialize)
+    _register(ClangLanguageServerShim.didChangeConfiguration)
     _register(ClangLanguageServerShim.openDocument)
     _register(ClangLanguageServerShim.foldingRange)
   }
@@ -97,9 +98,29 @@ extension ClangLanguageServerShim {
     }
   }
 
+  // MARK: - Workspace
+
+  func didChangeConfiguration(_ note: Notification<DidChangeConfiguration>) {
+    switch note.params.settings {
+    case .clangd:
+      break
+    case .documentUpdated(let settings):
+      updateDocumentSettings(url: settings.url, language: settings.language)
+    case .unknown:
+      break
+    }
+  }
+
+  // MARK: - Text synchronization
+
   func openDocument(_ note: Notification<DidOpenTextDocument>) {
-    let url = note.params.textDocument.url
-    let settings = buildSystem.settings(for: url, note.params.textDocument.language)
+    let textDocument = note.params.textDocument
+    updateDocumentSettings(url: textDocument.url, language: textDocument.language)
+    clangd.send(note.params)
+  }
+
+  private func updateDocumentSettings(url: URL, language: Language) {
+    let settings = buildSystem.settings(for: url, language)
 
     logAsync(level: settings == nil ? .warning : .debug) { _ in
       let settingsStr = settings == nil ? "nil" : settings!.compilerArguments.description
@@ -111,8 +132,6 @@ extension ClangLanguageServerShim {
         ClangWorkspaceSettings(
           compilationDatabaseChanges: [url.path: ClangCompileCommand(settings, clang: clang)]))))
     }
-
-    clangd.send(note.params)
   }
 
   func foldingRange(_ req: Request<FoldingRangeRequest>) {

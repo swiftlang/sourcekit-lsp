@@ -37,6 +37,9 @@ public final class SwiftPMWorkspace {
     case cannotDetermineHostToolchain
   }
 
+  /// Delegate to handle any build system events.
+  public weak var delegate: BuildSystemDelegate? = nil
+
   let workspacePath: AbsolutePath
   let packageRoot: AbsolutePath
   var packageGraph: PackageGraph
@@ -216,6 +219,18 @@ extension SwiftPMWorkspace: BuildSystem {
 
   public func toolchain(for: LanguageServerProtocol.URL, _ language: Language) -> SKCore.Toolchain? {
     return nil
+  }
+
+  /// Register the given file for build-system level change notifications, such as command
+  /// line flag changes, dependency changes, etc.
+  public func registerForChangeNotifications(for url: LanguageServerProtocol.URL) {
+    // TODO: Support for change detection (via file watching)
+  }
+
+  /// Unregister the given file for build-system level change notifications, such as command
+  /// line flag changes, dependency changes, etc.
+  public func unregisterForChangeNotifications(for url: LanguageServerProtocol.URL) {
+    // TODO: Support for change detection (via file watching)
   }
 
   /// Returns the resolved target description for the given file, if one is known.

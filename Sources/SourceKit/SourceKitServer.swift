@@ -216,6 +216,32 @@ public final class SourceKitServer: LanguageServer {
   }
 }
 
+// MARK: - Build System Delegate
+
+extension SourceKitServer: BuildSystemDelegate {
+  public func fileBuildSettingsChanged(_ changedFiles: Set<URL>) {
+    guard let workspace = self.workspace else {
+      return
+    }
+    let documentManager = workspace.documentManager
+    let openDocuments = documentManager.openDocuments
+    for url in changedFiles {
+      guard openDocuments.contains(url) else {
+        continue
+      }
+
+      log("Build settings changed for opened file \(url)")
+      if let snapshot = documentManager.latestSnapshot(url),
+         let service = languageService(for: url, snapshot.document.language, in: workspace) {
+        service.send(
+          DidChangeConfiguration(settings:
+            .documentUpdated(
+              DocumentUpdatedBuildSettings(url: url, language: snapshot.document.language))))
+      }
+    }
+  }
+}
+
 // MARK: - Request and notification handling
 
 extension SourceKitServer {
@@ -258,6 +284,9 @@ extension SourceKitServer {
         buildSetup: self.buildSetup
       )
     }
+
+    assert(self.workspace != nil)
+    self.workspace?.buildSettings.delegate = self
 
     req.reply(InitializeResult(capabilities: ServerCapabilities(
       textDocumentSync: TextDocumentSyncOptions(
@@ -311,7 +340,10 @@ extension SourceKitServer {
   func openDocument(_ note: Notification<DidOpenTextDocument>, workspace: Workspace) {
     workspace.documentManager.open(note)
 
-    if let service = languageService(for: note.params.textDocument.url, note.params.textDocument.language, in: workspace) {
+    let textDocument = note.params.textDocument
+    workspace.buildSettings.registerForChangeNotifications(for: textDocument.url)
+
+    if let service = languageService(for: textDocument.url, textDocument.language, in: workspace) {
       service.send(note.params)
     }
   }
@@ -319,7 +351,10 @@ extension SourceKitServer {
   func closeDocument(_ note: Notification<DidCloseTextDocument>, workspace: Workspace) {
     workspace.documentManager.close(note)
 
-    if let service = workspace.documentService[note.params.textDocument.url] {
+    let url = note.params.textDocument.url
+    workspace.buildSettings.unregisterForChangeNotifications(for: url)
+
+    if let service = workspace.documentService[url] {
       service.send(note.params)
     }
   }
