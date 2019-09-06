@@ -31,6 +31,9 @@ public final class FallbackBuildSystem: BuildSystem {
     return nil
   }()
 
+  /// Delegate to handle any build system events.
+  public weak var delegate: BuildSystemDelegate? = nil
+
   public var indexStorePath: AbsolutePath? { return nil }
 
   public var indexDatabasePath: AbsolutePath? { return nil }
@@ -49,6 +52,12 @@ public final class FallbackBuildSystem: BuildSystem {
       return nil
     }
   }
+
+  /// We don't support change watching.
+  public func registerForChangeNotifications(for: URL) {}
+
+  /// We don't support change watching.
+  public func unregisterForChangeNotifications(for: URL) {}
 
   public func toolchain(for: URL, _ language: Language) -> Toolchain? { return nil }
 

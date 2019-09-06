@@ -16,6 +16,12 @@ import LanguageServerProtocol
 /// Provides build settings from a list of build systems in priority order.
 public final class BuildSystemList {
 
+  /// Delegate to handle any build system events.
+  public var delegate: BuildSystemDelegate? {
+    get { return providers.first?.delegate }
+    set { providers.first?.delegate = newValue }
+  }
+
   /// The build systems to try (in order).
   public var providers: [BuildSystem] = [
     FallbackBuildSystem()
@@ -25,7 +31,6 @@ public final class BuildSystemList {
 }
 
 extension BuildSystemList: BuildSystem {
-
   public var indexStorePath: AbsolutePath? { return providers.first?.indexStorePath }
 
   public var indexDatabasePath: AbsolutePath? { return providers.first?.indexDatabasePath }
@@ -37,6 +42,20 @@ extension BuildSystemList: BuildSystem {
       }
     }
     return nil
+  }
+
+  /// Register the given file for build-system level change notifications, such as command
+  /// line flag changes, dependency changes, etc.
+  public func registerForChangeNotifications(for url: URL) {
+    // Only register with the primary build system, since we only use its delegate.
+    providers.first?.registerForChangeNotifications(for: url)
+  }
+
+  /// Unregister the given file for build-system level change notifications, such as command
+  /// line flag changes, dependency changes, etc.
+  public func unregisterForChangeNotifications(for url: URL) {
+    // Only unregister with the primary build system, since we only use its delegate.
+    providers.first?.unregisterForChangeNotifications(for: url)
   }
 
   public func toolchain(for url: URL, _ language: Language) -> Toolchain? {

@@ -30,6 +30,9 @@ public final class BuildServerBuildSystem {
   var buildServer: Connection?
   public private(set) var indexStorePath: AbsolutePath?
 
+  /// Delegate to handle any build system events.
+  public weak var delegate: BuildSystemDelegate? = nil
+
   public init(projectRoot: AbsolutePath, buildFolder: AbsolutePath?, fileSystem: FileSystem = localFileSystem) throws {
     let configPath = projectRoot.appending(component: "buildServer.json")
     let config = try loadBuildServerConfig(path: configPath, fileSystem: fileSystem)
@@ -115,6 +118,19 @@ final class BuildServerHandler: LanguageServerEndpoint {
 }
 
 extension BuildServerBuildSystem: BuildSystem {
+
+  /// Register the given file for build-system level change notifications, such as command
+  /// line flag changes, dependency changes, etc.
+  public func registerForChangeNotifications(for url: LanguageServerProtocol.URL) {
+    // TODO: Implement via BSP extensions.
+  }
+
+  /// Unregister the given file for build-system level change notifications, such as command
+  /// line flag changes, dependency changes, etc.
+  public func unregisterForChangeNotifications(for url: LanguageServerProtocol.URL) {
+    // TODO: Implement via BSP extensions.
+  }
+
 
   public var indexDatabasePath: AbsolutePath? {
     return buildFolder?.appending(components: "index", "db")

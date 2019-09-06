@@ -31,6 +31,8 @@ public final class SwiftLanguageServer: LanguageServer {
 
   var currentDiagnostics: [CachedDiagnostic] = []
 
+  var buildSettingsByFile: [URL: FileBuildSettings] = [:]
+
   let onExit: () -> Void
 
   var api: sourcekitd_functions_t { return sourcekitd.api }
@@ -56,6 +58,7 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.cancelRequest)
     _register(SwiftLanguageServer.shutdown)
     _register(SwiftLanguageServer.exit)
+    _register(SwiftLanguageServer.didChangeConfiguration)
     _register(SwiftLanguageServer.openDocument)
     _register(SwiftLanguageServer.closeDocument)
     _register(SwiftLanguageServer.changeDocument)
@@ -97,7 +100,6 @@ public final class SwiftLanguageServer: LanguageServer {
   }
 
   func handleDocumentUpdate(url: URL) {
-
     guard let snapshot = documentManager.latestSnapshot(url) else {
       return
     }
@@ -187,6 +189,54 @@ extension SwiftLanguageServer {
     onExit()
   }
 
+  // MARK: - Workspace
+
+  func didChangeConfiguration(notification: Notification<DidChangeConfiguration>) {
+   switch notification.params.settings {
+   case .clangd:
+     break
+   case .documentUpdated(let settings):
+    documentBuildSettingsUpdated(settings.url, language: settings.language)
+   case .unknown:
+     break
+   }
+ }
+
+  private func documentBuildSettingsUpdated(_ url: URL, language: Language) {
+    guard let snapshot = documentManager.latestSnapshot(url) else {
+      return
+    }
+
+    // Confirm that the build settings actually changed, otherwise we don't
+    // need to do anything.
+    let newSettings = buildSystem.settings(for: url, language)
+    guard buildSettingsByFile[url] != newSettings else {
+      return
+    }
+    buildSettingsByFile[url] = newSettings
+
+    // Close and re-open the document internally to inform sourcekitd to
+    // update the settings. At the moment there's no better way to do this.
+    let closeReq = SKRequestDictionary(sourcekitd: sourcekitd)
+    closeReq[keys.request] = requests.editor_close
+    closeReq[keys.name] = url.path
+    _ = self.sourcekitd.sendSync(closeReq)
+
+    let openReq = SKRequestDictionary(sourcekitd: sourcekitd)
+    openReq[keys.request] = requests.editor_open
+    openReq[keys.name] = url.path
+    openReq[keys.sourcetext] = snapshot.text
+    if let settings = newSettings {
+      openReq[keys.compilerargs] = settings.compilerArguments
+    }
+
+    guard let dict = self.sourcekitd.sendSync(openReq).success else {
+      // Already logged failure.
+      return
+    }
+    publishDiagnostics(response: dict, for: snapshot)
+  }
+
   // MARK: - Text synchronization
 
   func openDocument(_ note: Notification<DidOpenTextDocument>) {
@@ -200,8 +250,13 @@ extension SwiftLanguageServer {
     req[keys.name] = note.params.textDocument.url.path
     req[keys.sourcetext] = snapshot.text
 
-    if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
+    // If the BuildSystem has settings, cache them internally.
+    let url = snapshot.document.url
+    if let settings = buildSystem.settings(for: url, snapshot.document.language) {
       req[keys.compilerargs] = settings.compilerArguments
+      buildSettingsByFile[url] = settings
+    } else {
+      buildSettingsByFile[url] = nil
     }
 
     guard let dict = self.sourcekitd.sendSync(req).success else {
@@ -215,9 +270,15 @@ extension SwiftLanguageServer {
   func closeDocument(_ note: Notification<DidCloseTextDocument>) {
     documentManager.close(note)
 
+    let url = note.params.textDocument.url
+
+    // Clear the build settings since there's no point in caching
+    // them for a closed file.
+    buildSettingsByFile[url] = nil
+
     let req = SKRequestDictionary(sourcekitd: sourcekitd)
     req[keys.request] = requests.editor_close
-    req[keys.name] = note.params.textDocument.url.path
+    req[keys.name] = url.path
 
     _ = self.sourcekitd.sendSync(req)
   }
@@ -292,7 +353,8 @@ extension SwiftLanguageServer {
     skreq[keys.sourcefile] = snapshot.document.url.path
     skreq[keys.sourcetext] = snapshot.text
 
-    if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
+    // FIXME: SourceKit should probably cache this for us.
+    if let settings = self.buildSettingsByFile[snapshot.document.url] {
       skreq[keys.compilerargs] = settings.compilerArguments
     }
 
@@ -659,8 +721,8 @@ extension SwiftLanguageServer {
     skreq[keys.offset] = offset
     skreq[keys.sourcefile] = snapshot.document.url.path
 
-    // FIXME: should come from the internal document
-    if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
+    // FIXME: SourceKit should probably cache this for us.
+    if let settings = self.buildSettingsByFile[snapshot.document.url] {
       skreq[keys.compilerargs] = settings.compilerArguments
     }
 

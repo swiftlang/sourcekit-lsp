@@ -23,6 +23,9 @@ public final class CompilationDatabaseBuildSystem {
   /// The compilation database.
   var compdb: CompilationDatabase? = nil
 
+  /// Delegate to handle any build system events.
+  public weak var delegate: BuildSystemDelegate? = nil
+
   let fileSystem: FileSystem
 
   public init(projectRoot: AbsolutePath? = nil, fileSystem: FileSystem = localFileSystem) {
@@ -49,6 +52,12 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
   }
 
   public func toolchain(for: URL, _ language: Language) -> Toolchain? { return nil }
+
+  /// We don't support change watching.
+  public func registerForChangeNotifications(for: URL) {}
+
+  /// We don't support change watching.
+  public func unregisterForChangeNotifications(for: URL) {}
 
   func database(for url: URL) -> CompilationDatabase? {
     if let path = try? AbsolutePath(validating: url.path) {

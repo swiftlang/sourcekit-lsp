@@ -61,6 +61,13 @@ public final class DocumentManager {
 
   var documents: [URL: Document] = [:]
 
+  /// All currently opened documents.
+  public var openDocuments: Set<URL> {
+    return queue.sync {
+      return Set(documents.keys)
+    }
+  }
+
   /// Opens a new document with the given content and metadata.
   ///
   /// - returns: The initial contents of the file.

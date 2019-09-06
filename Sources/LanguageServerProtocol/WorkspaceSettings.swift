@@ -16,6 +16,7 @@
 public enum WorkspaceSettingsChange: Codable, Hashable {
 
   case clangd(ClangWorkspaceSettings)
+  case documentUpdated(DocumentUpdatedBuildSettings)
   case unknown
 
   public init(from decoder: Decoder) throws {
@@ -24,6 +25,8 @@ public enum WorkspaceSettingsChange: Codable, Hashable {
     // it will rectify this issue.
     if let settings = try? ClangWorkspaceSettings(from: decoder) {
       self = .clangd(settings)
+    } else if let settings = try? DocumentUpdatedBuildSettings(from: decoder) {
+      self = .documentUpdated(settings)
     } else {
       self = .unknown
     }
@@ -32,6 +35,8 @@ public enum WorkspaceSettingsChange: Codable, Hashable {
   public func encode(to encoder: Encoder) throws {
     switch self {
     case .clangd(let settings):
+      try settings.encode(to: encoder)
+    case .documentUpdated(let settings):
       try settings.encode(to: encoder)
     case .unknown:
       break // Nothing to do.
@@ -72,5 +77,19 @@ public struct ClangCompileCommand: Codable, Hashable {
   public init(compilationCommand: [String], workingDirectory: String) {
     self.compilationCommand = compilationCommand
     self.workingDirectory = workingDirectory
+  }
+}
+
+/// Workspace settings for a document that has updated build settings.
+public struct DocumentUpdatedBuildSettings: Codable, Hashable {
+  /// The url of the document that has updated.
+  public var url: URL
+
+   /// The language of the document that has updated.
+  public var language: Language
+
+   public init(url: URL, language: Language) {
+    self.url = url
+    self.language = language
   }
 }
