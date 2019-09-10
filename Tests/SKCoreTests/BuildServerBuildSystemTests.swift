@@ -46,4 +46,38 @@ final class BuildServerBuildSystemTests: XCTestCase {
     XCTAssertNil(buildSystem?.settings(for: missingFileURL, Language.swift))
   }
 
+  func testFileRegistration() {
+    let root = AbsolutePath(
+      inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
+    let buildFolder = AbsolutePath(NSTemporaryDirectory())
+    let buildSystem = try? BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
+    XCTAssertNotNil(buildSystem)
+
+    let fileUrl = URL(fileURLWithPath: "/some/file/path")
+    let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
+    let buildSystemDelegate = TestDelegate(expectations: [fileUrl: expectation])
+    buildSystem?.delegate = buildSystemDelegate
+    buildSystem?.registerForChangeNotifications(for: fileUrl)
+
+    let result = XCTWaiter.wait(for: [expectation], timeout: 1)
+    if result != .completed {
+      fatalError("error \(result) waiting for settings notification")
+    }
+  }
+
+}
+
+final class TestDelegate: BuildSystemDelegate {
+
+  let expectations: [URL:XCTestExpectation]
+
+  public init(expectations: [URL:XCTestExpectation]) {
+    self.expectations = expectations
+  }
+
+  func fileBuildSettingsChanged(_ changedFiles: Set<URL>) {
+    for url in changedFiles {
+      expectations[url]?.fulfill()
+    }
+  }
 }
