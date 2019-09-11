@@ -118,7 +118,7 @@ public struct IndexOptions {
   /// explicit calls to pollForUnitChangesAndWait().
   public var listenToUnitEvents: Bool
 
-  public init(listenToUnitEvents: Bool = false) {
+  public init(listenToUnitEvents: Bool = true) {
     self.listenToUnitEvents = listenToUnitEvents
   }
 }
