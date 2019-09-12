@@ -108,10 +108,10 @@ final class CodeActionTests: XCTestCase {
   func testCodeActionResponseCommandMetadataInjection() {
     let url = URL(fileURLWithPath: "/a.swift")
     let textDocument = TextDocumentIdentifier(url)
-    let expectedMetadata: CommandArgumentType = {
+    let expectedMetadata: LSPAny = {
       let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
       let data = try! JSONEncoder().encode(metadata)
-      return try! JSONDecoder().decode(CommandArgumentType.self, from: data)
+      return try! JSONDecoder().decode(LSPAny.self, from: data)
     }()
     XCTAssertEqual(expectedMetadata, .dictionary(["sourcekitlsp_textDocument": ["uri": "file:///a.swift"]]))
     let command = Command(title: "Title", command: "Command", arguments: [1, "text", 2.2, nil])

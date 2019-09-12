@@ -22,9 +22,9 @@ public let builtinSwiftCommands: [String] = []
 /// A `Command` that should be executed by Swift's language server.
 public protocol SwiftCommand: Codable, Hashable {
   static var identifier: String { get }
-  static func decode(fromDictionary dictionary: [String: CommandArgumentType]) -> Self?
+  static func decode(fromDictionary dictionary: [String: LSPAny]) -> Self?
   var title: String { get set }
-  func asCommandArgument() -> CommandArgumentType
+  func asCommandArgument() -> LSPAny
 }
 
 extension SwiftCommand {
@@ -79,7 +79,7 @@ public struct SemanticRefactorCommand: SwiftCommand {
   /// The text document related to the refactoring action.
   public var textDocument: TextDocumentIdentifier
 
-  public static func decode(fromDictionary dictionary: [String: CommandArgumentType]) -> SemanticRefactorCommand? {
+  public static func decode(fromDictionary dictionary: [String: LSPAny]) -> SemanticRefactorCommand? {
     guard case .dictionary(let dict)? = dictionary[CodingKeys.textDocument.stringValue],
           case .string(let title)? = dictionary[CodingKeys.title.stringValue],
           case .string(let actionString)? = dictionary[CodingKeys.actionString.stringValue],
@@ -108,8 +108,8 @@ public struct SemanticRefactorCommand: SwiftCommand {
     self.textDocument = textDocument
   }
 
-  public func asCommandArgument() -> CommandArgumentType {
-    let textDocumentArgument = CommandArgumentType.dictionary(
+  public func asCommandArgument() -> LSPAny {
+    let textDocumentArgument = LSPAny.dictionary(
       [TextDocumentIdentifier.CodingKeys.url.stringValue: .string(textDocument.url.absoluteString)]
     )
     return .dictionary([CodingKeys.title.stringValue: .string(title),

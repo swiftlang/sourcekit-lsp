@@ -27,15 +27,15 @@ public struct ExecuteCommandRequest: RequestType {
   public static let method: String = "workspace/executeCommand"
 
   // Note: The LSP type for this response is `Any?`.
-  public typealias Response = CommandArgumentType?
+  public typealias Response = LSPAny?
 
   /// The command to be executed.
   public var command: String
 
   /// Arguments that the command should be invoked with.
-  public var arguments: [CommandArgumentType]?
+  public var arguments: [LSPAny]?
 
-  public init(command: String, arguments: [CommandArgumentType]?) {
+  public init(command: String, arguments: [LSPAny]?) {
     self.command = command
     self.arguments = arguments
   }

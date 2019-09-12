@@ -654,7 +654,7 @@ extension SourceKitServer {
     fallback: @autoclosure () -> PositionRequest.Response)
   where PositionRequest: TextDocumentRequest
   {
-    sendRequest(req, params: req.params, url: req.params.textDocument.url, workspace: workspace, resultHandler: resultHandler, fallback: fallback)
+    sendRequest(req, params: req.params, url: req.params.textDocument.url, workspace: workspace, resultHandler: resultHandler, fallback: fallback())
   }
 
   func sendRequest<PositionRequest>(

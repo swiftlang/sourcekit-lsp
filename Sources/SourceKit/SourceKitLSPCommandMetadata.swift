@@ -19,7 +19,7 @@ import SKSupport
 /// to determine where a command should be executed.
 public struct SourceKitLSPCommandMetadata: Codable, Hashable {
 
-  public static func decode(fromDictionary dictionary: [String: CommandArgumentType]) -> SourceKitLSPCommandMetadata? {
+  public static func decode(fromDictionary dictionary: [String: LSPAny]) -> SourceKitLSPCommandMetadata? {
     guard case .dictionary(let textDocumentDict)? = dictionary[CodingKeys.sourcekitlsp_textDocument.stringValue],
           case .string(let urlString)? = textDocumentDict[TextDocumentIdentifier.CodingKeys.url.stringValue],
           let url = URL(string: urlString) else
@@ -36,8 +36,8 @@ public struct SourceKitLSPCommandMetadata: Codable, Hashable {
     self.sourcekitlsp_textDocument = textDocument
   }
 
-  func asCommandArgument() -> CommandArgumentType {
-    let textDocumentArgument = CommandArgumentType.dictionary(
+  func asCommandArgument() -> LSPAny {
+    let textDocumentArgument = LSPAny.dictionary(
       [TextDocumentIdentifier.CodingKeys.url.stringValue: .string(sourcekitlsp_textDocument.url.absoluteString)]
     )
     return .dictionary([CodingKeys.sourcekitlsp_textDocument.stringValue: textDocumentArgument])
@@ -84,7 +84,7 @@ extension ExecuteCommandRequest {
   }
 
   /// Returns this Command's arguments without SourceKit-LSP's injected metadata, if it exists.
-  public var argumentsWithoutLSPMetadata: [CommandArgumentType]? {
+  public var argumentsWithoutLSPMetadata: [LSPAny]? {
     guard metadata != nil else {
       return arguments
     }
