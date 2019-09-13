@@ -150,14 +150,12 @@ final class LocalClangTests: XCTestCase {
     let expectation = XCTestExpectation(description: "diagnostics")
 
     ws.sk.handleNextNotification { (note: Notification<PublishDiagnostics>) in
-      XCTAssertEqual(note.params.diagnostics, [
-        Diagnostic(
-          range: Position(loc) ..< Position(ws.testLoc("unused_b:end")),
-          severity: .warning,
-          source: nil,
-          message: "Unused variable 'b'")
-      ])
-
+      // Don't use exact equality because of differences in recent clang.
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(note.params.diagnostics.first?.range,
+        PositionRange(Position(loc) ..< Position(ws.testLoc("unused_b:end"))))
+      XCTAssertEqual(note.params.diagnostics.first?.severity, .warning)
+      XCTAssertEqual(note.params.diagnostics.first?.message, "Unused variable 'b'")
       expectation.fulfill()
     }
 
