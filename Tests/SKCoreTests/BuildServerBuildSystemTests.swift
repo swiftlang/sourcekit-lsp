@@ -13,6 +13,7 @@ import XCTest
 import SKCore
 import TSCBasic
 import LanguageServerProtocol
+import Foundation
 
 final class BuildServerBuildSystemTests: XCTestCase {
 
@@ -25,6 +26,24 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
     XCTAssertNotNil(buildSystem)
     XCTAssertEqual(buildSystem!.indexStorePath, AbsolutePath("some/index/store/path", relativeTo: root))
+  }
+
+  func testSettings() {
+    let root = AbsolutePath(
+      inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
+    let buildFolder = AbsolutePath(NSTemporaryDirectory())
+    let buildSystem = try? BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
+    XCTAssertNotNil(buildSystem)
+
+    // test settings with a response
+    let fileURL = URL(fileURLWithPath: "/path/to/some/file.swift")
+    let settings = buildSystem?.settings(for: fileURL, Language.swift)
+    XCTAssertEqual(settings?.compilerArguments, ["-a", "-b"])
+    XCTAssertEqual(settings?.workingDirectory, fileURL.deletingLastPathComponent().path)
+
+    // test error
+    let missingFileURL = URL(fileURLWithPath: "/path/to/some/missingfile.missing")
+    XCTAssertNil(buildSystem?.settings(for: missingFileURL, Language.swift))
   }
 
 }
