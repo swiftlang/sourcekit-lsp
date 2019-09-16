@@ -150,25 +150,25 @@ extension DocumentManager {
 
   /// Convenience wrapper for `open(_:language:version:text:)` that logs on failure.
   @discardableResult
-  func open(_ note: Notification<DidOpenTextDocument>) -> DocumentSnapshot? {
-    let doc = note.params.textDocument
+  func open(_ note: DidOpenTextDocument) -> DocumentSnapshot? {
+    let doc = note.textDocument
     return orLog("failed to open document", level: .error) {
       try open(doc.url, language: doc.language, version: doc.version, text: doc.text)
     }
   }
 
   /// Convenience wrapper for `close(_:)` that logs on failure.
-  func close(_ note: Notification<DidCloseTextDocument>) {
+  func close(_ note: DidCloseTextDocument) {
     orLog("failed to close document", level: .error) {
-      try close(note.params.textDocument.url)
+      try close(note.textDocument.url)
     }
   }
 
   /// Convenience wrapper for `edit(_:newVersion:edits:editCallback:)` that logs on failure.
   @discardableResult
-  func edit(_ note: Notification<DidChangeTextDocument>, editCallback: ((_ before: DocumentSnapshot, TextDocumentContentChangeEvent) -> Void)? = nil) -> DocumentSnapshot? {
+  func edit(_ note: DidChangeTextDocument, editCallback: ((_ before: DocumentSnapshot, TextDocumentContentChangeEvent) -> Void)? = nil) -> DocumentSnapshot? {
     return orLog("failed to edit document", level: .error) {
-      try edit(note.params.textDocument.url, newVersion: note.params.textDocument.version ?? -1, edits: note.params.contentChanges, editCallback: editCallback)
+      try edit(note.textDocument.url, newVersion: note.textDocument.version ?? -1, edits: note.contentChanges, editCallback: editCallback)
     }
   }
 }

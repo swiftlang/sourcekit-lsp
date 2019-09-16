@@ -38,7 +38,7 @@ public final class SourceKitServer: LanguageServer {
 
   let toolchainRegistry: ToolchainRegistry
 
-  var languageService: [LanguageServiceKey: Connection] = [:]
+  var languageService: [LanguageServiceKey: ToolchainLanguageServer] = [:]
 
   public var workspace: Workspace?
 
@@ -69,21 +69,39 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceNotfication(SourceKitServer.changeDocument)
     registerWorkspaceNotfication(SourceKitServer.willSaveDocument)
     registerWorkspaceNotfication(SourceKitServer.didSaveDocument)
-    registerWorkspaceRequest(SourceKitServer.completion)
-    registerWorkspaceRequest(SourceKitServer.hover)
+
     registerWorkspaceRequest(SourceKitServer.workspaceSymbols)
-    registerWorkspaceRequest(SourceKitServer.definition)
-    registerWorkspaceRequest(SourceKitServer.implementation)
     registerWorkspaceRequest(SourceKitServer.references)
-    registerWorkspaceRequest(SourceKitServer.documentSymbolHighlight)
-    registerWorkspaceRequest(SourceKitServer.foldingRange)
-    registerWorkspaceRequest(SourceKitServer.symbolInfo)
-    registerWorkspaceRequest(SourceKitServer.documentSymbol)
-    registerWorkspaceRequest(SourceKitServer.documentColor)
-    registerWorkspaceRequest(SourceKitServer.colorPresentation)
-    registerWorkspaceRequest(SourceKitServer.codeAction)
     registerWorkspaceRequest(SourceKitServer.pollIndex)
     registerWorkspaceRequest(SourceKitServer.executeCommand)
+
+    registerToolchainTextDocumentRequest(SourceKitServer.completion,
+                                         CompletionList(isIncomplete: false, items: []))
+    registerToolchainTextDocumentRequest(SourceKitServer.hover, nil)
+    registerToolchainTextDocumentRequest(SourceKitServer.definition, [])
+    registerToolchainTextDocumentRequest(SourceKitServer.implementation, [])
+    registerToolchainTextDocumentRequest(SourceKitServer.symbolInfo, [])
+    registerToolchainTextDocumentRequest(SourceKitServer.documentSymbolHighlight, nil)
+    registerToolchainTextDocumentRequest(SourceKitServer.foldingRange, nil)
+    registerToolchainTextDocumentRequest(SourceKitServer.documentSymbol, nil)
+    registerToolchainTextDocumentRequest(SourceKitServer.documentColor, nil)
+    registerToolchainTextDocumentRequest(SourceKitServer.colorPresentation, nil)
+    registerToolchainTextDocumentRequest(SourceKitServer.codeAction, nil)
+  }
+
+  func registerToolchainTextDocumentRequest<PositionRequest: TextDocumentRequest>(
+    _ requestHandler: @escaping (SourceKitServer) -> (Request<PositionRequest>, ToolchainLanguageServer) -> Void,
+    _ fallback: PositionRequest.Response
+  ) {
+    _register { [unowned self] (req: Request<PositionRequest>) in
+      guard let workspace = self.workspace else {
+        return req.reply(.failure(.serverNotInitialized))
+      }
+      guard let languageService = workspace.documentService[req.params.textDocument.url] else {
+        return req.reply(fallback)
+      }
+      requestHandler(self)(req, languageService)
+    }
   }
 
   func registerWorkspaceRequest<R>(
@@ -165,7 +183,7 @@ public final class SourceKitServer: LanguageServer {
     return nil
   }
 
-  func languageService(for toolchain: Toolchain, _ language: Language) -> Connection? {
+  func languageService(for toolchain: Toolchain, _ language: Language) -> ToolchainLanguageServer? {
     let key = LanguageServiceKey(toolchain: toolchain.identifier, language: language)
     if let service = languageService[key] {
       return service
@@ -178,7 +196,7 @@ public final class SourceKitServer: LanguageServer {
       }
 
       let pid = Int(ProcessInfo.processInfo.processIdentifier)
-      let resp = try service.sendSync(InitializeRequest(
+      let resp = try service.initializeSync(InitializeRequest(
         processId: pid,
         rootPath: nil,
         rootURL: (workspace?.rootPath).map { URL(fileURLWithPath: $0.pathString) },
@@ -192,14 +210,14 @@ public final class SourceKitServer: LanguageServer {
         fatalError("non-incremental update not implemented")
       }
 
-      service.send(InitializedNotification())
+      service.clientInitialized(InitializedNotification())
 
       languageService[key] = service
       return service
     }
   }
 
-  func languageService(for url: URL, _ language: Language, in workspace: Workspace) -> Connection? {
+  func languageService(for url: URL, _ language: Language, in workspace: Workspace) -> ToolchainLanguageServer? {
     if let service = workspace.documentService[url] {
       return service
     }
@@ -234,10 +252,7 @@ extension SourceKitServer: BuildSystemDelegate {
       log("Build settings changed for opened file \(url)")
       if let snapshot = documentManager.latestSnapshot(url),
          let service = languageService(for: url, snapshot.document.language, in: workspace) {
-        service.send(
-          DidChangeConfiguration(settings:
-            .documentUpdated(
-              DocumentUpdatedBuildSettings(url: url, language: snapshot.document.language))))
+        service.documentUpdatedBuildSettings(url, language: snapshot.document.language)
       }
     }
   }
@@ -342,54 +357,55 @@ extension SourceKitServer {
   // MARK: - Text synchronization
 
   func openDocument(_ note: Notification<DidOpenTextDocument>, workspace: Workspace) {
-    workspace.documentManager.open(note)
+    workspace.documentManager.open(note.params)
 
     let textDocument = note.params.textDocument
     workspace.buildSettings.registerForChangeNotifications(for: textDocument.url)
 
     if let service = languageService(for: textDocument.url, textDocument.language, in: workspace) {
-      service.send(note.params)
+      service.openDocument(note.params)
     }
   }
 
   func closeDocument(_ note: Notification<DidCloseTextDocument>, workspace: Workspace) {
-    workspace.documentManager.close(note)
+    workspace.documentManager.close(note.params)
 
     let url = note.params.textDocument.url
     workspace.buildSettings.unregisterForChangeNotifications(for: url)
 
     if let service = workspace.documentService[url] {
-      service.send(note.params)
+      service.closeDocument(note.params)
     }
   }
 
   func changeDocument(_ note: Notification<DidChangeTextDocument>, workspace: Workspace) {
-    workspace.documentManager.edit(note)
+    workspace.documentManager.edit(note.params)
 
     if let service = workspace.documentService[note.params.textDocument.url] {
-      service.send(note.params)
+      service.changeDocument(note.params)
     }
   }
 
   func willSaveDocument(_ note: Notification<WillSaveTextDocument>, workspace: Workspace) {
-
+    if let service = workspace.documentService[note.params.textDocument.url] {
+      service.willSaveDocument(note.params)
+    }
   }
 
   func didSaveDocument(_ note: Notification<DidSaveTextDocument>, workspace: Workspace) {
-
+    if let service = workspace.documentService[note.params.textDocument.url] {
+      service.didSaveDocument(note.params)
+    }
   }
 
   // MARK: - Language features
 
-  func completion(_ req: Request<CompletionRequest>, workspace: Workspace) {
-    toolchainTextDocumentRequest(
-      req,
-      workspace: workspace,
-      fallback: CompletionList(isIncomplete: false, items: []))
+  func completion(_ req: Request<CompletionRequest>, languageService: ToolchainLanguageServer) {
+    languageService.completion(req)
   }
 
-  func hover(_ req: Request<HoverRequest>, workspace: Workspace) {
-    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  func hover(_ req: Request<HoverRequest>, languageService: ToolchainLanguageServer) {
+    languageService.hover(req)
   }
 
   /// Find all symbols in the workspace that include a string in their name.
@@ -438,39 +454,40 @@ extension SourceKitServer {
   }
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
-  func symbolInfo(_ req: Request<SymbolInfoRequest>, workspace: Workspace) {
-    toolchainTextDocumentRequest(req, workspace: workspace, fallback: [])
+  func symbolInfo(_ req: Request<SymbolInfoRequest>, languageService: ToolchainLanguageServer) {
+    languageService.symbolInfo(req)
   }
 
-  func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>, workspace: Workspace) {
-    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  func documentSymbolHighlight(
+    _ req: Request<DocumentHighlightRequest>,
+    languageService: ToolchainLanguageServer
+  ) {
+    languageService.documentSymbolHighlight(req)
   }
 
-  func foldingRange(_ req: Request<FoldingRangeRequest>, workspace: Workspace) {
-    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  func foldingRange(_ req: Request<FoldingRangeRequest>, languageService: ToolchainLanguageServer) {
+    languageService.foldingRange(req)
   }
 
-  func documentSymbol(_ req: Request<DocumentSymbolRequest>, workspace: Workspace) {
-    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  func documentSymbol(
+    _ req: Request<DocumentSymbolRequest>,
+    languageService: ToolchainLanguageServer
+  ) {
+    languageService.documentSymbol(req)
   }
 
-  func documentColor(_ req: Request<DocumentColorRequest>, workspace: Workspace) {
-    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+  func documentColor(
+    _ req: Request<DocumentColorRequest>,
+    languageService: ToolchainLanguageServer
+  ) {
+    languageService.documentColor(req)
   }
 
-  func colorPresentation(_ req: Request<ColorPresentationRequest>, workspace: Workspace) {
-    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
-  }
-
-  func codeAction(_ req: Request<CodeActionRequest>, workspace: Workspace) {
-    toolchainTextDocumentRequest(req, workspace: workspace, resultTransformer: { result in
-      switch result {
-      case .success(let reply):
-        return .success(req.params.injectMetadata(toResponse: reply))
-      default:
-        return result
-      }
-    }, fallback: nil)
+  func colorPresentation(
+    _ req: Request<ColorPresentationRequest>,
+    languageService: ToolchainLanguageServer
+  ) {
+    languageService.colorPresentation(req)
   }
 
   func executeCommand(_ req: Request<ExecuteCommandRequest>, workspace: Workspace) {
@@ -479,20 +496,41 @@ extension SourceKitServer {
       req.reply(nil)
       return
     }
-    var params = req.params
-    params.arguments = params.argumentsWithoutSourceKitMetadata
-    sendRequest(req, params: params, url: url, workspace: workspace, fallback: nil)
-  }
-
-  func definition(_ req: Request<DefinitionRequest>, workspace: Workspace) {
-    // FIXME: sending yourself a request isn't very convenient
-
-    guard let service = workspace.documentService[req.params.textDocument.url] else {
-      req.reply([])
+    guard let languageService = workspace.documentService[url] else {
+      req.reply(nil)
       return
     }
+    let params = req.params
+    let executeCommand = ExecuteCommandRequest(command: params.command,
+                                               arguments: params.argumentsWithoutSourceKitMetadata)
+    let callback = callbackOnQueue(self.queue) { (result: Result<ExecuteCommandRequest.Response, ResponseError>) in
+      req.reply(result)
+    }
+    let request = Request(executeCommand, id: req.id, clientID: ObjectIdentifier(self),
+                          cancellation: req.cancellationToken, reply: callback)
+    languageService.executeCommand(request)
+  }
 
-    let id = service.send(SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position), queue: queue) { result in
+  func codeAction(_ req: Request<CodeActionRequest>, languageService: ToolchainLanguageServer) {
+    let codeAction = CodeActionRequest(range: req.params.range, context: req.params.context,
+                                       textDocument: req.params.textDocument)
+    let callback = callbackOnQueue(self.queue) { (result: Result<CodeActionRequest.Response, ResponseError>) in
+      switch result {
+      case .success(let reply):
+        req.reply(req.params.injectMetadata(toResponse: reply))
+      default:
+        req.reply(result)
+      }
+    }
+    let request = Request(codeAction, id: req.id, clientID: ObjectIdentifier(self),
+                          cancellation: req.cancellationToken, reply: callback)
+    languageService.codeAction(request)
+  }
+
+  func definition(_ req: Request<DefinitionRequest>, languageService: ToolchainLanguageServer) {
+    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
+    let index = self.workspace?.index
+    let callback = callbackOnQueue(self.queue) { (result: Result<SymbolInfoRequest.Response, ResponseError>) in
       guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
         if let error = result.failure {
           req.reply(.failure(error))
@@ -504,7 +542,7 @@ extension SourceKitServer {
 
       let fallbackLocation = [symbol.bestLocalDeclaration].compactMap { $0 }
 
-      guard let usr = symbol.usr, let index = workspace.index else {
+      guard let usr = symbol.usr, let index = index else {
         return req.reply(fallbackLocation)
       }
 
@@ -533,21 +571,19 @@ extension SourceKitServer {
 
       req.reply(locations.isEmpty ? fallbackLocation : locations)
     }
-    req.cancellationToken.addCancellationHandler { [weak service] in
-      service?.send(CancelRequest(id: id))
-    }
+    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
+                          cancellation: req.cancellationToken, reply: callback)
+    languageService.symbolInfo(request)
   }
 
   // FIXME: a lot of duplication with definition request
-  func implementation(_ req: Request<ImplementationRequest>, workspace: Workspace) {
-    // FIXME: sending yourself a request isn't very convenient
-
-    guard let service = workspace.documentService[req.params.textDocument.url] else {
-      req.reply([])
-      return
-    }
-
-    let id = service.send(SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position), queue: queue) { result in
+  func implementation(
+    _ req: Request<ImplementationRequest>,
+    languageService: ToolchainLanguageServer
+  ) {
+    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
+    let index = self.workspace?.index
+    let callback = callbackOnQueue(self.queue) { (result: Result<SymbolInfoRequest.Response, ResponseError>) in
       guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
         if let error = result.failure {
           req.reply(.failure(error))
@@ -557,10 +593,10 @@ extension SourceKitServer {
         return
       }
 
-      guard let usr = symbol.usr, let index = workspace.index else {
+      guard let usr = symbol.usr, let index = index else {
         return req.reply([])
       }
-    
+
       var occurs = index.occurrences(ofUSR: usr, roles: .baseOf)
       if occurs.isEmpty {
         occurs = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
@@ -582,22 +618,20 @@ extension SourceKitServer {
 
       req.reply(locations)
     }
-    req.cancellationToken.addCancellationHandler { [weak service] in
-      service?.send(CancelRequest(id: id))
-    }
+    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
+                          cancellation: req.cancellationToken, reply: callback)
+    languageService.symbolInfo(request)
   }
 
   // FIXME: a lot of duplication with definition request
   func references(_ req: Request<ReferencesRequest>, workspace: Workspace) {
-    // FIXME: sending yourself a request isn't very convenient
-
     guard let service = workspace.documentService[req.params.textDocument.url] else {
       req.reply([])
       return
     }
 
-
-    let id = service.send(SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position), queue: queue) { result in
+    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
+    let callback = callbackOnQueue(self.queue) { (result: Result<SymbolInfoRequest.Response, ResponseError>) in
       guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
         if let error = result.failure {
           req.reply(.failure(error))
@@ -637,44 +671,24 @@ extension SourceKitServer {
 
       req.reply(locations)
     }
-    req.cancellationToken.addCancellationHandler { [weak service] in
-      service?.send(CancelRequest(id: id))
-    }
+    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
+                          cancellation: req.cancellationToken, reply: callback)
+    service.symbolInfo(request)
   }
 
   func pollIndex(_ req: Request<PollIndex>, workspace: Workspace) {
     workspace.index?.pollForUnitChangesAndWait()
     req.reply(VoidResponse())
   }
+}
 
-  func toolchainTextDocumentRequest<PositionRequest>(
-    _ req: Request<PositionRequest>,
-    workspace: Workspace,
-    resultTransformer: ((LSPResult<PositionRequest.Response>) -> LSPResult<PositionRequest.Response>)? = nil,
-    fallback: @autoclosure () -> PositionRequest.Response)
-  where PositionRequest: TextDocumentRequest
-  {
-    sendRequest(req, params: req.params, url: req.params.textDocument.url, workspace: workspace, resultTransformer: resultTransformer, fallback: fallback())
-  }
-
-  func sendRequest<PositionRequest>(
-    _ req: Request<PositionRequest>,
-    params: PositionRequest,
-    url: URL,
-    workspace: Workspace,
-    resultTransformer: ((LSPResult<PositionRequest.Response>) -> LSPResult<PositionRequest.Response>)? = nil,
-    fallback: @autoclosure () -> PositionRequest.Response)
-  {
-    guard let service = workspace.documentService[url] else {
-      req.reply(fallback())
-      return
-    }
-
-    let id = service.send(params, queue: DispatchQueue.global()) { result in
-      req.reply(resultTransformer?(result) ?? result)
-    }
-    req.cancellationToken.addCancellationHandler { [weak service] in
-      service?.send(CancelRequest(id: id))
+private func callbackOnQueue<R: ResponseType>(
+  _ queue: DispatchQueue,
+  _ callback: @escaping (LSPResult<R>) -> Void
+) -> (LSPResult<R>) -> Void {
+  return { (result: LSPResult<R>) in
+    queue.async {
+      callback(result)
     }
   }
 }
@@ -688,7 +702,7 @@ public func languageService(
   for toolchain: Toolchain,
   _ language: Language,
   options: SourceKitServer.Options,
-  client: MessageHandler) throws -> Connection?
+  client: MessageHandler) throws -> ToolchainLanguageServer?
 {
   switch language {
 

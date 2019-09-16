@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import Dispatch
 import TSCBasic
 import SKSupport
 import sourcekitd
@@ -163,8 +164,12 @@ extension SwiftSourceKitFramework {
     return .success(dict)
   }
 
-  /// Send the given request and synchronously receive a reply dictionary (or error).
-  func send(_ req: SKRequestDictionary, reply: @escaping (LSPResult<SKResponseDictionary>) -> Void) -> sourcekitd_request_handle_t? {
+  /// Send the given request and asynchronously receive a reply dictionary (or error) on the given queue.
+  func send(
+    _ req: SKRequestDictionary,
+    _ queue: DispatchQueue,
+    reply: @escaping (LSPResult<SKResponseDictionary>) -> Void
+  ) -> sourcekitd_request_handle_t? {
     logAsync { _ in req.description }
 
     var handle: sourcekitd_request_handle_t? = nil
@@ -176,13 +181,17 @@ extension SwiftSourceKitFramework {
 
       guard let dict = resp.value else {
         log(resp.description, level: .error)
-        reply(.failure(resp.error!))
+        queue.async {
+         reply(.failure(resp.error!))
+        }
         return
       }
 
       logAsync(level: .debug) { _ in dict.description }
 
-      reply(.success(dict))
+      queue.async {
+        reply(.success(dict))
+      }
     }
 
     return handle

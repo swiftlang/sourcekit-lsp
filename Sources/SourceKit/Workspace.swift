@@ -45,7 +45,7 @@ public final class Workspace {
   public let documentManager: DocumentManager = DocumentManager()
 
   /// Language service for an open document, if available.
-  var documentService: [URL: Connection] = [:]
+  var documentService: [URL: ToolchainLanguageServer] = [:]
 
   public init(
     rootPath: AbsolutePath?,

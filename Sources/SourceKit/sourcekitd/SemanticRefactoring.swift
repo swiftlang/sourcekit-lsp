@@ -138,6 +138,7 @@ extension SwiftLanguageServer {
     guard let utf8Column = snapshot.lineTable.utf8ColumnAt(line: line, utf16Column: utf16Column) else {
       return completion(.failure(.invalidRange(refactorCommand.positionRange)))
     }
+    let keys = self.keys
     let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.semantic_refactoring
     // Preferred name for e.g. an extracted variable.
@@ -149,22 +150,26 @@ extension SwiftLanguageServer {
     skreq[keys.column] = utf8Column + 1
     skreq[keys.length] = offsetRange.count
     skreq[keys.actionuid] = sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!
-    if let settings = buildSystem.settings(for: url, snapshot.document.language) {
-      skreq[keys.compilerargs] = settings.compilerArguments
-    }
 
-    let handle = sourcekitd.send(skreq) { [weak self] result in
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        return completion(.failure(.responseError(result.failure!)))
+    queue.async {
+      // FIXME: SourceKit should probably cache this for us.
+      if let settings = self.buildSettingsByFile[snapshot.document.url] {
+        skreq[keys.compilerargs] = settings.compilerArguments
       }
-      guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {
-        return completion(.failure(.noEditsNeeded(url)))
-      }
-      completion(.success(refactor))
-    }
 
-    // FIXME: cancellation
-    _ = handle
+      let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
+        guard let self = self else { return }
+        guard let dict = result.success else {
+          return completion(.failure(.responseError(result.failure!)))
+        }
+        guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {
+          return completion(.failure(.noEditsNeeded(url)))
+        }
+        completion(.success(refactor))
+      }
+
+      // FIXME: cancellation
+      _ = handle
+    }
   }
 }
