@@ -62,6 +62,20 @@
                     "description": "Traces the communication between VS Code and the SourceKit-LSP language server."
                 }
             }
-        }
+        },
+        "taskDefinitions": [
+            {
+                "type": "swift-package",
+                "required": [
+                    "task"
+                ],
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "description": "The swift-package task"
+                    }
+                }
+            }
+        ]
     }
 }
