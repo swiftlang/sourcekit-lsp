@@ -61,8 +61,10 @@ while True:
                 "method": "build/sourceKitOptionsChanged",
                 "params": {
                     "uri": message["params"]["uri"],
-                    "options": [ "-a", "-b" ],
-                    "workingDirectory": "/some/dir",
+                    "updatedOptions": {
+                        "options": ["a", "b"],
+                        "workingDirectory": "/some/dir"
+                    }
                 }
             }
 

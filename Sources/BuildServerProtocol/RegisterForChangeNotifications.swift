@@ -47,8 +47,5 @@ public struct FileOptionsChangedNotification: NotificationType {
   public var uri: URL
 
   /// The updated options for the registered file.
-  public var options: [String]
-
-  /// The working directory for the compile command.
-  public var workingDirectory: String?
+  public var updatedOptions: SourceKitOptionsResult
 }
