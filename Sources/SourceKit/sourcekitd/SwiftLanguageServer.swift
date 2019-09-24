@@ -170,7 +170,7 @@ extension SwiftLanguageServer {
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
         supportsCodeActions: false), // TODO: Turn it on after a provider is implemented.
       executeCommandProvider: ExecuteCommandOptions(
-        commands: builtinSwiftCommands)
+        commands: [])
     )))
   }
 

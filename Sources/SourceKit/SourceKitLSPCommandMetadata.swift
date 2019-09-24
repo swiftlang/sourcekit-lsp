@@ -19,24 +19,26 @@ import SKSupport
 /// to determine where a command should be executed.
 public struct SourceKitLSPCommandMetadata: Codable, Hashable {
 
-  public static func decode(fromDictionary dictionary: [String: LSPAny]) -> SourceKitLSPCommandMetadata? {
-    guard case .dictionary(let textDocumentDict)? = dictionary[CodingKeys.sourcekitlsp_textDocument.stringValue],
-          case .string(let urlString)? = textDocumentDict[TextDocumentIdentifier.CodingKeys.url.stringValue],
+  public var sourcekitlsp_textDocument: TextDocumentIdentifier
+
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    let textDocumentKey = CodingKeys.sourcekitlsp_textDocument.stringValue
+    let urlKey = TextDocumentIdentifier.CodingKeys.url.stringValue
+    guard case .dictionary(let textDocumentDict)? = dictionary[textDocumentKey],
+          case .string(let urlString)? = textDocumentDict[urlKey],
           let url = URL(string: urlString) else
     {
       return nil
     }
     let textDocument = TextDocumentIdentifier(url)
-    return SourceKitLSPCommandMetadata(textDocument: textDocument)
+    self.init(textDocument: textDocument)
   }
-
-  public var sourcekitlsp_textDocument: TextDocumentIdentifier
 
   public init(textDocument: TextDocumentIdentifier) {
     self.sourcekitlsp_textDocument = textDocument
   }
 
-  func asCommandArgument() -> LSPAny {
+  public func encodeToLSPAny() -> LSPAny {
     let textDocumentArgument = LSPAny.dictionary(
       [TextDocumentIdentifier.CodingKeys.url.stringValue: .string(sourcekitlsp_textDocument.url.absoluteString)]
     )
@@ -45,9 +47,9 @@ public struct SourceKitLSPCommandMetadata: Codable, Hashable {
 }
 
 extension CodeActionRequest {
-  public func injectMetadata(atResponse response: CodeActionRequestResponse?) -> CodeActionRequestResponse? {
+  public func injectMetadata(toResponse response: CodeActionRequestResponse?) -> CodeActionRequestResponse? {
     let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
-    let metadataArgument = metadata.asCommandArgument()
+    let metadataArgument = metadata.encodeToLSPAny()
     switch response {
     case .codeActions(var codeActions)?:
       for i in 0..<codeActions.count {
@@ -76,7 +78,7 @@ extension ExecuteCommandRequest {
     guard case .dictionary(let dictionary)? = arguments?.last else {
       return nil
     }
-    guard let metadata = SourceKitLSPCommandMetadata.decode(fromDictionary: dictionary) else {
+    guard let metadata = SourceKitLSPCommandMetadata(fromLSPDictionary: dictionary) else {
       log("failed to decode lsp metadata in executeCommand request", level: .error)
       return nil
     }
@@ -84,7 +86,7 @@ extension ExecuteCommandRequest {
   }
 
   /// Returns this Command's arguments without SourceKit-LSP's injected metadata, if it exists.
-  public var argumentsWithoutLSPMetadata: [LSPAny]? {
+  public var argumentsWithoutSourceKitMetadata: [LSPAny]? {
     guard metadata != nil else {
       return arguments
     }

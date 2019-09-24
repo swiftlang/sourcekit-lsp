@@ -26,29 +26,29 @@ final class ExecuteCommandTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.swift")
     let textDocument = TextDocumentIdentifier(url)
     let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
-    req.arguments = [metadata.asCommandArgument(), 1, 2, ""]
+    req.arguments = [metadata.encodeToLSPAny(), 1, 2, ""]
     XCTAssertNil(req.metadata)
-    req.arguments = [1, 2, "", [metadata.asCommandArgument()]]
+    req.arguments = [1, 2, "", [metadata.encodeToLSPAny()]]
     XCTAssertNil(req.metadata)
-    req.arguments = [1, 2, "", metadata.asCommandArgument()]
+    req.arguments = [1, 2, "", metadata.encodeToLSPAny()]
     XCTAssertEqual(req.metadata, metadata)
-    req.arguments = [metadata.asCommandArgument()]
+    req.arguments = [metadata.encodeToLSPAny()]
     XCTAssertEqual(req.metadata, metadata)
   }
 
   func testLSPCommandMetadataRemoval() {
     var req = ExecuteCommandRequest(command: "", arguments: nil)
-    XCTAssertNil(req.argumentsWithoutLSPMetadata)
+    XCTAssertNil(req.argumentsWithoutSourceKitMetadata)
     req.arguments = [1, 2, ""]
-    XCTAssertEqual(req.arguments, req.argumentsWithoutLSPMetadata)
+    XCTAssertEqual(req.arguments, req.argumentsWithoutSourceKitMetadata)
     let url = URL(fileURLWithPath: "/a.swift")
     let textDocument = TextDocumentIdentifier(url)
     let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
-    req.arguments = [metadata.asCommandArgument(), 1, 2, ""]
-    XCTAssertEqual(req.arguments, req.argumentsWithoutLSPMetadata)
-    req.arguments = [1, 2, "", [metadata.asCommandArgument()]]
-    XCTAssertEqual(req.arguments, req.argumentsWithoutLSPMetadata)
-    req.arguments = [1, 2, "", metadata.asCommandArgument()]
-    XCTAssertEqual([1, 2, ""], req.argumentsWithoutLSPMetadata)
+    req.arguments = [metadata.encodeToLSPAny(), 1, 2, ""]
+    XCTAssertEqual(req.arguments, req.argumentsWithoutSourceKitMetadata)
+    req.arguments = [1, 2, "", [metadata.encodeToLSPAny()]]
+    XCTAssertEqual(req.arguments, req.argumentsWithoutSourceKitMetadata)
+    req.arguments = [1, 2, "", metadata.encodeToLSPAny()]
+    XCTAssertEqual([1, 2, ""], req.argumentsWithoutSourceKitMetadata)
   }
 }

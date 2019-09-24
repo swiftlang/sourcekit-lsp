@@ -316,7 +316,7 @@ extension SourceKitServer {
       ),
       workspaceSymbolProvider: true,
       executeCommandProvider: ExecuteCommandOptions(
-        commands: builtinSwiftCommands // FIXME: Clangd commands?
+        commands: [] // FIXME: Clangd commands?
       )
     )))
   }
@@ -463,10 +463,10 @@ extension SourceKitServer {
   }
 
   func codeAction(_ req: Request<CodeActionRequest>, workspace: Workspace) {
-    toolchainTextDocumentRequest(req, workspace: workspace, resultHandler: { result in
+    toolchainTextDocumentRequest(req, workspace: workspace, resultTransformer: { result in
       switch result {
       case .success(let reply):
-        return .success(req.params.injectMetadata(atResponse: reply))
+        return .success(req.params.injectMetadata(toResponse: reply))
       default:
         return result
       }
@@ -480,7 +480,7 @@ extension SourceKitServer {
       return
     }
     var params = req.params
-    params.arguments = params.argumentsWithoutLSPMetadata
+    params.arguments = params.argumentsWithoutSourceKitMetadata
     sendRequest(req, params: params, url: url, workspace: workspace, fallback: nil)
   }
 
@@ -650,11 +650,11 @@ extension SourceKitServer {
   func toolchainTextDocumentRequest<PositionRequest>(
     _ req: Request<PositionRequest>,
     workspace: Workspace,
-    resultHandler: ((LSPResult<PositionRequest.Response>) -> LSPResult<PositionRequest.Response>)? = nil,
+    resultTransformer: ((LSPResult<PositionRequest.Response>) -> LSPResult<PositionRequest.Response>)? = nil,
     fallback: @autoclosure () -> PositionRequest.Response)
   where PositionRequest: TextDocumentRequest
   {
-    sendRequest(req, params: req.params, url: req.params.textDocument.url, workspace: workspace, resultHandler: resultHandler, fallback: fallback())
+    sendRequest(req, params: req.params, url: req.params.textDocument.url, workspace: workspace, resultTransformer: resultTransformer, fallback: fallback())
   }
 
   func sendRequest<PositionRequest>(
@@ -662,7 +662,7 @@ extension SourceKitServer {
     params: PositionRequest,
     url: URL,
     workspace: Workspace,
-    resultHandler: ((LSPResult<PositionRequest.Response>) -> LSPResult<PositionRequest.Response>)? = nil,
+    resultTransformer: ((LSPResult<PositionRequest.Response>) -> LSPResult<PositionRequest.Response>)? = nil,
     fallback: @autoclosure () -> PositionRequest.Response)
   {
     guard let service = workspace.documentService[url] else {
@@ -671,7 +671,7 @@ extension SourceKitServer {
     }
 
     let id = service.send(params, queue: DispatchQueue.global()) { result in
-      req.reply(resultHandler?(result) ?? result)
+      req.reply(resultTransformer?(result) ?? result)
     }
     req.cancellationToken.addCancellationHandler { [weak service] in
       service?.send(CancelRequest(id: id))

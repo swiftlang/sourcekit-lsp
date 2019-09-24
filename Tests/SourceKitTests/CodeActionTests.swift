@@ -120,7 +120,7 @@ final class CodeActionTests: XCTestCase {
     let request = CodeActionRequest(range: Position(line: 0, utf16index: 0)..<Position(line: 1, utf16index: 1),
                                     context: .init(diagnostics: [], only: nil),
                                     textDocument: textDocument)
-    var response = request.injectMetadata(atResponse: .commands([command]))
+    var response = request.injectMetadata(toResponse: .commands([command]))
     XCTAssertEqual(response,
           .commands([
             Command(title: command.title,
@@ -128,7 +128,7 @@ final class CodeActionTests: XCTestCase {
                     arguments: command.arguments! + [expectedMetadata])
           ])
     )
-    response = request.injectMetadata(atResponse: .codeActions([codeAction, codeAction2]))
+    response = request.injectMetadata(toResponse: .codeActions([codeAction, codeAction2]))
     XCTAssertEqual(response,
           .codeActions([codeAction,
             CodeAction(title: codeAction2.title,
@@ -137,7 +137,7 @@ final class CodeActionTests: XCTestCase {
                                         arguments: command.arguments! + [expectedMetadata]))
           ])
     )
-    response = request.injectMetadata(atResponse: nil)
+    response = request.injectMetadata(toResponse: nil)
     XCTAssertNil(response)
   }
 

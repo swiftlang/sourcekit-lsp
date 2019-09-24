@@ -14,13 +14,9 @@
 public struct WorkspaceEdit: Codable, Hashable, ResponseType {
 
   /// The edits to be applied to existing resources.
-  public var changes: [String: [TextEdit]]?
+  public var changes: [URL: [TextEdit]]?
 
   public init(changes: [URL: [TextEdit]]?) {
-    guard let changes = changes else {
-      return
-    }
-    let changesArray = changes.map { ($0.key.absoluteString, $0.value) }
-    self.changes = Dictionary(uniqueKeysWithValues: changesArray)
+    self.changes = changes
   }
 }
