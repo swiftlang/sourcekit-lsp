@@ -28,7 +28,7 @@ public struct PositionRange: CustomCodableWrapper {
     self.wrappedValue = wrappedValue
   }
 
-  private enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case lowerBound = "start"
     case upperBound = "end"
   }

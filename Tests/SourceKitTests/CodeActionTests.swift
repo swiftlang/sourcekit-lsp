@@ -17,6 +17,47 @@ import XCTest
 import SourceKit
 
 final class CodeActionTests: XCTestCase {
+
+  typealias CodeActionCapabilities = TextDocumentClientCapabilities.CodeAction
+  typealias CodeActionLiteralSupport = CodeActionCapabilities.CodeActionLiteralSupport
+  typealias CodeActionKindCapabilities = CodeActionLiteralSupport.CodeActionKind
+
+  /// Connection and lifetime management for the service.
+  var connection: TestSourceKitServer! = nil
+
+  /// The primary interface to make requests to the SourceKitServer.
+  var sk: TestClient! = nil
+
+  /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
+  var workspace: Workspace! = nil
+
+  override func tearDown() {
+    workspace = nil
+    sk = nil
+    connection = nil
+  }
+
+  override func setUp() {
+    connection = TestSourceKitServer()
+    sk = connection.client
+    var documentCapabilities = TextDocumentClientCapabilities()
+    var codeActionCapabilities = CodeActionCapabilities()
+    let codeActionKinds = CodeActionKindCapabilities(valueSet: [.refactor, .quickFix])
+    let codeActionLiteralSupport = CodeActionLiteralSupport(codeActionKind: codeActionKinds)
+    codeActionCapabilities.codeActionLiteralSupport = codeActionLiteralSupport
+    documentCapabilities.codeAction = codeActionCapabilities
+    _ = try! sk.sendSync(InitializeRequest(
+      processId: nil,
+      rootPath: nil,
+      rootURL: nil,
+      initializationOptions: nil,
+      capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
+      trace: .off,
+      workspaceFolders: nil))
+
+    workspace = connection.server!.workspace!
+  }
+
   func testCodeActionResponseLegacySupport() {
     let command = Command(title: "Title", command: "Command", arguments: [1, "text", 2.2, nil])
     let codeAction = CodeAction(title: "1")
@@ -148,5 +189,59 @@ final class CodeActionTests: XCTestCase {
     let command = Command(title: "Command", command: "command.id", arguments: [arguments, arguments])
     let decoded = try! JSONDecoder().decode(Command.self, from: JSONEncoder().encode(command))
     XCTAssertEqual(decoded, command)
+  }
+
+  func testEmptyCodeActionResult() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    sk.allowUnexpectedNotification = true
+
+    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: url,
+      language: .swift,
+      version: 12,
+      text: """
+    func foo() -> String {
+      var a = "abc"
+      return a
+    }
+    """)))
+
+    let textDocument = TextDocumentIdentifier(url)
+    let start = Position(line: 2, utf16index: 0)
+    let request = CodeActionRequest(range: start..<start, context: .init(), textDocument: textDocument)
+    let result = try! sk.sendSync(request)
+    XCTAssertEqual(result, .codeActions([]))
+  }
+
+  func testSemanticRefactorCodeActionResult() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    sk.allowUnexpectedNotification = true
+
+    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: url,
+      language: .swift,
+      version: 12,
+      text: """
+    func foo() -> String {
+      var a = "abc"
+      return a
+    }
+    """)))
+
+    let textDocument = TextDocumentIdentifier(url)
+    let start = Position(line: 1, utf16index: 11)
+    let request = CodeActionRequest(range: start..<start, context: .init(), textDocument: textDocument)
+    let result = try! sk.sendSync(request)
+
+    let expectedCommandArgs: LSPAny = ["actionString": "source.refactoring.kind.localize.string", "positionRange": ["start": ["character": 11, "line": 1], "end": ["character": 11, "line": 1]], "title": "Localize String", "textDocument": ["uri": "file:///a.swift"]]
+    let metadataArguments: LSPAny = ["sourcekitlsp_textDocument": ["uri": "file:///a.swift"]]
+    let expectedCommand = Command(title: "Localize String",
+                                  command: "semantic.refactor.command",
+                                  arguments: [expectedCommandArgs] + [metadataArguments])
+    let expectedCodeAction = CodeAction(title: "Localize String",
+                                        kind: .refactor,
+                                        command: expectedCommand)
+
+    XCTAssertEqual(result, .codeActions([expectedCodeAction]))
   }
 }

@@ -21,6 +21,8 @@ extension CodeActionTests {
         ("testCodeActionResponseLegacySupport", testCodeActionResponseLegacySupport),
         ("testCodeActionResponseRespectsSupportedKinds", testCodeActionResponseRespectsSupportedKinds),
         ("testCommandEncoding", testCommandEncoding),
+        ("testEmptyCodeActionResult", testEmptyCodeActionResult),
+        ("testSemanticRefactorCodeActionResult", testSemanticRefactorCodeActionResult),
     ]
 }
 
@@ -56,6 +58,7 @@ extension ExecuteCommandTests {
     static let __allTests__ExecuteCommandTests = [
         ("testLSPCommandMetadataRemoval", testLSPCommandMetadataRemoval),
         ("testLSPCommandMetadataRetrieval", testLSPCommandMetadataRetrieval),
+        ("testSemanticRefactoring", testSemanticRefactoring),
     ]
 }
 

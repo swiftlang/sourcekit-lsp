@@ -26,7 +26,7 @@ public struct Position: Hashable {
 }
 
 extension Position: Codable {
-  private enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case line
     case utf16index = "character"
   }

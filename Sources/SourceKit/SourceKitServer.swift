@@ -312,11 +312,11 @@ extension SourceKitServer {
       codeActionProvider: CodeActionServerCapabilities(
         clientCapabilities: req.params.capabilities.textDocument?.codeAction,
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
-        supportsCodeActions: false // TODO: Turn it on after a provider is implemented.
+        supportsCodeActions: true
       ),
       workspaceSymbolProvider: true,
       executeCommandProvider: ExecuteCommandOptions(
-        commands: [] // FIXME: Clangd commands?
+        commands: builtinSwiftCommands // FIXME: Clangd commands?
       )
     )))
   }
