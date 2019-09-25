@@ -83,6 +83,7 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceRequest(SourceKitServer.colorPresentation)
     registerWorkspaceRequest(SourceKitServer.codeAction)
     registerWorkspaceRequest(SourceKitServer.pollIndex)
+    registerWorkspaceRequest(SourceKitServer.executeCommand)
   }
 
   func registerWorkspaceRequest<R>(
@@ -313,7 +314,10 @@ extension SourceKitServer {
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
         supportsCodeActions: false // TODO: Turn it on after a provider is implemented.
       ),
-      workspaceSymbolProvider: true
+      workspaceSymbolProvider: true,
+      executeCommandProvider: ExecuteCommandOptions(
+        commands: [] // FIXME: Clangd commands?
+      )
     )))
   }
 
@@ -459,7 +463,25 @@ extension SourceKitServer {
   }
 
   func codeAction(_ req: Request<CodeActionRequest>, workspace: Workspace) {
-    toolchainTextDocumentRequest(req, workspace: workspace, fallback: nil)
+    toolchainTextDocumentRequest(req, workspace: workspace, resultTransformer: { result in
+      switch result {
+      case .success(let reply):
+        return .success(req.params.injectMetadata(toResponse: reply))
+      default:
+        return result
+      }
+    }, fallback: nil)
+  }
+
+  func executeCommand(_ req: Request<ExecuteCommandRequest>, workspace: Workspace) {
+    guard let url = req.params.textDocument?.url else {
+      log("attempted to perform executeCommand request without an url!", level: .error)
+      req.reply(nil)
+      return
+    }
+    var params = req.params
+    params.arguments = params.argumentsWithoutSourceKitMetadata
+    sendRequest(req, params: params, url: url, workspace: workspace, fallback: nil)
   }
 
   func definition(_ req: Request<DefinitionRequest>, workspace: Workspace) {
@@ -628,16 +650,28 @@ extension SourceKitServer {
   func toolchainTextDocumentRequest<PositionRequest>(
     _ req: Request<PositionRequest>,
     workspace: Workspace,
+    resultTransformer: ((LSPResult<PositionRequest.Response>) -> LSPResult<PositionRequest.Response>)? = nil,
     fallback: @autoclosure () -> PositionRequest.Response)
   where PositionRequest: TextDocumentRequest
   {
-    guard let service = workspace.documentService[req.params.textDocument.url] else {
+    sendRequest(req, params: req.params, url: req.params.textDocument.url, workspace: workspace, resultTransformer: resultTransformer, fallback: fallback())
+  }
+
+  func sendRequest<PositionRequest>(
+    _ req: Request<PositionRequest>,
+    params: PositionRequest,
+    url: URL,
+    workspace: Workspace,
+    resultTransformer: ((LSPResult<PositionRequest.Response>) -> LSPResult<PositionRequest.Response>)? = nil,
+    fallback: @autoclosure () -> PositionRequest.Response)
+  {
+    guard let service = workspace.documentService[url] else {
       req.reply(fallback())
       return
     }
 
-    let id = service.send(req.params, queue: DispatchQueue.global()) { result in
-      req.reply(result)
+    let id = service.send(params, queue: DispatchQueue.global()) { result in
+      req.reply(resultTransformer?(result) ?? result)
     }
     req.cancellationToken.addCancellationHandler { [weak service] in
       service?.send(CancelRequest(id: id))

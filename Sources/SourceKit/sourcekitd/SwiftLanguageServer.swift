@@ -73,6 +73,7 @@ public final class SwiftLanguageServer: LanguageServer {
     _register(SwiftLanguageServer.documentColor)
     _register(SwiftLanguageServer.colorPresentation)
     _register(SwiftLanguageServer.codeAction)
+    _register(SwiftLanguageServer.executeCommand)
   }
 
   func publishDiagnostics(
@@ -167,7 +168,9 @@ extension SwiftLanguageServer {
       codeActionProvider: CodeActionServerCapabilities(
         clientCapabilities: request.params.capabilities.textDocument?.codeAction,
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
-        supportsCodeActions: false) // TODO: Turn it on after a provider is implemented.
+        supportsCodeActions: false), // TODO: Turn it on after a provider is implemented.
+      executeCommandProvider: ExecuteCommandOptions(
+        commands: [])
     )))
   }
 
@@ -920,6 +923,34 @@ extension SwiftLanguageServer {
         dispatchGroup.leave()
       }
     }
+  }
+
+  func executeCommand(_ req: Request<ExecuteCommandRequest>) {
+    //TODO: Implement commands.
+    return req.reply(nil)
+  }
+
+  func applyEdit(label: String, edit: WorkspaceEdit) {
+    let req = ApplyEditRequest(label: label, edit: edit)
+    let handle = client.send(req, queue: queue) { reply in
+      switch reply {
+      case .success(let response):
+        if response?.applied == false {
+          let reason: String
+          if let failureReason = response?.failureReason {
+            reason = " reason: \(failureReason)"
+          } else {
+            reason = ""
+          }
+          log("client refused to apply edit for \(label)!\(reason)", level: .warning)
+        }
+      case .failure(let error):
+        log("applyEdit failed: \(error)", level: .warning)
+      }
+    }
+
+    // FIXME: cancellation
+    _ = handle
   }
 }
 

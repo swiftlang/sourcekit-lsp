@@ -68,6 +68,8 @@ extension LSPAny: Encodable {
   }
 }
 
+extension LSPAny: ResponseType {}
+
 extension LSPAny: ExpressibleByNilLiteral {
   public init(nilLiteral _: ()) {
     self = .null
