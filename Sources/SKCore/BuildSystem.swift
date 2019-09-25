@@ -56,6 +56,9 @@ public protocol BuildSystem: AnyObject {
 
   /// Returns the sources for the requested build targets
   func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping ([SourcesItem]?) -> Void)
+
+  /// Returns the output paths for the requested build targets
+  func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping ([OutputsItem]?) -> Void)
 }
 
 public let buildTargetsNotSupported =

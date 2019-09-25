@@ -70,4 +70,8 @@ extension BuildSystemList: BuildSystem {
   public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping ([SourcesItem]?) -> Void) {
     providers.first?.buildTargetSources(targets: targets, reply: reply)
   }
+
+  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping ([OutputsItem]?) -> Void) {
+    providers.first?.buildTargetOutputPaths(targets: targets, reply: reply)
+  }
 }

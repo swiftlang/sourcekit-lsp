@@ -60,7 +60,11 @@ final class TestBuildSystem: BuildSystem {
   }
 
   func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping ([SourcesItem]?) -> Void) {
-    
+    reply(nil)
+  }
+
+  func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping ([OutputsItem]?) -> Void) {
+    reply(nil)
   }
 }
 

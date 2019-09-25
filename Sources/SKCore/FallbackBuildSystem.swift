@@ -70,6 +70,10 @@ public final class FallbackBuildSystem: BuildSystem {
     reply(nil)
   }
 
+  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping ([OutputsItem]?) -> Void) {
+    reply(nil)
+  }
+
   func settingsSwift(_ path: AbsolutePath) -> FileBuildSettings {
     var args: [String] = []
     if let sdkpath = sdkpath {

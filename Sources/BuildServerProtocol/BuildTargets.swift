@@ -198,10 +198,10 @@ public struct BuildTargetOutputPaths: RequestType, Hashable {
 }
 
 public struct BuildTargetOutputPathsResponse: ResponseType, Hashable {
-  public var items: [BuildTargetOutputItems]
+  public var items: [OutputsItem]
 }
 
-public struct BuildTargetOutputItems: Codable, Hashable {
+public struct OutputsItem: Codable, Hashable {
   public var target: BuildTargetIdentifier
 
   /// The output paths for sources that belong to this build target.

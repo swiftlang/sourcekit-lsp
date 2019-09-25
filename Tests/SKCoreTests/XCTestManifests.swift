@@ -6,6 +6,7 @@ extension BuildServerBuildSystemTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__BuildServerBuildSystemTests = [
+        ("testBuildTargetOutputs", testBuildTargetOutputs),
         ("testBuildTargets", testBuildTargets),
         ("testBuildTargetSources", testBuildTargetSources),
         ("testFileRegistration", testFileRegistration),

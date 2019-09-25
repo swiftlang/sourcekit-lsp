@@ -68,6 +68,10 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     reply(nil)
   }
 
+  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping ([OutputsItem]?) -> Void) {
+    reply(nil)
+  }
+
   func database(for url: URL) -> CompilationDatabase? {
     if let path = try? AbsolutePath(validating: url.path) {
       return database(for: path)

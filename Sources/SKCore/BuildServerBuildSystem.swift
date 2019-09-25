@@ -194,6 +194,17 @@ extension BuildServerBuildSystem: BuildSystem {
       }
     }
   }
+
+  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping ([OutputsItem]?) -> Void) {
+    let req = BuildTargetOutputPaths(targets: targets)
+    _ = self.buildServer?.send(req, queue: requestQueue) { result in
+      if let items = result.success?.items { reply(items) }
+      else {
+        log("error fetching build target outputs: \(result)")
+        reply(nil)
+      }
+    }
+  }
 }
 
 private func loadBuildServerConfig(path: AbsolutePath, fileSystem: FileSystem) throws -> BuildServerConfig {
