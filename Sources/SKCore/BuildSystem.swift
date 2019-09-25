@@ -53,6 +53,9 @@ public protocol BuildSystem: AnyObject {
   /// support build targets the `buildTargetsNotSupported` error should be
   /// returned.
   func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void)
+
+  /// Returns the sources for the requested build targets
+  func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping ([SourcesItem]?) -> Void)
 }
 
 public let buildTargetsNotSupported =

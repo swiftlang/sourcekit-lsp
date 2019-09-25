@@ -67,4 +67,7 @@ extension BuildSystemList: BuildSystem {
     providers.first?.buildTargets(reply: reply)
   }
 
+  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping ([SourcesItem]?) -> Void) {
+    providers.first?.buildTargetSources(targets: targets, reply: reply)
+  }
 }

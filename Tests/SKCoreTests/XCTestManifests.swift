@@ -7,6 +7,7 @@ extension BuildServerBuildSystemTests {
     // to regenerate.
     static let __allTests__BuildServerBuildSystemTests = [
         ("testBuildTargets", testBuildTargets),
+        ("testBuildTargetSources", testBuildTargetSources),
         ("testFileRegistration", testFileRegistration),
         ("testServerInitialize", testServerInitialize),
         ("testSettings", testSettings),

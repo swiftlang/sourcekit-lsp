@@ -101,6 +101,36 @@ final class BuildServerBuildSystemTests: XCTestCase {
     })
     XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
   }
+
+  func testBuildTargetSources() {
+    let root = AbsolutePath(
+      inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
+    let buildFolder = AbsolutePath(NSTemporaryDirectory())
+    let buildSystem = try? BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
+    XCTAssertNotNil(buildSystem)
+
+    let expectation = XCTestExpectation(description: "build target sources expectation")
+    let targets = [
+      BuildTargetIdentifier(uri: URL(string: "build://target/a")!),
+      BuildTargetIdentifier(uri: URL(string: "build://target/b")!),
+    ]
+    buildSystem?.buildTargetSources(targets: targets, reply: { items in
+      XCTAssertNotNil(items)
+      XCTAssertEqual(items?[0].target.uri, targets[0].uri)
+      XCTAssertEqual(items?[1].target.uri, targets[1].uri)
+      XCTAssertEqual(items?[0].sources[0].uri, URL(fileURLWithPath: "/path/to/a/file"))
+      XCTAssertEqual(items?[0].sources[0].kind, SourceItemKind.file)
+      XCTAssertEqual(items?[0].sources[1].uri, URL(fileURLWithPath: "/path/to/a/folder/"))
+      XCTAssertEqual(items?[0].sources[1].kind, SourceItemKind.directory)
+      XCTAssertEqual(items?[1].sources[0].uri, URL(fileURLWithPath: "/path/to/b/file"))
+      XCTAssertEqual(items?[1].sources[0].kind, SourceItemKind.file)
+      XCTAssertEqual(items?[1].sources[1].uri, URL(fileURLWithPath: "/path/to/b/folder/"))
+      XCTAssertEqual(items?[1].sources[1].kind, SourceItemKind.directory)
+
+      expectation.fulfill()
+    })
+    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 1), .completed)
+  }
 }
 
 final class TestDelegate: BuildSystemDelegate {

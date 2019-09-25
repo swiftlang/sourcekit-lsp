@@ -64,6 +64,10 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     reply(.failure(buildTargetsNotSupported))
   }
 
+  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping ([SourcesItem]?) -> Void) {
+    reply(nil)
+  }
+
   func database(for url: URL) -> CompilationDatabase? {
     if let path = try? AbsolutePath(validating: url.path) {
       return database(for: path)

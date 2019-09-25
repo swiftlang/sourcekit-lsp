@@ -66,6 +66,10 @@ public final class FallbackBuildSystem: BuildSystem {
     reply(.failure(buildTargetsNotSupported))
   }
 
+  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping ([SourcesItem]?) -> Void) {
+    reply(nil)
+  }
+
   func settingsSwift(_ path: AbsolutePath) -> FileBuildSettings {
     var args: [String] = []
     if let sdkpath = sdkpath {

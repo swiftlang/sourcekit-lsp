@@ -58,6 +58,10 @@ final class TestBuildSystem: BuildSystem {
   func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
     reply(.failure(buildTargetsNotSupported))
   }
+
+  func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping ([SourcesItem]?) -> Void) {
+    
+  }
 }
 
 final class BuildSystemTests: XCTestCase {
