@@ -60,7 +60,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
   /// We don't support change watching.
   public func unregisterForChangeNotifications(for: URL) {}
 
-  public func buildTargets(reply: @escaping ([BuildTarget]?) -> Void) { }
+  public func buildTargets(reply: @escaping ([BuildTarget]?) -> Void) { reply(nil) }
 
   func database(for url: URL) -> CompilationDatabase? {
     if let path = try? AbsolutePath(validating: url.path) {

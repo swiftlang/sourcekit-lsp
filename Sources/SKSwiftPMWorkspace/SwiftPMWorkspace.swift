@@ -236,6 +236,7 @@ extension SwiftPMWorkspace: BuildSystem {
 
   public func buildTargets(reply: @escaping ([BuildTarget]?) -> Void) {
     // TODO: add target support for SwiftPM
+    reply(nil)
   }
 
   /// Returns the resolved target description for the given file, if one is known.
