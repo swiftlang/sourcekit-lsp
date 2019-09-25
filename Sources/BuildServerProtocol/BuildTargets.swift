@@ -183,3 +183,27 @@ public enum SourceItemKind: Int, Codable, Hashable {
   /// The source item references a directory.
   case directory = 2
 }
+
+/// The build target output paths request is sent from the client to the server
+/// to query for the list of compilation output paths for a targets sources.
+public struct BuildTargetOutputPaths: RequestType, Hashable {
+  public static let method: String = "buildTarget/outputPaths"
+  public typealias Response = BuildTargetOutputPathsResponse
+
+  public var targets: [BuildTargetIdentifier]
+
+  public init(targets: [BuildTargetIdentifier]) {
+    self.targets = targets
+  }
+}
+
+public struct BuildTargetOutputPathsResponse: ResponseType, Hashable {
+  public var items: [BuildTargetOutputItems]
+}
+
+public struct BuildTargetOutputItems: Codable, Hashable {
+  public var target: BuildTargetIdentifier
+
+  /// The output paths for sources that belong to this build target.
+  public var outputPaths: [URL]
+}
