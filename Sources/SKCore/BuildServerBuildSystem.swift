@@ -16,6 +16,8 @@ import SKSupport
 import Foundation
 import BuildServerProtocol
 
+typealias Notification = LanguageServerProtocol.Notification
+
 /// A `BuildSystem` based on communicating with a build server
 ///
 /// Provides build settings from a build server launched based on a
@@ -25,19 +27,24 @@ public final class BuildServerBuildSystem {
   let projectRoot: AbsolutePath
   let buildFolder: AbsolutePath?
   let serverConfig: BuildServerConfig
+  let requestQueue: DispatchQueue
 
   var handler: BuildServerHandler?
   var buildServer: Connection?
   public private(set) var indexStorePath: AbsolutePath?
 
   /// Delegate to handle any build system events.
-  public weak var delegate: BuildSystemDelegate? = nil
+  public weak var delegate: BuildSystemDelegate? {
+    get { return self.handler?.delegate }
+    set { self.handler?.delegate = newValue }
+  }
 
   public init(projectRoot: AbsolutePath, buildFolder: AbsolutePath?, fileSystem: FileSystem = localFileSystem) throws {
     let configPath = projectRoot.appending(component: "buildServer.json")
     let config = try loadBuildServerConfig(path: configPath, fileSystem: fileSystem)
     self.buildFolder = buildFolder
     self.projectRoot = projectRoot
+    self.requestQueue = DispatchQueue(label: "build_server_request_queue")
     self.serverConfig = config
     try self.initializeBuildServer()
   }
@@ -114,7 +121,17 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
 }
 
 final class BuildServerHandler: LanguageServerEndpoint {
-  override func _registerBuiltinHandlers() { }
+
+  public weak var delegate: BuildSystemDelegate? = nil
+
+  override func _registerBuiltinHandlers() {
+    _register(BuildServerHandler.handleFileOptionsChanged)
+  }
+
+  func handleFileOptionsChanged(_ notification: Notification<FileOptionsChangedNotification>) {
+    // TODO: add delegate method to include the changed settings directly
+    self.delegate?.fileBuildSettingsChanged([notification.params.uri])
+  }
 }
 
 extension BuildServerBuildSystem: BuildSystem {
@@ -122,15 +139,24 @@ extension BuildServerBuildSystem: BuildSystem {
   /// Register the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
   public func registerForChangeNotifications(for url: LanguageServerProtocol.URL) {
-    // TODO: Implement via BSP extensions.
+    let request = RegisterForChanges(uri: url, action: .register)
+    _ = self.buildServer?.send(request, queue: requestQueue, reply: { result in
+      if let error = result.failure {
+        log("error registering \(url): \(error)", level: .error)
+      }
+    })
   }
 
   /// Unregister the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
   public func unregisterForChangeNotifications(for url: LanguageServerProtocol.URL) {
-    // TODO: Implement via BSP extensions.
+    let request = RegisterForChanges(uri: url, action: .unregister)
+    _ = self.buildServer?.send(request, queue: requestQueue, reply: { result in
+      if let error = result.failure {
+        log("error unregistering \(url): \(error)", level: .error)
+      }
+    })
   }
-
 
   public var indexDatabasePath: AbsolutePath? {
     return buildFolder?.appending(components: "index", "db")

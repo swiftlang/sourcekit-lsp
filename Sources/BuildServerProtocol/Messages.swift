@@ -13,12 +13,14 @@ import LanguageServerProtocol
 
 fileprivate let requestTypes: [_RequestType.Type] = [
   InitializeBuild.self,
+  RegisterForChanges.self,
   ShutdownBuild.self,
   SourceKitOptions.self,
 ]
 
 fileprivate let notificationTypes: [NotificationType.Type] = [
   ExitBuildNotification.self,
+  FileOptionsChangedNotification.self,
   InitializedBuildNotification.self,
 ]
 
