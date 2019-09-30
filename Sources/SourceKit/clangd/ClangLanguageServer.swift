@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -143,7 +143,7 @@ extension ClangLanguageServerShim {
   }
 }
 
-func makeJSONRPCClangServer(client: MessageHandler, toolchain: Toolchain, buildSettings: BuildSystem?) throws -> Connection {
+func makeJSONRPCClangServer(client: MessageHandler, toolchain: Toolchain, buildSettings: BuildSystem?, clangdOptions: [String]) throws -> Connection {
 
   guard let clangd = toolchain.clangd else {
     preconditionFailure("missing clang from toolchain \(toolchain.identifier)")
@@ -182,6 +182,8 @@ func makeJSONRPCClangServer(client: MessageHandler, toolchain: Toolchain, buildS
   process.arguments = [
     "-compile_args_from=lsp", // Provide compiler args programmatically.
   ]
+  process.arguments!.append(contentsOf: clangdOptions)
+
   process.standardOutput = serverToClient
   process.standardInput = clientToServer
   process.terminationHandler = { process in

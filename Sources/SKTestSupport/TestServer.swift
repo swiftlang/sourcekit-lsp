@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -34,9 +34,7 @@ public struct TestSourceKitServer {
       serverConnection: JSONRPCConection)
   }
 
-  public static let buildSetup: BuildSetup = BuildSetup(configuration: .debug,
-                                                        path: nil,
-                                                        flags: BuildFlags())
+  public static let serverOptions: SourceKitServer.Options = SourceKitServer.Options()
 
   public let client: TestClient
   let connImpl: ConnectionImpl
@@ -51,7 +49,7 @@ public struct TestSourceKitServer {
         let clientConnection = LocalConnection()
         let serverConnection = LocalConnection()
         client = TestClient(server: serverConnection)
-        server = SourceKitServer(client: clientConnection, buildSetup: TestSourceKitServer.buildSetup, onExit: {
+        server = SourceKitServer(client: clientConnection, options: Self.serverOptions, onExit: {
           clientConnection.close()
         })
 
@@ -81,7 +79,7 @@ public struct TestSourceKitServer {
         )
 
         client = TestClient(server: clientConnection)
-        server = SourceKitServer(client: serverConnection, buildSetup: TestSourceKitServer.buildSetup, onExit: {
+        server = SourceKitServer(client: serverConnection, options: Self.serverOptions, onExit: {
           serverConnection.close()
         })
 
