@@ -23,13 +23,13 @@ public struct BuildSetup {
                                            flags: BuildFlags())
 
   /// Build configuration (debug|release).
-  public let configuration: BuildConfiguration
+  public var configuration: BuildConfiguration
 
   /// Build artefacts directory path. If nil, the build system may choose a default value.
-  public let path: AbsolutePath?
+  public var path: AbsolutePath?
 
   /// Additional build flags
-  public let flags: BuildFlags
+  public var flags: BuildFlags
 
   public init(configuration: BuildConfiguration, path: AbsolutePath?, flags: BuildFlags) {
     self.configuration = configuration

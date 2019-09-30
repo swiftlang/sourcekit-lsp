@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -33,7 +33,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup))
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup))
     }
   }
 
@@ -54,7 +54,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup))
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup))
     }
   }
 
@@ -75,7 +75,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: ToolchainRegistry(),
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup))
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup))
     }
   }
 
@@ -98,7 +98,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let build = buildPath(root: packageRoot)
@@ -185,7 +185,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let source = resolveSymlinks(packageRoot.appending(component: "Package.swift"))
       let arguments = ws.settings(for: source.asURL, .swift)!.compilerArguments
@@ -215,7 +215,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
@@ -255,7 +255,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -296,7 +296,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -328,7 +328,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
@@ -392,7 +392,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: ToolchainRegistry.shared,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
@@ -430,7 +430,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let aswift1 = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let aswift2 = tempDir
@@ -483,7 +483,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let ah = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
@@ -535,7 +535,7 @@ private func check(
 
 private func buildPath(
   root: AbsolutePath,
-  config: BuildSetup = TestSourceKitServer.buildSetup) -> AbsolutePath
+  config: BuildSetup = TestSourceKitServer.serverOptions.buildSetup) -> AbsolutePath
 {
   let buildPath = config.path ?? root.appending(component: ".build")
   return buildPath.appending(components: Triple.hostTriple.tripleString, "\(config.configuration)")

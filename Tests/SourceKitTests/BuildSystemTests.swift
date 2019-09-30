@@ -82,7 +82,7 @@ final class BuildSystemTests: XCTestCase {
       clientCapabilities: ClientCapabilities(),
       buildSettings: buildSystem,
       index: nil,
-      buildSetup: TestSourceKitServer.buildSetup)
+      buildSetup: TestSourceKitServer.serverOptions.buildSetup)
     testServer.server!.workspace = workspace
 
     sk = testServer.client

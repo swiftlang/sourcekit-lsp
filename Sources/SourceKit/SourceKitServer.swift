@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -34,7 +34,7 @@ public final class SourceKitServer: LanguageServer {
     var language: Language
   }
 
-  let buildSetup: BuildSetup
+  let options: Options
 
   let toolchainRegistry: ToolchainRegistry
 
@@ -47,11 +47,11 @@ public final class SourceKitServer: LanguageServer {
   let onExit: () -> Void
 
   /// Creates a language server for the given client.
-  public init(client: Connection, fileSystem: FileSystem = localFileSystem, buildSetup: BuildSetup, onExit: @escaping () -> Void = {}) {
+  public init(client: Connection, fileSystem: FileSystem = localFileSystem, options: Options, onExit: @escaping () -> Void = {}) {
 
     self.fs = fileSystem
     self.toolchainRegistry = ToolchainRegistry.shared
-    self.buildSetup = buildSetup
+    self.options = options
     self.onExit = onExit
 
     super.init(client: client)
@@ -173,7 +173,7 @@ public final class SourceKitServer: LanguageServer {
 
     // Start a new service.
     return orLog("failed to start language service", level: .error) {
-      guard let service = try SourceKit.languageService(for: toolchain, language, client: self) else {
+      guard let service = try SourceKit.languageService(for: toolchain, language, options: options, client: self) else {
         return nil
       }
 
@@ -263,14 +263,14 @@ extension SourceKitServer {
         url: url,
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: self.toolchainRegistry,
-        buildSetup: self.buildSetup,
+        buildSetup: self.options.buildSetup,
         indexOptions: indexOptions)
     } else if let path = req.params.rootPath {
       self.workspace = try? Workspace(
         url: URL(fileURLWithPath: path),
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: self.toolchainRegistry,
-        buildSetup: self.buildSetup,
+        buildSetup: self.options.buildSetup,
         indexOptions: indexOptions)
     }
 
@@ -282,7 +282,7 @@ extension SourceKitServer {
         clientCapabilities: req.params.capabilities,
         buildSettings: BuildSystemList(),
         index: nil,
-        buildSetup: self.buildSetup
+        buildSetup: self.options.buildSetup
       )
     }
 
@@ -687,13 +687,14 @@ extension SourceKitServer {
 public func languageService(
   for toolchain: Toolchain,
   _ language: Language,
+  options: SourceKitServer.Options,
   client: MessageHandler) throws -> Connection?
 {
   switch language {
 
   case .c, .cpp, .objective_c, .objective_cpp:
     guard toolchain.clangd != nil else { return nil }
-    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings)
+    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings, clangdOptions: options.clangdOptions)
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
