@@ -24,7 +24,7 @@ while True:
                 "version": "0.1",
                 "bspVersion": "2.0",
                 "rootUri": "blah",
-                "capabilities": {"languageIds": ["a", "b"]},
+                "capabilities": {"languageIds": ["objective-c", "swift"]},
                 "data": {
                     "indexStorePath": "some/index/store/path"
                 }
@@ -56,7 +56,7 @@ while True:
                             "canTest": True,
                             "canRun": False
                         },
-                        "languageIds": ["a", "b"],
+                        "languageIds": ["objective-c", "swift"],
                         "dependencies": []
                     },
                     {
@@ -69,7 +69,7 @@ while True:
                             "canTest": False,
                             "canRun": False
                         },
-                        "languageIds": ["a", "b"],
+                        "languageIds": ["objective-c", "swift"],
                         "dependencies": [{"uri": "first_target"}]
                     }
                 ]
