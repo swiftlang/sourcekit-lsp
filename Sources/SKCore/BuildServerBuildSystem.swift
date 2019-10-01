@@ -173,12 +173,13 @@ extension BuildServerBuildSystem: BuildSystem {
     return nil
   }
 
-  public func buildTargets(reply: @escaping ([BuildTarget]?) -> Void) {
-    _ = self.buildServer?.send(BuildTargets(), queue: requestQueue) { result in
-      if let targets = result.success?.targets { reply(targets) }
-      else {
-        log("error fetching build targets: \(result)")
-        reply(nil)
+  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
+    _ = self.buildServer?.send(BuildTargets(), queue: requestQueue) { response in
+      switch response {
+      case .success(let result):
+        reply(.success(result.targets))
+      case .failure(let error):
+        reply(.failure(error))
       }
     }
   }

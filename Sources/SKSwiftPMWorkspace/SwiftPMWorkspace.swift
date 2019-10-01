@@ -234,9 +234,9 @@ extension SwiftPMWorkspace: BuildSystem {
     // TODO: Support for change detection (via file watching)
   }
 
-  public func buildTargets(reply: @escaping ([BuildTarget]?) -> Void) {
-    // TODO: add target support for SwiftPM
-    reply(nil)
+  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
+    // TODO: Support for build targets
+    reply(.failure(buildTargetsNotSupported))
   }
 
   /// Returns the resolved target description for the given file, if one is known.

@@ -63,7 +63,8 @@ extension BuildSystemList: BuildSystem {
     return providers.first?.toolchain(for: url, language)
   }
 
-  public func buildTargets(reply: @escaping ([BuildTarget]?) -> Void) {
+  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
     providers.first?.buildTargets(reply: reply)
   }
+
 }

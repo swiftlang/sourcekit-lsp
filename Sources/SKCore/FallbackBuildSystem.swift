@@ -62,7 +62,9 @@ public final class FallbackBuildSystem: BuildSystem {
 
   public func toolchain(for: URL, _ language: Language) -> Toolchain? { return nil }
 
-  public func buildTargets(reply: @escaping ([BuildTarget]?) -> Void) { reply(nil) }
+  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
+  }
 
   func settingsSwift(_ path: AbsolutePath) -> FileBuildSettings {
     var args: [String] = []

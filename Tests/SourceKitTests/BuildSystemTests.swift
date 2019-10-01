@@ -55,8 +55,8 @@ final class TestBuildSystem: BuildSystem {
     watchedFiles.remove(url)
   }
 
-  func buildTargets(reply: @escaping ([BuildTarget]?) -> Void) {
-
+  func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
   }
 }
 
