@@ -25,9 +25,7 @@ import Foundation
 ///   - arguments: The arguments to use when executing the command.
 public struct ExecuteCommandRequest: RequestType {
   public static let method: String = "workspace/executeCommand"
-
-  // Note: The LSP type for this response is `Any?`, but we return the final edit for testing purposes.
-  public typealias Response = WorkspaceEdit?
+  public typealias Response = LSPAny?
 
   /// The command to be executed.
   public var command: String

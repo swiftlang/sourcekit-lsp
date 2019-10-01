@@ -16,13 +16,29 @@ import struct Foundation.URL
 public typealias URL = Foundation.URL
 
 /// Unique identifier for a document.
-public struct TextDocumentIdentifier: Hashable {
+public struct TextDocumentIdentifier: Hashable, LSPAnyCodable {
 
   /// A URL that uniquely identifies the document.
   public var url: URL
 
   public init(_ url: URL) {
     self.url = url
+  }
+
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    guard case .string(let urlString)? = dictionary[TextDocumentIdentifier.CodingKeys.url.stringValue] else {
+      return nil
+    }
+    guard let url = URL(string: urlString) else {
+      return nil
+    }
+    self.url = url
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    return .dictionary(
+      [CodingKeys.url.stringValue: .string(url.absoluteString)]
+    )
   }
 }
 

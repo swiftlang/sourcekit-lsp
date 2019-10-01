@@ -13,7 +13,7 @@
 import Foundation
 import SKSupport
 
-public typealias CodeActionProviderCompletion = (([CodeAction]) -> Void)
+public typealias CodeActionProviderCompletion = ((Result<[CodeAction], ResponseError>) -> Void)
 public typealias CodeActionProvider = ((CodeActionRequest, @escaping CodeActionProviderCompletion) -> Void)
 
 /// Request for returning all possible code actions for a given text document and range.

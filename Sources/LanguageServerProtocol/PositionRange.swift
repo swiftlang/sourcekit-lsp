@@ -20,6 +20,30 @@ extension Range where Bound == Position {
   }
 }
 
+extension Range: LSPAnyCodable where Bound == Position {
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    guard case .dictionary(let start)? = dictionary[PositionRange.CodingKeys.lowerBound.stringValue],
+          case .int(let startLine) = start[Position.CodingKeys.line.stringValue],
+          case .int(let startutf16index) = start[Position.CodingKeys.utf16index.stringValue],
+          case .dictionary(let end)? = dictionary[PositionRange.CodingKeys.upperBound.stringValue],
+          case .int(let endLine) = end[Position.CodingKeys.line.stringValue],
+          case .int(let endutf16index) = end[Position.CodingKeys.utf16index.stringValue] else
+    {
+      return nil
+    }
+    let startPosition = Position(line: startLine, utf16index: startutf16index)
+    let endPosition = Position(line: endLine, utf16index: endutf16index)
+    self = startPosition..<endPosition
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    return .dictionary([
+      PositionRange.CodingKeys.lowerBound.stringValue: lowerBound.encodeToLSPAny(),
+      PositionRange.CodingKeys.upperBound.stringValue: upperBound.encodeToLSPAny()
+    ])
+  }
+}
+
 /// An LSP-compatible encoding for `Range<Position>`, for use with `CustomCodable`.
 public struct PositionRange: CustomCodableWrapper {
   public var wrappedValue: Range<Position>

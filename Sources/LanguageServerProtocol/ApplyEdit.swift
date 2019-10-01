@@ -17,7 +17,7 @@
 ///   - edit: The edits to apply.
 public struct ApplyEditRequest: RequestType {
   public static let method: String = "workspace/applyEdit"
-  public typealias Response = ApplyEditResponse?
+  public typealias Response = ApplyEditResponse
 
   /// An optional label of the workspace edit.
   /// Used by the client's user interface for things such as

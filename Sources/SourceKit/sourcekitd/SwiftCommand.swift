@@ -21,13 +21,9 @@ public let builtinSwiftCommands: [String] = [
 ].map { $0.identifier }
 
 /// A `Command` that should be executed by Swift's language server.
-public protocol SwiftCommand: Codable, Hashable {
-  init?(fromLSPDictionary: [String: LSPAny])
-
+public protocol SwiftCommand: Codable, Hashable, LSPAnyCodable {
   static var identifier: String { get }
   var title: String { get set }
-
-  func encodeToLSPAny() -> LSPAny
 }
 
 extension SwiftCommand {
@@ -60,9 +56,7 @@ extension ExecuteCommandRequest {
 
 public struct SemanticRefactorCommand: SwiftCommand {
 
-  public static var identifier: String {
-    return "semantic.refactor.command"
-  }
+  public static let identifier: String = "semantic.refactor.command"
 
   /// The name of this refactoring action.
   public var title: String
@@ -77,28 +71,21 @@ public struct SemanticRefactorCommand: SwiftCommand {
   public var textDocument: TextDocumentIdentifier
 
   public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
-    guard case .dictionary(let dict)? = dictionary[CodingKeys.textDocument.stringValue],
+    guard case .dictionary(let documentDict)? = dictionary[CodingKeys.textDocument.stringValue],
           case .string(let title)? = dictionary[CodingKeys.title.stringValue],
           case .string(let actionString)? = dictionary[CodingKeys.actionString.stringValue],
-          case .string(let urlString)? = dict[TextDocumentIdentifier.CodingKeys.url.stringValue],
-          case .dictionary(let rangeDict)? = dictionary[CodingKeys.positionRange.stringValue],
-          case .dictionary(let start)? = rangeDict[PositionRange.CodingKeys.lowerBound.stringValue],
-          case .int(let startLine) = start[Position.CodingKeys.line.stringValue],
-          case .int(let startutf16index) = start[Position.CodingKeys.utf16index.stringValue],
-          case .dictionary(let end)? = rangeDict[PositionRange.CodingKeys.upperBound.stringValue],
-          case .int(let endLine) = end[Position.CodingKeys.line.stringValue],
-          case .int(let endutf16index) = end[Position.CodingKeys.utf16index.stringValue],
-          let url = URL(string: urlString) else
+          case .dictionary(let rangeDict)? = dictionary[CodingKeys.positionRange.stringValue] else
     {
       return nil
     }
-    let startPosition = Position(line: startLine, utf16index: startutf16index)
-    let endPosition = Position(line: endLine, utf16index: endutf16index)
-    let positionRange = startPosition..<endPosition
+    guard let positionRange = Range<Position>(fromLSPDictionary: rangeDict),
+          let textDocument = TextDocumentIdentifier(fromLSPDictionary: documentDict) else {
+      return nil
+    }
     self.init(title: title,
               actionString: actionString,
               positionRange: positionRange,
-              textDocument: TextDocumentIdentifier(url))
+              textDocument: textDocument)
   }
 
   public init(title: String, actionString: String, positionRange: Range<Position>, textDocument: TextDocumentIdentifier) {
@@ -109,23 +96,9 @@ public struct SemanticRefactorCommand: SwiftCommand {
   }
 
   public func encodeToLSPAny() -> LSPAny {
-    let textDocumentArgument = LSPAny.dictionary(
-      [TextDocumentIdentifier.CodingKeys.url.stringValue: .string(textDocument.url.absoluteString)]
-    )
-    let startRange = LSPAny.dictionary(
-      [Position.CodingKeys.line.stringValue: .int(positionRange.lowerBound.line),
-       Position.CodingKeys.utf16index.stringValue: .int(positionRange.lowerBound.utf16index)]
-    )
-    let endRange = LSPAny.dictionary(
-      [Position.CodingKeys.line.stringValue: .int(positionRange.upperBound.line),
-       Position.CodingKeys.utf16index.stringValue: .int(positionRange.upperBound.utf16index)]
-    )
     return .dictionary([CodingKeys.title.stringValue: .string(title),
                         CodingKeys.actionString.stringValue: .string(actionString),
-                        CodingKeys.positionRange.stringValue: .dictionary([
-                          PositionRange.CodingKeys.lowerBound.stringValue: startRange,
-                          PositionRange.CodingKeys.upperBound.stringValue: endRange
-                        ]),
-                        CodingKeys.textDocument.stringValue: textDocumentArgument])
+                        CodingKeys.positionRange.stringValue: positionRange.encodeToLSPAny(),
+                        CodingKeys.textDocument.stringValue: textDocument.encodeToLSPAny()])
   }
 }

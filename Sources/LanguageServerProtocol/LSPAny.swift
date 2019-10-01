@@ -116,3 +116,8 @@ extension LSPAny: ExpressibleByDictionaryLiteral {
     self = .dictionary(dict)
   }
 }
+
+public protocol LSPAnyCodable {
+  init?(fromLSPDictionary dictionary: [String: LSPAny])
+  func encodeToLSPAny() -> LSPAny
+}

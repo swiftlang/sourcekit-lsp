@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Position within a text document, expressed as a zero-based line and column (utf-16 code unit offset).
-public struct Position: Hashable {
+public struct Position: Hashable, LSPAnyCodable {
 
   /// Line number within a document (zero-based).
   public var line: Int
@@ -22,6 +22,21 @@ public struct Position: Hashable {
   public init(line: Int, utf16index: Int) {
     self.line = line
     self.utf16index = utf16index
+  }
+
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    guard case .int(let line) = dictionary[CodingKeys.line.stringValue],
+          case .int(let utf16index) = dictionary[CodingKeys.utf16index.stringValue] else
+    {
+      return nil
+    }
+    self.line = line
+    self.utf16index = utf16index
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    return .dictionary([CodingKeys.line.stringValue: .int(line),
+                        CodingKeys.utf16index.stringValue: .int(utf16index)])
   }
 }
 

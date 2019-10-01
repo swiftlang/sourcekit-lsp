@@ -13,7 +13,7 @@
 import SKSupport
 
 /// Edit to a text document, replacing the contents of `range` with `text`.
-public struct TextEdit: ResponseType, Hashable {
+public struct TextEdit: ResponseType, Hashable, LSPAnyCodable {
 
   /// The range of text to be replaced.
   @CustomCodable<PositionRange>
@@ -25,5 +25,25 @@ public struct TextEdit: ResponseType, Hashable {
   public init(range: Range<Position>, newText: String) {
     self.range = range
     self.newText = newText
+  }
+
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    guard case .dictionary(let rangeDict) = dictionary[CodingKeys.range.stringValue],
+          case .string(let newText) = dictionary[CodingKeys.newText.stringValue] else
+    {
+      return nil
+    }
+    guard let range = Range<Position>(fromLSPDictionary: rangeDict) else {
+      return nil
+    }
+    self.range = range
+    self.newText = newText
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    return .dictionary([
+      CodingKeys.range.stringValue: range.encodeToLSPAny(),
+      CodingKeys.newText.stringValue: .string(newText)
+    ])
   }
 }

@@ -898,70 +898,81 @@ extension SwiftLanguageServer {
     ]
     let wantedActionKinds = req.params.context.only
     let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
-    retrieveCodeActions(req, providers: providers.map { $0.provider }) { codeActions in
-      let capabilities = self.clientCapabilities.textDocument?.codeAction
-      let response = CodeActionRequestResponse(codeActions: codeActions,
-                                               clientCapabilities: capabilities)
-      req.reply(response)
+    retrieveCodeActions(req, providers: providers.map { $0.provider }) { result in
+      switch result {
+      case .success(let codeActions):
+        let capabilities = self.clientCapabilities.textDocument?.codeAction
+        let response = CodeActionRequestResponse(codeActions: codeActions,
+                                                 clientCapabilities: capabilities)
+        req.reply(response)
+      case .failure(let error):
+        req.reply(.failure(error))
+      }
     }
   }
 
   func retrieveCodeActions(_ req: Request<CodeActionRequest>, providers: [CodeActionProvider], completion: @escaping CodeActionProviderCompletion) {
     guard providers.isEmpty == false else {
-      completion([])
+      completion(.success([]))
       return
     }
     var codeActions = [CodeAction]()
     let dispatchGroup = DispatchGroup()
     (0..<providers.count).forEach { _ in dispatchGroup.enter() }
     dispatchGroup.notify(queue: queue) {
-      completion(codeActions)
+      completion(.success(codeActions))
     }
     for i in 0..<providers.count {
-      providers[i](req.params) { actions in
+      providers[i](req.params) { result in
+        defer { dispatchGroup.leave() }
+        guard case .success(let actions) = result else {
+          return
+        }
         self.queue.sync {
           codeActions += actions
         }
-        dispatchGroup.leave()
       }
     }
   }
 
   func retrieveRefactorCodeActions(_ params: CodeActionRequest, completion: @escaping CodeActionProviderCompletion) {
     guard let snapshot = documentManager.latestSnapshot(params.textDocument.url) else {
-      log("failed to find snapshot for url \(params.textDocument.url)")
-      completion([])
+      let message = "failed to find snapshot for url \(params.textDocument.url)"
+      log(message)
+      completion(.failure(.unknown(message)))
       return
     }
-    guard let startOffset = snapshot.utf8Offset(of: params.range.lowerBound),
-          let endOffset = snapshot.utf8Offset(of: params.range.upperBound) else
-    {
-        completion([])
-        return
-    }
-    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
-    skreq[keys.request] = requests.cursorinfo
-    skreq[keys.sourcefile] = snapshot.document.url.path
-    skreq[keys.offset] = startOffset
-    let length = endOffset - startOffset
-    skreq[keys.length] = length
-    skreq[keys.retrieve_refactor_actions] = 1
-    if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
-      skreq[keys.compilerargs] = settings.compilerArguments
+
+    guard let offsetRange = snapshot.utf8OffsetRange(of: params.range) else {
+      let message = "failed to retrieve range from \(params.range)"
+      log(message)
+      completion(.failure(.unknown(message)))
+      return
     }
 
-    let handle = sourcekitd.send(skreq) { [weak self] result in
-      guard let self = self else {
-        completion([])
+    let additionalCursorInfoParameters: ((SKRequestDictionary) -> Void) = { skreq in
+      skreq[self.keys.length] = offsetRange.count
+      skreq[self.keys.retrieve_refactor_actions] = 1
+    }
+
+    cursorInfo(
+      params.textDocument.url,
+      params.range.lowerBound,
+      customCursorOffset: offsetRange.lowerBound,
+      additionalParameters: additionalCursorInfoParameters)
+    { result in
+      guard let dict: CursorInfo = result.success ?? nil else {
+        if let failure = result.failure {
+          let message = "failed to find refactor actions: \(failure)"
+          log(message)
+          completion(.failure(.unknown(message)))
+        } else {
+          completion(.failure(.unknown("CursorInfo failed.")))
+        }
         return
       }
-      guard let dict = result.success else {
-        log("failed to find refactor actions: \(result.failure!)")
-        completion([])
-        return
-      }
-      guard let results: SKResponseArray = dict[self.keys.refactor_actions] else {
-        completion([])
+      guard let results: SKResponseArray = dict.refactorActions else {
+        completion(.success([]))
         return
       }
       var codeActions = [CodeAction]()
@@ -972,60 +983,65 @@ extension SwiftLanguageServer {
         {
           let actionName = String(cString: ptr)
           guard actionName != "source.refactoring.kind.rename.global" else {
-            //TODO: Global refactoring
+            // TODO: Global refactoring
             return true
           }
-          let refactorCommand = SemanticRefactorCommand(title: name,
-                                                        actionString: actionName,
-                                                        positionRange: params.range.asRange,
-                                                        textDocument: params.textDocument)
+          let refactorCommand = SemanticRefactorCommand(
+            title: name,
+            actionString: actionName,
+            positionRange: params.range,
+            textDocument: params.textDocument)
           do {
             let lspCommand = try refactorCommand.asCommand()
             let codeAction = CodeAction(title: name, kind: .refactor, command: lspCommand)
             codeActions.append(codeAction)
           } catch {
-            log("Failed to convert SwiftCommand to Command type: \(error)")
+            log("Failed to convert SwiftCommand to Command type: \(error)", level: .error)
           }
         }
         return true
       }
 
-      completion(codeActions)
+      completion(.success(codeActions))
     }
-
-    // FIXME: cancellation
-    _ = handle
   }
 
   func executeCommand(_ req: Request<ExecuteCommandRequest>) {
     let params = req.params
     //TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
     guard let swiftCommand = params.swiftCommand(ofType: SemanticRefactorCommand.self) else {
-      log("semantic refactoring: unknown command \(params.command)", level: .warning)
-      return req.reply(nil)
+      let message = "semantic refactoring: unknown command \(params.command)"
+      log(message, level: .warning)
+      return req.reply(.failure(.unknown(message)))
     }
     let url = swiftCommand.textDocument.url
     semanticRefactoring(swiftCommand) { result in
       switch result {
       case .success(let refactor):
         let edit = refactor.edit
-        self.applyEdit(label: refactor.title, edit: edit) {
-          req.reply(edit)
+        self.applyEdit(label: refactor.title, edit: edit) { editResult in
+          switch editResult {
+          case .success:
+            req.reply(edit.encodeToLSPAny())
+          case .failure(let error):
+            req.reply(.failure(error))
+          }
         }
       case .failure(let error):
-        log("semantic refactoring failed \(url): \(error)", level: .warning)
-        return req.reply(nil)
+        let message = "semantic refactoring failed \(url): \(error)"
+        log(message, level: .warning)
+        return req.reply(.failure(.unknown(message)))
       }
     }
   }
 
-  func applyEdit(label: String, edit: WorkspaceEdit, completion: @escaping () -> Void) {
+  func applyEdit(label: String, edit: WorkspaceEdit, completion: @escaping (Result<ApplyEditResponse, ResponseError>) -> Void) {
     let req = ApplyEditRequest(label: label, edit: edit)
     let handle = client.send(req, queue: queue) { reply in
       switch reply {
-      case .success(let response) where response?.applied == false:
+      case .success(let response) where response.applied == false:
         let reason: String
-        if let failureReason = response?.failureReason {
+        if let failureReason = response.failureReason {
           reason = " reason: \(failureReason)"
         } else {
           reason = ""
@@ -1036,7 +1052,7 @@ extension SwiftLanguageServer {
       default:
         break
       }
-      completion()
+      completion(reply)
     }
 
     // FIXME: cancellation
@@ -1048,6 +1064,15 @@ extension DocumentSnapshot {
 
   func utf8Offset(of pos: Position) -> Int? {
     return lineTable.utf8OffsetOf(line: pos.line, utf16Column: pos.utf16index)
+  }
+
+  func utf8OffsetRange(of range: Range<Position>) -> Range<Int>? {
+    guard let startOffset = utf8Offset(of: range.lowerBound),
+          let endOffset = utf8Offset(of: range.upperBound) else
+    {
+      return nil
+    }
+    return startOffset..<endOffset
   }
 
   func positionOf(utf8Offset: Int) -> Position? {

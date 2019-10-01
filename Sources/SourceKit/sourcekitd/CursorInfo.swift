@@ -33,10 +33,14 @@ struct CursorInfo {
   /// https://github.com/apple/swift/blob/master/bindings/xml/comment-xml-schema.rng
   var documentationXML: String?
 
-  init(_ symbolInfo: SymbolDetails, annotatedDeclaration: String?, documentationXML: String?) {
+  /// The refactor actions available at this position.
+  var refactorActions: SKResponseArray? = nil
+
+  init(_ symbolInfo: SymbolDetails, annotatedDeclaration: String?, documentationXML: String?, refactorActions: SKResponseArray? = nil) {
     self.symbolInfo = symbolInfo
     self.annotatedDeclaration = annotatedDeclaration
     self.documentationXML =  documentationXML
+    self.refactorActions = refactorActions
   }
 }
 
@@ -69,7 +73,8 @@ extension CursorInfo {
         usr: dict[keys.usr],
         bestLocalDeclaration: location),
       annotatedDeclaration: dict[keys.annotated_decl],
-      documentationXML: dict[keys.doc_full_as_xml])
+      documentationXML: dict[keys.doc_full_as_xml],
+      refactorActions: dict[keys.refactor_actions])
   }
 }
 
@@ -113,6 +118,8 @@ extension SwiftLanguageServer {
   func cursorInfo(
     _ url: URL,
     _ position: Position,
+    customCursorOffset: Int? = nil,
+    additionalParameters appendAdditionalParameters: ((SKRequestDictionary) -> Void)? = nil,
     _ completion: @escaping (Swift.Result<CursorInfo?, CursorInfoError>) -> Void)
   {
     guard let snapshot = documentManager.latestSnapshot(url) else {
@@ -125,8 +132,10 @@ extension SwiftLanguageServer {
  
     let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.cursorinfo
-    skreq[keys.offset] = offset
+    skreq[keys.offset] = customCursorOffset ?? offset
     skreq[keys.sourcefile] = snapshot.document.url.path
+
+    appendAdditionalParameters?(skreq)
 
     // FIXME: should come from the internal document
     if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
@@ -160,7 +169,8 @@ extension SwiftLanguageServer {
           usr: dict[self.keys.usr],
           bestLocalDeclaration: location),
         annotatedDeclaration: dict[self.keys.annotated_decl],
-        documentationXML: dict[self.keys.doc_full_as_xml]
+        documentationXML: dict[self.keys.doc_full_as_xml],
+        refactorActions: dict[self.keys.refactor_actions]
         )))
     }
 

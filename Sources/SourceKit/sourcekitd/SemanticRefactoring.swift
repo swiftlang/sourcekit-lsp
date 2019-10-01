@@ -36,7 +36,7 @@ struct SemanticRefactoring {
   ///   - dict: Response dictionary to extract information from.
   ///   - url: The client URL that triggered the `semantic_refactoring` request.
   ///   - keys: The sourcekitd key set to use for looking up into `dict`.
-  init?(_ title: String, _ dict: SKResponseDictionary, _ url: URL, _ keys: sourcekitd_keys) {
+  init?(_ title: String, _ dict: SKResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_keys) {
     guard let categorizedEdits: SKResponseArray = dict[keys.categorizededits] else {
       return nil
     }
@@ -48,15 +48,17 @@ struct SemanticRefactoring {
         return false
       }
       edits.forEach { _, value in
+        // The LSP is zero based, but semantic_refactoring is one based.
         if let startLine: Int = value[keys.line],
            let startColumn: Int = value[keys.column],
+           let startPosition = snapshot.positionOf(zeroBasedLine: startLine - 1,
+                                                   utf8Column: startColumn - 1),
            let endLine: Int = value[keys.endline],
            let endColumn: Int = value[keys.endcolumn],
+           let endPosition = snapshot.positionOf(zeroBasedLine: endLine - 1,
+                                                 utf8Column: endColumn - 1),
            let text: String = value[keys.text]
         {
-          // The LSP is zero based, but semantic_refactoring is one based.
-          let startPosition = Position(line: startLine - 1, utf16index: startColumn - 1)
-          let endPosition = Position(line: endLine - 1, utf16index: endColumn - 1)
           let edit = TextEdit(range: startPosition..<endPosition, newText: text)
           textEdits.append(edit)
         }
@@ -70,7 +72,7 @@ struct SemanticRefactoring {
     }
 
     self.title = title
-    self.edit = WorkspaceEdit(changes: [url: textEdits])
+    self.edit = WorkspaceEdit(changes: [snapshot.document.url: textEdits])
   }
 }
 
@@ -82,6 +84,9 @@ enum SemanticRefactoringError: Error {
 
   /// The given position range is invalid.
   case invalidRange(Range<Position>)
+
+  /// The given position failed to convert to UTF-8.
+  case failedToRetrieveOffset(Range<Position>)
 
   /// The underlying sourcekitd request failed with the given error.
   case responseError(ResponseError)
@@ -97,6 +102,8 @@ extension SemanticRefactoringError: CustomStringConvertible {
       return "failed to find snapshot for url \(url)"
     case .invalidRange(let range):
       return "failed to refactor due to invalid range: \(range)"
+    case .failedToRetrieveOffset(let range):
+      return "Failed to convert range to UTF-8 offset: \(range)"
     case .responseError(let error):
       return "\(error)"
     case .noEditsNeeded(let url):
@@ -123,18 +130,24 @@ extension SwiftLanguageServer {
     guard let snapshot = documentManager.latestSnapshot(url) else {
       return completion(.failure(.unknownDocument(url)))
     }
-    guard let startOffset = snapshot.utf8Offset(of: refactorCommand.positionRange.lowerBound),
-          let endOffset = snapshot.utf8Offset(of: refactorCommand.positionRange.upperBound) else
-    {
+    guard let offsetRange = snapshot.utf8OffsetRange(of: refactorCommand.positionRange) else {
+      return completion(.failure(.failedToRetrieveOffset(refactorCommand.positionRange)))
+    }
+    let line = refactorCommand.positionRange.lowerBound.line
+    let utf16Column = refactorCommand.positionRange.lowerBound.utf16index
+    guard let utf8Column = snapshot.lineTable.utf8ColumnAt(line: line, utf16Column: utf16Column) else {
       return completion(.failure(.invalidRange(refactorCommand.positionRange)))
     }
     let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.semantic_refactoring
+    // Preferred name for e.g. an extracted variable.
+    // Empty string means sourcekitd chooses a name automatically.
     skreq[keys.name] = ""
     skreq[keys.sourcefile] = url.path
-    skreq[keys.line] = refactorCommand.positionRange.lowerBound.line + 1
-    skreq[keys.column] = refactorCommand.positionRange.lowerBound.utf16index + 1 // LSP is zero based, but this request is 1 based.
-    skreq[keys.length] = endOffset - startOffset
+    // LSP is zero based, but this request is 1 based.
+    skreq[keys.line] = line + 1
+    skreq[keys.column] = utf8Column + 1
+    skreq[keys.length] = offsetRange.count
     skreq[keys.actionuid] = sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!
     if let settings = buildSystem.settings(for: url, snapshot.document.language) {
       skreq[keys.compilerargs] = settings.compilerArguments
@@ -145,7 +158,7 @@ extension SwiftLanguageServer {
       guard let dict = result.success else {
         return completion(.failure(.responseError(result.failure!)))
       }
-      guard let refactor = SemanticRefactoring(refactorCommand.title, dict, url, self.keys) else {
+      guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {
         return completion(.failure(.noEditsNeeded(url)))
       }
       completion(.success(refactor))

@@ -22,7 +22,8 @@ extension CodeActionTests {
         ("testCodeActionResponseRespectsSupportedKinds", testCodeActionResponseRespectsSupportedKinds),
         ("testCommandEncoding", testCommandEncoding),
         ("testEmptyCodeActionResult", testEmptyCodeActionResult),
-        ("testSemanticRefactorCodeActionResult", testSemanticRefactorCodeActionResult),
+        ("testSemanticRefactorLocationCodeActionResult", testSemanticRefactorLocationCodeActionResult),
+        ("testSemanticRefactorRangeCodeActionResult", testSemanticRefactorRangeCodeActionResult),
     ]
 }
 
@@ -56,9 +57,10 @@ extension ExecuteCommandTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__ExecuteCommandTests = [
+        ("testLocationSemanticRefactoring", testLocationSemanticRefactoring),
         ("testLSPCommandMetadataRemoval", testLSPCommandMetadataRemoval),
         ("testLSPCommandMetadataRetrieval", testLSPCommandMetadataRetrieval),
-        ("testSemanticRefactoring", testSemanticRefactoring),
+        ("testRangeSemanticRefactoring", testRangeSemanticRefactoring),
     ]
 }
 

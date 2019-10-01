@@ -37,7 +37,8 @@ public final class SKTibsTestWorkspace {
     immutableProjectDir: URL,
     persistentBuildDir: URL,
     tmpDir: URL,
-    toolchain: Toolchain) throws
+    toolchain: Toolchain,
+    clientCapabilities: ClientCapabilities) throws
   {
     self.tibsWorkspace = try TibsTestWorkspace(
       immutableProjectDir: immutableProjectDir,
@@ -45,23 +46,23 @@ public final class SKTibsTestWorkspace {
       tmpDir: tmpDir,
       toolchain: TibsToolchain(toolchain))
 
-    initWorkspace()
+    initWorkspace(clientCapabilities: clientCapabilities)
   }
 
-  public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain) throws {
+  public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain, clientCapabilities: ClientCapabilities) throws {
     self.tibsWorkspace = try TibsTestWorkspace(
       projectDir: projectDir,
       tmpDir: tmpDir,
       toolchain: TibsToolchain(toolchain))
 
-    initWorkspace()
+    initWorkspace(clientCapabilities: clientCapabilities)
   }
 
-  func initWorkspace() {
+  func initWorkspace(clientCapabilities: ClientCapabilities) {
     let buildPath = AbsolutePath(builder.buildRoot.path)
     testServer.server!.workspace = Workspace(
       rootPath: AbsolutePath(sources.rootDirectory.path),
-      clientCapabilities: ClientCapabilities(),
+      clientCapabilities: clientCapabilities,
       buildSettings: CompilationDatabaseBuildSystem(projectRoot: buildPath),
       index: index,
       buildSetup: BuildSetup(configuration: .debug, path: buildPath, flags: BuildFlags()))
@@ -89,7 +90,7 @@ extension SKTibsTestWorkspace {
 
 extension XCTestCase {
 
-  public func staticSourceKitTibsWorkspace(name: String, testFile: String = #file) throws -> SKTibsTestWorkspace? {
+  public func staticSourceKitTibsWorkspace(name: String, clientCapabilities: ClientCapabilities = .init(), testFile: String = #file) throws -> SKTibsTestWorkspace? {
     let testDirName = testDirectoryName
     let workspace = try SKTibsTestWorkspace(
       immutableProjectDir: inputsDirectory(testFile: testFile)
@@ -98,7 +99,8 @@ extension XCTestCase {
         .appendingPathComponent("sk-tests/\(testDirName)", isDirectory: true),
       tmpDir: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),
-      toolchain: ToolchainRegistry.shared.default!)
+      toolchain: ToolchainRegistry.shared.default!,
+      clientCapabilities: clientCapabilities)
 
     if workspace.builder.targets.contains(where: { target in !target.clangTUs.isEmpty })
       && !workspace.builder.toolchain.clangHasIndexSupport {
