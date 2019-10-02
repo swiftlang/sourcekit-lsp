@@ -91,7 +91,7 @@ public final class TestClient: LanguageServerEndpoint {
   public var replyQueue: DispatchQueue = DispatchQueue(label: "testclient-reply-queue")
   var oneShotNotificationHandlers: [((Any) -> Void)] = []
 
-  public var allowUnexpectedNotification: Bool = false
+  public var allowUnexpectedNotification: Bool = true
 
   public func appendOneShotNotificationHandler<N>(_ handler: @escaping (Notification<N>) -> Void) {
     oneShotNotificationHandlers.append({ anyNote in

@@ -97,7 +97,6 @@ final class FoldingRangeTests: XCTestCase {
 
   func performFoldingRangeRequest(text: String? = nil) -> [FoldingRange] {
     let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
       url: url,

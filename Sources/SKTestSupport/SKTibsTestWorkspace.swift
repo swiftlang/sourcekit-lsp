@@ -45,7 +45,6 @@ public final class SKTibsTestWorkspace {
       tmpDir: tmpDir,
       toolchain: TibsToolchain(toolchain))
 
-    sk.allowUnexpectedNotification = true
     initWorkspace()
   }
 
@@ -55,7 +54,6 @@ public final class SKTibsTestWorkspace {
       tmpDir: tmpDir,
       toolchain: TibsToolchain(toolchain))
 
-    sk.allowUnexpectedNotification = true
     initWorkspace()
   }
 

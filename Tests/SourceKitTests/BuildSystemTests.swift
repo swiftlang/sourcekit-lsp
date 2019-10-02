@@ -121,6 +121,8 @@ final class BuildSystemTests: XCTestCase {
 
     buildSystem.buildSettingsByFile[url] = FileBuildSettings(compilerArguments: args)
 
+    sk.allowUnexpectedNotification = false
+
     sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
       url: url,
       language: .objective_c,
@@ -162,6 +164,9 @@ final class BuildSystemTests: XCTestCase {
 
     foo()
     """
+
+    sk.allowUnexpectedNotification = false
+
     sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
       url: url,
       language: .swift,
@@ -202,6 +207,8 @@ final class BuildSystemTests: XCTestCase {
 
   func testSwiftDocumentBuildSettingsChangedFalseAlarm() {
     let url = URL(fileURLWithPath: "/a.swift")
+
+    sk.allowUnexpectedNotification = false
 
     sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
       url: url,

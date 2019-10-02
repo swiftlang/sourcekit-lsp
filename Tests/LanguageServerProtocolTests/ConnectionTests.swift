@@ -23,6 +23,7 @@ class ConnectionTests: XCTestCase {
 
   override func setUp() {
     connection = TestLocalConnection()
+    connection.client.allowUnexpectedNotification = false
   }
 
   override func tearDown() {

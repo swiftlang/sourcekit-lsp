@@ -24,6 +24,7 @@ class ConnectionTests: XCTestCase {
 
   override func setUp() {
     connection = TestJSONRPCConnection()
+    connection.client.allowUnexpectedNotification = false
   }
 
   override func tearDown() {
