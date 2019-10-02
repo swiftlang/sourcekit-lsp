@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -12,6 +12,7 @@
 
 import XCTest
 import LanguageServerProtocol
+import SKSupport
 import SKTestSupport
 
 final class CodingTests: XCTestCase {
@@ -37,8 +38,6 @@ final class CodingTests: XCTestCase {
       """
 
     let indent2rangejson = rangejson.indented(2, skipFirstLine: true)
-
-    checkCoding(PositionRange(range), json: rangejson)
 
     // url -> uri
     checkCoding(Location(url: url, range: range), json: """
@@ -206,6 +205,62 @@ final class CodingTests: XCTestCase {
 
     checkCoding(DiagnosticCode.number(123), json: "123")
     checkCoding(DiagnosticCode.string("hi"), json: "\"hi\"")
+
+    let markup = MarkupContent(kind: .plaintext, value: "a")
+    checkCoding(HoverResponse(contents: markup, range: nil), json: """
+      {
+        "contents" : {
+          "kind" : "plaintext",
+          "value" : "a"
+        }
+      }
+      """)
+
+    checkCoding(HoverResponse(contents: markup, range: range), json: """
+      {
+        "contents" : {
+          "kind" : "plaintext",
+          "value" : "a"
+        },
+        "range" : \(rangejson.indented(2, skipFirstLine: true))
+      }
+      """)
+
+    checkCoding(TextDocumentContentChangeEvent(text: "a"), json: """
+      {
+        "text" : "a"
+      }
+      """)
+    checkCoding(TextDocumentContentChangeEvent(range: range, rangeLength: 10, text: "a"), json: """
+      {
+        "range" : \(rangejson.indented(2, skipFirstLine: true)),
+        "rangeLength" : 10,
+        "text" : "a"
+      }
+      """)
+  }
+
+  func testPositionRange() {
+    struct WithPosRange: Codable, Equatable {
+      @CustomCodable<PositionRange>
+      var range: Range<Position>
+    }
+
+    let range = Position(line: 5, utf16index: 23) ..< Position(line: 6, utf16index: 0)
+    checkCoding(WithPosRange(range: range), json: """
+      {
+        "range" : {
+          "end" : {
+            "character" : 0,
+            "line" : 6
+          },
+          "start" : {
+            "character" : 23,
+            "line" : 5
+          }
+        }
+      }
+      """)
   }
 }
 

@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKSupport
+
 /// Request for symbols to display in the document outline.
 ///
 /// This is used to provide list of all symbols in the document and display inside which 
@@ -55,13 +57,15 @@ public struct DocumentSymbol: Hashable, Codable, ResponseType {
   /// The range enclosing this symbol not including leading/trailing whitespace but everything else
   /// like comments. This information is typically used to determine if the clients cursor is
   /// inside the symbol to reveal in the symbol in the UI.
-  var range: PositionRange
+  @CustomCodable<PositionRange>
+  var range: Range<Position>
 
   /// The range that should be selected and revealed when this symbol is being picked, 
   /// e.g the name of a function.
   ///
   /// Must be contained by the `range`.
-  var selectionRange: PositionRange
+  @CustomCodable<PositionRange>
+  var selectionRange: Range<Position>
 
   /// Children of this symbol, e.g. properties of a class.
   var children: [DocumentSymbol]?
@@ -71,8 +75,8 @@ public struct DocumentSymbol: Hashable, Codable, ResponseType {
     detail: String?, 
     kind: SymbolKind,
     deprecated: Bool?,
-    range: PositionRange,
-    selectionRange: PositionRange,
+    range: Range<Position>,
+    selectionRange: Range<Position>,
     children: [DocumentSymbol]?)
   {
     self.name = name

@@ -2,13 +2,15 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
+
+import SKSupport
 
 /// The serverity level of a Diagnostic, between hint and error.
 public enum DiagnosticSeverity: Int, Codable, Hashable {
@@ -28,7 +30,8 @@ public enum DiagnosticCode: Hashable {
 public struct Diagnostic: Codable, Hashable {
 
   /// The primary position/range of the diagnostic.
-  public var range: PositionRange
+  @CustomCodable<PositionRange>
+  public var range: Range<Position>
 
   /// Whether this is a warning, error, etc.
   public var severity: DiagnosticSeverity?
@@ -54,7 +57,7 @@ public struct Diagnostic: Codable, Hashable {
     message: String,
     relatedInformation: [DiagnosticRelatedInformation]? = nil)
   {
-    self.range = PositionRange(range)
+    self.range = range
     self.severity = severity
     self.code = code
     self.source = source

@@ -141,7 +141,7 @@ final class DocumentColorTests: XCTestCase {
     XCTAssertEqual(presentations.count, 1)
     let presentation = presentations[0]
     XCTAssertEqual(presentation.label, "Color Literal")
-    XCTAssertEqual(presentation.textEdit?.range.asRange, range)
+    XCTAssertEqual(presentation.textEdit?.range, range)
     XCTAssertEqual(presentation.textEdit?.newText, newText)
   }
 }

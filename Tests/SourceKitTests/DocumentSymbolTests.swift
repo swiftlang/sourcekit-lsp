@@ -65,10 +65,10 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     return try! sk.sendSync(request)!
   }
 
-  func range(from startTuple: (Int, Int), to endTuple: (Int, Int)) -> PositionRange {
+  func range(from startTuple: (Int, Int), to endTuple: (Int, Int)) -> Range<Position> {
     let startPos = Position(line: startTuple.0, utf16index: startTuple.1)
     let endPos = Position(line: endTuple.0, utf16index: endTuple.1)
-    return PositionRange(startPos..<endPos)
+    return startPos..<endPos
   }
 
   func testEmpty() {
