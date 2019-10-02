@@ -227,9 +227,9 @@ final class BuildSystemTests: XCTestCase {
       expectation.fulfill()
     }
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: 5)
+    let result = XCTWaiter.wait(for: [expectation], timeout: 1)
     if result != .completed {
-      fatalError("error \(result) waiting for diagnostics notification")
+      fatalError("error \(result) unexpected diagnostics notification")
     }
   }
 }
