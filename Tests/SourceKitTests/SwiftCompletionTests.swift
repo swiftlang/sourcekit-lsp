@@ -77,7 +77,6 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func openDocument(text: String? = nil, url: URL) {
-    sk.allowUnexpectedNotification = true
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
       url: url,
       language: .swift,

@@ -53,7 +53,6 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
 
   func performDocumentSymbolRequest(text: String) -> [DocumentSymbol] {
     let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
       url: url,

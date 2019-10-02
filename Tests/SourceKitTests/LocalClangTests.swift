@@ -58,7 +58,6 @@ final class LocalClangTests: XCTestCase {
   func testSymbolInfo() {
     guard haveClangd else { return }
     let url = URL(fileURLWithPath: "/a.cpp")
-    sk.allowUnexpectedNotification = true
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
       url: url,
@@ -123,7 +122,6 @@ final class LocalClangTests: XCTestCase {
   func testFoldingRange() {
     guard haveClangd else { return }
     let url = URL(fileURLWithPath: "/a.cpp")
-    sk.allowUnexpectedNotification = true
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
       url: url,

@@ -83,8 +83,6 @@ public final class SKSwiftPMTestWorkspace {
       library: libIndexStore,
       listenToUnitEvents: false)
 
-    sk.allowUnexpectedNotification = true
-
     testServer.server!.workspace = Workspace(
       rootPath: sourcePath,
       clientCapabilities: ClientCapabilities(),

@@ -54,6 +54,8 @@ final class LocalSwiftTests: XCTestCase {
   func testEditing() {
     let url = URL(fileURLWithPath: "/a.swift")
 
+    sk.allowUnexpectedNotification = false
+
     sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
       url: url,
       language: .swift,
@@ -417,7 +419,6 @@ final class LocalSwiftTests: XCTestCase {
 
   func testSymbolInfo() {
     let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
       url: url,
@@ -490,7 +491,6 @@ final class LocalSwiftTests: XCTestCase {
 
   func testHover() {
     let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
       url: url,
@@ -538,7 +538,6 @@ final class LocalSwiftTests: XCTestCase {
 
   func testHoverNameEscaping() {
     let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
       url: url,
@@ -594,7 +593,6 @@ final class LocalSwiftTests: XCTestCase {
 
   func testDocumentSymbolHighlight() {
     let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
       url: url,
