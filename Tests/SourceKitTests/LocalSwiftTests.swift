@@ -217,6 +217,51 @@ final class LocalSwiftTests: XCTestCase {
     })
   }
 
+  func testDiagnosticsReopen() {
+    let urlA = URL(fileURLWithPath: "/a.swift")
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: urlA, language: .swift, version: 12,
+      text: """
+      _ = foo()
+      """
+    )), { (note: Notification<PublishDiagnostics>) in
+      log("Received diagnostics for open - syntactic")
+      // 1 = semantic update finished already
+      // 0 = only syntactic
+      XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
+    }, { (note: Notification<PublishDiagnostics>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(
+        note.params.diagnostics.first?.range.lowerBound,
+        Position(line: 0, utf16index: 4))
+    })
+
+    sk.send(DidCloseTextDocument(textDocument: .init(urlA)))
+
+    sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+      url: urlA, language: .swift, version: 13,
+      text: """
+      var
+      """
+    )), { (note: Notification<PublishDiagnostics>) in
+      log("Received diagnostics for open - syntactic")
+      // 1 = syntactic, no cached semantic diagnostic from previous version
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(
+        note.params.diagnostics.first?.range.lowerBound,
+        Position(line: 0, utf16index: 3))
+    }, { (note: Notification<PublishDiagnostics>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(
+        note.params.diagnostics.first?.range.lowerBound,
+        Position(line: 0, utf16index: 3))
+    })
+  }
+
   func testXMLToMarkdownDeclaration() {
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Declaration>func foo(_ bar: <Type usr="fake">Baz</Type>)</Declaration>

@@ -277,9 +277,9 @@ extension SwiftLanguageServer {
 
     let url = note.params.textDocument.url
 
-    // Clear the build settings since there's no point in caching
-    // them for a closed file.
+    // Clear settings that should not be cached for closed documents.
     buildSettingsByFile[url] = nil
+    currentDiagnostics[url] = nil
 
     let req = SKRequestDictionary(sourcekitd: sourcekitd)
     req[keys.request] = requests.editor_close
