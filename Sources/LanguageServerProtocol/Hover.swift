@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -46,10 +46,34 @@ public struct HoverResponse: ResponseType, Hashable {
   public var contents: MarkupContent
 
   /// An optional range to visually distinguish during hover.
-  public var range: PositionRange?
+  public var range: Range<Position>?
 
   public init(contents: MarkupContent, range: Range<Position>?) {
     self.contents = contents
-    self.range = range.map { PositionRange($0) }
+    self.range = range
+  }
+}
+
+// Needs a custom implementation for range, because `Optional` is the only type that uses
+// `encodeIfPresent` in the synthesized conformance, and the
+// [LSP specification does not allow `null` in most places](https://github.com/microsoft/language-server-protocol/issues/355).
+extension HoverResponse: Codable {
+  private enum CodingKeys: String, CodingKey {
+    case contents
+    case range
+  }
+
+  public init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    self.contents = try container.decode(MarkupContent.self, forKey: .contents)
+    self.range = try container
+      .decodeIfPresent(PositionRange.self, forKey: .range)?
+      .wrappedValue
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(contents, forKey: .contents)
+    try container.encodeIfPresent(range.map { PositionRange(wrappedValue: $0) }, forKey: .range)
   }
 }

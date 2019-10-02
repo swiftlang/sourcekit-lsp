@@ -6,6 +6,7 @@ extension CodingTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__CodingTests = [
+        ("testPositionRange", testPositionRange),
         ("testValueCoding", testValueCoding),
     ]
 }

@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -558,13 +558,13 @@ extension SwiftLanguageServer {
           return nil
         }
         
-        let range = PositionRange(start..<end)
-        let selectionRange: PositionRange
+        let range = start..<end
+        let selectionRange: Range<Position>
         if let nameOffset: Int = value[self.keys.nameoffset],
            let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
            let nameLength: Int = value[self.keys.namelength],
            let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
-          selectionRange = PositionRange(nameStart..<nameEnd)
+          selectionRange = nameStart..<nameEnd
         } else {
           selectionRange = range
         }
@@ -700,7 +700,7 @@ extension SwiftLanguageServer {
     // Empty string as a label breaks VSCode color picker
     let label = "Color Literal"
     let newText = "#colorLiteral(red: \(color.red), green: \(color.green), blue: \(color.blue), alpha: \(color.alpha))"
-    let textEdit = TextEdit(range: req.params.range.asRange, newText: newText)
+    let textEdit = TextEdit(range: req.params.range, newText: newText)
     let presentation = ColorPresentation(label: label, textEdit: textEdit, additionalTextEdits: nil)
     req.reply([presentation])
   }

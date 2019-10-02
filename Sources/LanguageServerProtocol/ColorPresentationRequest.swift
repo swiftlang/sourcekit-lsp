@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKSupport
+
 /// The color presentation request is sent from the client to the server to obtain 
 /// a list of presentations for a color value at a given location. Clients can 
 /// use the result to modify a color reference, or show in a color picker 
@@ -32,16 +34,13 @@ public struct ColorPresentationRequest: TextDocumentRequest, Hashable {
   public var color: Color
 
   /// The range where the color would be inserted. Serves as a context.
-  public var range: PositionRange
+  @CustomCodable<PositionRange>
+  public var range: Range<Position>
 
-  public init(
-    textDocument: TextDocumentIdentifier, 
-    color: Color, 
-    range: Range<Position>) 
-  {
+  public init(textDocument: TextDocumentIdentifier, color: Color, range: Range<Position>) {
     self.textDocument = textDocument
     self.color = color
-    self.range = PositionRange(range)
+    self.range = range
   }
 }
 

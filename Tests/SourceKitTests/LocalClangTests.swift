@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -151,7 +151,7 @@ final class LocalClangTests: XCTestCase {
       // Don't use exact equality because of differences in recent clang.
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(note.params.diagnostics.first?.range,
-        PositionRange(Position(loc) ..< Position(ws.testLoc("unused_b:end"))))
+        Position(loc) ..< Position(ws.testLoc("unused_b:end")))
       XCTAssertEqual(note.params.diagnostics.first?.severity, .warning)
       XCTAssertEqual(note.params.diagnostics.first?.message, "Unused variable 'b'")
       expectation.fulfill()

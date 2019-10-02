@@ -35,7 +35,8 @@ public struct CodeActionRequest: TextDocumentRequest, Hashable {
   public typealias Response = CodeActionRequestResponse?
 
   /// The range for which the command was invoked.
-  public var range: PositionRange
+  @CustomCodable<PositionRange>
+  public var range: Range<Position>
 
   /// Context carrying additional information.
   public var context: CodeActionContext
@@ -44,7 +45,7 @@ public struct CodeActionRequest: TextDocumentRequest, Hashable {
   public var textDocument: TextDocumentIdentifier
 
   public init(range: Range<Position>, context: CodeActionContext, textDocument: TextDocumentIdentifier) {
-    self.range = PositionRange(range)
+    self.range = range
     self.context = context
     self.textDocument = textDocument
   }
