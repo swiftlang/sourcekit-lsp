@@ -96,6 +96,8 @@ extension LocalSwiftTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__LocalSwiftTests = [
+        ("testCrossFileDiagnostics", testCrossFileDiagnostics),
+        ("testDiagnosticsReopen", testDiagnosticsReopen),
         ("testDocumentSymbolHighlight", testDocumentSymbolHighlight),
         ("testEditing", testEditing),
         ("testEditorPlaceholderParsing", testEditorPlaceholderParsing),

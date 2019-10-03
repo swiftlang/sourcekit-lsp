@@ -29,7 +29,7 @@ public final class SwiftLanguageServer: LanguageServer {
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
 
-  var currentDiagnostics: [CachedDiagnostic] = []
+  var currentDiagnostics: [URL: [CachedDiagnostic]] = [:]
 
   var buildSettingsByFile: [URL: FileBuildSettings] = [:]
 
@@ -92,12 +92,14 @@ public final class SwiftLanguageServer: LanguageServer {
       return true
     }
 
-    let result = mergeDiagnostics(old: currentDiagnostics, new: newDiags, stage: stage)
-    currentDiagnostics = result
+    let document = snapshot.document.url
 
-    client.send(PublishDiagnostics(
-      url: snapshot.document.url,
-      diagnostics: result.map { $0.diagnostic }))
+    let result = mergeDiagnostics(
+      old: currentDiagnostics[document] ?? [],
+      new: newDiags, stage: stage)
+    currentDiagnostics[document] = result
+
+    client.send(PublishDiagnostics(url: document, diagnostics: result.map { $0.diagnostic }))
   }
 
   func handleDocumentUpdate(url: URL) {
@@ -275,9 +277,9 @@ extension SwiftLanguageServer {
 
     let url = note.params.textDocument.url
 
-    // Clear the build settings since there's no point in caching
-    // them for a closed file.
+    // Clear settings that should not be cached for closed documents.
     buildSettingsByFile[url] = nil
+    currentDiagnostics[url] = nil
 
     let req = SKRequestDictionary(sourcekitd: sourcekitd)
     req[keys.request] = requests.editor_close
