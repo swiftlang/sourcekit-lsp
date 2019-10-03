@@ -43,32 +43,32 @@ public struct DocumentSymbol: Hashable, Codable, ResponseType {
   
   /// The name of this symbol. Will be displayed in the user interface and therefore must not be
   /// an empty string or a string only consisting of white spaces.
-  var name: String
+  public var name: String
 
   /// More detail for this symbol, e.g the signature of a function.
-  var detail: String?
+  public var detail: String?
 
   /// The kind of this symbol.
-  var kind: SymbolKind
+  public var kind: SymbolKind
 
   /// Indicates if this symbol is deprecated.
-  var deprecated: Bool?
+  public var deprecated: Bool?
 
   /// The range enclosing this symbol not including leading/trailing whitespace but everything else
   /// like comments. This information is typically used to determine if the clients cursor is
   /// inside the symbol to reveal in the symbol in the UI.
   @CustomCodable<PositionRange>
-  var range: Range<Position>
+  public var range: Range<Position>
 
   /// The range that should be selected and revealed when this symbol is being picked, 
   /// e.g the name of a function.
   ///
   /// Must be contained by the `range`.
   @CustomCodable<PositionRange>
-  var selectionRange: Range<Position>
+  public var selectionRange: Range<Position>
 
   /// Children of this symbol, e.g. properties of a class.
-  var children: [DocumentSymbol]?
+  public var children: [DocumentSymbol]?
 
   public init(
     name: String,
