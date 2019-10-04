@@ -9,15 +9,21 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
-
+import BuildServerProtocol
 import LanguageServerProtocol
 import TSCBasic
 
 /// Handles  build system events, such as file build settings changes.
 public protocol BuildSystemDelegate: AnyObject {
+  /// Notify the delegate that the build targets have changed.
+  ///
+  /// The callee should request new sources and outputs for the build targets of
+  /// interest.
+  func buildTargetsChanged(_ changes: [BuildTargetEvent])
 
   /// Notify the delegate that the given files' build settings have changed.
   ///
-  /// The callee should request new build settings for any of the given files that they are interested in.
+  /// The callee should request new build settings for any of the given files
+  /// that they are interested in.
   func fileBuildSettingsChanged(_ changedFiles: Set<URL>)
 }

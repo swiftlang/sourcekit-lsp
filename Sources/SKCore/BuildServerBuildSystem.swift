@@ -126,7 +126,12 @@ final class BuildServerHandler: LanguageServerEndpoint {
   public weak var delegate: BuildSystemDelegate? = nil
 
   override func _registerBuiltinHandlers() {
+    _register(BuildServerHandler.handleBuildTargetsChanged)
     _register(BuildServerHandler.handleFileOptionsChanged)
+  }
+
+  func handleBuildTargetsChanged(_ notification: Notification<BuildTargetsChangedNotification>) {
+    self.delegate?.buildTargetsChanged(notification.params.changes)
   }
 
   func handleFileOptionsChanged(_ notification: Notification<FileOptionsChangedNotification>) {

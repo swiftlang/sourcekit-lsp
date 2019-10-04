@@ -165,6 +165,10 @@ final class TestDelegate: BuildSystemDelegate {
     self.expectations = expectations
   }
 
+  func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
+    
+  }
+
   func fileBuildSettingsChanged(_ changedFiles: Set<URL>) {
     for url in changedFiles {
       expectations[url]?.fulfill()

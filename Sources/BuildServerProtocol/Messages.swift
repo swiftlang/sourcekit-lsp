@@ -22,7 +22,7 @@ fileprivate let requestTypes: [_RequestType.Type] = [
 ]
 
 fileprivate let notificationTypes: [NotificationType.Type] = [
-  BuildTargetChangedNotification.self,
+  BuildTargetsChangedNotification.self,
   ExitBuildNotification.self,
   FileOptionsChangedNotification.self,
   InitializedBuildNotification.self,

@@ -211,7 +211,7 @@ public struct OutputsItem: Codable, Hashable {
 /// The build target changed notification is sent from the server to the client
 /// to signal a change in a build target. The server communicates during the
 /// initialize handshake whether this method is supported or not.
-public struct BuildTargetChangedNotification: NotificationType {
+public struct BuildTargetsChangedNotification: NotificationType {
   public static let method: String = "buildTarget/didChange"
 
   public var changes: [BuildTargetEvent]
