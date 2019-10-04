@@ -60,7 +60,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
     buildSystem?.delegate = buildSystemDelegate
     buildSystem?.registerForChangeNotifications(for: fileUrl)
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: 1)
+    let result = XCTWaiter.wait(for: [expectation], timeout: 15)
     if result != .completed {
       fatalError("error \(result) waiting for settings notification")
     }
@@ -99,7 +99,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
         XCTFail(error.message)
       }
     })
-    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 1), .completed)
+    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
   }
 }
 
