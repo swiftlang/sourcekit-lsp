@@ -111,7 +111,7 @@ final class SupportTests: XCTestCase {
       messages.append((message, level))
     }
 
-    func check(_ messages: inout [(String, LogLevel)], expected: [(String, LogLevel)], file: StaticString = #file, line: UInt = #line) {
+    func check(expected: [(String, LogLevel)], file: StaticString = #file, line: UInt = #line) {
       testLogger.flush()
       XCTAssert(messages == expected, "\(messages) does not match expected \(expected)", file: file, line: line)
       messages.removeAll()
@@ -120,11 +120,11 @@ final class SupportTests: XCTestCase {
     testLogger.currentLevel = .default
 
     testLogger.log("a")
-    check(&messages, expected: [("a", .default)])
-    check(&messages, expected: [])
+    check(expected: [("a", .default)])
+    check(expected: [])
 
     testLogger.log("b\n\nc")
-    check(&messages, expected: [("b\n\nc", .default)])
+    check(expected: [("b\n\nc", .default)])
 
     enum MyError: Error { case one }
     func throw1(_ x: Int) throws -> Int {
@@ -133,22 +133,22 @@ final class SupportTests: XCTestCase {
     }
 
     XCTAssertEqual(orLog(logger: testLogger) { try throw1(0) }, 0)
-    check(&messages, expected: [])
+    check(expected: [])
     XCTAssertNil(orLog(logger: testLogger) { try throw1(1) })
-    check(&messages, expected: [("one", .default)])
+    check(expected: [("one", .default)])
     XCTAssertNil(orLog("hi", logger: testLogger) { try throw1(1) })
-    check(&messages, expected: [("hi one", .default)])
+    check(expected: [("hi one", .default)])
 
     testLogger.logAsync { (currentLevel) -> String? in
       return "\(currentLevel)"
     }
-    check(&messages, expected: [("info", .default)])
+    check(expected: [("info", .default)])
 
     testLogger.log("d", level: .error)
     testLogger.log("e", level: .warning)
     testLogger.log("f", level: .info)
     testLogger.log("g", level: .debug)
-    check(&messages, expected: [
+    check(expected: [
       ("d", .error),
       ("e", .warning),
       ("f", .info),
@@ -160,7 +160,7 @@ final class SupportTests: XCTestCase {
     testLogger.log("e", level: .warning)
     testLogger.log("f", level: .info)
     testLogger.log("g", level: .debug)
-    check(&messages, expected: [
+    check(expected: [
       ("d", .error),
       ("e", .warning),
       ])
@@ -171,7 +171,7 @@ final class SupportTests: XCTestCase {
     testLogger.log("e", level: .warning)
     testLogger.log("f", level: .info)
     testLogger.log("g", level: .debug)
-    check(&messages, expected: [
+    check(expected: [
       ("d", .error),
       ])
 
@@ -186,7 +186,7 @@ final class SupportTests: XCTestCase {
     testLogger.log("e", level: .warning)
     testLogger.log("f", level: .info)
     testLogger.log("g", level: .debug)
-    check(&messages, expected: [
+    check(expected: [
       ("d", .error),
       ("e", .warning),
       ])
@@ -198,7 +198,7 @@ final class SupportTests: XCTestCase {
     testLogger.log("e", level: .warning)
     testLogger.log("f", level: .info)
     testLogger.log("g", level: .debug)
-    check(&messages, expected: [
+    check(expected: [
       ("d", .error),
       ])
 
@@ -209,7 +209,7 @@ final class SupportTests: XCTestCase {
     testLogger.log("e", level: .warning)
     testLogger.log("f", level: .info)
     testLogger.log("g", level: .debug)
-    check(&messages, expected: [
+    check(expected: [
       ("d", .error),
       ])
 
@@ -221,7 +221,7 @@ final class SupportTests: XCTestCase {
     testLogger.log("e", level: .warning)
     testLogger.log("f", level: .info)
     testLogger.log("g", level: .debug)
-    check(&messages, expected: [
+    check(expected: [
       ("d", .error),
       ])
 
@@ -233,7 +233,7 @@ final class SupportTests: XCTestCase {
     testLogger.log("e", level: .warning)
     testLogger.log("f", level: .info)
     testLogger.log("g", level: .debug)
-    check(&messages, expected: [
+    check(expected: [
       ("d", .error),
       ])
 
@@ -245,7 +245,7 @@ final class SupportTests: XCTestCase {
     testLogger.log("e", level: .warning)
     testLogger.log("f", level: .info)
     testLogger.log("g", level: .debug)
-    check(&messages, expected: [
+    check(expected: [
       ("d", .error),
       ("e", .warning),
       ("f", .info),
@@ -270,7 +270,7 @@ final class SupportTests: XCTestCase {
     testLogger.addLogHandler(obj)
 
     testLogger.log("a")
-    check(&messages, expected: [
+    check(expected: [
       ("a", .default),
       ("a", .default),
       ])
@@ -278,7 +278,7 @@ final class SupportTests: XCTestCase {
     testLogger.removeLogHandler(obj)
 
     testLogger.log("a")
-    check(&messages, expected: [])
+    check(expected: [])
   }
 
   func checkLines(_ string: String, _ expected: [String], file: StaticString = #file, line: UInt = #line) {
