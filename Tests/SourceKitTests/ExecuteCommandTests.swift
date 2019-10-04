@@ -50,17 +50,14 @@ final class ExecuteCommandTests: XCTestCase {
 
   func testLocationSemanticRefactoring() throws {
     guard let ws = try staticSourceKitTibsWorkspace(name: "SemanticRefactor") else { return }
-    let loc = ws.testLoc("sr:foo")
+    let loc = ws.testLoc("sr:string")
     try ws.openDocument(loc.url, language: .swift)
 
     let textDocument = TextDocumentIdentifier(loc.url)
 
-    let startPosition = Position(line: 1, utf16index: 10)
-    let endPosition = Position(line: 1, utf16index: 15)
-
     let args = SemanticRefactorCommand(title: "Localize String",
                                        actionString: "source.refactoring.kind.localize.string",
-                                       positionRange: startPosition..<endPosition,
+                                       positionRange: loc.position..<loc.position,
                                        textDocument: textDocument)
 
     let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
@@ -82,9 +79,9 @@ final class ExecuteCommandTests: XCTestCase {
     }
 
     XCTAssertEqual(WorkspaceEdit(fromLSPDictionary: resultDict), WorkspaceEdit(changes: [
-      loc.url: [TextEdit(range: Position(line: 1, utf16index: 10)..<Position(line: 1, utf16index: 10),
+      loc.url: [TextEdit(range: Position(line: 1, utf16index: 29)..<Position(line: 1, utf16index: 29),
                      newText: "NSLocalizedString("),
-            TextEdit(range: Position(line: 1, utf16index: 15)..<Position(line: 1, utf16index: 15),
+            TextEdit(range: Position(line: 1, utf16index: 44)..<Position(line: 1, utf16index: 44),
                      newText: ", comment: \"\")")]
     ]))
   }
@@ -124,7 +121,7 @@ final class ExecuteCommandTests: XCTestCase {
 
     XCTAssertEqual(WorkspaceEdit(fromLSPDictionary: resultDict), WorkspaceEdit(changes: [
       loc.url: [TextEdit(range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
-                     newText: "fileprivate func extractedFunc() -> String {\nvar a = \"abc\"\n  return a\n}\n\n"),
+                     newText: "fileprivate func extractedFunc() -> String {\n/*sr:extractStart*/var a = \"/*sr:string*/\"\n  return a\n}\n\n"),
             TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 2, utf16index: 10),
                      newText: "return extractedFunc()")]
     ]))

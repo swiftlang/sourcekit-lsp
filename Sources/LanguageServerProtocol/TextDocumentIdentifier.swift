@@ -16,7 +16,7 @@ import struct Foundation.URL
 public typealias URL = Foundation.URL
 
 /// Unique identifier for a document.
-public struct TextDocumentIdentifier: Hashable, LSPAnyCodable {
+public struct TextDocumentIdentifier: Hashable {
 
   /// A URL that uniquely identifies the document.
   public var url: URL
@@ -24,9 +24,18 @@ public struct TextDocumentIdentifier: Hashable, LSPAnyCodable {
   public init(_ url: URL) {
     self.url = url
   }
+}
 
+// Encode using the key "uri" to match LSP.
+extension TextDocumentIdentifier: Codable {
+  private enum CodingKeys: String, CodingKey {
+    case url = "uri"
+  }
+}
+
+extension TextDocumentIdentifier: LSPAnyCodable {
   public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
-    guard case .string(let urlString)? = dictionary[TextDocumentIdentifier.CodingKeys.url.stringValue] else {
+    guard case .string(let urlString)? = dictionary[CodingKeys.url.stringValue] else {
       return nil
     }
     guard let url = URL(string: urlString) else {
@@ -36,15 +45,8 @@ public struct TextDocumentIdentifier: Hashable, LSPAnyCodable {
   }
 
   public func encodeToLSPAny() -> LSPAny {
-    return .dictionary(
-      [CodingKeys.url.stringValue: .string(url.absoluteString)]
-    )
-  }
-}
-
-// Encode using the key "uri" to match LSP.
-extension TextDocumentIdentifier: Codable {
-  public enum CodingKeys: String, CodingKey {
-    case url = "uri"
+    return .dictionary([
+      CodingKeys.url.stringValue: .string(url.absoluteString)
+    ])
   }
 }

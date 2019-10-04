@@ -238,6 +238,15 @@ final class CodingTests: XCTestCase {
         "text" : "a"
       }
       """)
+    checkCoding(WorkspaceEdit(changes: [url: []]), json: """
+      {
+        "changes" : {
+          "\(urljson)" : [
+
+          ]
+        }
+      }
+      """)
   }
 
   func testPositionRange() {

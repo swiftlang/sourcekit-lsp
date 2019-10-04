@@ -93,7 +93,6 @@ public final class TestClient: LanguageServerEndpoint {
   var oneShotRequestHandlers: [((Any) -> Void)] = []
 
   public var allowUnexpectedNotification: Bool = true
-  public var allowUnexpectedRequest: Bool = false
 
   public func appendOneShotNotificationHandler<N>(_ handler: @escaping (Notification<N>) -> Void) {
     oneShotNotificationHandlers.append({ anyNote in
@@ -138,7 +137,6 @@ public final class TestClient: LanguageServerEndpoint {
 
   override public func _handleUnknown<R>(_ request: Request<R>) where R : RequestType {
     guard !oneShotRequestHandlers.isEmpty else {
-      if allowUnexpectedRequest { return }
       fatalError("unexpected request \(request)")
     }
     let handler = oneShotRequestHandlers.removeFirst()

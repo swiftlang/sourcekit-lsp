@@ -474,7 +474,7 @@ extension SwiftLanguageServer {
   func hover(_ req: Request<HoverRequest>) {
     let url = req.params.textDocument.url
     let position = req.params.position
-    cursorInfo(url, position) { result in
+    cursorInfo(url, position..<position) { result in
       guard let cursorInfo: CursorInfo = result.success ?? nil else {
         if let error = result.failure {
           log("cursor info failed \(url):\(position): \(error)", level: .warning)
@@ -514,7 +514,7 @@ extension SwiftLanguageServer {
   func symbolInfo(_ req: Request<SymbolInfoRequest>) {
     let url = req.params.textDocument.url
     let position = req.params.position
-    cursorInfo(url, position) { result in
+    cursorInfo(url, position..<position) { result in
       guard let cursorInfo: CursorInfo = result.success ?? nil else {
         if let error = result.failure {
           log("cursor info failed \(url):\(position): \(error)", level: .warning)
@@ -936,29 +936,13 @@ extension SwiftLanguageServer {
   }
 
   func retrieveRefactorCodeActions(_ params: CodeActionRequest, completion: @escaping CodeActionProviderCompletion) {
-    guard let snapshot = documentManager.latestSnapshot(params.textDocument.url) else {
-      let message = "failed to find snapshot for url \(params.textDocument.url)"
-      log(message)
-      completion(.failure(.unknown(message)))
-      return
-    }
-
-    guard let offsetRange = snapshot.utf8OffsetRange(of: params.range) else {
-      let message = "failed to retrieve range from \(params.range)"
-      log(message)
-      completion(.failure(.unknown(message)))
-      return
-    }
-
     let additionalCursorInfoParameters: ((SKRequestDictionary) -> Void) = { skreq in
-      skreq[self.keys.length] = offsetRange.count
       skreq[self.keys.retrieve_refactor_actions] = 1
     }
 
     cursorInfo(
       params.textDocument.url,
-      params.range.lowerBound,
-      customCursorOffset: offsetRange.lowerBound,
+      params.range,
       additionalParameters: additionalCursorInfoParameters)
     { result in
       guard let dict: CursorInfo = result.success ?? nil else {
@@ -971,37 +955,19 @@ extension SwiftLanguageServer {
         }
         return
       }
-      guard let results: SKResponseArray = dict.refactorActions else {
+      guard let refactorActions = dict.refactorActions else {
         completion(.success([]))
         return
       }
-      var codeActions = [CodeAction]()
-      results.forEach { _, value in
-        if let name: String = value[self.keys.actionname],
-           let actionuid: sourcekitd_uid_t = value[self.keys.actionuid],
-           let ptr = self.sourcekitd.api.uid_get_string_ptr(actionuid)
-        {
-          let actionName = String(cString: ptr)
-          guard actionName != "source.refactoring.kind.rename.global" else {
-            // TODO: Global refactoring
-            return true
-          }
-          let refactorCommand = SemanticRefactorCommand(
-            title: name,
-            actionString: actionName,
-            positionRange: params.range,
-            textDocument: params.textDocument)
-          do {
-            let lspCommand = try refactorCommand.asCommand()
-            let codeAction = CodeAction(title: name, kind: .refactor, command: lspCommand)
-            codeActions.append(codeAction)
-          } catch {
-            log("Failed to convert SwiftCommand to Command type: \(error)", level: .error)
-          }
+      let codeActions: [CodeAction] = refactorActions.compactMap {
+        do {
+          let lspCommand = try $0.asCommand()
+          return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
+        } catch {
+          log("Failed to convert SwiftCommand to Command type: \(error)", level: .error)
+          return nil
         }
-        return true
       }
-
       completion(.success(codeActions))
     }
   }
@@ -1035,7 +1001,7 @@ extension SwiftLanguageServer {
     }
   }
 
-  func applyEdit(label: String, edit: WorkspaceEdit, completion: @escaping (Result<ApplyEditResponse, ResponseError>) -> Void) {
+  func applyEdit(label: String, edit: WorkspaceEdit, completion: @escaping (LSPResult<ApplyEditResponse>) -> Void) {
     let req = ApplyEditRequest(label: label, edit: edit)
     let handle = client.send(req, queue: queue) { reply in
       switch reply {

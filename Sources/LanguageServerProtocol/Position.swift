@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Position within a text document, expressed as a zero-based line and column (utf-16 code unit offset).
-public struct Position: Hashable, LSPAnyCodable {
+public struct Position: Hashable {
 
   /// Line number within a document (zero-based).
   public var line: Int
@@ -23,7 +23,22 @@ public struct Position: Hashable, LSPAnyCodable {
     self.line = line
     self.utf16index = utf16index
   }
+}
 
+extension Position: Codable {
+  private enum CodingKeys: String, CodingKey {
+    case line
+    case utf16index = "character"
+  }
+}
+
+extension Position: Comparable {
+  public static func < (lhs: Position, rhs: Position) -> Bool {
+    return (lhs.line, lhs.utf16index) < (rhs.line, rhs.utf16index)
+  }
+}
+
+extension Position: LSPAnyCodable {
   public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
     guard case .int(let line) = dictionary[CodingKeys.line.stringValue],
           case .int(let utf16index) = dictionary[CodingKeys.utf16index.stringValue] else
@@ -35,20 +50,9 @@ public struct Position: Hashable, LSPAnyCodable {
   }
 
   public func encodeToLSPAny() -> LSPAny {
-    return .dictionary([CodingKeys.line.stringValue: .int(line),
-                        CodingKeys.utf16index.stringValue: .int(utf16index)])
-  }
-}
-
-extension Position: Codable {
-  public enum CodingKeys: String, CodingKey {
-    case line
-    case utf16index = "character"
-  }
-}
-
-extension Position: Comparable {
-  public static func < (lhs: Position, rhs: Position) -> Bool {
-    return (lhs.line, lhs.utf16index) < (rhs.line, rhs.utf16index)
+    return .dictionary([
+      CodingKeys.line.stringValue: .int(line),
+      CodingKeys.utf16index.stringValue: .int(utf16index)
+    ])
   }
 }

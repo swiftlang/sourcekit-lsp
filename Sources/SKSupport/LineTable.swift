@@ -175,8 +175,8 @@ extension LineTable {
     return convertColumn(
       line: line,
       column: utf8Column,
-      indexFunction: content.utf8.index,
-      distanceFunction: content.utf16.distance)
+      indexFunction: content.utf8.index(_:offsetBy:limitedBy:),
+      distanceFunction: content.utf16.distance(from:to:))
   }
 
   /// Returns UTF8 column offset at UTF16 version of logical position.
@@ -188,8 +188,8 @@ extension LineTable {
     return convertColumn(
       line: line,
       column: utf16Column,
-      indexFunction: content.utf16.index,
-      distanceFunction: content.utf8.distance)
+      indexFunction: content.utf16.index(_:offsetBy:limitedBy:),
+      distanceFunction: content.utf8.distance(from:to:))
   }
 
   @inlinable
