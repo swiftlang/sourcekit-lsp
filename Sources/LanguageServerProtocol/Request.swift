@@ -92,8 +92,7 @@ extension Request: CustomStringConvertible {
     Request<\(R.method)>(
       id: \(id),
       clientID: \(clientID),
-      params: \(params),
-      replied: \(replied)
+      params: \(params)
     )
     """
   }
