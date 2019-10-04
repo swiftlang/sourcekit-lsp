@@ -59,12 +59,12 @@ final class TestBuildSystem: BuildSystem {
     reply(.failure(buildTargetsNotSupported))
   }
 
-  func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping ([SourcesItem]?) -> Void) {
-    reply(nil)
+  func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[SourcesItem]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
   }
 
-  func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping ([OutputsItem]?) -> Void) {
-    reply(nil)
+  func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
   }
 }
 

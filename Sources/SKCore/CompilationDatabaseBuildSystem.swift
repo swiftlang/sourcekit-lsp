@@ -64,12 +64,12 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     reply(.failure(buildTargetsNotSupported))
   }
 
-  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping ([SourcesItem]?) -> Void) {
-    reply(nil)
+  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[SourcesItem]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
   }
 
-  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping ([OutputsItem]?) -> Void) {
-    reply(nil)
+  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
   }
 
   func database(for url: URL) -> CompilationDatabase? {

@@ -184,24 +184,26 @@ extension BuildServerBuildSystem: BuildSystem {
     }
   }
 
-  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping ([SourcesItem]?) -> Void) {
+  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[SourcesItem]>) -> Void) {
     let req = BuildTargetSources(targets: targets)
-    _ = self.buildServer?.send(req, queue: requestQueue) { result in
-      if let items = result.success?.items { reply(items) }
-      else {
-        log("error fetching build target sources: \(result)")
-        reply(nil)
+    _ = self.buildServer?.send(req, queue: requestQueue) { response in
+      switch response {
+      case .success(let result):
+        reply(.success(result.items))
+      case .failure(let error):
+        reply(.failure(error))
       }
     }
   }
 
-  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping ([OutputsItem]?) -> Void) {
+  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
     let req = BuildTargetOutputPaths(targets: targets)
-    _ = self.buildServer?.send(req, queue: requestQueue) { result in
-      if let items = result.success?.items { reply(items) }
-      else {
-        log("error fetching build target outputs: \(result)")
-        reply(nil)
+    _ = self.buildServer?.send(req, queue: requestQueue) { response in
+      switch response {
+      case .success(let result):
+        reply(.success(result.items))
+      case .failure(let error):
+        reply(.failure(error))
       }
     }
   }
