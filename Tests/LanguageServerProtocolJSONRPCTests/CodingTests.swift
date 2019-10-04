@@ -179,7 +179,7 @@ final class CodingTests: XCTestCase {
     {"jsonrpc":"2.0","method":"$/cancelRequest"}
     """)
 
-    checkMessageDecodingError(MessageDecodingError.invalidParams("type mistmatch at params : Expected to decode Dictionary<String, Any> but found a number instead.", messageKind: .notification), json: """
+    checkMessageDecodingError(MessageDecodingError.invalidParams("type mismatch at params : Expected to decode Dictionary<String, Any> but found a number instead.", messageKind: .notification), json: """
     {"jsonrpc":"2.0","method":"$/cancelRequest","params":2}
     """)
 

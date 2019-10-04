@@ -12,6 +12,7 @@
 
 import SKSupport
 import TSCBasic
+import BuildServerProtocol
 import LanguageServerProtocol
 
 /// A `BuildSystem` based on loading clang-compatible compilation database(s).
@@ -58,6 +59,10 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
 
   /// We don't support change watching.
   public func unregisterForChangeNotifications(for: URL) {}
+
+  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
+  }
 
   func database(for url: URL) -> CompilationDatabase? {
     if let path = try? AbsolutePath(validating: url.path) {

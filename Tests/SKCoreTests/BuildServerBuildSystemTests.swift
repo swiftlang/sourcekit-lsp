@@ -14,6 +14,7 @@ import SKCore
 import TSCBasic
 import LanguageServerProtocol
 import Foundation
+import BuildServerProtocol
 
 final class BuildServerBuildSystemTests: XCTestCase {
 
@@ -59,12 +60,47 @@ final class BuildServerBuildSystemTests: XCTestCase {
     buildSystem?.delegate = buildSystemDelegate
     buildSystem?.registerForChangeNotifications(for: fileUrl)
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: 1)
+    let result = XCTWaiter.wait(for: [expectation], timeout: 15)
     if result != .completed {
       fatalError("error \(result) waiting for settings notification")
     }
   }
 
+  func testBuildTargets() {
+    let root = AbsolutePath(
+      inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
+    let buildFolder = AbsolutePath(NSTemporaryDirectory())
+    let buildSystem = try? BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
+    XCTAssertNotNil(buildSystem)
+
+    let expectation = XCTestExpectation(description: "build target expectation")
+
+    buildSystem?.buildTargets(reply: { response in
+      switch(response) {
+      case .success(let targets):
+        XCTAssertEqual(targets, [
+                       BuildTarget(id: BuildTargetIdentifier(uri: URL(string: "first_target")!),
+                                   displayName: "First Target",
+                                   baseDirectory: URL(fileURLWithPath: "/some/dir"),
+                                   tags: [BuildTargetTag.library, BuildTargetTag.test],
+                                   capabilities: BuildTargetCapabilities(canCompile: true, canTest: true, canRun: false),
+                                   languageIds: [Language.objective_c, Language.swift],
+                                   dependencies: []),
+                       BuildTarget(id: BuildTargetIdentifier(uri: URL(string: "second_target")!),
+                                   displayName: "Second Target",
+                                   baseDirectory: URL(fileURLWithPath: "/some/dir"),
+                                   tags: [BuildTargetTag.library, BuildTargetTag.test],
+                                   capabilities: BuildTargetCapabilities(canCompile: true, canTest: false, canRun: false),
+                                   languageIds: [Language.objective_c, Language.swift],
+                                   dependencies: [BuildTargetIdentifier(uri: URL(string: "first_target")!)]),
+                       ])
+        expectation.fulfill()
+      case .failure(let error):
+        XCTFail(error.message)
+      }
+    })
+    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
+  }
 }
 
 final class TestDelegate: BuildSystemDelegate {

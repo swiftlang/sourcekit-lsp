@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import TSCBasic
+import BuildServerProtocol
 import LanguageServerProtocol
 
 /// Provides build settings from a list of build systems in priority order.
@@ -61,4 +62,9 @@ extension BuildSystemList: BuildSystem {
   public func toolchain(for url: URL, _ language: Language) -> Toolchain? {
     return providers.first?.toolchain(for: url, language)
   }
+
+  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
+    providers.first?.buildTargets(reply: reply)
+  }
+
 }

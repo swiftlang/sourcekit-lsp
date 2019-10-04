@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import LanguageServerProtocol
 import TSCBasic
 import enum TSCUtility.Platform
@@ -60,6 +61,10 @@ public final class FallbackBuildSystem: BuildSystem {
   public func unregisterForChangeNotifications(for: URL) {}
 
   public func toolchain(for: URL, _ language: Language) -> Toolchain? { return nil }
+
+  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
+  }
 
   func settingsSwift(_ path: AbsolutePath) -> FileBuildSettings {
     var args: [String] = []

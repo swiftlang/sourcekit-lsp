@@ -12,6 +12,7 @@
 
 import SourceKit
 import TSCBasic
+import BuildServerProtocol
 import LanguageServerProtocol
 import SKCore
 import SKSupport
@@ -52,6 +53,10 @@ final class TestBuildSystem: BuildSystem {
 
   func unregisterForChangeNotifications(for url: URL) {
     watchedFiles.remove(url)
+  }
+
+  func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
   }
 }
 
