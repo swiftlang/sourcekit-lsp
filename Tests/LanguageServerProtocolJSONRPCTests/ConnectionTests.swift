@@ -47,8 +47,6 @@ class ConnectionTests: XCTestCase {
     }
 
     waitForExpectations(timeout: 10)
-
-    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
   func testMessageBuffer() {
@@ -107,8 +105,6 @@ class ConnectionTests: XCTestCase {
     }
 
     waitForExpectations(timeout: 10)
-
-    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
   func testEchoNote() {
@@ -123,8 +119,6 @@ class ConnectionTests: XCTestCase {
     client.send(EchoNotification(string: "hello!"))
 
     waitForExpectations(timeout: 10)
-
-    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
   func testUnknownRequest() {
