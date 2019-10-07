@@ -1,0 +1,7 @@
+{
+    "name": "client name",
+    "version": "10",
+    "bspVersion": "2.0",
+    "languages": ["a", "b"],
+    "argv": ["server.py"]
+}

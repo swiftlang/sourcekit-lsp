@@ -230,6 +230,12 @@ public struct BuildTargetEvent: Codable, Hashable {
 
   /// Any additional metadata about what information changed.
   public var data: LSPAny?
+
+  public init(target: BuildTargetIdentifier, kind: BuildTargetEventKind, data: LSPAny?) {
+    self.target = target
+    self.kind = kind
+    self.data = data
+  }
 }
 
 public enum BuildTargetEventKind: Int, Codable, Hashable {

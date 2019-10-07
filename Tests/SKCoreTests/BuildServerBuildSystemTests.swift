@@ -155,23 +155,52 @@ final class BuildServerBuildSystemTests: XCTestCase {
     })
     XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
   }
+
+  func testBuildTargetsChanged() {
+    let root = AbsolutePath(
+      inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
+    let buildFolder = AbsolutePath(NSTemporaryDirectory())
+    let buildSystem = try? BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
+    XCTAssertNotNil(buildSystem)
+
+    let fileUrl = URL(fileURLWithPath: "/some/file/path")
+    let expectation = XCTestExpectation(description: "target changed")
+    let targetIdentifier = BuildTargetIdentifier(uri: URL(string: "build://target/a")!)
+    let buildSystemDelegate = TestDelegate(targetExpectations: [
+      BuildTargetEvent(target: targetIdentifier,
+        kind: .created,
+        data: .dictionary(["key": "value"])): expectation,
+    ])
+    buildSystem?.delegate = buildSystemDelegate
+    buildSystem?.registerForChangeNotifications(for: fileUrl)
+
+    let result = XCTWaiter.wait(for: [expectation], timeout: 15)
+    if result != .completed {
+      fatalError("error \(result) waiting for targets changed notification")
+    }
+  }
 }
 
 final class TestDelegate: BuildSystemDelegate {
 
-  let expectations: [URL:XCTestExpectation]
+  let fileExpectations: [URL:XCTestExpectation]
+  let targetExpectations: [BuildTargetEvent:XCTestExpectation]
 
-  public init(expectations: [URL:XCTestExpectation]) {
-    self.expectations = expectations
+  public init(fileExpectations: [URL:XCTestExpectation] = [:],
+              targetExpectations: [BuildTargetEvent:XCTestExpectation] = [:]) {
+    self.fileExpectations = fileExpectations
+    self.targetExpectations = targetExpectations
   }
 
   func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
-    
+    for event in changes {
+      targetExpectations[event]?.fulfill()
+    }
   }
 
   func fileBuildSettingsChanged(_ changedFiles: Set<URL>) {
     for url in changedFiles {
-      expectations[url]?.fulfill()
+      fileExpectations[url]?.fulfill()
     }
   }
 }
