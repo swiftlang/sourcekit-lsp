@@ -47,8 +47,6 @@ class ConnectionTests: XCTestCase {
     }
 
     waitForExpectations(timeout: 10)
-
-    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
   func testMessageBuffer() {
@@ -74,7 +72,6 @@ class ConnectionTests: XCTestCase {
     clientConnection.send(_rawData: [note1Str.utf8.last!, note2Str.utf8.first!].withUnsafeBytes { DispatchData(bytes: $0) })
 
     waitForExpectations(timeout: 10)
-    XCTAssertEqual(connection.serverConnection._requestBuffer, [note2Str.utf8.first!])
 
     let expectation2 = self.expectation(description: "note received")
 
@@ -88,6 +85,9 @@ class ConnectionTests: XCTestCase {
     }
 
     waitForExpectations(timeout: 10)
+
+    // Close the connection before accessing _requestBuffer, which ensures we don't race.
+    connection.serverConnection.close()
     XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
@@ -107,8 +107,6 @@ class ConnectionTests: XCTestCase {
     }
 
     waitForExpectations(timeout: 10)
-
-    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
   func testEchoNote() {
@@ -123,8 +121,6 @@ class ConnectionTests: XCTestCase {
     client.send(EchoNotification(string: "hello!"))
 
     waitForExpectations(timeout: 10)
-
-    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
   func testUnknownRequest() {
