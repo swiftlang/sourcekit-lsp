@@ -3,3 +3,8 @@ func foo() -> String {
   return a/*sr:extractEnd*/
 }
 /*sr:foo*/
+
+func localRename() {
+  var /*sr:local*/local = 1
+  _ = local
+}

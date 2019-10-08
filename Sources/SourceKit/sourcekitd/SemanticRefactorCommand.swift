@@ -75,8 +75,8 @@ extension Array where Element == SemanticRefactorCommand {
          let ptr = api.uid_get_string_ptr(actionuid)
       {
         let actionName = String(cString: ptr)
-        guard actionName != "source.refactoring.kind.rename.global" else {
-          // TODO: Global refactoring
+        guard !actionName.hasPrefix("source.refactoring.kind.rename.") else {
+          // TODO: Rename.
           return true
         }
         commands.append(SemanticRefactorCommand(
