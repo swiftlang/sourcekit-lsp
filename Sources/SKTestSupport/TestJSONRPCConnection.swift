@@ -90,6 +90,7 @@ public final class TestClient: LanguageServerEndpoint {
 
   public var replyQueue: DispatchQueue = DispatchQueue(label: "testclient-reply-queue")
   var oneShotNotificationHandlers: [((Any) -> Void)] = []
+  var oneShotRequestHandlers: [((Any) -> Void)] = []
 
   public var allowUnexpectedNotification: Bool = true
 
@@ -102,9 +103,23 @@ public final class TestClient: LanguageServerEndpoint {
     })
   }
 
+  public func appendOneShotRequestHandler<R>(_ handler: @escaping (Request<R>) -> Void) {
+    oneShotRequestHandlers.append({ anyRequest in
+      guard let request = anyRequest as? Request<R> else {
+        fatalError("received request of the wrong type \(anyRequest); expected \(R.self)")
+      }
+      handler(request)
+    })
+  }
+
   public func handleNextNotification<N>(_ handler: @escaping (Notification<N>) -> Void) {
     precondition(oneShotNotificationHandlers.isEmpty)
     appendOneShotNotificationHandler(handler)
+  }
+
+  public func handleNextRequest<R>(_ handler: @escaping (Request<R>) -> Void) {
+    precondition(oneShotRequestHandlers.isEmpty)
+    appendOneShotRequestHandler(handler)
   }
 
   override public func _registerBuiltinHandlers() {
@@ -121,7 +136,11 @@ public final class TestClient: LanguageServerEndpoint {
   }
 
   override public func _handleUnknown<R>(_ request: Request<R>) where R : RequestType {
-    fatalError()
+    guard !oneShotRequestHandlers.isEmpty else {
+      fatalError("unexpected request \(request)")
+    }
+    let handler = oneShotRequestHandlers.removeFirst()
+    handler(request)
   }
 }
 

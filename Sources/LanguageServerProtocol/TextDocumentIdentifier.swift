@@ -28,7 +28,25 @@ public struct TextDocumentIdentifier: Hashable {
 
 // Encode using the key "uri" to match LSP.
 extension TextDocumentIdentifier: Codable {
-  public enum CodingKeys: String, CodingKey {
+  private enum CodingKeys: String, CodingKey {
     case url = "uri"
+  }
+}
+
+extension TextDocumentIdentifier: LSPAnyCodable {
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    guard case .string(let urlString)? = dictionary[CodingKeys.url.stringValue] else {
+      return nil
+    }
+    guard let url = URL(string: urlString) else {
+      return nil
+    }
+    self.url = url
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    return .dictionary([
+      CodingKeys.url.stringValue: .string(url.absoluteString)
+    ])
   }
 }

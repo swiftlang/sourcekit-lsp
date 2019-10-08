@@ -170,9 +170,9 @@ extension SwiftLanguageServer {
       codeActionProvider: CodeActionServerCapabilities(
         clientCapabilities: request.params.capabilities.textDocument?.codeAction,
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
-        supportsCodeActions: false), // TODO: Turn it on after a provider is implemented.
+        supportsCodeActions: true),
       executeCommandProvider: ExecuteCommandOptions(
-        commands: [])
+        commands: builtinSwiftCommands)
     )))
   }
 
@@ -474,7 +474,7 @@ extension SwiftLanguageServer {
   func hover(_ req: Request<HoverRequest>) {
     let url = req.params.textDocument.url
     let position = req.params.position
-    cursorInfo(url, position) { result in
+    cursorInfo(url, position..<position) { result in
       guard let cursorInfo: CursorInfo = result.success ?? nil else {
         if let error = result.failure {
           log("cursor info failed \(url):\(position): \(error)", level: .warning)
@@ -514,7 +514,7 @@ extension SwiftLanguageServer {
   func symbolInfo(_ req: Request<SymbolInfoRequest>) {
     let url = req.params.textDocument.url
     let position = req.params.position
-    cursorInfo(url, position) { result in
+    cursorInfo(url, position..<position) { result in
       guard let cursorInfo: CursorInfo = result.success ?? nil else {
         if let error = result.failure {
           log("cursor info failed \(url):\(position): \(error)", level: .warning)
@@ -892,63 +892,133 @@ extension SwiftLanguageServer {
 
   func codeAction(_ req: Request<CodeActionRequest>) {
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
+      (retrieveRefactorCodeActions, .refactor)
       //TODO: Implement the providers.
-      //(retrieveRefactorCodeActions, .refactor),
       //(retrieveQuickFixCodeActions, .quickFix)
     ]
     let wantedActionKinds = req.params.context.only
     let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
-    retrieveCodeActions(req, providers: providers.map { $0.provider }) { codeActions in
-      let capabilities = self.clientCapabilities.textDocument?.codeAction
-      let response = CodeActionRequestResponse(codeActions: codeActions,
-                                               clientCapabilities: capabilities)
-      req.reply(response)
+    retrieveCodeActions(req, providers: providers.map { $0.provider }) { result in
+      switch result {
+      case .success(let codeActions):
+        let capabilities = self.clientCapabilities.textDocument?.codeAction
+        let response = CodeActionRequestResponse(codeActions: codeActions,
+                                                 clientCapabilities: capabilities)
+        req.reply(response)
+      case .failure(let error):
+        req.reply(.failure(error))
+      }
     }
   }
 
   func retrieveCodeActions(_ req: Request<CodeActionRequest>, providers: [CodeActionProvider], completion: @escaping CodeActionProviderCompletion) {
     guard providers.isEmpty == false else {
-      completion([])
+      completion(.success([]))
       return
     }
     var codeActions = [CodeAction]()
     let dispatchGroup = DispatchGroup()
     (0..<providers.count).forEach { _ in dispatchGroup.enter() }
     dispatchGroup.notify(queue: queue) {
-      completion(codeActions)
+      completion(.success(codeActions))
     }
     for i in 0..<providers.count {
-      providers[i](req.params) { actions in
+      providers[i](req.params) { result in
+        defer { dispatchGroup.leave() }
+        guard case .success(let actions) = result else {
+          return
+        }
         self.queue.sync {
           codeActions += actions
         }
-        dispatchGroup.leave()
       }
+    }
+  }
+
+  func retrieveRefactorCodeActions(_ params: CodeActionRequest, completion: @escaping CodeActionProviderCompletion) {
+    let additionalCursorInfoParameters: ((SKRequestDictionary) -> Void) = { skreq in
+      skreq[self.keys.retrieve_refactor_actions] = 1
+    }
+
+    cursorInfo(
+      params.textDocument.url,
+      params.range,
+      additionalParameters: additionalCursorInfoParameters)
+    { result in
+      guard let dict: CursorInfo = result.success ?? nil else {
+        if let failure = result.failure {
+          let message = "failed to find refactor actions: \(failure)"
+          log(message)
+          completion(.failure(.unknown(message)))
+        } else {
+          completion(.failure(.unknown("CursorInfo failed.")))
+        }
+        return
+      }
+      guard let refactorActions = dict.refactorActions else {
+        completion(.success([]))
+        return
+      }
+      let codeActions: [CodeAction] = refactorActions.compactMap {
+        do {
+          let lspCommand = try $0.asCommand()
+          return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
+        } catch {
+          log("Failed to convert SwiftCommand to Command type: \(error)", level: .error)
+          return nil
+        }
+      }
+      completion(.success(codeActions))
     }
   }
 
   func executeCommand(_ req: Request<ExecuteCommandRequest>) {
-    //TODO: Implement commands.
-    return req.reply(nil)
+    let params = req.params
+    //TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
+    guard let swiftCommand = params.swiftCommand(ofType: SemanticRefactorCommand.self) else {
+      let message = "semantic refactoring: unknown command \(params.command)"
+      log(message, level: .warning)
+      return req.reply(.failure(.unknown(message)))
+    }
+    let url = swiftCommand.textDocument.url
+    semanticRefactoring(swiftCommand) { result in
+      switch result {
+      case .success(let refactor):
+        let edit = refactor.edit
+        self.applyEdit(label: refactor.title, edit: edit) { editResult in
+          switch editResult {
+          case .success:
+            req.reply(edit.encodeToLSPAny())
+          case .failure(let error):
+            req.reply(.failure(error))
+          }
+        }
+      case .failure(let error):
+        let message = "semantic refactoring failed \(url): \(error)"
+        log(message, level: .warning)
+        return req.reply(.failure(.unknown(message)))
+      }
+    }
   }
 
-  func applyEdit(label: String, edit: WorkspaceEdit) {
+  func applyEdit(label: String, edit: WorkspaceEdit, completion: @escaping (LSPResult<ApplyEditResponse>) -> Void) {
     let req = ApplyEditRequest(label: label, edit: edit)
     let handle = client.send(req, queue: queue) { reply in
       switch reply {
-      case .success(let response):
-        if response?.applied == false {
-          let reason: String
-          if let failureReason = response?.failureReason {
-            reason = " reason: \(failureReason)"
-          } else {
-            reason = ""
-          }
-          log("client refused to apply edit for \(label)!\(reason)", level: .warning)
+      case .success(let response) where response.applied == false:
+        let reason: String
+        if let failureReason = response.failureReason {
+          reason = " reason: \(failureReason)"
+        } else {
+          reason = ""
         }
+        log("client refused to apply edit for \(label)!\(reason)", level: .warning)
       case .failure(let error):
         log("applyEdit failed: \(error)", level: .warning)
+      default:
+        break
       }
+      completion(reply)
     }
 
     // FIXME: cancellation
@@ -960,6 +1030,15 @@ extension DocumentSnapshot {
 
   func utf8Offset(of pos: Position) -> Int? {
     return lineTable.utf8OffsetOf(line: pos.line, utf16Column: pos.utf16index)
+  }
+
+  func utf8OffsetRange(of range: Range<Position>) -> Range<Int>? {
+    guard let startOffset = utf8Offset(of: range.lowerBound),
+          let endOffset = utf8Offset(of: range.upperBound) else
+    {
+      return nil
+    }
+    return startOffset..<endOffset
   }
 
   func positionOf(utf8Offset: Int) -> Position? {

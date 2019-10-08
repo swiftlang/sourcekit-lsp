@@ -27,3 +27,25 @@ public struct TextEdit: ResponseType, Hashable {
     self.newText = newText
   }
 }
+
+extension TextEdit: LSPAnyCodable {
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    guard case .dictionary(let rangeDict) = dictionary[CodingKeys.range.stringValue],
+          case .string(let newText) = dictionary[CodingKeys.newText.stringValue] else
+    {
+      return nil
+    }
+    guard let range = Range<Position>(fromLSPDictionary: rangeDict) else {
+      return nil
+    }
+    self.range = range
+    self.newText = newText
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    return .dictionary([
+      CodingKeys.range.stringValue: range.encodeToLSPAny(),
+      CodingKeys.newText.stringValue: .string(newText)
+    ])
+  }
+}

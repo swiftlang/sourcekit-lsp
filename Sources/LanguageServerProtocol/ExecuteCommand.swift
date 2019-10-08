@@ -12,7 +12,7 @@
 
 import Foundation
 
-/// Request sent from the client to to trigger command execution on the server.
+/// Request sent from the client to trigger command execution on the server.
 ///
 /// The execution of this request can be the result of a request that returns a command,
 /// such as CodeActionsRequest and CodeLensRequest. In most cases, the server creates a WorkspaceEdit
@@ -25,8 +25,6 @@ import Foundation
 ///   - arguments: The arguments to use when executing the command.
 public struct ExecuteCommandRequest: RequestType {
   public static let method: String = "workspace/executeCommand"
-
-  // Note: The LSP type for this response is `Any?`.
   public typealias Response = LSPAny?
 
   /// The command to be executed.

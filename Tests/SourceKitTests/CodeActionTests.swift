@@ -17,6 +17,26 @@ import XCTest
 import SourceKit
 
 final class CodeActionTests: XCTestCase {
+
+  typealias CodeActionCapabilities = TextDocumentClientCapabilities.CodeAction
+  typealias CodeActionLiteralSupport = CodeActionCapabilities.CodeActionLiteralSupport
+  typealias CodeActionKindCapabilities = CodeActionLiteralSupport.CodeActionKind
+
+  private func clientCapabilitiesWithCodeActionSupport() -> ClientCapabilities {
+    var documentCapabilities = TextDocumentClientCapabilities()
+    var codeActionCapabilities = CodeActionCapabilities()
+    let codeActionKinds = CodeActionKindCapabilities(valueSet: [.refactor, .quickFix])
+    let codeActionLiteralSupport = CodeActionLiteralSupport(codeActionKind: codeActionKinds)
+    codeActionCapabilities.codeActionLiteralSupport = codeActionLiteralSupport
+    documentCapabilities.codeAction = codeActionCapabilities
+    return ClientCapabilities(workspace: nil, textDocument: documentCapabilities)
+  }
+
+  private func refactorTibsWorkspace() throws -> SKTibsTestWorkspace? {
+    let capabilities = clientCapabilitiesWithCodeActionSupport()
+    return try staticSourceKitTibsWorkspace(name: "SemanticRefactor", clientCapabilities: capabilities)
+  }
+
   func testCodeActionResponseLegacySupport() {
     let command = Command(title: "Title", command: "Command", arguments: [1, "text", 2.2, nil])
     let codeAction = CodeAction(title: "1")
@@ -148,5 +168,64 @@ final class CodeActionTests: XCTestCase {
     let command = Command(title: "Command", command: "command.id", arguments: [arguments, arguments])
     let decoded = try! JSONDecoder().decode(Command.self, from: JSONEncoder().encode(command))
     XCTAssertEqual(decoded, command)
+  }
+
+  func testEmptyCodeActionResult() throws {
+    guard let ws = try refactorTibsWorkspace() else { return }
+    let loc = ws.testLoc("sr:foo")
+    try ws.openDocument(loc.url, language: .swift)
+
+    let textDocument = TextDocumentIdentifier(loc.url)
+    let start = Position(line: 2, utf16index: 0)
+    let request = CodeActionRequest(range: start..<start, context: .init(), textDocument: textDocument)
+    let result = try ws.sk.sendSync(request)
+
+    XCTAssertEqual(result, .codeActions([]))
+  }
+
+  func testSemanticRefactorLocationCodeActionResult() throws {
+    guard let ws = try refactorTibsWorkspace() else { return }
+    let loc = ws.testLoc("sr:string")
+    try ws.openDocument(loc.url, language: .swift)
+
+    let textDocument = TextDocumentIdentifier(loc.url)
+    let request = CodeActionRequest(range: loc.position..<loc.position, context: .init(), textDocument: textDocument)
+    let result = try ws.sk.sendSync(request)
+
+    let expectedCommandArgs: LSPAny = ["actionString": "source.refactoring.kind.localize.string", "positionRange": ["start": ["character": 43, "line": 1], "end": ["character": 43, "line": 1]], "title": "Localize String", "textDocument": ["uri": .string(loc.url.absoluteString)]]
+
+    let metadataArguments: LSPAny = ["sourcekitlsp_textDocument": ["uri": .string(loc.url.absoluteString)]]
+    let expectedCommand = Command(title: "Localize String",
+                                  command: "semantic.refactor.command",
+                                  arguments: [expectedCommandArgs] + [metadataArguments])
+    let expectedCodeAction = CodeAction(title: "Localize String",
+                                        kind: .refactor,
+                                        command: expectedCommand)
+
+    XCTAssertEqual(result, .codeActions([expectedCodeAction]))
+  }
+
+  func testSemanticRefactorRangeCodeActionResult() throws {
+    guard let ws = try refactorTibsWorkspace() else { return }
+    let rangeStartLoc = ws.testLoc("sr:extractStart")
+    let rangeEndLoc = ws.testLoc("sr:extractEnd")
+    try ws.openDocument(rangeStartLoc.url, language: .swift)
+
+    XCTAssertEqual(rangeStartLoc.url, rangeEndLoc.url)
+
+    let textDocument = TextDocumentIdentifier(rangeStartLoc.url)
+    let request = CodeActionRequest(range: rangeStartLoc.position..<rangeEndLoc.position, context: .init(), textDocument: textDocument)
+    let result = try ws.sk.sendSync(request)
+
+    let expectedCommandArgs: LSPAny = ["actionString": "source.refactoring.kind.extract.function", "positionRange": ["start": ["character": 21, "line": 1], "end": ["character": 27, "line": 2]], "title": "Extract Method", "textDocument": ["uri": .string(rangeStartLoc.url.absoluteString)]]
+    let metadataArguments: LSPAny = ["sourcekitlsp_textDocument": ["uri": .string(rangeStartLoc.url.absoluteString)]]
+    let expectedCommand = Command(title: "Extract Method",
+                                  command: "semantic.refactor.command",
+                                  arguments: [expectedCommandArgs] + [metadataArguments])
+    let expectedCodeAction = CodeAction(title: "Extract Method",
+                                        kind: .refactor,
+                                        command: expectedCommand)
+
+    XCTAssertEqual(result, .codeActions([expectedCodeAction]))
   }
 }

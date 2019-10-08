@@ -33,43 +33,14 @@ struct CursorInfo {
   /// https://github.com/apple/swift/blob/master/bindings/xml/comment-xml-schema.rng
   var documentationXML: String?
 
-  init(_ symbolInfo: SymbolDetails, annotatedDeclaration: String?, documentationXML: String?) {
+  /// The refactor actions available at this position.
+  var refactorActions: [SemanticRefactorCommand]? = nil
+
+  init(_ symbolInfo: SymbolDetails, annotatedDeclaration: String?, documentationXML: String?, refactorActions: [SemanticRefactorCommand]? = nil) {
     self.symbolInfo = symbolInfo
     self.annotatedDeclaration = annotatedDeclaration
     self.documentationXML =  documentationXML
-  }
-}
-
-extension CursorInfo {
-
-  /// Create a `CursorInfo` from a sourcekitd response dictionary, if possible.
-  ///
-  /// - Parameters:
-  ///   - dict: Response dictionary to extract information from.
-  ///   - snapshot: Document contents at the time of the request, used to map locations.
-  ///   - keys: The sourcekitd key set to use for looking up into `dict`.
-  init?(_ dict: SKResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_keys) {
-    guard let _: sourcekitd_uid_t = dict[keys.kind] else {
-      // Nothing to report.
-      return nil
-    }
-
-    var location: Location? = nil
-    if let filepath: String = dict[keys.filepath],
-       let offset: Int = dict[keys.offset],
-       let pos = snapshot.positionOf(utf8Offset: offset)
-    {
-      location = Location(url: URL(fileURLWithPath: filepath), range: Range(pos))
-    }
-
-    self.init(
-      SymbolDetails(
-        name: dict[keys.name],
-        containerName: nil,
-        usr: dict[keys.usr],
-        bestLocalDeclaration: location),
-      annotatedDeclaration: dict[keys.annotated_decl],
-      documentationXML: dict[keys.doc_full_as_xml])
+    self.refactorActions = refactorActions
   }
 }
 
@@ -79,8 +50,8 @@ enum CursorInfoError: Error {
   /// The given URL is not a known document.
   case unknownDocument(URL)
 
-  /// The given position is not valid in the document snapshot.
-  case invalidPosition(Position)
+  /// The given range is not valid in the document snapshot.
+  case invalidRange(Range<Position>)
 
   /// The underlying sourcekitd request failed with the given error.
   case responseError(ResponseError)
@@ -91,8 +62,8 @@ extension CursorInfoError: CustomStringConvertible {
     switch self {
     case .unknownDocument(let url):
       return "failed to find snapshot for url \(url)"
-    case .invalidPosition(let position):
-      return "invalid position \(position)"
+    case .invalidRange(let range):
+      return "invalid range \(range)"
     case .responseError(let error):
       return "\(error)"
     }
@@ -108,25 +79,31 @@ extension SwiftLanguageServer {
   ///
   /// - Parameters:
   ///   - url: Document URL in which to perform the request. Must be an open document.
-  ///   - position: Location within the document to lookup the symbol at.
+  ///   - range: The position range within the document to lookup the symbol at.
   ///   - completion: Completion block to asynchronously receive the CursorInfo, or error.
   func cursorInfo(
     _ url: URL,
-    _ position: Position,
+    _ range: Range<Position>,
+    additionalParameters appendAdditionalParameters: ((SKRequestDictionary) -> Void)? = nil,
     _ completion: @escaping (Swift.Result<CursorInfo?, CursorInfoError>) -> Void)
   {
     guard let snapshot = documentManager.latestSnapshot(url) else {
       return completion(.failure(.unknownDocument(url)))
     }
 
-    guard let offset = snapshot.utf8Offset(of: position) else {
-      return completion(.failure(.invalidPosition(position)))
+    guard let offsetRange = snapshot.utf8OffsetRange(of: range) else {
+      return completion(.failure(.invalidRange(range)))
     }
  
     let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.cursorinfo
-    skreq[keys.offset] = offset
+    skreq[keys.offset] = offsetRange.lowerBound
+    if offsetRange.upperBound != offsetRange.lowerBound {
+      skreq[keys.length] = offsetRange.count
+    }
     skreq[keys.sourcefile] = snapshot.document.url.path
+
+    appendAdditionalParameters?(skreq)
 
     // FIXME: should come from the internal document
     if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
@@ -152,6 +129,8 @@ extension SwiftLanguageServer {
         location = Location(url: URL(fileURLWithPath: filepath), range: Range(pos))
       }
 
+      let refactorActionsArray: SKResponseArray? = dict[self.keys.refactor_actions]
+
       completion(.success(
         CursorInfo(
           SymbolDetails(
@@ -160,7 +139,14 @@ extension SwiftLanguageServer {
           usr: dict[self.keys.usr],
           bestLocalDeclaration: location),
         annotatedDeclaration: dict[self.keys.annotated_decl],
-        documentationXML: dict[self.keys.doc_full_as_xml]
+        documentationXML: dict[self.keys.doc_full_as_xml],
+        refactorActions:
+          [SemanticRefactorCommand](
+          array: refactorActionsArray,
+          range: range,
+          textDocument: TextDocumentIdentifier(url),
+          self.keys,
+          self.api)
         )))
     }
 

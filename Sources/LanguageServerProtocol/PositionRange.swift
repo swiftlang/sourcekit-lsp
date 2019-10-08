@@ -28,7 +28,7 @@ public struct PositionRange: CustomCodableWrapper {
     self.wrappedValue = wrappedValue
   }
 
-  private enum CodingKeys: String, CodingKey {
+  fileprivate enum CodingKeys: String, CodingKey {
     case lowerBound = "start"
     case upperBound = "end"
   }
@@ -44,5 +44,25 @@ public struct PositionRange: CustomCodableWrapper {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(wrappedValue.lowerBound, forKey: .lowerBound)
     try container.encode(wrappedValue.upperBound, forKey: .upperBound)
+  }
+}
+
+extension Range: LSPAnyCodable where Bound == Position {
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    guard case .dictionary(let start)? = dictionary[PositionRange.CodingKeys.lowerBound.stringValue],
+          let startPosition = Position(fromLSPDictionary: start),
+          case .dictionary(let end)? = dictionary[PositionRange.CodingKeys.upperBound.stringValue],
+          let endPosition = Position(fromLSPDictionary: end) else
+    {
+      return nil
+    }
+    self = startPosition..<endPosition
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    return .dictionary([
+      PositionRange.CodingKeys.lowerBound.stringValue: lowerBound.encodeToLSPAny(),
+      PositionRange.CodingKeys.upperBound.stringValue: upperBound.encodeToLSPAny()
+    ])
   }
 }

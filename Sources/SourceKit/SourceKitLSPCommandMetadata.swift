@@ -23,14 +23,11 @@ public struct SourceKitLSPCommandMetadata: Codable, Hashable {
 
   public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     let textDocumentKey = CodingKeys.sourcekitlsp_textDocument.stringValue
-    let urlKey = TextDocumentIdentifier.CodingKeys.url.stringValue
     guard case .dictionary(let textDocumentDict)? = dictionary[textDocumentKey],
-          case .string(let urlString)? = textDocumentDict[urlKey],
-          let url = URL(string: urlString) else
+          let textDocument = TextDocumentIdentifier(fromLSPDictionary: textDocumentDict) else
     {
       return nil
     }
-    let textDocument = TextDocumentIdentifier(url)
     self.init(textDocument: textDocument)
   }
 
@@ -39,10 +36,9 @@ public struct SourceKitLSPCommandMetadata: Codable, Hashable {
   }
 
   public func encodeToLSPAny() -> LSPAny {
-    let textDocumentArgument = LSPAny.dictionary(
-      [TextDocumentIdentifier.CodingKeys.url.stringValue: .string(sourcekitlsp_textDocument.url.absoluteString)]
-    )
-    return .dictionary([CodingKeys.sourcekitlsp_textDocument.stringValue: textDocumentArgument])
+    return .dictionary([
+      CodingKeys.sourcekitlsp_textDocument.stringValue: sourcekitlsp_textDocument.encodeToLSPAny()
+    ])
   }
 }
 

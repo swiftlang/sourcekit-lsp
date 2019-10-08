@@ -17,6 +17,116 @@ import XCTest
 import SourceKit
 
 final class ExecuteCommandTests: XCTestCase {
+
+  /// Connection and lifetime management for the service.
+  var connection: TestSourceKitServer! = nil
+
+  /// The primary interface to make requests to the SourceKitServer.
+  var sk: TestClient! = nil
+
+  /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
+  var workspace: Workspace! = nil
+
+  override func tearDown() {
+    workspace = nil
+    sk = nil
+    connection = nil
+  }
+
+  override func setUp() {
+    connection = TestSourceKitServer()
+    sk = connection.client
+    _ = try! sk.sendSync(InitializeRequest(
+      processId: nil,
+      rootPath: nil,
+      rootURL: nil,
+      initializationOptions: nil,
+      capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
+      trace: .off,
+      workspaceFolders: nil))
+
+    workspace = connection.server!.workspace!
+  }
+
+  func testLocationSemanticRefactoring() throws {
+    guard let ws = try staticSourceKitTibsWorkspace(name: "SemanticRefactor") else { return }
+    let loc = ws.testLoc("sr:string")
+    try ws.openDocument(loc.url, language: .swift)
+
+    let textDocument = TextDocumentIdentifier(loc.url)
+
+    let args = SemanticRefactorCommand(title: "Localize String",
+                                       actionString: "source.refactoring.kind.localize.string",
+                                       positionRange: loc.position..<loc.position,
+                                       textDocument: textDocument)
+
+    let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
+
+    var command = try args.asCommand()
+    command.arguments?.append(metadata.encodeToLSPAny())
+
+    let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
+
+    ws.testServer.client.handleNextRequest { (req: Request<ApplyEditRequest>) in
+      req.reply(ApplyEditResponse(applied: true, failureReason: nil))
+    }
+
+    let result = try ws.sk.sendSync(request)
+
+    guard case .dictionary(let resultDict) = result else {
+      XCTFail("Result is not a dictionary.")
+      return
+    }
+
+    XCTAssertEqual(WorkspaceEdit(fromLSPDictionary: resultDict), WorkspaceEdit(changes: [
+      loc.url: [TextEdit(range: Position(line: 1, utf16index: 29)..<Position(line: 1, utf16index: 29),
+                     newText: "NSLocalizedString("),
+            TextEdit(range: Position(line: 1, utf16index: 44)..<Position(line: 1, utf16index: 44),
+                     newText: ", comment: \"\")")]
+    ]))
+  }
+
+  func testRangeSemanticRefactoring() throws {
+    guard let ws = try staticSourceKitTibsWorkspace(name: "SemanticRefactor") else { return }
+    let loc = ws.testLoc("sr:foo")
+    try ws.openDocument(loc.url, language: .swift)
+
+    let textDocument = TextDocumentIdentifier(loc.url)
+
+    let startPosition = Position(line: 1, utf16index: 2)
+    let endPosition = Position(line: 2, utf16index: 10)
+
+    let args = SemanticRefactorCommand(title: "Extract Method",
+                                       actionString: "source.refactoring.kind.extract.function",
+                                       positionRange: startPosition..<endPosition,
+                                       textDocument: textDocument)
+
+    let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
+
+    var command = try args.asCommand()
+    command.arguments?.append(metadata.encodeToLSPAny())
+
+    let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
+
+    ws.testServer.client.handleNextRequest { (req: Request<ApplyEditRequest>) in
+      req.reply(ApplyEditResponse(applied: true, failureReason: nil))
+    }
+
+    let result = try ws.sk.sendSync(request)
+
+    guard case .dictionary(let resultDict) = result else {
+      XCTFail("Result is not a dictionary.")
+      return
+    }
+
+    XCTAssertEqual(WorkspaceEdit(fromLSPDictionary: resultDict), WorkspaceEdit(changes: [
+      loc.url: [TextEdit(range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
+                     newText: "fileprivate func extractedFunc() -> String {\n/*sr:extractStart*/var a = \"/*sr:string*/\"\n  return a\n}\n\n"),
+            TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 2, utf16index: 10),
+                     newText: "return extractedFunc()")]
+    ]))
+  }
+
   func testLSPCommandMetadataRetrieval() {
     var req = ExecuteCommandRequest(command: "", arguments: nil)
     XCTAssertNil(req.metadata)
