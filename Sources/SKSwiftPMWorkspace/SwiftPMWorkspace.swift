@@ -239,6 +239,14 @@ extension SwiftPMWorkspace: BuildSystem {
     reply(.failure(buildTargetsNotSupported))
   }
 
+  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[SourcesItem]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
+  }
+
+  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
+  }
+
   /// Returns the resolved target description for the given file, if one is known.
   func targetDescription(for file: AbsolutePath) -> TargetBuildDescription? {
     if let td = fileToTarget[file] {

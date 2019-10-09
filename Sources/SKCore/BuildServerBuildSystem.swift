@@ -183,6 +183,30 @@ extension BuildServerBuildSystem: BuildSystem {
       }
     }
   }
+
+  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[SourcesItem]>) -> Void) {
+    let req = BuildTargetSources(targets: targets)
+    _ = self.buildServer?.send(req, queue: requestQueue) { response in
+      switch response {
+      case .success(let result):
+        reply(.success(result.items))
+      case .failure(let error):
+        reply(.failure(error))
+      }
+    }
+  }
+
+  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
+    let req = BuildTargetOutputPaths(targets: targets)
+    _ = self.buildServer?.send(req, queue: requestQueue) { response in
+      switch response {
+      case .success(let result):
+        reply(.success(result.items))
+      case .failure(let error):
+        reply(.failure(error))
+      }
+    }
+  }
 }
 
 private func loadBuildServerConfig(path: AbsolutePath, fileSystem: FileSystem) throws -> BuildServerConfig {
