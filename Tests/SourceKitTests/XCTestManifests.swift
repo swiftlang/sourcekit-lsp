@@ -22,6 +22,7 @@ extension CodeActionTests {
         ("testCodeActionResponseRespectsSupportedKinds", testCodeActionResponseRespectsSupportedKinds),
         ("testCommandEncoding", testCommandEncoding),
         ("testEmptyCodeActionResult", testEmptyCodeActionResult),
+        ("testSemanticRefactorLocalRenameResult", testSemanticRefactorLocalRenameResult),
         ("testSemanticRefactorLocationCodeActionResult", testSemanticRefactorLocationCodeActionResult),
         ("testSemanticRefactorRangeCodeActionResult", testSemanticRefactorRangeCodeActionResult),
     ]

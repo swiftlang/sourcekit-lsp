@@ -183,6 +183,17 @@ final class CodeActionTests: XCTestCase {
     XCTAssertEqual(result, .codeActions([]))
   }
 
+  func testSemanticRefactorLocalRenameResult() throws {
+    guard let ws = try refactorTibsWorkspace() else { return }
+    let loc = ws.testLoc("sr:local")
+    try ws.openDocument(loc.url, language: .swift)
+
+    let textDocument = TextDocumentIdentifier(loc.url)
+    let request = CodeActionRequest(range: loc.position..<loc.position, context: .init(), textDocument: textDocument)
+    let result = try ws.sk.sendSync(request)
+    XCTAssertEqual(result, .codeActions([]))
+  }
+
   func testSemanticRefactorLocationCodeActionResult() throws {
     guard let ws = try refactorTibsWorkspace() else { return }
     let loc = ws.testLoc("sr:string")
