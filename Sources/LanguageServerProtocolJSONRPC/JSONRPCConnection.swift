@@ -286,14 +286,16 @@ public final class JSONRPCConection {
 
   /// Close the connection. *Must be called on `queue`.*
   func _close() {
-    guard state == .running else { return }
+    sendQueue.sync {
+      guard state == .running else { return }
+      state = .closed
 
-    log("\(JSONRPCConection.self): closing...")
-    receiveIO.close(flags: .stop)
-    sendIO.close(flags: .stop)
-    state = .closed
-    receiveHandler = nil // break retain cycle
-    closeHandler()
+      log("\(JSONRPCConection.self): closing...")
+      receiveIO.close(flags: .stop)
+      sendIO.close(flags: .stop)
+      receiveHandler = nil // break retain cycle
+      closeHandler()
+    }
   }
 
   /// Request id for the next outgoing request.
