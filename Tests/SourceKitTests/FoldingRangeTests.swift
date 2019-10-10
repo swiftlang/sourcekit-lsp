@@ -20,101 +20,25 @@ final class FoldingRangeTests: XCTestCase {
 
   typealias FoldingRangeCapabilities = TextDocumentClientCapabilities.FoldingRange
 
-  /// Base document text to use for folding range tests.
-  let text: String = """
-    /// DC1
-    /// - Returns: DC1
-
-    /**
-      DC2
-
-      - Parameter param: DC2
-
-      - Throws: DC2
-      DC2
-      DC2
-
-      - Returns: DC2
-    */
-    struct S {
-      //c1
-      //c2
-      /*
-       c3
-      */
-      var abc: Int
-
-      func test(a: Int) {
-        guard a > 0 else { return }
-        self.abc = a
-      }
-      /* c4 */
-    }
-
-    //
-    // MARK: - A mark! -
-    //
-
-    //
-    // FIXME: a fixme
-    //
-
-    // a https://www.example.com URL
-
-    """
-
-  /// Connection and lifetime management for the service.
-  var connection: TestSourceKitServer! = nil
-
-  /// The primary interface to make requests to the SourceKitServer.
-  var sk: TestClient! = nil
-
-  /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
-  var workspace: Workspace! = nil
-
-  override func tearDown() {
-    workspace = nil
-    sk = nil
-    connection = nil
-  }
-
-  func initialize(capabilities: FoldingRangeCapabilities) {
-    connection = TestSourceKitServer()
-    sk = connection.client
+  func initializeWorkspace(withCapabilities capabilities: FoldingRangeCapabilities, testLoc: String) throws -> (SKTibsTestWorkspace, URL)? {
     var documentCapabilities = TextDocumentClientCapabilities()
     documentCapabilities.foldingRange = capabilities
-    _ = try! sk.sendSync(InitializeRequest(
-      processId: nil,
-      rootPath: nil,
-      rootURL: nil,
-      initializationOptions: nil,
-      capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
-      trace: .off,
-      workspaceFolders: nil))
-
-    workspace = connection.server!.workspace!
+    let capabilities = ClientCapabilities(workspace: nil, textDocument: documentCapabilities)
+    guard let ws = try staticSourceKitTibsWorkspace(name: "FoldingRange",
+                                                    clientCapabilities: capabilities) else { return nil }
+    let loc = ws.testLoc(testLoc)
+    try ws.openDocument(loc.url, language: .swift)
+    return (ws, loc.url)
   }
 
-  func performFoldingRangeRequest(text: String? = nil) -> [FoldingRange] {
-    let url = URL(fileURLWithPath: "/a.swift")
-
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
-      language: .swift,
-      version: 12,
-      text:
-      text ?? self.text)))
-
-    let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
-    return try! sk.sendSync(request)!
-  }
-
-  func testPartialLineFolding() {
+  func testPartialLineFolding() throws {
     var capabilities = FoldingRangeCapabilities()
     capabilities.lineFoldingOnly = false
-    initialize(capabilities: capabilities)
 
-    let ranges = performFoldingRangeRequest()
+    guard let (ws, url) = try initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else { return }
+
+    let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
+    let ranges = try ws.sk.sendSync(request)
 
     XCTAssertEqual(ranges, [
       FoldingRange(startLine: 0, startUTF16Index: 0, endLine: 2, endUTF16Index: 0, kind: .comment),
@@ -129,15 +53,18 @@ final class FoldingRangeTests: XCTestCase {
       FoldingRange(startLine: 29, startUTF16Index: 0, endLine: 32, endUTF16Index: 0, kind: .comment),
       FoldingRange(startLine: 33, startUTF16Index: 0, endLine: 36, endUTF16Index: 0, kind: .comment),
       FoldingRange(startLine: 37, startUTF16Index: 0, endLine: 38, endUTF16Index: 0, kind: .comment),
+      FoldingRange(startLine: 39, startUTF16Index: 0, endLine: 39, endUTF16Index: 11, kind: .comment),
     ])
   }
 
-  func testLineFoldingOnly() {
+  func testLineFoldingOnly() throws {
     var capabilities = FoldingRangeCapabilities()
     capabilities.lineFoldingOnly = true
-    initialize(capabilities: capabilities)
 
-    let ranges = performFoldingRangeRequest()
+    guard let (ws, url) = try initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else { return }
+
+    let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
+    let ranges = try ws.sk.sendSync(request)
 
     XCTAssertEqual(ranges, [
       FoldingRange(startLine: 0, endLine: 1, kind: .comment),
@@ -150,37 +77,33 @@ final class FoldingRangeTests: XCTestCase {
     ])
   }
 
-  func testRangeLimit() {
-    var capabilities = FoldingRangeCapabilities()
-    capabilities.lineFoldingOnly = false
+  func testRangeLimit() throws {
 
-    capabilities.rangeLimit = -100
-    initialize(capabilities: capabilities)
-    XCTAssertEqual(performFoldingRangeRequest().count, 0)
+    func performTest(withRangeLimit limit: Int?, expecting expectedRanges: Int, line: Int = #line) throws {
+      var capabilities = FoldingRangeCapabilities()
+      capabilities.lineFoldingOnly = false
+      capabilities.rangeLimit = limit
+      guard let (ws, url) = try initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else { return }
+      let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
+      let ranges = try ws.sk.sendSync(request)
+      XCTAssertEqual(ranges?.count, expectedRanges, "Failed rangeLimit test at line \(line)")
+    }
 
-    capabilities.rangeLimit = 0
-    initialize(capabilities: capabilities)
-    XCTAssertEqual(performFoldingRangeRequest().count, 0)
-
-    capabilities.rangeLimit = 4
-    initialize(capabilities: capabilities)
-    XCTAssertEqual(performFoldingRangeRequest().count, 4)
-
-    capabilities.rangeLimit = 5000
-    initialize(capabilities: capabilities)
-    XCTAssertEqual(performFoldingRangeRequest().count, 12)
-
-    capabilities.rangeLimit = nil
-    initialize(capabilities: capabilities)
-    XCTAssertEqual(performFoldingRangeRequest().count, 12)
+    try performTest(withRangeLimit: -100, expecting: 0)
+    try performTest(withRangeLimit: 0, expecting: 0)
+    try performTest(withRangeLimit: 4, expecting: 4)
+    try performTest(withRangeLimit: 5000, expecting: 13)
+    try performTest(withRangeLimit: nil, expecting: 13)
   }
 
-  func testEmptyText() {
+  func testNoRanges() throws {
     let capabilities = FoldingRangeCapabilities()
-    initialize(capabilities: capabilities)
 
-    let ranges = performFoldingRangeRequest(text: "")
+    guard let (ws, url) = try initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:empty") else { return }
 
-    XCTAssertEqual(ranges.count, 0)
+    let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
+    let ranges = try ws.sk.sendSync(request)
+
+    XCTAssertEqual(ranges?.count, 0)
   }
 }

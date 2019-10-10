@@ -70,8 +70,8 @@ extension FoldingRangeTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__FoldingRangeTests = [
-        ("testEmptyText", testEmptyText),
         ("testLineFoldingOnly", testLineFoldingOnly),
+        ("testNoRanges", testNoRanges),
         ("testPartialLineFolding", testPartialLineFolding),
         ("testRangeLimit", testRangeLimit),
     ]
