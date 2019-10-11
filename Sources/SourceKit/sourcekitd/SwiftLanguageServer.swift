@@ -18,7 +18,12 @@ import sourcekitd
 import Dispatch
 import struct Foundation.CharacterSet
 
-public final class SwiftLanguageServer: LanguageServer {
+public final class SwiftLanguageServer: ToolchainLanguageServer {
+
+  /// The server's request queue, used to serialize requests and responses to `sourcekitd`.
+  public let queue: DispatchQueue = DispatchQueue(label: "swift-language-server-queue", qos: .userInitiated)
+
+  let client: Connection
 
   let sourcekitd: SwiftSourceKitFramework
 
@@ -42,40 +47,15 @@ public final class SwiftLanguageServer: LanguageServer {
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
   public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, clientCapabilities: ClientCapabilities, onExit: @escaping () -> Void = {}) throws {
-
+    self.client = client
     self.sourcekitd = try SwiftSourceKitFramework(dylib: sourcekitd)
     self.buildSystem = buildSystem
     self.clientCapabilities = clientCapabilities
     self.documentManager = DocumentManager()
     self.onExit = onExit
-    super.init(client: client)
   }
 
-  public override func _registerBuiltinHandlers() {
-
-    _register(SwiftLanguageServer.initialize)
-    _register(SwiftLanguageServer.clientInitialized)
-    _register(SwiftLanguageServer.cancelRequest)
-    _register(SwiftLanguageServer.shutdown)
-    _register(SwiftLanguageServer.exit)
-    _register(SwiftLanguageServer.didChangeConfiguration)
-    _register(SwiftLanguageServer.openDocument)
-    _register(SwiftLanguageServer.closeDocument)
-    _register(SwiftLanguageServer.changeDocument)
-    _register(SwiftLanguageServer.willSaveDocument)
-    _register(SwiftLanguageServer.didSaveDocument)
-    _register(SwiftLanguageServer.completion)
-    _register(SwiftLanguageServer.hover)
-    _register(SwiftLanguageServer.documentSymbolHighlight)
-    _register(SwiftLanguageServer.foldingRange)
-    _register(SwiftLanguageServer.symbolInfo)
-    _register(SwiftLanguageServer.documentSymbol)
-    _register(SwiftLanguageServer.documentColor)
-    _register(SwiftLanguageServer.colorPresentation)
-    _register(SwiftLanguageServer.codeAction)
-    _register(SwiftLanguageServer.executeCommand)
-  }
-
+  /// Should be called on self.queue.
   func publishDiagnostics(
     response: SKResponseDictionary,
     for snapshot: DocumentSnapshot)
@@ -102,6 +82,7 @@ public final class SwiftLanguageServer: LanguageServer {
     client.send(PublishDiagnostics(url: document, diagnostics: result.map { $0.diagnostic }))
   }
 
+  /// Should be called on self.queue.
   func handleDocumentUpdate(url: URL) {
     guard let snapshot = documentManager.latestSnapshot(url) else {
       return
@@ -124,8 +105,7 @@ public final class SwiftLanguageServer: LanguageServer {
 
 extension SwiftLanguageServer {
 
-  func initialize(_ request: Request<InitializeRequest>) {
-
+  public func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult {
     api.initialize()
 
     api.set_notification_handler { [weak self] notification in
@@ -149,7 +129,7 @@ extension SwiftLanguageServer {
       }
     }
 
-    request.reply(InitializeResult(capabilities: ServerCapabilities(
+    return InitializeResult(capabilities: ServerCapabilities(
       textDocumentSync: TextDocumentSyncOptions(
         openClose: true,
         change: .incremental,
@@ -168,21 +148,16 @@ extension SwiftLanguageServer {
       documentSymbolProvider: true,
       colorProvider: true,
       codeActionProvider: CodeActionServerCapabilities(
-        clientCapabilities: request.params.capabilities.textDocument?.codeAction,
+        clientCapabilities: initialize.capabilities.textDocument?.codeAction,
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
         supportsCodeActions: true),
       executeCommandProvider: ExecuteCommandOptions(
         commands: builtinSwiftCommands)
-    )))
+    ))
   }
 
-  func clientInitialized(_: Notification<InitializedNotification>) {
+  public func clientInitialized(_: InitializedNotification) {
     // Nothing to do.
-  }
-
-  func cancelRequest(_ notification: Notification<CancelRequest>) {
-    let key = RequestCancelKey(client: notification.clientID, request: notification.params.id)
-    requestCancellation[key]?.cancel()
   }
 
   func shutdown(_ request: Request<Shutdown>) {
@@ -196,228 +171,235 @@ extension SwiftLanguageServer {
 
   // MARK: - Workspace
 
-  func didChangeConfiguration(notification: Notification<DidChangeConfiguration>) {
-   switch notification.params.settings {
-   case .clangd:
-     break
-   case .documentUpdated(let settings):
-    documentBuildSettingsUpdated(settings.url, language: settings.language)
-   case .unknown:
-     break
-   }
- }
+  public func documentUpdatedBuildSettings(_ url: URL, language: Language) {
+    self.queue.async {
+      guard let snapshot = self.documentManager.latestSnapshot(url) else {
+        return
+      }
 
-  private func documentBuildSettingsUpdated(_ url: URL, language: Language) {
-    guard let snapshot = documentManager.latestSnapshot(url) else {
-      return
+      // Confirm that the build settings actually changed, otherwise we don't
+      // need to do anything.
+      let newSettings = self.buildSystem.settings(for: url, language)
+      guard self.buildSettingsByFile[url] != newSettings else {
+        return
+      }
+      self.buildSettingsByFile[url] = newSettings
+
+      let keys = self.keys
+
+      // Close and re-open the document internally to inform sourcekitd to
+      // update the settings. At the moment there's no better way to do this.
+      let closeReq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      closeReq[keys.request] = self.requests.editor_close
+      closeReq[keys.name] = url.path
+      _ = self.sourcekitd.sendSync(closeReq)
+
+      let openReq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      openReq[keys.request] = self.requests.editor_open
+      openReq[keys.name] = url.path
+      openReq[keys.sourcetext] = snapshot.text
+      if let settings = newSettings {
+        openReq[keys.compilerargs] = settings.compilerArguments
+      }
+
+      guard let dict = self.sourcekitd.sendSync(openReq).success else {
+        // Already logged failure.
+        return
+      }
+      self.publishDiagnostics(response: dict, for: snapshot)
     }
-
-    // Confirm that the build settings actually changed, otherwise we don't
-    // need to do anything.
-    let newSettings = buildSystem.settings(for: url, language)
-    guard buildSettingsByFile[url] != newSettings else {
-      return
-    }
-    buildSettingsByFile[url] = newSettings
-
-    // Close and re-open the document internally to inform sourcekitd to
-    // update the settings. At the moment there's no better way to do this.
-    let closeReq = SKRequestDictionary(sourcekitd: sourcekitd)
-    closeReq[keys.request] = requests.editor_close
-    closeReq[keys.name] = url.path
-    _ = self.sourcekitd.sendSync(closeReq)
-
-    let openReq = SKRequestDictionary(sourcekitd: sourcekitd)
-    openReq[keys.request] = requests.editor_open
-    openReq[keys.name] = url.path
-    openReq[keys.sourcetext] = snapshot.text
-    if let settings = newSettings {
-      openReq[keys.compilerargs] = settings.compilerArguments
-    }
-
-    guard let dict = self.sourcekitd.sendSync(openReq).success else {
-      // Already logged failure.
-      return
-    }
-    publishDiagnostics(response: dict, for: snapshot)
   }
 
   // MARK: - Text synchronization
 
-  func openDocument(_ note: Notification<DidOpenTextDocument>) {
-    guard let snapshot = documentManager.open(note) else {
-      // Already logged failure.
-      return
-    }
+  public func openDocument(_ note: DidOpenTextDocument) {
+    let keys = self.keys
 
-    let req = SKRequestDictionary(sourcekitd: sourcekitd)
-    req[keys.request] = requests.editor_open
-    req[keys.name] = note.params.textDocument.url.path
-    req[keys.sourcetext] = snapshot.text
-
-    // If the BuildSystem has settings, cache them internally.
-    let url = snapshot.document.url
-    if let settings = buildSystem.settings(for: url, snapshot.document.language) {
-      req[keys.compilerargs] = settings.compilerArguments
-      buildSettingsByFile[url] = settings
-    } else {
-      buildSettingsByFile[url] = nil
-    }
-
-    guard let dict = self.sourcekitd.sendSync(req).success else {
-      // Already logged failure.
-      return
-    }
-
-    publishDiagnostics(response: dict, for: snapshot)
-  }
-
-  func closeDocument(_ note: Notification<DidCloseTextDocument>) {
-    documentManager.close(note)
-
-    let url = note.params.textDocument.url
-
-    // Clear settings that should not be cached for closed documents.
-    buildSettingsByFile[url] = nil
-    currentDiagnostics[url] = nil
-
-    let req = SKRequestDictionary(sourcekitd: sourcekitd)
-    req[keys.request] = requests.editor_close
-    req[keys.name] = url.path
-
-    _ = self.sourcekitd.sendSync(req)
-  }
-
-  func changeDocument(_ note: Notification<DidChangeTextDocument>) {
-
-    var lastResponse: SKResponseDictionary? = nil
-
-    let snapshot = documentManager.edit(note) { (before: DocumentSnapshot, edit: TextDocumentContentChangeEvent) in
-      let req = SKRequestDictionary(sourcekitd: self.sourcekitd)
-      req[self.keys.request] = self.requests.editor_replacetext
-      req[self.keys.name] = note.params.textDocument.url.path
-
-      if let range = edit.range {
-
-        guard let offset = before.utf8Offset(of: range.lowerBound), let end = before.utf8Offset(of: range.upperBound) else {
-          fatalError("invalid edit \(range)")
-        }
-
-        req[self.keys.offset] = offset
-        req[self.keys.length] = end - offset
-
-      } else {
-        // Full text
-        req[self.keys.offset] = 0
-        req[self.keys.length] = before.text.utf8.count
+    self.queue.async {
+      guard let snapshot = self.documentManager.open(note) else {
+        // Already logged failure.
+        return
       }
 
-      req[self.keys.sourcetext] = edit.text
+      let url = snapshot.document.url
 
-      lastResponse = self.sourcekitd.sendSync(req).success
-    }
+      // Cache the `BuildSystem`'s settings interally.
+      let settings = self.buildSystem.settings(for: url, snapshot.document.language)
+      self.buildSettingsByFile[url] = settings
 
-    if let dict = lastResponse, let snapshot = snapshot {
-      publishDiagnostics(response: dict, for: snapshot)
+      let req = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      req[keys.request] = self.requests.editor_open
+      req[keys.name] = note.textDocument.url.path
+      req[keys.sourcetext] = snapshot.text
+
+      if let settings = settings {
+        req[keys.compilerargs] = settings.compilerArguments
+      }
+
+      guard let dict = self.sourcekitd.sendSync(req).success else {
+        // Already logged failure.
+        return
+      }
+
+      self.publishDiagnostics(response: dict, for: snapshot)
     }
   }
 
-  func willSaveDocument(_ note: Notification<WillSaveTextDocument>) {
+  public func closeDocument(_ note: DidCloseTextDocument) {
+    let keys = self.keys
+
+    self.queue.async {
+      self.documentManager.close(note)
+
+      let url = note.textDocument.url
+
+      let req = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      req[keys.request] = self.requests.editor_close
+      req[keys.name] = url.path
+
+      // Clear settings that should not be cached for closed documents.
+      self.buildSettingsByFile[url] = nil
+      self.currentDiagnostics[url] = nil
+
+      _ = self.sourcekitd.sendSync(req)
+    }
+  }
+
+  public func changeDocument(_ note: DidChangeTextDocument) {
+    let keys = self.keys
+
+    self.queue.async {
+      var lastResponse: SKResponseDictionary? = nil
+
+      let snapshot = self.documentManager.edit(note) { (before: DocumentSnapshot, edit: TextDocumentContentChangeEvent) in
+        let req = SKRequestDictionary(sourcekitd: self.sourcekitd)
+        req[keys.request] = self.requests.editor_replacetext
+        req[keys.name] = note.textDocument.url.path
+
+        if let range = edit.range {
+          guard let offset = before.utf8Offset(of: range.lowerBound), let end = before.utf8Offset(of: range.upperBound) else {
+            fatalError("invalid edit \(range)")
+          }
+
+          req[keys.offset] = offset
+          req[keys.length] = end - offset
+
+        } else {
+          // Full text
+          req[keys.offset] = 0
+          req[keys.length] = before.text.utf8.count
+        }
+
+        req[keys.sourcetext] = edit.text
+
+        lastResponse = self.sourcekitd.sendSync(req).success
+      }
+
+      if let dict = lastResponse, let snapshot = snapshot {
+        self.publishDiagnostics(response: dict, for: snapshot)
+      }
+    }
+  }
+
+  public func willSaveDocument(_ note: WillSaveTextDocument) {
 
   }
 
-  func didSaveDocument(_ note: Notification<DidSaveTextDocument>) {
+  public func didSaveDocument(_ note: DidSaveTextDocument) {
 
   }
 
   // MARK: - Language features
 
-  func completion(_ req: Request<CompletionRequest>) {
+  public func completion(_ req: Request<CompletionRequest>) {
+    let keys = self.keys
 
-    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
-      log("failed to find snapshot for url \(req.params.textDocument.url)")
-      req.reply(CompletionList(isIncomplete: true, items: []))
-      return
-    }
-
-    guard let completionPos = adjustCompletionLocation(req.params.position, in: snapshot) else {
-      log("invalid completion position \(req.params.position)")
-      req.reply(CompletionList(isIncomplete: true, items: []))
-      return
-    }
-
-    guard let offset = snapshot.utf8Offset(of: completionPos) else {
-      log("invalid completion position \(req.params.position) (adjusted: \(completionPos)")
-      req.reply(CompletionList(isIncomplete: true, items: []))
-      return
-    }
-
-    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
-    skreq[keys.request] = requests.codecomplete
-    skreq[keys.offset] = offset
-    skreq[keys.sourcefile] = snapshot.document.url.path
-    skreq[keys.sourcetext] = snapshot.text
-
-    // FIXME: SourceKit should probably cache this for us.
-    if let settings = self.buildSettingsByFile[snapshot.document.url] {
-      skreq[keys.compilerargs] = settings.compilerArguments
-    }
-
-    logAsync { _ in skreq.description }
-
-    let handle = sourcekitd.send(skreq) { [weak self] result in
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        req.reply(.failure(result.failure!))
+    queue.async {
+      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.url) else {
+        log("failed to find snapshot for url \(req.params.textDocument.url)")
+        req.reply(CompletionList(isIncomplete: true, items: []))
         return
       }
 
-      guard let completions: SKResponseArray = dict[self.keys.results] else {
-        req.reply(CompletionList(isIncomplete: false, items: []))
+      guard let completionPos = self.adjustCompletionLocation(req.params.position, in: snapshot) else {
+        log("invalid completion position \(req.params.position)")
+        req.reply(CompletionList(isIncomplete: true, items: []))
         return
       }
 
-      var result = CompletionList(isIncomplete: false, items: [])
-
-      let cancelled = !completions.forEach { (i, value) -> Bool in
-        guard let name: String = value[self.keys.description] else {
-          return true // continue
-        }
-
-        let filterName: String? = value[self.keys.name]
-        let insertText: String? = value[self.keys.sourcetext]
-        let typeName: String? = value[self.keys.typename]
-
-        let clientCompletionCapabilities = self.clientCapabilities.textDocument?.completion
-        let clientSupportsSnippets = clientCompletionCapabilities?.completionItem?.snippetSupport == true
-        let text = insertText.map {
-          self.rewriteSourceKitPlaceholders(inString: $0, clientSupportsSnippets: clientSupportsSnippets)
-        }
-        let isInsertTextSnippet = clientSupportsSnippets && text != insertText
-
-        let kind: sourcekitd_uid_t? = value[self.keys.kind]
-        result.items.append(CompletionItem(
-          label: name,
-          detail: typeName,
-          sortText: nil,
-          filterText: filterName,
-          textEdit: nil,
-          insertText: text,
-          insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
-          kind: kind?.asCompletionItemKind(self.values) ?? .value,
-          deprecated: nil
-        ))
-
-        return true
+      guard let offset = snapshot.utf8Offset(of: completionPos) else {
+        log("invalid completion position \(req.params.position) (adjusted: \(completionPos)")
+        req.reply(CompletionList(isIncomplete: true, items: []))
+        return
       }
 
-      if !cancelled {
-        req.reply(result)
+      let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      skreq[keys.request] = self.requests.codecomplete
+      skreq[keys.offset] = offset
+      skreq[keys.sourcefile] = snapshot.document.url.path
+      skreq[keys.sourcetext] = snapshot.text
+
+      // FIXME: SourceKit should probably cache this for us.
+      if let settings = self.buildSettingsByFile[snapshot.document.url] {
+        skreq[keys.compilerargs] = settings.compilerArguments
       }
+
+      logAsync { _ in skreq.description }
+
+      let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
+        guard let self = self else { return }
+        guard let dict = result.success else {
+          req.reply(.failure(result.failure!))
+          return
+        }
+
+        guard let completions: SKResponseArray = dict[self.keys.results] else {
+          req.reply(CompletionList(isIncomplete: false, items: []))
+          return
+        }
+
+        var result = CompletionList(isIncomplete: false, items: [])
+
+        let cancelled = !completions.forEach { (i, value) -> Bool in
+          guard let name: String = value[self.keys.description] else {
+            return true // continue
+          }
+
+          let filterName: String? = value[self.keys.name]
+          let insertText: String? = value[self.keys.sourcetext]
+          let typeName: String? = value[self.keys.typename]
+
+          let clientCompletionCapabilities = self.clientCapabilities.textDocument?.completion
+          let clientSupportsSnippets = clientCompletionCapabilities?.completionItem?.snippetSupport == true
+          let text = insertText.map {
+            self.rewriteSourceKitPlaceholders(inString: $0, clientSupportsSnippets: clientSupportsSnippets)
+          }
+          let isInsertTextSnippet = clientSupportsSnippets && text != insertText
+
+          let kind: sourcekitd_uid_t? = value[self.keys.kind]
+          result.items.append(CompletionItem(
+            label: name,
+            detail: typeName,
+            sortText: nil,
+            filterText: filterName,
+            textEdit: nil,
+            insertText: text,
+            insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
+            kind: kind?.asCompletionItemKind(self.values) ?? .value,
+            deprecated: nil
+          ))
+
+          return true
+        }
+
+        if !cancelled {
+          req.reply(result)
+        }
+      }
+
+      // FIXME: cancellation
+      _ = handle
     }
-
-    // FIXME: cancellation
-    _ = handle
   }
 
   func rewriteSourceKitPlaceholders(inString string: String, clientSupportsSnippets: Bool) -> String {
@@ -471,7 +453,7 @@ extension SwiftLanguageServer {
     return Position(line: pos.line, utf16index: adjustedOffset)
   }
 
-  func hover(_ req: Request<HoverRequest>) {
+  public func hover(_ req: Request<HoverRequest>) {
     let url = req.params.textDocument.url
     let position = req.params.position
     cursorInfo(url, position..<position) { result in
@@ -511,7 +493,7 @@ extension SwiftLanguageServer {
     }
   }
 
-  func symbolInfo(_ req: Request<SymbolInfoRequest>) {
+  public func symbolInfo(_ req: Request<SymbolInfoRequest>) {
     let url = req.params.textDocument.url
     let position = req.params.position
     cursorInfo(url, position..<position) { result in
@@ -526,178 +508,185 @@ extension SwiftLanguageServer {
     }
   }
 
-  func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
-    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
-      log("failed to find snapshot for url \(req.params.textDocument.url)")
-      req.reply(nil)
-      return
-    }
+  public func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
+    let keys = self.keys
 
-    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
-    skreq[keys.request] = requests.editor_open
-    skreq[keys.name] = "DocumentSymbols:" + snapshot.document.url.path
-    skreq[keys.sourcetext] = snapshot.text
-    skreq[keys.syntactic_only] = 1
-
-    let handle = sourcekitd.send(skreq) { [weak self] result in
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        req.reply(.failure(result.failure!))
+    queue.async {
+      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.url) else {
+        log("failed to find snapshot for url \(req.params.textDocument.url)")
+        req.reply(nil)
         return
       }
-      guard let results: SKResponseArray = dict[self.keys.substructure] else {
-        return req.reply([])
-      }
 
-      func documentSymbol(value: SKResponseDictionary) -> DocumentSymbol? {
-        guard let name: String = value[self.keys.name],
-              let uid: sourcekitd_uid_t = value[self.keys.kind],
-              let kind: SymbolKind = uid.asSymbolKind(self.values),
-              let offset: Int = value[self.keys.offset],
-              let start: Position = snapshot.positionOf(utf8Offset: offset),
-              let length: Int = value[self.keys.length],
-              let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
-          return nil
+      let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      skreq[keys.request] = self.requests.editor_open
+      skreq[keys.name] = "DocumentSymbols:" + snapshot.document.url.path
+      skreq[keys.sourcetext] = snapshot.text
+      skreq[keys.syntactic_only] = 1
+
+      let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
+        guard let self = self else { return }
+        guard let dict = result.success else {
+          req.reply(.failure(result.failure!))
+          return
         }
-        
-        let range = start..<end
-        let selectionRange: Range<Position>
-        if let nameOffset: Int = value[self.keys.nameoffset],
-           let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
-           let nameLength: Int = value[self.keys.namelength],
-           let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
-          selectionRange = nameStart..<nameEnd
-        } else {
-          selectionRange = range
+        guard let results: SKResponseArray = dict[self.keys.substructure] else {
+          return req.reply([])
         }
 
-        let children: [DocumentSymbol]?
-        if let substructure: SKResponseArray = value[self.keys.substructure] {
-          children = documentSymbols(array: substructure)
-        } else {
-          children = nil
-        }
-        return DocumentSymbol(name: name,
-                              detail: nil,
-                              kind: kind,
-                              deprecated: nil,
-                              range: range,
-                              selectionRange: selectionRange,
-                              children: children)
-      }
-
-      func documentSymbols(array: SKResponseArray) -> [DocumentSymbol] {
-        var result: [DocumentSymbol] = []
-        array.forEach { (i: Int, value: SKResponseDictionary) in
-          if let documentSymbol = documentSymbol(value: value) {
-            result.append(documentSymbol)
-          } else if let substructure: SKResponseArray = value[self.keys.substructure] {
-            result += documentSymbols(array: substructure)
-          }
-          return true
-        }
-        return result
-      }
-      
-      req.reply(documentSymbols(array: results))
-    }
-    // FIXME: cancellation
-    _ = handle
-    return
-  }
-
-  func documentColor(_ req: Request<DocumentColorRequest>) {
-    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
-      log("failed to find snapshot for url \(req.params.textDocument.url)")
-      req.reply(nil)
-      return
-    }
-
-    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
-    skreq[keys.request] = requests.editor_open
-    skreq[keys.name] = "DocumentColor:" + snapshot.document.url.path
-    skreq[keys.sourcetext] = snapshot.text
-    skreq[keys.syntactic_only] = 1
-
-    let handle = sourcekitd.send(skreq) { [weak self] result in      
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        req.reply(.failure(result.failure!))
-        return
-      }
-      
-      guard let results: SKResponseArray = dict[self.keys.substructure] else {
-        return req.reply([])
-      }
-      
-      func colorInformation(dict: SKResponseDictionary) -> ColorInformation? {
-        guard let kind: sourcekitd_uid_t = dict[self.keys.kind],
-              kind == self.values.expr_object_literal,
-              let name: String = dict[self.keys.name],
-              name == "colorLiteral",
-              let offset: Int = dict[self.keys.offset],
-              let start: Position = snapshot.positionOf(utf8Offset: offset),
-              let length: Int = dict[self.keys.length],
-              let end: Position = snapshot.positionOf(utf8Offset: offset + length),
-              let substructure: SKResponseArray = dict[self.keys.substructure] else {
-          return nil
-        }
-        var red, green, blue, alpha: Double?
-        substructure.forEach{ (i: Int, value: SKResponseDictionary) in
+        func documentSymbol(value: SKResponseDictionary) -> DocumentSymbol? {
           guard let name: String = value[self.keys.name],
-                let bodyoffset: Int = value[self.keys.bodyoffset],
-                let bodylength: Int = value[self.keys.bodylength] else {
+                let uid: sourcekitd_uid_t = value[self.keys.kind],
+                let kind: SymbolKind = uid.asSymbolKind(self.values),
+                let offset: Int = value[self.keys.offset],
+                let start: Position = snapshot.positionOf(utf8Offset: offset),
+                let length: Int = value[self.keys.length],
+                let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
+            return nil
+          }
+
+          let range = start..<end
+          let selectionRange: Range<Position>
+          if let nameOffset: Int = value[self.keys.nameoffset],
+             let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
+             let nameLength: Int = value[self.keys.namelength],
+             let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
+            selectionRange = nameStart..<nameEnd
+          } else {
+            selectionRange = range
+          }
+
+          let children: [DocumentSymbol]?
+          if let substructure: SKResponseArray = value[self.keys.substructure] {
+            children = documentSymbols(array: substructure)
+          } else {
+            children = nil
+          }
+          return DocumentSymbol(name: name,
+                                detail: nil,
+                                kind: kind,
+                                deprecated: nil,
+                                range: range,
+                                selectionRange: selectionRange,
+                                children: children)
+        }
+
+        func documentSymbols(array: SKResponseArray) -> [DocumentSymbol] {
+          var result: [DocumentSymbol] = []
+          array.forEach { (i: Int, value: SKResponseDictionary) in
+            if let documentSymbol = documentSymbol(value: value) {
+              result.append(documentSymbol)
+            } else if let substructure: SKResponseArray = value[self.keys.substructure] {
+              result += documentSymbols(array: substructure)
+            }
             return true
           }
-          let view = snapshot.text.utf8
-          let bodyStart = view.index(view.startIndex, offsetBy: bodyoffset)
-          let bodyEnd = view.index(view.startIndex, offsetBy: bodyoffset+bodylength)
-          let value = String(view[bodyStart..<bodyEnd]).flatMap(Double.init)
-          switch name {
-            case "red":
-              red = value
-            case "green":
-              green = value
-            case "blue":
-              blue = value
-            case "alpha":
-              alpha = value
-            default:
-              break
-          }
-          return true
+          return result
         }
-        if let red = red,
-           let green = green,
-           let blue = blue,
-           let alpha = alpha {
-          let color = Color(red: red, green: green, blue: blue, alpha: alpha)
-          return ColorInformation(range: start..<end, color: color)
-        } else {
-          return nil
-        }
-      }
-      
-      func colorInformation(array: SKResponseArray) -> [ColorInformation] {
-        var result: [ColorInformation] = []
-        array.forEach { (i: Int, value: SKResponseDictionary) in
-          if let documentSymbol = colorInformation(dict: value) {
-            result.append(documentSymbol)
-          } else if let substructure: SKResponseArray = value[self.keys.substructure] {
-            result += colorInformation(array: substructure)
-          }
-          return true
-        }
-        return result
-      }
 
-      req.reply(colorInformation(array: results))
+        req.reply(documentSymbols(array: results))
+      }
+      // FIXME: cancellation
+      _ = handle
     }
-    // FIXME: cancellation
-    _ = handle
   }
 
-  func colorPresentation(_ req: Request<ColorPresentationRequest>) {
+  public func documentColor(_ req: Request<DocumentColorRequest>) {
+    let keys = self.keys
+
+    queue.async {
+      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.url) else {
+        log("failed to find snapshot for url \(req.params.textDocument.url)")
+        req.reply(nil)
+        return
+      }
+
+      let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      skreq[keys.request] = self.requests.editor_open
+      skreq[keys.name] = "DocumentColor:" + snapshot.document.url.path
+      skreq[keys.sourcetext] = snapshot.text
+      skreq[keys.syntactic_only] = 1
+
+      let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
+        guard let self = self else { return }
+        guard let dict = result.success else {
+          req.reply(.failure(result.failure!))
+          return
+        }
+
+        guard let results: SKResponseArray = dict[self.keys.substructure] else {
+          return req.reply([])
+        }
+
+        func colorInformation(dict: SKResponseDictionary) -> ColorInformation? {
+          guard let kind: sourcekitd_uid_t = dict[self.keys.kind],
+                kind == self.values.expr_object_literal,
+                let name: String = dict[self.keys.name],
+                name == "colorLiteral",
+                let offset: Int = dict[self.keys.offset],
+                let start: Position = snapshot.positionOf(utf8Offset: offset),
+                let length: Int = dict[self.keys.length],
+                let end: Position = snapshot.positionOf(utf8Offset: offset + length),
+                let substructure: SKResponseArray = dict[self.keys.substructure] else {
+            return nil
+          }
+          var red, green, blue, alpha: Double?
+          substructure.forEach{ (i: Int, value: SKResponseDictionary) in
+            guard let name: String = value[self.keys.name],
+                  let bodyoffset: Int = value[self.keys.bodyoffset],
+                  let bodylength: Int = value[self.keys.bodylength] else {
+              return true
+            }
+            let view = snapshot.text.utf8
+            let bodyStart = view.index(view.startIndex, offsetBy: bodyoffset)
+            let bodyEnd = view.index(view.startIndex, offsetBy: bodyoffset+bodylength)
+            let value = String(view[bodyStart..<bodyEnd]).flatMap(Double.init)
+            switch name {
+              case "red":
+                red = value
+              case "green":
+                green = value
+              case "blue":
+                blue = value
+              case "alpha":
+                alpha = value
+              default:
+                break
+            }
+            return true
+          }
+          if let red = red,
+             let green = green,
+             let blue = blue,
+             let alpha = alpha {
+            let color = Color(red: red, green: green, blue: blue, alpha: alpha)
+            return ColorInformation(range: start..<end, color: color)
+          } else {
+            return nil
+          }
+        }
+
+        func colorInformation(array: SKResponseArray) -> [ColorInformation] {
+          var result: [ColorInformation] = []
+          array.forEach { (i: Int, value: SKResponseDictionary) in
+            if let documentSymbol = colorInformation(dict: value) {
+              result.append(documentSymbol)
+            } else if let substructure: SKResponseArray = value[self.keys.substructure] {
+              result += colorInformation(array: substructure)
+            }
+            return true
+          }
+          return result
+        }
+
+        req.reply(colorInformation(array: results))
+      }
+      // FIXME: cancellation
+      _ = handle
+    }
+  }
+
+  public func colorPresentation(_ req: Request<ColorPresentationRequest>) {
     let color = req.params.color
     // Empty string as a label breaks VSCode color picker
     let label = "Color Literal"
@@ -707,157 +696,164 @@ extension SwiftLanguageServer {
     req.reply([presentation])
   }
 
-  func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
+  public func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
+    let keys = self.keys
 
-    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
-      log("failed to find snapshot for url \(req.params.textDocument.url)")
-      req.reply(nil)
-      return
-    }
-
-    guard let offset = snapshot.utf8Offset(of: req.params.position) else {
-      log("invalid position \(req.params.position)")
-      req.reply(nil)
-      return
-    }
-
-    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
-    skreq[keys.request] = requests.relatedidents
-    skreq[keys.offset] = offset
-    skreq[keys.sourcefile] = snapshot.document.url.path
-
-    // FIXME: SourceKit should probably cache this for us.
-    if let settings = self.buildSettingsByFile[snapshot.document.url] {
-      skreq[keys.compilerargs] = settings.compilerArguments
-    }
-
-    let handle = sourcekitd.send(skreq) { [weak self] result in
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        req.reply(.failure(result.failure!))
+    queue.async {
+      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.url) else {
+        log("failed to find snapshot for url \(req.params.textDocument.url)")
+        req.reply(nil)
         return
       }
 
-      guard let results: SKResponseArray = dict[self.keys.results] else {
-        return req.reply([])
-      }
-
-      var highlights: [DocumentHighlight] = []
-
-      results.forEach { _, value in
-        if let offset: Int = value[self.keys.offset],
-           let start: Position = snapshot.positionOf(utf8Offset: offset),
-           let length: Int = value[self.keys.length],
-           let end: Position = snapshot.positionOf(utf8Offset: offset + length)
-        {
-          highlights.append(DocumentHighlight(
-            range: start..<end,
-            kind: .read // unknown
-          ))
-        }
-        return true
-      }
-
-      req.reply(highlights)
-    }
-
-    // FIXME: cancellation
-    _ = handle
-  }
-
-  func foldingRange(_ req: Request<FoldingRangeRequest>) {
-    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.url) else {
-      log("failed to find snapshot for url \(req.params.textDocument.url)")
-      req.reply(nil)
-      return
-    }
-
-    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
-    skreq[keys.request] = requests.editor_open
-    skreq[keys.name] = "FoldingRanges:" + snapshot.document.url.path
-    skreq[keys.sourcetext] = snapshot.text
-    skreq[keys.syntactic_only] = 1
-
-    let handle = sourcekitd.send(skreq) { [weak self] result in
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        req.reply(.failure(result.failure!))
+      guard let offset = snapshot.utf8Offset(of: req.params.position) else {
+        log("invalid position \(req.params.position)")
+        req.reply(nil)
         return
       }
 
-      guard let syntaxMap: SKResponseArray = dict[self.keys.syntaxmap],
-            let substructure: SKResponseArray = dict[self.keys.substructure] else {
-        return req.reply([])
+      let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      skreq[keys.request] = self.requests.relatedidents
+      skreq[keys.offset] = offset
+      skreq[keys.sourcefile] = snapshot.document.url.path
+
+      // FIXME: SourceKit should probably cache this for us.
+      if let settings = self.buildSettingsByFile[snapshot.document.url] {
+        skreq[keys.compilerargs] = settings.compilerArguments
       }
 
-      var ranges: [FoldingRange] = []
-
-      var hasReachedLimit: Bool {
-        let capabilities = self.clientCapabilities.textDocument?.foldingRange
-        guard let rangeLimit = capabilities?.rangeLimit else {
-          return false
+      let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
+        guard let self = self else { return }
+        guard let dict = result.success else {
+          req.reply(.failure(result.failure!))
+          return
         }
-        return ranges.count >= rangeLimit
-      }
 
-      // If the limit is less than one, do nothing.
-      guard hasReachedLimit == false else {
-        req.reply([])
-        return
-      }
-
-      // Merge successive comments into one big comment by adding their lengths.
-      var currentComment: (offset: Int, length: Int)? = nil
-
-      syntaxMap.forEach { _, value in
-        if let kind: sourcekitd_uid_t = value[self.keys.kind],
-           kind.isCommentKind(self.values),
-           let offset: Int = value[self.keys.offset],
-           let length: Int = value[self.keys.length]
-        {
-          if let comment = currentComment, comment.offset + comment.length == offset {
-            currentComment!.length += length
-            return true
-          }
-          if let comment = currentComment {
-            self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toArray: &ranges)
-          }
-          currentComment = (offset: offset, length: length)
+        guard let results: SKResponseArray = dict[self.keys.results] else {
+          return req.reply([])
         }
-        return hasReachedLimit == false
-      }
 
-      // Add the last stored comment.
-      if let comment = currentComment, hasReachedLimit == false {
-        self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toArray: &ranges)
-        currentComment = nil
-      }
+        var highlights: [DocumentHighlight] = []
 
-      var structureStack: [SKResponseArray] = [substructure]
-      while !hasReachedLimit, let substructure = structureStack.popLast() {
-        substructure.forEach { _, value in
-          if let offset: Int = value[self.keys.bodyoffset],
-             let length: Int = value[self.keys.bodylength],
-             length > 0
+        results.forEach { _, value in
+          if let offset: Int = value[self.keys.offset],
+             let start: Position = snapshot.positionOf(utf8Offset: offset),
+             let length: Int = value[self.keys.length],
+             let end: Position = snapshot.positionOf(utf8Offset: offset + length)
           {
-            self.addFoldingRange(offset: offset, length: length, in: snapshot, toArray: &ranges)
-            if hasReachedLimit {
-              return false
-            }
-          }
-          if let substructure: SKResponseArray = value[self.keys.substructure] {
-            structureStack.append(substructure)
+            highlights.append(DocumentHighlight(
+              range: start..<end,
+              kind: .read // unknown
+            ))
           }
           return true
         }
+
+        req.reply(highlights)
       }
 
-      ranges.sort()
-      req.reply(ranges)
+      // FIXME: cancellation
+      _ = handle
     }
+  }
 
-    // FIXME: cancellation
-    _ = handle
+  public func foldingRange(_ req: Request<FoldingRangeRequest>) {
+    let keys = self.keys
+
+    queue.async {
+      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.url) else {
+        log("failed to find snapshot for url \(req.params.textDocument.url)")
+        req.reply(nil)
+        return
+      }
+
+      let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      skreq[keys.request] = self.requests.editor_open
+      skreq[keys.name] = "FoldingRanges:" + snapshot.document.url.path
+      skreq[keys.sourcetext] = snapshot.text
+      skreq[keys.syntactic_only] = 1
+
+      let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
+        guard let self = self else { return }
+        guard let dict = result.success else {
+          req.reply(.failure(result.failure!))
+          return
+        }
+
+        guard let syntaxMap: SKResponseArray = dict[self.keys.syntaxmap],
+              let substructure: SKResponseArray = dict[self.keys.substructure] else {
+          return req.reply([])
+        }
+
+        var ranges: [FoldingRange] = []
+
+        var hasReachedLimit: Bool {
+          let capabilities = self.clientCapabilities.textDocument?.foldingRange
+          guard let rangeLimit = capabilities?.rangeLimit else {
+            return false
+          }
+          return ranges.count >= rangeLimit
+        }
+
+        // If the limit is less than one, do nothing.
+        guard hasReachedLimit == false else {
+          req.reply([])
+          return
+        }
+
+        // Merge successive comments into one big comment by adding their lengths.
+        var currentComment: (offset: Int, length: Int)? = nil
+
+        syntaxMap.forEach { _, value in
+          if let kind: sourcekitd_uid_t = value[self.keys.kind],
+             kind.isCommentKind(self.values),
+             let offset: Int = value[self.keys.offset],
+             let length: Int = value[self.keys.length]
+          {
+            if let comment = currentComment, comment.offset + comment.length == offset {
+              currentComment!.length += length
+              return true
+            }
+            if let comment = currentComment {
+              self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toArray: &ranges)
+            }
+            currentComment = (offset: offset, length: length)
+          }
+          return hasReachedLimit == false
+        }
+
+        // Add the last stored comment.
+        if let comment = currentComment, hasReachedLimit == false {
+          self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toArray: &ranges)
+          currentComment = nil
+        }
+
+        var structureStack: [SKResponseArray] = [substructure]
+        while !hasReachedLimit, let substructure = structureStack.popLast() {
+          substructure.forEach { _, value in
+            if let offset: Int = value[self.keys.bodyoffset],
+               let length: Int = value[self.keys.bodylength],
+               length > 0
+            {
+              self.addFoldingRange(offset: offset, length: length, in: snapshot, toArray: &ranges)
+              if hasReachedLimit {
+                return false
+              }
+            }
+            if let substructure: SKResponseArray = value[self.keys.substructure] {
+              structureStack.append(substructure)
+            }
+            return true
+          }
+        }
+
+        ranges.sort()
+        req.reply(ranges)
+      }
+
+      // FIXME: cancellation
+      _ = handle
+    }
   }
 
   func addFoldingRange(offset: Int, length: Int, kind: FoldingRangeKind? = nil, in snapshot: DocumentSnapshot, toArray ranges: inout [FoldingRange]) {
@@ -890,7 +886,7 @@ extension SwiftLanguageServer {
     ranges.append(range)
   }
 
-  func codeAction(_ req: Request<CodeActionRequest>) {
+  public func codeAction(_ req: Request<CodeActionRequest>) {
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
       (retrieveRefactorCodeActions, .refactor)
       //TODO: Implement the providers.
@@ -923,12 +919,12 @@ extension SwiftLanguageServer {
       completion(.success(codeActions))
     }
     for i in 0..<providers.count {
-      providers[i](req.params) { result in
-        defer { dispatchGroup.leave() }
-        guard case .success(let actions) = result else {
-          return
-        }
-        self.queue.sync {
+      self.queue.async {
+        providers[i](req.params) { result in
+          defer { dispatchGroup.leave() }
+          guard case .success(let actions) = result else {
+            return
+          }
           codeActions += actions
         }
       }
@@ -940,7 +936,7 @@ extension SwiftLanguageServer {
       skreq[self.keys.retrieve_refactor_actions] = 1
     }
 
-    cursorInfo(
+    _cursorInfo(
       params.textDocument.url,
       params.range,
       additionalParameters: additionalCursorInfoParameters)
@@ -972,7 +968,7 @@ extension SwiftLanguageServer {
     }
   }
 
-  func executeCommand(_ req: Request<ExecuteCommandRequest>) {
+  public func executeCommand(_ req: Request<ExecuteCommandRequest>) {
     let params = req.params
     //TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
     guard let swiftCommand = params.swiftCommand(ofType: SemanticRefactorCommand.self) else {
@@ -1054,9 +1050,9 @@ extension DocumentSnapshot {
   }
 }
 
-func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buildSettings: BuildSystem?, clientCapabilities: ClientCapabilities?) throws -> Connection {
-
-  let connectionToSK = LocalConnection()
+func makeLocalSwiftServer(
+  client: MessageHandler, sourcekitd: AbsolutePath, buildSettings: BuildSystem?,
+  clientCapabilities: ClientCapabilities?) throws -> ToolchainLanguageServer {
   let connectionToClient = LocalConnection()
 
   let server = try SwiftLanguageServer(
@@ -1065,11 +1061,8 @@ func makeLocalSwiftServer(client: MessageHandler, sourcekitd: AbsolutePath, buil
     buildSystem: buildSettings ?? BuildSystemList(),
     clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil)
   )
-
-  connectionToSK.start(handler: server)
   connectionToClient.start(handler: client)
-
-  return connectionToSK
+  return server
 }
 
 extension sourcekitd_uid_t {

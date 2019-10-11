@@ -72,6 +72,82 @@ extension CursorInfoError: CustomStringConvertible {
 
 extension SwiftLanguageServer {
 
+  /// Must be called on self.queue.
+  func _cursorInfo(
+    _ url: URL,
+    _ range: Range<Position>,
+    additionalParameters appendAdditionalParameters: ((SKRequestDictionary) -> Void)? = nil,
+    _ completion: @escaping (Swift.Result<CursorInfo?, CursorInfoError>) -> Void)
+  {
+    guard let snapshot = documentManager.latestSnapshot(url) else {
+       return completion(.failure(.unknownDocument(url)))
+     }
+
+    guard let offsetRange = snapshot.utf8OffsetRange(of: range) else {
+      return completion(.failure(.invalidRange(range)))
+    }
+
+    let keys = self.keys
+
+    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
+    skreq[keys.request] = requests.cursorinfo
+    skreq[keys.offset] = offsetRange.lowerBound
+    if offsetRange.upperBound != offsetRange.lowerBound {
+      skreq[keys.length] = offsetRange.count
+    }
+    skreq[keys.sourcefile] = snapshot.document.url.path
+
+    // FIXME: SourceKit should probably cache this for us.
+    if let settings = self.buildSettingsByFile[snapshot.document.url] {
+      skreq[keys.compilerargs] = settings.compilerArguments
+    }
+
+    appendAdditionalParameters?(skreq)
+
+    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
+      guard let self = self else { return }
+      guard let dict = result.success else {
+        return completion(.failure(.responseError(result.failure!)))
+      }
+
+      guard let _: sourcekitd_uid_t = dict[keys.kind] else {
+        // Nothing to report.
+        return completion(.success(nil))
+      }
+
+      var location: Location? = nil
+      if let filepath: String = dict[keys.filepath],
+         let offset: Int = dict[keys.offset],
+         let pos = snapshot.positionOf(utf8Offset: offset)
+      {
+        location = Location(url: URL(fileURLWithPath: filepath), range: Range(pos))
+      }
+
+      let refactorActionsArray: SKResponseArray? = dict[keys.refactor_actions]
+
+      completion(.success(
+        CursorInfo(
+          SymbolDetails(
+          name: dict[keys.name],
+          containerName: nil,
+          usr: dict[keys.usr],
+          bestLocalDeclaration: location),
+        annotatedDeclaration: dict[keys.annotated_decl],
+        documentationXML: dict[keys.doc_full_as_xml],
+        refactorActions:
+          [SemanticRefactorCommand](
+          array: refactorActionsArray,
+          range: range,
+          textDocument: TextDocumentIdentifier(url),
+          keys,
+          self.api)
+      )))
+    }
+
+    // FIXME: cancellation
+    _ = handle
+  }
+
   /// Provides detailed information about a symbol under the cursor, if any.
   ///
   /// Wraps the information returned by sourcekitd's `cursor_info` request, such as symbol name,
@@ -87,70 +163,9 @@ extension SwiftLanguageServer {
     additionalParameters appendAdditionalParameters: ((SKRequestDictionary) -> Void)? = nil,
     _ completion: @escaping (Swift.Result<CursorInfo?, CursorInfoError>) -> Void)
   {
-    guard let snapshot = documentManager.latestSnapshot(url) else {
-      return completion(.failure(.unknownDocument(url)))
+    self.queue.async {
+      self._cursorInfo(url, range,
+                       additionalParameters: appendAdditionalParameters, completion)
     }
-
-    guard let offsetRange = snapshot.utf8OffsetRange(of: range) else {
-      return completion(.failure(.invalidRange(range)))
-    }
- 
-    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
-    skreq[keys.request] = requests.cursorinfo
-    skreq[keys.offset] = offsetRange.lowerBound
-    if offsetRange.upperBound != offsetRange.lowerBound {
-      skreq[keys.length] = offsetRange.count
-    }
-    skreq[keys.sourcefile] = snapshot.document.url.path
-
-    appendAdditionalParameters?(skreq)
-
-    // FIXME: should come from the internal document
-    if let settings = buildSystem.settings(for: snapshot.document.url, snapshot.document.language) {
-      skreq[keys.compilerargs] = settings.compilerArguments
-    }
-
-    let handle = sourcekitd.send(skreq) { [weak self] result in
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        return completion(.failure(.responseError(result.failure!)))
-      }
-
-      guard let _: sourcekitd_uid_t = dict[self.keys.kind] else {
-        // Nothing to report.
-        return completion(.success(nil))
-      }
-
-      var location: Location? = nil
-      if let filepath: String = dict[self.keys.filepath],
-         let offset: Int = dict[self.keys.offset],
-         let pos = snapshot.positionOf(utf8Offset: offset)
-      {
-        location = Location(url: URL(fileURLWithPath: filepath), range: Range(pos))
-      }
-
-      let refactorActionsArray: SKResponseArray? = dict[self.keys.refactor_actions]
-
-      completion(.success(
-        CursorInfo(
-          SymbolDetails(
-          name: dict[self.keys.name],
-          containerName: nil,
-          usr: dict[self.keys.usr],
-          bestLocalDeclaration: location),
-        annotatedDeclaration: dict[self.keys.annotated_decl],
-        documentationXML: dict[self.keys.doc_full_as_xml],
-        refactorActions:
-          [SemanticRefactorCommand](
-          array: refactorActionsArray,
-          range: range,
-          textDocument: TextDocumentIdentifier(url),
-          self.keys,
-          self.api)
-        )))
-    }
-
-    // FIXME: cancellation
-    _ = handle
   }
 }
