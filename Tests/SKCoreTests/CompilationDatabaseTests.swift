@@ -197,7 +197,7 @@ final class CompilationDatabaseTests: XCTestCase {
       ]
       """)
 
-    let buildSystem: BuildSystem = CompilationDatabaseBuildSystem(
+    let buildSystem = CompilationDatabaseBuildSystem(
       projectRoot: AbsolutePath("/a"), fileSystem: fs)
 
     let settings = buildSystem.settings(for: URL(fileURLWithPath: "/a/a.swift"), .swift)

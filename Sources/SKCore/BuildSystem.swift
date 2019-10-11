@@ -31,9 +31,6 @@ public protocol BuildSystem: AnyObject {
   /// The path to put the index database, if any.
   var indexDatabasePath: AbsolutePath? { get }
 
-  /// Returns the settings for the given url and language mode, if known.
-  func settings(for: URL, _ language: Language) -> FileBuildSettings?
-
   /// Returns the toolchain to use to compile this file
   func toolchain(for: URL, _ language: Language) -> Toolchain?
 
@@ -43,7 +40,10 @@ public protocol BuildSystem: AnyObject {
 
   /// Register the given file for build-system level change notifications, such
   /// as command line flag changes, dependency changes, etc.
-  func registerForChangeNotifications(for: URL)
+  ///
+  /// If the `BuildSystem` has cached build settings information, it is recommended to
+  /// immediately notify its delegate, as an optimization.
+  func registerForChangeNotifications(for: URL, language: Language)
 
   /// Unregister the given file for build-system level change notifications,
   /// such as command line flag changes, dependency changes, etc.

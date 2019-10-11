@@ -238,13 +238,13 @@ public final class SourceKitServer: LanguageServer {
 // MARK: - Build System Delegate
 
 extension SourceKitServer: BuildSystemDelegate {
-  public func fileBuildSettingsChanged(_ changedFiles: Set<URL>) {
+  public func fileBuildSettingsChanged(_ changes: [URL : FileBuildSettingsChange]) {
     guard let workspace = self.workspace else {
       return
     }
     let documentManager = workspace.documentManager
     let openDocuments = documentManager.openDocuments
-    for url in changedFiles {
+    for (url, change) in changes {
       guard openDocuments.contains(url) else {
         continue
       }
@@ -252,7 +252,7 @@ extension SourceKitServer: BuildSystemDelegate {
       log("Build settings changed for opened file \(url)")
       if let snapshot = documentManager.latestSnapshot(url),
          let service = languageService(for: url, snapshot.document.language, in: workspace) {
-        service.documentUpdatedBuildSettings(url, language: snapshot.document.language)
+        service.documentChangedBuildSettings(url, change)
       }
     }
   }
@@ -360,11 +360,16 @@ extension SourceKitServer {
     workspace.documentManager.open(note.params)
 
     let textDocument = note.params.textDocument
-    workspace.buildSettings.registerForChangeNotifications(for: textDocument.url)
+    let url = textDocument.url
+    let language = textDocument.language
 
-    if let service = languageService(for: textDocument.url, textDocument.language, in: workspace) {
-      service.openDocument(note.params)
-    }
+    // Create the `service` before registering for change notifications in case the `BuildSystem`
+    // immediately callbacks to us (its delegate) with `FileBuildSettings` so we notify this
+    // `service` (which might have been newly created).
+    let service = languageService(for: url, language, in: workspace)
+
+    workspace.buildSettings.registerForChangeNotifications(for: url, language: language)
+    service?.openDocument(note.params)
   }
 
   func closeDocument(_ note: Notification<DidCloseTextDocument>, workspace: Workspace) {
@@ -708,11 +713,11 @@ public func languageService(
 
   case .c, .cpp, .objective_c, .objective_cpp:
     guard toolchain.clangd != nil else { return nil }
-    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings, clangdOptions: options.clangdOptions)
+    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, clangdOptions: options.clangdOptions)
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
-    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings, clientCapabilities: (client as? SourceKitServer)?.workspace?.clientCapabilities)
+    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, clientCapabilities: (client as? SourceKitServer)?.workspace?.clientCapabilities)
 
   default:
     return nil

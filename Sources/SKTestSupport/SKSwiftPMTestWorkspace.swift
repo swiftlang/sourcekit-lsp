@@ -125,6 +125,17 @@ extension SKSwiftPMTestWorkspace {
       version: 1,
       text: try sources.sourceCache.get(url))))
   }
+
+  public func initialize(clientCapabilities: ClientCapabilities) throws {
+    _ = try sk.sendSync(InitializeRequest(
+      processId: nil,
+      rootPath: nil,
+      rootURL: nil,
+      initializationOptions: nil,
+      capabilities: clientCapabilities,
+      trace: .off,
+      workspaceFolders: nil))
+  }
 }
 
 extension XCTestCase {

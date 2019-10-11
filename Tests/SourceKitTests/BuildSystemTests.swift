@@ -39,16 +39,15 @@ final class TestBuildSystem: BuildSystem {
   /// Files currently being watched by our delegate.
   var watchedFiles: Set<URL> = []
 
-  func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
-    return buildSettingsByFile[url]
-  }
-
   func toolchain(for url: URL, _ language: Language) -> Toolchain? {
     return toolchainsByFile[url]
   }
 
-  func registerForChangeNotifications(for url: URL) {
+  func registerForChangeNotifications(for url: URL, language: Language) {
     watchedFiles.insert(url)
+    if let settings = self.buildSettingsByFile[url] {
+      self.delegate?.fileBuildSettingsChanged([url: .modified(settings)])
+    }
   }
 
   func unregisterForChangeNotifications(for url: URL) {
@@ -148,8 +147,9 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    buildSystem.buildSettingsByFile[url] = FileBuildSettings(compilerArguments: args +  ["-DFOO"])
-    testServer.server?.fileBuildSettingsChanged([url])
+    let newSettings = FileBuildSettings(compilerArguments: args +  ["-DFOO"])
+    buildSystem.buildSettingsByFile[url] = newSettings
+    testServer.server?.fileBuildSettingsChanged([url: .modified(newSettings)])
 
     let expectation = XCTestExpectation(description: "refresh")
     sk.handleNextNotification { (note: Notification<PublishDiagnostics>) in
@@ -196,7 +196,8 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    buildSystem.buildSettingsByFile[url] = FileBuildSettings(compilerArguments: args + ["-DFOO"])
+    let newSettings = FileBuildSettings(compilerArguments: args + ["-DFOO"])
+    buildSystem.buildSettingsByFile[url] = newSettings
 
     let expectation = XCTestExpectation(description: "refresh")
     expectation.expectedFulfillmentCount = 2
@@ -210,7 +211,7 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 0)
       expectation.fulfill()
     }
-    testServer.server?.fileBuildSettingsChanged([url])
+    testServer.server?.fileBuildSettingsChanged([url: .modified(newSettings)])
 
     let result = XCTWaiter.wait(for: [expectation], timeout: 5)
     if result != .completed {
@@ -220,6 +221,9 @@ final class BuildSystemTests: XCTestCase {
 
   func testSwiftDocumentBuildSettingsChangedFalseAlarm() {
     let url = URL(fileURLWithPath: "/a.swift")
+    let settings = FallbackBuildSystem().settings(for: url, .swift)!
+
+    buildSystem.buildSettingsByFile[url] = settings
 
     sk.allowUnexpectedNotification = false
 
@@ -233,11 +237,15 @@ final class BuildSystemTests: XCTestCase {
     )), { (note: Notification<PublishDiagnostics>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(url)!.text)
+    }, { (note: Notification<PublishDiagnostics>) in
+      // Semantic analysis - expect one error here.
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(url)!.text)
     })
 
     // Modify the build settings and inform the SourceKitServer.
     // This shouldn't trigger new diagnostics since nothing actually changed (false alarm).
-    testServer.server?.fileBuildSettingsChanged([url])
+    testServer.server?.fileBuildSettingsChanged([url: .modified(settings)])
 
     let expectation = XCTestExpectation(description: "refresh doesn't occur")
     expectation.isInverted = true
@@ -249,7 +257,11 @@ final class BuildSystemTests: XCTestCase {
 
     let result = XCTWaiter.wait(for: [expectation], timeout: 1)
     if result != .completed {
-      fatalError("error \(result) unexpected diagnostics notification")
+      if result == .invertedFulfillment {
+        XCTFail("unexpected notification - shouldn't refresh because build settings didn't change!")
+      } else {
+        XCTFail("error \(result) unexpected diagnostics notification for false alarm settings change!")
+      }
     }
   }
 }

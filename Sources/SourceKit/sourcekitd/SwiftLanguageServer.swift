@@ -27,8 +27,6 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   let sourcekitd: SwiftSourceKitFramework
 
-  let buildSystem: BuildSystem
-
   let clientCapabilities: ClientCapabilities
 
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
@@ -46,10 +44,9 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   var values: sourcekitd_values { return sourcekitd.values }
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, clientCapabilities: ClientCapabilities, onExit: @escaping () -> Void = {}) throws {
+  public init(client: Connection, sourcekitd: AbsolutePath, clientCapabilities: ClientCapabilities, onExit: @escaping () -> Void = {}) throws {
     self.client = client
     self.sourcekitd = try SwiftSourceKitFramework(dylib: sourcekitd)
-    self.buildSystem = buildSystem
     self.clientCapabilities = clientCapabilities
     self.documentManager = DocumentManager()
     self.onExit = onExit
@@ -104,6 +101,8 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 }
 
 extension SwiftLanguageServer {
+
+  // MARK: - Lifetime
 
   public func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult {
     api.initialize()
@@ -162,6 +161,7 @@ extension SwiftLanguageServer {
 
   func shutdown(_ request: Request<Shutdown>) {
     api.set_notification_handler(nil)
+    api.set_interrupted_connection_handler(nil)
   }
 
   func exit(_ notification: Notification<Exit>) {
@@ -169,23 +169,25 @@ extension SwiftLanguageServer {
     onExit()
   }
 
-  // MARK: - Workspace
+  // MARK: - Build System Interactions
 
-  public func documentUpdatedBuildSettings(_ url: URL, language: Language) {
+  public func documentChangedBuildSettings(_ url: URL, _ change: FileBuildSettingsChange) {
+    let keys = self.keys
+
     self.queue.async {
-      guard let snapshot = self.documentManager.latestSnapshot(url) else {
-        return
-      }
-
       // Confirm that the build settings actually changed, otherwise we don't
       // need to do anything.
-      let newSettings = self.buildSystem.settings(for: url, language)
+      let newSettings = change.newFileBuildSettings
       guard self.buildSettingsByFile[url] != newSettings else {
         return
       }
       self.buildSettingsByFile[url] = newSettings
 
-      let keys = self.keys
+      // If we don't have a snapshot (e.g. the file hasn't been opened yet)
+      // then there's nothing else for us to do.
+      guard let snapshot = self.documentManager.latestSnapshot(url) else {
+        return
+      }
 
       // Close and re-open the document internally to inform sourcekitd to
       // update the settings. At the moment there's no better way to do this.
@@ -223,16 +225,12 @@ extension SwiftLanguageServer {
 
       let url = snapshot.document.url
 
-      // Cache the `BuildSystem`'s settings interally.
-      let settings = self.buildSystem.settings(for: url, snapshot.document.language)
-      self.buildSettingsByFile[url] = settings
-
       let req = SKRequestDictionary(sourcekitd: self.sourcekitd)
       req[keys.request] = self.requests.editor_open
       req[keys.name] = note.textDocument.url.path
       req[keys.sourcetext] = snapshot.text
 
-      if let settings = settings {
+      if let settings = self.buildSettingsByFile[url] {
         req[keys.compilerargs] = settings.compilerArguments
       }
 
@@ -1051,14 +1049,13 @@ extension DocumentSnapshot {
 }
 
 func makeLocalSwiftServer(
-  client: MessageHandler, sourcekitd: AbsolutePath, buildSettings: BuildSystem?,
+  client: MessageHandler, sourcekitd: AbsolutePath,
   clientCapabilities: ClientCapabilities?) throws -> ToolchainLanguageServer {
   let connectionToClient = LocalConnection()
 
   let server = try SwiftLanguageServer(
     client: connectionToClient,
     sourcekitd: sourcekitd,
-    buildSystem: buildSettings ?? BuildSystemList(),
     clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil)
   )
   connectionToClient.start(handler: client)

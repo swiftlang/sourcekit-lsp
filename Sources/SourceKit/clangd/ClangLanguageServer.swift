@@ -27,15 +27,11 @@ final class ClangLanguageServerShim: ToolchainLanguageServer {
 
   var capabilities: ServerCapabilities? = nil
 
-  let buildSystem: BuildSystem
-
   let clang: AbsolutePath?
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, clangd: Connection, buildSystem: BuildSystem,
-              clang: AbsolutePath?) throws {
+  public init(client: Connection, clangd: Connection, clang: AbsolutePath?) throws {
     self.clangd = clangd
-    self.buildSystem = buildSystem
     self.clang = clang
   }
 
@@ -71,6 +67,8 @@ final class ClangLanguageServerShim: ToolchainLanguageServer {
 
 extension ClangLanguageServerShim {
 
+  // MARK: - Lifetime
+
   func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult {
     let result = try clangd.sendSync(initialize)
     self.capabilities = result.capabilities
@@ -81,11 +79,26 @@ extension ClangLanguageServerShim {
     clangd.send(initialized)
   }
 
+  // MARK: - Build System Interactions
+
+  public func documentChangedBuildSettings(_ url: URL, _ change: FileBuildSettingsChange) {
+    let buildSettings = change.newFileBuildSettings
+
+    logAsync(level: buildSettings == nil ? .warning : .debug) { _ in
+      let settingsStr = buildSettings == nil ? "nil" : buildSettings!.compilerArguments.description
+      return "settings for \(url): \(settingsStr)"
+    }
+
+    if let settings = buildSettings {
+      clangd.send(DidChangeConfiguration(settings: .clangd(
+        ClangWorkspaceSettings(
+          compilationDatabaseChanges: [url.path: ClangCompileCommand(settings, clang: clang)]))))
+    }
+  }
+
   // MARK: - Text synchronization
 
   public func openDocument(_ note: DidOpenTextDocument) {
-    let textDocument = note.textDocument
-    documentUpdatedBuildSettings(textDocument.url, language: textDocument.language)
     clangd.send(note)
   }
 
@@ -103,21 +116,6 @@ extension ClangLanguageServerShim {
 
   public func didSaveDocument(_ note: DidSaveTextDocument) {
 
-  }
-
-  public func documentUpdatedBuildSettings(_ url: URL, language: Language) {
-    let settings = buildSystem.settings(for: url, language)
-
-    logAsync(level: settings == nil ? .warning : .debug) { _ in
-      let settingsStr = settings == nil ? "nil" : settings!.compilerArguments.description
-      return "settings for \(url): \(settingsStr)"
-    }
-
-    if let settings = settings {
-      clangd.send(DidChangeConfiguration(settings: .clangd(
-        ClangWorkspaceSettings(
-          compilationDatabaseChanges: [url.path: ClangCompileCommand(settings, clang: clang)]))))
-    }
   }
 
   // MARK: - Text Document
@@ -173,7 +171,6 @@ extension ClangLanguageServerShim {
 func makeJSONRPCClangServer(
   client: MessageHandler,
   toolchain: Toolchain,
-  buildSettings: BuildSystem?,
   clangdOptions: [String]
 ) throws -> ToolchainLanguageServer {
   guard let clangd = toolchain.clangd else {
@@ -194,7 +191,6 @@ func makeJSONRPCClangServer(
   let shim = try ClangLanguageServerShim(
     client: connectionToClient,
     clangd: connection,
-    buildSystem: buildSettings ?? BuildSystemList(),
     clang: toolchain.clang)
 
   connectionToClient.start(handler: client)

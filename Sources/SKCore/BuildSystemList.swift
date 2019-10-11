@@ -36,20 +36,11 @@ extension BuildSystemList: BuildSystem {
 
   public var indexDatabasePath: AbsolutePath? { return providers.first?.indexDatabasePath }
 
-  public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
-    for provider in providers {
-      if let settings = provider.settings(for: url, language) {
-        return settings
-      }
-    }
-    return nil
-  }
-
   /// Register the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func registerForChangeNotifications(for url: URL) {
+  public func registerForChangeNotifications(for url: URL, language: Language) {
     // Only register with the primary build system, since we only use its delegate.
-    providers.first?.registerForChangeNotifications(for: url)
+    providers.first?.registerForChangeNotifications(for: url, language: language)
   }
 
   /// Unregister the given file for build-system level change notifications, such as command

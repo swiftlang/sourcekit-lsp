@@ -224,8 +224,14 @@ extension SwiftPMWorkspace: BuildSystem {
 
   /// Register the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func registerForChangeNotifications(for url: LanguageServerProtocol.URL) {
+  public func registerForChangeNotifications(
+    for url: LanguageServerProtocol.URL,
+    language: Language)
+  {
     // TODO: Support for change detection (via file watching)
+    if let settings = self.settings(for: url, language) {
+      self.delegate?.fileBuildSettingsChanged([url: .modified(settings)])
+    }
   }
 
   /// Unregister the given file for build-system level change notifications, such as command

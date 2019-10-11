@@ -56,7 +56,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
     let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
     let buildSystemDelegate = TestDelegate(expectations: [fileUrl: expectation])
     buildSystem.delegate = buildSystemDelegate
-    buildSystem.registerForChangeNotifications(for: fileUrl)
+    buildSystem.registerForChangeNotifications(for: fileUrl, language: .swift)
 
     XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
   }
@@ -159,14 +159,14 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
 final class TestDelegate: BuildSystemDelegate {
 
-  let expectations: [URL:XCTestExpectation]
+  let expectations: [URL: XCTestExpectation]
 
-  public init(expectations: [URL:XCTestExpectation]) {
+  public init(expectations: [URL: XCTestExpectation]) {
     self.expectations = expectations
   }
 
-  func fileBuildSettingsChanged(_ changedFiles: Set<URL>) {
-    for url in changedFiles {
+  func fileBuildSettingsChanged(_ changes: [URL: FileBuildSettingsChange]) {
+    for url in changes.keys {
       expectations[url]?.fulfill()
     }
   }

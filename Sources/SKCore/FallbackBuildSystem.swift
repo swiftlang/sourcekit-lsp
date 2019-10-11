@@ -54,8 +54,12 @@ public final class FallbackBuildSystem: BuildSystem {
     }
   }
 
-  /// We don't support change watching.
-  public func registerForChangeNotifications(for: URL) {}
+  /// We don't support change watching, so we only notify our `delegate` of the settings here.
+  public func registerForChangeNotifications(for url: URL, language: Language) {
+    if let settings = self.settings(for: url, language) {
+      self.delegate?.fileBuildSettingsChanged([url: .modified(settings)])
+    }
+  }
 
   /// We don't support change watching.
   public func unregisterForChangeNotifications(for: URL) {}

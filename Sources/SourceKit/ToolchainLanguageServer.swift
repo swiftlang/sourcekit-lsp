@@ -12,6 +12,7 @@
 
 import Foundation
 import LanguageServerProtocol
+import SKCore
 
 /// A `LanguageServer` that exists within the context of the current process.
 public protocol ToolchainLanguageServer: AnyObject {
@@ -28,7 +29,11 @@ public protocol ToolchainLanguageServer: AnyObject {
   func changeDocument(_ note: DidChangeTextDocument)
   func willSaveDocument(_ note: WillSaveTextDocument)
   func didSaveDocument(_ note: DidSaveTextDocument)
-  func documentUpdatedBuildSettings(_ url: URL, language: Language)
+
+  // MARK: - Build System Interactions
+
+  /// Note that this may be called before a respective `openDocument`.
+  func documentChangedBuildSettings(_ url: URL, _ change: FileBuildSettingsChange)
 
   // MARK: - Text Document
 

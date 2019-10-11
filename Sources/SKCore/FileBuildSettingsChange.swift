@@ -10,14 +10,23 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import TSCBasic
+/// Denotes a change in build settings for a single file.
+public enum FileBuildSettingsChange {
 
-/// Handles  build system events, such as file build settings changes.
-public protocol BuildSystemDelegate: AnyObject {
+  /// The `BuildSystem` no longer has `FileBuildSettings` for the file.
+  case removed
 
-  /// Notify the delegate that the given files' build settings have changed.
-  ///
-  /// The callee should request new build settings for any of the given files that they are interested in.
-  func fileBuildSettingsChanged(_ changes: [URL: FileBuildSettingsChange])
+  /// The `FileBuildSettings` have been modified.
+  case modified(FileBuildSettings)
+}
+
+public extension FileBuildSettingsChange {
+  var newFileBuildSettings: FileBuildSettings? {
+    switch self {
+    case .removed:
+      return nil
+    case .modified(let settings):
+      return settings
+    }
+  }
 }

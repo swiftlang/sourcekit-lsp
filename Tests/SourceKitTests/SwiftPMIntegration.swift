@@ -23,6 +23,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
 
     let call = ws.testLoc("Lib.foo:call")
     let def = ws.testLoc("Lib.foo:def")
+    try ws.initialize(clientCapabilities: ClientCapabilities(workspace: nil, textDocument: nil))
     try ws.openDocument(call.url, language: .swift)
     let refs = try ws.sk.sendSync(ReferencesRequest(textDocument: call.docIdentifier, position: call.position))
 

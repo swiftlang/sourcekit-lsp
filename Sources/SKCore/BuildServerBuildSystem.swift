@@ -130,8 +130,11 @@ final class BuildServerHandler: LanguageServerEndpoint {
   }
 
   func handleFileOptionsChanged(_ notification: Notification<FileOptionsChangedNotification>) {
-    // TODO: add delegate method to include the changed settings directly
-    self.delegate?.fileBuildSettingsChanged([notification.params.uri])
+    let params = notification.params
+    let options = params.updatedOptions
+    let fileBuildSettings = FileBuildSettings(
+      compilerArguments: options.options, workingDirectory: options.workingDirectory)
+    self.delegate?.fileBuildSettingsChanged([params.uri: .modified(fileBuildSettings)])
   }
 }
 
@@ -139,7 +142,10 @@ extension BuildServerBuildSystem: BuildSystem {
 
   /// Register the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func registerForChangeNotifications(for url: LanguageServerProtocol.URL) {
+  public func registerForChangeNotifications(
+    for url: LanguageServerProtocol.URL,
+    language: Language)
+  {
     let request = RegisterForChanges(uri: url, action: .register)
     _ = self.buildServer?.send(request, queue: requestQueue, reply: { result in
       if let error = result.failure {
@@ -161,6 +167,11 @@ extension BuildServerBuildSystem: BuildSystem {
 
   public var indexDatabasePath: AbsolutePath? {
     return buildFolder?.appending(components: "index", "db")
+  }
+
+  public func cachedSettings(for: URL, _ language: Language) -> FileBuildSettings? {
+    // TODO: Implement caching once the change notifications are supported.
+    return nil
   }
 
   public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
