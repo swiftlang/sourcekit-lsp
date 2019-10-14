@@ -100,10 +100,6 @@ let clientConnection = JSONRPCConection(
   exit(0)
 })
 
-Logger.shared.addLogHandler { message, _ in
-  clientConnection.send(LogMessage(type: .log, message: message))
-}
-
 let installPath = AbsolutePath(Bundle.main.bundlePath)
 ToolchainRegistry.shared = ToolchainRegistry(installPath: installPath, localFileSystem)
 
@@ -111,5 +107,9 @@ let server = SourceKitServer(client: clientConnection, options: options.serverOp
   clientConnection.close()
 })
 clientConnection.start(receiveHandler: server)
+
+Logger.shared.addLogHandler { message, _ in
+  clientConnection.send(LogMessage(type: .log, message: message))
+}
 
 dispatchMain()
