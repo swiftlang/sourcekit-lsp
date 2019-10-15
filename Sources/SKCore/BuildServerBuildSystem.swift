@@ -31,6 +31,8 @@ public final class BuildServerBuildSystem {
 
   var handler: BuildServerHandler?
   var buildServer: JSONRPCConection?
+
+  public private(set) var indexDatabasePath: AbsolutePath?
   public private(set) var indexStorePath: AbsolutePath?
 
   /// Delegate to handle any build system events.
@@ -104,6 +106,9 @@ public final class BuildServerBuildSystem {
     log("initialized build server \(response.displayName)")
 
     // see if index store was set as part of the server metadata
+    if let indexDbPath = readReponseDataKey(data: response.data, key: "indexDatabasePath") {
+      self.indexDatabasePath = AbsolutePath(indexDbPath, relativeTo: self.projectRoot)
+    }
     if let indexStorePath = readReponseDataKey(data: response.data, key: "indexStorePath") {
       self.indexStorePath = AbsolutePath(indexStorePath, relativeTo: self.projectRoot)
     }
@@ -157,10 +162,6 @@ extension BuildServerBuildSystem: BuildSystem {
         log("error unregistering \(url): \(error)", level: .error)
       }
     })
-  }
-
-  public var indexDatabasePath: AbsolutePath? {
-    return buildFolder?.appending(components: "index", "db")
   }
 
   public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
