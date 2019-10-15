@@ -191,7 +191,7 @@ public final class SourceKitServer: LanguageServer {
 
     // Start a new service.
     return orLog("failed to start language service", level: .error) {
-      guard let service = try SourceKit.languageService(for: toolchain, language, options: options, client: self) else {
+      guard let service = try SourceKit.languageService(for: toolchain, language, options: options, client: self, crashHandler: self) else {
         return nil
       }
 
@@ -255,6 +255,15 @@ extension SourceKitServer: BuildSystemDelegate {
         service.documentUpdatedBuildSettings(url, language: snapshot.document.language)
       }
     }
+  }
+}
+
+// MARK: - Crash Handling
+
+extension SourceKitServer: ToolchainLanguageServerCrashHandler {
+  public func handleCrash(_ languageService: ToolchainLanguageServer, _ debugInfo: String) {
+    // TODO: Chose to re-initialize the given languageService or not, log the crash, and
+    // possibly notify the user.
   }
 }
 
@@ -702,17 +711,22 @@ public func languageService(
   for toolchain: Toolchain,
   _ language: Language,
   options: SourceKitServer.Options,
-  client: MessageHandler) throws -> ToolchainLanguageServer?
+  client: MessageHandler,
+  crashHandler: ToolchainLanguageServerCrashHandler) throws -> ToolchainLanguageServer?
 {
   switch language {
 
   case .c, .cpp, .objective_c, .objective_cpp:
     guard toolchain.clangd != nil else { return nil }
-    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings, clangdOptions: options.clangdOptions)
+    let service = try makeJSONRPCClangServer(client: client, toolchain: toolchain, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings, clangdOptions: options.clangdOptions)
+    service.crashHandler = crashHandler
+    return service
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
-    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings, clientCapabilities: (client as? SourceKitServer)?.workspace?.clientCapabilities)
+    let service = try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings, clientCapabilities: (client as? SourceKitServer)?.workspace?.clientCapabilities)
+    service.crashHandler = crashHandler
+    return service
 
   default:
     return nil

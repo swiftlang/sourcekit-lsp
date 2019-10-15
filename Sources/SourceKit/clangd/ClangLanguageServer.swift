@@ -19,9 +19,10 @@ import Foundation
 
 /// A thin wrapper over a connection to a clangd server providing build setting handling.
 final class ClangLanguageServerShim: ToolchainLanguageServer {
-
   /// The server's request queue, used to serialize requests and responses to `clangd`.
   public let queue: DispatchQueue = DispatchQueue(label: "clangd-language-server-queue", qos: .userInitiated)
+
+  public weak var crashHandler: ToolchainLanguageServerCrashHandler? = nil
 
   let clangd: Connection
 
@@ -215,6 +216,7 @@ func makeJSONRPCClangServer(
   process.standardOutput = serverToClient
   process.standardInput = clientToServer
   process.terminationHandler = { process in
+    // TODO: Inform the crash handler and provide a way to restart clangd.
     log("clangd exited: \(process.terminationReason) \(process.terminationStatus)")
     connection.close()
   }

@@ -18,6 +18,8 @@ public protocol ToolchainLanguageServer: AnyObject {
 
   // MARK: Lifetime
 
+  var crashHandler: ToolchainLanguageServerCrashHandler? {get set}
+
   func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult
   func clientInitialized(_ initialized: InitializedNotification)
 

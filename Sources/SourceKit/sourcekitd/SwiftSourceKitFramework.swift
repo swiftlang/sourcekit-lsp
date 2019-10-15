@@ -69,6 +69,7 @@ final class SwiftSourceKitFramework {
 
     api.initialize = try dlsym_required(dylib, symbol: "sourcekitd_initialize")
     api.shutdown = try dlsym_required(dylib, symbol: "sourcekitd_shutdown")
+    api.set_interrupted_connection_handler = try dlsym_required(dylib, symbol: "sourcekitd_set_interrupted_connection_handler")
     api.uid_get_from_cstr = try dlsym_required(dylib, symbol: "sourcekitd_uid_get_from_cstr")
     api.uid_get_from_buf = try dlsym_required(dylib, symbol: "sourcekitd_uid_get_from_buf")
     api.uid_get_length = try dlsym_required(dylib, symbol: "sourcekitd_uid_get_length")

@@ -69,6 +69,8 @@ typedef const char *(^sourcekitd_str_from_uid_handler_t)(sourcekitd_uid_t uid);
 typedef struct {
   void (*initialize)(void);
   void (*shutdown)(void);
+  void (*set_interrupted_connection_handler)(
+      sourcekitd_interrupted_connection_handler_t handler);
 
   sourcekitd_uid_t (*uid_get_from_cstr)(const char *string);
   sourcekitd_uid_t (*uid_get_from_buf)(const char *buf, size_t length);

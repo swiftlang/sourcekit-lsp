@@ -23,6 +23,8 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   /// The server's request queue, used to serialize requests and responses to `sourcekitd`.
   public let queue: DispatchQueue = DispatchQueue(label: "swift-language-server-queue", qos: .userInitiated)
 
+  public weak var crashHandler: ToolchainLanguageServerCrashHandler? = nil
+
   let client: Connection
 
   let sourcekitd: SwiftSourceKitFramework
@@ -129,6 +131,11 @@ extension SwiftLanguageServer {
       }
     }
 
+    api.set_interrupted_connection_handler { [weak self] in
+      guard let self = self else { return }
+      self.crashHandler?.handleCrash(self, "sourcekitd connection interrupted")
+    }
+
     return InitializeResult(capabilities: ServerCapabilities(
       textDocumentSync: TextDocumentSyncOptions(
         openClose: true,
@@ -162,6 +169,7 @@ extension SwiftLanguageServer {
 
   func shutdown(_ request: Request<Shutdown>) {
     api.set_notification_handler(nil)
+    api.set_interrupted_connection_handler(nil)
   }
 
   func exit(_ notification: Notification<Exit>) {
