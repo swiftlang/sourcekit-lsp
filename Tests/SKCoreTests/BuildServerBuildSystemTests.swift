@@ -18,64 +18,58 @@ import BuildServerProtocol
 
 final class BuildServerBuildSystemTests: XCTestCase {
 
-  func testServerInitialize() {
+  func testServerInitialize() throws {
     let root = AbsolutePath(
       inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
     let buildFolder = AbsolutePath(NSTemporaryDirectory())
 
-    let buildSystem = try? BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
+    let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
-    XCTAssertNotNil(buildSystem)
-    XCTAssertEqual(buildSystem!.indexStorePath, AbsolutePath("some/index/store/path", relativeTo: root))
+    XCTAssertEqual(buildSystem.indexStorePath, AbsolutePath("some/index/store/path", relativeTo: root))
   }
 
-  func testSettings() {
+  func testSettings() throws {
     let root = AbsolutePath(
       inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
     let buildFolder = AbsolutePath(NSTemporaryDirectory())
-    let buildSystem = try? BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
-    XCTAssertNotNil(buildSystem)
+    let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     // test settings with a response
     let fileURL = URL(fileURLWithPath: "/path/to/some/file.swift")
-    let settings = buildSystem?.settings(for: fileURL, Language.swift)
+    let settings = buildSystem.settings(for: fileURL, Language.swift)
+    XCTAssertNotNil(settings)
     XCTAssertEqual(settings?.compilerArguments, ["-a", "-b"])
     XCTAssertEqual(settings?.workingDirectory, fileURL.deletingLastPathComponent().path)
 
     // test error
     let missingFileURL = URL(fileURLWithPath: "/path/to/some/missingfile.missing")
-    XCTAssertNil(buildSystem?.settings(for: missingFileURL, Language.swift))
+    XCTAssertNil(buildSystem.settings(for: missingFileURL, Language.swift))
   }
 
-  func testFileRegistration() {
+  func testFileRegistration() throws {
     let root = AbsolutePath(
       inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
     let buildFolder = AbsolutePath(NSTemporaryDirectory())
-    let buildSystem = try? BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
-    XCTAssertNotNil(buildSystem)
+    let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
     let buildSystemDelegate = TestDelegate(expectations: [fileUrl: expectation])
-    buildSystem?.delegate = buildSystemDelegate
-    buildSystem?.registerForChangeNotifications(for: fileUrl)
+    buildSystem.delegate = buildSystemDelegate
+    buildSystem.registerForChangeNotifications(for: fileUrl)
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: 15)
-    if result != .completed {
-      fatalError("error \(result) waiting for settings notification")
-    }
+    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
   }
 
-  func testBuildTargets() {
+  func testBuildTargets() throws {
     let root = AbsolutePath(
       inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
     let buildFolder = AbsolutePath(NSTemporaryDirectory())
-    let buildSystem = try? BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
-    XCTAssertNotNil(buildSystem)
+    let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     let expectation = XCTestExpectation(description: "build target expectation")
 
-    buildSystem?.buildTargets(reply: { response in
+    buildSystem.buildTargets(reply: { response in
       switch(response) {
       case .success(let targets):
         XCTAssertEqual(targets, [
@@ -102,19 +96,18 @@ final class BuildServerBuildSystemTests: XCTestCase {
     XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
   }
 
-  func testBuildTargetSources() {
+  func testBuildTargetSources() throws {
     let root = AbsolutePath(
       inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
     let buildFolder = AbsolutePath(NSTemporaryDirectory())
-    let buildSystem = try? BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
-    XCTAssertNotNil(buildSystem)
+    let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     let expectation = XCTestExpectation(description: "build target sources expectation")
     let targets = [
       BuildTargetIdentifier(uri: URL(string: "build://target/a")!),
       BuildTargetIdentifier(uri: URL(string: "build://target/b")!),
     ]
-    buildSystem?.buildTargetSources(targets: targets, reply: { response in
+    buildSystem.buildTargetSources(targets: targets, reply: { response in
       switch(response) {
       case .success(let items):
         XCTAssertNotNil(items)
@@ -136,18 +129,17 @@ final class BuildServerBuildSystemTests: XCTestCase {
     XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
   }
 
-  func testBuildTargetOutputs() {
+  func testBuildTargetOutputs() throws {
     let root = AbsolutePath(
       inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
     let buildFolder = AbsolutePath(NSTemporaryDirectory())
-    let buildSystem = try? BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
-    XCTAssertNotNil(buildSystem)
+    let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     let expectation = XCTestExpectation(description: "build target output expectation")
     let targets = [
       BuildTargetIdentifier(uri: URL(string: "build://target/a")!),
     ]
-    buildSystem?.buildTargetOutputPaths(targets: targets, reply: { response in
+    buildSystem.buildTargetOutputPaths(targets: targets, reply: { response in
       switch(response) {
       case .success(let items):
         XCTAssertNotNil(items)
