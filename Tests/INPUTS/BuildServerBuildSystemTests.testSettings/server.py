@@ -75,5 +75,9 @@ while True:
 
     if response:
         responseStr = json.dumps(response)
-        sys.stdout.write("Content-Length: {}\r\n\r\n{}".format(len(responseStr), responseStr))
-        sys.stdout.flush()
+        try:
+            sys.stdout.write("Content-Length: {}\r\n\r\n{}".format(len(responseStr), responseStr))
+            sys.stdout.flush()
+        except IOError:
+            # stdout closed, time to quit
+            break
