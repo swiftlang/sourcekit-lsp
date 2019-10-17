@@ -54,7 +54,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
-    let buildSystemDelegate = TestDelegate(expectations: [fileUrl: expectation])
+    let buildSystemDelegate = TestDelegate(fileExpectations: [fileUrl: expectation])
     buildSystem.delegate = buildSystemDelegate
     buildSystem.registerForChangeNotifications(for: fileUrl)
 
