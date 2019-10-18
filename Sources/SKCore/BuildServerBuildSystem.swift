@@ -30,7 +30,7 @@ public final class BuildServerBuildSystem {
   let requestQueue: DispatchQueue
 
   var handler: BuildServerHandler?
-  var buildServer: Connection?
+  var buildServer: JSONRPCConection?
   public private(set) var indexStorePath: AbsolutePath?
 
   /// Delegate to handle any build system events.
@@ -74,6 +74,7 @@ public final class BuildServerBuildSystem {
           log("error shutting down build server: \(error)")
         }
         buildServer.send(ExitBuildNotification())
+        buildServer.close()
       })
     }
   }
@@ -232,7 +233,7 @@ struct BuildServerConfig: Codable {
   let argv: [String]
 }
 
-private func makeJSONRPCBuildServer(client: MessageHandler, serverPath: AbsolutePath, serverFlags: [String]?) throws -> Connection {
+private func makeJSONRPCBuildServer(client: MessageHandler, serverPath: AbsolutePath, serverFlags: [String]?) throws -> JSONRPCConection {
   let clientToServer = Pipe()
   let serverToClient = Pipe()
 

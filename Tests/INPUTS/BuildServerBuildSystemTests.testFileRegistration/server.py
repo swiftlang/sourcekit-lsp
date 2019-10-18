@@ -7,8 +7,12 @@ import sys
 
 def send(data):
     dataStr = json.dumps(data)
-    sys.stdout.write("Content-Length: {}\r\n\r\n{}".format(len(dataStr), dataStr))
-    sys.stdout.flush()
+    try:
+        sys.stdout.write("Content-Length: {}\r\n\r\n{}".format(len(dataStr), dataStr))
+        sys.stdout.flush()
+    except IOError:
+        # stdout closed, time to quit
+        raise SystemExit(0)
 
 
 while True:
