@@ -242,7 +242,9 @@ public final class JSONRPCConection {
       if errorCode != 0 {
         log("IO error sending message \(errorCode)", level: .error)
         if done {
-          self?.close()
+          self?.queue.async {
+            self?._close()
+          }
         }
       }
     }
