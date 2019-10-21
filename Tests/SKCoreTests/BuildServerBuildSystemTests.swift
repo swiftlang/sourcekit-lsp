@@ -156,12 +156,11 @@ final class BuildServerBuildSystemTests: XCTestCase {
     XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
   }
 
-  func testBuildTargetsChanged() {
+  func testBuildTargetsChanged() throws {
     let root = AbsolutePath(
       inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
     let buildFolder = AbsolutePath(NSTemporaryDirectory())
-    let buildSystem = try? BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
-    XCTAssertNotNil(buildSystem)
+    let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "target changed")
@@ -171,8 +170,8 @@ final class BuildServerBuildSystemTests: XCTestCase {
         kind: .created,
         data: .dictionary(["key": "value"])): expectation,
     ])
-    buildSystem?.delegate = buildSystemDelegate
-    buildSystem?.registerForChangeNotifications(for: fileUrl)
+    buildSystem.delegate = buildSystemDelegate
+    buildSystem.registerForChangeNotifications(for: fileUrl)
 
     let result = XCTWaiter.wait(for: [expectation], timeout: 15)
     if result != .completed {
