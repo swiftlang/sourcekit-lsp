@@ -226,12 +226,12 @@ public struct BuildTargetEvent: Codable, Hashable {
   public var target: BuildTargetIdentifier
 
   /// The kind of change for this build target.
-  public var kind: BuildTargetEventKind
+  public var kind: BuildTargetEventKind?
 
   /// Any additional metadata about what information changed.
   public var data: LSPAny?
 
-  public init(target: BuildTargetIdentifier, kind: BuildTargetEventKind, data: LSPAny?) {
+  public init(target: BuildTargetIdentifier, kind: BuildTargetEventKind?, data: LSPAny?) {
     self.target = target
     self.kind = kind
     self.data = data
