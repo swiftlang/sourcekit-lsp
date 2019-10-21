@@ -8,6 +8,7 @@ extension BuildServerBuildSystemTests {
     static let __allTests__BuildServerBuildSystemTests = [
         ("testBuildTargetOutputs", testBuildTargetOutputs),
         ("testBuildTargets", testBuildTargets),
+        ("testBuildTargetsChanged", testBuildTargetsChanged),
         ("testBuildTargetSources", testBuildTargetSources),
         ("testFileRegistration", testFileRegistration),
         ("testServerInitialize", testServerInitialize),
