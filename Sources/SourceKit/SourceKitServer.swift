@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import LanguageServerProtocol
 import SKCore
 import SKSupport
@@ -238,6 +239,10 @@ public final class SourceKitServer: LanguageServer {
 // MARK: - Build System Delegate
 
 extension SourceKitServer: BuildSystemDelegate {
+  public func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
+    // TODO: do something with these changes once build target support is in place
+  }
+
   public func fileBuildSettingsChanged(_ changedFiles: Set<URL>) {
     guard let workspace = self.workspace else {
       return

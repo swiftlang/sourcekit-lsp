@@ -207,3 +207,44 @@ public struct OutputsItem: Codable, Hashable {
   /// The output paths for sources that belong to this build target.
   public var outputPaths: [URL]
 }
+
+/// The build target changed notification is sent from the server to the client
+/// to signal a change in a build target. The server communicates during the
+/// initialize handshake whether this method is supported or not.
+public struct BuildTargetsChangedNotification: NotificationType {
+  public static let method: String = "buildTarget/didChange"
+
+  public var changes: [BuildTargetEvent]
+
+  public init(changes: [BuildTargetEvent]) {
+    self.changes = changes
+  }
+}
+
+public struct BuildTargetEvent: Codable, Hashable {
+  /// The identifier for the changed build target.
+  public var target: BuildTargetIdentifier
+
+  /// The kind of change for this build target.
+  public var kind: BuildTargetEventKind?
+
+  /// Any additional metadata about what information changed.
+  public var data: LSPAny?
+
+  public init(target: BuildTargetIdentifier, kind: BuildTargetEventKind?, data: LSPAny?) {
+    self.target = target
+    self.kind = kind
+    self.data = data
+  }
+}
+
+public enum BuildTargetEventKind: Int, Codable, Hashable {
+  /// The build target is new.
+  case created = 1
+
+  /// The build target has changed.
+  case changed = 2
+
+  /// The build target has been deleted.
+  case deleted = 3
+}
