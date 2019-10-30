@@ -25,6 +25,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
     let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
+    XCTAssertEqual(buildSystem.indexDatabasePath, AbsolutePath("some/index/db/path", relativeTo: root))
     XCTAssertEqual(buildSystem.indexStorePath, AbsolutePath("some/index/store/path", relativeTo: root))
   }
 

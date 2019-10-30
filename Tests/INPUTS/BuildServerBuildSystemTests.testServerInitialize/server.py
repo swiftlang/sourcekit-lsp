@@ -26,6 +26,7 @@ while True:
                 "rootUri": "blah",
                 "capabilities": {"languageIds": ["a", "b"]},
                 "data": {
+                    "indexDatabasePath": "some/index/db/path",
                     "indexStorePath": "some/index/store/path"
                 }
             }
