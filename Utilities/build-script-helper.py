@@ -15,7 +15,7 @@ def swiftpm(action, swift_exec, swiftpm_args, env=None):
   subprocess.check_call(cmd, env=env)
 
 def swiftpm_bin_path(swift_exec, swiftpm_args, env=None):
-  swiftpm_args = filter(lambda arg: arg != '-v' and arg != '--verbose', swiftpm_args)
+  swiftpm_args = list(filter(lambda arg: arg != '-v' and arg != '--verbose', swiftpm_args))
   cmd = [swift_exec, 'build', '--show-bin-path'] + swiftpm_args
   print(' '.join(cmd))
   return subprocess.check_output(cmd, env=env).strip()
@@ -56,7 +56,7 @@ def install(swiftpm_bin_path, toolchain):
     install_binary(exe, swiftpm_bin_path, toolchain_bin, toolchain)
 
 def install_binary(exe, source_dir, install_dir, toolchain):
-  cmd = ['rsync', '-a', os.path.join(source_dir, exe), install_dir]
+  cmd = ['rsync', '-a', os.path.join(source_dir.decode('UTF-8'), exe), install_dir]
   print(' '.join(cmd))
   subprocess.check_call(cmd)
 
