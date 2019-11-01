@@ -267,9 +267,12 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
     public var symbolKind: SymbolKind? = nil
 
-    public init(dynamicRegistration: Bool? = nil, symbolKind: SymbolKind? = nil) {
+    public var hierarchicalDocumentSymbolSupport: Bool? = nil
+
+    public init(dynamicRegistration: Bool? = nil, symbolKind: SymbolKind? = nil, hierarchicalDocumentSymbolSupport: Bool? = nil) {
       self.dynamicRegistration = dynamicRegistration
       self.symbolKind = symbolKind
+      self.hierarchicalDocumentSymbolSupport = hierarchicalDocumentSymbolSupport
     }
   }
 
