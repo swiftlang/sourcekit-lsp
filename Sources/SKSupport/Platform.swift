@@ -17,6 +17,7 @@ extension Platform {
   /// The file extension used for a dynamic library on this platform.
   public var dynamicLibraryExtension: String {
     switch self {
+    case .android: return "so"
     case .darwin: return "dylib"
     case .linux: return "so"
     }
