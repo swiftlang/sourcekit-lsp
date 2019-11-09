@@ -27,21 +27,18 @@ public struct TestJSONRPCConnection {
   public let serverConnection: JSONRPCConnection
 
   public init() {
-    // FIXME: DispatchIO doesn't like when the Pipes close behind its back even after the tests
-    // finish. Until we fix the lifetime, leak.
-    _ = Unmanaged.passRetained(clientToServer)
-    _ = Unmanaged.passRetained(serverToClient)
-
     clientConnection = JSONRPCConnection(
       protocol: testMessageRegistry,
-      inFD: serverToClient.fileHandleForReading.fileDescriptor,
-      outFD: clientToServer.fileHandleForWriting.fileDescriptor
+      inputFileHandle: serverToClient.fileHandleForReading,
+      outputFileHandle: clientToServer.fileHandleForWriting,
+      takeFileDescriptorOwnership: true
     )
 
     serverConnection = JSONRPCConnection(
       protocol: testMessageRegistry,
-      inFD: clientToServer.fileHandleForReading.fileDescriptor,
-      outFD: serverToClient.fileHandleForWriting.fileDescriptor
+      inputFileHandle: clientToServer.fileHandleForReading,
+      outputFileHandle: serverToClient.fileHandleForWriting,
+      takeFileDescriptorOwnership: true
     )
 
     client = TestClient(server: clientConnection)

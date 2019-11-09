@@ -245,8 +245,9 @@ private func makeJSONRPCBuildServer(client: MessageHandler, serverPath: Absolute
 
   let connection = JSONRPCConnection(
     protocol: BuildServerProtocol.bspRegistry,
-    inFD: serverToClient.fileHandleForReading.fileDescriptor,
-    outFD: clientToServer.fileHandleForWriting.fileDescriptor
+    inputFileHandle: serverToClient.fileHandleForReading,
+    outputFileHandle: clientToServer.fileHandleForWriting,
+    takeFileDescriptorOwnership: true
   )
 
   connection.start(receiveHandler: client)

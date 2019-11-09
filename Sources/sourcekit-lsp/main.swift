@@ -100,8 +100,9 @@ do {
 
 let clientConnection = JSONRPCConnection(
   protocol: MessageRegistry.lspProtocol,
-  inFD: STDIN_FILENO,
-  outFD: STDOUT_FILENO,
+  inputFileHandle: FileHandle(fileDescriptor: STDIN_FILENO, closeOnDealloc: false),
+  outputFileHandle: FileHandle(fileDescriptor: STDOUT_FILENO, closeOnDealloc: false),
+  takeFileDescriptorOwnership: false, // in this case we want to preserve `STDIN_FILENO` and `STDOUT_FILENO`.
   syncRequests: options.syncRequests)
 
 let installPath = AbsolutePath(Bundle.main.bundlePath)

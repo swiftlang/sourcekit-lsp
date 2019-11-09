@@ -19,7 +19,11 @@ let package = Package(
       )
     ],
     dependencies: [
-      // See 'Dependencies' below.
+
+      .package(url: "https://github.com/apple/swift-nio.git", from: "2.10.0"),
+      .package(url: "https://github.com/apple/swift-nio-extras.git", from: "1.3.1"),
+
+      // See 'Toolchain Dependencies' below for additional dependencies.
     ],
     targets: [
       .target(
@@ -134,6 +138,9 @@ let package = Package(
         dependencies: [
           "LanguageServerProtocol",
           "LSPLogging",
+          "NIO",
+          "NIOFoundationCompat",
+          "NIOExtras",
         ]
       ),
       .testTarget(

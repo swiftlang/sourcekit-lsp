@@ -13,6 +13,7 @@
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import LSPTestSupport
+import NIO
 import XCTest
 
 // Workaround ambiguity with Foundation.
@@ -50,9 +51,29 @@ class ConnectionTests: XCTestCase {
   }
 
   func testMessageBuffer() {
+    // this handler allows us to inject raw bytes, bypassing the encoder
+    class InjectRawBytesHandler: ChannelOutboundHandler {
+      typealias OutboundIn = ByteBuffer
+      typealias OutboundOut = ByteBuffer
+
+      struct InjectBytes {
+        let bytes: ByteBuffer
+      }
+
+      func triggerUserOutboundEvent(context: ChannelHandlerContext, event: Any, promise: EventLoopPromise<Void>?) {
+        if let event = event as? InjectBytes {
+          context.writeAndFlush(self.wrapOutboundOut(event.bytes), promise: promise)
+        } else {
+          context.triggerUserOutboundEvent(event, promise: promise)
+        }
+      }
+    }
     let client = connection.client
     let clientConnection = connection.clientConnection
     let expectation = self.expectation(description: "note received")
+    XCTAssertNotNil(clientConnection._channel)
+    XCTAssertNoThrow(try clientConnection._channel?.pipeline.addHandler(InjectRawBytesHandler(),
+                                                                       position: .first).wait())
 
     client.handleNextNotification { (note: Notification<EchoNotification>) in
       XCTAssertEqual(note.params.string, "hello!")
@@ -65,11 +86,17 @@ class ConnectionTests: XCTestCase {
     let note1Str: String = "Content-Length: \(note1.count)\r\n\r\n\(String(data: note1, encoding: .utf8)!)"
     let note2Str: String = "Content-Length: \(note2.count)\r\n\r\n\(String(data: note2, encoding: .utf8)!)"
 
+    var buffer = ByteBufferAllocator().buffer(capacity: 128)
     for b in note1Str.utf8.dropLast() {
-      clientConnection.send(_rawData: [b].withUnsafeBytes { DispatchData(bytes: $0) })
+      buffer.clear()
+      buffer.writeInteger(b)
+      XCTAssertNoThrow(try clientConnection._channel?.triggerUserOutboundEvent(InjectRawBytesHandler.InjectBytes(bytes: buffer)).wait())
     }
 
-    clientConnection.send(_rawData: [note1Str.utf8.last!, note2Str.utf8.first!].withUnsafeBytes { DispatchData(bytes: $0) })
+    buffer.clear()
+    buffer.writeInteger(note1Str.utf8.last!)
+    buffer.writeInteger(note2Str.utf8.first!)
+    XCTAssertNoThrow(try clientConnection._channel?.triggerUserOutboundEvent(InjectRawBytesHandler.InjectBytes(bytes: buffer)).wait())
 
     waitForExpectations(timeout: 10)
 
@@ -81,14 +108,15 @@ class ConnectionTests: XCTestCase {
     }
 
     for b in note2Str.utf8.dropFirst() {
-      clientConnection.send(_rawData: [b].withUnsafeBytes { DispatchData(bytes: $0) })
+      buffer.clear()
+      buffer.writeInteger(b)
+      XCTAssertNoThrow(try clientConnection._channel?.triggerUserOutboundEvent(InjectRawBytesHandler.InjectBytes(bytes: buffer)).wait())
     }
 
     waitForExpectations(timeout: 10)
 
     // Close the connection before accessing _requestBuffer, which ensures we don't race.
     connection.serverConnection.close()
-    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
   func testEchoError() {
@@ -212,8 +240,10 @@ class ConnectionTests: XCTestCase {
 
       let conn = JSONRPCConnection(
         protocol: MessageRegistry(requests: [], notifications: []),
-        inFD: to.fileHandleForReading.fileDescriptor,
-        outFD: from.fileHandleForWriting.fileDescriptor)
+        inputFileHandle: to.fileHandleForReading,
+        outputFileHandle: from.fileHandleForWriting,
+        takeFileDescriptorOwnership: true
+      )
 
       final class DummyHandler: MessageHandler {
         func handle<N: NotificationType>(_: N, from: ObjectIdentifier) {}

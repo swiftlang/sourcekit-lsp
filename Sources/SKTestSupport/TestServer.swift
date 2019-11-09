@@ -63,20 +63,17 @@ public struct TestSourceKitServer {
         let clientToServer: Pipe = Pipe()
         let serverToClient: Pipe = Pipe()
 
-        // FIXME: DispatchIO doesn't like when the Pipes close behind its back even after the tests
-        // finish. Until we fix the lifetime, leak.
-        _ = Unmanaged.passRetained(clientToServer)
-        _ = Unmanaged.passRetained(serverToClient)
-
         let clientConnection = JSONRPCConnection(
           protocol: MessageRegistry.lspProtocol,
-          inFD: serverToClient.fileHandleForReading.fileDescriptor,
-          outFD: clientToServer.fileHandleForWriting.fileDescriptor
+          inputFileHandle: serverToClient.fileHandleForReading,
+          outputFileHandle: clientToServer.fileHandleForWriting,
+          takeFileDescriptorOwnership: true
         )
         let serverConnection = JSONRPCConnection(
           protocol: MessageRegistry.lspProtocol,
-          inFD: clientToServer.fileHandleForReading.fileDescriptor,
-          outFD: serverToClient.fileHandleForWriting.fileDescriptor
+          inputFileHandle: clientToServer.fileHandleForReading,
+          outputFileHandle: serverToClient.fileHandleForWriting,
+          takeFileDescriptorOwnership: true
         )
 
         client = TestClient(server: clientConnection)

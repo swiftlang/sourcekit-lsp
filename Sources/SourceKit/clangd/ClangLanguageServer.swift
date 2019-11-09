@@ -191,8 +191,9 @@ func makeJSONRPCClangServer(
 
   let connection = JSONRPCConnection(
     protocol: MessageRegistry.lspProtocol,
-    inFD: serverToClient.fileHandleForReading.fileDescriptor,
-    outFD: clientToServer.fileHandleForWriting.fileDescriptor
+    inputFileHandle: serverToClient.fileHandleForReading,
+    outputFileHandle: clientToServer.fileHandleForWriting,
+    takeFileDescriptorOwnership: true
   )
 
   let connectionToClient = LocalConnection()
