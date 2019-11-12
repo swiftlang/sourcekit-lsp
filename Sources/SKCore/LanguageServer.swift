@@ -12,6 +12,9 @@
 
 import SKSupport
 import Dispatch
+import LanguageServerProtocol
+
+public typealias Notification = LanguageServerProtocol.Notification
 
 /// An abstract language server.
 ///
