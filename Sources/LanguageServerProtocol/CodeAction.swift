@@ -10,9 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
-import SKSupport
-
 public typealias CodeActionProviderCompletion = (LSPResult<[CodeAction]>) -> Void
 public typealias CodeActionProvider = (CodeActionRequest, @escaping CodeActionProviderCompletion) -> Void
 
@@ -45,7 +42,7 @@ public struct CodeActionRequest: TextDocumentRequest, Hashable {
   public var textDocument: TextDocumentIdentifier
 
   public init(range: Range<Position>, context: CodeActionContext, textDocument: TextDocumentIdentifier) {
-    self.range = range
+    self._range = CustomCodable<PositionRange>(wrappedValue: range)
     self.context = context
     self.textDocument = textDocument
   }

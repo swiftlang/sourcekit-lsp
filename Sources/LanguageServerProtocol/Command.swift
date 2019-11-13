@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-
 /// Represents a reference to a command identified by a string. Used as the result of
 /// requests that returns actions to the user, later used as the parameter of
 /// workspace/executeCommand if the user wishes to execute said command.

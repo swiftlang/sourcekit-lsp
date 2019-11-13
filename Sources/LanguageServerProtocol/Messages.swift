@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import TSCBasic
-
 /// The set of known requests.
 ///
 /// All requests from LSP as well as any extensions provided by the server should be listed here.

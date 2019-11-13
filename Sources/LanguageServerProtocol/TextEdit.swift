@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-
 /// Edit to a text document, replacing the contents of `range` with `text`.
 public struct TextEdit: ResponseType, Hashable {
 
@@ -23,7 +21,7 @@ public struct TextEdit: ResponseType, Hashable {
   public var newText: String
 
   public init(range: Range<Position>, newText: String) {
-    self.range = range
+    self._range = CustomCodable<PositionRange>(wrappedValue: range)
     self.newText = newText
   }
 }
@@ -38,7 +36,7 @@ extension TextEdit: LSPAnyCodable {
     guard let range = Range<Position>(fromLSPDictionary: rangeDict) else {
       return nil
     }
-    self.range = range
+    self._range = CustomCodable<PositionRange>(wrappedValue: range)
     self.newText = newText
   }
 

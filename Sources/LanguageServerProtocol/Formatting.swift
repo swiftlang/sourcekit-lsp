@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-
 /// Request to format an entire document.
 ///
 /// Servers that provide formatting should set the`documentFormattingProvider` server capability.
