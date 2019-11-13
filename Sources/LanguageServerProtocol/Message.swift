@@ -22,13 +22,13 @@ public protocol _RequestType: MessageType {
   static var method: String { get }
 
   /// *Implementation detail*. Dispatch `self` to the given handler and reply on `connection`.
-  ///
-  /// `sync: true` should only be used for testing.
+  /// Only needs to be declared as a protocol requirement of `_RequestType` so we can call the implementation on `RequestType` from the underscored type.
   func _handle(
     _ handler: MessageHandler,
     id: RequestID,
-    connection: _IndirectConnection,
-    sync: Bool)
+    connection: Connection,
+    reply: @escaping (LSPResult<ResponseType>, RequestID) -> Void
+  )
 }
 
 /// A request, which must have a unique `method` name as well as an associated response type.
@@ -43,9 +43,6 @@ public protocol NotificationType: MessageType {
 
   /// The name of the request.
   static var method: String { get }
-
-  /// *Implementation detail*. Dispatch `self` to the given handler.
-  func _handle(_: MessageHandler, connection: Connection)
 }
 
 /// A response.
@@ -55,17 +52,12 @@ extension RequestType {
   public func _handle(
     _ handler: MessageHandler,
     id: RequestID,
-    connection: _IndirectConnection,
-    sync: Bool)
-  {
-    let semaphore: DispatchSemaphore? = sync ? .init(value: 0) : nil
-
+    connection: Connection,
+    reply: @escaping (LSPResult<ResponseType>, RequestID) -> Void
+  ) {
     handler.handle(self, id: id, from: ObjectIdentifier(connection)) { response in
-      connection.sendReply(response, id: id)
-      semaphore?.signal()
+      reply(response.map({ $0 as ResponseType }), id)
     }
-
-    semaphore?.wait()
   }
 }
 

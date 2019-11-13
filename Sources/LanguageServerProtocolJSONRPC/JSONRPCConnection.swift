@@ -218,7 +218,13 @@ public final class JSONRPCConection {
     case .notification(let notification):
       notification._handle(receiveHandler!, connection: self)
     case .request(let request, id: let id):
-      request._handle(receiveHandler!, id: id, connection: self, sync: syncRequests)
+      let semaphore: DispatchSemaphore? = syncRequests ? .init(value: 0) : nil
+      request._handle(receiveHandler!, id: id, connection: self) { (response, id) in
+        self.sendReply(response, id: id)
+        semaphore?.signal()
+      }
+      semaphore?.wait()
+
     case .response(let response, id: let id):
       guard let outstanding = outstandingRequests.removeValue(forKey: id) else {
         log("Unknown request for \(id)", level: .error)
@@ -308,7 +314,7 @@ public final class JSONRPCConection {
 
 }
 
-extension JSONRPCConection: _IndirectConnection {
+extension JSONRPCConection: Connection {
   // MARK: Connection interface
 
   public func send<Notification>(_ notification: Notification) where Notification: NotificationType {
@@ -347,7 +353,7 @@ extension JSONRPCConection: _IndirectConnection {
     return id
   }
 
-  public func sendReply<Response>(_ response: LSPResult<Response>, id: RequestID) where Response: ResponseType {
+  public func sendReply(_ response: LSPResult<ResponseType>, id: RequestID) {
     guard readyToSend() else { return }
 
     send { encoder in

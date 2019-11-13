@@ -38,12 +38,6 @@ extension Connection {
   }
 }
 
-/// Implementation detail of connections where the endpoints cannot directly reply via a function call.
-public protocol _IndirectConnection: Connection {
-  /// *Implementation detail*.
-  func sendReply<Response>(_: LSPResult<Response>, id: RequestID) where Response: ResponseType
-}
-
 /// An abstract message handler, such as a language server or client.
 public protocol MessageHandler: AnyObject {
 
