@@ -11,10 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import SKSupport
 import SKTestSupport
 import XCTest
-import SourceKit
 
 final class FoldingRangeTests: XCTestCase {
 

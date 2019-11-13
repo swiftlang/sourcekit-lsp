@@ -11,10 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import SKSupport
 import SKTestSupport
-import XCTest
 import SourceKit
+import XCTest
 
 final class CodeActionTests: XCTestCase {
 

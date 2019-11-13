@@ -10,9 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-import LanguageServerProtocol
 import Dispatch
+import LanguageServerProtocol
+import LSPSupport
+import SKSupport
 
 public struct DocumentSnapshot {
   public var document: Document

@@ -10,9 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKit
 import LanguageServerProtocol
-import SKTestSupport
 import XCTest
 
 final class SwiftPMIntegrationTests: XCTestCase {

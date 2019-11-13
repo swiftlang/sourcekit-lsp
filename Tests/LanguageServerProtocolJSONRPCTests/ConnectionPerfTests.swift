@@ -10,9 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import SKTestSupport
+import LSPTestSupport
 import XCTest
 
 class ConnectionPerfTests: PerfTestCase {

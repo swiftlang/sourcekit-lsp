@@ -17,6 +17,7 @@ import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SourceKit
 import class Foundation.Pipe
+import LSPTestSupport
 
 public struct TestSourceKitServer {
   public enum ConnectionKind {

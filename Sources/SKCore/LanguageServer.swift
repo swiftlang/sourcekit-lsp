@@ -10,9 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
 import Dispatch
 import LanguageServerProtocol
+import LSPSupport
+import SKSupport
 
 public typealias Notification = LanguageServerProtocol.Notification
 

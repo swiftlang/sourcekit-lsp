@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPTestSupport
 import SKCore
 import TSCBasic
-import SKTestSupport
 import XCTest
 
 final class CompilationDatabaseTests: XCTestCase {

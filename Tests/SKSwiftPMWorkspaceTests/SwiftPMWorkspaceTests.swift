@@ -10,13 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSwiftPMWorkspace
+import Build
 import SKCore
-import PackageModel
+import SKSwiftPMWorkspace
+import SKTestSupport
 import TSCBasic
 import TSCUtility
-import SKTestSupport
-import Build
 import XCTest
 
 final class SwiftPMWorkspaceTests: XCTestCase {

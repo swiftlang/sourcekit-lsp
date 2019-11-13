@@ -10,13 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+import IndexStoreDB
 import LanguageServerProtocol
+import LSPSupport
 import SKCore
 import SKSupport
-import IndexStoreDB
+import SKSwiftPMWorkspace
 import TSCBasic
 import TSCUtility
-import SKSwiftPMWorkspace
 
 /// Represents the configuration and state of a project or combination of projects being worked on
 /// together.

@@ -10,8 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import Foundation
+import LanguageServerProtocol
+import LSPSupport
 import SKSupport
 
 /// Represents metadata that SourceKit-LSP injects at every command returned by code actions.

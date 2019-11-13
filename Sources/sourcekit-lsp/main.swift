@@ -10,17 +10,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKit
-import LanguageServerProtocolJSONRPC
-import LanguageServerProtocol
-import SKSupport
-import SKCore
-import TSCLibc
 import Dispatch
-import TSCBasic
-import TSCUtility
 import Foundation
+import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
+import LSPSupport
+import SKCore
+import SKSupport
+import SourceKit
 import sourcekitd // Not needed here, but fixes debugging...
+import TSCBasic
+import TSCLibc
+import TSCUtility
 
 struct CommandLineOptions {
   /// Options for the server.

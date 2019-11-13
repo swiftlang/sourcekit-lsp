@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocolJSONRPC
 import LanguageServerProtocol
-import SKTestSupport
+import LanguageServerProtocolJSONRPC
+import LSPTestSupport
 import XCTest
 
 // Workaround ambiguity with Foundation.

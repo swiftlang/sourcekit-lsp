@@ -21,6 +21,7 @@ import TSCBasic
 import TSCUtility
 import XCTest
 import Foundation
+import LSPTestSupport
 
 public final class SKSwiftPMTestWorkspace {
 

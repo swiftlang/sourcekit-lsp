@@ -11,15 +11,16 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
-import LanguageServerProtocol
-import SKCore
-import SKSupport
-import IndexStoreDB
-import TSCBasic
-import TSCUtility
 import Dispatch
 import Foundation
+import IndexStoreDB
+import LanguageServerProtocol
+import LSPSupport
+import SKCore
+import SKSupport
+import TSCBasic
 import TSCLibc
+import TSCUtility
 
 public typealias URL = Foundation.URL
 

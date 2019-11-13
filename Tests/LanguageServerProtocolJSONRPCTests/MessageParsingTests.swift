@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocolJSONRPC
 import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
 import XCTest
 
 final class MessageParsingTests: XCTestCase {

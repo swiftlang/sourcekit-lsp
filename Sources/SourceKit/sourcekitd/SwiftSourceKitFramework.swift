@@ -10,11 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import Dispatch
-import TSCBasic
+import LanguageServerProtocol
+import LSPSupport
 import SKSupport
 import sourcekitd
+import TSCBasic
 
 /// A wrapper for accessing the API of a sourcekitd library loaded via `dlopen`.
 final class SwiftSourceKitFramework {

@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LanguageServerProtocol
+import LSPSupport
 import SKSupport
 import TSCBasic
 import TSCUtility

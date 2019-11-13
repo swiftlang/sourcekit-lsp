@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import SKSupport
 
 public struct JSONRPCMessageHeader: Hashable {
   static let contentLengthKey: [UInt8] = [UInt8]("Content-Length".utf8)

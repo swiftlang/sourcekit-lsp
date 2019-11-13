@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import SKSupport
+import LSPTestSupport
 import SKTestSupport
-import XCTest
 import SourceKit
+import XCTest
 
 final class ExecuteCommandTests: XCTestCase {
 

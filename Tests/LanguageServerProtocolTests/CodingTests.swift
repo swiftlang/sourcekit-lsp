@@ -12,8 +12,7 @@
 
 import XCTest
 import LanguageServerProtocol
-import SKSupport
-import SKTestSupport
+import LSPTestSupport
 
 final class CodingTests: XCTestCase {
 

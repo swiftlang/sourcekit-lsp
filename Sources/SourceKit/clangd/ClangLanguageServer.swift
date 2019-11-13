@@ -10,12 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-import SKCore
-import TSCBasic
+import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import Foundation
+import LSPSupport
+import SKCore
+import SKSupport
+import TSCBasic
 
 /// A thin wrapper over a connection to a clangd server providing build setting handling.
 final class ClangLanguageServerShim: ToolchainLanguageServer {

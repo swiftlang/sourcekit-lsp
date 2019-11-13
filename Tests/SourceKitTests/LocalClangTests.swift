@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LSPTestSupport
 import SKCore
 import SKTestSupport
 import XCTest
-import SourceKit
 
 final class LocalClangTests: XCTestCase {
 
