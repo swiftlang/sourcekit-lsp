@@ -12,7 +12,8 @@ let package = Package(
     targets: [
       .target(
         name: "sourcekit-lsp",
-        dependencies: ["SourceKit", "LanguageServerProtocolJSONRPC"]),
+        dependencies: ["SourceKit", "LanguageServerProtocolJSONRPC"]
+      ),
 
       .target(
         name: "SourceKit",
@@ -26,43 +27,53 @@ let package = Package(
           "IndexStoreDB",
           // FIXME: we should break the jsonrpc dependency here.
           "LanguageServerProtocolJSONRPC",
-      ]),
+        ]
+      ),
 
       .target(
         name: "SKTestSupport",
-        dependencies: ["SourceKit", "ISDBTestSupport", "tibs"]),
+        dependencies: ["SourceKit", "ISDBTestSupport", "tibs"]
+      ),
       .testTarget(
         name: "SourceKitTests",
-        dependencies: ["SourceKit", "SKTestSupport"]),
+        dependencies: ["SourceKit", "SKTestSupport"]
+      ),
 
       .target(
         name: "SKSwiftPMWorkspace",
-        dependencies: ["SwiftPM-auto", "SKCore"]),
+        dependencies: ["SwiftPM-auto", "SKCore"]
+      ),
       .testTarget(
         name: "SKSwiftPMWorkspaceTests",
-        dependencies: ["SKSwiftPMWorkspace", "SKTestSupport"]),
+        dependencies: ["SKSwiftPMWorkspace", "SKTestSupport"]
+      ),
 
       // Csourcekitd: C modules wrapper for sourcekitd.
       .target(
         name: "Csourcekitd",
-        dependencies: []),
+        dependencies: []
+      ),
 
       // SKCore: Data structures and algorithms useful across the project, but not necessarily
       // suitable for use in other packages.
       .target(
         name: "SKCore",
-        dependencies: ["BuildServerProtocol", "LanguageServerProtocol", "LanguageServerProtocolJSONRPC"]),
+        dependencies: ["BuildServerProtocol", "LanguageServerProtocol", "LanguageServerProtocolJSONRPC"]
+      ),
       .testTarget(
         name: "SKCoreTests",
-        dependencies: ["SKCore", "SKTestSupport"]),
+        dependencies: ["SKCore", "SKTestSupport"]
+      ),
 
       // jsonrpc: LSP connection using jsonrpc over pipes.
       .target(
         name: "LanguageServerProtocolJSONRPC",
-        dependencies: ["LanguageServerProtocol", "SKSupport", "TSCUtility"]),
+        dependencies: ["LanguageServerProtocol", "SKSupport", "TSCUtility"]
+      ),
       .testTarget(
         name: "LanguageServerProtocolJSONRPCTests",
-        dependencies: ["LanguageServerProtocolJSONRPC", "SKTestSupport"]),
+        dependencies: ["LanguageServerProtocolJSONRPC", "SKTestSupport"]
+      ),
 
       // LanguageServerProtocol: The core LSP types, suitable for any LSP implementation.
       .target(
@@ -70,21 +81,25 @@ let package = Package(
       ),
       .testTarget(
         name: "LanguageServerProtocolTests",
-        dependencies: ["LanguageServerProtocol", "SKTestSupport"]),
+        dependencies: ["LanguageServerProtocol", "SKTestSupport"]
+      ),
 
       // BuildServerProtocol: connection between build server and language server to provide build and index info
       .target(
         name: "BuildServerProtocol",
-        dependencies: ["LanguageServerProtocol"]),
+        dependencies: ["LanguageServerProtocol"]
+      ),
 
       // SKSupport: Data structures, algorithms and platform-abstraction code that might be generally
       // useful to any Swift package. Similar in spirit to SwiftPM's Basic module.
       .target(
         name: "SKSupport",
-        dependencies: ["TSCUtility"]),
+        dependencies: ["TSCUtility"]
+      ),
       .testTarget(
         name: "SKSupportTests",
-        dependencies: ["SKSupport", "SKTestSupport"]),
+        dependencies: ["SKSupport", "SKTestSupport"]
+      ),
     ]
 )
 
