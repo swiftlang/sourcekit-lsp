@@ -16,8 +16,6 @@ import SKSupport
 import Foundation
 import BuildServerProtocol
 
-typealias Notification = LanguageServerProtocol.Notification
-
 /// A `BuildSystem` based on communicating with a build server
 ///
 /// Provides build settings from a build server launched based on a

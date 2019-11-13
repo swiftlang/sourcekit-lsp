@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKCore
 import SKSupport
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
