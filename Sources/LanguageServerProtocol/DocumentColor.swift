@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-
 /// The document color request is sent from the client to the server to list
 /// all color references found in a given text document. Along with the range, 
 /// a color value in RGB is returned.
@@ -42,7 +40,7 @@ public struct ColorInformation: ResponseType, Hashable {
   public var color: Color
 
   public init(range: Range<Position>, color: Color) {
-    self.range = range
+    self._range = CustomCodable<PositionRange>(wrappedValue: range)
     self.color = color
   }
 }

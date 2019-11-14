@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-
 /// The serverity level of a Diagnostic, between hint and error.
 public enum DiagnosticSeverity: Int, Codable, Hashable {
   case error = 1
@@ -57,7 +55,7 @@ public struct Diagnostic: Codable, Hashable {
     message: String,
     relatedInformation: [DiagnosticRelatedInformation]? = nil)
   {
-    self.range = range
+    self._range = CustomCodable<PositionRange>(wrappedValue: range)
     self.severity = severity
     self.code = code
     self.source = source

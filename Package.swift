@@ -59,15 +59,15 @@ let package = Package(
       // jsonrpc: LSP connection using jsonrpc over pipes.
       .target(
         name: "LanguageServerProtocolJSONRPC",
-        dependencies: ["LanguageServerProtocol"]),
+        dependencies: ["LanguageServerProtocol", "SKSupport", "TSCUtility"]),
       .testTarget(
         name: "LanguageServerProtocolJSONRPCTests",
         dependencies: ["LanguageServerProtocolJSONRPC", "SKTestSupport"]),
 
       // LanguageServerProtocol: The core LSP types, suitable for any LSP implementation.
       .target(
-        name: "LanguageServerProtocol",
-        dependencies: ["SKSupport"]),
+        name: "LanguageServerProtocol"
+      ),
       .testTarget(
         name: "LanguageServerProtocolTests",
         dependencies: ["LanguageServerProtocol", "SKTestSupport"]),

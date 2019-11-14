@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
-
 /// Request sent from the client to trigger command execution on the server.
 ///
 /// The execution of this request can be the result of a request that returns a command,

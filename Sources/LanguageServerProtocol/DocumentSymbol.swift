@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-
 /// Request for symbols to display in the document outline.
 ///
 /// This is used to provide list of all symbols in the document and display inside which 
@@ -83,8 +81,8 @@ public struct DocumentSymbol: Hashable, Codable, ResponseType {
     self.detail = detail
     self.kind = kind
     self.deprecated = deprecated
-    self.range = range
-    self.selectionRange = selectionRange
+    self._range = CustomCodable<PositionRange>(wrappedValue: range)
+    self._selectionRange = CustomCodable<PositionRange>(wrappedValue: selectionRange)
     self.children = children
   }
 }

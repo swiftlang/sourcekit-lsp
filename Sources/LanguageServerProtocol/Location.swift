@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-
 /// Range within a particular document.
 ///
 /// For a location where the document is implied, use `Position` or `Range<Position>`.
@@ -24,7 +22,7 @@ public struct Location: ResponseType, Hashable {
 
   public init(url: URL, range: Range<Position>) {
     self.url = url
-    self.range = range
+    self._range = CustomCodable<PositionRange>(wrappedValue: range)
   }
 }
 

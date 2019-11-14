@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-
 /// Request to find document ranges that should be highlighted to match the given cursor position.
 ///
 /// This is typically used to highlight all references to the symbol under the cursor that are found
@@ -66,7 +64,7 @@ public struct DocumentHighlight: ResponseType, Hashable {
   public var kind: DocumentHighlightKind?
 
   public init(range: Range<Position>, kind: DocumentHighlightKind?) {
-    self.range = range
+    self._range = CustomCodable<PositionRange>(wrappedValue: range)
     self.kind = kind
   }
 }

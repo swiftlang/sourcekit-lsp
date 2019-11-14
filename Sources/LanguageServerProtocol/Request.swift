@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-
 /// A request object, wrapping the parameters of a `RequestType` and tracking its state.
 public final class Request<R: RequestType> {
 

@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-
 extension Range where Bound == Position {
 
   /// Create a range for a single position.

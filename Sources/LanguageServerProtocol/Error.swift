@@ -74,7 +74,7 @@ public struct MessageDecodingError: Error, Hashable {
   /// A free-form description of the error.
   public var message: String
 
-  /// If it was possible to recover the request id, it is stored here`. This can be used e.g. to reply with a `ResponseError` to invalid requests.
+  /// If it was possible to recover the request id, it is stored here. This can be used e.g. to reply with a `ResponseError` to invalid requests.
   public var id: RequestID?
 
   public enum MessageKind {
