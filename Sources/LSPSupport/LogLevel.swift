@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import TSCUtility
-
 #if canImport(os)
 import os
 #endif
@@ -47,7 +45,12 @@ extension LogLevel: CustomStringConvertible {
   }
 }
 
-extension LogLevel: ArgumentKind {
+extension LogLevel {
+  enum ConversionError: Error {
+    case unknown(value: String)
+    case custom(String)
+  }
+
 
   public init(argument: String) throws {
     switch argument {
@@ -63,7 +66,7 @@ extension LogLevel: ArgumentKind {
 
       // Also accept a numerical log level, for parity with SOURCEKIT_LOGGING environment variable.
       guard let value = Int(argument) else {
-        throw ArgumentConversionError.unknown(value: argument)
+        throw ConversionError.unknown(value: argument)
       }
 
       if let level = LogLevel(rawValue: value) {
@@ -71,15 +74,11 @@ extension LogLevel: ArgumentKind {
       } else if value > LogLevel.debug.rawValue  {
         self = .debug
       } else {
-        throw ArgumentConversionError.custom("numerical log level \(value) is out of range")
+        throw ConversionError.custom("numerical log level \(value) is out of range")
       }
     }
   }
 
-  /// Type of shell completion to provide for this argument.
-  public static var completion: ShellCompletion {
-    return ShellCompletion.none
-  }
 }
 
 #if canImport(os)

@@ -10,23 +10,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-import TSCLibc
-
 extension UInt8 {
   @inlinable
   public var isSpace: Bool {
-    return isspace(Int32(self)) != 0
+    return Character(UnicodeScalar(self)).isWhitespace
   }
 
   @inlinable
   public var isDigit: Bool {
-   return isdigit(Int32(self)) != 0
+   return Character(UnicodeScalar(self)).isNumber
   }
 
   @inlinable
   public var asciiDigit: Int {
     precondition(isDigit)
-    return Int(self - UInt8(ascii: "0"))
+    let character = Character(UnicodeScalar(self))
+    return Int(String(character))!
   }
 }
 

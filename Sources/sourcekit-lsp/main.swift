@@ -23,6 +23,12 @@ import TSCBasic
 import TSCLibc
 import TSCUtility
 
+extension LogLevel: ArgumentKind {
+  public static var completion: ShellCompletion {
+    return ShellCompletion.none
+  }
+}
+
 struct CommandLineOptions {
   /// Options for the server.
   var serverOptions: SourceKitServer.Options = SourceKitServer.Options()

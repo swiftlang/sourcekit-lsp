@@ -124,7 +124,6 @@ let package = Package(
       .target(
         name: "LSPSupport",
         dependencies: [
-          "TSCUtility",
         ]
       ),
 

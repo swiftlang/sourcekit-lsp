@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import LSPSupport
-import TSCBasic
 import XCTest
 
 final class SupportTests: XCTestCase {
@@ -113,7 +112,8 @@ final class SupportTests: XCTestCase {
 
     func check(expected: [(String, LogLevel)], file: StaticString = #file, line: UInt = #line) {
       testLogger.flush()
-      XCTAssert(messages == expected, "\(messages) does not match expected \(expected)", file: file, line: line)
+      XCTAssert(messages.count == expected.count, "\(messages) does not match expected \(expected)", file: file, line: line)
+      XCTAssert(zip(messages, expected).allSatisfy({ $0.0 == $0.1 }), "\(messages) does not match expected \(expected)", file: file, line: line)
       messages.removeAll()
     }
 
@@ -177,10 +177,8 @@ final class SupportTests: XCTestCase {
 
     testLogger.currentLevel = .default
 
-    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_1", value: "1")
-    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_0", value: "0")
     // .warning
-    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_1")
+    testLogger.setLogLevel("1")
 
     testLogger.log("d", level: .error)
     testLogger.log("e", level: .warning)
@@ -192,7 +190,7 @@ final class SupportTests: XCTestCase {
       ])
 
     // .error
-    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_0")
+    testLogger.setLogLevel("0")
 
     testLogger.log("d", level: .error)
     testLogger.log("e", level: .warning)
@@ -214,8 +212,7 @@ final class SupportTests: XCTestCase {
       ])
 
     // invalid - no change
-    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_err", value: "")
-    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_err")
+    testLogger.setLogLevel("")
 
     testLogger.log("d", level: .error)
     testLogger.log("e", level: .warning)
@@ -226,8 +223,7 @@ final class SupportTests: XCTestCase {
       ])
 
     // invalid - no change
-    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_err", value: "a3")
-    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_err")
+    testLogger.setLogLevel("a3")
 
     testLogger.log("d", level: .error)
     testLogger.log("e", level: .warning)
@@ -238,8 +234,7 @@ final class SupportTests: XCTestCase {
       ])
 
     // too high - max out at .debug
-    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_err", value: "1000")
-    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_err")
+    testLogger.setLogLevel("1000")
 
     testLogger.log("d", level: .error)
     testLogger.log("e", level: .warning)
@@ -253,17 +248,13 @@ final class SupportTests: XCTestCase {
       ])
 
     // By string.
-    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_string", value: "error")
-    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
+    testLogger.setLogLevel("error")
     XCTAssertEqual(testLogger.currentLevel, .error)
-    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_string", value: "warning")
-    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
+    testLogger.setLogLevel("warning")
     XCTAssertEqual(testLogger.currentLevel, .warning)
-    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_string", value: "info")
-    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
+    testLogger.setLogLevel("info")
     XCTAssertEqual(testLogger.currentLevel, .info)
-    try! ProcessEnv.setVar("TEST_ENV_LOGGGING_string", value: "debug")
-    testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_string")
+    testLogger.setLogLevel("debug")
     XCTAssertEqual(testLogger.currentLevel, .debug)
 
     testLogger.currentLevel = .default

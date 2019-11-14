@@ -15,7 +15,7 @@ import LanguageServerProtocol
 public struct JSONRPCMessageHeader: Hashable {
   static let contentLengthKey: [UInt8] = [UInt8]("Content-Length".utf8)
   static let separator: [UInt8] = [UInt8]("\r\n".utf8)
-  static let colon: UInt8 = ":".utf8.spm_only!
+  static let colon: UInt8 = ":".utf8.first!
   static let invalidKeyBytes: [UInt8] = [colon] + separator
 
   public var contentLength: Int? = nil
