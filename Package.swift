@@ -13,12 +13,7 @@ let package = Package(
       .target(
         name: "sourcekit-lsp",
         dependencies: [
-          "Csourcekitd",
-          "LanguageServerProtocol",
           "LanguageServerProtocolJSONRPC",
-          "LSPSupport",
-          "SKCore",
-          "SKSupport",
           "SourceKit",
           "TSCUtility",
         ]
@@ -32,7 +27,6 @@ let package = Package(
           "IndexStoreDB",
           "LanguageServerProtocol",
           "LanguageServerProtocolJSONRPC",
-          "LSPSupport",
           "SKCore",
           "SKSwiftPMWorkspace",
           "TSCUtility",
@@ -42,28 +36,17 @@ let package = Package(
       .target(
         name: "SKTestSupport",
         dependencies: [
-          "IndexStoreDB",
           "ISDBTestSupport",
-          "LanguageServerProtocol",
           "LSPTestSupport",
           "SourceKit",
-          "SKCore",
           "tibs", // Never imported, needed at runtime
-          "TSCUtility",
         ]
       ),
       .testTarget(
         name: "SourceKitTests",
         dependencies: [
-          "BuildServerProtocol",
-          "LanguageServerProtocol",
-          "LSPSupport",
-          "LSPTestSupport",
-          "SKCore",
-          "SKSupport",
           "SKTestSupport",
           "SourceKit",
-          "TSCUtility",
         ]
       ),
 
@@ -72,20 +55,15 @@ let package = Package(
         dependencies: [
           "BuildServerProtocol",
           "LanguageServerProtocol",
-          "LSPSupport",
           "SKCore",
-          "SKSupport",
           "SwiftPM-auto",
-          "TSCUtility",
         ]
       ),
       .testTarget(
         name: "SKSwiftPMWorkspaceTests",
         dependencies: [
-          "SKCore",
           "SKSwiftPMWorkspace",
           "SKTestSupport",
-          "SwiftPM-auto",
           "TSCUtility",
         ]
       ),
@@ -104,7 +82,6 @@ let package = Package(
           "BuildServerProtocol",
           "LanguageServerProtocol",
           "LanguageServerProtocolJSONRPC",
-          "LSPSupport",
           "SKSupport",
           "TSCUtility",
         ]
@@ -112,19 +89,14 @@ let package = Package(
       .testTarget(
         name: "SKCoreTests",
         dependencies: [
-          "BuildServerProtocol",
-          "LanguageServerProtocol",
-          "LSPTestSupport",
           "SKCore",
           "SKTestSupport",
-          "TSCUtility",
         ]
       ),
 
       .target(
         name: "LSPSupport",
-        dependencies: [
-        ]
+        dependencies: []
       ),
 
       .testTarget(
@@ -153,7 +125,6 @@ let package = Package(
       .testTarget(
         name: "LanguageServerProtocolJSONRPCTests",
         dependencies: [
-          "LanguageServerProtocol",
           "LanguageServerProtocolJSONRPC",
           "LSPTestSupport"
         ]
@@ -196,7 +167,6 @@ let package = Package(
           "LSPTestSupport",
           "SKSupport",
           "SKTestSupport",
-          "TSCUtility",
         ]
       ),
     ]
