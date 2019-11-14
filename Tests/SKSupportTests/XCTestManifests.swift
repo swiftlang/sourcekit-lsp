@@ -18,14 +18,9 @@ extension SupportTests {
     static let __allTests__SupportTests = [
         ("testByteStringWithUnsafeData", testByteStringWithUnsafeData),
         ("testExpandingTilde", testExpandingTilde),
-        ("testFindSubsequence", testFindSubsequence),
-        ("testIntFromAscii", testIntFromAscii),
         ("testLineTable", testLineTable),
         ("testLineTableEditing", testLineTableEditing),
         ("testLineTableLinePositionTranslation", testLineTableLinePositionTranslation),
-        ("testLogging", testLogging),
-        ("testResultEquality", testResultEquality),
-        ("testResultProjection", testResultProjection),
     ]
 }
 
