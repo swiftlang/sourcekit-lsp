@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LSPSupport
+import LSPHelpers
 import XCTest
 
 final class SupportTests: XCTestCase {

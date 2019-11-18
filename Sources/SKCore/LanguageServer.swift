@@ -12,7 +12,7 @@
 
 import Dispatch
 import LanguageServerProtocol
-import LSPSupport
+import LSPHelpers
 import SKSupport
 
 public typealias Notification = LanguageServerProtocol.Notification

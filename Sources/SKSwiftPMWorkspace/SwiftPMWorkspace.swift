@@ -13,7 +13,7 @@
 import Build
 import BuildServerProtocol
 import LanguageServerProtocol
-import LSPSupport
+import LSPHelpers
 import PackageGraph
 import PackageLoading
 import PackageModel

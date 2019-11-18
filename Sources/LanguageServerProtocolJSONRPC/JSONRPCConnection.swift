@@ -13,7 +13,7 @@
 import Dispatch
 import Foundation
 import LanguageServerProtocol
-import LSPSupport
+import LSPHelpers
 
 /// A connection between a message handler (e.g. language server) in the same process as the connection object and a remote message handler (e.g. language client) that may run in another process using JSON RPC messages sent over a pair of in/out file descriptors.
 ///

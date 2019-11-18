@@ -15,7 +15,7 @@ import Dispatch
 import Foundation
 import IndexStoreDB
 import LanguageServerProtocol
-import LSPSupport
+import LSPHelpers
 import SKCore
 import SKSupport
 import TSCBasic

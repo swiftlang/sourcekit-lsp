@@ -95,14 +95,14 @@ let package = Package(
       ),
 
       .target(
-        name: "LSPSupport",
+        name: "LSPHelpers",
         dependencies: []
       ),
 
       .testTarget(
         name: "LSPSupportTests",
         dependencies: [
-          "LSPSupport",
+          "LSPHelpers",
         ]
       ),
 
@@ -119,7 +119,7 @@ let package = Package(
         name: "LanguageServerProtocolJSONRPC",
         dependencies: [
           "LanguageServerProtocol",
-          "LSPSupport",
+          "LSPHelpers",
         ]
       ),
       .testTarget(
@@ -134,7 +134,7 @@ let package = Package(
       .target(
         name: "LanguageServerProtocol",
         dependencies: [
-          "LSPSupport",
+          "LSPHelpers",
         ]
       ),
       .testTarget(

@@ -12,7 +12,7 @@
 
 import BuildServerProtocol
 import LanguageServerProtocol
-import LSPSupport
+import LSPHelpers
 import SKSupport
 import TSCBasic
 

@@ -13,7 +13,7 @@
 import Dispatch
 import struct Foundation.CharacterSet
 import LanguageServerProtocol
-import LSPSupport
+import LSPHelpers
 import SKCore
 import SKSupport
 import sourcekitd

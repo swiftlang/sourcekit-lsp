@@ -13,7 +13,7 @@
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import LSPSupport
+import LSPHelpers
 import SKCore
 import SKSupport
 import TSCBasic

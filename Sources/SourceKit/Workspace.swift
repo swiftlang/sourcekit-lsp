@@ -12,7 +12,7 @@
 
 import IndexStoreDB
 import LanguageServerProtocol
-import LSPSupport
+import LSPHelpers
 import SKCore
 import SKSupport
 import SKSwiftPMWorkspace
