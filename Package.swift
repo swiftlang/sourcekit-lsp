@@ -94,15 +94,16 @@ let package = Package(
         ]
       ),
 
+      // Logging support used in LSP modules.
       .target(
-        name: "LSPSupport",
+        name: "LSPLogging",
         dependencies: []
       ),
 
       .testTarget(
-        name: "LSPSupportTests",
+        name: "LSPLoggingTests",
         dependencies: [
-          "LSPSupport",
+          "LSPLogging",
         ]
       ),
 
@@ -119,7 +120,7 @@ let package = Package(
         name: "LanguageServerProtocolJSONRPC",
         dependencies: [
           "LanguageServerProtocol",
-          "LSPSupport",
+          "LSPLogging",
         ]
       ),
       .testTarget(
@@ -133,9 +134,7 @@ let package = Package(
       // LanguageServerProtocol: The core LSP types, suitable for any LSP implementation.
       .target(
         name: "LanguageServerProtocol",
-        dependencies: [
-          "LSPSupport",
-        ]
+        dependencies: []
       ),
       .testTarget(
         name: "LanguageServerProtocolTests",

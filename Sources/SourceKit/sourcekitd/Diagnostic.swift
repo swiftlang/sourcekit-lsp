@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import LSPSupport
+import LSPLogging
 import SKSupport
 import sourcekitd
 

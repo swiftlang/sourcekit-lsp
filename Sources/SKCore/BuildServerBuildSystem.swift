@@ -14,7 +14,7 @@ import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import LSPSupport
+import LSPLogging
 import SKSupport
 import TSCBasic
 

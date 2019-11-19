@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import LSPSupport
+import LSPLogging
 import LSPTestSupport
 import SKTestSupport
 import SourceKit
