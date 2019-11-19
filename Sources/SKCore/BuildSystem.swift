@@ -13,9 +13,6 @@
 import BuildServerProtocol
 import LanguageServerProtocol
 import TSCBasic
-import struct Foundation.URL
-
-public typealias URL = Foundation.URL
 
 /// Provider of FileBuildSettings and other build-related information.
 ///

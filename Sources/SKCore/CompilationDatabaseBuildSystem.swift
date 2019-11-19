@@ -15,6 +15,7 @@ import LanguageServerProtocol
 import LSPLogging
 import SKSupport
 import TSCBasic
+import struct Foundation.URL
 
 /// A `BuildSystem` based on loading clang-compatible compilation database(s).
 ///
