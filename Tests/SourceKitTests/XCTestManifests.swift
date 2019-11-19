@@ -106,6 +106,7 @@ extension LocalSwiftTests {
         ("testDiagnosticsReopen", testDiagnosticsReopen),
         ("testDocumentSymbolHighlight", testDocumentSymbolHighlight),
         ("testEditing", testEditing),
+        ("testEditingNonURL", testEditingNonURL),
         ("testEditorPlaceholderParsing", testEditorPlaceholderParsing),
         ("testHover", testHover),
         ("testHoverNameEscaping", testHoverNameEscaping),
