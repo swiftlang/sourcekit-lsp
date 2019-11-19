@@ -40,19 +40,11 @@ public final class FallbackBuildSystem: BuildSystem {
   public var indexDatabasePath: AbsolutePath? { return nil }
 
   public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
-    guard case .url(let url) = uri else {
-      // We can't determine build settings for non-files URIs.
-      return nil
-    }
-    guard let path = try? AbsolutePath(validating: url.path) else {
-      return nil
-    }
-
     switch language {
     case .swift:
-      return settingsSwift(path)
+      return settingsSwift(uri.pseudoPath)
     case .c, .cpp, .objective_c, .objective_cpp:
-      return settingsClang(path, language)
+      return settingsClang(uri.pseudoPath, language)
     default:
       return nil
     }
@@ -78,7 +70,7 @@ public final class FallbackBuildSystem: BuildSystem {
     reply(.failure(buildTargetsNotSupported))
   }
 
-  func settingsSwift(_ path: AbsolutePath) -> FileBuildSettings {
+  func settingsSwift(_ file: String) -> FileBuildSettings {
     var args: [String] = []
     if let sdkpath = sdkpath {
       args += [
@@ -86,11 +78,11 @@ public final class FallbackBuildSystem: BuildSystem {
         sdkpath.pathString,
       ]
     }
-    args.append(path.pathString)
+    args.append(file)
     return FileBuildSettings(compilerArguments: args)
   }
 
-  func settingsClang(_ path: AbsolutePath, _ language: Language) -> FileBuildSettings {
+  func settingsClang(_ file: String, _ language: Language) -> FileBuildSettings {
     var args: [String] = []
     if let sdkpath = sdkpath {
       args += [
@@ -98,7 +90,7 @@ public final class FallbackBuildSystem: BuildSystem {
         sdkpath.pathString,
       ]
     }
-    args.append(path.pathString)
+    args.append(file)
     return FileBuildSettings(compilerArguments: args)
   }
 }
