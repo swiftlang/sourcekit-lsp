@@ -47,7 +47,7 @@ while True:
             "result": {
                 "targets": [
                     {
-                        "id": {"uri": "first_target"},
+                        "id": {"uri": "target:first_target"},
                         "displayName": "First Target",
                         "baseDirectory": "file:///some/dir",
                         "tags": ["library", "test"],
@@ -60,7 +60,7 @@ while True:
                         "dependencies": []
                     },
                     {
-                        "id": {"uri": "second_target"},
+                        "id": {"uri": "target:second_target"},
                         "displayName": "Second Target",
                         "baseDirectory": "file:///some/dir",
                         "tags": ["library", "test"],
@@ -70,7 +70,7 @@ while True:
                             "canRun": False
                         },
                         "languageIds": ["objective-c", "swift"],
-                        "dependencies": [{"uri": "first_target"}]
+                        "dependencies": [{"uri": "target:first_target"}]
                     }
                 ]
             }

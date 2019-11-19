@@ -17,10 +17,10 @@ public struct SourceKitOptions: RequestType, Hashable {
   public static let method: String = "textDocument/sourceKitOptions"
   public typealias Response = SourceKitOptionsResult
 
-  /// The URL of the document to get options for
-  public var uri: URL
+  /// The URI of the document to get options for
+  public var uri: URI
 
-  public init(uri: URL) {
+  public init(uri: URI) {
     self.uri = uri
   }
 }

@@ -76,20 +76,20 @@ final class BuildServerBuildSystemTests: XCTestCase {
       switch(response) {
       case .success(let targets):
         XCTAssertEqual(targets, [
-                       BuildTarget(id: BuildTargetIdentifier(uri: URL(string: "first_target")!),
+                       BuildTarget(id: BuildTargetIdentifier(uri: DocumentURI(string: "target:first_target")),
                                    displayName: "First Target",
-                                   baseDirectory: URL(fileURLWithPath: "/some/dir"),
+                                   baseDirectory: DocumentURI(URL(fileURLWithPath: "/some/dir")),
                                    tags: [BuildTargetTag.library, BuildTargetTag.test],
                                    capabilities: BuildTargetCapabilities(canCompile: true, canTest: true, canRun: false),
                                    languageIds: [Language.objective_c, Language.swift],
                                    dependencies: []),
-                       BuildTarget(id: BuildTargetIdentifier(uri: URL(string: "second_target")!),
+                       BuildTarget(id: BuildTargetIdentifier(uri: DocumentURI(string: "target:second_target")),
                                    displayName: "Second Target",
-                                   baseDirectory: URL(fileURLWithPath: "/some/dir"),
+                                   baseDirectory: DocumentURI(URL(fileURLWithPath: "/some/dir")),
                                    tags: [BuildTargetTag.library, BuildTargetTag.test],
                                    capabilities: BuildTargetCapabilities(canCompile: true, canTest: false, canRun: false),
                                    languageIds: [Language.objective_c, Language.swift],
-                                   dependencies: [BuildTargetIdentifier(uri: URL(string: "first_target")!)]),
+                                   dependencies: [BuildTargetIdentifier(uri: DocumentURI(string: "target:first_target"))]),
                        ])
         expectation.fulfill()
       case .failure(let error):
@@ -107,8 +107,8 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
     let expectation = XCTestExpectation(description: "build target sources expectation")
     let targets = [
-      BuildTargetIdentifier(uri: URL(string: "build://target/a")!),
-      BuildTargetIdentifier(uri: URL(string: "build://target/b")!),
+      BuildTargetIdentifier(uri: DocumentURI(string: "build://target/a")),
+      BuildTargetIdentifier(uri: DocumentURI(string: "build://target/b")),
     ]
     buildSystem.buildTargetSources(targets: targets, reply: { response in
       switch(response) {
@@ -116,13 +116,13 @@ final class BuildServerBuildSystemTests: XCTestCase {
         XCTAssertNotNil(items)
         XCTAssertEqual(items[0].target.uri, targets[0].uri)
         XCTAssertEqual(items[1].target.uri, targets[1].uri)
-        XCTAssertEqual(items[0].sources[0].uri, URL(fileURLWithPath: "/path/to/a/file"))
+        XCTAssertEqual(items[0].sources[0].uri, DocumentURI(URL(fileURLWithPath: "/path/to/a/file")))
         XCTAssertEqual(items[0].sources[0].kind, SourceItemKind.file)
-        XCTAssertEqual(items[0].sources[1].uri, URL(fileURLWithPath: "/path/to/a/folder/"))
+        XCTAssertEqual(items[0].sources[1].uri, DocumentURI(URL(fileURLWithPath: "/path/to/a/folder/")))
         XCTAssertEqual(items[0].sources[1].kind, SourceItemKind.directory)
-        XCTAssertEqual(items[1].sources[0].uri, URL(fileURLWithPath: "/path/to/b/file"))
+        XCTAssertEqual(items[1].sources[0].uri, DocumentURI(URL(fileURLWithPath: "/path/to/b/file")))
         XCTAssertEqual(items[1].sources[0].kind, SourceItemKind.file)
-        XCTAssertEqual(items[1].sources[1].uri, URL(fileURLWithPath: "/path/to/b/folder/"))
+        XCTAssertEqual(items[1].sources[1].uri, DocumentURI(URL(fileURLWithPath: "/path/to/b/folder/")))
         XCTAssertEqual(items[1].sources[1].kind, SourceItemKind.directory)
         expectation.fulfill()
       case .failure(let error):
@@ -140,7 +140,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
     let expectation = XCTestExpectation(description: "build target output expectation")
     let targets = [
-      BuildTargetIdentifier(uri: URL(string: "build://target/a")!),
+      BuildTargetIdentifier(uri: DocumentURI(string: "build://target/a")),
     ]
     buildSystem.buildTargetOutputPaths(targets: targets, reply: { response in
       switch(response) {
@@ -148,8 +148,8 @@ final class BuildServerBuildSystemTests: XCTestCase {
         XCTAssertNotNil(items)
         XCTAssertEqual(items[0].target.uri, targets[0].uri)
         XCTAssertEqual(items[0].outputPaths, [
-          URL(fileURLWithPath: "/path/to/a/file"),
-          URL(fileURLWithPath: "/path/to/a/file2"),
+          DocumentURI(URL(fileURLWithPath: "/path/to/a/file")),
+          DocumentURI(URL(fileURLWithPath: "/path/to/a/file2")),
         ])
         expectation.fulfill()
       case .failure(let error):
@@ -167,7 +167,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "target changed")
-    let targetIdentifier = BuildTargetIdentifier(uri: URL(string: "build://target/a")!)
+    let targetIdentifier = BuildTargetIdentifier(uri: DocumentURI(string: "build://target/a"))
     let buildSystemDelegate = TestDelegate(targetExpectations: [
       BuildTargetEvent(target: targetIdentifier,
         kind: .created,

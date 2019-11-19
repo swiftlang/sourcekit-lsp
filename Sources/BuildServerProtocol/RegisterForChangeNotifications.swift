@@ -21,12 +21,12 @@ public struct RegisterForChanges: RequestType {
   public typealias Response = VoidResponse
 
   /// The URI of the document to get options for.
-  public var uri: DocumentURI
+  public var uri: URI
 
   /// Whether to register or unregister for the file.
   public var action: RegisterAction
 
-  public init(uri: DocumentURI, action: RegisterAction) {
+  public init(uri: URI, action: RegisterAction) {
     self.uri = uri
     self.action = action
   }
@@ -44,7 +44,7 @@ public struct FileOptionsChangedNotification: NotificationType {
   public static let method: String = "build/sourceKitOptionsChanged"
 
   /// The URI of the document that has changed settings.
-  public var uri: DocumentURI
+  public var uri: URI
 
   /// The updated options for the registered file.
   public var updatedOptions: SourceKitOptionsResult

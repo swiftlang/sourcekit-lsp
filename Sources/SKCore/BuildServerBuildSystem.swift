@@ -96,7 +96,7 @@ public final class BuildServerBuildSystem {
       displayName: "SourceKit-LSP",
       version: "1.0",
       bspVersion: "2.0",
-      rootUri: self.projectRoot.asURL,
+      rootUri: URI(self.projectRoot.asURL),
       capabilities: BuildClientCapabilities(languageIds: languages))
 
     let handler = BuildServerHandler()
@@ -170,11 +170,7 @@ extension BuildServerBuildSystem: BuildSystem {
   }
 
   public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
-    guard let url = uri.fileURL else {
-      // We can't determine build settings for non-file URIs.
-      return nil
-    }
-    if let response = try? self.buildServer?.sendSync(SourceKitOptions(uri: url)) {
+    if let response = try? self.buildServer?.sendSync(SourceKitOptions(uri: uri)) {
       return FileBuildSettings(compilerArguments: response.options, workingDirectory: response.workingDirectory)
     }
     return nil
