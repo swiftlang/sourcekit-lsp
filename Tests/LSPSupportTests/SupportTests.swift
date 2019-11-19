@@ -80,28 +80,6 @@ final class SupportTests: XCTestCase {
     XCTAssertEqual(Int(ascii: "\(Int.min+1)"), Int.min+1)
   }
 
-  func testFindSubsequence() {
-    XCTAssertNil([0, 1, 2].firstIndex(of: [3]))
-    XCTAssertNil([].firstIndex(of: [3]))
-    XCTAssertNil([0, 1, 2].firstIndex(of: [1, 3]))
-    XCTAssertNil([0, 1, 2].firstIndex(of: [0, 2]))
-    XCTAssertNil([0, 1, 2].firstIndex(of: [2, 3]))
-    XCTAssertNil([0, 1].firstIndex(of: [1, 0]))
-    XCTAssertNil([0].firstIndex(of: [0, 1]))
-
-    XCTAssertEqual([Int]().firstIndex(of: []), 0)
-    XCTAssertEqual([0].firstIndex(of: []), 0)
-    XCTAssertEqual([0].firstIndex(of: [0]), 0)
-    XCTAssertEqual([0, 1].firstIndex(of: [0]), 0)
-    XCTAssertEqual([0, 1].firstIndex(of: [1]), 1)
-
-    XCTAssertEqual([0, 1].firstIndex(of: [0, 1]), 0)
-    XCTAssertEqual([0, 1, 2, 3].firstIndex(of: [0, 1]), 0)
-    XCTAssertEqual([0, 1, 2, 3].firstIndex(of: [0, 1, 2]), 0)
-    XCTAssertEqual([0, 1, 2, 3].firstIndex(of: [1, 2]), 1)
-    XCTAssertEqual([0, 1, 2, 3].firstIndex(of: [3]), 3)
-  }
-
   func testLogging() {
     let testLogger = Logger(disableOSLog: true, disableNSLog: true)
 

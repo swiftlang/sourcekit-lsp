@@ -81,3 +81,28 @@ extension RandomAccessCollection where Element == UInt8 {
     return ((key: self[..<keyEnd], value: self[valueStart..<valueEnd]), self[index(valueEnd, offsetBy: 2)...])
   }
 }
+
+extension RandomAccessCollection where Element: Equatable {
+
+  /// Returns the first index where the specified subsequence appears or nil.
+  @inlinable
+  public func firstIndex<Pattern>(of pattern: Pattern) -> Index? where Pattern: RandomAccessCollection, Pattern.Element == Element {
+
+    if pattern.isEmpty {
+      return startIndex
+    }
+    if count < pattern.count {
+      return nil
+    }
+
+    // FIXME: use a better algorithm (e.g. Boyer-Moore-Horspool).
+    var i = startIndex
+    for _ in 0 ..< (count - pattern.count + 1) {
+      if self[i...].starts(with: pattern) {
+        return i
+      }
+      i = self.index(after: i)
+    }
+    return nil
+  }
+}
