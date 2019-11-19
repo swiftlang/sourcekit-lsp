@@ -13,19 +13,23 @@
 extension UInt8 {
   @inlinable
   public var isSpace: Bool {
-    return Character(UnicodeScalar(self)).isWhitespace
+    switch self {
+    case UInt8(ascii: " "), UInt8(ascii: "\t"), /*LF*/0xa, /*VT*/0xb, /*FF*/0xc, /*CR*/0xd:
+      return true
+    default:
+      return false
+    }
   }
 
   @inlinable
   public var isDigit: Bool {
-   return Character(UnicodeScalar(self)).isNumber
+    return UInt8(ascii: "0") <= self && self <= UInt8(ascii: "9")
   }
 
   @inlinable
   public var asciiDigit: Int {
     precondition(isDigit)
-    let character = Character(UnicodeScalar(self))
-    return Int(String(character))!
+    return Int(self - UInt8(ascii: "0"))
   }
 }
 
