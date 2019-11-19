@@ -46,6 +46,7 @@ extension MessageParsingTests {
     // to regenerate.
     static let __allTests__MessageParsingTests = [
         ("testFindSubsequence", testFindSubsequence),
+        ("testIntFromAscii", testIntFromAscii),
         ("testParseHeader", testParseHeader),
         ("testParseHeaderField", testParseHeaderField),
         ("testSplitMessage", testSplitMessage),

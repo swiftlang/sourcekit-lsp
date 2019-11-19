@@ -167,4 +167,47 @@ final class MessageParsingTests: XCTestCase {
     XCTAssertEqual([0, 1, 2, 3].firstIndex(of: [1, 2]), 1)
     XCTAssertEqual([0, 1, 2, 3].firstIndex(of: [3]), 3)
   }
+
+  func testIntFromAscii() {
+    XCTAssertNil(Int(ascii: ""))
+    XCTAssertNil(Int(ascii: "a"))
+    XCTAssertNil(Int(ascii: "0x1"))
+    XCTAssertNil(Int(ascii: " "))
+    XCTAssertNil(Int(ascii: "+"))
+    XCTAssertNil(Int(ascii: "-"))
+    XCTAssertNil(Int(ascii: "+ "))
+    XCTAssertNil(Int(ascii: "- "))
+    XCTAssertNil(Int(ascii: "1 1"))
+    XCTAssertNil(Int(ascii: "1a1"))
+    XCTAssertNil(Int(ascii: "1a"))
+    XCTAssertNil(Int(ascii: "1+"))
+    XCTAssertNil(Int(ascii: "+ 1"))
+    XCTAssertNil(Int(ascii: "- 1"))
+    XCTAssertNil(Int(ascii: "1-1"))
+
+    XCTAssertEqual(Int(ascii: "0"), 0)
+    XCTAssertEqual(Int(ascii: "1"), 1)
+    XCTAssertEqual(Int(ascii: "45"), 45)
+    XCTAssertEqual(Int(ascii: "     45    "), 45)
+    XCTAssertEqual(Int(ascii: "\(Int.max)"), Int.max)
+    XCTAssertEqual(Int(ascii: "\(Int.max-1)"), Int.max-1)
+    XCTAssertEqual(Int(ascii: "\(Int.min)"), Int.min)
+    XCTAssertEqual(Int(ascii: "\(Int.min+1)"), Int.min+1)
+
+    XCTAssertEqual(Int(ascii: "+0"), 0)
+    XCTAssertEqual(Int(ascii: "+1"), 1)
+    XCTAssertEqual(Int(ascii: "+45"), 45)
+    XCTAssertEqual(Int(ascii: "     +45    "), 45)
+    XCTAssertEqual(Int(ascii: "-0"), 0)
+    XCTAssertEqual(Int(ascii: "-1"), -1)
+    XCTAssertEqual(Int(ascii: "-45"), -45)
+    XCTAssertEqual(Int(ascii: "     -45    "), -45)
+    XCTAssertEqual(Int(ascii: "+\(Int.max)"), Int.max)
+    XCTAssertEqual(Int(ascii: "+\(Int.max-1)"), Int.max-1)
+    XCTAssertEqual(Int(ascii: "\(Int.min)"), Int.min)
+    XCTAssertEqual(Int(ascii: "\(Int.min+1)"), Int.min+1)
+
+    XCTAssertEqual(Int(ascii: "1234567890"), 1234567890)
+    XCTAssertEqual(Int(ascii: "\n\r \u{b}\u{d}\t45\n\t\r\u{c}"), 45)
+  }
 }

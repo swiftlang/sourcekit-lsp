@@ -6,7 +6,6 @@ extension SupportTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__SupportTests = [
-        ("testIntFromAscii", testIntFromAscii),
         ("testLogging", testLogging),
     ]
 }
