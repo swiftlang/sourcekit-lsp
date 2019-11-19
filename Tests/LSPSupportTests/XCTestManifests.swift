@@ -8,8 +8,6 @@ extension SupportTests {
     static let __allTests__SupportTests = [
         ("testIntFromAscii", testIntFromAscii),
         ("testLogging", testLogging),
-        ("testResultEquality", testResultEquality),
-        ("testResultProjection", testResultProjection),
     ]
 }
 

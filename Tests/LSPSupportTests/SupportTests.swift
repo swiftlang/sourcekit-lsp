@@ -15,31 +15,6 @@ import XCTest
 
 final class SupportTests: XCTestCase {
 
-  func testResultEquality() {
-    enum MyError: Error, Equatable {
-      case err1, err2
-    }
-    typealias MyResult<T> = Swift.Result<T, MyError>
-
-    XCTAssertEqual(MyResult.success(1), .success(1))
-    XCTAssertNotEqual(MyResult.success(2), .success(1))
-    XCTAssertNotEqual(MyResult.failure(.err1), .success(1))
-    XCTAssertEqual(MyResult.failure(.err1), MyResult<Int>.failure(.err1))
-    XCTAssertNotEqual(MyResult.failure(.err1), MyResult<Int>.failure(.err2))
-  }
-
-  func testResultProjection() {
-    enum MyError: Error, Equatable {
-      case err1, err2
-    }
-    typealias MyResult<T> = Swift.Result<T, MyError>
-
-    XCTAssertEqual(MyResult.success(1).success, 1)
-    XCTAssertNil(MyResult.failure(.err1).success)
-    XCTAssertNil(MyResult.success(1).failure)
-    XCTAssertEqual(MyResult<Int>.failure(.err1).failure, .err1)
-  }
-
   func testIntFromAscii() {
     XCTAssertNil(Int(ascii: ""))
     XCTAssertNil(Int(ascii: "a"))

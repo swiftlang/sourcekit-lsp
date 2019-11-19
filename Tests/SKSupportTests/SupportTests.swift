@@ -195,4 +195,16 @@ final class SupportTests: XCTestCase {
     XCTAssertNotEqual(AbsolutePath(expandingTilde: "~/foo").parentDirectory, .root)
     XCTAssertEqual(AbsolutePath(expandingTilde: "/foo"), AbsolutePath("/foo"))
   }
+
+  func testResultProjection() {
+    enum MyError: Error, Equatable {
+      case err1, err2
+    }
+    typealias MyResult<T> = Swift.Result<T, MyError>
+
+    XCTAssertEqual(MyResult.success(1).success, 1)
+    XCTAssertNil(MyResult.failure(.err1).success)
+    XCTAssertNil(MyResult.success(1).failure)
+    XCTAssertEqual(MyResult<Int>.failure(.err1).failure, .err1)
+  }
 }

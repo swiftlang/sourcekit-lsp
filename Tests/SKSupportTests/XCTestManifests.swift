@@ -21,6 +21,7 @@ extension SupportTests {
         ("testLineTable", testLineTable),
         ("testLineTableEditing", testLineTableEditing),
         ("testLineTableLinePositionTranslation", testLineTableLinePositionTranslation),
+        ("testResultProjection", testResultProjection),
     ]
 }
 
