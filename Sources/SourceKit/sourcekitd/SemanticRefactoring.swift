@@ -72,7 +72,7 @@ struct SemanticRefactoring {
     }
 
     self.title = title
-    self.edit = WorkspaceEdit(changes: [snapshot.document.url: textEdits])
+    self.edit = WorkspaceEdit(changes: [snapshot.document.uri: textEdits])
   }
 }
 
@@ -80,7 +80,7 @@ struct SemanticRefactoring {
 enum SemanticRefactoringError: Error {
 
   /// The given URL is not a known document.
-  case unknownDocument(URL)
+  case unknownDocument(DocumentURI)
 
   /// The given position range is invalid.
   case invalidRange(Range<Position>)
@@ -92,7 +92,7 @@ enum SemanticRefactoringError: Error {
   case responseError(ResponseError)
 
   /// The underlying sourcekitd reported no edits for this action.
-  case noEditsNeeded(URL)
+  case noEditsNeeded(DocumentURI)
 }
 
 extension SemanticRefactoringError: CustomStringConvertible {
@@ -129,9 +129,9 @@ extension SwiftLanguageServer {
     let keys = self.keys
 
     queue.async {
-      let url = refactorCommand.textDocument.url
-      guard let snapshot = self.documentManager.latestSnapshot(url) else {
-        return completion(.failure(.unknownDocument(url)))
+      let uri = refactorCommand.textDocument.uri
+      guard let snapshot = self.documentManager.latestSnapshot(uri) else {
+        return completion(.failure(.unknownDocument(uri)))
       }
       guard let offsetRange = snapshot.utf8OffsetRange(of: refactorCommand.positionRange) else {
         return completion(.failure(.failedToRetrieveOffset(refactorCommand.positionRange)))
@@ -147,7 +147,7 @@ extension SwiftLanguageServer {
       // Preferred name for e.g. an extracted variable.
       // Empty string means sourcekitd chooses a name automatically.
       skreq[keys.name] = ""
-      skreq[keys.sourcefile] = url.path
+      skreq[keys.sourcefile] = uri.pseudoPath
       // LSP is zero based, but this request is 1 based.
       skreq[keys.line] = line + 1
       skreq[keys.column] = utf8Column + 1
@@ -155,7 +155,7 @@ extension SwiftLanguageServer {
       skreq[keys.actionuid] = self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!
 
       // FIXME: SourceKit should probably cache this for us.
-      if let settings = self.buildSettingsByFile[snapshot.document.url] {
+      if let settings = self.buildSettingsByFile[snapshot.document.uri] {
         skreq[keys.compilerargs] = settings.compilerArguments
       }
 
@@ -165,7 +165,7 @@ extension SwiftLanguageServer {
           return completion(.failure(.responseError(result.failure!)))
         }
         guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {
-          return completion(.failure(.noEditsNeeded(url)))
+          return completion(.failure(.noEditsNeeded(uri)))
         }
         completion(.success(refactor))
       }

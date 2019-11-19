@@ -99,7 +99,7 @@ public final class SourceKitServer: LanguageServer {
       guard let workspace = self.workspace else {
         return req.reply(.failure(.serverNotInitialized))
       }
-      guard let languageService = workspace.documentService[req.params.textDocument.url] else {
+      guard let languageService = workspace.documentService[req.params.textDocument.uri] else {
         return req.reply(fallback)
       }
       requestHandler(self)(req, languageService)
@@ -155,8 +155,8 @@ public final class SourceKitServer: LanguageServer {
     client.send(note.params)
   }
 
-  func toolchain(for url: URL, _ language: Language) -> Toolchain? {
-    if let toolchain = workspace?.buildSettings.toolchain(for: url, language) {
+  func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
+    if let toolchain = workspace?.buildSettings.toolchain(for: uri, language) {
       return toolchain
     }
 
@@ -201,7 +201,7 @@ public final class SourceKitServer: LanguageServer {
       let resp = try service.initializeSync(InitializeRequest(
         processId: pid,
         rootPath: nil,
-        rootURL: (workspace?.rootPath).map { URL(fileURLWithPath: $0.pathString) },
+        rootURI: workspace?.rootUri,
         initializationOptions: nil,
         capabilities: workspace?.clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
@@ -219,20 +219,20 @@ public final class SourceKitServer: LanguageServer {
     }
   }
 
-  func languageService(for url: URL, _ language: Language, in workspace: Workspace) -> ToolchainLanguageServer? {
-    if let service = workspace.documentService[url] {
+  func languageService(for uri: DocumentURI, _ language: Language, in workspace: Workspace) -> ToolchainLanguageServer? {
+    if let service = workspace.documentService[uri] {
       return service
     }
 
-    guard let toolchain = toolchain(for: url, language),
+    guard let toolchain = toolchain(for: uri, language),
           let service = languageService(for: toolchain, language)
     else {
       return nil
     }
 
-    log("Using toolchain \(toolchain.displayName) (\(toolchain.identifier)) for \(url)")
+    log("Using toolchain \(toolchain.displayName) (\(toolchain.identifier)) for \(uri)")
 
-    workspace.documentService[url] = service
+    workspace.documentService[uri] = service
     return service
   }
 }
@@ -244,21 +244,21 @@ extension SourceKitServer: BuildSystemDelegate {
     // TODO: do something with these changes once build target support is in place
   }
 
-  public func fileBuildSettingsChanged(_ changedFiles: Set<URL>) {
+  public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
     guard let workspace = self.workspace else {
       return
     }
     let documentManager = workspace.documentManager
     let openDocuments = documentManager.openDocuments
-    for url in changedFiles {
-      guard openDocuments.contains(url) else {
+    for uri in changedFiles {
+      guard openDocuments.contains(uri) else {
         continue
       }
 
-      log("Build settings changed for opened file \(url)")
-      if let snapshot = documentManager.latestSnapshot(url),
-         let service = languageService(for: url, snapshot.document.language, in: workspace) {
-        service.documentUpdatedBuildSettings(url, language: snapshot.document.language)
+      log("Build settings changed for opened file \(uri)")
+      if let snapshot = documentManager.latestSnapshot(uri),
+        let service = languageService(for: uri, snapshot.document.language, in: workspace) {
+        service.documentUpdatedBuildSettings(uri, language: snapshot.document.language)
       }
     }
   }
@@ -279,16 +279,16 @@ extension SourceKitServer {
       }
     }
 
-    if let url = req.params.rootURL {
+    if let uri = req.params.rootURI {
       self.workspace = try? Workspace(
-        url: url,
+        rootUri: uri,
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: self.toolchainRegistry,
         buildSetup: self.options.buildSetup,
         indexOptions: indexOptions)
     } else if let path = req.params.rootPath {
       self.workspace = try? Workspace(
-        url: URL(fileURLWithPath: path),
+        rootUri: .url(URL(fileURLWithPath: path)),
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: self.toolchainRegistry,
         buildSetup: self.options.buildSetup,
@@ -299,7 +299,7 @@ extension SourceKitServer {
       log("no workspace found", level: .warning)
 
       self.workspace = Workspace(
-        rootPath: nil,
+        rootUri: nil,
         clientCapabilities: req.params.capabilities,
         buildSettings: BuildSystemList(),
         index: nil,
@@ -366,9 +366,9 @@ extension SourceKitServer {
     workspace.documentManager.open(note.params)
 
     let textDocument = note.params.textDocument
-    workspace.buildSettings.registerForChangeNotifications(for: textDocument.url)
+    workspace.buildSettings.registerForChangeNotifications(for: textDocument.uri)
 
-    if let service = languageService(for: textDocument.url, textDocument.language, in: workspace) {
+    if let service = languageService(for: textDocument.uri, textDocument.language, in: workspace) {
       service.openDocument(note.params)
     }
   }
@@ -376,10 +376,9 @@ extension SourceKitServer {
   func closeDocument(_ note: Notification<DidCloseTextDocument>, workspace: Workspace) {
     workspace.documentManager.close(note.params)
 
-    let url = note.params.textDocument.url
-    workspace.buildSettings.unregisterForChangeNotifications(for: url)
+    workspace.buildSettings.unregisterForChangeNotifications(for: note.params.textDocument.uri)
 
-    if let service = workspace.documentService[url] {
+    if let service = workspace.documentService[note.params.textDocument.uri] {
       service.closeDocument(note.params)
     }
   }
@@ -387,19 +386,19 @@ extension SourceKitServer {
   func changeDocument(_ note: Notification<DidChangeTextDocument>, workspace: Workspace) {
     workspace.documentManager.edit(note.params)
 
-    if let service = workspace.documentService[note.params.textDocument.url] {
+    if let service = workspace.documentService[note.params.textDocument.uri] {
       service.changeDocument(note.params)
     }
   }
 
   func willSaveDocument(_ note: Notification<WillSaveTextDocument>, workspace: Workspace) {
-    if let service = workspace.documentService[note.params.textDocument.url] {
+    if let service = workspace.documentService[note.params.textDocument.uri] {
       service.willSaveDocument(note.params)
     }
   }
 
   func didSaveDocument(_ note: Notification<DidSaveTextDocument>, workspace: Workspace) {
-    if let service = workspace.documentService[note.params.textDocument.url] {
+    if let service = workspace.documentService[note.params.textDocument.uri] {
       service.didSaveDocument(note.params)
     }
   }
@@ -445,7 +444,7 @@ extension SourceKitServer {
         utf16index: symbolOccurrence.location.utf8Column - 1)
 
       let symbolLocation = Location(
-        url: URL(fileURLWithPath: symbolOccurrence.location.path),
+        uri: .url(URL(fileURLWithPath: symbolOccurrence.location.path)),
         range: Range(symbolPosition))
 
       return SymbolInformation(
@@ -497,12 +496,12 @@ extension SourceKitServer {
   }
 
   func executeCommand(_ req: Request<ExecuteCommandRequest>, workspace: Workspace) {
-    guard let url = req.params.textDocument?.url else {
+    guard let uri = req.params.textDocument?.uri else {
       log("attempted to perform executeCommand request without an url!", level: .error)
       req.reply(nil)
       return
     }
-    guard let languageService = workspace.documentService[url] else {
+    guard let languageService = workspace.documentService[uri] else {
       req.reply(nil)
       return
     }
@@ -566,7 +565,7 @@ extension SourceKitServer {
           return nil
         }
         return Location(
-          url: URL(fileURLWithPath: occur.location.path),
+          uri: .url(URL(fileURLWithPath: occur.location.path)),
           range: Range(Position(
             line: occur.location.line - 1, // 1-based -> 0-based
             // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
@@ -613,7 +612,7 @@ extension SourceKitServer {
           return nil
         }
         return Location(
-          url: URL(fileURLWithPath: occur.location.path),
+          uri: .url(URL(fileURLWithPath: occur.location.path)),
           range: Range(Position(
             line: occur.location.line - 1, // 1-based -> 0-based
             // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
@@ -631,7 +630,7 @@ extension SourceKitServer {
 
   // FIXME: a lot of duplication with definition request
   func references(_ req: Request<ReferencesRequest>, workspace: Workspace) {
-    guard let service = workspace.documentService[req.params.textDocument.url] else {
+    guard let service = workspace.documentService[req.params.textDocument.uri] else {
       req.reply([])
       return
     }
@@ -666,7 +665,7 @@ extension SourceKitServer {
           return nil
         }
         return Location(
-          url: URL(fileURLWithPath: occur.location.path),
+          uri: .url(URL(fileURLWithPath: occur.location.path)),
           range: Range(Position(
             line: occur.location.line - 1, // 1-based -> 0-based
             // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!

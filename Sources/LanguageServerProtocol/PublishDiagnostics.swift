@@ -22,26 +22,19 @@
 /// to coalesce the notification across multiple changes in a short period of time.
 ///
 /// - Parameters:
-///   - url: The document in which the diagnostics should be shown.
+///   - uri: The document in which the diagnostics should be shown.
 ///   - diagnostics: The complete list of diagnostics in the document, if any.
-public struct PublishDiagnostics: NotificationType, Hashable {
+public struct PublishDiagnostics: NotificationType, Hashable, Codable {
   public static let method: String = "textDocument/publishDiagnostics"
 
   /// The document in which the diagnostics should be shown.
-  public var url: URL
+  public var uri: DocumentURI
 
   /// The complete list of diagnostics in the document, if any.
   public var diagnostics: [Diagnostic]
 
-  public init(url: URL, diagnostics: [Diagnostic]) {
-    self.url = url
+  public init(uri: DocumentURI, diagnostics: [Diagnostic]) {
+    self.uri = uri
     self.diagnostics = diagnostics
-  }
-}
-
-extension PublishDiagnostics: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case url = "uri"
-    case diagnostics
   }
 }

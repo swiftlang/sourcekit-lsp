@@ -19,7 +19,7 @@
 ///
 /// - Parameters:
 ///   - processId: The process identifier (pid) of the client process.
-///   - rootURL: The workspace URL, or nil if no workspace is open.
+///   - rootURI: The workspace URI, or nil if no workspace is open.
 ///   - initializationOptions: User-provided options.
 ///   - capabilities: The capabilities provided by the client editor.
 ///   - trace: Whether to enable tracing.
@@ -39,13 +39,13 @@ public struct InitializeRequest: RequestType, Hashable {
 
   /// The workspace path, or nil if no workspace is open.
   ///
-  /// - Note: deprecated in favour of `rootURL`.
+  /// - Note: deprecated in favour of `rootURI`.
   public var rootPath: String? = nil
 
-  /// The workspace URL, or nil if no workspace is open.
+  /// The workspace URI, or nil if no workspace is open.
   ///
   /// Takes precedence over the deprecated `rootPath`.
-  public var rootURL: URL?
+  public var rootURI: DocumentURI?
 
   /// User-provided options.
   public var initializationOptions: LSPAny? = nil
@@ -68,7 +68,7 @@ public struct InitializeRequest: RequestType, Hashable {
   public init(
     processId: Int? = nil,
     rootPath: String? = nil,
-    rootURL: URL?,
+    rootURI: DocumentURI?,
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities,
     trace: Tracing = .off,
@@ -76,7 +76,7 @@ public struct InitializeRequest: RequestType, Hashable {
   {
     self.processId = processId
     self.rootPath = rootPath
-    self.rootURL = rootURL
+    self.rootURI = rootURI
     self.initializationOptions = initializationOptions
     self.capabilities = capabilities
     self.trace = trace
@@ -88,7 +88,7 @@ extension InitializeRequest: Codable {
   private enum CodingKeys: String, CodingKey {
     case processId
     case rootPath
-    case rootURL = "rootUri"
+    case rootURI = "rootUri"
     case initializationOptions
     case capabilities
     case trace

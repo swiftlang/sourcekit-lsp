@@ -10,6 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 import LanguageServerProtocol
+import struct Foundation.URL
+
+public typealias URL = Foundation.URL
 
 /// The workspace build targets request is sent from the client to the server to
 /// ask for the list of all available build targets in the workspace.

@@ -42,7 +42,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     _ = try! sk.sendSync(InitializeRequest(
       processId: nil,
       rootPath: nil,
-      rootURL: nil,
+      rootURI: nil,
       initializationOptions: nil,
       capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
       trace: .off,
@@ -55,7 +55,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     let url = URL(fileURLWithPath: "/a.swift")
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: .url(url),
       language: .swift,
       version: 17,
       text: text

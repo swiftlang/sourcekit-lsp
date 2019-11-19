@@ -20,6 +20,7 @@ import PackageModel
 import SKCore
 import SKSupport
 import Workspace
+import struct Foundation.URL
 
 /// Swift Package Manager build system and workspace support.
 ///
@@ -114,7 +115,7 @@ public final class SwiftPMWorkspace {
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
   /// - Returns: nil if `workspacePath` is not part of a package or there is an error.
-  public convenience init?(url: LanguageServerProtocol.URL,
+  public convenience init?(url: URL,
                            toolchainRegistry: ToolchainRegistry,
                            buildSetup: BuildSetup)
   {
@@ -195,9 +196,13 @@ extension SwiftPMWorkspace: BuildSystem {
   }
 
   public func settings(
-    for url: LanguageServerProtocol.URL,
+    for uri: DocumentURI,
     _ language: Language) -> FileBuildSettings?
   {
+    guard case .url(let url) = uri else {
+      // We can't determine build settings for non-file URIs.
+      return nil
+    }
     guard let path = try? AbsolutePath(validating: url.path) else {
       return nil
     }
@@ -217,19 +222,19 @@ extension SwiftPMWorkspace: BuildSystem {
     return nil
   }
 
-  public func toolchain(for: LanguageServerProtocol.URL, _ language: Language) -> SKCore.Toolchain? {
+  public func toolchain(for: DocumentURI, _ language: Language) -> SKCore.Toolchain? {
     return nil
   }
 
   /// Register the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func registerForChangeNotifications(for url: LanguageServerProtocol.URL) {
+  public func registerForChangeNotifications(for uri: DocumentURI) {
     // TODO: Support for change detection (via file watching)
   }
 
   /// Unregister the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func unregisterForChangeNotifications(for url: LanguageServerProtocol.URL) {
+  public func unregisterForChangeNotifications(for uri: DocumentURI) {
     // TODO: Support for change detection (via file watching)
   }
 

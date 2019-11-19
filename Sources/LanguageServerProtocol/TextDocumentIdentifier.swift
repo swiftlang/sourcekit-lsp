@@ -10,43 +10,28 @@
 //
 //===----------------------------------------------------------------------===//
 
-import struct Foundation.URL
-
-/// Convenience alias so that you don't need to add Foundation import to use.
-public typealias URL = Foundation.URL
-
 /// Unique identifier for a document.
-public struct TextDocumentIdentifier: Hashable {
+public struct TextDocumentIdentifier: Hashable, Codable {
 
-  /// A URL that uniquely identifies the document.
-  public var url: URL
+  /// A URI that uniquely identifies the document.
+  public var uri: DocumentURI
 
-  public init(_ url: URL) {
-    self.url = url
-  }
-}
-
-// Encode using the key "uri" to match LSP.
-extension TextDocumentIdentifier: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case url = "uri"
+  public init(_ uri: DocumentURI) {
+    self.uri = uri
   }
 }
 
 extension TextDocumentIdentifier: LSPAnyCodable {
   public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
-    guard case .string(let urlString)? = dictionary[CodingKeys.url.stringValue] else {
+    guard case .string(let uriString)? = dictionary[CodingKeys.uri.stringValue] else {
       return nil
     }
-    guard let url = URL(string: urlString) else {
-      return nil
-    }
-    self.url = url
+    self.uri = DocumentURI(string: uriString)
   }
 
   public func encodeToLSPAny() -> LSPAny {
     return .dictionary([
-      CodingKeys.url.stringValue: .string(url.absoluteString)
+      CodingKeys.uri.stringValue: .string(uri.stringValue)
     ])
   }
 }

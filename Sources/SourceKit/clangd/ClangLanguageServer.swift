@@ -86,7 +86,7 @@ extension ClangLanguageServerShim {
 
   public func openDocument(_ note: DidOpenTextDocument) {
     let textDocument = note.textDocument
-    documentUpdatedBuildSettings(textDocument.url, language: textDocument.language)
+    documentUpdatedBuildSettings(textDocument.uri, language: textDocument.language)
     clangd.send(note)
   }
 
@@ -106,12 +106,17 @@ extension ClangLanguageServerShim {
 
   }
 
-  public func documentUpdatedBuildSettings(_ url: URL, language: Language) {
-    let settings = buildSystem.settings(for: url, language)
+  public func documentUpdatedBuildSettings(_ uri: DocumentURI, language: Language) {
+    guard case .url(let url) = uri else {
+      // FIXME: The clang workspace can probably be reworked to support non-file URIs.
+      log("Received updated build settings for non-file URI '\(uri)'. Ignoring the update.")
+      return
+    }
+    let settings = buildSystem.settings(for: uri, language)
 
     logAsync(level: settings == nil ? .warning : .debug) { _ in
       let settingsStr = settings == nil ? "nil" : settings!.compilerArguments.description
-      return "settings for \(url): \(settingsStr)"
+      return "settings for \(uri): \(settingsStr)"
     }
 
     if let settings = settings {

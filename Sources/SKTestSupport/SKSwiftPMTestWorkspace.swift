@@ -85,7 +85,7 @@ public final class SKSwiftPMTestWorkspace {
       listenToUnitEvents: false)
 
     testServer.server!.workspace = Workspace(
-      rootPath: sourcePath,
+      rootUri: .url(sources.rootDirectory),
       clientCapabilities: ClientCapabilities(),
       buildSettings: swiftpm,
       index: index,
@@ -121,7 +121,7 @@ extension SKSwiftPMTestWorkspace {
 extension SKSwiftPMTestWorkspace {
   public func openDocument(_ url: URL, language: Language) throws {
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: .url(url),
       language: language,
       version: 1,
       text: try sources.sourceCache.get(url))))

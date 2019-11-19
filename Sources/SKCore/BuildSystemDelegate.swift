@@ -25,5 +25,5 @@ public protocol BuildSystemDelegate: AnyObject {
   ///
   /// The callee should request new build settings for any of the given files
   /// that they are interested in.
-  func fileBuildSettingsChanged(_ changedFiles: Set<URL>)
+  func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>)
 }

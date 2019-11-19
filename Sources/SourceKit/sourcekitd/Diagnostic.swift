@@ -58,7 +58,7 @@ extension Diagnostic {
       sknotes.forEach { (_, sknote) -> Bool in
         guard let note = Diagnostic(sknote, in: snapshot) else { return true }
         notes?.append(DiagnosticRelatedInformation(
-          location: Location(url: snapshot.document.url, range: note.range),
+          location: Location(uri: snapshot.document.uri, range: note.range),
           message: note.message
         ))
         return true

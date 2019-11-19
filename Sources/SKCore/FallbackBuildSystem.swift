@@ -39,7 +39,11 @@ public final class FallbackBuildSystem: BuildSystem {
 
   public var indexDatabasePath: AbsolutePath? { return nil }
 
-  public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
+  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
+    guard case .url(let url) = uri else {
+      // We can't determine build settings for non-files URIs.
+      return nil
+    }
     guard let path = try? AbsolutePath(validating: url.path) else {
       return nil
     }
@@ -55,12 +59,12 @@ public final class FallbackBuildSystem: BuildSystem {
   }
 
   /// We don't support change watching.
-  public func registerForChangeNotifications(for: URL) {}
+  public func registerForChangeNotifications(for: DocumentURI) {}
 
   /// We don't support change watching.
-  public func unregisterForChangeNotifications(for: URL) {}
+  public func unregisterForChangeNotifications(for: DocumentURI) {}
 
-  public func toolchain(for: URL, _ language: Language) -> Toolchain? { return nil }
+  public func toolchain(for: DocumentURI, _ language: Language) -> Toolchain? { return nil }
 
   public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
     reply(.failure(buildTargetsNotSupported))

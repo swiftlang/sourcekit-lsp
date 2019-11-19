@@ -31,28 +31,28 @@ final class TestBuildSystem: BuildSystem {
   weak var delegate: BuildSystemDelegate?
 
   /// Build settings by file.
-  var buildSettingsByFile: [URL: FileBuildSettings] = [:]
+  var buildSettingsByFile: [DocumentURI: FileBuildSettings] = [:]
 
   /// Toolchains by file.
-  var toolchainsByFile: [URL: Toolchain] = [:]
+  var toolchainsByFile: [DocumentURI: Toolchain] = [:]
 
   /// Files currently being watched by our delegate.
-  var watchedFiles: Set<URL> = []
+  var watchedFiles: Set<DocumentURI> = []
 
-  func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
-    return buildSettingsByFile[url]
+  func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
+    return buildSettingsByFile[uri]
   }
 
-  func toolchain(for url: URL, _ language: Language) -> Toolchain? {
-    return toolchainsByFile[url]
+  func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
+    return toolchainsByFile[uri]
   }
 
-  func registerForChangeNotifications(for url: URL) {
-    watchedFiles.insert(url)
+  func registerForChangeNotifications(for uri: DocumentURI) {
+    watchedFiles.insert(uri)
   }
 
-  func unregisterForChangeNotifications(for url: URL) {
-    watchedFiles.remove(url)
+  func unregisterForChangeNotifications(for uri: DocumentURI) {
+    watchedFiles.remove(uri)
   }
 
   func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
@@ -91,7 +91,7 @@ final class BuildSystemTests: XCTestCase {
     buildSystem = TestBuildSystem()
 
     self.workspace = Workspace(
-      rootPath: nil,
+      rootUri: nil,
       clientCapabilities: ClientCapabilities(),
       buildSettings: buildSystem,
       index: nil,
@@ -102,7 +102,7 @@ final class BuildSystemTests: XCTestCase {
     _ = try! sk.sendSync(InitializeRequest(
         processId: nil,
         rootPath: nil,
-        rootURL: nil,
+        rootURI: nil,
         initializationOptions: nil,
         capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
@@ -132,29 +132,29 @@ final class BuildSystemTests: XCTestCase {
     }
     """
 
-    buildSystem.buildSettingsByFile[url] = FileBuildSettings(compilerArguments: args)
+    buildSystem.buildSettingsByFile[.url(url)] = FileBuildSettings(compilerArguments: args)
 
     sk.allowUnexpectedNotification = false
 
     sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: .url(url),
       language: .objective_c,
       version: 12,
       text: text
     )), { (note: Notification<PublishDiagnostics>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(url)!.text)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(.url(url))!.text)
     })
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    buildSystem.buildSettingsByFile[url] = FileBuildSettings(compilerArguments: args +  ["-DFOO"])
-    testServer.server?.fileBuildSettingsChanged([url])
+    buildSystem.buildSettingsByFile[.url(url)] = FileBuildSettings(compilerArguments: args +  ["-DFOO"])
+    testServer.server?.fileBuildSettingsChanged([.url(url)])
 
     let expectation = XCTestExpectation(description: "refresh")
     sk.handleNextNotification { (note: Notification<PublishDiagnostics>) in
       XCTAssertEqual(note.params.diagnostics.count, 0)
-      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(url)!.text)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(.url(url))!.text)
       expectation.fulfill()
     }
 
@@ -166,9 +166,9 @@ final class BuildSystemTests: XCTestCase {
 
   func testSwiftDocumentUpdatedBuildSettings() {
     let url = URL(fileURLWithPath: "/a.swift")
-    let args = FallbackBuildSystem().settings(for: url, .swift)!.compilerArguments
+    let args = FallbackBuildSystem().settings(for: .url(url), .swift)!.compilerArguments
 
-    buildSystem.buildSettingsByFile[url] = FileBuildSettings(compilerArguments: args)
+    buildSystem.buildSettingsByFile[.url(url)] = FileBuildSettings(compilerArguments: args)
 
     let text = """
     #if FOO
@@ -181,14 +181,14 @@ final class BuildSystemTests: XCTestCase {
     sk.allowUnexpectedNotification = false
 
     sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: .url(url),
       language: .swift,
       version: 12,
       text: text
     )), { (note: Notification<PublishDiagnostics>) in
       // Syntactic analysis - no expected errors here.
       XCTAssertEqual(note.params.diagnostics.count, 0)
-      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(url)!.text)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(.url(url))!.text)
     }, { (note: Notification<PublishDiagnostics>) in
       // Semantic analysis - expect one error here.
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -196,7 +196,7 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    buildSystem.buildSettingsByFile[url] = FileBuildSettings(compilerArguments: args + ["-DFOO"])
+    buildSystem.buildSettingsByFile[.url(url)] = FileBuildSettings(compilerArguments: args + ["-DFOO"])
 
     let expectation = XCTestExpectation(description: "refresh")
     expectation.expectedFulfillmentCount = 2
@@ -210,7 +210,7 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 0)
       expectation.fulfill()
     }
-    testServer.server?.fileBuildSettingsChanged([url])
+    testServer.server?.fileBuildSettingsChanged([.url(url)])
 
     let result = XCTWaiter.wait(for: [expectation], timeout: 5)
     if result != .completed {
@@ -224,7 +224,7 @@ final class BuildSystemTests: XCTestCase {
     sk.allowUnexpectedNotification = false
 
     sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: .url(url),
       language: .swift,
       version: 12,
       text: """
@@ -232,18 +232,18 @@ final class BuildSystemTests: XCTestCase {
       """
     )), { (note: Notification<PublishDiagnostics>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(url)!.text)
+      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(.url(url))!.text)
     })
 
     // Modify the build settings and inform the SourceKitServer.
     // This shouldn't trigger new diagnostics since nothing actually changed (false alarm).
-    testServer.server?.fileBuildSettingsChanged([url])
+    testServer.server?.fileBuildSettingsChanged([.url(url)])
 
     let expectation = XCTestExpectation(description: "refresh doesn't occur")
     expectation.isInverted = true
     sk.handleNextNotification { (note: Notification<PublishDiagnostics>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(url)!.text)
+      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(.url(url))!.text)
       expectation.fulfill()
     }
 

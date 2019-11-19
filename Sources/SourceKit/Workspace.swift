@@ -29,7 +29,7 @@ import TSCUtility
 public final class Workspace {
 
   /// The root directory of the workspace.
-  public let rootPath: AbsolutePath?
+  public let rootUri: DocumentURI?
 
   public let clientCapabilities: ClientCapabilities
 
@@ -46,16 +46,16 @@ public final class Workspace {
   public let documentManager: DocumentManager = DocumentManager()
 
   /// Language service for an open document, if available.
-  var documentService: [URL: ToolchainLanguageServer] = [:]
+  var documentService: [DocumentURI: ToolchainLanguageServer] = [:]
 
   public init(
-    rootPath: AbsolutePath?,
+    rootUri: DocumentURI?,
     clientCapabilities: ClientCapabilities,
     buildSettings: BuildSystem,
     index: IndexStoreDB?,
     buildSetup: BuildSetup)
   {
-    self.rootPath = rootPath
+    self.rootUri = rootUri
     self.clientCapabilities = clientCapabilities
     self.buildSettings = buildSettings
     self.index = index
@@ -69,7 +69,7 @@ public final class Workspace {
   ///   - clientCapabilities: The client capabilities provided during server initialization.
   ///   - toolchainRegistry: The toolchain registry.
   public init(
-    url: URL,
+    rootUri: DocumentURI,
     clientCapabilities: ClientCapabilities,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
@@ -78,20 +78,26 @@ public final class Workspace {
 
     self.buildSetup = buildSetup
 
-    self.rootPath = try AbsolutePath(validating: url.path)
+    self.rootUri = rootUri
     self.clientCapabilities = clientCapabilities
     let settings = BuildSystemList()
     self.buildSettings = settings
 
-    if let buildServer = BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
-      settings.providers.insert(buildServer, at: 0)
-    } else {
-      settings.providers.insert(CompilationDatabaseBuildSystem(projectRoot: rootPath), at: 0)
-      if let swiftpm = SwiftPMWorkspace(url: url,
-                                        toolchainRegistry: toolchainRegistry,
-                                        buildSetup: buildSetup) {
-        settings.providers.insert(swiftpm, at: 0)
+    if case .url(let rootUrl) = rootUri, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
+      if let buildServer = BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
+        settings.providers.insert(buildServer, at: 0)
+      } else {
+        settings.providers.insert(CompilationDatabaseBuildSystem(projectRoot: rootPath), at: 0)
+        if let swiftpm = SwiftPMWorkspace(url: rootUrl,
+                                          toolchainRegistry: toolchainRegistry,
+                                          buildSetup: buildSetup) {
+          settings.providers.insert(swiftpm, at: 0)
+        }
       }
+    } else {
+      // We assume that workspaces are directories. This is only true for URLs not for URIs in general.
+      // Simply skip setting up the build integration in this case.
+      log("cannot setup build integration for workspace at URI \(rootUri) because the URI it is not a valid file URL")
     }
 
     if let storePath = buildSettings.indexStorePath,

@@ -37,7 +37,7 @@ final class LocalSwiftTests: XCTestCase {
     _ = try! sk.sendSync(InitializeRequest(
         processId: nil,
         rootPath: nil,
-        rootURL: nil,
+        rootURI: nil,
         initializationOptions: nil,
         capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
@@ -54,11 +54,12 @@ final class LocalSwiftTests: XCTestCase {
 
   func testEditing() {
     let url = URL(fileURLWithPath: "/a.swift")
+    let uri = DocumentURI.url(url)
 
     sk.allowUnexpectedNotification = false
 
     sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: uri,
       language: .swift,
       version: 12,
       text: """
@@ -67,7 +68,7 @@ final class LocalSwiftTests: XCTestCase {
     )), { (note: Notification<PublishDiagnostics>) in
       log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(url)!.text)
+      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnostics>) in
       log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -76,20 +77,20 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 0, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 13), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 13), contentChanges: [
       .init(range: Range(Position(line: 0, utf16index: 4)), text: " foo() {}\n")
     ]), { (note: Notification<PublishDiagnostics>) in
       log("Received diagnostics for edit 1 - syntactic")
       // 1 = remaining semantic error
       // 0 = semantic update finished already
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func foo() {}\n", self.workspace.documentManager.latestSnapshot(url)!.text)
+      XCTAssertEqual("func foo() {}\n", self.workspace.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnostics>) in
       log("Received diagnostics for edit 1 - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 0)
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 14), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 14), contentChanges: [
       .init(range: Range(Position(line: 1, utf16index: 0)), text: "_ = bar()")
       ]), { (note: Notification<PublishDiagnostics>) in
         log("Received diagnostics for edit 2 - syntactic")
@@ -99,7 +100,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         _ = bar()
-        """, self.workspace.documentManager.latestSnapshot(url)!.text)
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnostics>) in
       log("Received diagnostics for edit 2 - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -108,7 +109,7 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 1, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 14), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 14), contentChanges: [
       .init(range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 7), text: "foo")
       ]), { (note: Notification<PublishDiagnostics>) in
         log("Received diagnostics for edit 3 - syntactic")
@@ -118,13 +119,13 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         _ = foo()
-        """, self.workspace.documentManager.latestSnapshot(url)!.text)
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnostics>) in
       log("Received diagnostics for edit 3 - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 0)
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 15), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 15), contentChanges: [
       .init(range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 7), text: "fooTypo")
       ]), { (note: Notification<PublishDiagnostics>) in
         log("Received diagnostics for edit 4 - syntactic")
@@ -134,7 +135,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         _ = fooTypo()
-        """, self.workspace.documentManager.latestSnapshot(url)!.text)
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnostics>) in
       log("Received diagnostics for edit 4 - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -143,7 +144,7 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 1, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 16), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 16), contentChanges: [
       .init(range: nil, text: """
       func bar() {}
       _ = foo()
@@ -155,7 +156,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func bar() {}
         _ = foo()
-        """, self.workspace.documentManager.latestSnapshot(url)!.text)
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnostics>) in
       log("Received diagnostics for edit 5 - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -165,14 +166,99 @@ final class LocalSwiftTests: XCTestCase {
     })
   }
 
-  func testCrossFileDiagnostics() {
-    let urlA = URL(fileURLWithPath: "/a.swift")
-    let urlB = URL(fileURLWithPath: "/b.swift")
+  func testEditingNonURL() {
+    let uri = DocumentURI.other("urn:uuid:A1B08909-E791-469E-BF0F-F5790977E051")
 
     sk.allowUnexpectedNotification = false
 
     sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: urlA, language: .swift, version: 12,
+      uri: uri,
+      language: .swift,
+      version: 12,
+      text: """
+      func
+      """
+    )), { (note: Notification<PublishDiagnostics>) in
+      log("Received diagnostics for open - syntactic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(uri)!.text)
+    })
+
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 13), contentChanges: [
+      .init(range: Range(Position(line: 0, utf16index: 4)), text: " foo() {}\n")
+    ]), { (note: Notification<PublishDiagnostics>) in
+      log("Received diagnostics for edit 1 - syntactic")
+      // 1 = remaining semantic error
+      // 0 = semantic update finished already
+      XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual("func foo() {}\n", self.workspace.documentManager.latestSnapshot(uri)!.text)
+    })
+
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 14), contentChanges: [
+      .init(range: Range(Position(line: 1, utf16index: 0)), text: "_ = bar()")
+      ]), { (note: Notification<PublishDiagnostics>) in
+        log("Received diagnostics for edit 2 - syntactic")
+        // 1 = semantic update finished already
+        // 0 = only syntactic
+        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
+        XCTAssertEqual("""
+        func foo() {}
+        _ = bar()
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+    })
+
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 14), contentChanges: [
+      .init(range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 7), text: "foo")
+      ]), { (note: Notification<PublishDiagnostics>) in
+        log("Received diagnostics for edit 3 - syntactic")
+        // 1 = remaining semantic error
+        // 0 = semantic update finished already
+        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
+        XCTAssertEqual("""
+        func foo() {}
+        _ = foo()
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+    })
+
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 15), contentChanges: [
+      .init(range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 7), text: "fooTypo")
+      ]), { (note: Notification<PublishDiagnostics>) in
+        log("Received diagnostics for edit 4 - syntactic")
+        // 1 = semantic update finished already
+        // 0 = only syntactic
+        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
+        XCTAssertEqual("""
+        func foo() {}
+        _ = fooTypo()
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+    })
+
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 16), contentChanges: [
+      .init(range: nil, text: """
+      func bar() {}
+      _ = foo()
+      """)
+      ]), { (note: Notification<PublishDiagnostics>) in
+        log("Received diagnostics for edit 5 - syntactic")
+        // Could be remaining semantic error or new one.
+        XCTAssertEqual(note.params.diagnostics.count, 0)
+        XCTAssertEqual("""
+        func bar() {}
+        _ = foo()
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+    })
+  }
+
+  func testCrossFileDiagnostics() {
+    let urlA = URL(fileURLWithPath: "/a.swift")
+    let urlB = URL(fileURLWithPath: "/b.swift")
+    let uriA = DocumentURI.url(urlA)
+    let uriB = DocumentURI.url(urlB)
+
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+      uri: uriA, language: .swift, version: 12,
       text: """
       _ = foo()
       """
@@ -190,7 +276,7 @@ final class LocalSwiftTests: XCTestCase {
     })
 
     sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: urlB, language: .swift, version: 12,
+      uri: uriB, language: .swift, version: 12,
       text: """
       _ = bar()
       """
@@ -207,7 +293,7 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 0, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(urlA, version: 13), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uriA, version: 13), contentChanges: [
       .init(range: nil, text: "_ = foo()\n")
     ]), { (note: Notification<PublishDiagnostics>) in
       log("Received diagnostics for edit 1 - syntactic")
@@ -220,10 +306,11 @@ final class LocalSwiftTests: XCTestCase {
 
   func testDiagnosticsReopen() {
     let urlA = URL(fileURLWithPath: "/a.swift")
+    let uriA = DocumentURI.url(urlA)
     sk.allowUnexpectedNotification = false
 
     sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: urlA, language: .swift, version: 12,
+      uri: uriA, language: .swift, version: 12,
       text: """
       _ = foo()
       """
@@ -243,7 +330,7 @@ final class LocalSwiftTests: XCTestCase {
     sk.send(DidCloseTextDocument(textDocument: .init(urlA)))
 
     sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: urlA, language: .swift, version: 13,
+      uri: uriA, language: .swift, version: 13,
       text: """
       var
       """
@@ -518,9 +605,10 @@ final class LocalSwiftTests: XCTestCase {
 
   func testSymbolInfo() {
     let url = URL(fileURLWithPath: "/a.swift")
+    let uri = DocumentURI.url(url)
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: uri,
       language: .swift,
       version: 1,
       text: """
@@ -541,7 +629,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(sym.name, "S")
         XCTAssertNil(sym.containerName)
         XCTAssertEqual(sym.usr, "s:1a1SV")
-        XCTAssertEqual(sym.bestLocalDeclaration?.url, url)
+        XCTAssertEqual(sym.bestLocalDeclaration?.uri, uri)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 0)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 7)
       }
@@ -557,7 +645,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(sym.name, "foo()")
         XCTAssertNil(sym.containerName)
         XCTAssertEqual(sym.usr, "s:1a1SV3fooyyF")
-        XCTAssertEqual(sym.bestLocalDeclaration?.url, url)
+        XCTAssertEqual(sym.bestLocalDeclaration?.uri, uri)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 1)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 7)
       }
@@ -573,7 +661,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(sym.name, "local")
         XCTAssertNil(sym.containerName)
         XCTAssertEqual(sym.usr, "s:1a1SV3fooyyF5localL_Sivp")
-        XCTAssertEqual(sym.bestLocalDeclaration?.url, url)
+        XCTAssertEqual(sym.bestLocalDeclaration?.uri, uri)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 2)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 8)
       }
@@ -590,9 +678,10 @@ final class LocalSwiftTests: XCTestCase {
 
   func testHover() {
     let url = URL(fileURLWithPath: "/a.swift")
+    let uri = DocumentURI.url(url)
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: uri,
       language: .swift,
       version: 1,
       text: """
@@ -639,7 +728,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.swift")
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: .url(url),
       language: .swift,
       version: 1,
       text: """
@@ -692,9 +781,10 @@ final class LocalSwiftTests: XCTestCase {
 
   func testDocumentSymbolHighlight() {
     let url = URL(fileURLWithPath: "/a.swift")
+    let uri = DocumentURI.url(url)
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: uri,
       language: .swift,
       version: 1,
       text: """

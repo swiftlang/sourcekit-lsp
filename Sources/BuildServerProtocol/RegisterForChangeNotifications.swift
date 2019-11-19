@@ -20,13 +20,13 @@ public struct RegisterForChanges: RequestType {
   public static let method: String = "textDocument/registerForChanges"
   public typealias Response = VoidResponse
 
-  /// The URL of the document to get options for.
-  public var uri: URL
+  /// The URI of the document to get options for.
+  public var uri: DocumentURI
 
   /// Whether to register or unregister for the file.
   public var action: RegisterAction
 
-  public init(uri: URL, action: RegisterAction) {
+  public init(uri: DocumentURI, action: RegisterAction) {
     self.uri = uri
     self.action = action
   }
@@ -43,8 +43,8 @@ public enum RegisterAction: String, Hashable, Codable {
 public struct FileOptionsChangedNotification: NotificationType {
   public static let method: String = "build/sourceKitOptionsChanged"
 
-  /// The URL of the document that has changed settings.
-  public var uri: URL
+  /// The URI of the document that has changed settings.
+  public var uri: DocumentURI
 
   /// The updated options for the registered file.
   public var updatedOptions: SourceKitOptionsResult

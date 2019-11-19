@@ -35,9 +35,9 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
 
-  var currentDiagnostics: [URL: [CachedDiagnostic]] = [:]
+  var currentDiagnostics: [DocumentURI: [CachedDiagnostic]] = [:]
 
-  var buildSettingsByFile: [URL: FileBuildSettings] = [:]
+  var buildSettingsByFile: [DocumentURI: FileBuildSettings] = [:]
 
   let onExit: () -> Void
 
@@ -73,19 +73,19 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
       return true
     }
 
-    let document = snapshot.document.url
+    let document = snapshot.document.uri
 
     let result = mergeDiagnostics(
       old: currentDiagnostics[document] ?? [],
       new: newDiags, stage: stage)
     currentDiagnostics[document] = result
 
-    client.send(PublishDiagnostics(url: document, diagnostics: result.map { $0.diagnostic }))
+    client.send(PublishDiagnostics(uri: document, diagnostics: result.map { $0.diagnostic }))
   }
 
   /// Should be called on self.queue.
-  func handleDocumentUpdate(url: URL) {
-    guard let snapshot = documentManager.latestSnapshot(url) else {
+  func handleDocumentUpdate(uri: DocumentURI) {
+    guard let snapshot = documentManager.latestSnapshot(uri) else {
       return
     }
 
@@ -93,7 +93,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
     let req = SKRequestDictionary(sourcekitd: sourcekitd)
     req[keys.request] = requests.editor_replacetext
-    req[keys.name] = url.path
+    req[keys.name] = uri.pseudoPath
     req[keys.offset] = 0
     req[keys.length] = 0
     req[keys.sourcetext] = ""
@@ -125,7 +125,7 @@ extension SwiftLanguageServer {
         let name: String = dict[self.keys.name] {
 
         self.queue.async {
-          self.handleDocumentUpdate(url: URL(fileURLWithPath: name))
+          self.handleDocumentUpdate(uri: DocumentURI(string: name))
         }
       }
     }
@@ -172,19 +172,19 @@ extension SwiftLanguageServer {
 
   // MARK: - Workspace
 
-  public func documentUpdatedBuildSettings(_ url: URL, language: Language) {
+  public func documentUpdatedBuildSettings(_ uri: DocumentURI, language: Language) {
     self.queue.async {
-      guard let snapshot = self.documentManager.latestSnapshot(url) else {
+      guard let snapshot = self.documentManager.latestSnapshot(uri) else {
         return
       }
 
       // Confirm that the build settings actually changed, otherwise we don't
       // need to do anything.
-      let newSettings = self.buildSystem.settings(for: url, language)
-      guard self.buildSettingsByFile[url] != newSettings else {
+      let newSettings = self.buildSystem.settings(for: uri, language)
+      guard self.buildSettingsByFile[uri] != newSettings else {
         return
       }
-      self.buildSettingsByFile[url] = newSettings
+      self.buildSettingsByFile[uri] = newSettings
 
       let keys = self.keys
 
@@ -192,12 +192,12 @@ extension SwiftLanguageServer {
       // update the settings. At the moment there's no better way to do this.
       let closeReq = SKRequestDictionary(sourcekitd: self.sourcekitd)
       closeReq[keys.request] = self.requests.editor_close
-      closeReq[keys.name] = url.path
+      closeReq[keys.name] = uri.pseudoPath
       _ = self.sourcekitd.sendSync(closeReq)
 
       let openReq = SKRequestDictionary(sourcekitd: self.sourcekitd)
       openReq[keys.request] = self.requests.editor_open
-      openReq[keys.name] = url.path
+      openReq[keys.name] = uri.pseudoPath
       openReq[keys.sourcetext] = snapshot.text
       if let settings = newSettings {
         openReq[keys.compilerargs] = settings.compilerArguments
@@ -222,15 +222,15 @@ extension SwiftLanguageServer {
         return
       }
 
-      let url = snapshot.document.url
+      let uri = snapshot.document.uri
 
       // Cache the `BuildSystem`'s settings interally.
-      let settings = self.buildSystem.settings(for: url, snapshot.document.language)
-      self.buildSettingsByFile[url] = settings
+      let settings = self.buildSystem.settings(for: uri, snapshot.document.language)
+      self.buildSettingsByFile[uri] = settings
 
       let req = SKRequestDictionary(sourcekitd: self.sourcekitd)
       req[keys.request] = self.requests.editor_open
-      req[keys.name] = note.textDocument.url.path
+      req[keys.name] = note.textDocument.uri.pseudoPath
       req[keys.sourcetext] = snapshot.text
 
       if let settings = settings {
@@ -252,15 +252,15 @@ extension SwiftLanguageServer {
     self.queue.async {
       self.documentManager.close(note)
 
-      let url = note.textDocument.url
+      let uri = note.textDocument.uri
 
       let req = SKRequestDictionary(sourcekitd: self.sourcekitd)
       req[keys.request] = self.requests.editor_close
-      req[keys.name] = url.path
+      req[keys.name] = uri.pseudoPath
 
       // Clear settings that should not be cached for closed documents.
-      self.buildSettingsByFile[url] = nil
-      self.currentDiagnostics[url] = nil
+      self.buildSettingsByFile[uri] = nil
+      self.currentDiagnostics[uri] = nil
 
       _ = self.sourcekitd.sendSync(req)
     }
@@ -275,7 +275,7 @@ extension SwiftLanguageServer {
       let snapshot = self.documentManager.edit(note) { (before: DocumentSnapshot, edit: TextDocumentContentChangeEvent) in
         let req = SKRequestDictionary(sourcekitd: self.sourcekitd)
         req[keys.request] = self.requests.editor_replacetext
-        req[keys.name] = note.textDocument.url.path
+        req[keys.name] = note.textDocument.uri.pseudoPath
 
         if let range = edit.range {
           guard let offset = before.utf8Offset(of: range.lowerBound), let end = before.utf8Offset(of: range.upperBound) else {
@@ -316,8 +316,8 @@ extension SwiftLanguageServer {
     let keys = self.keys
 
     queue.async {
-      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.url) else {
-        log("failed to find snapshot for url \(req.params.textDocument.url)")
+      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
+        log("failed to find snapshot for url \(req.params.textDocument.uri)")
         req.reply(CompletionList(isIncomplete: true, items: []))
         return
       }
@@ -337,11 +337,11 @@ extension SwiftLanguageServer {
       let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
       skreq[keys.request] = self.requests.codecomplete
       skreq[keys.offset] = offset
-      skreq[keys.sourcefile] = snapshot.document.url.path
+      skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
       skreq[keys.sourcetext] = snapshot.text
 
       // FIXME: SourceKit should probably cache this for us.
-      if let settings = self.buildSettingsByFile[snapshot.document.url] {
+      if let settings = self.buildSettingsByFile[snapshot.document.uri] {
         skreq[keys.compilerargs] = settings.compilerArguments
       }
 
@@ -455,12 +455,12 @@ extension SwiftLanguageServer {
   }
 
   public func hover(_ req: Request<HoverRequest>) {
-    let url = req.params.textDocument.url
+    let uri = req.params.textDocument.uri
     let position = req.params.position
-    cursorInfo(url, position..<position) { result in
+    cursorInfo(uri, position..<position) { result in
       guard let cursorInfo: CursorInfo = result.success ?? nil else {
         if let error = result.failure {
-          log("cursor info failed \(url):\(position): \(error)", level: .warning)
+          log("cursor info failed \(uri):\(position): \(error)", level: .warning)
         }
         return req.reply(nil)
       }
@@ -495,12 +495,12 @@ extension SwiftLanguageServer {
   }
 
   public func symbolInfo(_ req: Request<SymbolInfoRequest>) {
-    let url = req.params.textDocument.url
+    let uri = req.params.textDocument.uri
     let position = req.params.position
-    cursorInfo(url, position..<position) { result in
+    cursorInfo(uri, position..<position) { result in
       guard let cursorInfo: CursorInfo = result.success ?? nil else {
         if let error = result.failure {
-          log("cursor info failed \(url):\(position): \(error)", level: .warning)
+          log("cursor info failed \(uri):\(position): \(error)", level: .warning)
         }
         return req.reply([])
       }
@@ -513,15 +513,15 @@ extension SwiftLanguageServer {
     let keys = self.keys
 
     queue.async {
-      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.url) else {
-        log("failed to find snapshot for url \(req.params.textDocument.url)")
+      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
+        log("failed to find snapshot for url \(req.params.textDocument.uri)")
         req.reply(nil)
         return
       }
 
       let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
       skreq[keys.request] = self.requests.editor_open
-      skreq[keys.name] = "DocumentSymbols:" + snapshot.document.url.path
+      skreq[keys.name] = "DocumentSymbols:" + snapshot.document.uri.pseudoPath
       skreq[keys.sourcetext] = snapshot.text
       skreq[keys.syntactic_only] = 1
 
@@ -596,15 +596,15 @@ extension SwiftLanguageServer {
     let keys = self.keys
 
     queue.async {
-      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.url) else {
-        log("failed to find snapshot for url \(req.params.textDocument.url)")
+      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
+        log("failed to find snapshot for url \(req.params.textDocument.uri)")
         req.reply(nil)
         return
       }
 
       let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
       skreq[keys.request] = self.requests.editor_open
-      skreq[keys.name] = "DocumentColor:" + snapshot.document.url.path
+      skreq[keys.name] = "DocumentColor:" + snapshot.document.uri.pseudoPath
       skreq[keys.sourcetext] = snapshot.text
       skreq[keys.syntactic_only] = 1
 
@@ -701,8 +701,8 @@ extension SwiftLanguageServer {
     let keys = self.keys
 
     queue.async {
-      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.url) else {
-        log("failed to find snapshot for url \(req.params.textDocument.url)")
+      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
+        log("failed to find snapshot for url \(req.params.textDocument.uri)")
         req.reply(nil)
         return
       }
@@ -716,10 +716,10 @@ extension SwiftLanguageServer {
       let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
       skreq[keys.request] = self.requests.relatedidents
       skreq[keys.offset] = offset
-      skreq[keys.sourcefile] = snapshot.document.url.path
+      skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
 
       // FIXME: SourceKit should probably cache this for us.
-      if let settings = self.buildSettingsByFile[snapshot.document.url] {
+      if let settings = self.buildSettingsByFile[snapshot.document.uri] {
         skreq[keys.compilerargs] = settings.compilerArguments
       }
 
@@ -762,15 +762,15 @@ extension SwiftLanguageServer {
     let keys = self.keys
 
     queue.async {
-      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.url) else {
-        log("failed to find snapshot for url \(req.params.textDocument.url)")
+      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
+        log("failed to find snapshot for url \(req.params.textDocument.uri)")
         req.reply(nil)
         return
       }
 
       let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
       skreq[keys.request] = self.requests.editor_open
-      skreq[keys.name] = "FoldingRanges:" + snapshot.document.url.path
+      skreq[keys.name] = "FoldingRanges:" + snapshot.document.uri.pseudoPath
       skreq[keys.sourcetext] = snapshot.text
       skreq[keys.syntactic_only] = 1
 
@@ -860,7 +860,7 @@ extension SwiftLanguageServer {
   func addFoldingRange(offset: Int, length: Int, kind: FoldingRangeKind? = nil, in snapshot: DocumentSnapshot, toArray ranges: inout [FoldingRange]) {
     guard let start: Position = snapshot.positionOf(utf8Offset: offset),
           let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
-      log("folding range failed to retrieve position of \(snapshot.document.url): \(offset)-\(offset + length)", level: .warning)
+      log("folding range failed to retrieve position of \(snapshot.document.uri): \(offset)-\(offset + length)", level: .warning)
       return
     }
     let capabilities = clientCapabilities.textDocument?.foldingRange
@@ -938,7 +938,7 @@ extension SwiftLanguageServer {
     }
 
     _cursorInfo(
-      params.textDocument.url,
+      params.textDocument.uri,
       params.range,
       additionalParameters: additionalCursorInfoParameters)
     { result in
@@ -977,7 +977,7 @@ extension SwiftLanguageServer {
       log(message, level: .warning)
       return req.reply(.failure(.unknown(message)))
     }
-    let url = swiftCommand.textDocument.url
+    let uri = swiftCommand.textDocument.uri
     semanticRefactoring(swiftCommand) { result in
       switch result {
       case .success(let refactor):
@@ -991,7 +991,7 @@ extension SwiftLanguageServer {
           }
         }
       case .failure(let error):
-        let message = "semantic refactoring failed \(url): \(error)"
+        let message = "semantic refactoring failed \(uri): \(error)"
         log(message, level: .warning)
         return req.reply(.failure(.unknown(message)))
       }

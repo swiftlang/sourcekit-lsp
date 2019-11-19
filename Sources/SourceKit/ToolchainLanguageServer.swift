@@ -28,7 +28,7 @@ public protocol ToolchainLanguageServer: AnyObject {
   func changeDocument(_ note: DidChangeTextDocument)
   func willSaveDocument(_ note: WillSaveTextDocument)
   func didSaveDocument(_ note: DidSaveTextDocument)
-  func documentUpdatedBuildSettings(_ url: URL, language: Language)
+  func documentUpdatedBuildSettings(_ uri: DocumentURI, language: Language)
 
   // MARK: - Text Document
 
