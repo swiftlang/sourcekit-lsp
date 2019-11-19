@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Build
+import LanguageServerProtocol
 import SKCore
 import SKSwiftPMWorkspace
 import SKTestSupport
@@ -301,7 +302,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
       XCTAssertNotNil(ws.settings(for: aswift.asURI, .swift))
       XCTAssertNil(ws.settings(for: bswift.asURI, .swift))
-      XCTAssertNil(ws.settings(for: .url(URL(string: "https://www.apple.com")!), .swift))
+      XCTAssertNil(ws.settings(for: DocumentURI(URL(string: "https://www.apple.com")!), .swift))
     }
   }
 

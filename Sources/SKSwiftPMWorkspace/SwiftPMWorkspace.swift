@@ -199,7 +199,7 @@ extension SwiftPMWorkspace: BuildSystem {
     for uri: DocumentURI,
     _ language: Language) -> FileBuildSettings?
   {
-    guard case .url(let url) = uri else {
+    guard let url = uri.fileURL else {
       // We can't determine build settings for non-file URIs.
       return nil
     }

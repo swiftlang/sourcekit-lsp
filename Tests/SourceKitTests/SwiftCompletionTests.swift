@@ -78,7 +78,7 @@ final class SwiftCompletionTests: XCTestCase {
 
   func openDocument(text: String? = nil, url: URL) {
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      uri: .url(url),
+      uri: DocumentURI(url),
       language: .swift,
       version: 12,
       text: text ?? self.text)))

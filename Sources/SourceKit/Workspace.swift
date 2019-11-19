@@ -83,7 +83,7 @@ public final class Workspace {
     let settings = BuildSystemList()
     self.buildSettings = settings
 
-    if case .url(let rootUrl) = rootUri, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
+    if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
       if let buildServer = BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
         settings.providers.insert(buildServer, at: 0)
       } else {

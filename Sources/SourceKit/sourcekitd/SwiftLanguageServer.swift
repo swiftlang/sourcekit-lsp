@@ -125,7 +125,14 @@ extension SwiftLanguageServer {
         let name: String = dict[self.keys.name] {
 
         self.queue.async {
-          self.handleDocumentUpdate(uri: DocumentURI(string: name))
+          let uri: DocumentURI
+          if name.starts(with: "/") {
+            // If sourcekitd returns us a path, translate it back into a URL
+            uri = DocumentURI(URL(fileURLWithPath: name))
+          } else {
+            uri = DocumentURI(string: name)
+          }
+          self.handleDocumentUpdate(uri: uri)
         }
       }
     }

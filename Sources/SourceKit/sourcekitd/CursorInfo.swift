@@ -120,7 +120,7 @@ extension SwiftLanguageServer {
          let offset: Int = dict[keys.offset],
          let pos = snapshot.positionOf(utf8Offset: offset)
       {
-        location = Location(uri: .url(URL(fileURLWithPath: filepath)), range: Range(pos))
+        location = Location(uri: DocumentURI(URL(fileURLWithPath: filepath)), range: Range(pos))
       }
 
       let refactorActionsArray: SKResponseArray? = dict[keys.refactor_actions]

@@ -54,7 +54,7 @@ final class LocalSwiftTests: XCTestCase {
 
   func testEditing() {
     let url = URL(fileURLWithPath: "/a.swift")
-    let uri = DocumentURI.url(url)
+    let uri = DocumentURI(url)
 
     sk.allowUnexpectedNotification = false
 
@@ -167,7 +167,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testEditingNonURL() {
-    let uri = DocumentURI.other("urn:uuid:A1B08909-E791-469E-BF0F-F5790977E051")
+    let uri = DocumentURI(string: "urn:uuid:A1B08909-E791-469E-BF0F-F5790977E051")
 
     sk.allowUnexpectedNotification = false
 
@@ -282,8 +282,8 @@ final class LocalSwiftTests: XCTestCase {
   func testCrossFileDiagnostics() {
     let urlA = URL(fileURLWithPath: "/a.swift")
     let urlB = URL(fileURLWithPath: "/b.swift")
-    let uriA = DocumentURI.url(urlA)
-    let uriB = DocumentURI.url(urlB)
+    let uriA = DocumentURI(urlA)
+    let uriB = DocumentURI(urlB)
 
     sk.allowUnexpectedNotification = false
 
@@ -336,7 +336,7 @@ final class LocalSwiftTests: XCTestCase {
 
   func testDiagnosticsReopen() {
     let urlA = URL(fileURLWithPath: "/a.swift")
-    let uriA = DocumentURI.url(urlA)
+    let uriA = DocumentURI(urlA)
     sk.allowUnexpectedNotification = false
 
     sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
@@ -635,7 +635,7 @@ final class LocalSwiftTests: XCTestCase {
 
   func testSymbolInfo() {
     let url = URL(fileURLWithPath: "/a.swift")
-    let uri = DocumentURI.url(url)
+    let uri = DocumentURI(url)
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
       uri: uri,
@@ -708,7 +708,7 @@ final class LocalSwiftTests: XCTestCase {
 
   func testHover() {
     let url = URL(fileURLWithPath: "/a.swift")
-    let uri = DocumentURI.url(url)
+    let uri = DocumentURI(url)
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
       uri: uri,
@@ -758,7 +758,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.swift")
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      uri: .url(url),
+      uri: DocumentURI(url),
       language: .swift,
       version: 1,
       text: """
@@ -811,7 +811,7 @@ final class LocalSwiftTests: XCTestCase {
 
   func testDocumentSymbolHighlight() {
     let url = URL(fileURLWithPath: "/a.swift")
-    let uri = DocumentURI.url(url)
+    let uri = DocumentURI(url)
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
       uri: uri,

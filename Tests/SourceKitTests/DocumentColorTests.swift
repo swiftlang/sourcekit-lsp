@@ -52,7 +52,7 @@ final class DocumentColorTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.swift")
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      uri: .url(url),
+      uri: DocumentURI(url),
       language: .swift,
       version: 12,
       text: text)))
@@ -65,7 +65,7 @@ final class DocumentColorTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.swift")
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      uri: .url(url),
+      uri: DocumentURI(url),
       language: .swift,
       version: 12,
       text: text)))

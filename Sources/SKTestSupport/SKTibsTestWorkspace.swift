@@ -62,7 +62,7 @@ public final class SKTibsTestWorkspace {
   func initWorkspace(clientCapabilities: ClientCapabilities) {
     let buildPath = AbsolutePath(builder.buildRoot.path)
     testServer.server!.workspace = Workspace(
-      rootUri: .url(sources.rootDirectory),
+      rootUri: DocumentURI(sources.rootDirectory),
       clientCapabilities: clientCapabilities,
       buildSettings: CompilationDatabaseBuildSystem(projectRoot: buildPath),
       index: index,
@@ -82,7 +82,7 @@ extension SKTibsTestWorkspace {
 extension SKTibsTestWorkspace {
   public func openDocument(_ url: URL, language: Language) throws {
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      uri: .url(url),
+      uri: DocumentURI(url),
       language: language,
       version: 1,
       text: try sources.sourceCache.get(url))))
@@ -134,13 +134,13 @@ extension Position {
 
 extension Location {
   public init(_ loc: TestLocation) {
-    self.init(uri: .url(loc.url), range: Range(Position(loc)))
+    self.init(uri: DocumentURI(loc.url), range: Range(Position(loc)))
   }
 
   /// Incorrectly use the UTF-8 column index in place of the UTF-16 one, to match the incorrect
   /// implementation in SourceKitServer when using the index.
   public init(badUTF16 loc: TestLocation) {
-    self.init(uri: .url(loc.url), range: Range(Position(badUTF16: loc)))
+    self.init(uri: DocumentURI(loc.url), range: Range(Position(badUTF16: loc)))
   }
 }
 
@@ -162,5 +162,5 @@ extension TibsToolchain {
 }
 
 extension TestLocation {
-  public var docIdentifier: TextDocumentIdentifier { TextDocumentIdentifier(.url(url)) }
+  public var docIdentifier: TextDocumentIdentifier { TextDocumentIdentifier(url) }
 }

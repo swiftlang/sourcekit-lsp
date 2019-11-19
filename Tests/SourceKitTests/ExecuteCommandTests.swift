@@ -79,7 +79,7 @@ final class ExecuteCommandTests: XCTestCase {
     }
 
     XCTAssertEqual(WorkspaceEdit(fromLSPDictionary: resultDict), WorkspaceEdit(changes: [
-      .url(loc.url): [
+      DocumentURI(loc.url): [
         TextEdit(range: Position(line: 1, utf16index: 29)..<Position(line: 1, utf16index: 29),
                  newText: "NSLocalizedString("),
         TextEdit(range: Position(line: 1, utf16index: 44)..<Position(line: 1, utf16index: 44),
@@ -122,7 +122,7 @@ final class ExecuteCommandTests: XCTestCase {
     }
 
     XCTAssertEqual(WorkspaceEdit(fromLSPDictionary: resultDict), WorkspaceEdit(changes: [
-      .url(loc.url): [
+      DocumentURI(loc.url): [
         TextEdit(range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
                  newText: "fileprivate func extractedFunc() -> String {\n/*sr:extractStart*/var a = \"/*sr:string*/\"\n  return a\n}\n\n"),
         TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 2, utf16index: 10),

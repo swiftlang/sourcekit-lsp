@@ -39,14 +39,14 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
     // test settings with a response
     let fileURL = URL(fileURLWithPath: "/path/to/some/file.swift")
-    let settings = buildSystem.settings(for: .url(fileURL), Language.swift)
+    let settings = buildSystem.settings(for: DocumentURI(fileURL), Language.swift)
     XCTAssertNotNil(settings)
     XCTAssertEqual(settings?.compilerArguments, ["-a", "-b"])
     XCTAssertEqual(settings?.workingDirectory, fileURL.deletingLastPathComponent().path)
 
     // test error
     let missingFileURL = URL(fileURLWithPath: "/path/to/some/missingfile.missing")
-    XCTAssertNil(buildSystem.settings(for: .url(missingFileURL), Language.swift))
+    XCTAssertNil(buildSystem.settings(for: DocumentURI(missingFileURL), Language.swift))
   }
 
   func testFileRegistration() throws {
@@ -57,9 +57,9 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
-    let buildSystemDelegate = TestDelegate(fileExpectations: [.url(fileUrl): expectation])
+    let buildSystemDelegate = TestDelegate(fileExpectations: [DocumentURI(fileUrl): expectation])
     buildSystem.delegate = buildSystemDelegate
-    buildSystem.registerForChangeNotifications(for: .url(fileUrl))
+    buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
 
     XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
   }
@@ -174,7 +174,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
         data: .dictionary(["key": "value"])): expectation,
     ])
     buildSystem.delegate = buildSystemDelegate
-    buildSystem.registerForChangeNotifications(for: .url(fileUrl))
+    buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
 
     let result = XCTWaiter.wait(for: [expectation], timeout: 15)
     if result != .completed {

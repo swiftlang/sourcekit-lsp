@@ -107,7 +107,7 @@ extension ClangLanguageServerShim {
   }
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI, language: Language) {
-    guard case .url(let url) = uri else {
+    guard let url = uri.fileURL else {
       // FIXME: The clang workspace can probably be reworked to support non-file URIs.
       log("Received updated build settings for non-file URI '\(uri)'. Ignoring the update.")
       return

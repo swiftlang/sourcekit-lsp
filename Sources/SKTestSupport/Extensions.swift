@@ -15,12 +15,12 @@ import TSCBasic
 
 public extension TextDocumentIdentifier {
   init(_ url: URL) {
-    self.init(.url(url))
+    self.init(DocumentURI(url))
   }
 }
 
 public extension AbsolutePath {
   var asURI: DocumentURI {
-    return .url(asURL)
+    return DocumentURI(asURL)
   }
 }

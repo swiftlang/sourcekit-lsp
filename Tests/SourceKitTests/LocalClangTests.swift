@@ -60,7 +60,7 @@ final class LocalClangTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.cpp")
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      uri: .url(url),
+      uri: DocumentURI(url),
       language: .cpp,
       version: 1,
       text: """
@@ -124,7 +124,7 @@ final class LocalClangTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.cpp")
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      uri: .url(url),
+      uri: DocumentURI(url),
       language: .cpp,
       version: 1,
       text: """

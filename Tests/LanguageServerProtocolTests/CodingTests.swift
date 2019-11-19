@@ -18,7 +18,7 @@ final class CodingTests: XCTestCase {
 
   func testValueCoding() {
     let url = URL(fileURLWithPath: "/foo.swift")
-    let uri = DocumentURI.url(url)
+    let uri = DocumentURI(url)
     // The \\/\\/\\/ is escaping file:// + /foo.swift, which is silly but allowed by json.
     let urljson = "file:\\/\\/\\/foo.swift"
 

@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LanguageServerProtocol
 import LSPTestSupport
 import SKCore
 import TSCBasic
@@ -200,7 +201,7 @@ final class CompilationDatabaseTests: XCTestCase {
     let buildSystem: BuildSystem = CompilationDatabaseBuildSystem(
       projectRoot: AbsolutePath("/a"), fileSystem: fs)
 
-    let settings = buildSystem.settings(for: .url(URL(fileURLWithPath: "/a/a.swift")), .swift)
+    let settings = buildSystem.settings(for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")), .swift)
     XCTAssertNotNil(settings)
     XCTAssertEqual(settings?.workingDirectory, "/a")
     XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", "/a/a.swift"])

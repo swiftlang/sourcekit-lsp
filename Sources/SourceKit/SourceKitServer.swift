@@ -288,7 +288,7 @@ extension SourceKitServer {
         indexOptions: indexOptions)
     } else if let path = req.params.rootPath {
       self.workspace = try? Workspace(
-        rootUri: .url(URL(fileURLWithPath: path)),
+        rootUri: DocumentURI(URL(fileURLWithPath: path)),
         clientCapabilities: req.params.capabilities,
         toolchainRegistry: self.toolchainRegistry,
         buildSetup: self.options.buildSetup,
@@ -444,7 +444,7 @@ extension SourceKitServer {
         utf16index: symbolOccurrence.location.utf8Column - 1)
 
       let symbolLocation = Location(
-        uri: .url(URL(fileURLWithPath: symbolOccurrence.location.path)),
+        uri: DocumentURI(URL(fileURLWithPath: symbolOccurrence.location.path)),
         range: Range(symbolPosition))
 
       return SymbolInformation(
@@ -565,7 +565,7 @@ extension SourceKitServer {
           return nil
         }
         return Location(
-          uri: .url(URL(fileURLWithPath: occur.location.path)),
+          uri: DocumentURI(URL(fileURLWithPath: occur.location.path)),
           range: Range(Position(
             line: occur.location.line - 1, // 1-based -> 0-based
             // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
@@ -612,7 +612,7 @@ extension SourceKitServer {
           return nil
         }
         return Location(
-          uri: .url(URL(fileURLWithPath: occur.location.path)),
+          uri: DocumentURI(URL(fileURLWithPath: occur.location.path)),
           range: Range(Position(
             line: occur.location.line - 1, // 1-based -> 0-based
             // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
@@ -665,7 +665,7 @@ extension SourceKitServer {
           return nil
         }
         return Location(
-          uri: .url(URL(fileURLWithPath: occur.location.path)),
+          uri: DocumentURI(URL(fileURLWithPath: occur.location.path)),
           range: Range(Position(
             line: occur.location.line - 1, // 1-based -> 0-based
             // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!

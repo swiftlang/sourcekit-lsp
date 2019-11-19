@@ -55,7 +55,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     let url = URL(fileURLWithPath: "/a.swift")
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      uri: .url(url),
+      uri: DocumentURI(url),
       language: .swift,
       version: 17,
       text: text

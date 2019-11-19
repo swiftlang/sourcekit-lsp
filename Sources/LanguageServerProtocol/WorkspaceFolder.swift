@@ -22,13 +22,8 @@ public struct WorkspaceFolder: ResponseType, Hashable, Codable {
   public init(uri: DocumentURI, name: String? = nil) {
     self.uri = uri
 
-    switch uri {
-    case .url(let url):
-      self.name = name ?? url.lastPathComponent
-    case .other(_):
-      self.name = name ?? "unknown_workspace"
-    }
-
+    self.name = name ?? uri.fileURL?.lastPathComponent ?? "unknown_workspace"
+    
     if self.name.isEmpty {
       self.name = "unknown_workspace"
     }

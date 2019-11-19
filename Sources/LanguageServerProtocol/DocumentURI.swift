@@ -12,9 +12,17 @@
 
 import Foundation
 
-public enum DocumentURI: Codable, Hashable {
-  case url(URL)
-  case other(String)
+public struct DocumentURI: Codable, Hashable {
+  /// The URL that store the URIs value
+  private let storage: URL
+
+  public var fileURL: URL? {
+    if storage.isFileURL {
+      return storage
+    } else {
+      return nil
+    }
+  }
 
   /// Returns a filepath if the URI is a URL. If the URI is not a URL, returns
   /// the full URI as a fallback.
@@ -22,39 +30,30 @@ public enum DocumentURI: Codable, Hashable {
   /// expects a file path but is able to handle arbitrary strings as well in a
   /// fallback mode that drops semantic functionality.
   public var pseudoPath: String {
-    switch self {
-    case .url(let url):
-      return url.path
-    case .other(let string):
-      return string
+    if storage.isFileURL {
+      return storage.path
+    } else {
+      return storage.absoluteString
     }
   }
 
   /// Returns the URI as a string.
   public var stringValue: String {
-    switch self {
-    case .url(let url):
-      return url.absoluteString
-    case .other(let string):
-      return string
-    }
+    return storage.absoluteString
   }
 
   /// Construct a DocumentURI from the given URI string, automatically parsing
   ///  it either as a URL or an opaque URI.
   public init(string: String) {
-    if string.starts(with: "file:"), let url = URL(string: string) {
-      // URL with a 'file:' protocol. Parse using URL(string:)
-      self = .url(url)
-    } else if string.starts(with: "/") {
-      // Absolute path. Technically this not part of the LSP specification
-      // but we want to support it anyway.
-      // Parse it using URL(fileURLWithPath:)
-      self = .url(URL(fileURLWithPath: string))
-    } else {
-      // Can't parse URI as URL. Use it as an opaque value.
-      self = .other(string)
+    guard let url = URL(string: string) else {
+      fatalError("Failed to construct DocumentURI from '\(string)'")
     }
+    self.init(url)
+  }
+
+  public init(_ url: URL) {
+    self.storage = url
+    assert(self.storage.scheme != nil, "Received invalid URI without a scheme '\(self.storage.absoluteString)'")
   }
 
   public init(from decoder: Decoder) throws {
@@ -62,11 +61,6 @@ public enum DocumentURI: Codable, Hashable {
   }
 
   public func encode(to encoder: Encoder) throws {
-    switch self {
-    case .url(let url):
-      try url.absoluteString.encode(to: encoder)
-    case .other(let string):
-      try string.encode(to: encoder)
-    }
+    try storage.absoluteString.encode(to: encoder)
   }
 }

@@ -26,7 +26,7 @@ final class FoldingRangeTests: XCTestCase {
                                                     clientCapabilities: capabilities) else { return nil }
     let loc = ws.testLoc(testLoc)
     try ws.openDocument(loc.url, language: .swift)
-    return (ws, .url(loc.url))
+    return (ws, DocumentURI(loc.url))
   }
 
   func testPartialLineFolding() throws {
