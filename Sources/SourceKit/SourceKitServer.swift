@@ -46,7 +46,7 @@ public final class SourceKitServer: LanguageServer {
 
   let fs: FileSystem
 
-  let onExit: () -> Void
+  var onExit: () -> Void
 
   /// Creates a language server for the given client.
   public init(client: Connection, fileSystem: FileSystem = localFileSystem, options: Options, onExit: @escaping () -> Void = {}) {
@@ -385,7 +385,13 @@ extension SourceKitServer {
   func exit(_ notification: Notification<Exit>) {
     // Should have been called in shutdown, but allow misbehaving clients.
     _prepareForExit()
-    onExit()
+
+    // Call onExit only once, and hop off queue to allow the handler to call us back.
+    let onExit = self.onExit
+    self.onExit = {}
+    DispatchQueue.global().async {
+      onExit()
+    }
   }
 
   // MARK: - Text synchronization
