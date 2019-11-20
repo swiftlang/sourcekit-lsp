@@ -351,13 +351,40 @@ extension SourceKitServer {
     requestCancellation[key]?.cancel()
   }
 
-  func shutdown(_ request: Request<Shutdown>) {
+  /// The server is about to exit, and the server should flush any buffered state.
+  ///
+  /// The server shall not be used to handle more requests (other than possibly
+  /// `shutdown` and `exit`) and should attempt to flush any buffered state
+  /// immediately, such as sending index changes to disk.
+  public func prepareForExit() {
+    // Note: this method should be safe to call multiple times, since we want to
+    // be resilient against multiple possible shutdown sequences, including
+    // pipe failure.
+
+    // Close the index, which will flush to disk.
+    self.queue.sync {
+      self._prepareForExit()
+    }
+  }
+
+  func _prepareForExit() {
+    // Note: this method should be safe to call multiple times, since we want to
+    // be resilient against multiple possible shutdown sequences, including
+    // pipe failure.
+
     // Close the index, which will flush to disk.
     self.workspace?.index = nil
+  }
+
+
+  func shutdown(_ request: Request<Shutdown>) {
+    _prepareForExit()
     request.reply(VoidResponse())
   }
 
   func exit(_ notification: Notification<Exit>) {
+    // Should have been called in shutdown, but allow misbehaving clients.
+    _prepareForExit()
     onExit()
   }
 

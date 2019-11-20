@@ -111,6 +111,7 @@ let server = SourceKitServer(client: clientConnection, options: options.serverOp
   clientConnection.close()
 })
 clientConnection.start(receiveHandler: server, closeHandler: {
+  server.prepareForExit()
   exit(0)
 })
 
