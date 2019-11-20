@@ -10,10 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-import TSCBasic
 import BuildServerProtocol
 import LanguageServerProtocol
+import LSPLogging
+import SKSupport
+import TSCBasic
 
 /// A `BuildSystem` based on loading clang-compatible compilation database(s).
 ///

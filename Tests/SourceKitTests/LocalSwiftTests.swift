@@ -10,10 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKit
 import LanguageServerProtocol
-import SKSupport
+import LSPLogging
+import LSPTestSupport
 import SKTestSupport
+import SourceKit
 import XCTest
 
 // Workaround ambiguity with Foundation.

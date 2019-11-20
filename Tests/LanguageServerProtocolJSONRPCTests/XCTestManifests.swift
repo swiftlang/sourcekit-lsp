@@ -45,6 +45,8 @@ extension MessageParsingTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__MessageParsingTests = [
+        ("testFindSubsequence", testFindSubsequence),
+        ("testIntFromAscii", testIntFromAscii),
         ("testParseHeader", testParseHeader),
         ("testParseHeaderField", testParseHeaderField),
         ("testSplitMessage", testSplitMessage),

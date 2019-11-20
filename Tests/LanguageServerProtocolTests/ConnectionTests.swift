@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import SKTestSupport
+import LSPTestSupport
 import XCTest
 
 // Workaround ambiguity with Foundation.

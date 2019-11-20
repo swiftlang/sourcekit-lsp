@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocolJSONRPC
 import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
 import XCTest
 
 final class MessageParsingTests: XCTestCase {
@@ -144,5 +144,70 @@ final class MessageParsingTests: XCTestCase {
     check(":\r\n", keyLen: 0, valueLen: 0, restLen: 0)
 
     checkError("C\r\n", MessageDecodingError.parseError("expected ':' in message header"))
+  }
+
+  func testFindSubsequence() {
+    XCTAssertNil([0, 1, 2].firstIndex(of: [3]))
+    XCTAssertNil([].firstIndex(of: [3]))
+    XCTAssertNil([0, 1, 2].firstIndex(of: [1, 3]))
+    XCTAssertNil([0, 1, 2].firstIndex(of: [0, 2]))
+    XCTAssertNil([0, 1, 2].firstIndex(of: [2, 3]))
+    XCTAssertNil([0, 1].firstIndex(of: [1, 0]))
+    XCTAssertNil([0].firstIndex(of: [0, 1]))
+
+    XCTAssertEqual([Int]().firstIndex(of: []), 0)
+    XCTAssertEqual([0].firstIndex(of: []), 0)
+    XCTAssertEqual([0].firstIndex(of: [0]), 0)
+    XCTAssertEqual([0, 1].firstIndex(of: [0]), 0)
+    XCTAssertEqual([0, 1].firstIndex(of: [1]), 1)
+
+    XCTAssertEqual([0, 1].firstIndex(of: [0, 1]), 0)
+    XCTAssertEqual([0, 1, 2, 3].firstIndex(of: [0, 1]), 0)
+    XCTAssertEqual([0, 1, 2, 3].firstIndex(of: [0, 1, 2]), 0)
+    XCTAssertEqual([0, 1, 2, 3].firstIndex(of: [1, 2]), 1)
+    XCTAssertEqual([0, 1, 2, 3].firstIndex(of: [3]), 3)
+  }
+
+  func testIntFromAscii() {
+    XCTAssertNil(Int(ascii: ""))
+    XCTAssertNil(Int(ascii: "a"))
+    XCTAssertNil(Int(ascii: "0x1"))
+    XCTAssertNil(Int(ascii: " "))
+    XCTAssertNil(Int(ascii: "+"))
+    XCTAssertNil(Int(ascii: "-"))
+    XCTAssertNil(Int(ascii: "+ "))
+    XCTAssertNil(Int(ascii: "- "))
+    XCTAssertNil(Int(ascii: "1 1"))
+    XCTAssertNil(Int(ascii: "1a1"))
+    XCTAssertNil(Int(ascii: "1a"))
+    XCTAssertNil(Int(ascii: "1+"))
+    XCTAssertNil(Int(ascii: "+ 1"))
+    XCTAssertNil(Int(ascii: "- 1"))
+    XCTAssertNil(Int(ascii: "1-1"))
+
+    XCTAssertEqual(Int(ascii: "0"), 0)
+    XCTAssertEqual(Int(ascii: "1"), 1)
+    XCTAssertEqual(Int(ascii: "45"), 45)
+    XCTAssertEqual(Int(ascii: "     45    "), 45)
+    XCTAssertEqual(Int(ascii: "\(Int.max)"), Int.max)
+    XCTAssertEqual(Int(ascii: "\(Int.max-1)"), Int.max-1)
+    XCTAssertEqual(Int(ascii: "\(Int.min)"), Int.min)
+    XCTAssertEqual(Int(ascii: "\(Int.min+1)"), Int.min+1)
+
+    XCTAssertEqual(Int(ascii: "+0"), 0)
+    XCTAssertEqual(Int(ascii: "+1"), 1)
+    XCTAssertEqual(Int(ascii: "+45"), 45)
+    XCTAssertEqual(Int(ascii: "     +45    "), 45)
+    XCTAssertEqual(Int(ascii: "-0"), 0)
+    XCTAssertEqual(Int(ascii: "-1"), -1)
+    XCTAssertEqual(Int(ascii: "-45"), -45)
+    XCTAssertEqual(Int(ascii: "     -45    "), -45)
+    XCTAssertEqual(Int(ascii: "+\(Int.max)"), Int.max)
+    XCTAssertEqual(Int(ascii: "+\(Int.max-1)"), Int.max-1)
+    XCTAssertEqual(Int(ascii: "\(Int.min)"), Int.min)
+    XCTAssertEqual(Int(ascii: "\(Int.min+1)"), Int.min+1)
+
+    XCTAssertEqual(Int(ascii: "1234567890"), 1234567890)
+    XCTAssertEqual(Int(ascii: "\n\r \u{b}\u{d}\t45\n\t\r\u{c}"), 45)
   }
 }

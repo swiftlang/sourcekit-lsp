@@ -10,13 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import SKCore
-import SKSupport
-import TSCBasic
-import sourcekitd
 import Dispatch
 import struct Foundation.CharacterSet
+import LanguageServerProtocol
+import LSPLogging
+import SKCore
+import SKSupport
+import sourcekitd
+import TSCBasic
 
 public final class SwiftLanguageServer: ToolchainLanguageServer {
 

@@ -20,6 +20,7 @@ import TSCBasic
 import TSCUtility
 import XCTest
 import Foundation
+import LSPTestSupport
 
 public typealias URL = Foundation.URL
 

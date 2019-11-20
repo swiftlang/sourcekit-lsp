@@ -10,11 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKit
+import ISDBTestSupport
 import LanguageServerProtocol
 import XCTest
-import SKTestSupport
-import ISDBTestSupport
 
 final class ImplementationTests: XCTestCase {
   func testImplementation() throws {

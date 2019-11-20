@@ -10,16 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Build
 import BuildServerProtocol
 import LanguageServerProtocol
-import SKCore
-import TSCBasic
-import TSCUtility
-import SKSupport
-import Build
-import PackageModel
+import LSPLogging
 import PackageGraph
 import PackageLoading
+import PackageModel
+import SKCore
+import SKSupport
 import Workspace
 
 /// Swift Package Manager build system and workspace support.

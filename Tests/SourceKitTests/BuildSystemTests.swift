@@ -10,13 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKit
-import TSCBasic
 import BuildServerProtocol
 import LanguageServerProtocol
+import LSPTestSupport
 import SKCore
-import SKSupport
 import SKTestSupport
+import SourceKit
+import TSCBasic
 import XCTest
 
 // Workaround ambiguity with Foundation.

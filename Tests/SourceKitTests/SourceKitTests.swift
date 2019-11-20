@@ -10,15 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKit
 import LanguageServerProtocol
-import TSCBasic
-import TSCUtility
-import SKCore
 import SKTestSupport
-import IndexStoreDB
-import ISDBTibs
-import ISDBTestSupport
 import XCTest
 
 public typealias URL = Foundation.URL

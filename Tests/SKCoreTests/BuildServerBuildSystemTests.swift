@@ -9,12 +9,14 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
-import XCTest
-import SKCore
-import TSCBasic
-import LanguageServerProtocol
-import Foundation
+
 import BuildServerProtocol
+import Foundation
+import LanguageServerProtocol
+import SKCore
+import SKTestSupport
+import TSCBasic
+import XCTest
 
 final class BuildServerBuildSystemTests: XCTestCase {
 

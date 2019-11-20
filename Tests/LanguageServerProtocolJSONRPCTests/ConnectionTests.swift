@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocolJSONRPC
 import LanguageServerProtocol
-import SKTestSupport
+import LanguageServerProtocolJSONRPC
+import LSPTestSupport
 import XCTest
 
 // Workaround ambiguity with Foundation.
@@ -133,7 +133,7 @@ class ConnectionTests: XCTestCase {
     }
 
     _ = client.send(UnknownRequest()) { result in
-      XCTAssertEqual(result.failure, ResponseError.methodNotFound("unknown"))
+      XCTAssertEqual(result, .failure(ResponseError.methodNotFound("unknown")))
       expectation.fulfill()
     }
 
@@ -185,7 +185,7 @@ class ConnectionTests: XCTestCase {
 
     client.send(EchoNotification(string: "hi"))
     _ = client.send(EchoRequest(string: "yo")) { result in
-      XCTAssertEqual(result.failure, ResponseError.cancelled)
+      XCTAssertEqual(result, .failure(ResponseError.cancelled))
       expectation.fulfill()
     }
 

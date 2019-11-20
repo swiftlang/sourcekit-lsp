@@ -9,12 +9,14 @@
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
-import TSCBasic
+
+import BuildServerProtocol
+import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
+import LSPLogging
 import SKSupport
-import Foundation
-import BuildServerProtocol
+import TSCBasic
 
 /// A `BuildSystem` based on communicating with a build server
 ///

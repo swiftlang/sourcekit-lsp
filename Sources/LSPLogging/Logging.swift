@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import TSCBasic
 import Foundation
 
 #if canImport(os)
@@ -107,9 +106,13 @@ public final class Logger {
   }
 
   public func setLogLevel(environmentVariable: String) {
-    if let string = ProcessEnv.vars[environmentVariable],
-       let level = try? LogLevel(argument: string)
-    {
+    if let string = ProcessInfo.processInfo.environment[environmentVariable] {
+      setLogLevel(string)
+    }
+  }
+
+  public func setLogLevel(_ logLevel: String) {
+    if let level = try? LogLevel(argument: logLevel) {
       currentLevel = level
     }
   }

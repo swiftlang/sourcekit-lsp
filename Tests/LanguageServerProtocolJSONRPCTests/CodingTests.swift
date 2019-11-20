@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocolJSONRPC
 import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
+import LSPTestSupport
 import XCTest
-import SKTestSupport
 
 final class CodingTests: XCTestCase {
 
