@@ -213,18 +213,17 @@ class ConnectionTests: XCTestCase {
       let conn = JSONRPCConection(
         protocol: MessageRegistry(requests: [], notifications: []),
         inFD: to.fileHandleForReading.fileDescriptor,
-        outFD: from.fileHandleForWriting.fileDescriptor,
-        closeHandler: {
-        // We get an error from XCTest if this is fulfilled more than once.
-        expectation.fulfill()
-      })
+        outFD: from.fileHandleForWriting.fileDescriptor)
 
       final class DummyHandler: MessageHandler {
         func handle<N: NotificationType>(_: N, from: ObjectIdentifier) {}
         func handle<R: RequestType>(_: R, id: RequestID, from: ObjectIdentifier, reply: @escaping (LSPResult<R.Response>) -> Void) {}
       }
 
-      conn.start(receiveHandler: DummyHandler())
+      conn.start(receiveHandler: DummyHandler(), closeHandler: {
+        // We get an error from XCTest if this is fulfilled more than once.
+        expectation.fulfill()
+      })
 
 
       close(to.fileHandleForWriting.fileDescriptor)
