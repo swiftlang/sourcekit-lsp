@@ -38,6 +38,7 @@ public final class SKTibsTestWorkspace {
     immutableProjectDir: URL,
     persistentBuildDir: URL,
     tmpDir: URL,
+    removeTmpDir: Bool,
     toolchain: Toolchain,
     clientCapabilities: ClientCapabilities) throws
   {
@@ -45,6 +46,7 @@ public final class SKTibsTestWorkspace {
       immutableProjectDir: immutableProjectDir,
       persistentBuildDir: persistentBuildDir,
       tmpDir: tmpDir,
+      removeTmpDir: removeTmpDir,
       toolchain: TibsToolchain(toolchain))
 
     initWorkspace(clientCapabilities: clientCapabilities)
@@ -91,15 +93,22 @@ extension SKTibsTestWorkspace {
 
 extension XCTestCase {
 
-  public func staticSourceKitTibsWorkspace(name: String, clientCapabilities: ClientCapabilities = .init(), testFile: String = #file) throws -> SKTibsTestWorkspace? {
+  public func staticSourceKitTibsWorkspace(
+    name: String,
+    clientCapabilities: ClientCapabilities = .init(),
+    tmpDir: URL? = nil,
+    removeTmpDir: Bool = true,
+    testFile: String = #file
+  ) throws -> SKTibsTestWorkspace? {
     let testDirName = testDirectoryName
     let workspace = try SKTibsTestWorkspace(
       immutableProjectDir: inputsDirectory(testFile: testFile)
         .appendingPathComponent(name, isDirectory: true),
       persistentBuildDir: XCTestCase.productsDirectory
         .appendingPathComponent("sk-tests/\(testDirName)", isDirectory: true),
-      tmpDir: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+      tmpDir: tmpDir ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),
+      removeTmpDir: removeTmpDir,
       toolchain: ToolchainRegistry.shared.default!,
       clientCapabilities: clientCapabilities)
 

@@ -352,7 +352,8 @@ extension SourceKitServer {
   }
 
   func shutdown(_ request: Request<Shutdown>) {
-    // Nothing to do yet.
+    // Close the index, which will flush to disk.
+    self.workspace?.index = nil
     request.reply(VoidResponse())
   }
 
