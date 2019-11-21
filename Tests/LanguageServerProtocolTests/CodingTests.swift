@@ -18,6 +18,7 @@ final class CodingTests: XCTestCase {
 
   func testValueCoding() {
     let url = URL(fileURLWithPath: "/foo.swift")
+    let uri = DocumentURI(url)
     // The \\/\\/\\/ is escaping file:// + /foo.swift, which is silly but allowed by json.
     let urljson = "file:\\/\\/\\/foo.swift"
 
@@ -39,7 +40,7 @@ final class CodingTests: XCTestCase {
     let indent2rangejson = rangejson.indented(2, skipFirstLine: true)
 
     // url -> uri
-    checkCoding(Location(url: url, range: range), json: """
+    checkCoding(Location(uri: uri, range: range), json: """
       {
         "range" : \(indent2rangejson),
         "uri" : "\(urljson)"
@@ -54,26 +55,26 @@ final class CodingTests: XCTestCase {
       """)
 
     // url -> uri
-    checkCoding(TextDocumentIdentifier(url), json: """
+    checkCoding(TextDocumentIdentifier(uri), json: """
       {
         "uri" : "\(urljson)"
       }
       """)
 
-    checkCoding(VersionedTextDocumentIdentifier(url, version: nil), json: """
+    checkCoding(VersionedTextDocumentIdentifier(uri, version: nil), json: """
       {
         "uri" : "\(urljson)"
       }
       """)
 
-    checkCoding(VersionedTextDocumentIdentifier(url, version: 3), json: """
+    checkCoding(VersionedTextDocumentIdentifier(uri, version: 3), json: """
       {
         "uri" : "\(urljson)",
         "version" : 3
       }
       """)
 
-    checkCoding(TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(url, version: 1), edits: [TextEdit(range: range, newText: "foo")]), json: """
+    checkCoding(TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(uri, version: 1), edits: [TextEdit(range: range, newText: "foo")]), json: """
       {
         "edits" : [
           {
@@ -89,21 +90,21 @@ final class CodingTests: XCTestCase {
       """)
 
     // url -> uri
-    checkCoding(WorkspaceFolder(url: url, name: "foo"), json: """
+    checkCoding(WorkspaceFolder(uri: uri, name: "foo"), json: """
       {
         "name" : "foo",
         "uri" : "\(urljson)"
       }
       """)
 
-    checkCoding(WorkspaceFolder(url: url), json: """
+    checkCoding(WorkspaceFolder(uri: uri), json: """
       {
         "name" : "foo.swift",
         "uri" : "\(urljson)"
       }
       """)
 
-    checkCoding(WorkspaceFolder(url: url, name: ""), json: """
+    checkCoding(WorkspaceFolder(uri: uri, name: ""), json: """
       {
         "name" : "unknown_workspace",
         "uri" : "\(urljson)"
@@ -237,7 +238,7 @@ final class CodingTests: XCTestCase {
         "text" : "a"
       }
       """)
-    checkCoding(WorkspaceEdit(changes: [url: []]), json: """
+    checkCoding(WorkspaceEdit(changes: [uri: []]), json: """
       {
         "changes" : {
           "\(urljson)" : [

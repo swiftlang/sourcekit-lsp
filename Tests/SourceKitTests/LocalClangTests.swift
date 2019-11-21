@@ -41,7 +41,7 @@ final class LocalClangTests: XCTestCase {
     _ = try! sk.sendSync(InitializeRequest(
         processId: nil,
         rootPath: nil,
-        rootURL: nil,
+        rootURI: nil,
         initializationOptions: nil,
         capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
@@ -60,7 +60,7 @@ final class LocalClangTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.cpp")
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: DocumentURI(url),
       language: .cpp,
       version: 1,
       text: """
@@ -124,7 +124,7 @@ final class LocalClangTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.cpp")
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: DocumentURI(url),
       language: .cpp,
       version: 1,
       text: """

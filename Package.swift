@@ -40,6 +40,7 @@ let package = Package(
           "LSPTestSupport",
           "SourceKit",
           "tibs", // Never imported, needed at runtime
+          "TSCUtility",
         ]
       ),
       .testTarget(

@@ -36,9 +36,9 @@ extension BuildSystemList: BuildSystem {
 
   public var indexDatabasePath: AbsolutePath? { return providers.first?.indexDatabasePath }
 
-  public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
+  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
     for provider in providers {
-      if let settings = provider.settings(for: url, language) {
+      if let settings = provider.settings(for: uri, language) {
         return settings
       }
     }
@@ -47,20 +47,20 @@ extension BuildSystemList: BuildSystem {
 
   /// Register the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func registerForChangeNotifications(for url: URL) {
+  public func registerForChangeNotifications(for uri: DocumentURI) {
     // Only register with the primary build system, since we only use its delegate.
-    providers.first?.registerForChangeNotifications(for: url)
+    providers.first?.registerForChangeNotifications(for: uri)
   }
 
   /// Unregister the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func unregisterForChangeNotifications(for url: URL) {
+  public func unregisterForChangeNotifications(for uri: DocumentURI) {
     // Only unregister with the primary build system, since we only use its delegate.
-    providers.first?.unregisterForChangeNotifications(for: url)
+    providers.first?.unregisterForChangeNotifications(for: uri)
   }
 
-  public func toolchain(for url: URL, _ language: Language) -> Toolchain? {
-    return providers.first?.toolchain(for: url, language)
+  public func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
+    return providers.first?.toolchain(for: uri, language)
   }
 
   public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {

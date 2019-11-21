@@ -96,7 +96,7 @@ public final class BuildServerBuildSystem {
       displayName: "SourceKit-LSP",
       version: "1.0",
       bspVersion: "2.0",
-      rootUri: self.projectRoot.asURL,
+      rootUri: URI(self.projectRoot.asURL),
       capabilities: BuildClientCapabilities(languageIds: languages))
 
     let handler = BuildServerHandler()
@@ -149,34 +149,34 @@ extension BuildServerBuildSystem: BuildSystem {
 
   /// Register the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func registerForChangeNotifications(for url: LanguageServerProtocol.URL) {
-    let request = RegisterForChanges(uri: url, action: .register)
+  public func registerForChangeNotifications(for uri: DocumentURI) {
+    let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request, queue: requestQueue, reply: { result in
       if let error = result.failure {
-        log("error registering \(url): \(error)", level: .error)
+        log("error registering \(uri): \(error)", level: .error)
       }
     })
   }
 
   /// Unregister the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func unregisterForChangeNotifications(for url: LanguageServerProtocol.URL) {
-    let request = RegisterForChanges(uri: url, action: .unregister)
+  public func unregisterForChangeNotifications(for uri: DocumentURI) {
+    let request = RegisterForChanges(uri: uri, action: .unregister)
     _ = self.buildServer?.send(request, queue: requestQueue, reply: { result in
       if let error = result.failure {
-        log("error unregistering \(url): \(error)", level: .error)
+        log("error unregistering \(uri): \(error)", level: .error)
       }
     })
   }
 
-  public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
-    if let response = try? self.buildServer?.sendSync(SourceKitOptions(uri: url)) {
+  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
+    if let response = try? self.buildServer?.sendSync(SourceKitOptions(uri: uri)) {
       return FileBuildSettings(compilerArguments: response.options, workingDirectory: response.workingDirectory)
     }
     return nil
   }
 
-  public func toolchain(for: URL, _ language: Language) -> Toolchain? {
+  public func toolchain(for: DocumentURI, _ language: Language) -> Toolchain? {
     return nil
   }
 

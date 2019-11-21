@@ -67,7 +67,7 @@ final class SwiftCompletionTests: XCTestCase {
     _ = try! sk.sendSync(InitializeRequest(
       processId: nil,
       rootPath: nil,
-      rootURL: nil,
+      rootURI: nil,
       initializationOptions: nil,
       capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
       trace: .off,
@@ -78,7 +78,7 @@ final class SwiftCompletionTests: XCTestCase {
 
   func openDocument(text: String? = nil, url: URL) {
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: DocumentURI(url),
       language: .swift,
       version: 12,
       text: text ?? self.text)))

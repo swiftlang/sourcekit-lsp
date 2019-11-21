@@ -11,6 +11,8 @@
 //===----------------------------------------------------------------------===//
 import LanguageServerProtocol
 
+public typealias URI = DocumentURI
+
 /// The workspace build targets request is sent from the client to the server to
 /// ask for the list of all available build targets in the workspace.
 public struct BuildTargets: RequestType, Hashable {
@@ -38,7 +40,7 @@ public struct BuildTarget: Codable, Hashable {
   /// allowed to map to the same base directory, and a build target is not
   /// required to have a base directory. A base directory does not determine the
   /// sources of a target, see buildTarget/sources.
-  public var baseDirectory: URL?
+  public var baseDirectory: URI?
 
   /// Free-form string tags to categorize or label this build target.
   /// For example, can be used by the client to:
@@ -62,7 +64,7 @@ public struct BuildTarget: Codable, Hashable {
 
   public init(id: BuildTargetIdentifier,
               displayName: String?,
-              baseDirectory: URL?,
+              baseDirectory: URI?,
               tags: [BuildTargetTag],
               capabilities: BuildTargetCapabilities,
               languageIds: [Language],
@@ -78,9 +80,9 @@ public struct BuildTarget: Codable, Hashable {
 }
 
 public struct BuildTargetIdentifier: Codable, Hashable {
-  public var uri: URL
+  public var uri: URI
 
-  public init(uri: URL) {
+  public init(uri: URI) {
     self.uri = uri
   }
 }
@@ -166,7 +168,7 @@ public struct SourceItem: Codable, Hashable {
   /// Either a text document or a directory. A directory entry must end with a
   /// forward slash "/" and a directory entry implies that every nested text
   /// document within the directory belongs to this source item.
-  public var uri: URL
+  public var uri: URI
 
   /// Type of file of the source item, such as whether it is file or directory.
   public var kind: SourceItemKind
@@ -205,7 +207,7 @@ public struct OutputsItem: Codable, Hashable {
   public var target: BuildTargetIdentifier
 
   /// The output paths for sources that belong to this build target.
-  public var outputPaths: [URL]
+  public var outputPaths: [URI]
 }
 
 /// The build target changed notification is sent from the server to the client

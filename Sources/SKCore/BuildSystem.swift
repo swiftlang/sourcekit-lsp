@@ -32,10 +32,10 @@ public protocol BuildSystem: AnyObject {
   var indexDatabasePath: AbsolutePath? { get }
 
   /// Returns the settings for the given url and language mode, if known.
-  func settings(for: URL, _ language: Language) -> FileBuildSettings?
+  func settings(for: DocumentURI, _ language: Language) -> FileBuildSettings?
 
   /// Returns the toolchain to use to compile this file
-  func toolchain(for: URL, _ language: Language) -> Toolchain?
+  func toolchain(for: DocumentURI, _ language: Language) -> Toolchain?
 
   /// Delegate to handle any build system events such as file build settings
   /// changing.
@@ -43,11 +43,11 @@ public protocol BuildSystem: AnyObject {
 
   /// Register the given file for build-system level change notifications, such
   /// as command line flag changes, dependency changes, etc.
-  func registerForChangeNotifications(for: URL)
+  func registerForChangeNotifications(for: DocumentURI)
 
   /// Unregister the given file for build-system level change notifications,
   /// such as command line flag changes, dependency changes, etc.
-  func unregisterForChangeNotifications(for: URL)
+  func unregisterForChangeNotifications(for: DocumentURI)
 
   /// Returns the build targets in the workspace. If the build system does not
   /// support build targets the `buildTargetsNotSupported` error should be

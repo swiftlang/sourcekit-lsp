@@ -18,7 +18,7 @@ final class FoldingRangeTests: XCTestCase {
 
   typealias FoldingRangeCapabilities = TextDocumentClientCapabilities.FoldingRange
 
-  func initializeWorkspace(withCapabilities capabilities: FoldingRangeCapabilities, testLoc: String) throws -> (SKTibsTestWorkspace, URL)? {
+  func initializeWorkspace(withCapabilities capabilities: FoldingRangeCapabilities, testLoc: String) throws -> (SKTibsTestWorkspace, DocumentURI)? {
     var documentCapabilities = TextDocumentClientCapabilities()
     documentCapabilities.foldingRange = capabilities
     let capabilities = ClientCapabilities(workspace: nil, textDocument: documentCapabilities)
@@ -26,16 +26,16 @@ final class FoldingRangeTests: XCTestCase {
                                                     clientCapabilities: capabilities) else { return nil }
     let loc = ws.testLoc(testLoc)
     try ws.openDocument(loc.url, language: .swift)
-    return (ws, loc.url)
+    return (ws, DocumentURI(loc.url))
   }
 
   func testPartialLineFolding() throws {
     var capabilities = FoldingRangeCapabilities()
     capabilities.lineFoldingOnly = false
 
-    guard let (ws, url) = try initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else { return }
+    guard let (ws, uri) = try initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else { return }
 
-    let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
+    let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri))
     let ranges = try ws.sk.sendSync(request)
 
     XCTAssertEqual(ranges, [
@@ -59,9 +59,9 @@ final class FoldingRangeTests: XCTestCase {
     var capabilities = FoldingRangeCapabilities()
     capabilities.lineFoldingOnly = true
 
-    guard let (ws, url) = try initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else { return }
+    guard let (ws, uri) = try initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else { return }
 
-    let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
+    let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri))
     let ranges = try ws.sk.sendSync(request)
 
     XCTAssertEqual(ranges, [

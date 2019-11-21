@@ -39,7 +39,7 @@ final class ExecuteCommandTests: XCTestCase {
     _ = try! sk.sendSync(InitializeRequest(
       processId: nil,
       rootPath: nil,
-      rootURL: nil,
+      rootURI: nil,
       initializationOptions: nil,
       capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
       trace: .off,
@@ -79,10 +79,12 @@ final class ExecuteCommandTests: XCTestCase {
     }
 
     XCTAssertEqual(WorkspaceEdit(fromLSPDictionary: resultDict), WorkspaceEdit(changes: [
-      loc.url: [TextEdit(range: Position(line: 1, utf16index: 29)..<Position(line: 1, utf16index: 29),
-                     newText: "NSLocalizedString("),
-            TextEdit(range: Position(line: 1, utf16index: 44)..<Position(line: 1, utf16index: 44),
-                     newText: ", comment: \"\")")]
+      DocumentURI(loc.url): [
+        TextEdit(range: Position(line: 1, utf16index: 29)..<Position(line: 1, utf16index: 29),
+                 newText: "NSLocalizedString("),
+        TextEdit(range: Position(line: 1, utf16index: 44)..<Position(line: 1, utf16index: 44),
+                 newText: ", comment: \"\")")
+      ]
     ]))
   }
 
@@ -120,10 +122,12 @@ final class ExecuteCommandTests: XCTestCase {
     }
 
     XCTAssertEqual(WorkspaceEdit(fromLSPDictionary: resultDict), WorkspaceEdit(changes: [
-      loc.url: [TextEdit(range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
-                     newText: "fileprivate func extractedFunc() -> String {\n/*sr:extractStart*/var a = \"/*sr:string*/\"\n  return a\n}\n\n"),
-            TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 2, utf16index: 10),
-                     newText: "return extractedFunc()")]
+      DocumentURI(loc.url): [
+        TextEdit(range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
+                 newText: "fileprivate func extractedFunc() -> String {\n/*sr:extractStart*/var a = \"/*sr:string*/\"\n  return a\n}\n\n"),
+        TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 2, utf16index: 10),
+                 newText: "return extractedFunc()")
+      ]
     ]))
   }
 

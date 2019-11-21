@@ -33,13 +33,13 @@ public struct DocumentSnapshot {
 }
 
 public final class Document {
-  public let url: URL
+  public let uri: DocumentURI
   public let language: Language
   var latestVersion: Int
   var latestLineTable: LineTable
 
-  init(url: URL, language: Language, version: Int, text: String) {
-    self.url = url
+  init(uri: DocumentURI, language: Language, version: Int, text: String) {
+    self.uri = uri
     self.language = language
     self.latestVersion = version
     self.latestLineTable = LineTable(text)
@@ -54,16 +54,16 @@ public final class Document {
 public final class DocumentManager {
 
   public enum Error: Swift.Error {
-    case alreadyOpen(URL)
-    case missingDocument(URL)
+    case alreadyOpen(DocumentURI)
+    case missingDocument(DocumentURI)
   }
 
   let queue: DispatchQueue = DispatchQueue(label: "document-manager-queue")
 
-  var documents: [URL: Document] = [:]
+  var documents: [DocumentURI: Document] = [:]
 
   /// All currently opened documents.
-  public var openDocuments: Set<URL> {
+  public var openDocuments: Set<DocumentURI> {
     return queue.sync {
       return Set(documents.keys)
     }
@@ -74,11 +74,11 @@ public final class DocumentManager {
   /// - returns: The initial contents of the file.
   /// - throws: Error.alreadyOpen if the document is already open.
   @discardableResult
-  public func open(_ url: URL, language: Language, version: Int, text: String) throws -> DocumentSnapshot {
+  public func open(_ uri: DocumentURI, language: Language, version: Int, text: String) throws -> DocumentSnapshot {
     return try queue.sync {
-      let document = Document(url: url, language: language, version: version, text: text)
-      if nil != documents.updateValue(document, forKey: url) {
-        throw Error.alreadyOpen(url)
+      let document = Document(uri: uri, language: language, version: version, text: text)
+      if nil != documents.updateValue(document, forKey: uri) {
+        throw Error.alreadyOpen(uri)
       }
       return document.latestSnapshot
     }
@@ -88,10 +88,10 @@ public final class DocumentManager {
   ///
   /// - returns: The initial contents of the file.
   /// - throws: Error.missingDocument if the document is not open.
-  public func close(_ url: URL) throws {
+  public func close(_ uri: DocumentURI) throws {
     try queue.sync {
-      if nil == documents.removeValue(forKey: url) {
-        throw Error.missingDocument(url)
+      if nil == documents.removeValue(forKey: uri) {
+        throw Error.missingDocument(uri)
       }
     }
   }
@@ -103,10 +103,10 @@ public final class DocumentManager {
   /// - returns: The contents of the file after all the edits are applied.
   /// - throws: Error.missingDocument if the document is not open.
   @discardableResult
-  public func edit(_ url: URL, newVersion: Int, edits: [TextDocumentContentChangeEvent], editCallback: ((_ before: DocumentSnapshot, TextDocumentContentChangeEvent) -> Void)? = nil) throws -> DocumentSnapshot {
+  public func edit(_ uri: DocumentURI, newVersion: Int, edits: [TextDocumentContentChangeEvent], editCallback: ((_ before: DocumentSnapshot, TextDocumentContentChangeEvent) -> Void)? = nil) throws -> DocumentSnapshot {
     return try queue.sync {
-      guard let document = documents[url] else {
-        throw Error.missingDocument(url)
+      guard let document = documents[uri] else {
+        throw Error.missingDocument(uri)
       }
 
       for edit in edits {
@@ -135,9 +135,9 @@ public final class DocumentManager {
     }
   }
 
-  public func latestSnapshot(_ url: URL) -> DocumentSnapshot? {
+  public func latestSnapshot(_ uri: DocumentURI) -> DocumentSnapshot? {
     return queue.sync {
-      guard let document = documents[url] else {
+      guard let document = documents[uri] else {
         return nil
       }
       return document.latestSnapshot
@@ -154,14 +154,14 @@ extension DocumentManager {
   func open(_ note: DidOpenTextDocument) -> DocumentSnapshot? {
     let doc = note.textDocument
     return orLog("failed to open document", level: .error) {
-      try open(doc.url, language: doc.language, version: doc.version, text: doc.text)
+      try open(doc.uri, language: doc.language, version: doc.version, text: doc.text)
     }
   }
 
   /// Convenience wrapper for `close(_:)` that logs on failure.
   func close(_ note: DidCloseTextDocument) {
     orLog("failed to close document", level: .error) {
-      try close(note.textDocument.url)
+      try close(note.textDocument.uri)
     }
   }
 
@@ -169,7 +169,7 @@ extension DocumentManager {
   @discardableResult
   func edit(_ note: DidChangeTextDocument, editCallback: ((_ before: DocumentSnapshot, TextDocumentContentChangeEvent) -> Void)? = nil) -> DocumentSnapshot? {
     return orLog("failed to edit document", level: .error) {
-      try edit(note.textDocument.url, newVersion: note.textDocument.version ?? -1, edits: note.contentChanges, editCallback: editCallback)
+      try edit(note.textDocument.uri, newVersion: note.textDocument.version ?? -1, edits: note.contentChanges, editCallback: editCallback)
     }
   }
 }

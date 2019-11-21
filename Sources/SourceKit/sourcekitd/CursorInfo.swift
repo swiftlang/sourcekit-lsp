@@ -48,7 +48,7 @@ struct CursorInfo {
 enum CursorInfoError: Error {
 
   /// The given URL is not a known document.
-  case unknownDocument(URL)
+  case unknownDocument(DocumentURI)
 
   /// The given range is not valid in the document snapshot.
   case invalidRange(Range<Position>)
@@ -74,13 +74,13 @@ extension SwiftLanguageServer {
 
   /// Must be called on self.queue.
   func _cursorInfo(
-    _ url: URL,
+    _ uri: DocumentURI,
     _ range: Range<Position>,
     additionalParameters appendAdditionalParameters: ((SKRequestDictionary) -> Void)? = nil,
     _ completion: @escaping (Swift.Result<CursorInfo?, CursorInfoError>) -> Void)
   {
-    guard let snapshot = documentManager.latestSnapshot(url) else {
-       return completion(.failure(.unknownDocument(url)))
+    guard let snapshot = documentManager.latestSnapshot(uri) else {
+       return completion(.failure(.unknownDocument(uri)))
      }
 
     guard let offsetRange = snapshot.utf8OffsetRange(of: range) else {
@@ -95,10 +95,10 @@ extension SwiftLanguageServer {
     if offsetRange.upperBound != offsetRange.lowerBound {
       skreq[keys.length] = offsetRange.count
     }
-    skreq[keys.sourcefile] = snapshot.document.url.path
+    skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
 
     // FIXME: SourceKit should probably cache this for us.
-    if let settings = self.buildSettingsByFile[snapshot.document.url] {
+    if let settings = self.buildSettingsByFile[uri] {
       skreq[keys.compilerargs] = settings.compilerArguments
     }
 
@@ -120,7 +120,7 @@ extension SwiftLanguageServer {
          let offset: Int = dict[keys.offset],
          let pos = snapshot.positionOf(utf8Offset: offset)
       {
-        location = Location(url: URL(fileURLWithPath: filepath), range: Range(pos))
+        location = Location(uri: DocumentURI(URL(fileURLWithPath: filepath)), range: Range(pos))
       }
 
       let refactorActionsArray: SKResponseArray? = dict[keys.refactor_actions]
@@ -138,7 +138,7 @@ extension SwiftLanguageServer {
           [SemanticRefactorCommand](
           array: refactorActionsArray,
           range: range,
-          textDocument: TextDocumentIdentifier(url),
+          textDocument: TextDocumentIdentifier(uri),
           keys,
           self.api)
       )))
@@ -158,13 +158,13 @@ extension SwiftLanguageServer {
   ///   - range: The position range within the document to lookup the symbol at.
   ///   - completion: Completion block to asynchronously receive the CursorInfo, or error.
   func cursorInfo(
-    _ url: URL,
+    _ uri: DocumentURI,
     _ range: Range<Position>,
     additionalParameters appendAdditionalParameters: ((SKRequestDictionary) -> Void)? = nil,
     _ completion: @escaping (Swift.Result<CursorInfo?, CursorInfoError>) -> Void)
   {
     self.queue.async {
-      self._cursorInfo(url, range,
+      self._cursorInfo(uri, range,
                        additionalParameters: appendAdditionalParameters, completion)
     }
   }

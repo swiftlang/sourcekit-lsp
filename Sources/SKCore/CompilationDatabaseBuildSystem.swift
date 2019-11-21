@@ -15,6 +15,7 @@ import LanguageServerProtocol
 import LSPLogging
 import SKSupport
 import TSCBasic
+import struct Foundation.URL
 
 /// A `BuildSystem` based on loading clang-compatible compilation database(s).
 ///
@@ -44,7 +45,11 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
   public var indexStorePath: AbsolutePath? { return nil }
   public var indexDatabasePath: AbsolutePath? { return nil }
 
-  public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
+  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
+    guard let url = uri.fileURL else {
+      // We can't determine build settings for non-file URIs.
+      return nil
+    }
     guard let db = database(for: url),
           let cmd = db[url].first else { return nil }
     return FileBuildSettings(
@@ -53,13 +58,13 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     )
   }
 
-  public func toolchain(for: URL, _ language: Language) -> Toolchain? { return nil }
+  public func toolchain(for: DocumentURI, _ language: Language) -> Toolchain? { return nil }
 
   /// We don't support change watching.
-  public func registerForChangeNotifications(for: URL) {}
+  public func registerForChangeNotifications(for: DocumentURI) {}
 
   /// We don't support change watching.
-  public func unregisterForChangeNotifications(for: URL) {}
+  public func unregisterForChangeNotifications(for: DocumentURI) {}
 
   public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
     reply(.failure(buildTargetsNotSupported))

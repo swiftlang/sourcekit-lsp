@@ -39,7 +39,7 @@ final class DocumentColorTests: XCTestCase {
     _ = try! sk.sendSync(InitializeRequest(
       processId: nil,
       rootPath: nil,
-      rootURL: nil,
+      rootURI: nil,
       initializationOptions: nil,
       capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
       trace: .off,
@@ -52,7 +52,7 @@ final class DocumentColorTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.swift")
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: DocumentURI(url),
       language: .swift,
       version: 12,
       text: text)))
@@ -65,7 +65,7 @@ final class DocumentColorTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.swift")
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+      uri: DocumentURI(url),
       language: .swift,
       version: 12,
       text: text)))

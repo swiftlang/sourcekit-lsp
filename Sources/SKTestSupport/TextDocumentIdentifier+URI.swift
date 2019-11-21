@@ -10,18 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Range within a particular document.
-///
-/// For a location where the document is implied, use `Position` or `Range<Position>`.
-public struct Location: ResponseType, Hashable, Codable {
+import LanguageServerProtocol
+import TSCBasic
 
-  public var uri: DocumentURI
+public extension TextDocumentIdentifier {
+  init(_ url: URL) {
+    self.init(DocumentURI(url))
+  }
+}
 
-  @CustomCodable<PositionRange>
-  public var range: Range<Position>
-
-  public init(uri: DocumentURI, range: Range<Position>) {
-    self.uri = uri
-    self._range = CustomCodable<PositionRange>(wrappedValue: range)
+public extension AbsolutePath {
+  var asURI: DocumentURI {
+    return DocumentURI(asURL)
   }
 }

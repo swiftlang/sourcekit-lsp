@@ -26,7 +26,7 @@ final class SKTests: XCTestCase {
       let initResult = try! sk.sendSync(InitializeRequest(
         processId: nil,
         rootPath: nil,
-        rootURL: nil,
+        rootURI: nil,
         initializationOptions: nil,
         capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
@@ -44,7 +44,7 @@ final class SKTests: XCTestCase {
       let initResult = try! sk.sendSync(InitializeRequest(
         processId: nil,
         rootPath: nil,
-        rootURL: nil,
+        rootURI: nil,
         initializationOptions: nil,
         capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
@@ -71,7 +71,7 @@ final class SKTests: XCTestCase {
       position: locRef.position))
 
     XCTAssertEqual(jump.count, 1)
-    XCTAssertEqual(jump.first?.url, locDef.url)
+    XCTAssertEqual(jump.first?.uri, DocumentURI(locDef.url))
     XCTAssertEqual(jump.first?.range.lowerBound, locDef.position)
 
     // MARK: Find references

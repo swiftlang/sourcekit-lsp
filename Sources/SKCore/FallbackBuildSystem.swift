@@ -39,28 +39,24 @@ public final class FallbackBuildSystem: BuildSystem {
 
   public var indexDatabasePath: AbsolutePath? { return nil }
 
-  public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
-    guard let path = try? AbsolutePath(validating: url.path) else {
-      return nil
-    }
-
+  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
     switch language {
     case .swift:
-      return settingsSwift(path)
+      return settingsSwift(uri.pseudoPath)
     case .c, .cpp, .objective_c, .objective_cpp:
-      return settingsClang(path, language)
+      return settingsClang(uri.pseudoPath, language)
     default:
       return nil
     }
   }
 
   /// We don't support change watching.
-  public func registerForChangeNotifications(for: URL) {}
+  public func registerForChangeNotifications(for: DocumentURI) {}
 
   /// We don't support change watching.
-  public func unregisterForChangeNotifications(for: URL) {}
+  public func unregisterForChangeNotifications(for: DocumentURI) {}
 
-  public func toolchain(for: URL, _ language: Language) -> Toolchain? { return nil }
+  public func toolchain(for: DocumentURI, _ language: Language) -> Toolchain? { return nil }
 
   public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
     reply(.failure(buildTargetsNotSupported))
@@ -74,7 +70,7 @@ public final class FallbackBuildSystem: BuildSystem {
     reply(.failure(buildTargetsNotSupported))
   }
 
-  func settingsSwift(_ path: AbsolutePath) -> FileBuildSettings {
+  func settingsSwift(_ file: String) -> FileBuildSettings {
     var args: [String] = []
     if let sdkpath = sdkpath {
       args += [
@@ -82,11 +78,11 @@ public final class FallbackBuildSystem: BuildSystem {
         sdkpath.pathString,
       ]
     }
-    args.append(path.pathString)
+    args.append(file)
     return FileBuildSettings(compilerArguments: args)
   }
 
-  func settingsClang(_ path: AbsolutePath, _ language: Language) -> FileBuildSettings {
+  func settingsClang(_ file: String, _ language: Language) -> FileBuildSettings {
     var args: [String] = []
     if let sdkpath = sdkpath {
       args += [
@@ -94,7 +90,7 @@ public final class FallbackBuildSystem: BuildSystem {
         sdkpath.pathString,
       ]
     }
-    args.append(path.pathString)
+    args.append(file)
     return FileBuildSettings(compilerArguments: args)
   }
 }

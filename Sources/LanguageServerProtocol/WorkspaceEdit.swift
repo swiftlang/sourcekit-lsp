@@ -14,9 +14,9 @@
 public struct WorkspaceEdit: Hashable, ResponseType {
 
   /// The edits to be applied to existing resources.
-  public var changes: [URL: [TextEdit]]?
+  public var changes: [DocumentURI: [TextEdit]]?
 
-  public init(changes: [URL: [TextEdit]]?) {
+  public init(changes: [DocumentURI: [TextEdit]]?) {
     self.changes = changes
   }
 }
@@ -30,13 +30,10 @@ extension WorkspaceEdit: Codable {
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let changesDict = try container.decode([String: [TextEdit]].self, forKey: .changes)
-    var changes = [URL: [TextEdit]]()
+    var changes = [DocumentURI: [TextEdit]]()
     for change in changesDict {
-      guard let url = URL(string: change.key) else {
-        let error = "Changes key is not an URL."
-        throw DecodingError.dataCorruptedError(forKey: .changes, in: container, debugDescription: error)
-      }
-      changes[url] = change.value
+      let uri = DocumentURI(string: change.key)
+      changes[uri] = change.value
     }
     self.changes = changes
   }
@@ -47,7 +44,7 @@ extension WorkspaceEdit: Codable {
     }
     var stringDictionary = [String: [TextEdit]]()
     for (key, value) in changes {
-      stringDictionary[key.absoluteString] = value
+      stringDictionary[key.stringValue] = value
     }
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(stringDictionary, forKey: .changes)
@@ -59,15 +56,13 @@ extension WorkspaceEdit: LSPAnyCodable {
     guard case .dictionary(let lspDict) = dictionary[CodingKeys.changes.stringValue] else {
       return nil
     }
-    var dictionary = [URL: [TextEdit]]()
+    var dictionary = [DocumentURI: [TextEdit]]()
     for (key, value) in lspDict {
-      guard let url = URL(string: key) else {
-        return nil
-      }
+      let uri = DocumentURI(string: key)
       guard let edits = [TextEdit](fromLSPArray: value) else {
         return nil
       }
-      dictionary[url] = edits
+      dictionary[uri] = edits
     }
     self.changes = dictionary
   }
@@ -77,7 +72,7 @@ extension WorkspaceEdit: LSPAnyCodable {
       return nil
     }
     let values = changes.map {
-      ($0.key.absoluteString, $0.value.encodeToLSPAny())
+      ($0.key.stringValue, $0.value.encodeToLSPAny())
     }
     let dictionary = Dictionary(uniqueKeysWithValues: values)
     return .dictionary([
