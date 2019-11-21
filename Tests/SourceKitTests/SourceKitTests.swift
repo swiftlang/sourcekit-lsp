@@ -114,7 +114,7 @@ final class SKTests: XCTestCase {
         textDocument: locRef.docIdentifier,
         position: locRef.position))
       XCTAssertEqual(jump.count, 1)
-      XCTAssertEqual(jump.first?.url, locDef.url)
+      XCTAssertEqual(jump.first?.uri, DocumentURI(locDef.url))
       XCTAssertEqual(jump.first?.range.lowerBound, locDef.position)
 
       let tmpContents = try listdir(tmpDir)
