@@ -52,17 +52,15 @@ public final class JSONRPCConection {
   /// The set of currently outstanding outgoing requests along with information about how to decode and handle their responses.
   var outstandingRequests: [RequestID: OutstandingRequest] = [:]
 
-  var closeHandler: () -> Void
+  var closeHandler: (() -> Void)! = nil
 
   public init(
     protocol messageRegistry: MessageRegistry,
     inFD: Int32,
     outFD: Int32,
-    syncRequests: Bool = false,
-    closeHandler: @escaping () -> Void = {})
+    syncRequests: Bool = false)
   {
     state = .created
-    self.closeHandler = closeHandler
     self.messageRegistry = messageRegistry
     self.syncRequests = syncRequests
 
@@ -93,10 +91,11 @@ public final class JSONRPCConection {
   /// Start processing `inFD` and send messages to `receiveHandler`.
   ///
   /// - parameter receiveHandler: The message handler to invoke for requests received on the `inFD`.
-  public func start(receiveHandler: MessageHandler) {
+  public func start(receiveHandler: MessageHandler, closeHandler: @escaping () -> Void = {}) {
     precondition(state == .created)
     state = .running
     self.receiveHandler = receiveHandler
+    self.closeHandler = closeHandler
 
     receiveIO.read(offset: 0, length: Int.max, queue: queue) { done, data, errorCode in
       guard errorCode == 0 else {

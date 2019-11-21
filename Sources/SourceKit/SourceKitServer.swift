@@ -46,7 +46,7 @@ public final class SourceKitServer: LanguageServer {
 
   let fs: FileSystem
 
-  let onExit: () -> Void
+  var onExit: () -> Void
 
   /// Creates a language server for the given client.
   public init(client: Connection, fileSystem: FileSystem = localFileSystem, options: Options, onExit: @escaping () -> Void = {}) {
@@ -351,13 +351,47 @@ extension SourceKitServer {
     requestCancellation[key]?.cancel()
   }
 
+  /// The server is about to exit, and the server should flush any buffered state.
+  ///
+  /// The server shall not be used to handle more requests (other than possibly
+  /// `shutdown` and `exit`) and should attempt to flush any buffered state
+  /// immediately, such as sending index changes to disk.
+  public func prepareForExit() {
+    // Note: this method should be safe to call multiple times, since we want to
+    // be resilient against multiple possible shutdown sequences, including
+    // pipe failure.
+
+    // Close the index, which will flush to disk.
+    self.queue.sync {
+      self._prepareForExit()
+    }
+  }
+
+  func _prepareForExit() {
+    // Note: this method should be safe to call multiple times, since we want to
+    // be resilient against multiple possible shutdown sequences, including
+    // pipe failure.
+
+    // Close the index, which will flush to disk.
+    self.workspace?.index = nil
+  }
+
+
   func shutdown(_ request: Request<Shutdown>) {
-    // Nothing to do yet.
+    _prepareForExit()
     request.reply(VoidResponse())
   }
 
   func exit(_ notification: Notification<Exit>) {
-    onExit()
+    // Should have been called in shutdown, but allow misbehaving clients.
+    _prepareForExit()
+
+    // Call onExit only once, and hop off queue to allow the handler to call us back.
+    let onExit = self.onExit
+    self.onExit = {}
+    DispatchQueue.global().async {
+      onExit()
+    }
   }
 
   // MARK: - Text synchronization

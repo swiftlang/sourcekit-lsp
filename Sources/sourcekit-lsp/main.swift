@@ -102,10 +102,7 @@ let clientConnection = JSONRPCConection(
   protocol: MessageRegistry.lspProtocol,
   inFD: STDIN_FILENO,
   outFD: STDOUT_FILENO,
-  syncRequests: options.syncRequests,
-  closeHandler: {
-  exit(0)
-})
+  syncRequests: options.syncRequests)
 
 let installPath = AbsolutePath(Bundle.main.bundlePath)
 ToolchainRegistry.shared = ToolchainRegistry(installPath: installPath, localFileSystem)
@@ -113,7 +110,10 @@ ToolchainRegistry.shared = ToolchainRegistry(installPath: installPath, localFile
 let server = SourceKitServer(client: clientConnection, options: options.serverOptions, onExit: {
   clientConnection.close()
 })
-clientConnection.start(receiveHandler: server)
+clientConnection.start(receiveHandler: server, closeHandler: {
+  server.prepareForExit()
+  exit(0)
+})
 
 Logger.shared.addLogHandler { message, _ in
   clientConnection.send(LogMessage(type: .log, message: message))
