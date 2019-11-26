@@ -241,6 +241,14 @@ struct sourcekitd_keys {
   let edits: sourcekitd_uid_t
   let text: sourcekitd_uid_t
 
+  // Code Completion related keys.
+  let context: sourcekitd_uid_t
+  let doc: sourcekitd_uid_t
+  let not_recommended: sourcekitd_uid_t
+  let num_bytes_to_erase: sourcekitd_uid_t
+  let associated_usrs: sourcekitd_uid_t
+
+
   init(api: sourcekitd_functions_t) {
     request = api.uid_get_from_cstr("key.request")!
     compilerargs = api.uid_get_from_cstr("key.compilerargs")!
@@ -280,6 +288,13 @@ struct sourcekitd_keys {
     categorizededits = api.uid_get_from_cstr("key.categorizededits")!
     edits = api.uid_get_from_cstr("key.edits")!
     text = api.uid_get_from_cstr("key.text")!
+
+    // Code Completion related keys.
+    context = api.uid_get_from_cstr("key.context")!
+    doc = api.uid_get_from_cstr("key.doc.brief")!
+    not_recommended = api.uid_get_from_cstr("key.not_recommended")!
+    num_bytes_to_erase = api.uid_get_from_cstr("key.num_bytes_to_erase")!
+    associated_usrs = api.uid_get_from_cstr("key.associated_usrs")!
   }
 }
 
