@@ -169,7 +169,7 @@ final class SKTests: XCTestCase {
         textEdit: TextEdit(range: Position(line: 1, utf16index: 14)..<Position(line: 1, utf16index: 14), newText: "method(a: )"),
         insertText: "method(a: )",
         insertTextFormat: .plain,
-        deprecated: nil),
+        deprecated: false),
       CompletionItem(
         label: "self",
         kind: .keyword,
@@ -179,7 +179,7 @@ final class SKTests: XCTestCase {
         textEdit: TextEdit(range: Position(line: 1, utf16index: 14)..<Position(line: 1, utf16index: 14), newText: "self"),
         insertText: "self",
         insertTextFormat: .plain,
-        deprecated: nil),
+        deprecated: false),
     ]))
   }
 }
