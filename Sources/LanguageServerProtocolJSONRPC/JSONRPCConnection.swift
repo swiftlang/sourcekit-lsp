@@ -52,7 +52,7 @@ public final class JSONRPCConnection {
   /// The set of currently outstanding outgoing requests along with information about how to decode and handle their responses.
   var outstandingRequests: [RequestID: OutstandingRequest] = [:]
 
-  var closeHandler: (() -> Void)! = nil
+  public var closeHandler: ((_ connection: JSONRPCConnection) -> Void)! = nil
 
   public init(
     protocol messageRegistry: MessageRegistry,
@@ -91,7 +91,7 @@ public final class JSONRPCConnection {
   /// Start processing `inFD` and send messages to `receiveHandler`.
   ///
   /// - parameter receiveHandler: The message handler to invoke for requests received on the `inFD`.
-  public func start(receiveHandler: MessageHandler, closeHandler: @escaping () -> Void = {}) {
+  public func start(receiveHandler: MessageHandler, closeHandler: @escaping (_ connection: JSONRPCConnection) -> Void = {_ in }) {
     precondition(state == .created)
     state = .running
     self.receiveHandler = receiveHandler
@@ -301,7 +301,7 @@ public final class JSONRPCConnection {
       receiveIO.close(flags: .stop)
       sendIO.close(flags: .stop)
       receiveHandler = nil // break retain cycle
-      closeHandler()
+      closeHandler(self)
     }
   }
 

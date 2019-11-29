@@ -220,7 +220,8 @@ class ConnectionTests: XCTestCase {
         func handle<R: RequestType>(_: R, id: RequestID, from: ObjectIdentifier, reply: @escaping (LSPResult<R.Response>) -> Void) {}
       }
 
-      conn.start(receiveHandler: DummyHandler(), closeHandler: {
+      conn.start(receiveHandler: DummyHandler(), closeHandler: { connection in
+        XCTAssert(connection === conn)
         // We get an error from XCTest if this is fulfilled more than once.
         expectation.fulfill()
       })

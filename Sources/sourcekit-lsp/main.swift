@@ -110,7 +110,7 @@ ToolchainRegistry.shared = ToolchainRegistry(installPath: installPath, localFile
 let server = SourceKitServer(client: clientConnection, options: options.serverOptions, onExit: {
   clientConnection.close()
 })
-clientConnection.start(receiveHandler: server, closeHandler: {
+clientConnection.start(receiveHandler: server, closeHandler: { _ in
   server.prepareForExit()
   exit(0)
 })
