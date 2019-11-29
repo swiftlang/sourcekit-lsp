@@ -31,8 +31,8 @@ public struct TestSourceKitServer {
     case jsonrpc(
       clientToServer: Pipe,
       serverToClient: Pipe,
-      clientConnection: JSONRPCConection,
-      serverConnection: JSONRPCConection)
+      clientConnection: JSONRPCConnection,
+      serverConnection: JSONRPCConnection)
   }
 
   public static let serverOptions: SourceKitServer.Options = SourceKitServer.Options()
@@ -68,12 +68,12 @@ public struct TestSourceKitServer {
         _ = Unmanaged.passRetained(clientToServer)
         _ = Unmanaged.passRetained(serverToClient)
 
-        let clientConnection = JSONRPCConection(
+        let clientConnection = JSONRPCConnection(
           protocol: MessageRegistry.lspProtocol,
           inFD: serverToClient.fileHandleForReading.fileDescriptor,
           outFD: clientToServer.fileHandleForWriting.fileDescriptor
         )
-        let serverConnection = JSONRPCConection(
+        let serverConnection = JSONRPCConnection(
           protocol: MessageRegistry.lspProtocol,
           inFD: clientToServer.fileHandleForReading.fileDescriptor,
           outFD: serverToClient.fileHandleForWriting.fileDescriptor

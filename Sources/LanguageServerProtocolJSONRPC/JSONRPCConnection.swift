@@ -18,7 +18,7 @@ import LSPLogging
 /// A connection between a message handler (e.g. language server) in the same process as the connection object and a remote message handler (e.g. language client) that may run in another process using JSON RPC messages sent over a pair of in/out file descriptors.
 ///
 /// For example, inside a language server, the `JSONRPCConnection` takes the language service implemenation as its `receiveHandler` and itself provides the client connection for sending notifications and callbacks.
-public final class JSONRPCConection {
+public final class JSONRPCConnection {
 
   var receiveHandler: MessageHandler? = nil
   let queue: DispatchQueue = DispatchQueue(label: "jsonrpc-queue", qos: .userInitiated)
@@ -297,7 +297,7 @@ public final class JSONRPCConection {
       guard state == .running else { return }
       state = .closed
 
-      log("\(JSONRPCConection.self): closing...")
+      log("\(JSONRPCConnection.self): closing...")
       receiveIO.close(flags: .stop)
       sendIO.close(flags: .stop)
       receiveHandler = nil // break retain cycle
@@ -313,7 +313,7 @@ public final class JSONRPCConection {
 
 }
 
-extension JSONRPCConection: Connection {
+extension JSONRPCConnection: Connection {
   // MARK: Connection interface
 
   public func send<Notification>(_ notification: Notification) where Notification: NotificationType {
