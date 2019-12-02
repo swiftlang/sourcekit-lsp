@@ -22,9 +22,9 @@ public struct TestJSONRPCConnection {
   public let clientToServer: Pipe = Pipe()
   public let serverToClient: Pipe = Pipe()
   public let client: TestClient
-  public let clientConnection: JSONRPCConection
+  public let clientConnection: JSONRPCConnection
   public let server: TestServer
-  public let serverConnection: JSONRPCConection
+  public let serverConnection: JSONRPCConnection
 
   public init() {
     // FIXME: DispatchIO doesn't like when the Pipes close behind its back even after the tests
@@ -32,13 +32,13 @@ public struct TestJSONRPCConnection {
     _ = Unmanaged.passRetained(clientToServer)
     _ = Unmanaged.passRetained(serverToClient)
 
-    clientConnection = JSONRPCConection(
+    clientConnection = JSONRPCConnection(
       protocol: testMessageRegistry,
       inFD: serverToClient.fileHandleForReading.fileDescriptor,
       outFD: clientToServer.fileHandleForWriting.fileDescriptor
     )
 
-    serverConnection = JSONRPCConection(
+    serverConnection = JSONRPCConnection(
       protocol: testMessageRegistry,
       inFD: clientToServer.fileHandleForReading.fileDescriptor,
       outFD: serverToClient.fileHandleForWriting.fileDescriptor

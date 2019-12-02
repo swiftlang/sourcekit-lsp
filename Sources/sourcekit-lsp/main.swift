@@ -98,7 +98,7 @@ do {
   exit(1)
 }
 
-let clientConnection = JSONRPCConection(
+let clientConnection = JSONRPCConnection(
   protocol: MessageRegistry.lspProtocol,
   inFD: STDIN_FILENO,
   outFD: STDOUT_FILENO,

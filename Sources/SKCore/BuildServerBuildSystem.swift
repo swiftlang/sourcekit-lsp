@@ -30,7 +30,7 @@ public final class BuildServerBuildSystem {
   let requestQueue: DispatchQueue
 
   var handler: BuildServerHandler?
-  var buildServer: JSONRPCConection?
+  var buildServer: JSONRPCConnection?
 
   public private(set) var indexDatabasePath: AbsolutePath?
   public private(set) var indexStorePath: AbsolutePath?
@@ -239,11 +239,11 @@ struct BuildServerConfig: Codable {
   let argv: [String]
 }
 
-private func makeJSONRPCBuildServer(client: MessageHandler, serverPath: AbsolutePath, serverFlags: [String]?) throws -> JSONRPCConection {
+private func makeJSONRPCBuildServer(client: MessageHandler, serverPath: AbsolutePath, serverFlags: [String]?) throws -> JSONRPCConnection {
   let clientToServer = Pipe()
   let serverToClient = Pipe()
 
-  let connection = JSONRPCConection(
+  let connection = JSONRPCConnection(
     protocol: BuildServerProtocol.bspRegistry,
     inFD: serverToClient.fileHandleForReading.fileDescriptor,
     outFD: clientToServer.fileHandleForWriting.fileDescriptor
