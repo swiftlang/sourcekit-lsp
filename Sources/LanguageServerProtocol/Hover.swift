@@ -43,15 +43,31 @@ public struct HoverRequest: TextDocumentRequest, Hashable {
 public struct HoverResponse: ResponseType, Hashable {
 
   /// The documentation markup content.
-  public var contents: MarkupContent
+  public var contents: HoverResponseContents
 
   /// An optional range to visually distinguish during hover.
   public var range: Range<Position>?
 
-  public init(contents: MarkupContent, range: Range<Position>?) {
+  public init(contents: HoverResponseContents, range: Range<Position>?) {
     self.contents = contents
     self.range = range
   }
+}
+
+public enum HoverResponseContents: Hashable {
+  case markedString(MarkedString)
+  case markedStrings([MarkedString])
+  case markupContent(MarkupContent)
+}
+
+public enum MarkedString: Hashable {
+  private struct MarkdownCodeBlock: Codable {
+    let language: String
+    let value: String
+  }
+
+  case markdown(value: String)
+  case codeBlock(language: String, value: String)
 }
 
 // Needs a custom implementation for range, because `Optional` is the only type that uses
@@ -65,7 +81,7 @@ extension HoverResponse: Codable {
 
   public init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.contents = try container.decode(MarkupContent.self, forKey: .contents)
+    self.contents = try container.decode(HoverResponseContents.self, forKey: .contents)
     self.range = try container
       .decodeIfPresent(PositionRange.self, forKey: .range)?
       .wrappedValue
@@ -75,5 +91,55 @@ extension HoverResponse: Codable {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(contents, forKey: .contents)
     try container.encodeIfPresent(range.map { PositionRange(wrappedValue: $0) }, forKey: .range)
+  }
+}
+
+extension MarkedString: Codable {
+  public init(from decoder: Decoder) throws {
+    if let value = try? decoder.singleValueContainer().decode(String.self) {
+      self = .markdown(value: value)
+    } else if let codeBlock = try? MarkdownCodeBlock(from: decoder) {
+      self = .codeBlock(language: codeBlock.language, value: codeBlock.value)
+    } else {
+      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "MarkedString is neither pure string nor code block")
+      throw DecodingError.dataCorrupted(context)
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    switch self {
+    case .markdown(value: let value):
+      try value.encode(to: encoder)
+    case .codeBlock(language: let language, value: let value):
+      try MarkdownCodeBlock(language: language, value: value).encode(to: encoder)
+    }
+  }
+}
+
+extension HoverResponseContents: Codable {
+  public init(from decoder: Decoder) throws {
+    if let value = try? MarkupContent(from: decoder) {
+      self = .markupContent(value)
+    } else if let value = try? MarkedString(from: decoder) {
+      self = .markedString(value)
+    } else if let value = try? [MarkedString](from: decoder) {
+      self = .markedStrings(value)
+    } else if let value = try? MarkupContent(from: decoder) {
+      self = .markupContent(value)
+    } else {
+      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "HoverResponseContents is neither MarkedString, nor [MarkedString], nor MarkupContent")
+      throw DecodingError.dataCorrupted(context)
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    switch self {
+    case .markedString(let value):
+      try value.encode(to: encoder)
+    case .markedStrings(let value):
+      try value.encode(to: encoder)
+    case .markupContent(let value):
+      try value.encode(to: encoder)
+    }
   }
 }

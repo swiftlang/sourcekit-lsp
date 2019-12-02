@@ -729,8 +729,12 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertNotNil(resp)
       if let hover = resp {
         XCTAssertNil(hover.range)
-        XCTAssertEqual(hover.contents.kind, .markdown)
-        XCTAssertEqual(hover.contents.value, """
+        guard case .markupContent(let content) = hover.contents else {
+          XCTFail("hover.contents is not .markupContents")
+          return
+        }
+        XCTAssertEqual(content.kind, .markdown)
+        XCTAssertEqual(content.value, """
           # S
           ```
           struct S
@@ -776,8 +780,12 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertNotNil(resp)
       if let hover = resp {
         XCTAssertNil(hover.range)
-        XCTAssertEqual(hover.contents.kind, .markdown)
-        XCTAssertEqual(hover.contents.value, ##"""
+        guard case .markupContent(let content) = hover.contents else {
+          XCTFail("hover.contents is not .markupContents")
+          return
+        }
+        XCTAssertEqual(content.kind, .markdown)
+        XCTAssertEqual(content.value, ##"""
           # test(\_:\_:)
           ```
           func test(_ a: Int, _ b: Int)
@@ -796,8 +804,12 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertNotNil(resp)
       if let hover = resp {
         XCTAssertNil(hover.range)
-        XCTAssertEqual(hover.contents.kind, .markdown)
-        XCTAssertEqual(hover.contents.value, ##"""
+        guard case .markupContent(let content) = hover.contents else {
+          XCTFail("hover.contents is not .markupContents")
+          return
+        }
+        XCTAssertEqual(content.kind, .markdown)
+        XCTAssertEqual(content.value, ##"""
           # \*%\*(\_:\_:)
           ```
           func *%* (lhs: String, rhs: String)

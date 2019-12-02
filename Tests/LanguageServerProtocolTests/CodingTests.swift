@@ -207,7 +207,7 @@ final class CodingTests: XCTestCase {
     checkCoding(DiagnosticCode.string("hi"), json: "\"hi\"")
 
     let markup = MarkupContent(kind: .plaintext, value: "a")
-    checkCoding(HoverResponse(contents: markup, range: nil), json: """
+    checkCoding(HoverResponse(contents: .markupContent(markup), range: nil), json: """
       {
         "contents" : {
           "kind" : "plaintext",
@@ -216,7 +216,25 @@ final class CodingTests: XCTestCase {
       }
       """)
 
-    checkCoding(HoverResponse(contents: markup, range: range), json: """
+    checkCoding(HoverResponse(contents: .markedString(.markdown(value: "test")), range: nil), json: """
+      {
+        "contents" : "test"
+      }
+      """)
+
+    checkCoding(HoverResponse(contents: .markedStrings([.markdown(value: "test"), .codeBlock(language: "swift", value: "let foo = 2")]), range: nil), json: """
+      {
+        "contents" : [
+          "test",
+          {
+            "language" : "swift",
+            "value" : "let foo = 2"
+          }
+        ]
+      }
+      """)
+
+    checkCoding(HoverResponse(contents: .markupContent(markup), range: range), json: """
       {
         "contents" : {
           "kind" : "plaintext",

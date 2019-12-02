@@ -497,7 +497,7 @@ extension SwiftLanguageServer {
         """
       }
 
-      req.reply(HoverResponse(contents: MarkupContent(kind: .markdown, value: result), range: nil))
+      req.reply(HoverResponse(contents: .markupContent(MarkupContent(kind: .markdown, value: result)), range: nil))
     }
   }
 
