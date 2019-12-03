@@ -688,7 +688,7 @@ extension SourceKitServer {
       log("performing indexed jump-to-def with usr \(usr)")
 
       var roles: SymbolRole = [.reference]
-      if req.params.includeDeclaration != false {
+      if req.params.context.includeDeclaration {
         roles.formUnion([.declaration, .definition])
       }
 

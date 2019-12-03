@@ -82,7 +82,8 @@ final class SKTests: XCTestCase {
 
     let refs = try ws.sk.sendSync(ReferencesRequest(
       textDocument: locDef.docIdentifier,
-      position: locDef.position))
+      position: locDef.position,
+      context: ReferencesContext(includeDeclaration: true)))
 
     XCTAssertEqual(Set(refs), [
       Location(locDef),

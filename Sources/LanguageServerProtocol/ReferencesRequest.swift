@@ -33,12 +33,20 @@ public struct ReferencesRequest: RequestType, Hashable {
   /// The document location at which to lookup symbol information.
   public var position: Position
 
-  /// Whether to include the declaration in the list of symbols, or just the references.
-  public var includeDeclaration: Bool?
+  public var context: ReferencesContext
 
-  public init(textDocument: TextDocumentIdentifier, position: Position, includeDeclaration: Bool? = nil) {
+  public init(textDocument: TextDocumentIdentifier, position: Position, context: ReferencesContext) {
     self.textDocument = textDocument
     self.position = position
+    self.context = context
+  }
+}
+
+public struct ReferencesContext: Codable, Hashable {
+  /// Whether to include the declaration in the list of symbols, or just the references.
+  public var includeDeclaration: Bool
+
+  public init(includeDeclaration: Bool) {
     self.includeDeclaration = includeDeclaration
   }
 }
