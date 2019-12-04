@@ -46,11 +46,12 @@ public struct HoverResponse: ResponseType, Hashable {
   public var contents: HoverResponseContents
 
   /// An optional range to visually distinguish during hover.
+  @CustomCodable<PositionRange?>
   public var range: Range<Position>?
 
   public init(contents: HoverResponseContents, range: Range<Position>?) {
     self.contents = contents
-    self.range = range
+    self._range = CustomCodable(wrappedValue: range)
   }
 }
 
@@ -68,30 +69,6 @@ public enum MarkedString: Hashable {
 
   case markdown(value: String)
   case codeBlock(language: String, value: String)
-}
-
-// Needs a custom implementation for range, because `Optional` is the only type that uses
-// `encodeIfPresent` in the synthesized conformance, and the
-// [LSP specification does not allow `null` in most places](https://github.com/microsoft/language-server-protocol/issues/355).
-extension HoverResponse: Codable {
-  private enum CodingKeys: String, CodingKey {
-    case contents
-    case range
-  }
-
-  public init(from decoder: Decoder) throws {
-    let container = try decoder.container(keyedBy: CodingKeys.self)
-    self.contents = try container.decode(HoverResponseContents.self, forKey: .contents)
-    self.range = try container
-      .decodeIfPresent(PositionRange.self, forKey: .range)?
-      .wrappedValue
-  }
-
-  public func encode(to encoder: Encoder) throws {
-    var container = encoder.container(keyedBy: CodingKeys.self)
-    try container.encode(contents, forKey: .contents)
-    try container.encodeIfPresent(range.map { PositionRange(wrappedValue: $0) }, forKey: .range)
-  }
 }
 
 extension MarkedString: Codable {

@@ -38,14 +38,10 @@
 ///   init(wrappedValue: WrappedValue) { self.wrappedValue = wrappedValue }
 /// }
 /// ```
-///
-/// * Note: Unfortunately this wrapper does not work perfectly with `Optional`.
-///   While you can add a conformance for it, it will `encodeNil` rather than
-///   using `encodeIfPresent` on the containing type, since the synthesized
-///   implementation only uses `encodeIfPresent` if the property itself is
-///   `Optional`.
 @propertyWrapper
 public struct CustomCodable<CustomCoder: CustomCodableWrapper> {
+
+  public typealias CustomCoder = CustomCoder
 
   /// The underlying value.
   public var wrappedValue: CustomCoder.WrappedValue
@@ -79,4 +75,35 @@ public protocol CustomCodableWrapper: Codable {
 
   /// Create a wrapper from an underlying value.
   init(wrappedValue: WrappedValue)
+}
+
+extension Optional: CustomCodableWrapper where Wrapped: CustomCodableWrapper {
+  public var wrappedValue: Wrapped.WrappedValue? { self?.wrappedValue }
+  public init(wrappedValue: Wrapped.WrappedValue?) {
+    self = wrappedValue.flatMap { Wrapped.init(wrappedValue: $0) }
+  }
+}
+
+// The following extensions allow us to encode `CustomCodable<Optional<T>>`
+// using `encodeIfPresent` (and `decodeIfPresent`) in synthesized `Codable`
+// conformances. Without these, we would encode `nil` using `encodeNil` instead
+// of skipping the key.
+
+extension KeyedDecodingContainer {
+  public func decode<T: CustomCodableWrapper>(
+    _ type: CustomCodable<Optional<T>>.Type,
+    forKey key: Key
+  ) throws -> CustomCodable<Optional<T>> {
+    CustomCodable<Optional<T>>(wrappedValue: try decodeIfPresent(T.self, forKey: key)?.wrappedValue)
+  }
+}
+
+extension KeyedEncodingContainer {
+  public mutating func encode<T: CustomCodableWrapper>(
+    _ value: CustomCodable<Optional<T>>,
+    forKey key: Key
+  ) throws {
+    try encodeIfPresent(value.wrappedValue.map {
+      type(of: value).CustomCoder(wrappedValue: $0) }, forKey: key)
+  }
 }

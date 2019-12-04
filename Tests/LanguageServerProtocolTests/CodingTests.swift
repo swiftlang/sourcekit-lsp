@@ -289,6 +289,35 @@ final class CodingTests: XCTestCase {
       }
       """)
   }
+
+  func testCustomCodableOptional() {
+    struct WithPosRange: Codable, Equatable {
+      @CustomCodable<PositionRange?>
+      var range: Range<Position>?
+    }
+
+    let range = Position(line: 5, utf16index: 23) ..< Position(line: 6, utf16index: 0)
+    checkCoding(WithPosRange(range: range), json: """
+      {
+        "range" : {
+          "end" : {
+            "character" : 0,
+            "line" : 6
+          },
+          "start" : {
+            "character" : 23,
+            "line" : 5
+          }
+        }
+      }
+      """)
+
+    checkCoding(WithPosRange(range: nil), json: """
+      {
+
+      }
+      """)
+  }
 }
 
 func with<T>(_ value: T, mutate: (inout T) -> Void) -> T {
