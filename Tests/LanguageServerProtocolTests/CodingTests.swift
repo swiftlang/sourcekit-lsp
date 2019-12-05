@@ -364,6 +364,55 @@ final class CodingTests: XCTestCase {
         "willSaveWaitUntil" : false
       }
       """)
+    
+    checkCoding(WorkspaceEdit(documentChanges: [.textDocumentEdit(TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(uri, version: 2), edits: []))]), json: """
+      {
+        "documentChanges" : [
+          {
+            "edits" : [
+
+            ],
+            "textDocument" : {
+              "uri" : "\(urljson)",
+              "version" : 2
+            }
+          }
+        ]
+      }
+      """)
+    checkCoding(WorkspaceEdit(documentChanges: [.createFile(CreateFile(uri: uri))]), json: """
+    {
+      "documentChanges" : [
+        {
+          "kind" : "create",
+          "uri" : "\(urljson)"
+        }
+      ]
+    }
+    """)
+    checkCoding(WorkspaceEdit(documentChanges: [.renameFile(RenameFile(oldUri: uri, newUri: uri))]), json: """
+    {
+      "documentChanges" : [
+        {
+          "kind" : "rename",
+          "newUri" : "\(urljson)",
+          "oldUri" : "\(urljson)"
+        }
+      ]
+    }
+    """)
+    checkCoding(WorkspaceEdit(documentChanges: [.deleteFile(DeleteFile(uri: uri))]), json: """
+    {
+      "documentChanges" : [
+        {
+          "kind" : "delete",
+          "uri" : "\(urljson)"
+        }
+      ]
+    }
+    """)
+
+
   }
 
   func testValueOrBool() {
