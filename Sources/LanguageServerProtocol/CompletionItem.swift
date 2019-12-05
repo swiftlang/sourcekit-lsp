@@ -16,8 +16,14 @@ public struct CompletionItem: Codable, Hashable {
   /// The display name of the completion.
   public var label: String
 
+  /// The kind of completion item - e.g. method, property.
+  public var kind: CompletionItemKind
+
   /// An extended human-readable name (longer than `label`, but simpler than `documentation`).
   public var detail: String?
+
+  /// A human-readable string that represents a doc-comment.
+  public var documentation: CompletionItemDocumentation?
 
   /// The name to use for sorting the result. If `nil`, use `label.
   public var sortText: String?
@@ -40,23 +46,19 @@ public struct CompletionItem: Codable, Hashable {
   /// The format of the `textEdit.nextText` or `insertText` value.
   public var insertTextFormat: InsertTextFormat?
 
-  /// The kind of completion item - e.g. method, property.
-  public var kind: CompletionItemKind
-
   /// Whether the completion is for a deprecated symbol.
   public var deprecated: Bool?
 
-  // TODO: remaining members
-
   public init(
     label: String,
+    kind: CompletionItemKind,
     detail: String? = nil,
+    documentation: CompletionItemDocumentation? = nil,
     sortText: String? = nil,
     filterText: String? = nil,
     textEdit: TextEdit? = nil,
     insertText: String? = nil,
     insertTextFormat: InsertTextFormat? = nil,
-    kind: CompletionItemKind,
     deprecated: Bool? = nil)
   {
     self.label = label
@@ -79,4 +81,31 @@ public enum InsertTextFormat: Int, Codable, Hashable {
 
   /// The text to insert is a "snippet", which may contain placeholders.
   case snippet = 2
+}
+
+public enum CompletionItemDocumentation: Hashable {
+  case string(String)
+  case markupContent(MarkupContent)
+}
+
+extension CompletionItemDocumentation: Codable {
+  public init(from decoder: Decoder) throws {
+    if let string = try? String(from: decoder) {
+      self = .string(string)
+    } else if let markupContent = try? MarkupContent(from: decoder) {
+      self = .markupContent(markupContent)
+    } else {
+      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected String or MarkupContent")
+      throw DecodingError.dataCorrupted(context)
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    switch self {
+    case .string(let string):
+      try string.encode(to: encoder)
+    case .markupContent(let markupContent):
+      try markupContent.encode(to: encoder)
+    }
+  }
 }

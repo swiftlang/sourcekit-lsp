@@ -387,13 +387,13 @@ extension SwiftLanguageServer {
           let kind: sourcekitd_uid_t? = value[self.keys.kind]
           result.items.append(CompletionItem(
             label: name,
+            kind: kind?.asCompletionItemKind(self.values) ?? .value,
             detail: typeName,
             sortText: nil,
             filterText: filterName,
             textEdit: nil,
             insertText: text,
             insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
-            kind: kind?.asCompletionItemKind(self.values) ?? .value,
             deprecated: nil
           ))
 

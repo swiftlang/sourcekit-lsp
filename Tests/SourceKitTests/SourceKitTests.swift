@@ -153,23 +153,23 @@ final class SKTests: XCTestCase {
     XCTAssertEqual(results, CompletionList(isIncomplete: false, items: [
       CompletionItem(
         label: "method(a: Int)",
+        kind: .method,
         detail: "Void",
         sortText: nil,
         filterText: "method(a:)",
         textEdit: nil,
         insertText: "method(a: )",
         insertTextFormat: .plain,
-        kind: .method,
         deprecated: nil),
       CompletionItem(
         label: "self",
+        kind: .keyword,
         detail: "A",
         sortText: nil,
         filterText: "self",
         textEdit: nil,
         insertText: "self",
         insertTextFormat: .plain,
-        kind: .keyword,
         deprecated: nil),
     ]))
   }

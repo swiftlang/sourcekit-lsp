@@ -286,6 +286,17 @@ final class CodingTests: XCTestCase {
         }
       ]
       """, expected: CompletionList(isIncomplete: false, items: [CompletionItem(label: "abc", kind: .function)]))
+
+    checkCoding(CompletionItemDocumentation.markupContent(MarkupContent(kind: .markdown, value: "some **Markdown***")), json: """
+      {
+        "kind" : "markdown",
+        "value" : "some **Markdown***"
+      }
+      """)
+
+    checkCoding(CompletionItemDocumentation.string("Some documentation"), json: """
+      "Some documentation"
+      """)
   }
 
   func testPositionRange() {

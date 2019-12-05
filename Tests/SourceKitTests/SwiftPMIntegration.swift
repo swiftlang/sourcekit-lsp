@@ -34,23 +34,23 @@ final class SwiftPMIntegrationTests: XCTestCase {
     XCTAssertEqual(completions, CompletionList(isIncomplete: false, items: [
       CompletionItem(
         label: "foo()",
+        kind: .method,
         detail: "Void",
         sortText: nil,
         filterText: "foo()",
         textEdit: nil,
         insertText: "foo()",
         insertTextFormat: .plain,
-        kind: .method,
         deprecated: nil),
       CompletionItem(
         label: "self",
+        kind: .keyword,
         detail: "Lib",
         sortText: nil,
         filterText: "self",
         textEdit: nil,
         insertText: "self",
         insertTextFormat: .plain,
-        kind: .keyword,
         deprecated: nil),
     ]))
   }
