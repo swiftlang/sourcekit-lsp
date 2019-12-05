@@ -81,7 +81,7 @@ public final class SourceKitServer: LanguageServer {
                                          CompletionList(isIncomplete: false, items: []))
     registerToolchainTextDocumentRequest(SourceKitServer.hover, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.definition, .locations([]))
-    registerToolchainTextDocumentRequest(SourceKitServer.implementation, [])
+    registerToolchainTextDocumentRequest(SourceKitServer.implementation, .locations([]))
     registerToolchainTextDocumentRequest(SourceKitServer.symbolInfo, [])
     registerToolchainTextDocumentRequest(SourceKitServer.documentSymbolHighlight, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.foldingRange, nil)
@@ -627,13 +627,13 @@ extension SourceKitServer {
         if let error = result.failure {
           req.reply(.failure(error))
         } else {
-          req.reply([])
+          req.reply(.locations([]))
         }
         return
       }
 
       guard let usr = symbol.usr, let index = index else {
-        return req.reply([])
+        return req.reply(.locations([]))
       }
 
       var occurs = index.occurrences(ofUSR: usr, roles: .baseOf)
@@ -655,7 +655,7 @@ extension SourceKitServer {
         )
       }
 
-      req.reply(locations)
+      req.reply(.locations(locations))
     }
     let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
                           cancellation: req.cancellationToken, reply: callback)

@@ -298,7 +298,7 @@ final class CodingTests: XCTestCase {
       "Some documentation"
       """)
 
-    checkCoding(DefinitionResponse.locations([Location(uri: uri, range: range)]), json: """
+    checkCoding(LocationsOrLocationLinksResponse.locations([Location(uri: uri, range: range)]), json: """
       [
         {
           "range" : \(rangejson.indented(4, skipFirstLine: true)),
@@ -307,7 +307,7 @@ final class CodingTests: XCTestCase {
       ]
       """)
 
-    checkCoding(DefinitionResponse.locationLinks([LocationLink(targetUri: uri, targetRange: range, targetSelectionRange: range)]), json: """
+    checkCoding(LocationsOrLocationLinksResponse.locationLinks([LocationLink(targetUri: uri, targetRange: range, targetSelectionRange: range)]), json: """
       [
         {
           "targetRange" : \(rangejson.indented(4, skipFirstLine: true)),
@@ -322,7 +322,7 @@ final class CodingTests: XCTestCase {
         "range" : \(rangejson.indented(2, skipFirstLine: true)),
         "uri" : "\(urljson)"
       }
-      """, expected: DefinitionResponse.locations([Location(uri: uri, range: range)]))
+      """, expected: LocationsOrLocationLinksResponse.locations([Location(uri: uri, range: range)]))
 
     checkCoding(DocumentSymbolResponse.documentSymbols([DocumentSymbol(name: "mySymbol", kind: .function, range: range, selectionRange: range)]), json: """
       [

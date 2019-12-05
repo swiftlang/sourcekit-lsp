@@ -25,7 +25,11 @@ final class ImplementationTests: XCTestCase {
     func impls(at testLoc: TestLocation) throws -> Set<Location> {
       let textDocument = testLoc.docIdentifier
       let request = ImplementationRequest(textDocument: textDocument, position: Position(testLoc))
-      let implementations = try ws.sk.sendSync(request)
+      let response = try ws.sk.sendSync(request)
+      guard case .locations(let implementations) = response else {
+        XCTFail("Response was not locations")
+        return []
+      }
       return Set(implementations)
     }
     func testLoc(_ name: String) -> TestLocation {

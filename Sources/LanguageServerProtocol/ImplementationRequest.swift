@@ -25,7 +25,7 @@
 ///            protocol conforming types, subclasses, or overrides.
 public struct ImplementationRequest: TextDocumentRequest, Hashable {
   public static let method: String = "textDocument/implementation"
-  public typealias Response = [Location]
+  public typealias Response = LocationsOrLocationLinksResponse?
 
   /// The document in which the given symbol is located.
   public var textDocument: TextDocumentIdentifier
