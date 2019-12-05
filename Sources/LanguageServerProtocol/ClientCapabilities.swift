@@ -225,11 +225,23 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
     /// Capabilities specific to `SignatureInformation`.
     public struct SignatureInformation: Hashable, Codable {
-      /// Documentation formats supported by the client from most to least preferred.
-      public var signatureInformation: [MarkupKind]? = nil
+      public struct ParameterInformation: Hashable, Codable {
+        /// The client supports processing label offsets instead of a simple label string.
+        var labelOffsetSupport: Bool? = nil
 
-      public init(signatureInformation: [MarkupKind]? = nil) {
-        self.signatureInformation = signatureInformation
+        public init(labelOffsetSupport: Bool? = nil) {
+          self.labelOffsetSupport = labelOffsetSupport
+        }
+      }
+
+      /// Documentation formats supported by the client from most to least preferred.
+      public var documentationFormat: [MarkupKind]? = nil
+
+      public var parameterInformation: ParameterInformation? = nil
+
+      public init(signatureInformation: [MarkupKind]? = nil, parameterInformation: ParameterInformation? = nil) {
+        self.documentationFormat = signatureInformation
+        self.parameterInformation = parameterInformation
       }
     }
 
@@ -276,6 +288,19 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     }
   }
 
+  public struct DynamicRegistrationLinkSupportCapability: Hashable, Codable {
+    /// Whether the client supports dynamic registaration of this request.
+    public var dynamicRegistration: Bool? = nil
+
+    /// The client supports additional metadata in the form of declaration links.
+    public var linkSupport: Bool? = nil
+
+    public init(dynamicRegistration: Bool? = nil, linkSupport: Bool?) {
+      self.dynamicRegistration = dynamicRegistration
+      self.linkSupport = linkSupport
+    }
+  }
+
   /// Capabilities specific to the `textDocument/codeAction` request.
   public struct CodeAction: Hashable, Codable {
 
@@ -294,21 +319,35 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
         }
       }
 
-      /// Whether the client supports dynamic registaration of this request.
-      public var dynamicRegistration: Bool? = nil
-
       public var codeActionKind: CodeActionKind
 
-      public init(dynamicRegistration: Bool? = nil, codeActionKind: CodeActionKind) {
-        self.dynamicRegistration = dynamicRegistration
+      public init(codeActionKind: CodeActionKind) {
         self.codeActionKind = codeActionKind
       }
     }
 
+    /// Whether the client supports dynamic registaration of this request.
+    public var dynamicRegistration: Bool?
+
     public var codeActionLiteralSupport: CodeActionLiteralSupport? = nil
 
-    public init(codeActionLiteralSupport: CodeActionLiteralSupport? = nil) {
+    public init(dynamicRegistration: Bool? = nil, codeActionLiteralSupport: CodeActionLiteralSupport? = nil) {
       self.codeActionLiteralSupport = codeActionLiteralSupport
+    }
+  }
+
+  /// Capabilities specific to `textDocument/rename`.
+  public struct Rename: Hashable, Codable {
+
+    /// Whether the client supports dynamic registaration of this request.
+    public var dynamicRegistration: Bool?
+
+    /// The client supports testing for validity of rename operations before execution.
+    public var prepareSupport: Bool?
+
+    public init(dynamicRegistration: Bool? = nil, prepareSupport: Bool? = nil) {
+      self.dynamicRegistration = dynamicRegistration
+      self.prepareSupport = prepareSupport
     }
   }
 
@@ -364,11 +403,13 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
   public var onTypeFormatting: DynamicRegistrationCapability? = nil
 
-  public var definition: DynamicRegistrationCapability? = nil
+  public var declaration: DynamicRegistrationLinkSupportCapability? = nil
 
-  public var typeDefinition: DynamicRegistrationCapability? = nil
+  public var definition: DynamicRegistrationLinkSupportCapability? = nil
 
-  public var implementation: DynamicRegistrationCapability? = nil
+  public var typeDefinition: DynamicRegistrationLinkSupportCapability? = nil
+
+  public var implementation: DynamicRegistrationLinkSupportCapability? = nil
 
   public var codeAction: CodeAction? = nil
 
@@ -384,13 +425,27 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
   public var foldingRange: FoldingRange? = nil
 
-  public init(synchronization: Synchronization? = nil, completion: Completion? = nil, hover: Hover? = nil,
-              signatureHelp: SignatureHelp? = nil, references: DynamicRegistrationCapability? = nil, documentHighlight: DynamicRegistrationCapability? = nil,
-              documentSymbol: DocumentSymbol? = nil, formatting: DynamicRegistrationCapability? = nil, rangeFormatting: DynamicRegistrationCapability? = nil,
-              onTypeFormatting: DynamicRegistrationCapability? = nil, definition: DynamicRegistrationCapability? = nil, typeDefinition: DynamicRegistrationCapability? = nil,
-              implementation: DynamicRegistrationCapability? = nil, codeAction: CodeAction? = nil, codeLens: DynamicRegistrationCapability? = nil,
-              documentLink: DynamicRegistrationCapability? = nil, colorProvider: DynamicRegistrationCapability? = nil, rename: DynamicRegistrationCapability? = nil,
-              publishDiagnostics: PublishDiagnostics? = nil, foldingRange: FoldingRange? = nil) {
+  public init(synchronization: Synchronization? = nil,
+              completion: Completion? = nil,
+              hover: Hover? = nil,
+              signatureHelp: SignatureHelp? = nil,
+              references: DynamicRegistrationCapability? = nil,
+              documentHighlight: DynamicRegistrationCapability? = nil,
+              documentSymbol: DocumentSymbol? = nil,
+              formatting: DynamicRegistrationCapability? = nil,
+              rangeFormatting: DynamicRegistrationCapability? = nil,
+              onTypeFormatting: DynamicRegistrationCapability? = nil,
+              declaration: DynamicRegistrationLinkSupportCapability? = nil,
+              definition: DynamicRegistrationLinkSupportCapability? = nil,
+              typeDefinition: DynamicRegistrationLinkSupportCapability? = nil,
+              implementation: DynamicRegistrationLinkSupportCapability? = nil,
+              codeAction: CodeAction? = nil,
+              codeLens: DynamicRegistrationCapability? = nil,
+              documentLink: DynamicRegistrationCapability? = nil,
+              colorProvider: DynamicRegistrationCapability? = nil,
+              rename: DynamicRegistrationCapability? = nil,
+              publishDiagnostics: PublishDiagnostics? = nil,
+              foldingRange: FoldingRange? = nil) {
     self.synchronization = synchronization
     self.completion = completion
     self.hover = hover
@@ -401,6 +456,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     self.formatting = formatting
     self.rangeFormatting = rangeFormatting
     self.onTypeFormatting = onTypeFormatting
+    self.declaration = declaration
     self.definition = definition
     self.typeDefinition = typeDefinition
     self.implementation = implementation
