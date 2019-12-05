@@ -323,6 +323,30 @@ final class CodingTests: XCTestCase {
         "uri" : "\(urljson)"
       }
       """, expected: DefinitionResponse.locations([Location(uri: uri, range: range)]))
+
+    checkCoding(DocumentSymbolResponse.documentSymbols([DocumentSymbol(name: "mySymbol", kind: .function, range: range, selectionRange: range)]), json: """
+      [
+        {
+          "kind" : 12,
+          "name" : "mySymbol",
+          "range" : \(rangejson.indented(4, skipFirstLine: true)),
+          "selectionRange" : \(rangejson.indented(4, skipFirstLine: true))
+        }
+      ]
+      """)
+
+    checkCoding(DocumentSymbolResponse.symbolInformation([SymbolInformation(name: "mySymbol", kind: .function, location: Location(uri: uri, range: range))]), json: """
+      [
+        {
+          "kind" : 12,
+          "location" : {
+            "range" : \(rangejson.indented(6, skipFirstLine: true)),
+            "uri" : "\(urljson)"
+          },
+          "name" : "mySymbol"
+        }
+      ]
+      """)
   }
 
   func testPositionRange() {

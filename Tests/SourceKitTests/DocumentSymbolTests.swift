@@ -51,7 +51,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     workspace = connection.server!.workspace!
   }
 
-  func performDocumentSymbolRequest(text: String) -> [DocumentSymbol] {
+  func performDocumentSymbolRequest(text: String) -> DocumentSymbolResponse {
     let url = URL(fileURLWithPath: "/a.swift")
 
     sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
@@ -77,7 +77,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
 
     let text = ""
     let symbols = performDocumentSymbolRequest(text: text)
-    XCTAssertEqual(symbols, [])
+    XCTAssertEqual(symbols, .documentSymbols([]))
   }
 
   func testStruct() {
@@ -89,7 +89,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     """
     let symbols = performDocumentSymbolRequest(text: text)
 
-    XCTAssertEqual(symbols, [
+    XCTAssertEqual(symbols, .documentSymbols([
       DocumentSymbol(
         name: "Foo",
         detail: nil,
@@ -99,7 +99,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
         selectionRange: range(from: (0, 7), to: (0, 10)),
         children: []
       ),
-    ])
+    ]))
   }
 
   func testUnicode() {
@@ -118,7 +118,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     // but cake is two utf-16 code units
     let cakeRange = range(from: (1, 0), to: (1, 13))
     let cakeSelectionRange = range(from: (1, 7), to: (1, 9))
-    XCTAssertEqual(symbols, [
+    XCTAssertEqual(symbols, .documentSymbols([
       DocumentSymbol(
         name: "Żółć",
         detail: nil,
@@ -137,7 +137,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
         selectionRange: cakeSelectionRange,
         children: []
       ),
-    ])
+    ]))
   }
 
   func testEnum() {
@@ -159,7 +159,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     """
     let symbols = performDocumentSymbolRequest(text: text)
 
-    XCTAssertEqual(symbols, [
+    XCTAssertEqual(symbols, .documentSymbols([
       DocumentSymbol(
         name: "Foo",
         detail: nil,
@@ -288,7 +288,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
           )
         ]
       )
-    ])
+    ]))
   }
 
   func testAll() {
@@ -333,7 +333,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     """
     let symbols = performDocumentSymbolRequest(text: text)
 
-    XCTAssertEqual(symbols, [
+    XCTAssertEqual(symbols, .documentSymbols([
       DocumentSymbol(
         name: "Int",
         detail: nil,
@@ -646,6 +646,6 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
           )
         ]
       )
-    ])
+    ]))
   }
 }

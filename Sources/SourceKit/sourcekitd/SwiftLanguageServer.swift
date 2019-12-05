@@ -539,7 +539,7 @@ extension SwiftLanguageServer {
           return
         }
         guard let results: SKResponseArray = dict[self.keys.substructure] else {
-          return req.reply([])
+          return req.reply(.documentSymbols([]))
         }
 
         func documentSymbol(value: SKResponseDictionary) -> DocumentSymbol? {
@@ -592,7 +592,7 @@ extension SwiftLanguageServer {
           return result
         }
 
-        req.reply(documentSymbols(array: results))
+        req.reply(.documentSymbols(documentSymbols(array: results)))
       }
       // FIXME: cancellation
       _ = handle
