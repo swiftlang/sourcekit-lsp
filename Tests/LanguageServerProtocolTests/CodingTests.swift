@@ -265,6 +265,27 @@ final class CodingTests: XCTestCase {
         }
       }
       """)
+
+    checkCoding(CompletionList(isIncomplete: true, items: [CompletionItem(label: "abc", kind: .function)]), json: """
+      {
+        "isIncomplete" : true,
+        "items" : [
+          {
+            "kind" : 3,
+            "label" : "abc"
+          }
+        ]
+      }
+      """)
+
+    checkDecoding(json: """
+      [
+        {
+          "kind" : 3,
+          "label" : "abc"
+        }
+      ]
+      """, expected: CompletionList(isIncomplete: false, items: [CompletionItem(label: "abc", kind: .function)]))
   }
 
   func testPositionRange() {
