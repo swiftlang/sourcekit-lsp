@@ -347,6 +347,30 @@ final class CodingTests: XCTestCase {
         }
       ]
       """)
+
+    checkCoding(ValueOrBool.value(5), json: "5")
+    checkCoding(ValueOrBool<Int>.bool(false), json: "false")
+
+    checkDecoding(json: "2", expected: TextDocumentSyncOptions(openClose: nil, change: .incremental, willSave: nil, willSaveWaitUntil: nil, save: nil))
+
+    checkCoding(TextDocumentSyncOptions(), json: """
+      {
+        "change" : 2,
+        "openClose" : true,
+        "save" : {
+          "includeText" : false
+        },
+        "willSave" : true,
+        "willSaveWaitUntil" : false
+      }
+      """)
+  }
+
+  func testValueOrBool() {
+    XCTAssertTrue(ValueOrBool.value(5).isSupported)
+    XCTAssertTrue(ValueOrBool.value(0).isSupported)
+    XCTAssertTrue(ValueOrBool<Int>.bool(true).isSupported)
+    XCTAssertFalse(ValueOrBool<Int>.bool(false).isSupported)
   }
 
   func testPositionRange() {
