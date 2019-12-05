@@ -66,9 +66,13 @@ final class SKTests: XCTestCase {
 
     // MARK: Jump to definition
 
-    let jump = try ws.sk.sendSync(DefinitionRequest(
+    let response = try ws.sk.sendSync(DefinitionRequest(
       textDocument: locRef.docIdentifier,
       position: locRef.position))
+    guard case .locations(let jump) = response else {
+      XCTFail("Response is not locations")
+      return
+    }
 
     XCTAssertEqual(jump.count, 1)
     XCTAssertEqual(jump.first?.uri, DocumentURI(locDef.url))
@@ -110,9 +114,13 @@ final class SKTests: XCTestCase {
       let locDef = ws.testLoc("aaa:def")
       let locRef = ws.testLoc("aaa:call:c")
       try ws.openDocument(locRef.url, language: .swift)
-      let jump = try ws.sk.sendSync(DefinitionRequest(
+      let response = try ws.sk.sendSync(DefinitionRequest(
         textDocument: locRef.docIdentifier,
         position: locRef.position))
+      guard case .locations(let jump) = response else {
+        XCTFail("Response is not locations")
+        return nil
+      }
       XCTAssertEqual(jump.count, 1)
       XCTAssertEqual(jump.first?.uri, DocumentURI(locDef.url))
       XCTAssertEqual(jump.first?.range.lowerBound, locDef.position)

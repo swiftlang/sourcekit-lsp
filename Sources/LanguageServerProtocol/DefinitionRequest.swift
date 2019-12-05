@@ -24,7 +24,7 @@
 /// - Returns: The location of the definition(s).
 public struct DefinitionRequest: TextDocumentRequest, Hashable {
   public static let method: String = "textDocument/definition"
-  public typealias Response = [Location]
+  public typealias Response = DefinitionResponse?
 
   /// The document in which to lookup the symbol location.
   public var textDocument: TextDocumentIdentifier
@@ -37,3 +37,32 @@ public struct DefinitionRequest: TextDocumentRequest, Hashable {
     self.position = position
   }
 }
+
+public enum DefinitionResponse: ResponseType, Hashable {
+  case locations([Location])
+  case locationLinks([LocationLink])
+
+  public init(from decoder: Decoder) throws {
+    if let locations = try? [Location](from: decoder) {
+      self = .locations(locations)
+    } else if let locationLinks = try? [LocationLink](from: decoder) {
+      self = .locationLinks(locationLinks)
+    } else if let location = try? Location(from: decoder) {
+      // Fallback: Decode single location as array with one element
+      self = .locations([location])
+    } else {
+      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "DefinitionResponse could neither be decoded as [Location], nor as [LocationLink], nor as Location")
+      throw DecodingError.dataCorrupted(context)
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    switch self {
+    case .locations(let locations):
+      try locations.encode(to: encoder)
+    case .locationLinks(let locationLinks):
+      try locationLinks.encode(to: encoder)
+    }
+  }
+}
+

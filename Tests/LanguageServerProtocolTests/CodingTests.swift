@@ -297,6 +297,32 @@ final class CodingTests: XCTestCase {
     checkCoding(CompletionItemDocumentation.string("Some documentation"), json: """
       "Some documentation"
       """)
+
+    checkCoding(DefinitionResponse.locations([Location(uri: uri, range: range)]), json: """
+      [
+        {
+          "range" : \(rangejson.indented(4, skipFirstLine: true)),
+          "uri" : "\(urljson)"
+        }
+      ]
+      """)
+
+    checkCoding(DefinitionResponse.locationLinks([LocationLink(targetUri: uri, targetRange: range, targetSelectionRange: range)]), json: """
+      [
+        {
+          "targetRange" : \(rangejson.indented(4, skipFirstLine: true)),
+          "targetSelectionRange" : \(rangejson.indented(4, skipFirstLine: true)),
+          "targetUri" : "\(urljson)"
+        }
+      ]
+      """)
+
+    checkDecoding(json: """
+      {
+        "range" : \(rangejson.indented(2, skipFirstLine: true)),
+        "uri" : "\(urljson)"
+      }
+      """, expected: DefinitionResponse.locations([Location(uri: uri, range: range)]))
   }
 
   func testPositionRange() {
