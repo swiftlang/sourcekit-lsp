@@ -135,6 +135,9 @@ extension SwiftCompletionTests {
     // to regenerate.
     static let __allTests__SwiftCompletionTests = [
         ("testCompletion", testCompletion),
+        ("testCompletionOptional", testCompletionOptional),
+        ("testCompletionOverride", testCompletionOverride),
+        ("testCompletionOverrideInNewLine", testCompletionOverrideInNewLine),
         ("testCompletionPosition", testCompletionPosition),
         ("testCompletionSnippetSupport", testCompletionSnippetSupport),
     ]
