@@ -78,7 +78,7 @@ extension MarkedString: Codable {
     } else if let codeBlock = try? MarkdownCodeBlock(from: decoder) {
       self = .codeBlock(language: codeBlock.language, value: codeBlock.value)
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "MarkedString is neither pure string nor code block")
+      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected String or MarkdownCodeBlock")
       throw DecodingError.dataCorrupted(context)
     }
   }
@@ -104,7 +104,7 @@ extension HoverResponseContents: Codable {
     } else if let value = try? MarkupContent(from: decoder) {
       self = .markupContent(value)
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "HoverResponseContents is neither MarkedString, nor [MarkedString], nor MarkupContent")
+      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected MarkedString, [MarkedString], or MarkupContent")
       throw DecodingError.dataCorrupted(context)
     }
   }
