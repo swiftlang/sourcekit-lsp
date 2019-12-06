@@ -216,11 +216,11 @@ final class CodingTests: XCTestCase {
       }
       """)
 
-    checkCoding(HoverResponse(contents: .markedString(.markdown(value: "test")), range: nil), json: """
-      {
-        "contents" : "test"
-      }
-      """)
+    checkDecoding(json: """
+    {
+      "contents" : "test"
+    }
+    """, expected: HoverResponse(contents: .markedStrings([.markdown(value: "test")]), range: nil))
 
     checkCoding(HoverResponse(contents: .markedStrings([.markdown(value: "test"), .codeBlock(language: "swift", value: "let foo = 2")]), range: nil), json: """
       {

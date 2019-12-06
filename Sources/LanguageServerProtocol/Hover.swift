@@ -56,7 +56,6 @@ public struct HoverResponse: ResponseType, Hashable {
 }
 
 public enum HoverResponseContents: Hashable {
-  case markedString(MarkedString)
   case markedStrings([MarkedString])
   case markupContent(MarkupContent)
 }
@@ -96,13 +95,11 @@ extension MarkedString: Codable {
 extension HoverResponseContents: Codable {
   public init(from decoder: Decoder) throws {
     if let value = try? MarkupContent(from: decoder) {
-      self = .markupContent(value)
-    } else if let value = try? MarkedString(from: decoder) {
-      self = .markedString(value)
+        self = .markupContent(value)
     } else if let value = try? [MarkedString](from: decoder) {
-      self = .markedStrings(value)
-    } else if let value = try? MarkupContent(from: decoder) {
-      self = .markupContent(value)
+        self = .markedStrings(value)
+    } else if let value = try? MarkedString(from: decoder) {
+      self = .markedStrings([value])
     } else {
       let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected MarkedString, [MarkedString], or MarkupContent")
       throw DecodingError.dataCorrupted(context)
@@ -111,8 +108,6 @@ extension HoverResponseContents: Codable {
 
   public func encode(to encoder: Encoder) throws {
     switch self {
-    case .markedString(let value):
-      try value.encode(to: encoder)
     case .markedStrings(let value):
       try value.encode(to: encoder)
     case .markupContent(let value):
