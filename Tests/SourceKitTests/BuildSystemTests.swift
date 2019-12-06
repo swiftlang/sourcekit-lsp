@@ -136,12 +136,12 @@ final class BuildSystemTests: XCTestCase {
 
     sk.allowUnexpectedNotification = false
 
-    sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),
       language: .objective_c,
       version: 12,
       text: text
-    )), { (note: Notification<PublishDiagnostics>) in
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(DocumentURI(url))!.text)
     })
@@ -152,7 +152,7 @@ final class BuildSystemTests: XCTestCase {
     testServer.server?.fileBuildSettingsChanged([DocumentURI(url)])
 
     let expectation = XCTestExpectation(description: "refresh")
-    sk.handleNextNotification { (note: Notification<PublishDiagnostics>) in
+    sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 0)
       XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(DocumentURI(url))!.text)
       expectation.fulfill()
@@ -180,16 +180,16 @@ final class BuildSystemTests: XCTestCase {
 
     sk.allowUnexpectedNotification = false
 
-    sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),
       language: .swift,
       version: 12,
       text: text
-    )), { (note: Notification<PublishDiagnostics>) in
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
       // Syntactic analysis - no expected errors here.
       XCTAssertEqual(note.params.diagnostics.count, 0)
       XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(DocumentURI(url))!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       // Semantic analysis - expect one error here.
       XCTAssertEqual(note.params.diagnostics.count, 1)
     })
@@ -200,12 +200,12 @@ final class BuildSystemTests: XCTestCase {
 
     let expectation = XCTestExpectation(description: "refresh")
     expectation.expectedFulfillmentCount = 2
-    sk.handleNextNotification { (note: Notification<PublishDiagnostics>) in
+    sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
       // Semantic analysis - SourceKit currently caches diagnostics so we still see an error.
       XCTAssertEqual(note.params.diagnostics.count, 1)
       expectation.fulfill()
     }
-    sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnostics>) in
+    sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
       // Semantic analysis - no expected errors here because we fixed the settings.
       XCTAssertEqual(note.params.diagnostics.count, 0)
       expectation.fulfill()
@@ -223,14 +223,14 @@ final class BuildSystemTests: XCTestCase {
 
     sk.allowUnexpectedNotification = false
 
-    sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),
       language: .swift,
       version: 12,
       text: """
       func
       """
-    )), { (note: Notification<PublishDiagnostics>) in
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(DocumentURI(url))!.text)
     })
@@ -241,7 +241,7 @@ final class BuildSystemTests: XCTestCase {
 
     let expectation = XCTestExpectation(description: "refresh doesn't occur")
     expectation.isInverted = true
-    sk.handleNextNotification { (note: Notification<PublishDiagnostics>) in
+    sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(DocumentURI(url))!.text)
       expectation.fulfill()

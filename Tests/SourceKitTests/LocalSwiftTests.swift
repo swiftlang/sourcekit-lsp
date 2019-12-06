@@ -58,19 +58,19 @@ final class LocalSwiftTests: XCTestCase {
 
     sk.allowUnexpectedNotification = false
 
-    sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uri,
       language: .swift,
       version: 12,
       text: """
       func
       """
-    )), { (note: Notification<PublishDiagnostics>) in
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(uri)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -79,24 +79,24 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 0, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 13), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 13), contentChanges: [
       .init(range: Range(Position(line: 0, utf16index: 4)), text: " foo() {}\n")
-    ]), { (note: Notification<PublishDiagnostics>) in
+    ]), { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 1 - syntactic")
       // 1 = remaining semantic error
       // 0 = semantic update finished already
       XCTAssertEqual(note.params.version, 13)
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual("func foo() {}\n", self.workspace.documentManager.latestSnapshot(uri)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 1 - semantic")
       XCTAssertEqual(note.params.version, 13)
       XCTAssertEqual(note.params.diagnostics.count, 0)
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 14), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 14), contentChanges: [
       .init(range: Range(Position(line: 1, utf16index: 0)), text: "_ = bar()")
-      ]), { (note: Notification<PublishDiagnostics>) in
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
         log("Received diagnostics for edit 2 - syntactic")
         XCTAssertEqual(note.params.version, 14)
         // 1 = semantic update finished already
@@ -106,7 +106,7 @@ final class LocalSwiftTests: XCTestCase {
         func foo() {}
         _ = bar()
         """, self.workspace.documentManager.latestSnapshot(uri)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 2 - semantic")
       XCTAssertEqual(note.params.version, 14)
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -115,9 +115,9 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 1, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 14), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 14), contentChanges: [
       .init(range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 7), text: "foo")
-      ]), { (note: Notification<PublishDiagnostics>) in
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
         log("Received diagnostics for edit 3 - syntactic")
         // 1 = remaining semantic error
         // 0 = semantic update finished already
@@ -127,15 +127,15 @@ final class LocalSwiftTests: XCTestCase {
         func foo() {}
         _ = foo()
         """, self.workspace.documentManager.latestSnapshot(uri)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 3 - semantic")
       XCTAssertEqual(note.params.version, 14)
       XCTAssertEqual(note.params.diagnostics.count, 0)
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 15), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 15), contentChanges: [
       .init(range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 7), text: "fooTypo")
-      ]), { (note: Notification<PublishDiagnostics>) in
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
         log("Received diagnostics for edit 4 - syntactic")
         XCTAssertEqual(note.params.version, 15)
         // 1 = semantic update finished already
@@ -145,7 +145,7 @@ final class LocalSwiftTests: XCTestCase {
         func foo() {}
         _ = fooTypo()
         """, self.workspace.documentManager.latestSnapshot(uri)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 4 - semantic")
       XCTAssertEqual(note.params.version, 15)
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -154,12 +154,12 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 1, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 16), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 16), contentChanges: [
       .init(range: nil, text: """
       func bar() {}
       _ = foo()
       """)
-      ]), { (note: Notification<PublishDiagnostics>) in
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
         log("Received diagnostics for edit 5 - syntactic")
         XCTAssertEqual(note.params.version, 16)
         // Could be remaining semantic error or new one.
@@ -168,7 +168,7 @@ final class LocalSwiftTests: XCTestCase {
         func bar() {}
         _ = foo()
         """, self.workspace.documentManager.latestSnapshot(uri)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 5 - semantic")
       XCTAssertEqual(note.params.version, 16)
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -183,19 +183,19 @@ final class LocalSwiftTests: XCTestCase {
 
     sk.allowUnexpectedNotification = false
 
-    sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uri,
       language: .swift,
       version: 12,
       text: """
       func
       """
-    )), { (note: Notification<PublishDiagnostics>) in
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(uri)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -204,24 +204,24 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 0, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 13), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 13), contentChanges: [
       .init(range: Range(Position(line: 0, utf16index: 4)), text: " foo() {}\n")
-    ]), { (note: Notification<PublishDiagnostics>) in
+    ]), { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 1 - syntactic")
       XCTAssertEqual(note.params.version, 13)
       // 1 = remaining semantic error
       // 0 = semantic update finished already
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual("func foo() {}\n", self.workspace.documentManager.latestSnapshot(uri)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 1 - semantic")
       XCTAssertEqual(note.params.version, 13)
       XCTAssertEqual(note.params.diagnostics.count, 0)
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 14), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 14), contentChanges: [
       .init(range: Range(Position(line: 1, utf16index: 0)), text: "_ = bar()")
-      ]), { (note: Notification<PublishDiagnostics>) in
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
         log("Received diagnostics for edit 2 - syntactic")
         XCTAssertEqual(note.params.version, 14)
         // 1 = semantic update finished already
@@ -231,7 +231,7 @@ final class LocalSwiftTests: XCTestCase {
         func foo() {}
         _ = bar()
         """, self.workspace.documentManager.latestSnapshot(uri)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 2 - semantic")
       XCTAssertEqual(note.params.version, 14)
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -240,9 +240,9 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 1, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 14), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 14), contentChanges: [
       .init(range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 7), text: "foo")
-      ]), { (note: Notification<PublishDiagnostics>) in
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
         log("Received diagnostics for edit 3 - syntactic")
         XCTAssertEqual(note.params.version, 14)
         // 1 = remaining semantic error
@@ -252,15 +252,15 @@ final class LocalSwiftTests: XCTestCase {
         func foo() {}
         _ = foo()
         """, self.workspace.documentManager.latestSnapshot(uri)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 3 - semantic")
       XCTAssertEqual(note.params.version, 14)
       XCTAssertEqual(note.params.diagnostics.count, 0)
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 15), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 15), contentChanges: [
       .init(range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 7), text: "fooTypo")
-      ]), { (note: Notification<PublishDiagnostics>) in
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
         log("Received diagnostics for edit 4 - syntactic")
         XCTAssertEqual(note.params.version, 15)
         // 1 = semantic update finished already
@@ -270,7 +270,7 @@ final class LocalSwiftTests: XCTestCase {
         func foo() {}
         _ = fooTypo()
         """, self.workspace.documentManager.latestSnapshot(uri)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 4 - semantic")
       XCTAssertEqual(note.params.version, 15)
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -279,12 +279,12 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 1, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uri, version: 16), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 16), contentChanges: [
       .init(range: nil, text: """
       func bar() {}
       _ = foo()
       """)
-      ]), { (note: Notification<PublishDiagnostics>) in
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
         log("Received diagnostics for edit 5 - syntactic")
         XCTAssertEqual(note.params.version, 16)
          // Could be remaining semantic error or new one.
@@ -293,7 +293,7 @@ final class LocalSwiftTests: XCTestCase {
         func bar() {}
         _ = foo()
         """, self.workspace.documentManager.latestSnapshot(uri)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 5 - semantic")
       XCTAssertEqual(note.params.version, 16)
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -311,18 +311,18 @@ final class LocalSwiftTests: XCTestCase {
 
     sk.allowUnexpectedNotification = false
 
-    sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uriA, language: .swift, version: 12,
       text: """
       _ = foo()
       """
-    )), { (note: Notification<PublishDiagnostics>) in
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 12)
       // 1 = semantic update finished already
       // 0 = only syntactic
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -331,18 +331,18 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 0, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uriB, language: .swift, version: 12,
       text: """
       _ = bar()
       """
-    )), { (note: Notification<PublishDiagnostics>) in
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 12)
       // 1 = semantic update finished already
       // 0 = only syntactic
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -351,13 +351,13 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 0, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(uriA, version: 13), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uriA, version: 13), contentChanges: [
       .init(range: nil, text: "_ = foo()\n")
-    ]), { (note: Notification<PublishDiagnostics>) in
+    ]), { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 1 - syntactic")
       XCTAssertEqual(note.params.version, 13)
       XCTAssertEqual(note.params.diagnostics.count, 1)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 1 - semantic")
       XCTAssertEqual(note.params.version, 13)
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -369,18 +369,18 @@ final class LocalSwiftTests: XCTestCase {
     let uriA = DocumentURI(urlA)
     sk.allowUnexpectedNotification = false
 
-    sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uriA, language: .swift, version: 12,
       text: """
       _ = foo()
       """
-    )), { (note: Notification<PublishDiagnostics>) in
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 12)
       // 1 = semantic update finished already
       // 0 = only syntactic
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -389,14 +389,14 @@ final class LocalSwiftTests: XCTestCase {
         Position(line: 0, utf16index: 4))
     })
 
-    sk.send(DidCloseTextDocument(textDocument: .init(urlA)))
+    sk.send(DidCloseTextDocumentNotification(textDocument: .init(urlA)))
 
-    sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uriA, language: .swift, version: 13,
       text: """
       var
       """
-    )), { (note: Notification<PublishDiagnostics>) in
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 13)
       // 1 = syntactic, no cached semantic diagnostic from previous version
@@ -404,7 +404,7 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertEqual(
         note.params.diagnostics.first?.range.lowerBound,
         Position(line: 0, utf16index: 3))
-    }, { (note: Notification<PublishDiagnostics>) in
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 13)
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -671,7 +671,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.swift")
     let uri = DocumentURI(url)
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uri,
       language: .swift,
       version: 1,
@@ -744,7 +744,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.swift")
     let uri = DocumentURI(url)
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uri,
       language: .swift,
       version: 1,
@@ -795,7 +795,7 @@ final class LocalSwiftTests: XCTestCase {
   func testHoverNameEscaping() {
     let url = URL(fileURLWithPath: "/a.swift")
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),
       language: .swift,
       version: 1,
@@ -859,7 +859,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.swift")
     let uri = DocumentURI(url)
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uri,
       language: .swift,
       version: 1,

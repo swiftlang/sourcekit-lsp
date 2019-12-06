@@ -19,7 +19,7 @@
 ///   - options: Options to customize the formatting.
 ///
 /// - Returns: An array of of text edits describing the formatting changes to the document, if any.
-public struct DocumentFormatting: TextDocumentRequest, Hashable {
+public struct DocumentFormattingRequest: TextDocumentRequest, Hashable {
   public static let method: String = "textDocument/formatting"
   public typealias Response = [TextEdit]?
 
@@ -41,7 +41,7 @@ public struct DocumentFormatting: TextDocumentRequest, Hashable {
 ///   - options: Options to customize the formatting.
 ///
 /// - Returns: An array of of text edits describing the formatting changes to the document, if any.
-public struct DocumentRangeFormatting: TextDocumentRequest, Hashable {
+public struct DocumentRangeFormattingRequest: TextDocumentRequest, Hashable {
   public static let method: String = "textDocument/rangeFormatting"
   public typealias Response = [TextEdit]?
 
@@ -72,7 +72,7 @@ public struct DocumentRangeFormatting: TextDocumentRequest, Hashable {
 ///   - options: Options to customize the formatting.
 ///
 /// - Returns: An array of of text edits describing the formatting changes to the document, if any.
-public struct DocumentOnTypeFormatting: TextDocumentRequest, Hashable {
+public struct DocumentOnTypeFormattingRequest: TextDocumentRequest, Hashable {
   public static let method: String = "textDocument/onTypeFormatting"
   public typealias Response = [TextEdit]?
 

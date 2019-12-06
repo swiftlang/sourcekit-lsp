@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -10,12 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Poll the index for unit changes and wait for them to be registered.
-/// **LSP Extension, For Testing**.
+/// Request indicating the server should start shutting down.
 ///
-/// Users of PollIndex should set `"initializationOptions": { "listenToUnitEvents": false }` during
-/// the `initialize` request.
-public struct PollIndex: RequestType {
-  public static var method: String = "workspace/_pollIndex"
+/// The server should cleanup any state that it needs to, but not exit (otherwise the response might
+/// not reach the client). See `Exit`.
+///
+/// - Returns: Void.
+public struct Shutdown: RequestType, Hashable {
+  public static let method: String = "shutdown"
   public typealias Response = VoidResponse
+
+  public init() { }
 }

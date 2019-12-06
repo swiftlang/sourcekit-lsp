@@ -106,10 +106,3 @@ public struct InitializeResult: ResponseType, Hashable {
     self.capabilities = capabilities
   }
 }
-
-/// Notification from the client that its own initialization of the language server has finished.
-public struct InitializedNotification: NotificationType, Hashable {
-  public static let method: String = "initialized"
-
-  public init() {}
-}

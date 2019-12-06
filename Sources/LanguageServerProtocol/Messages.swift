@@ -26,9 +26,9 @@ public let builtinRequests: [_RequestType.Type] = [
   ImplementationRequest.self,
   ReferencesRequest.self,
   DocumentHighlightRequest.self,
-  DocumentFormatting.self,
-  DocumentRangeFormatting.self,
-  DocumentOnTypeFormatting.self,
+  DocumentFormattingRequest.self,
+  DocumentRangeFormattingRequest.self,
+  DocumentOnTypeFormattingRequest.self,
   FoldingRangeRequest.self,
   DocumentSymbolRequest.self,
   DocumentColorRequest.self,
@@ -39,7 +39,7 @@ public let builtinRequests: [_RequestType.Type] = [
   // MARK: LSP Extension Requests
 
   SymbolInfoRequest.self,
-  PollIndex.self,
+  PollIndexRequest.self,
 ]
 
 /// The set of known notifications.
@@ -49,17 +49,17 @@ public let builtinRequests: [_RequestType.Type] = [
 /// `MessageRegistry._register()` which allows you to avoid bloating the real server implementation.
 public let builtinNotifications: [NotificationType.Type] = [
   InitializedNotification.self,
-  Exit.self,
-  CancelRequest.self,
-  LogMessage.self,
-  DidChangeConfiguration.self,
-  DidChangeWorkspaceFolders.self,
-  DidOpenTextDocument.self,
-  DidCloseTextDocument.self,
-  DidChangeTextDocument.self,
-  DidSaveTextDocument.self,
-  WillSaveTextDocument.self,
-  PublishDiagnostics.self,
+  ExitNotification.self,
+  CancelRequestNotification.self,
+  LogMessageNotification.self,
+  DidChangeConfigurationNotification.self,
+  DidChangeWorkspaceFoldersNotification.self,
+  DidOpenTextDocumentNotification.self,
+  DidCloseTextDocumentNotification.self,
+  DidChangeTextDocumentNotification.self,
+  DidSaveTextDocumentNotification.self,
+  WillSaveTextDocumentNotification.self,
+  PublishDiagnosticsNotification.self,
 ]
 
 // MARK: Miscellaneous Message Types

@@ -1,66 +1,72 @@
 add_library(LanguageServerProtocol
-  ApplyEdit.swift
-  CancelRequest.swift
   Cancellation.swift
-  ClientCapabilities.swift
-  CodeAction.swift
-  CodeActionKind.swift
-  ColorPresentationRequest.swift
-  Command.swift
-  Completion.swift
-  CompletionItem.swift
-  CompletionItemKind.swift
-  Configuration.swift
   Connection.swift
   CustomCodable.swift
-  DefinitionRequest.swift
-  Diagnostic.swift
-  DocumentColor.swift
-  DocumentHighlight.swift
-  DocumentSymbol.swift
-  DocumentURI.swift
   Error.swift
-  ExecuteCommand.swift
-  FoldingRange.swift
-  FoldingRangeKind.swift
-  Formatting.swift
-  Hover.swift
-  ImplementationRequest.swift
-  InitializeRequest.swift
-  LSPAny.swift
-  Language.swift
-  Location.swift
-  LogMessage.swift
-  MarkupContent.swift
   Message.swift
   MessageRegistry.swift
   Messages.swift
-  PollIndex.swift
-  Position.swift
   PositionRange.swift
-  PublishDiagnostics.swift
-  ReferencesRequest.swift
   Request.swift
   RequestID.swift
-  ServerCapabilities.swift
-  ShowMessageRequest.swift
-  Shutdown.swift
-  SymbolInfo.swift
-  SymbolKind.swift
-  TextDocumentContentChangeEvent.swift
-  TextDocumentEdit.swift
-  TextDocumentIdentifier.swift
-  TextDocumentItem.swift
-  TextDocumentSaveReason.swift
-  TextEdit.swift
-  TextSynchronization.swift
-  VersionedTextDocumentIdentifier.swift
-  WindowMessageType.swift
-  WorkspaceEdit.swift
-  WorkspaceFolder.swift
-  WorkspaceFolders.swift
-  WorkspaceSettings.swift
-  WorkspaceSymbols.swift)
+  Notifications/CancelRequestNotification.swift
+  Notifications/ConfigurationNotification.swift
+  Notifications/DidChangeWorkspaceFoldersNotification.swift
+  Notifications/ExitNotification.swift
+  Notifications/InitializedNotification.swift
+  Notifications/LogMessageNotification.swift
+  Notifications/PublishDiagnosticsNotification.swift
+  Notifications/ShowMessageNotification.swift
+  Notifications/TextSynchronizationNotifications.swift
+  Requests/ApplyEditRequest.swift
+  Requests/CodeActionRequest.swift
+  Requests/ColorPresentationRequest.swift
+  Requests/CompletionRequest.swift
+  Requests/DefinitionRequest.swift
+  Requests/DocumentColorRequest.swift
+  Requests/DocumentHighlightRequest.swift
+  Requests/DocumentSymbolRequest.swift
+  Requests/ExecuteCommandRequest.swift
+  Requests/FoldingRangeRequest.swift
+  Requests/FormattingRequests.swift
+  Requests/HoverRequest.swift
+  Requests/ImplementationRequest.swift
+  Requests/InitializeRequest.swift
+  Requests/PollIndexRequest.swift
+  Requests/ReferencesRequest.swift
+  Requests/ShowMessageRequest.swift
+  Requests/ShutdownRequest.swift
+  Requests/SymbolInfoRequest.swift
+  Requests/WorkspaceFoldersRequest.swift
+  Requests/WorkspaceSymbolsRequest.swift
+  SupportTypes/ClientCapabilities.swift
+  SupportTypes/CodeActionKind.swift
+  SupportTypes/Command.swift
+  SupportTypes/CompletionItem.swift
+  SupportTypes/CompletionItemKind.swift
+  SupportTypes/Diagnostic.swift
+  SupportTypes/DocumentURI.swift
+  SupportTypes/FoldingRangeKind.swift
+  SupportTypes/Language.swift
+  SupportTypes/Location.swift
+  SupportTypes/LocationLink.swift
+  SupportTypes/LocationsOrLocationLinksResponse.swift
+  SupportTypes/LSPAny.swift
+  SupportTypes/MarkupContent.swift
+  SupportTypes/Position.swift
+  SupportTypes/ServerCapabilities.swift
+  SupportTypes/SymbolKind.swift
+  SupportTypes/TextDocumentContentChangeEvent.swift
+  SupportTypes/TextDocumentEdit.swift
+  SupportTypes/TextDocumentIdentifier.swift
+  SupportTypes/TextDocumentItem.swift
+  SupportTypes/TextDocumentSaveReason.swift
+  SupportTypes/TextEdit.swift
+  SupportTypes/VersionedTextDocumentIdentifier.swift
+  SupportTypes/WindowMessageType.swift
+  SupportTypes/WorkspaceEdit.swift
+  SupportTypes/WorkspaceFolder.swift
+  SupportTypes/WorkspaceSettings.swift)
 set_target_properties(LanguageServerProtocol PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 if(NOT CMAKE_SYSTEM_NAME STREQUAL Windows)

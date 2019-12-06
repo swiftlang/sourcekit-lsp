@@ -59,7 +59,7 @@ final class LocalClangTests: XCTestCase {
     guard haveClangd else { return }
     let url = URL(fileURLWithPath: "/a.cpp")
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),
       language: .cpp,
       version: 1,
@@ -123,7 +123,7 @@ final class LocalClangTests: XCTestCase {
     guard haveClangd else { return }
     let url = URL(fileURLWithPath: "/a.cpp")
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),
       language: .cpp,
       version: 1,
@@ -147,7 +147,7 @@ final class LocalClangTests: XCTestCase {
 
     let expectation = XCTestExpectation(description: "diagnostics")
 
-    ws.sk.handleNextNotification { (note: Notification<PublishDiagnostics>) in
+    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
       // Don't use exact equality because of differences in recent clang.
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(note.params.diagnostics.first?.range,

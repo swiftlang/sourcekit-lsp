@@ -111,7 +111,7 @@ public struct CodeActionContext: Codable, Hashable {
   }
 }
 
-public struct CodeAction: Codable, Equatable, ResponseType {
+public struct CodeAction: Codable, Equatable {
 
   /// A short, human-readable, title for this code action.
   public var title: String

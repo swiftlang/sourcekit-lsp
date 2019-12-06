@@ -80,7 +80,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
       new: newDiags, stage: stage)
     currentDiagnostics[document] = result
 
-    client.send(PublishDiagnostics(uri: document, version: snapshot.version, diagnostics: result.map { $0.diagnostic }))
+    client.send(PublishDiagnosticsNotification(uri: document, version: snapshot.version, diagnostics: result.map { $0.diagnostic }))
   }
 
   /// Should be called on self.queue.
@@ -172,7 +172,7 @@ extension SwiftLanguageServer {
     api.set_notification_handler(nil)
   }
 
-  func exit(_ notification: Notification<Exit>) {
+  func exit(_ notification: Notification<ExitNotification>) {
     api.shutdown()
     onExit()
   }
@@ -220,7 +220,7 @@ extension SwiftLanguageServer {
 
   // MARK: - Text synchronization
 
-  public func openDocument(_ note: DidOpenTextDocument) {
+  public func openDocument(_ note: DidOpenTextDocumentNotification) {
     let keys = self.keys
 
     self.queue.async {
@@ -253,7 +253,7 @@ extension SwiftLanguageServer {
     }
   }
 
-  public func closeDocument(_ note: DidCloseTextDocument) {
+  public func closeDocument(_ note: DidCloseTextDocumentNotification) {
     let keys = self.keys
 
     self.queue.async {
@@ -273,7 +273,7 @@ extension SwiftLanguageServer {
     }
   }
 
-  public func changeDocument(_ note: DidChangeTextDocument) {
+  public func changeDocument(_ note: DidChangeTextDocumentNotification) {
     let keys = self.keys
 
     self.queue.async {
@@ -309,11 +309,11 @@ extension SwiftLanguageServer {
     }
   }
 
-  public func willSaveDocument(_ note: WillSaveTextDocument) {
+  public func willSaveDocument(_ note: WillSaveTextDocumentNotification) {
 
   }
 
-  public func didSaveDocument(_ note: DidSaveTextDocument) {
+  public func didSaveDocument(_ note: DidSaveTextDocumentNotification) {
 
   }
 

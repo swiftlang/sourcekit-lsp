@@ -52,23 +52,3 @@ public struct MessageActionItem: ResponseType, Hashable {
     self.title = title
   }
 }
-
-/// Notification from the server containing a message for the client to display.
-///
-/// - Parameters:
-///   - type: The kind of message.
-///   - message: The contents of the message.
-public struct ShowMessage: NotificationType, Hashable {
-  public static let method: String = "window/showMessage"
-
-  /// The kind of message.
-  public var type: WindowMessageType
-
-  /// The contents of the message.
-  public var message: String
-
-  public init(type: WindowMessageType, message: String) {
-    self.type = type
-    self.message = message
-  }
-}
