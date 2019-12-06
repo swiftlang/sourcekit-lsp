@@ -265,6 +265,88 @@ final class CodingTests: XCTestCase {
         }
       }
       """)
+
+    checkCoding(CompletionList(isIncomplete: true, items: [CompletionItem(label: "abc", kind: .function)]), json: """
+      {
+        "isIncomplete" : true,
+        "items" : [
+          {
+            "kind" : 3,
+            "label" : "abc"
+          }
+        ]
+      }
+      """)
+
+    checkDecoding(json: """
+      [
+        {
+          "kind" : 3,
+          "label" : "abc"
+        }
+      ]
+      """, expected: CompletionList(isIncomplete: false, items: [CompletionItem(label: "abc", kind: .function)]))
+
+    checkCoding(CompletionItemDocumentation.markupContent(MarkupContent(kind: .markdown, value: "some **Markdown***")), json: """
+      {
+        "kind" : "markdown",
+        "value" : "some **Markdown***"
+      }
+      """)
+
+    checkCoding(CompletionItemDocumentation.string("Some documentation"), json: """
+      "Some documentation"
+      """)
+
+    checkCoding(LocationsOrLocationLinksResponse.locations([Location(uri: uri, range: range)]), json: """
+      [
+        {
+          "range" : \(rangejson.indented(4, skipFirstLine: true)),
+          "uri" : "\(urljson)"
+        }
+      ]
+      """)
+
+    checkCoding(LocationsOrLocationLinksResponse.locationLinks([LocationLink(targetUri: uri, targetRange: range, targetSelectionRange: range)]), json: """
+      [
+        {
+          "targetRange" : \(rangejson.indented(4, skipFirstLine: true)),
+          "targetSelectionRange" : \(rangejson.indented(4, skipFirstLine: true)),
+          "targetUri" : "\(urljson)"
+        }
+      ]
+      """)
+
+    checkDecoding(json: """
+      {
+        "range" : \(rangejson.indented(2, skipFirstLine: true)),
+        "uri" : "\(urljson)"
+      }
+      """, expected: LocationsOrLocationLinksResponse.locations([Location(uri: uri, range: range)]))
+
+    checkCoding(DocumentSymbolResponse.documentSymbols([DocumentSymbol(name: "mySymbol", kind: .function, range: range, selectionRange: range)]), json: """
+      [
+        {
+          "kind" : 12,
+          "name" : "mySymbol",
+          "range" : \(rangejson.indented(4, skipFirstLine: true)),
+          "selectionRange" : \(rangejson.indented(4, skipFirstLine: true))
+        }
+      ]
+      """)
+
+    checkCoding(DocumentSymbolResponse.symbolInformation([SymbolInformation(name: "mySymbol", kind: .function, location: Location(uri: uri, range: range))]), json: """
+      [
+        {
+          "kind" : 12,
+          "location" : {
+            "range" : \(rangejson.indented(6, skipFirstLine: true)),
+            "uri" : "\(urljson)"
+          },
+          "name" : "mySymbol"
+        }
+      ]
+      """)
   }
 
   func testPositionRange() {

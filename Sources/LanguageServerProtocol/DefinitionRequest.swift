@@ -24,7 +24,7 @@
 /// - Returns: The location of the definition(s).
 public struct DefinitionRequest: TextDocumentRequest, Hashable {
   public static let method: String = "textDocument/definition"
-  public typealias Response = [Location]
+  public typealias Response = LocationsOrLocationLinksResponse?
 
   /// The document in which to lookup the symbol location.
   public var textDocument: TextDocumentIdentifier

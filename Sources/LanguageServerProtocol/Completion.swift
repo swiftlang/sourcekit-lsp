@@ -32,11 +32,42 @@ public struct CompletionRequest: TextDocumentRequest, Hashable {
 
   public var position: Position
 
-  // public var context: CompletionContext?
+  public var context: CompletionContext?
 
   public init(textDocument: TextDocumentIdentifier, position: Position) {
     self.textDocument = textDocument
     self.position = position
+  }
+}
+
+/// How a completion was triggered
+public struct CompletionTriggerKind: RawRepresentable, Codable, Hashable {
+  /// Completion was triggered by typing an identifier (24x7 code complete), manual invocation (e.g Ctrl+Space) or via API.
+  public static let invoked = CompletionTriggerKind(rawValue: 1)
+
+  /// Completion was triggered by a trigger character specified by the `triggerCharacters` properties of the `CompletionRegistrationOptions`.
+  public static let triggerCharacter = CompletionTriggerKind(rawValue: 2)
+
+  /// Completion was re-triggered as the current completion list is incomplete.
+  public static let triggerFromIncompleteCompletions = CompletionTriggerKind(rawValue: 3)
+
+  public let rawValue: Int
+  public init(rawValue: Int) {
+    self.rawValue = rawValue
+  }
+}
+
+/// Contains additional information about the context in which a completion request is triggered.
+public struct CompletionContext: Codable, Hashable {
+  /// How the completion was triggered.
+  public var triggerKind: CompletionTriggerKind
+
+  /// The trigger character (a single character) that has trigger code complete. Is undefined if `triggerKind !== CompletionTriggerKind.TriggerCharacter`
+  public var triggerCharacter: String?
+
+  public init(triggerKind: CompletionTriggerKind, triggerCharacter: String? = nil) {
+    self.triggerKind = triggerKind
+    self.triggerCharacter = triggerCharacter
   }
 }
 
@@ -55,5 +86,25 @@ public struct CompletionList: ResponseType, Hashable {
   public init(isIncomplete: Bool, items: [CompletionItem]) {
     self.isIncomplete = isIncomplete
     self.items = items
+  }
+
+  public init(from decoder: Decoder) throws {
+    // Try decoding as CompletionList
+    do {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      self.isIncomplete = try container.decode(Bool.self, forKey: .isIncomplete)
+      self.items = try container.decode([CompletionItem].self, forKey: .items)
+      return
+    } catch {}
+
+    // Try decoding as [CompletionItem]
+    do {
+      self.items = try [CompletionItem](from: decoder)
+      self.isIncomplete = false
+      return
+    } catch {}
+
+    let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected CompletionList or [CompletionItem]")
+    throw DecodingError.dataCorrupted(context)
   }
 }

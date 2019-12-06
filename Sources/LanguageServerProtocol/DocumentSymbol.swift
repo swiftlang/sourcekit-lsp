@@ -24,13 +24,38 @@
 /// - Returns: An array of document symbols, if any.
 public struct DocumentSymbolRequest: TextDocumentRequest, Hashable {
   public static let method: String = "textDocument/documentSymbol"
-  public typealias Response = [DocumentSymbol]?
+  public typealias Response = DocumentSymbolResponse?
 
   /// The document in which to lookup the symbol location.
   public var textDocument: TextDocumentIdentifier
 
   public init(textDocument: TextDocumentIdentifier) {
     self.textDocument = textDocument
+  }
+}
+
+public enum DocumentSymbolResponse: ResponseType, Hashable {
+  case documentSymbols([DocumentSymbol])
+  case symbolInformation([SymbolInformation])
+
+  public init(from decoder: Decoder) throws {
+    if let documentSymbols = try? [DocumentSymbol](from: decoder) {
+      self = .documentSymbols(documentSymbols)
+    } else if let symbolInformation = try? [SymbolInformation](from: decoder) {
+      self = .symbolInformation(symbolInformation)
+    } else {
+      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected [DocumentSymbol] or [SymbolInformation]")
+      throw DecodingError.dataCorrupted(context)
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    switch self {
+    case .documentSymbols(let documentSymbols):
+      try documentSymbols.encode(to: encoder)
+    case .symbolInformation(let symbolInformation):
+      try symbolInformation.encode(to: encoder)
+    }
   }
 }
 
@@ -70,12 +95,12 @@ public struct DocumentSymbol: Hashable, Codable, ResponseType {
 
   public init(
     name: String,
-    detail: String?, 
+    detail: String? = nil,
     kind: SymbolKind,
-    deprecated: Bool?,
+    deprecated: Bool? = nil,
     range: Range<Position>,
     selectionRange: Range<Position>,
-    children: [DocumentSymbol]?)
+    children: [DocumentSymbol]? = nil)
   {
     self.name = name
     self.detail = detail

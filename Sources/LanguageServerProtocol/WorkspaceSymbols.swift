@@ -45,7 +45,11 @@ public struct SymbolInformation: Hashable, ResponseType {
 
   public var containerName: String?
 
-  public init(name: String, kind: SymbolKind, deprecated: Bool?, location: Location, containerName: String?) {
+  public init(name: String,
+              kind: SymbolKind,
+              deprecated: Bool? = nil,
+              location: Location,
+              containerName: String? = nil) {
     self.name = name
     self.kind = kind
     self.deprecated = deprecated

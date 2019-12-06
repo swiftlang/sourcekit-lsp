@@ -66,9 +66,13 @@ final class SKTests: XCTestCase {
 
     // MARK: Jump to definition
 
-    let jump = try ws.sk.sendSync(DefinitionRequest(
+    let response = try ws.sk.sendSync(DefinitionRequest(
       textDocument: locRef.docIdentifier,
       position: locRef.position))
+    guard case .locations(let jump) = response else {
+      XCTFail("Response is not locations")
+      return
+    }
 
     XCTAssertEqual(jump.count, 1)
     XCTAssertEqual(jump.first?.uri, DocumentURI(locDef.url))
@@ -78,7 +82,8 @@ final class SKTests: XCTestCase {
 
     let refs = try ws.sk.sendSync(ReferencesRequest(
       textDocument: locDef.docIdentifier,
-      position: locDef.position))
+      position: locDef.position,
+      context: ReferencesContext(includeDeclaration: true)))
 
     XCTAssertEqual(Set(refs), [
       Location(locDef),
@@ -110,9 +115,13 @@ final class SKTests: XCTestCase {
       let locDef = ws.testLoc("aaa:def")
       let locRef = ws.testLoc("aaa:call:c")
       try ws.openDocument(locRef.url, language: .swift)
-      let jump = try ws.sk.sendSync(DefinitionRequest(
+      let response = try ws.sk.sendSync(DefinitionRequest(
         textDocument: locRef.docIdentifier,
         position: locRef.position))
+      guard case .locations(let jump) = response else {
+        XCTFail("Response is not locations")
+        return nil
+      }
       XCTAssertEqual(jump.count, 1)
       XCTAssertEqual(jump.first?.uri, DocumentURI(locDef.url))
       XCTAssertEqual(jump.first?.range.lowerBound, locDef.position)
@@ -153,23 +162,23 @@ final class SKTests: XCTestCase {
     XCTAssertEqual(results, CompletionList(isIncomplete: false, items: [
       CompletionItem(
         label: "method(a: Int)",
+        kind: .method,
         detail: "Void",
         sortText: nil,
         filterText: "method(a:)",
         textEdit: TextEdit(range: Position(line: 1, utf16index: 14)..<Position(line: 1, utf16index: 14), newText: "method(a: )"),
         insertText: "method(a: )",
         insertTextFormat: .plain,
-        kind: .method,
         deprecated: nil),
       CompletionItem(
         label: "self",
+        kind: .keyword,
         detail: "A",
         sortText: nil,
         filterText: "self",
         textEdit: TextEdit(range: Position(line: 1, utf16index: 14)..<Position(line: 1, utf16index: 14), newText: "self"),
         insertText: "self",
         insertTextFormat: .plain,
-        kind: .keyword,
         deprecated: nil),
     ]))
   }

@@ -451,13 +451,13 @@ extension SwiftLanguageServer {
           let kind: sourcekitd_uid_t? = value[self.keys.kind]
           result.items.append(CompletionItem(
             label: name,
+            kind: kind?.asCompletionItemKind(self.values) ?? .value,
             detail: typeName,
             sortText: nil,
             filterText: filterName,
             textEdit: textEdit,
             insertText: text,
             insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
-            kind: kind?.asCompletionItemKind(self.values) ?? .value,
             deprecated: nil
           ))
 
@@ -603,7 +603,7 @@ extension SwiftLanguageServer {
           return
         }
         guard let results: SKResponseArray = dict[self.keys.substructure] else {
-          return req.reply([])
+          return req.reply(.documentSymbols([]))
         }
 
         func documentSymbol(value: SKResponseDictionary) -> DocumentSymbol? {
@@ -656,7 +656,7 @@ extension SwiftLanguageServer {
           return result
         }
 
-        req.reply(documentSymbols(array: results))
+        req.reply(.documentSymbols(documentSymbols(array: results)))
       }
       // FIXME: cancellation
       _ = handle

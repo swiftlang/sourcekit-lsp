@@ -16,7 +16,7 @@
 public enum WorkspaceSettingsChange: Codable, Hashable {
 
   case clangd(ClangWorkspaceSettings)
-  case unknown
+  case unknown(LSPAny)
 
   public init(from decoder: Decoder) throws {
     // FIXME: doing trial deserialization only works if we have at least one non-optional unique
@@ -25,7 +25,8 @@ public enum WorkspaceSettingsChange: Codable, Hashable {
     if let settings = try? ClangWorkspaceSettings(from: decoder) {
       self = .clangd(settings)
     } else {
-      self = .unknown
+      let settings = try LSPAny(from: decoder)
+      self = .unknown(settings)
     }
   }
 
@@ -33,8 +34,8 @@ public enum WorkspaceSettingsChange: Codable, Hashable {
     switch self {
     case .clangd(let settings):
       try settings.encode(to: encoder)
-    case .unknown:
-      break // Nothing to do.
+    case .unknown(let settings):
+      try settings.encode(to: encoder)
     }
   }
 }
