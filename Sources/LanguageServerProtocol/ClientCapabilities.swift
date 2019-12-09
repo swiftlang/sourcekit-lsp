@@ -295,7 +295,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     /// The client supports additional metadata in the form of declaration links.
     public var linkSupport: Bool? = nil
 
-    public init(dynamicRegistration: Bool? = nil, linkSupport: Bool?) {
+    public init(dynamicRegistration: Bool? = nil, linkSupport: Bool? = nil) {
       self.dynamicRegistration = dynamicRegistration
       self.linkSupport = linkSupport
     }
