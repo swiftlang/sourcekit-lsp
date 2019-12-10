@@ -80,7 +80,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
       new: newDiags, stage: stage)
     currentDiagnostics[document] = result
 
-    client.send(PublishDiagnostics(uri: document, diagnostics: result.map { $0.diagnostic }))
+    client.send(PublishDiagnostics(uri: document, version: snapshot.version, diagnostics: result.map { $0.diagnostic }))
   }
 
   /// Should be called on self.queue.
