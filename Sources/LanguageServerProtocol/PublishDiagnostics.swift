@@ -30,11 +30,15 @@ public struct PublishDiagnostics: NotificationType, Hashable, Codable {
   /// The document in which the diagnostics should be shown.
   public var uri: DocumentURI
 
+  /// Optional the version number of the document the diagnostics are published for.
+  public var version: Int?
+
   /// The complete list of diagnostics in the document, if any.
   public var diagnostics: [Diagnostic]
 
-  public init(uri: DocumentURI, diagnostics: [Diagnostic]) {
+  public init(uri: DocumentURI, version: Int? = nil, diagnostics: [Diagnostic]) {
     self.uri = uri
+    self.version = version
     self.diagnostics = diagnostics
   }
 }
