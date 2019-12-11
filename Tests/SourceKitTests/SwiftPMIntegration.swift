@@ -41,7 +41,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
         textEdit: TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "foo()"),
         insertText: "foo()",
         insertTextFormat: .plain,
-        deprecated: nil),
+        deprecated: false),
       CompletionItem(
         label: "self",
         kind: .keyword,
@@ -51,7 +51,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
         textEdit: TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "self"),
         insertText: "self",
         insertTextFormat: .plain,
-        deprecated: nil),
+        deprecated: false),
     ]))
   }
 }

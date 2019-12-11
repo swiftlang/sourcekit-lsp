@@ -448,6 +448,9 @@ extension SwiftLanguageServer {
             textEdit = nil
           }
 
+          // Map SourceKit's not_recommended field to LSP's deprecated
+          let notRecommended = (value[self.keys.not_recommended] as Int?).map({ $0 != 0 })
+
           let kind: sourcekitd_uid_t? = value[self.keys.kind]
           result.items.append(CompletionItem(
             label: name,
@@ -458,7 +461,7 @@ extension SwiftLanguageServer {
             textEdit: textEdit,
             insertText: text,
             insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
-            deprecated: nil
+            deprecated: notRecommended ?? false
           ))
 
           return true
