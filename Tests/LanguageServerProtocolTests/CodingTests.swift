@@ -216,11 +216,11 @@ final class CodingTests: XCTestCase {
       }
       """)
 
-    checkCoding(HoverResponse(contents: .markedString(.markdown(value: "test")), range: nil), json: """
-      {
-        "contents" : "test"
-      }
-      """)
+    checkDecoding(json: """
+    {
+      "contents" : "test"
+    }
+    """, expected: HoverResponse(contents: .markedStrings([.markdown(value: "test")]), range: nil))
 
     checkCoding(HoverResponse(contents: .markedStrings([.markdown(value: "test"), .codeBlock(language: "swift", value: "let foo = 2")]), range: nil), json: """
       {
@@ -347,6 +347,79 @@ final class CodingTests: XCTestCase {
         }
       ]
       """)
+
+    checkCoding(ValueOrBool.value(5), json: "5")
+    checkCoding(ValueOrBool<Int>.bool(false), json: "false")
+
+    checkDecoding(json: "2", expected: TextDocumentSyncOptions(openClose: nil, change: .incremental, willSave: nil, willSaveWaitUntil: nil, save: nil))
+
+    checkCoding(TextDocumentSyncOptions(), json: """
+      {
+        "change" : 2,
+        "openClose" : true,
+        "save" : {
+          "includeText" : false
+        },
+        "willSave" : true,
+        "willSaveWaitUntil" : false
+      }
+      """)
+    
+    checkCoding(WorkspaceEdit(documentChanges: [.textDocumentEdit(TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(uri, version: 2), edits: []))]), json: """
+      {
+        "documentChanges" : [
+          {
+            "edits" : [
+
+            ],
+            "textDocument" : {
+              "uri" : "\(urljson)",
+              "version" : 2
+            }
+          }
+        ]
+      }
+      """)
+    checkCoding(WorkspaceEdit(documentChanges: [.createFile(CreateFile(uri: uri))]), json: """
+    {
+      "documentChanges" : [
+        {
+          "kind" : "create",
+          "uri" : "\(urljson)"
+        }
+      ]
+    }
+    """)
+    checkCoding(WorkspaceEdit(documentChanges: [.renameFile(RenameFile(oldUri: uri, newUri: uri))]), json: """
+    {
+      "documentChanges" : [
+        {
+          "kind" : "rename",
+          "newUri" : "\(urljson)",
+          "oldUri" : "\(urljson)"
+        }
+      ]
+    }
+    """)
+    checkCoding(WorkspaceEdit(documentChanges: [.deleteFile(DeleteFile(uri: uri))]), json: """
+    {
+      "documentChanges" : [
+        {
+          "kind" : "delete",
+          "uri" : "\(urljson)"
+        }
+      ]
+    }
+    """)
+
+
+  }
+
+  func testValueOrBool() {
+    XCTAssertTrue(ValueOrBool.value(5).isSupported)
+    XCTAssertTrue(ValueOrBool.value(0).isSupported)
+    XCTAssertTrue(ValueOrBool<Int>.bool(true).isSupported)
+    XCTAssertFalse(ValueOrBool<Int>.bool(false).isSupported)
   }
 
   func testPositionRange() {

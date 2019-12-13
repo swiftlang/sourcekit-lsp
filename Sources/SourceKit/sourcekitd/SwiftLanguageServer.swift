@@ -144,21 +144,21 @@ extension SwiftLanguageServer {
         willSave: true,
         willSaveWaitUntil: false,
         save: TextDocumentSyncOptions.SaveOptions(includeText: false)),
+      hoverProvider: true,
       completionProvider: CompletionOptions(
         resolveProvider: false,
         triggerCharacters: ["."]),
-      hoverProvider: true,
       definitionProvider: nil,
-      implementationProvider: true,
+      implementationProvider: .bool(true),
       referencesProvider: nil,
       documentHighlightProvider: true,
-      foldingRangeProvider: true,
       documentSymbolProvider: true,
-      colorProvider: true,
-      codeActionProvider: CodeActionServerCapabilities(
+      codeActionProvider: .value(CodeActionServerCapabilities(
         clientCapabilities: initialize.capabilities.textDocument?.codeAction,
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
-        supportsCodeActions: true),
+        supportsCodeActions: true)),
+      colorProvider: .bool(true),
+      foldingRangeProvider: .bool(true),
       executeCommandProvider: ExecuteCommandOptions(
         commands: builtinSwiftCommands)
     ))

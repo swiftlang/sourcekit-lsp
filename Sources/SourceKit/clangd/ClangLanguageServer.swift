@@ -161,7 +161,7 @@ extension ClangLanguageServerShim {
   }
 
   func foldingRange(_ req: Request<FoldingRangeRequest>) {
-    if capabilities?.foldingRangeProvider == true {
+    if capabilities?.foldingRangeProvider?.isSupported == true {
       forwardRequest(req, to: clangd)
     } else {
       req.reply(.success(nil))

@@ -9,6 +9,7 @@ extension CodingTests {
         ("testCustomCodableOptional", testCustomCodableOptional),
         ("testPositionRange", testPositionRange),
         ("testValueCoding", testValueCoding),
+        ("testValueOrBool", testValueOrBool),
     ]
 }
 

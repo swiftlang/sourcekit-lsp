@@ -208,7 +208,8 @@ public final class SourceKitServer: LanguageServer {
         workspaceFolders: nil))
 
       // FIXME: store the server capabilities.
-      guard case .incremental? = resp.capabilities.textDocumentSync?.change else {
+      let syncKind = resp.capabilities.textDocumentSync?.change ?? .incremental
+      guard syncKind == .incremental else {
         fatalError("non-incremental update not implemented")
       }
 
@@ -318,24 +319,24 @@ extension SourceKitServer {
         willSaveWaitUntil: false,
         save: TextDocumentSyncOptions.SaveOptions(includeText: false)
       ),
+      hoverProvider: true,
       completionProvider: CompletionOptions(
         resolveProvider: false,
         triggerCharacters: ["."]
       ),
-      hoverProvider: true,
       definitionProvider: true,
-      implementationProvider: true,
+      implementationProvider: .bool(true),
       referencesProvider: true,
       documentHighlightProvider: true,
-      foldingRangeProvider: true,
       documentSymbolProvider: true,
-      colorProvider: true,
-      codeActionProvider: CodeActionServerCapabilities(
+      workspaceSymbolProvider: true,
+      codeActionProvider: .value(CodeActionServerCapabilities(
         clientCapabilities: req.params.capabilities.textDocument?.codeAction,
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
         supportsCodeActions: true
-      ),
-      workspaceSymbolProvider: true,
+      )),
+      colorProvider: .bool(true),
+      foldingRangeProvider: .bool(true),
       executeCommandProvider: ExecuteCommandOptions(
         commands: builtinSwiftCommands // FIXME: Clangd commands?
       )

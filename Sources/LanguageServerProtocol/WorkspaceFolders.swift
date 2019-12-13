@@ -19,7 +19,7 @@
 ///   open. Returns an empty array if a workspace is open but no folders are configured.
 public struct WorkspaceFoldersRequest: RequestType, Hashable {
     public static let method: String = "workspace/workspaceFolders"
-    public typealias Response = [WorkspaceFolder]
+    public typealias Response = [WorkspaceFolder]?
 }
 
 /// Notification from the client that the set of open workspace folders has changed.

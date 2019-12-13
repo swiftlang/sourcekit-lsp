@@ -79,15 +79,7 @@ final class CodingTests: XCTestCase {
         save: TextDocumentSyncOptions.SaveOptions(includeText: false)),
       completionProvider: CompletionOptions(
         resolveProvider: false,
-        triggerCharacters: ["."]),
-      hoverProvider: nil,
-      definitionProvider: nil,
-      implementationProvider: nil,
-      referencesProvider: nil,
-      documentHighlightProvider: nil,
-      foldingRangeProvider: nil,
-      codeActionProvider: nil,
-      workspaceSymbolProvider: nil)), id: .number(2), json: """
+        triggerCharacters: ["."]))), id: .number(2), json: """
     {
       "id" : 2,
       "jsonrpc" : "2.0",
