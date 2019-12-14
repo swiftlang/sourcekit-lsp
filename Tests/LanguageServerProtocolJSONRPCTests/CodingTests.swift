@@ -50,7 +50,7 @@ final class CodingTests: XCTestCase {
     }
     """)
 
-    checkMessageCoding(CancelRequest(id: .number(1)), json: """
+    checkMessageCoding(CancelRequestNotification(id: .number(1)), json: """
     {
       "jsonrpc" : "2.0",
       "method" : "$\\/cancelRequest",

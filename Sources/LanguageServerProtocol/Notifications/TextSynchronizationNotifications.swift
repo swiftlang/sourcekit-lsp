@@ -26,7 +26,7 @@
 /// capability.
 ///
 /// - Parameter textDocument: The document identifier and initial contents.
-public struct DidOpenTextDocument: NotificationType, Hashable {
+public struct DidOpenTextDocumentNotification: NotificationType, Hashable {
   public static let method: String = "textDocument/didOpen"
 
   /// The document identifier and initial contents.
@@ -44,7 +44,7 @@ public struct DidOpenTextDocument: NotificationType, Hashable {
 /// management of the document contents to disk, if appropriate.
 ///
 /// - Parameter textDocument: The document to close, which must be currently open.
-public struct DidCloseTextDocument: NotificationType, Hashable {
+public struct DidCloseTextDocumentNotification: NotificationType, Hashable {
   public static let method: String = "textDocument/didClose"
 
   /// The document to close, which must be currently open.
@@ -65,7 +65,7 @@ public struct DidCloseTextDocument: NotificationType, Hashable {
 /// - Parameters:
 ///   - textDocument: The document to change and its current version identifier.
 ///   - contentChanges: Edits to the document.
-public struct DidChangeTextDocument: NotificationType, Hashable {
+public struct DidChangeTextDocumentNotification: NotificationType, Hashable {
   public static let method: String = "textDocument/didChange"
 
   /// The document to change and its current version identifier.
@@ -90,7 +90,7 @@ public struct DidChangeTextDocument: NotificationType, Hashable {
 ///   - reason: Whether this was user-initiated, auto-saved, etc.
 ///
 /// Servers that support willSave should set the `willSave` text document sync option.
-public struct WillSaveTextDocument: NotificationType, Hashable {
+public struct WillSaveTextDocumentNotification: NotificationType, Hashable {
   public static let method: String = "textDocument/willSave"
 
   /// The document that will be saved.
@@ -107,7 +107,7 @@ public struct WillSaveTextDocument: NotificationType, Hashable {
 ///   - text: The content of the document at the time of save.
 ///
 /// Servers that support didSave should set the `save` text document sync option.
-public struct DidSaveTextDocument: NotificationType, Hashable {
+public struct DidSaveTextDocumentNotification: NotificationType, Hashable {
   public static let method: String = "textDocument/didSave"
 
   /// The document that was saved.

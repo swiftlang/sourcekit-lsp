@@ -63,7 +63,7 @@ final class ClangLanguageServerShim: ToolchainLanguageServer {
       request.reply(result)
     }
     request.cancellationToken.addCancellationHandler {
-      to.send(CancelRequest(id: id))
+      to.send(CancelRequestNotification(id: id))
     }
   }
 }
@@ -84,25 +84,25 @@ extension ClangLanguageServerShim {
 
   // MARK: - Text synchronization
 
-  public func openDocument(_ note: DidOpenTextDocument) {
+  public func openDocument(_ note: DidOpenTextDocumentNotification) {
     let textDocument = note.textDocument
     documentUpdatedBuildSettings(textDocument.uri, language: textDocument.language)
     clangd.send(note)
   }
 
-  public func closeDocument(_ note: DidCloseTextDocument) {
+  public func closeDocument(_ note: DidCloseTextDocumentNotification) {
     clangd.send(note)
   }
 
-  public func changeDocument(_ note: DidChangeTextDocument) {
+  public func changeDocument(_ note: DidChangeTextDocumentNotification) {
     clangd.send(note)
   }
 
-  public func willSaveDocument(_ note: WillSaveTextDocument) {
+  public func willSaveDocument(_ note: WillSaveTextDocumentNotification) {
 
   }
 
-  public func didSaveDocument(_ note: DidSaveTextDocument) {
+  public func didSaveDocument(_ note: DidSaveTextDocumentNotification) {
 
   }
 
@@ -120,7 +120,7 @@ extension ClangLanguageServerShim {
     }
 
     if let settings = settings {
-      clangd.send(DidChangeConfiguration(settings: .clangd(
+      clangd.send(DidChangeConfigurationNotification(settings: .clangd(
         ClangWorkspaceSettings(
           compilationDatabaseChanges: [url.path: ClangCompileCommand(settings, clang: clang)]))))
     }

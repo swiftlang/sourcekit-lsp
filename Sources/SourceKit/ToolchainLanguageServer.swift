@@ -23,11 +23,11 @@ public protocol ToolchainLanguageServer: AnyObject {
 
   // MARK: - Text synchronization
 
-  func openDocument(_ note: DidOpenTextDocument)
-  func closeDocument(_ note: DidCloseTextDocument)
-  func changeDocument(_ note: DidChangeTextDocument)
-  func willSaveDocument(_ note: WillSaveTextDocument)
-  func didSaveDocument(_ note: DidSaveTextDocument)
+  func openDocument(_ note: DidOpenTextDocumentNotification)
+  func closeDocument(_ note: DidCloseTextDocumentNotification)
+  func changeDocument(_ note: DidChangeTextDocumentNotification)
+  func willSaveDocument(_ note: WillSaveTextDocumentNotification)
+  func didSaveDocument(_ note: DidSaveTextDocumentNotification)
   func documentUpdatedBuildSettings(_ uri: DocumentURI, language: Language)
 
   // MARK: - Text Document

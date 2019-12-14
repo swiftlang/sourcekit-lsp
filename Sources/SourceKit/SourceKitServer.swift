@@ -141,7 +141,7 @@ public final class SourceKitServer: LanguageServer {
       req.reply(result)
     }
     req.cancellationToken.addCancellationHandler {
-      self.client.send(CancelRequest(id: id))
+      self.client.send(CancelRequestNotification(id: id))
     }
   }
 
@@ -347,7 +347,7 @@ extension SourceKitServer {
     // Nothing to do.
   }
 
-  func cancelRequest(_ notification: Notification<CancelRequest>) {
+  func cancelRequest(_ notification: Notification<CancelRequestNotification>) {
     let key = RequestCancelKey(client: notification.clientID, request: notification.params.id)
     requestCancellation[key]?.cancel()
   }
@@ -383,7 +383,7 @@ extension SourceKitServer {
     request.reply(VoidResponse())
   }
 
-  func exit(_ notification: Notification<Exit>) {
+  func exit(_ notification: Notification<ExitNotification>) {
     // Should have been called in shutdown, but allow misbehaving clients.
     _prepareForExit()
 
@@ -397,7 +397,7 @@ extension SourceKitServer {
 
   // MARK: - Text synchronization
 
-  func openDocument(_ note: Notification<DidOpenTextDocument>, workspace: Workspace) {
+  func openDocument(_ note: Notification<DidOpenTextDocumentNotification>, workspace: Workspace) {
     workspace.documentManager.open(note.params)
 
     let textDocument = note.params.textDocument
@@ -408,7 +408,7 @@ extension SourceKitServer {
     }
   }
 
-  func closeDocument(_ note: Notification<DidCloseTextDocument>, workspace: Workspace) {
+  func closeDocument(_ note: Notification<DidCloseTextDocumentNotification>, workspace: Workspace) {
     workspace.documentManager.close(note.params)
 
     workspace.buildSettings.unregisterForChangeNotifications(for: note.params.textDocument.uri)
@@ -418,7 +418,7 @@ extension SourceKitServer {
     }
   }
 
-  func changeDocument(_ note: Notification<DidChangeTextDocument>, workspace: Workspace) {
+  func changeDocument(_ note: Notification<DidChangeTextDocumentNotification>, workspace: Workspace) {
     workspace.documentManager.edit(note.params)
 
     if let service = workspace.documentService[note.params.textDocument.uri] {
@@ -426,13 +426,13 @@ extension SourceKitServer {
     }
   }
 
-  func willSaveDocument(_ note: Notification<WillSaveTextDocument>, workspace: Workspace) {
+  func willSaveDocument(_ note: Notification<WillSaveTextDocumentNotification>, workspace: Workspace) {
     if let service = workspace.documentService[note.params.textDocument.uri] {
       service.willSaveDocument(note.params)
     }
   }
 
-  func didSaveDocument(_ note: Notification<DidSaveTextDocument>, workspace: Workspace) {
+  func didSaveDocument(_ note: Notification<DidSaveTextDocumentNotification>, workspace: Workspace) {
     if let service = workspace.documentService[note.params.textDocument.uri] {
       service.didSaveDocument(note.params)
     }
@@ -716,7 +716,7 @@ extension SourceKitServer {
     service.symbolInfo(request)
   }
 
-  func pollIndex(_ req: Request<PollIndex>, workspace: Workspace) {
+  func pollIndex(_ req: Request<PollIndexRequest>, workspace: Workspace) {
     workspace.index?.pollForUnitChangesAndWait()
     req.reply(VoidResponse())
   }

@@ -10,18 +10,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Notification from the client that the configuration of the workspace has changed.
+/// Notification from the server containing a log message.
 ///
-/// - Note: the format of the settings is implementation-defined.
-///
-/// - Parameter settings: The changed workspace settings.
-public struct DidChangeConfiguration: NotificationType {
-  public static let method: String = "workspace/didChangeConfiguration"
+/// - Parameters:
+///   - type: The kind of log message.
+///   - message: The contents of the message.
+public struct LogMessageNotification: NotificationType, Hashable {
+  public static let method: String = "window/logMessage"
 
-  /// The changed workspace settings.
-  public var settings: WorkspaceSettingsChange
+  /// The kind of log message.
+  public var type: WindowMessageType
 
-  public init(settings: WorkspaceSettingsChange) {
-    self.settings = settings
+  /// The contents of the message.
+  public var message: String
+
+  public init(type: WindowMessageType, message: String) {
+    self.type = type
+    self.message = message
   }
 }

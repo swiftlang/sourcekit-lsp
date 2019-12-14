@@ -120,7 +120,7 @@ extension SKSwiftPMTestWorkspace {
 
 extension SKSwiftPMTestWorkspace {
   public func openDocument(_ url: URL, language: Language) throws {
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),
       language: language,
       version: 1,

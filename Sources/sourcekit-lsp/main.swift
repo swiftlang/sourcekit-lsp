@@ -116,7 +116,7 @@ clientConnection.start(receiveHandler: server, closeHandler: {
 })
 
 Logger.shared.addLogHandler { message, _ in
-  clientConnection.send(LogMessage(type: .log, message: message))
+  clientConnection.send(LogMessageNotification(type: .log, message: message))
 }
 
 dispatchMain()
