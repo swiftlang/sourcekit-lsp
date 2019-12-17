@@ -213,7 +213,7 @@ public struct TextDocumentSyncOptions: Codable, Hashable {
 
   public init(from decoder: Decoder) throws {
     do {
-      let container = try decoder.container(keyedBy: Self.CodingKeys)
+      let container = try decoder.container(keyedBy: CodingKeys.self)
       self.openClose = try container.decodeIfPresent(Bool.self, forKey: .openClose)
       self.change = try container.decodeIfPresent(TextDocumentSyncKind.self, forKey: .change)
       self.willSave = try container.decodeIfPresent(Bool.self, forKey: .willSave)
