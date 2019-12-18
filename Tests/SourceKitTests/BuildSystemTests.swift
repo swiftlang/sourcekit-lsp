@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -132,7 +132,8 @@ final class BuildSystemTests: XCTestCase {
     }
     """
 
-    buildSystem.buildSettingsByFile[DocumentURI(url)] = FileBuildSettings(compilerArguments: args)
+    buildSystem.buildSettingsByFile[DocumentURI(url)] =
+      FileBuildSettings(compilerArguments: args, language: .objective_c)
 
     sk.allowUnexpectedNotification = false
 
@@ -148,7 +149,8 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    buildSystem.buildSettingsByFile[DocumentURI(url)] = FileBuildSettings(compilerArguments: args +  ["-DFOO"])
+    buildSystem.buildSettingsByFile[DocumentURI(url)] = 
+      FileBuildSettings(compilerArguments: args +  ["-DFOO"], language: .objective_c)
     testServer.server?.fileBuildSettingsChanged([DocumentURI(url)])
 
     let expectation = XCTestExpectation(description: "refresh")
@@ -168,7 +170,8 @@ final class BuildSystemTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.swift")
     let args = FallbackBuildSystem().settings(for: DocumentURI(url), .swift)!.compilerArguments
 
-    buildSystem.buildSettingsByFile[DocumentURI(url)] = FileBuildSettings(compilerArguments: args)
+    buildSystem.buildSettingsByFile[DocumentURI(url)] =
+      FileBuildSettings(compilerArguments: args, language: .swift)
 
     let text = """
     #if FOO
@@ -196,7 +199,8 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    buildSystem.buildSettingsByFile[DocumentURI(url)] = FileBuildSettings(compilerArguments: args + ["-DFOO"])
+    buildSystem.buildSettingsByFile[DocumentURI(url)] =
+      FileBuildSettings(compilerArguments: args + ["-DFOO"], language: .swift)
 
     let expectation = XCTestExpectation(description: "refresh")
     expectation.expectedFulfillmentCount = 2
