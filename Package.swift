@@ -27,7 +27,7 @@ let package = Package(
         dependencies: [
           "LanguageServerProtocolJSONRPC",
           "SourceKit",
-          "TSCUtility",
+          "SwiftToolsSupport-auto",
         ]
       ),
 
@@ -41,7 +41,7 @@ let package = Package(
           "LanguageServerProtocolJSONRPC",
           "SKCore",
           "SKSwiftPMWorkspace",
-          "TSCUtility",
+          "SwiftToolsSupport-auto",
         ]
       ),
 
@@ -52,7 +52,7 @@ let package = Package(
           "LSPTestSupport",
           "SourceKit",
           "tibs", // Never imported, needed at runtime
-          "TSCUtility",
+          "SwiftToolsSupport-auto",
         ]
       ),
       .testTarget(
@@ -77,7 +77,7 @@ let package = Package(
         dependencies: [
           "SKSwiftPMWorkspace",
           "SKTestSupport",
-          "TSCUtility",
+          "SwiftToolsSupport-auto",
         ]
       ),
 
@@ -96,7 +96,7 @@ let package = Package(
           "LanguageServerProtocol",
           "LanguageServerProtocolJSONRPC",
           "SKSupport",
-          "TSCUtility",
+          "SwiftToolsSupport-auto",
         ]
       ),
       .testTarget(
@@ -170,7 +170,7 @@ let package = Package(
       .target(
         name: "SKSupport",
         dependencies: [
-          "TSCUtility"
+          "SwiftToolsSupport-auto"
         ]
       ),
       .testTarget(
@@ -201,10 +201,12 @@ if getenv("SWIFTCI_USE_LOCAL_DEPS") == nil {
   package.dependencies += [
     .package(url: "https://github.com/apple/indexstore-db.git", .branch("master")),
     .package(url: "https://github.com/apple/swift-package-manager.git", .branch("master")),
+    .package(url: "https://github.com/apple/swift-tools-support-core.git", .branch("master")),
   ]
 } else {
   package.dependencies += [
     .package(path: "../indexstore-db"),
     .package(path: "../swiftpm"),
+    .package(path: "../swiftpm/TSC"),
   ]
 }
