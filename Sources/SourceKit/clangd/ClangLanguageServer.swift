@@ -106,6 +106,8 @@ extension ClangLanguageServerShim {
 
   }
 
+  // MARK: - Build System Integration
+
   public func documentUpdatedBuildSettings(_ uri: DocumentURI, language: Language) {
     guard let url = uri.fileURL else {
       // FIXME: The clang workspace can probably be reworked to support non-file URIs.
@@ -124,6 +126,10 @@ extension ClangLanguageServerShim {
         ClangWorkspaceSettings(
           compilationDatabaseChanges: [url.path: ClangCompileCommand(settings, clang: clang)]))))
     }
+  }
+
+  public func documentDependenciesUpdated(_ uri: DocumentURI, language: Language) {
+    // TODO: refresh clangd's AST.
   }
 
   // MARK: - Text Document

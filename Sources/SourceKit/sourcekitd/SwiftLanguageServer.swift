@@ -177,7 +177,7 @@ extension SwiftLanguageServer {
     onExit()
   }
 
-  // MARK: - Workspace
+  // MARK: - Build System Integration
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI, language: Language) {
     self.queue.async {
@@ -216,6 +216,10 @@ extension SwiftLanguageServer {
       }
       self.publishDiagnostics(response: dict, for: snapshot)
     }
+  }
+
+  public func documentDependenciesUpdated(_ uri: DocumentURI, language: Language) {
+    // TODO: refresh sourcekitd's AST.
   }
 
   // MARK: - Text synchronization

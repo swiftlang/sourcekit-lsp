@@ -57,7 +57,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
-    let buildSystemDelegate = TestDelegate(fileExpectations: [DocumentURI(fileUrl): expectation])
+    let buildSystemDelegate = TestDelegate(settingsExpectations: [DocumentURI(fileUrl): expectation])
     buildSystem.delegate = buildSystemDelegate
     buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
 
@@ -185,13 +185,16 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
 final class TestDelegate: BuildSystemDelegate {
 
-  let fileExpectations: [DocumentURI:XCTestExpectation]
+  let settingsExpectations: [DocumentURI:XCTestExpectation]
   let targetExpectations: [BuildTargetEvent:XCTestExpectation]
+  let dependenciesUpdatedExpectations: [DocumentURI:XCTestExpectation]
 
-  public init(fileExpectations: [DocumentURI:XCTestExpectation] = [:],
-              targetExpectations: [BuildTargetEvent:XCTestExpectation] = [:]) {
-    self.fileExpectations = fileExpectations
+  public init(settingsExpectations: [DocumentURI:XCTestExpectation] = [:],
+              targetExpectations: [BuildTargetEvent:XCTestExpectation] = [:],
+              dependenciesUpdatedExpectations: [DocumentURI:XCTestExpectation] = [:]) {
+    self.settingsExpectations = settingsExpectations
     self.targetExpectations = targetExpectations
+    self.dependenciesUpdatedExpectations = dependenciesUpdatedExpectations
   }
 
   func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
@@ -202,7 +205,13 @@ final class TestDelegate: BuildSystemDelegate {
 
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
     for uri in changedFiles {
-      fileExpectations[uri]?.fulfill()
+      settingsExpectations[uri]?.fulfill()
+    }
+  }
+
+  public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
+    for uri in changedFiles {
+      dependenciesUpdatedExpectations[uri]?.fulfill()
     }
   }
 }

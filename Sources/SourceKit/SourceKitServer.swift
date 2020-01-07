@@ -245,21 +245,41 @@ extension SourceKitServer: BuildSystemDelegate {
     // TODO: do something with these changes once build target support is in place
   }
 
+  private func affectedOpenDocumentsForChangeSet(
+    _ changes: Set<DocumentURI>,
+    _ documentManager: DocumentManager
+  ) -> Set<DocumentURI> {
+    // An empty change set is treated as if all open files have been modified.
+    guard !changes.isEmpty else {
+      return documentManager.openDocuments
+    }
+    return documentManager.openDocuments.intersection(changes)
+  }
+
   public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
     guard let workspace = self.workspace else {
       return
     }
     let documentManager = workspace.documentManager
-    let openDocuments = documentManager.openDocuments
-    for uri in changedFiles {
-      guard openDocuments.contains(uri) else {
-        continue
-      }
-
+    for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, documentManager) {
       log("Build settings changed for opened file \(uri)")
       if let snapshot = documentManager.latestSnapshot(uri),
         let service = languageService(for: uri, snapshot.document.language, in: workspace) {
         service.documentUpdatedBuildSettings(uri, language: snapshot.document.language)
+      }
+    }
+  }
+
+  public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
+    guard let workspace = self.workspace else {
+      return
+    }
+    let documentManager = workspace.documentManager
+    for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, documentManager) {
+      log("Dependencies updated for opened file \(uri)")
+      if let snapshot = documentManager.latestSnapshot(uri),
+        let service = languageService(for: uri, snapshot.document.language, in: workspace) {
+        service.documentDependenciesUpdated(uri, language: snapshot.document.language)
       }
     }
   }
