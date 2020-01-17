@@ -46,6 +46,8 @@ final class SwiftSourceKitFramework {
     self.path = path
     #if os(Windows)
     self.dylib = try dlopen(path.pathString, mode: [])
+    #elseif os(Android)
+    self.dylib = try dlopen(path.pathString, mode: [.lazy, .local, .first])
     #else
     self.dylib = try dlopen(path.pathString, mode: [.lazy, .local, .first, .deepBind])
     #endif

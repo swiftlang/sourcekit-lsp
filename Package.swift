@@ -190,7 +190,7 @@ let package = Package(
 // by the external environment. This allows sourcekit-lsp to take advantage of the automation used
 // for building the swift toolchain, such as `update-checkout`, or cross-repo PR tests.
 
-#if os(Linux)
+#if canImport(Glibc)
 import Glibc
 #else
 import Darwin.C
