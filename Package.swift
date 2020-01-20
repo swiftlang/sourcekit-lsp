@@ -47,6 +47,7 @@ let package = Package(
           "SourceKitD",
           "SKSwiftPMWorkspace",
           "SwiftToolsSupport-auto",
+          "SwiftFormat",
         ]
       ),
 
@@ -231,11 +232,13 @@ if getenv("SWIFTCI_USE_LOCAL_DEPS") == nil {
     .package(url: "https://github.com/apple/indexstore-db.git", .branch("master")),
     .package(url: "https://github.com/apple/swift-package-manager.git", .branch("master")),
     .package(url: "https://github.com/apple/swift-tools-support-core.git", .branch("master")),
+    .package(url: "https://github.com/apple/swift-format.git", .branch("master")),
   ]
 } else {
   package.dependencies += [
     .package(path: "../indexstore-db"),
     .package(path: "../swiftpm"),
     .package(path: "../swiftpm/swift-tools-support-core"),
+    .package(path: "../swift-format"),
   ]
 }
