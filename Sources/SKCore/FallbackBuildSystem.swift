@@ -56,8 +56,6 @@ public final class FallbackBuildSystem: BuildSystem {
   /// We don't support change watching.
   public func unregisterForChangeNotifications(for: DocumentURI) {}
 
-  public func toolchain(for: DocumentURI, _ language: Language) -> Toolchain? { return nil }
-
   public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
     reply(.failure(buildTargetsNotSupported))
   }

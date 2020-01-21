@@ -72,8 +72,6 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
       language: language)
   }
 
-  public func toolchain(for: DocumentURI, _ language: Language) -> Toolchain? { return nil }
-
   /// We don't support change watching.
   public func registerForChangeNotifications(for: DocumentURI) {}
 

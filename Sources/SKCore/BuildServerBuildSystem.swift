@@ -179,10 +179,6 @@ extension BuildServerBuildSystem: BuildSystem {
     return nil
   }
 
-  public func toolchain(for: DocumentURI, _ language: Language) -> Toolchain? {
-    return nil
-  }
-
   public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
     _ = self.buildServer?.send(BuildTargets(), queue: requestQueue) { response in
       switch response {

@@ -33,18 +33,11 @@ final class TestBuildSystem: BuildSystem {
   /// Build settings by file.
   var buildSettingsByFile: [DocumentURI: FileBuildSettings] = [:]
 
-  /// Toolchains by file.
-  var toolchainsByFile: [DocumentURI: Toolchain] = [:]
-
   /// Files currently being watched by our delegate.
   var watchedFiles: Set<DocumentURI> = []
 
   func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
     return buildSettingsByFile[uri]
-  }
-
-  func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
-    return toolchainsByFile[uri]
   }
 
   func registerForChangeNotifications(for uri: DocumentURI) {

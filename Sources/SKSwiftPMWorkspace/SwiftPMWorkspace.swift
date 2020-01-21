@@ -222,10 +222,6 @@ extension SwiftPMWorkspace: BuildSystem {
     return nil
   }
 
-  public func toolchain(for: DocumentURI, _ language: Language) -> SKCore.Toolchain? {
-    return nil
-  }
-
   /// Register the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
   public func registerForChangeNotifications(for uri: DocumentURI) {

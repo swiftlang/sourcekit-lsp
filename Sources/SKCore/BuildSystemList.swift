@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -57,10 +57,6 @@ extension BuildSystemList: BuildSystem {
   public func unregisterForChangeNotifications(for uri: DocumentURI) {
     // Only unregister with the primary build system, since we only use its delegate.
     providers.first?.unregisterForChangeNotifications(for: uri)
-  }
-
-  public func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
-    return providers.first?.toolchain(for: uri, language)
   }
 
   public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {

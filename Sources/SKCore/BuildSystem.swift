@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -33,9 +33,6 @@ public protocol BuildSystem: AnyObject {
 
   /// Returns the settings for the given url and language mode, if known.
   func settings(for: DocumentURI, _ language: Language) -> FileBuildSettings?
-
-  /// Returns the toolchain to use to compile this file
-  func toolchain(for: DocumentURI, _ language: Language) -> Toolchain?
 
   /// Delegate to handle any build system events such as file build settings
   /// changing.
