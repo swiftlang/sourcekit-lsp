@@ -107,13 +107,13 @@ With this added in `.vimrc`, you can use `<c-x><c-o>` in insert mode to trigger 
 
 ### coc.nvim
 
-Easiest is to install [coc-sourcekit](https://github.com/klaaspieter/coc-sourcekit):
+With [coc.nvim installed](https://github.com/neoclide/coc.nvim#quick-start), the easiest is to use the [coc-sourcekit](https://github.com/klaaspieter/coc-sourcekit) plugin:
 
 ```vim
 :CocInstall coc-sourcekit
 ```
 
-Alternatively open your coc config (`:CocConfig in vim`) and add:
+Alternatively open your coc config (`:CocConfig` in vim) and add:
 
 ```json
   "languageserver": {
