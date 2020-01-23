@@ -378,7 +378,7 @@ extension SourceKitServer {
   }
 
 
-  func shutdown(_ request: Request<Shutdown>) {
+  func shutdown(_ request: Request<ShutdownRequest>) {
     _prepareForExit()
     request.reply(VoidResponse())
   }

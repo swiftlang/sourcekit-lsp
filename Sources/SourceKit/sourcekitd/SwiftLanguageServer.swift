@@ -168,7 +168,7 @@ extension SwiftLanguageServer {
     // Nothing to do.
   }
 
-  func shutdown(_ request: Request<Shutdown>) {
+  func shutdown(_ request: Request<ShutdownRequest>) {
     api.set_notification_handler(nil)
   }
 
