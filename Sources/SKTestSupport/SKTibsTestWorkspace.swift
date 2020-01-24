@@ -121,6 +121,34 @@ extension XCTestCase {
 
     return workspace
   }
+
+  /// Constructs a mutable SKTibsTestWorkspace for the given test from INPUTS.
+  ///
+  /// The resulting workspace allow edits and is not persistent.
+  public func mutableSourceKitTibsTestWorkspace(
+    name: String,
+    clientCapabilities: ClientCapabilities = .init(),
+    tmpDir: URL? = nil,
+    testFile: String = #file
+  ) throws -> SKTibsTestWorkspace? {
+    let testDirName = testDirectoryName
+    let workspace = try SKTibsTestWorkspace(
+      projectDir: inputsDirectory(testFile: testFile)
+        .appendingPathComponent(name, isDirectory: true),
+      tmpDir: tmpDir ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),
+      toolchain: ToolchainRegistry.shared.default!,
+      clientCapabilities: clientCapabilities)
+
+    if workspace.builder.targets.contains(where: { target in !target.clangTUs.isEmpty })
+      && !workspace.builder.toolchain.clangHasIndexSupport {
+      fputs("warning: skipping test because '\(workspace.builder.toolchain.clang.path)' does not " +
+            "have indexstore support; use swift-clang\n", stderr)
+      return nil
+    }
+
+    return workspace
+  }
 }
 
 extension TestLocation {

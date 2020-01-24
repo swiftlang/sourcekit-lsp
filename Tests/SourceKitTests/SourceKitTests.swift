@@ -182,4 +182,57 @@ final class SKTests: XCTestCase {
         deprecated: false),
     ]))
   }
+
+  func testDependenciesUpdatedSwiftTibs() throws {
+    guard let ws = try mutableSourceKitTibsTestWorkspace(name: "SwiftModules") else { return }
+    guard let server = ws.testServer.server else {
+      XCTFail("Unable to fetch SourceKitServer to notify for build system events.")
+      return
+    }
+
+    let moduleRef = ws.testLoc("aaa:call:c")
+    let startExpectation = XCTestExpectation(description: "initial diagnostics")
+    startExpectation.expectedFulfillmentCount = 2
+    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      // Semantic analysis: no errors expected here.
+      XCTAssertEqual(note.params.diagnostics.count, 0)
+      startExpectation.fulfill()
+    }
+    ws.sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+      // Semantic analysis: expect module import error.
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      if let diagnostic = note.params.diagnostics.first {
+        XCTAssert(diagnostic.message.contains("no such module"),
+                  "expected module import error but found \"\(diagnostic.message)\"")
+      }
+      startExpectation.fulfill()
+    }
+
+    try ws.openDocument(moduleRef.url, language: .swift)
+    let started = XCTWaiter.wait(for: [startExpectation], timeout: 3)
+    if started != .completed {
+      fatalError("error \(started) waiting for initial diagnostics notification")
+    }
+
+    try ws.buildAndIndex()
+
+    let finishExpectation = XCTestExpectation(description: "initial diagnostics")
+    finishExpectation.expectedFulfillmentCount = 2
+    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      // Semantic analysis - SourceKit currently caches diagnostics so we still see an error.
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      finishExpectation.fulfill()
+    }
+    ws.sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+      // Semantic analysis: no more errors expected, import should resolve since we built.
+      XCTAssertEqual(note.params.diagnostics.count, 0)
+      finishExpectation.fulfill()
+    }
+    server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
+
+    let finished = XCTWaiter.wait(for: [finishExpectation], timeout: 3)
+    if finished != .completed {
+      fatalError("error \(finished) waiting for post-build diagnostics notification")
+    }
+  }
 }
