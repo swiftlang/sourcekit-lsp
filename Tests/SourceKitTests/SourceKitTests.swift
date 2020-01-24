@@ -216,7 +216,7 @@ final class SKTests: XCTestCase {
 
     try ws.buildAndIndex()
 
-    let finishExpectation = XCTestExpectation(description: "initial diagnostics")
+    let finishExpectation = XCTestExpectation(description: "post-build diagnostics")
     finishExpectation.expectedFulfillmentCount = 2
     ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
       // Semantic analysis - SourceKit currently caches diagnostics so we still see an error.
