@@ -19,6 +19,24 @@ import SKSupport
 import sourcekitd
 import TSCBasic
 
+fileprivate extension Range {
+  /// Checks if this range overlaps with the other range, counting an overlap with an empty range as a valid overlap.
+  /// The standard library implementation makes `1..<3.overlaps(2..<2)` return false because the second range is empty and thus the overlap is also empty.
+  /// This implementation over overlap considers such an inclusion of an empty range as a valid overlap.
+  func overlapsIncludingEmptyRanges(other: Range<Bound>) -> Bool {
+    switch (self.isEmpty, other.isEmpty) {
+    case (true, true):
+      return self.lowerBound == other.lowerBound
+    case (true, false):
+      return other.contains(self.lowerBound)
+    case (false, true):
+      return self.contains(other.lowerBound)
+    case (false, false):
+      return self.overlaps(other)
+    }
+  }
+}
+
 public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   /// The server's request queue, used to serialize requests and responses to `sourcekitd`.
@@ -155,7 +173,7 @@ extension SwiftLanguageServer {
       documentSymbolProvider: true,
       codeActionProvider: .value(CodeActionServerCapabilities(
         clientCapabilities: initialize.capabilities.textDocument?.codeAction,
-        codeActionOptions: CodeActionOptions(codeActionKinds: nil),
+        codeActionOptions: CodeActionOptions(codeActionKinds: [.quickFix, .refactor]),
         supportsCodeActions: true)),
       colorProvider: .bool(true),
       foldingRangeProvider: .bool(true),
@@ -963,9 +981,8 @@ extension SwiftLanguageServer {
 
   public func codeAction(_ req: Request<CodeActionRequest>) {
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
-      (retrieveRefactorCodeActions, .refactor)
-      //TODO: Implement the providers.
-      //(retrieveQuickFixCodeActions, .quickFix)
+      (retrieveRefactorCodeActions, .refactor),
+      (retrieveQuickFixCodeActions, .quickFix)
     ]
     let wantedActionKinds = req.params.context.only
     let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
@@ -1041,6 +1058,51 @@ extension SwiftLanguageServer {
       }
       completion(.success(codeActions))
     }
+  }
+
+  func retrieveQuickFixCodeActions(_ params: CodeActionRequest, completion: @escaping CodeActionProviderCompletion) {
+    guard let cachedDiags = currentDiagnostics[params.textDocument.uri] else {
+      completion(.success([]))
+      return
+    }
+
+    let codeActions = cachedDiags.flatMap { (cachedDiag) -> [CodeAction] in
+      let diag = cachedDiag.diagnostic
+
+      guard let codeActions = diag.codeActions else {
+        // The diagnostic doesn't have fix-its. Don't return anything.
+        return []
+      }
+
+      // Check if the diagnostic overlaps with the selected range.
+      guard params.range.overlapsIncludingEmptyRanges(other: diag.range) else {
+        return []
+      }
+
+      // Check if the set of diagnostics provided by the request contains this diagnostic.
+      // For this, only compare the 'basic' properties of the diagnostics, excluding related information and code actions since
+      // code actions are only defined in an LSP extension and might not be sent back to us.
+      guard params.context.diagnostics.contains(where: { (contextDiag) -> Bool in
+        return contextDiag.range == diag.range &&
+          contextDiag.severity == diag.severity &&
+          contextDiag.code == diag.code &&
+          contextDiag.source == diag.source &&
+          contextDiag.message == diag.message
+      }) else {
+        return []
+      }
+
+      // Flip the attachment of diagnostic to code action instead of the code action being attached to the diagnostic
+      return codeActions.map({
+        var codeAction = $0
+        var diagnosticWithoutCodeActions = diag
+        diagnosticWithoutCodeActions.codeActions = nil
+        codeAction.diagnostics = [diagnosticWithoutCodeActions]
+        return codeAction
+      })
+    }
+
+    completion(.success(codeActions))
   }
 
   public func executeCommand(_ req: Request<ExecuteCommandRequest>) {

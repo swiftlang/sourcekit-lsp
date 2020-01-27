@@ -39,7 +39,12 @@ final class LocalSwiftTests: XCTestCase {
         rootPath: nil,
         rootURI: nil,
         initializationOptions: nil,
-        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
+        capabilities: ClientCapabilities(workspace: nil,
+                                         textDocument: TextDocumentClientCapabilities(
+                                          codeAction: .init(
+                                            codeActionLiteralSupport: .init(
+                                              codeActionKind: .init(valueSet: [.quickFix])
+                                          )))),
         trace: .off,
         workspaceFolders: nil))
 
@@ -439,12 +444,62 @@ final class LocalSwiftTests: XCTestCase {
 
       // Expected Fix-it: Replace `let a` with `_` because it's never used
       let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 7), newText: "_")
-      XCTAssertEqual(fixit, CodeAction(title: "Apply Fix-it",
+      XCTAssertEqual(fixit, CodeAction(title: "Fix",
                                        kind: .quickFix,
                                        diagnostics: nil,
                                        edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
                                        command: nil))
     })
+  }
+
+  func testFixitsAreReturnedFromCodeActions() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    let uri = DocumentURI(url)
+
+    var diagnostic: Diagnostic! = nil
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: """
+      func foo() {
+        let a = 2
+      }
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      diagnostic = note.params.diagnostics.first!
+    })
+
+    let request = CodeActionRequest(
+      range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 11),
+      context: CodeActionContext(diagnostics: [diagnostic], only: nil),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let response = try! sk.sendSync(request)
+
+    XCTAssertNotNil(response)
+    guard case .codeActions(let codeActions) = response else {
+      XCTFail("Expected code actions as response")
+      return
+    }
+    XCTAssertEqual(codeActions.count, 1)
+    let fixit = codeActions.first!
+
+    // Expected Fix-it: Replace `let a` with `_` because it's never used
+    let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 7), newText: "_")
+    XCTAssertEqual(fixit, CodeAction(title: "Fix",
+                                     kind: .quickFix,
+                                     diagnostics: [Diagnostic(range: Position(line: 1, utf16index: 6)..<Position(line: 1, utf16index: 6),
+                                                              severity: .warning,
+                                                              code: nil,
+                                                              source: "sourcekitd",
+                                                              message: "initialization of immutable value \'a\' was never used; consider replacing with assignment to \'_\' or removing it",
+                                                              relatedInformation: [],
+                                                              codeActions: nil)],
+                                     edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+                                     command: nil))
   }
 
   func testXMLToMarkdownDeclaration() {
