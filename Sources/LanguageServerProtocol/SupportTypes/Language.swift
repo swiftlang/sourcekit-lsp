@@ -37,9 +37,70 @@ public struct Language: RawRepresentable, Codable, Equatable, Hashable {
   }
 }
 
-extension Language: CustomStringConvertible {
-  public var description: String {
+extension Language: CustomStringConvertible, CustomDebugStringConvertible {
+  public var debugDescription: String {
     return rawValue
+  }
+
+  public var description: String {
+    switch self {
+    case .abap: return "ABAP"
+    case .bat: return "Windows Bat"
+    case .bibtex: return "BibTeX"
+    case .clojure: return "Clojure"
+    case .coffeescript: return "Coffeescript"
+    case .c: return "C"
+    case .cpp: return "C++"
+    case .csharp: return "C#"
+    case .css: return "CSS"
+    case .diff: return "Diff"
+    case .dart: return "Dart"
+    case .dockerfile: return "Dockerfile"
+    case .fsharp: return "F#"
+    case .git_commit: return "Git (commit)"
+    case .git_rebase: return "Git (rebase)"
+    case .go: return "Go"
+    case .groovy: return "Groovy"
+    case .handlebars: return "Handlebars"
+    case .html: return "HTML"
+    case .ini: return "Ini"
+    case .java: return "Java"
+    case .javaScript: return "JavaScript"
+    case .javaScriptReact: return "JavaScript React"
+    case .json: return "JSON"
+    case .latex: return "LaTeX"
+    case .less: return "Less"
+    case .lua: return "Lua"
+    case .makefile: return "Makefile"
+    case .markdown: return "Markdown"
+    case .objective_c: return "Objective-C"
+    case .objective_cpp: return "Objective-C++"
+    case .perl: return "Perl"
+    case .perl6: return "Perl 6"
+    case .php: return "PHP"
+    case .powershell: return "Powershell"
+    case .jade: return "Pug"
+    case .python: return "Python"
+    case .r: return "R"
+    case .razor: return "Razor (cshtml)"
+    case .ruby: return "Ruby"
+    case .rust: return "Rust"
+    case .scss: return "SCSS (syntax using curly brackets)"
+    case .sass: return "SCSS (indented syntax)"
+    case .scala: return "Scala"
+    case .shaderLab: return "ShaderLab"
+    case .shellScript: return "Shell Script (Bash)"
+    case .sql: return "SQL"
+    case .swift: return "Swift"
+    case .typeScript: return "TypeScript"
+    case .typeScriptReact: return "TypeScript React"
+    case .tex: return "TeX"
+    case .vb: return "Visual Basic"
+    case .xml: return "XML"
+    case .xsl: return "XSL"
+    case .yaml: return "YAML"
+    default: return rawValue
+    }
   }
 }
 
@@ -66,7 +127,7 @@ public extension Language {
   static let ini = Language(rawValue: "ini")
   static let java = Language(rawValue: "java")
   static let javaScript = Language(rawValue: "javascript")
-  static let javaSriptReact = Language(rawValue: "javascriptreact")
+  static let javaScriptReact = Language(rawValue: "javascriptreact")
   static let json = Language(rawValue: "json")
   static let latex = Language(rawValue: "latex")
   static let less = Language(rawValue: "less")
