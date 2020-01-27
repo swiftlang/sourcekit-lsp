@@ -414,6 +414,39 @@ final class LocalSwiftTests: XCTestCase {
     })
   }
 
+  func testFixitsAreIncludedInPublishDiagnostics() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    let uri = DocumentURI(url)
+
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: """
+      func foo() {
+        let a = 2
+      }
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      let diag = note.params.diagnostics.first!
+      XCTAssertNotNil(diag.codeActions)
+      XCTAssertEqual(diag.codeActions!.count, 1)
+      let fixit = diag.codeActions!.first!
+
+      // Expected Fix-it: Replace `let a` with `_` because it's never used
+      let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 7), newText: "_")
+      XCTAssertEqual(fixit, CodeAction(title: "Apply Fix-it",
+                                       kind: .quickFix,
+                                       diagnostics: nil,
+                                       edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+                                       command: nil))
+    })
+  }
+
   func testXMLToMarkdownDeclaration() {
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Declaration>func foo(_ bar: <Type usr="fake">Baz</Type>)</Declaration>
