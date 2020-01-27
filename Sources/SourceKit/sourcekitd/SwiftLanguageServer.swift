@@ -177,7 +177,32 @@ extension SwiftLanguageServer {
     onExit()
   }
 
-  // MARK: - Workspace
+  // MARK: - Build System Integration
+
+  /// Should be called on self.queue.
+  private func reopenDocument(_ snapshot: DocumentSnapshot, _ settings: FileBuildSettings?) {
+    let keys = self.keys
+    let path = snapshot.document.uri.pseudoPath
+
+    let closeReq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+    closeReq[keys.request] = self.requests.editor_close
+    closeReq[keys.name] = path
+    _ = self.sourcekitd.sendSync(closeReq)
+
+    let openReq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+    openReq[keys.request] = self.requests.editor_open
+    openReq[keys.name] = path
+    openReq[keys.sourcetext] = snapshot.text
+    if let settings = settings {
+      openReq[keys.compilerargs] = settings.compilerArguments
+    }
+
+    guard let dict = self.sourcekitd.sendSync(openReq).success else {
+      // Already logged failure.
+      return
+    }
+    self.publishDiagnostics(response: dict, for: snapshot)
+  }
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI, language: Language) {
     self.queue.async {
@@ -193,28 +218,21 @@ extension SwiftLanguageServer {
       }
       self.buildSettingsByFile[uri] = newSettings
 
-      let keys = self.keys
-
       // Close and re-open the document internally to inform sourcekitd to
       // update the settings. At the moment there's no better way to do this.
-      let closeReq = SKRequestDictionary(sourcekitd: self.sourcekitd)
-      closeReq[keys.request] = self.requests.editor_close
-      closeReq[keys.name] = uri.pseudoPath
-      _ = self.sourcekitd.sendSync(closeReq)
+      self.reopenDocument(snapshot, newSettings)
+    }
+  }
 
-      let openReq = SKRequestDictionary(sourcekitd: self.sourcekitd)
-      openReq[keys.request] = self.requests.editor_open
-      openReq[keys.name] = uri.pseudoPath
-      openReq[keys.sourcetext] = snapshot.text
-      if let settings = newSettings {
-        openReq[keys.compilerargs] = settings.compilerArguments
-      }
-
-      guard let dict = self.sourcekitd.sendSync(openReq).success else {
-        // Already logged failure.
+  public func documentDependenciesUpdated(_ uri: DocumentURI, language: Language) {
+    self.queue.async {
+      guard let snapshot = self.documentManager.latestSnapshot(uri) else {
         return
       }
-      self.publishDiagnostics(response: dict, for: snapshot)
+
+      // Forcefully reopen the document since the `BuildSystem` has informed us
+      // that the dependencies have changed and the AST needs to be reloaded.
+      self.reopenDocument(snapshot, self.buildSettingsByFile[uri])
     }
   }
 
