@@ -136,7 +136,7 @@ final class SKTests: XCTestCase {
       XCTAssertEqual(versionContentsBefore.count, 1)
       XCTAssert(versionContentsBefore.first?.lastPathComponent.starts(with: "p") ?? false)
 
-      _ = try ws.sk.sendSync(Shutdown())
+      _ = try ws.sk.sendSync(ShutdownRequest())
       return versionedPath
     }
 
