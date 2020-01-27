@@ -74,10 +74,13 @@ You will need the path to the `sourcekit-lsp` executable for the "command" secti
 
 There is an Emacs client for SourceKit-LSP in the [main Emacs LSP repository](https://github.com/emacs-lsp/lsp-sourcekit).
 
-## Vim 8
+## Vim 8 or Neovim
 
-Install [vim-lsp](https://github.com/prabirshrestha/vim-lsp). In your `.vimrc`, configure vim-lsp to use
-sourcekit-lsp for Swift source files like so:
+All methods below assume `sourcekit-lsp` is in your `PATH`. If it's not then replace `sourcekit-lsp` with the absolute path to the sourcekit-lsp executable.
+
+### vim-lsp
+
+Install [vim-lsp](https://github.com/prabirshrestha/vim-lsp). In your `.vimrc`, configure vim-lsp to use sourcekit-lsp for Swift source files like so:
 
 ```
 if executable('sourcekit-lsp')
@@ -89,11 +92,10 @@ if executable('sourcekit-lsp')
 endif
 ```
 
-(…assuming `sourckit-lsp` is in your PATH variable, otherwise replace `'sourcekit-lsp'` with the path to
-the sourcekit-lsp executable).
+
 
 That's it! As a test, open a swift file, put cursor on top of a symbol in normal mode and
-run `:LspDefinition`. More commands is documented [here](https://github.com/prabirshrestha/vim-lsp#supported-commands).
+run `:LspDefinition`. More commands are documented [here](https://github.com/prabirshrestha/vim-lsp#supported-commands).
 
 There are many Vim solutions for code completion. For instance, you may want to use LSP for omnifunc:
 
@@ -102,6 +104,31 @@ autocmd FileType swift setlocal omnifunc=lsp#complete
 ```
 
 With this added in `.vimrc`, you can use `<c-x><c-o>` in insert mode to trigger sourcekit-lsp completion.
+
+### coc.nvim
+
+With [coc.nvim installed](https://github.com/neoclide/coc.nvim#quick-start), the easiest is to use the [coc-sourcekit](https://github.com/klaaspieter/coc-sourcekit) plugin:
+
+```vim
+:CocInstall coc-sourcekit
+```
+
+Alternatively open your coc config (`:CocConfig` in vim) and add:
+
+```json
+  "languageserver": {
+    "sourcekit-lsp": {
+      "filetypes": ["swift"],
+      "command": "sourcekit-lsp",
+    }
+  }
+```
+
+As a test, open a Swift file, put the cursor on top of a symbol in normal mode and run:
+
+```
+:call CocAction('jumpDefinition')
+```
 
 ## Theia Cloud IDE
 
