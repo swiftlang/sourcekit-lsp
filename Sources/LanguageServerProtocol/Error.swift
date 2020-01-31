@@ -35,6 +35,9 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable {
 
   // LSP
   public static let cancelled: ErrorCode = ErrorCode(rawValue: -32800)
+
+  // sourcekitd
+  public static let connectionInterrupted = ErrorCode(rawValue: -13000)
 }
 
 /// An error response represented by a code and message.
@@ -62,6 +65,10 @@ extension ResponseError {
 
   public static func unknown(_ message: String) -> ResponseError {
     return ResponseError(code: .unknownErrorCode, message: message)
+  }
+
+  public static func connectionInterrupted(_ message: String) -> ResponseError {
+    return ResponseError(code: .connectionInterrupted, message: message)
   }
 }
 

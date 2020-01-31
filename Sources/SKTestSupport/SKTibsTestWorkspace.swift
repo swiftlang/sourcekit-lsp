@@ -216,4 +216,5 @@ extension TibsToolchain {
 
 extension TestLocation {
   public var docIdentifier: TextDocumentIdentifier { TextDocumentIdentifier(url) }
+  public var docUri: DocumentURI { DocumentURI(url) }
 }

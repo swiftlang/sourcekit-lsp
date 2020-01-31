@@ -308,6 +308,7 @@ struct sourcekitd_keys {
 
 struct sourcekitd_requests {
 
+  let crash_exit: sourcekitd_uid_t
   let editor_open: sourcekitd_uid_t
   let editor_close: sourcekitd_uid_t
   let editor_replacetext: sourcekitd_uid_t
@@ -317,6 +318,7 @@ struct sourcekitd_requests {
   let semantic_refactoring: sourcekitd_uid_t
 
   init(api: sourcekitd_functions_t) {
+    crash_exit = api.uid_get_from_cstr("source.request.crash_exit")!
     editor_open = api.uid_get_from_cstr("source.request.editor.open")!
     editor_close = api.uid_get_from_cstr("source.request.editor.close")!
     editor_replacetext = api.uid_get_from_cstr("source.request.editor.replacetext")!
@@ -330,6 +332,7 @@ struct sourcekitd_requests {
 struct sourcekitd_values {
 
   let notification_documentupdate: sourcekitd_uid_t
+  let notification_sema_enabled: sourcekitd_uid_t
   let diag_error: sourcekitd_uid_t
   let diag_warning: sourcekitd_uid_t
   let diag_note: sourcekitd_uid_t
@@ -422,6 +425,7 @@ struct sourcekitd_values {
 
   init(api: sourcekitd_functions_t) {
     notification_documentupdate = api.uid_get_from_cstr("source.notification.editor.documentupdate")!
+    notification_sema_enabled = api.uid_get_from_cstr("source.notification.sema_enabled")!
     diag_error = api.uid_get_from_cstr("source.diagnostic.severity.error")!
     diag_warning = api.uid_get_from_cstr("source.diagnostic.severity.warning")!
     diag_note = api.uid_get_from_cstr("source.diagnostic.severity.note")!
@@ -595,6 +599,8 @@ final class SKResponse {
     switch sourcekitd.api.response_error_get_kind(response) {
     case SOURCEKITD_ERROR_REQUEST_CANCELLED:
       return .cancelled
+    case SOURCEKITD_ERROR_CONNECTION_INTERRUPTED:
+      return .connectionInterrupted(description)
     default:
       return .unknown(description)
     }

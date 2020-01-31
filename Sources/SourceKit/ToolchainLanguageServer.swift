@@ -13,6 +13,18 @@
 import Foundation
 import LanguageServerProtocol
 
+/// The state of a `ToolchainLanguageServer`
+public enum LanguageServerState {
+  /// The language server is running with semantic functionality enabled
+  case connected
+  /// The language server server has crashed and we are waiting for it to relaunch
+  case connectionInterrupted
+  /// The language server has relaunched but semantic functionality is currently disabled
+  case semanticFunctionalityDisabled
+  /// The langauge server has been shut down gracefully
+  case shutDown
+}
+
 /// A `LanguageServer` that exists within the context of the current process.
 public protocol ToolchainLanguageServer: AnyObject {
 
@@ -20,6 +32,9 @@ public protocol ToolchainLanguageServer: AnyObject {
 
   func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult
   func clientInitialized(_ initialized: InitializedNotification)
+
+  /// Add a handler that is called whenever the state of the language server changes.
+  func addStateChangeHandler(handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void)
 
   // MARK: - Text synchronization
 

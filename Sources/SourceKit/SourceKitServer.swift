@@ -181,6 +181,36 @@ public final class SourceKitServer: LanguageServer {
     return nil
   }
 
+  func reopenDocuments(for languageService: ToolchainLanguageServer) {
+    queue.async {
+      guard let workspace = self.workspace else {
+        return
+      }
+
+      for documentUri in workspace.documentManager.openDocuments where workspace.documentService[documentUri] === languageService {
+        guard let snapshot = workspace.documentManager.latestSnapshot(documentUri) else {
+          // The document has been closed since we retrieved its URI. We don't care about it anymore.
+          continue
+        }
+
+        do {
+          // Close the document in the document manager so we can reopen it. If the document has been
+          // closed since, the try will fail and we won't try to reopen it.
+          try workspace.documentManager.close(documentUri)
+          let textDocument = TextDocumentItem(uri: documentUri,
+                                              language: snapshot.document.language,
+                                              version: snapshot.version,
+                                              text: snapshot.text)
+          // Re-open the document but don't register for build system notifications again since
+          // the document is still open in the build system server from before the sourcektid crash.
+          self.openDocument(DidOpenTextDocumentNotification(textDocument: textDocument), workspace: workspace, registerForBuildSystemNotifications: false)
+        } catch {
+          // The document was no longer open. Ignore it
+        }
+      }
+    }
+  }
+
   func languageService(for toolchain: Toolchain, _ language: Language) -> ToolchainLanguageServer? {
     let key = LanguageServiceKey(toolchain: toolchain.identifier, language: language)
     if let service = languageService[key] {
@@ -189,7 +219,7 @@ public final class SourceKitServer: LanguageServer {
 
     // Start a new service.
     return orLog("failed to start language service", level: .error) {
-      guard let service = try SourceKit.languageService(for: toolchain, language, options: options, client: self) else {
+      guard let service = try SourceKit.languageService(for: toolchain, language, options: options, client: self, reopenDocuments: reopenDocuments) else {
         return nil
       }
 
@@ -216,7 +246,8 @@ public final class SourceKitServer: LanguageServer {
     }
   }
 
-  func languageService(for uri: DocumentURI, _ language: Language, in workspace: Workspace) -> ToolchainLanguageServer? {
+  /// **Public for testing purposes only**
+  public func languageService(for uri: DocumentURI, _ language: Language, in workspace: Workspace) -> ToolchainLanguageServer? {
     if let service = workspace.documentService[uri] {
       return service
     }
@@ -424,14 +455,21 @@ extension SourceKitServer {
   // MARK: - Text synchronization
 
   func openDocument(_ note: Notification<DidOpenTextDocumentNotification>, workspace: Workspace) {
-    workspace.documentManager.open(note.params)
+    openDocument(note.params, workspace: workspace)
+  }
+  
+  private func openDocument(_ note: DidOpenTextDocumentNotification, workspace: Workspace, registerForBuildSystemNotifications: Bool = true) {
+    workspace.documentManager.open(note)
 
-    let textDocument = note.params.textDocument
-    workspace.buildSettings.registerForChangeNotifications(
-      for: textDocument.uri, language: textDocument.language)
+    let textDocument = note.textDocument
+    
+    if registerForBuildSystemNotifications {
+      workspace.buildSettings.registerForChangeNotifications(
+        for: textDocument.uri, language: textDocument.language)
+    }
 
     if let service = languageService(for: textDocument.uri, textDocument.language, in: workspace) {
-      service.openDocument(note.params)
+      service.openDocument(note)
     }
   }
 
@@ -771,17 +809,18 @@ public func languageService(
   for toolchain: Toolchain,
   _ language: Language,
   options: SourceKitServer.Options,
-  client: MessageHandler) throws -> ToolchainLanguageServer?
+  client: MessageHandler,
+  reopenDocuments: @escaping (ToolchainLanguageServer) -> Void) throws -> ToolchainLanguageServer?
 {
   switch language {
 
   case .c, .cpp, .objective_c, .objective_cpp:
     guard toolchain.clangd != nil else { return nil }
-    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings, clangdOptions: options.clangdOptions)
+    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings, clangdOptions: options.clangdOptions, reopenDocuments: reopenDocuments)
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
-    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings, clientCapabilities: (client as? SourceKitServer)?.workspace?.clientCapabilities)
+    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings, clientCapabilities: (client as? SourceKitServer)?.workspace?.clientCapabilities, reopenDocuments: reopenDocuments)
 
   default:
     return nil
