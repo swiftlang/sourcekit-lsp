@@ -255,7 +255,7 @@ final class LocalSwiftTests: XCTestCase {
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 3 - semantic")
       XCTAssertEqual(note.params.version, 14)
-      XCTAssertEqual(note.params.diagnostics.count, 0)
+      XCTAssertEqual(note.params.diagnostics.count, 1)
     })
 
     sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 15), contentChanges: [
