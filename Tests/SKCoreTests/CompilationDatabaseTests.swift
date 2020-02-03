@@ -26,6 +26,8 @@ final class CompilationDatabaseTests: XCTestCase {
     check("    ", [])
     check("a", ["a"])
     check("abc", ["abc"])
+    check("a😀c", ["a😀c"])
+    check("😀c", ["😀c"])
     check("abc def", ["abc", "def"])
     check("abc    def", ["abc", "def"])
 

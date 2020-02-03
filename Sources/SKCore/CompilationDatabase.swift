@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -137,9 +137,13 @@ extension JSONCompilationDatabase: Codable {
 extension JSONCompilationDatabase {
   public init(directory: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
     let path = directory.appending(component: "compile_commands.json")
-    let bytes = try fileSystem.readFileContents(path)
+    try self.init(file: path, fileSystem)
+  }
+
+  public init(file: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+    let bytes = try fileSystem.readFileContents(file)
     try bytes.withUnsafeData { data in
-      self = try JSONDecoder().decode(JSONCompilationDatabase.self, from: data)
+       self = try JSONDecoder().decode(JSONCompilationDatabase.self, from: data)
     }
   }
 }
@@ -194,22 +198,23 @@ extension CompilationDatabase.Command: Codable {
 /// See clang's `unescapeCommandLine()`.
 public func splitShellEscapedCommand(_ cmd: String) -> [String] {
   struct Parser {
-    var rest: Substring
+    var content: Substring
+    var i: Substring.UTF8View.Index
     var result: [String] = []
 
+    var ch: UInt8 { self.content.utf8[i] }
+    var done: Bool { self.content.endIndex == i }
+
     init(_ string: Substring) {
-      self.rest = string
+      self.content = string
+      self.i = self.content.utf8.startIndex
     }
 
-    var ch: Character { return rest.first! }
-    var done: Bool { return rest.isEmpty }
-
-    @discardableResult
-    mutating func next() -> Character? {
-      return rest.removeFirst()
+    mutating func next() {
+      i = content.utf8.index(after: i)
     }
 
-    mutating func next(expect c: Character) {
+    mutating func next(expect c: UInt8) {
       assert(c == ch)
       next()
     }
@@ -217,7 +222,7 @@ public func splitShellEscapedCommand(_ cmd: String) -> [String] {
     mutating func parse() -> [String] {
       while !done {
         switch ch {
-          case " ": next()
+          case UInt8(ascii: " "): next()
           default: parseString()
         }
       }
@@ -228,9 +233,9 @@ public func splitShellEscapedCommand(_ cmd: String) -> [String] {
       var str = ""
       STRING: while !done {
         switch ch {
-        case " ": break STRING
-        case "\"": parseDoubleQuotedString(into: &str)
-        case "\'": parseSingleQuotedString(into: &str)
+        case UInt8(ascii: " "): break STRING
+        case UInt8(ascii: "\""): parseDoubleQuotedString(into: &str)
+        case UInt8(ascii: "\'"): parseSingleQuotedString(into: &str)
         default: parsePlainString(into: &str)
         }
       }
@@ -238,49 +243,60 @@ public func splitShellEscapedCommand(_ cmd: String) -> [String] {
     }
 
     mutating func parseDoubleQuotedString(into str: inout String) {
-      next(expect: "\"")
+      next(expect: UInt8(ascii: "\""))
+      var start = i
       while !done {
         switch ch {
-        case "\"":
+        case UInt8(ascii: "\""):
+          str += content[start..<i]
           next()
           return
-        case "\\":
+        case UInt8(ascii: "\\"):
+          str += content[start..<i]
           next()
+          start = i
           if !done { fallthrough }
         default:
-          str.append(ch)
           next()
         }
       }
+      str += content[start..<i]
     }
 
     mutating func parseSingleQuotedString(into str: inout String) {
-      next(expect: "\'")
+      next(expect: UInt8(ascii: "\'"))
+      let start = i
       while !done {
         switch ch {
-        case "\'":
+        case UInt8(ascii: "\'"):
+          str += content[start..<i]
           next()
           return
         default:
-          str.append(ch)
           next()
         }
       }
+      str += content[start..<i]
     }
 
     mutating func parsePlainString(into str: inout String) {
+      var start = i
       while !done {
-        switch ch {
-        case "\"", "\'", " ":
+        let _ch = ch
+        switch _ch {
+        case UInt8(ascii: "\""), UInt8(ascii: "\'"), UInt8(ascii: " "):
+          str += content[start..<i]
           return
-        case "\\":
+        case UInt8(ascii: "\\"):
+          str += content[start..<i]
           next()
+          start = i
           if !done { fallthrough }
         default:
-          str.append(ch)
           next()
         }
       }
+      str += content[start..<i]
     }
   }
 
