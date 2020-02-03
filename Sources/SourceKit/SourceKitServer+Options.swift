@@ -24,9 +24,13 @@ extension SourceKitServer {
     /// Additional arguments to pass to `clangd` on the command-line.
     public var clangdOptions: [String]
 
-    public init(buildSetup: BuildSetup = .default, clangdOptions: [String] = []) {
+    /// Additional options for the index.
+    public var indexOptions: IndexOptions
+
+    public init(buildSetup: BuildSetup = .default, clangdOptions: [String] = [], indexOptions: IndexOptions = .init()) {
       self.buildSetup = buildSetup
       self.clangdOptions = clangdOptions
+      self.indexOptions = indexOptions
     }
   }
 }

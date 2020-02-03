@@ -186,24 +186,127 @@ final class CompilationDatabaseTests: XCTestCase {
   }
 
   func testCompilationDatabaseBuildSystem() {
-    let fs = InMemoryFileSystem()
-    try! fs.createDirectory(AbsolutePath("/a"))
-    try! fs.writeFileContents(AbsolutePath("/a/compile_commands.json"), bytes: """
-      [
-        {
-          "file": "/a/a.swift",
-          "directory": "/a",
-          "arguments": ["swiftc", "-swift-version", "4", "/a/a.swift"]
-        }
-      ]
-      """)
-
-    let buildSystem: BuildSystem = CompilationDatabaseBuildSystem(
-      projectRoot: AbsolutePath("/a"), fileSystem: fs)
-
-    let settings = buildSystem.settings(for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")), .swift)
-    XCTAssertNotNil(settings)
-    XCTAssertEqual(settings?.workingDirectory, "/a")
-    XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", "/a/a.swift"])
+    checkCompilationDatabaseBuildSystem("""
+    [
+      {
+        "file": "/a/a.swift",
+        "directory": "/a",
+        "arguments": ["swiftc", "-swift-version", "4", "/a/a.swift"]
+      }
+    ]
+    """) { buildSystem in
+      let settings = buildSystem.settings(for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")), .swift)
+      XCTAssertNotNil(settings)
+      XCTAssertEqual(settings?.workingDirectory, "/a")
+      XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", "/a/a.swift"])
+      XCTAssertNil(buildSystem.indexStorePath)
+      XCTAssertNil(buildSystem.indexDatabasePath)
+    }
   }
+
+  func testCompilationDatabaseBuildSystemIndexStoreSwift0() {
+    checkCompilationDatabaseBuildSystem("[]") { buildSystem in
+      XCTAssertNil(buildSystem.indexStorePath)
+    }
+  }
+
+  func testCompilationDatabaseBuildSystemIndexStoreSwift1() {
+    checkCompilationDatabaseBuildSystem("""
+    [
+      {
+        "file": "/a/a.swift",
+        "directory": "/a",
+        "arguments": ["swiftc", "-swift-version", "4", "/a/a.swift", "-index-store-path", "/b"]
+      }
+    ]
+    """) { buildSystem in
+      XCTAssertEqual(buildSystem.indexStorePath, AbsolutePath("/b"))
+      XCTAssertEqual(buildSystem.indexDatabasePath, AbsolutePath("/IndexDatabase"))
+    }
+  }
+
+  func testCompilationDatabaseBuildSystemIndexStoreSwift2() {
+    checkCompilationDatabaseBuildSystem("""
+    [
+      {
+        "file": "/a/a.swift",
+        "directory": "/a",
+        "arguments": ["swiftc", "-swift-version", "4", "/a/a.swift"]
+      },
+      {
+        "file": "/a/b.swift",
+        "directory": "/a",
+        "arguments": ["swiftc", "-swift-version", "4", "/a/b.swift"]
+      },
+      {
+        "file": "/a/c.swift",
+        "directory": "/a",
+        "arguments": ["swiftc", "-swift-version", "4", "/a/c.swift", "-index-store-path", "/b"]
+      }
+    ]
+    """) { buildSystem in
+      XCTAssertEqual(buildSystem.indexStorePath, AbsolutePath("/b"))
+    }
+  }
+
+  func testCompilationDatabaseBuildSystemIndexStoreSwift3() {
+    checkCompilationDatabaseBuildSystem("""
+    [
+      {
+        "file": "/a/a.swift",
+        "directory": "/a",
+        "arguments": ["swiftc", "-index-store-path", "/b", "-swift-version", "4", "/a/a.swift"]
+      }
+    ]
+    """) { buildSystem in
+      XCTAssertEqual(buildSystem.indexStorePath, AbsolutePath("/b"))
+    }
+  }
+
+  func testCompilationDatabaseBuildSystemIndexStoreSwift4() {
+    checkCompilationDatabaseBuildSystem("""
+    [
+      {
+        "file": "/a/a.swift",
+        "directory": "/a",
+        "arguments": ["swiftc", "-swift-version", "4", "/a/c.swift", "-index-store-path"]
+      }
+    ]
+    """) { buildSystem in
+      XCTAssertNil(buildSystem.indexStorePath)
+    }
+  }
+
+  func testCompilationDatabaseBuildSystemIndexStoreClang() {
+    checkCompilationDatabaseBuildSystem("""
+    [
+      {
+        "file": "/a/a.cpp",
+        "directory": "/a",
+        "arguments": ["clang", "/a/a.cpp"]
+      },
+      {
+        "file": "/a/b.cpp",
+        "directory": "/a",
+        "arguments": ["clang", "/a/b.cpp"]
+      },
+      {
+        "file": "/a/c.cpp",
+        "directory": "/a",
+        "arguments": ["clang", "/a/c.cpp", "-index-store-path", "/b"]
+      }
+    ]
+    """) { buildSystem in
+      XCTAssertEqual(buildSystem.indexStorePath, AbsolutePath("/b"))
+      XCTAssertEqual(buildSystem.indexDatabasePath, AbsolutePath("/IndexDatabase"))
+    }
+  }
+}
+
+private func checkCompilationDatabaseBuildSystem(_ compdb: ByteString, file: StaticString = #file, line: UInt = #line, block: (BuildSystem) -> ()) {
+  let fs = InMemoryFileSystem()
+  XCTAssertNoThrow(try fs.createDirectory(AbsolutePath("/a")), file: file, line: line)
+  XCTAssertNoThrow(try fs.writeFileContents(AbsolutePath("/a/compile_commands.json"), bytes: compdb), file: file, line: line)
+  let buildSystem: BuildSystem = CompilationDatabaseBuildSystem(projectRoot: AbsolutePath("/a"), fileSystem: fs)
+  block(buildSystem)
 }

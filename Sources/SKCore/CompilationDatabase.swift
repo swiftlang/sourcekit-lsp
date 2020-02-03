@@ -60,6 +60,7 @@ extension CompilationDatabase.Command {
 public protocol CompilationDatabase {
   typealias Command = CompilationDatabaseCompileCommand
   subscript(_ path: URL) -> [Command] { get }
+  var allCommands: AnySequence<Command> { get }
 }
 
 /// Loads the compilation database located in `directory`, if any.
@@ -103,6 +104,8 @@ public struct JSONCompilationDatabase: CompilationDatabase, Equatable {
     }
     return []
   }
+
+  public var allCommands: AnySequence<Command> { AnySequence(commands) }
 
   public mutating func add(_ command: Command) {
     let url = command.url
