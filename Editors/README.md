@@ -2,6 +2,20 @@
 
 This document contains information about how to configure an editor to use SourceKit-LSP. If your editor is not listed below, but it supports the [Language Server Protocol](https://microsoft.github.io/language-server-protocol/) (LSP), see [Other Editors](#other-editors).
 
+In general, you will need to know where to find the `sourcekit-lsp` server exectuable. Some examples:
+
+* With Xcode 11.4+
+  * `xcrun sourcekit-lsp` - run the server
+  * `xcrun --find sourcekit-lsp` - get the full path to the server
+* Toolchain from Swift.org
+  * Linux
+    * You will find `sourcekit-lsp` in the `bin` directory of the toolchain.
+  * macOS
+    * `xcrun --toolchain swift sourcekit-lsp` - run the server
+    * `xcrun --toolchain swift --find sourcekit-lsp` - get the full path to the server
+* Built from source
+  * `.build/<platform>/<configuration>/sourcekit-lsp`
+
 ## Visual Studio Code
 
 To use SourceKit-LSP with Visual Studio Code, you will need the [SourceKit-LSP
@@ -29,7 +43,7 @@ You will need the path to the `sourcekit-lsp` executable for the "command" secti
     {
       "enabled": true,
       "command": [
-        "<path to sourcekit-lsp>"
+        "<sourcekit-lsp command>"
       ],
       "env": {
         // To override the toolchain, uncomment the following:
