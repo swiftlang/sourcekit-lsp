@@ -22,6 +22,12 @@ extension CompilationDatabaseTests {
     // to regenerate.
     static let __allTests__CompilationDatabaseTests = [
         ("testCompilationDatabaseBuildSystem", testCompilationDatabaseBuildSystem),
+        ("testCompilationDatabaseBuildSystemIndexStoreClang", testCompilationDatabaseBuildSystemIndexStoreClang),
+        ("testCompilationDatabaseBuildSystemIndexStoreSwift0", testCompilationDatabaseBuildSystemIndexStoreSwift0),
+        ("testCompilationDatabaseBuildSystemIndexStoreSwift1", testCompilationDatabaseBuildSystemIndexStoreSwift1),
+        ("testCompilationDatabaseBuildSystemIndexStoreSwift2", testCompilationDatabaseBuildSystemIndexStoreSwift2),
+        ("testCompilationDatabaseBuildSystemIndexStoreSwift3", testCompilationDatabaseBuildSystemIndexStoreSwift3),
+        ("testCompilationDatabaseBuildSystemIndexStoreSwift4", testCompilationDatabaseBuildSystemIndexStoreSwift4),
         ("testDecodeCompDBCommand", testDecodeCompDBCommand),
         ("testEncodeCompDBCommand", testEncodeCompDBCommand),
         ("testJSONCompilationDatabaseCoding", testJSONCompilationDatabaseCoding),
