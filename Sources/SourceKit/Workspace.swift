@@ -100,8 +100,8 @@ public final class Workspace {
       log("cannot setup build integration for workspace at URI \(rootUri) because the URI it is not a valid file URL")
     }
 
-    if let storePath = buildSettings.indexStorePath,
-       let dbPath = buildSettings.indexDatabasePath,
+    if let storePath = indexOptions.indexStorePath ?? settings.indexStorePath,
+       let dbPath = indexOptions.indexDatabasePath ?? settings.indexDatabasePath,
        let libPath = toolchainRegistry.default?.libIndexStore
     {
       do {
@@ -121,11 +121,17 @@ public final class Workspace {
 
 public struct IndexOptions {
 
+  /// Override the index-store-path provided by the build system.
+  public var indexStorePath: AbsolutePath?
+
+  /// Override the index-database-path provided by the build system.
+  public var indexDatabasePath: AbsolutePath?
+
   /// *For Testing* Whether the index should listen to unit events, or wait for
   /// explicit calls to pollForUnitChangesAndWait().
   public var listenToUnitEvents: Bool
 
-  public init(listenToUnitEvents: Bool = true) {
+  public init(indexStorePath: AbsolutePath? = nil, indexDatabasePath: AbsolutePath? = nil, listenToUnitEvents: Bool = true) {
     self.listenToUnitEvents = listenToUnitEvents
   }
 }

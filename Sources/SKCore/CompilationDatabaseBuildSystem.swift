@@ -31,6 +31,20 @@ public final class CompilationDatabaseBuildSystem {
 
   let fileSystem: FileSystem
 
+  public lazy var indexStorePath: AbsolutePath? = {
+    if let allCommands = self.compdb?.allCommands {
+      for command in allCommands {
+        let args = command.commandLine
+        for i in args.indices.reversed() {
+          if args[i] == "-index-store-path" && i != args.endIndex - 1 {
+            return try? AbsolutePath(validating: args[i+1])
+          }
+        }
+      }
+    }
+    return nil
+  }()
+
   public init(projectRoot: AbsolutePath? = nil, fileSystem: FileSystem = localFileSystem) {
     self.fileSystem = fileSystem
     if let path = projectRoot {
@@ -41,9 +55,9 @@ public final class CompilationDatabaseBuildSystem {
 
 extension CompilationDatabaseBuildSystem: BuildSystem {
 
-  // FIXME: derive from the compiler arguments.
-  public var indexStorePath: AbsolutePath? { return nil }
-  public var indexDatabasePath: AbsolutePath? { return nil }
+  public var indexDatabasePath: AbsolutePath? {
+    indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
+  }
 
   public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
     guard let url = uri.fileURL else {
