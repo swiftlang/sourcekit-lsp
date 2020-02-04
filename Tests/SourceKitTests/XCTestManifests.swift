@@ -19,7 +19,7 @@ extension CodeActionTests {
     static let __allTests__CodeActionTests = [
         ("testCodeActionResponseCommandMetadataInjection", testCodeActionResponseCommandMetadataInjection),
         ("testCodeActionResponseLegacySupport", testCodeActionResponseLegacySupport),
-        ("testCodeActionResponseRespectsSupportedKinds", testCodeActionResponseRespectsSupportedKinds),
+        ("testCodeActionResponseIgnoresSupportedKinds", testCodeActionResponseIgnoresSupportedKinds),
         ("testCommandEncoding", testCommandEncoding),
         ("testEmptyCodeActionResult", testEmptyCodeActionResult),
         ("testSemanticRefactorLocalRenameResult", testSemanticRefactorLocalRenameResult),
