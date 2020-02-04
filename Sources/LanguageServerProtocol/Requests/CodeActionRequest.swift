@@ -56,17 +56,11 @@ public enum CodeActionRequestResponse: ResponseType, Codable, Equatable {
   case commands([Command])
 
   public init(codeActions: [CodeAction], clientCapabilities: TextDocumentClientCapabilities.CodeAction?) {
-    if let literalSupport = clientCapabilities?.codeActionLiteralSupport {
-      let supportedKinds = literalSupport.codeActionKind.valueSet
-      self = .codeActions(codeActions.filter {
-        if let kind = $0.kind {
-          return supportedKinds.contains(kind)
-        } else {
-          // The client guarantees that unsupported kinds will be treated,
-          // so it's probably safe to include unspecified kinds into the result.
-          return true
-        }
-      })
+    if clientCapabilities?.codeActionLiteralSupport != nil {
+      // The client guarantees that unsupported kinds will be handled, and in
+      // practice some clients use `"codeActionKind":{"valueSet":[]}`, since
+      // they support all kinds anyway.
+      self = .codeActions(codeActions)
     } else {
       self = .commands(codeActions.compactMap { $0.command })
     }
