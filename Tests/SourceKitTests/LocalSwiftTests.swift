@@ -29,7 +29,9 @@ final class LocalSwiftTests: XCTestCase {
   var sk: TestClient! = nil
 
   /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
-  var workspace: Workspace! = nil
+  var workspace: Workspace! {
+    connection.server!.workspace!
+  }
 
   override func setUp() {
     connection = TestSourceKitServer()
@@ -42,12 +44,9 @@ final class LocalSwiftTests: XCTestCase {
         capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
         workspaceFolders: nil))
-
-    workspace = connection.server!.workspace!
   }
 
   override func tearDown() {
-    workspace = nil
     sk = nil
     connection = nil
   }

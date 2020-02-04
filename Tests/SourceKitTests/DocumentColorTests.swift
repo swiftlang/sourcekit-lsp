@@ -23,11 +23,7 @@ final class DocumentColorTests: XCTestCase {
   /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
 
-  /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
-  var workspace: Workspace! = nil
-
   override func tearDown() {
-    workspace = nil
     sk = nil
     connection = nil
   }
@@ -44,8 +40,6 @@ final class DocumentColorTests: XCTestCase {
       capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
       trace: .off,
       workspaceFolders: nil))
-
-    workspace = connection.server!.workspace!
   }
 
   func performDocumentColorRequest(text: String) -> [ColorInformation] {
