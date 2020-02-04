@@ -300,36 +300,41 @@ extension SourceKitServer {
       }
     }
 
-    if let uri = req.params.rootURI {
-      self.workspace = try? Workspace(
-        rootUri: uri,
-        clientCapabilities: req.params.capabilities,
-        toolchainRegistry: self.toolchainRegistry,
-        buildSetup: self.options.buildSetup,
-        indexOptions: indexOptions)
-    } else if let path = req.params.rootPath {
-      self.workspace = try? Workspace(
-        rootUri: DocumentURI(URL(fileURLWithPath: path)),
-        clientCapabilities: req.params.capabilities,
-        toolchainRegistry: self.toolchainRegistry,
-        buildSetup: self.options.buildSetup,
-        indexOptions: indexOptions)
+    // Any messages sent before initialize returns are expected to fail, so this will run before
+    // the first "supported" request. Run asynchronously to hide the latency of setting up the
+    // build system and index.
+    queue.async {
+      if let uri = req.params.rootURI {
+        self.workspace = try? Workspace(
+          rootUri: uri,
+          clientCapabilities: req.params.capabilities,
+          toolchainRegistry: self.toolchainRegistry,
+          buildSetup: self.options.buildSetup,
+          indexOptions: indexOptions)
+      } else if let path = req.params.rootPath {
+        self.workspace = try? Workspace(
+          rootUri: DocumentURI(URL(fileURLWithPath: path)),
+          clientCapabilities: req.params.capabilities,
+          toolchainRegistry: self.toolchainRegistry,
+          buildSetup: self.options.buildSetup,
+          indexOptions: indexOptions)
+      }
+
+      if self.workspace == nil {
+        log("no workspace found", level: .warning)
+
+        self.workspace = Workspace(
+          rootUri: nil,
+          clientCapabilities: req.params.capabilities,
+          buildSettings: BuildSystemList(),
+          index: nil,
+          buildSetup: self.options.buildSetup
+        )
+      }
+
+      assert(self.workspace != nil)
+      self.workspace?.buildSettings.delegate = self
     }
-
-    if self.workspace == nil {
-      log("no workspace found", level: .warning)
-
-      self.workspace = Workspace(
-        rootUri: nil,
-        clientCapabilities: req.params.capabilities,
-        buildSettings: BuildSystemList(),
-        index: nil,
-        buildSetup: self.options.buildSetup
-      )
-    }
-
-    assert(self.workspace != nil)
-    self.workspace?.buildSettings.delegate = self
 
     req.reply(InitializeResult(capabilities: ServerCapabilities(
       textDocumentSync: TextDocumentSyncOptions(
