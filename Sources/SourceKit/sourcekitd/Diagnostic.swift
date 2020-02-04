@@ -15,6 +15,29 @@ import LSPLogging
 import SKSupport
 import sourcekitd
 
+extension CodeAction {
+  init?(fixit: SKResponseDictionary, in snapshot: DocumentSnapshot) {
+    let keys = fixit.sourcekitd.keys
+
+    guard let utf8Offset: Int = fixit[keys.offset],
+        let length: Int = fixit[keys.length],
+        let replacement: String = fixit[keys.sourcetext] else {
+      return nil
+    }
+    guard let position = snapshot.positionOf(utf8Offset: utf8Offset),
+        let endPosition = snapshot.positionOf(utf8Offset: utf8Offset + length) else {
+      return nil
+    }
+    let textEdit = TextEdit(range: position..<endPosition, newText: replacement)
+
+    let workspaceEdit = WorkspaceEdit(changes: [snapshot.document.uri:[textEdit]])
+    self.init(title: "Fix",
+              kind: .quickFix,
+              diagnostics: nil,
+              edit: workspaceEdit)
+  }
+}
+
 extension Diagnostic {
 
   /// Creates a diagnostic from a sourcekitd response dictionary.
@@ -52,6 +75,17 @@ extension Diagnostic {
       }
     }
 
+    var fixits: [CodeAction]? = nil
+    if let skfixits: SKResponseArray = diag[keys.fixits] {
+      fixits = []
+      skfixits.forEach { (_, skfixit) -> Bool in
+        if let codeAction = CodeAction(fixit: skfixit, in: snapshot) {
+          fixits?.append(codeAction)
+        }
+        return true
+      }
+    }
+
     var notes: [DiagnosticRelatedInformation]? = nil
     if let sknotes: SKResponseArray = diag[keys.diagnostics] {
       notes = []
@@ -71,7 +105,8 @@ extension Diagnostic {
       code: nil,
       source: "sourcekitd",
       message: message,
-      relatedInformation: notes)
+      relatedInformation: notes,
+      codeActions: fixits)
   }
 }
 
