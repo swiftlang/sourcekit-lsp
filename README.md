@@ -35,7 +35,7 @@ SourceKit-LSP is still in early development, so you may run into rough edges wit
 | Code completion | ✅ | |
 | Quick Help (Hover) | ✅ | |
 | Diagnostics | ✅ | |
-| Fix-its | ❌ | |
+| Fix-its | ✅ | |
 | Jump to Definition | ✅ | |
 | Find References | ✅ | |
 | Background Indexing | ❌ | Build project to update the index using [Indexing While Building](#indexing-while-building) |
