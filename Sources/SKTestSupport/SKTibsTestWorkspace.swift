@@ -79,6 +79,14 @@ extension SKTibsTestWorkspace {
   public func buildAndIndex() throws {
     try tibsWorkspace.buildAndIndex()
   }
+
+  /// Perform a group of edits to the project sources and optionally rebuild.
+  public func edit(
+    rebuild: Bool = false,
+    _ block: (inout TestSources.ChangeBuilder, _ current: SourceFileCache) throws -> ()) throws
+  {
+    try tibsWorkspace.edit(rebuild: rebuild, block)
+  }
 }
 
 extension SKTibsTestWorkspace {
