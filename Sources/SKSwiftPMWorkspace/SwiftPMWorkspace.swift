@@ -45,7 +45,7 @@ public final class SwiftPMWorkspace {
   let packageRoot: AbsolutePath
   var packageGraph: PackageGraph
   let workspace: Workspace
-  let buildParameters: BuildParameters
+  public let buildParameters: BuildParameters
   let fileSystem: FileSystem
 
   var fileToTarget: [AbsolutePath: TargetBuildDescription] = [:]
@@ -91,7 +91,7 @@ public final class SwiftPMWorkspace {
       fileSystem: fileSystem,
       skipUpdate: true)
 
-    let triple = Triple.hostTriple
+    let triple = toolchain.triple
 
     let swiftPMConfiguration: PackageModel.BuildConfiguration
     switch buildSetup.configuration {
