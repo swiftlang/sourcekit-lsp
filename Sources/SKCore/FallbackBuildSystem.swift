@@ -51,7 +51,7 @@ public final class FallbackBuildSystem: BuildSystem {
   }
 
   /// We don't support change watching.
-  public func registerForChangeNotifications(for: DocumentURI) {}
+  public func registerForChangeNotifications(for: DocumentURI, language: Language) {}
 
   /// We don't support change watching.
   public func unregisterForChangeNotifications(for: DocumentURI) {}

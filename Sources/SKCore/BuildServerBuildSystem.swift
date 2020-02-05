@@ -149,7 +149,7 @@ extension BuildServerBuildSystem: BuildSystem {
 
   /// Register the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func registerForChangeNotifications(for uri: DocumentURI) {
+  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request, queue: requestQueue, reply: { result in
       if let error = result.failure {

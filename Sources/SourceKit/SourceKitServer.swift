@@ -426,7 +426,8 @@ extension SourceKitServer {
     workspace.documentManager.open(note.params)
 
     let textDocument = note.params.textDocument
-    workspace.buildSettings.registerForChangeNotifications(for: textDocument.uri)
+    workspace.buildSettings.registerForChangeNotifications(
+      for: textDocument.uri, language: textDocument.language)
 
     if let service = languageService(for: textDocument.uri, textDocument.language, in: workspace) {
       service.openDocument(note.params)

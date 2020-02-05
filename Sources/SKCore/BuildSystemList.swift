@@ -47,9 +47,9 @@ extension BuildSystemList: BuildSystem {
 
   /// Register the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func registerForChangeNotifications(for uri: DocumentURI) {
+  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     // Only register with the primary build system, since we only use its delegate.
-    providers.first?.registerForChangeNotifications(for: uri)
+    providers.first?.registerForChangeNotifications(for: uri, language: language)
   }
 
   /// Unregister the given file for build-system level change notifications, such as command

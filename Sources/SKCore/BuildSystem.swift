@@ -40,7 +40,7 @@ public protocol BuildSystem: AnyObject {
 
   /// Register the given file for build-system level change notifications, such
   /// as command line flag changes, dependency changes, etc.
-  func registerForChangeNotifications(for: DocumentURI)
+  func registerForChangeNotifications(for: DocumentURI, language: Language)
 
   /// Unregister the given file for build-system level change notifications,
   /// such as command line flag changes, dependency changes, etc.

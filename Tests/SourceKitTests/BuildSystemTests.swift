@@ -40,7 +40,7 @@ final class TestBuildSystem: BuildSystem {
     return buildSettingsByFile[uri]
   }
 
-  func registerForChangeNotifications(for uri: DocumentURI) {
+  func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     watchedFiles.insert(uri)
   }
 

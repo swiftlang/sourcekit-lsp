@@ -224,7 +224,7 @@ extension SwiftPMWorkspace: BuildSystem {
 
   /// Register the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func registerForChangeNotifications(for uri: DocumentURI) {
+  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     // TODO: Support for change detection (via file watching)
   }
 
