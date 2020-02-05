@@ -483,8 +483,9 @@ final class LocalSwiftTests: XCTestCase {
       XCTFail("Expected code actions as response")
       return
     }
-    XCTAssertEqual(codeActions.count, 1)
-    let fixit = codeActions.first!
+    let quickFixes = codeActions.filter{ $0.kind == .quickFix }
+    XCTAssertEqual(quickFixes.count, 1)
+    let fixit = quickFixes.first!
 
     // Expected Fix-it: Replace `let a` with `_` because it's never used
     let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 7), newText: "_")
