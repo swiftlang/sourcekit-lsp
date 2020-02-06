@@ -13,6 +13,7 @@
 import SourceKit
 import SKCore
 import SKTestSupport
+import LanguageServerProtocol
 import IndexStoreDB
 import XCTest
 
@@ -82,5 +83,7 @@ final class MainFilesProviderTests: XCTestCase {
     XCTAssertEqual(ws.index.mainFilesContainingFile(bridging), [d])
 
     wait(for: [mainFilesDelegate.expectation], timeout: 15)
+
+    XCTAssertEqual(ws.index.mainFilesContainingFile(DocumentURI(string: "not:file")), [])
   }
 }

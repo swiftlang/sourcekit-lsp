@@ -17,9 +17,13 @@ import SKCore
 
 extension IndexStoreDB: MainFilesProvider {
   public func mainFilesContainingFile(_ uri: DocumentURI) -> Set<DocumentURI> {
-    let mainFiles = Set(
-    self.mainFilesContainingFile(path: uri.pseudoPath)
-      .lazy.map({ DocumentURI(URL(fileURLWithPath: $0)) }))
+    let mainFiles: Set<DocumentURI>
+    if let url = uri.fileURL {
+      mainFiles = Set(self.mainFilesContainingFile(path: url.path)
+        .lazy.map({ DocumentURI(URL(fileURLWithPath: $0, isDirectory: false)) }))
+    } else {
+      mainFiles = []
+    }
     log("mainFilesContainingFile(\(uri.pseudoPath)) -> \(mainFiles)")
     return mainFiles
   }
