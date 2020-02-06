@@ -12,12 +12,15 @@
 
 import IndexStoreDB
 import LanguageServerProtocol
+import LSPLogging
 import SKCore
 
 extension IndexStoreDB: MainFilesProvider {
   public func mainFilesContainingFile(_ uri: DocumentURI) -> Set<DocumentURI> {
-    return Set(
-      self.mainFilesContainingFile(path: uri.pseudoPath)
-        .lazy.map({ DocumentURI(URL(fileURLWithPath: $0)) }))
+    let mainFiles = Set(
+    self.mainFilesContainingFile(path: uri.pseudoPath)
+      .lazy.map({ DocumentURI(URL(fileURLWithPath: $0)) }))
+    log("mainFilesContainingFile(\(uri.pseudoPath)) -> \(mainFiles)")
+    return mainFiles
   }
 }
