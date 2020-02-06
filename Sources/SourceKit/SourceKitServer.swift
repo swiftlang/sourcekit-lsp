@@ -324,12 +324,13 @@ extension SourceKitServer {
         log("no workspace found", level: .warning)
 
         self.workspace = Workspace(
-          rootUri: nil,
+          rootUri: req.params.rootURI,
           clientCapabilities: req.params.capabilities,
-          buildSettings: BuildSystemList(),
+          toolchainRegistry: self.toolchainRegistry,
+          buildSetup: self.options.buildSetup,
+          underlyingBuildSystem: BuildSystemList(),
           index: nil,
-          buildSetup: self.options.buildSetup
-        )
+          indexDelegate: nil)
       }
 
       assert(self.workspace != nil)

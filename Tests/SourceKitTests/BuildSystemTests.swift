@@ -86,9 +86,12 @@ final class BuildSystemTests: XCTestCase {
     self.workspace = Workspace(
       rootUri: nil,
       clientCapabilities: ClientCapabilities(),
-      buildSettings: buildSystem,
+      toolchainRegistry: ToolchainRegistry.shared,
+      buildSetup: TestSourceKitServer.serverOptions.buildSetup,
+      underlyingBuildSystem: buildSystem,
       index: nil,
-      buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+      indexDelegate: nil)
+
     testServer.server!.workspace = workspace
 
     sk = testServer.client
@@ -144,7 +147,6 @@ final class BuildSystemTests: XCTestCase {
     // This should trigger a new publish diagnostics and we should no longer have errors.
     buildSystem.buildSettingsByFile[DocumentURI(url)] = 
       FileBuildSettings(compilerArguments: args +  ["-DFOO"], language: .objective_c)
-    testServer.server?.fileBuildSettingsChanged([DocumentURI(url)])
 
     let expectation = XCTestExpectation(description: "refresh")
     sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
@@ -152,6 +154,8 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(DocumentURI(url))!.text)
       expectation.fulfill()
     }
+
+    buildSystem.delegate?.fileBuildSettingsChanged([DocumentURI(url)])
 
     let result = XCTWaiter.wait(for: [expectation], timeout: 5)
     if result != .completed {
@@ -207,7 +211,7 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 0)
       expectation.fulfill()
     }
-    testServer.server?.fileBuildSettingsChanged([DocumentURI(url)])
+    buildSystem.delegate?.fileBuildSettingsChanged([DocumentURI(url)])
 
     let result = XCTWaiter.wait(for: [expectation], timeout: 5)
     if result != .completed {
@@ -234,7 +238,7 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the SourceKitServer.
     // This shouldn't trigger new diagnostics since nothing actually changed (false alarm).
-    testServer.server?.fileBuildSettingsChanged([DocumentURI(url)])
+    buildSystem.delegate?.fileBuildSettingsChanged([DocumentURI(url)])
 
     let expectation = XCTestExpectation(description: "refresh doesn't occur")
     expectation.isInverted = true

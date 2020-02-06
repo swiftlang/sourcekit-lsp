@@ -78,18 +78,23 @@ public final class SKSwiftPMTestWorkspace {
 
     try fm.createDirectory(atPath: swiftpm.indexStorePath!.pathString, withIntermediateDirectories: true)
 
+    let indexDelegate = SourceKitIndexDelegate()
+
     self.index = try IndexStoreDB(
       storePath: swiftpm.indexStorePath!.pathString,
       databasePath: tmpDir.path,
       library: libIndexStore,
+      delegate: indexDelegate,
       listenToUnitEvents: false)
 
     testServer.server!.workspace = Workspace(
       rootUri: DocumentURI(sources.rootDirectory),
       clientCapabilities: ClientCapabilities(),
-      buildSettings: swiftpm,
+      toolchainRegistry: ToolchainRegistry.shared,
+      buildSetup: buildSetup,
+      underlyingBuildSystem: swiftpm,
       index: index,
-      buildSetup: buildSetup)
+      indexDelegate: indexDelegate)
   }
 
   deinit {

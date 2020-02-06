@@ -51,15 +51,19 @@ public final class Workspace {
   public init(
     rootUri: DocumentURI?,
     clientCapabilities: ClientCapabilities,
-    buildSettings: BuildSystem,
+    toolchainRegistry: ToolchainRegistry,
+    buildSetup: BuildSetup,
+    underlyingBuildSystem: BuildSystem,
     index: IndexStoreDB?,
-    buildSetup: BuildSetup)
+    indexDelegate: SourceKitIndexDelegate?)
   {
+    self.buildSetup = buildSetup
     self.rootUri = rootUri
     self.clientCapabilities = clientCapabilities
-    self.buildSettings = buildSettings
     self.index = index
-    self.buildSetup = buildSetup
+    let bsm = BuildSystemManager(buildSystem: underlyingBuildSystem, mainFilesProvider: index)
+    indexDelegate?.registerMainFileChanged(bsm)
+    self.buildSettings = bsm
   }
 
   /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
@@ -68,7 +72,7 @@ public final class Workspace {
   ///   - url: The root directory of the workspace, which must be a valid path.
   ///   - clientCapabilities: The client capabilities provided during server initialization.
   ///   - toolchainRegistry: The toolchain registry.
-  public init(
+  convenience public init(
     rootUri: DocumentURI,
     clientCapabilities: ClientCapabilities,
     toolchainRegistry: ToolchainRegistry,
@@ -76,13 +80,7 @@ public final class Workspace {
     indexOptions: IndexOptions = IndexOptions()
   ) throws {
 
-    self.buildSetup = buildSetup
-
-    self.rootUri = rootUri
-    self.clientCapabilities = clientCapabilities
     let settings = BuildSystemList()
-    self.buildSettings = settings
-
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
       if let buildServer = BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
         settings.providers.insert(buildServer, at: 0)
@@ -100,22 +98,36 @@ public final class Workspace {
       log("cannot setup build integration for workspace at URI \(rootUri) because the URI it is not a valid file URL")
     }
 
+    var index: IndexStoreDB? = nil
+    var indexDelegate: SourceKitIndexDelegate? = nil
+
     if let storePath = indexOptions.indexStorePath ?? settings.indexStorePath,
        let dbPath = indexOptions.indexDatabasePath ?? settings.indexDatabasePath,
        let libPath = toolchainRegistry.default?.libIndexStore
     {
       do {
         let lib = try IndexStoreLibrary(dylibPath: libPath.pathString)
-        self.index = try IndexStoreDB(
+        indexDelegate = SourceKitIndexDelegate()
+        index = try IndexStoreDB(
           storePath: storePath.pathString,
           databasePath: dbPath.pathString,
           library: lib,
+          delegate: indexDelegate,
           listenToUnitEvents: indexOptions.listenToUnitEvents)
         log("opened IndexStoreDB at \(dbPath) with store path \(storePath)")
       } catch {
         log("failed to open IndexStoreDB: \(error.localizedDescription)", level: .error)
       }
     }
+
+    self.init(
+      rootUri: rootUri,
+      clientCapabilities: clientCapabilities,
+      toolchainRegistry: toolchainRegistry,
+      buildSetup: buildSetup,
+      underlyingBuildSystem: settings,
+      index: index,
+      indexDelegate: indexDelegate)
   }
 }
 
