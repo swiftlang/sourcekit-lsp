@@ -257,29 +257,33 @@ extension SourceKitServer: BuildSystemDelegate {
   }
 
   public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
-    guard let workspace = self.workspace else {
-      return
-    }
-    let documentManager = workspace.documentManager
-    for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, documentManager) {
-      log("Build settings changed for opened file \(uri)")
-      if let snapshot = documentManager.latestSnapshot(uri),
-        let service = languageService(for: uri, snapshot.document.language, in: workspace) {
-        service.documentUpdatedBuildSettings(uri, language: snapshot.document.language)
+    queue.async {
+      guard let workspace = self.workspace else {
+        return
+      }
+      let documentManager = workspace.documentManager
+      for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, documentManager) {
+        log("Build settings changed for opened file \(uri)")
+        if let snapshot = documentManager.latestSnapshot(uri),
+          let service = self.languageService(for: uri, snapshot.document.language, in: workspace) {
+          service.documentUpdatedBuildSettings(uri, language: snapshot.document.language)
+        }
       }
     }
   }
 
   public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
-    guard let workspace = self.workspace else {
-      return
-    }
-    let documentManager = workspace.documentManager
-    for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, documentManager) {
-      log("Dependencies updated for opened file \(uri)")
-      if let snapshot = documentManager.latestSnapshot(uri),
-        let service = languageService(for: uri, snapshot.document.language, in: workspace) {
-        service.documentDependenciesUpdated(uri, language: snapshot.document.language)
+    queue.async {
+      guard let workspace = self.workspace else {
+        return
+      }
+      let documentManager = workspace.documentManager
+      for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, documentManager) {
+        log("Dependencies updated for opened file \(uri)")
+        if let snapshot = documentManager.latestSnapshot(uri),
+          let service = self.languageService(for: uri, snapshot.document.language, in: workspace) {
+          service.documentDependenciesUpdated(uri, language: snapshot.document.language)
+        }
       }
     }
   }
