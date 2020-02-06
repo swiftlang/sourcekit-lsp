@@ -63,10 +63,17 @@ public final class SKTibsTestWorkspace {
 
   func initWorkspace(clientCapabilities: ClientCapabilities) {
     let buildPath = AbsolutePath(builder.buildRoot.path)
+    let buildSystem = CompilationDatabaseBuildSystem(projectRoot: buildPath)
+    let bsm = BuildSystemManager(buildSystem: buildSystem, mainFilesProvider: index)
+    let indexDelegate = SourceKitIndexDelegate()
+    indexDelegate.registerMainFileChanged(bsm)
+    tibsWorkspace.delegate = indexDelegate
+    bsm.delegate = testServer.server!
+
     testServer.server!.workspace = Workspace(
       rootUri: DocumentURI(sources.rootDirectory),
       clientCapabilities: clientCapabilities,
-      buildSettings: CompilationDatabaseBuildSystem(projectRoot: buildPath),
+      buildSettings: bsm,
       index: index,
       buildSetup: BuildSetup(configuration: .debug, path: buildPath, flags: BuildFlags()))
   }

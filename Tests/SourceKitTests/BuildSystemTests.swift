@@ -249,4 +249,58 @@ final class BuildSystemTests: XCTestCase {
       fatalError("error \(result) unexpected diagnostics notification")
     }
   }
+
+  func testMainFilesChanged() {
+    let ws = try! mutableSourceKitTibsTestWorkspace(name: "MainFiles")!
+    let unique_h = ws.testLoc("unique").docIdentifier.uri
+
+    ws.testServer.client.allowUnexpectedNotification = false
+
+    let expectation = self.expectation(description: "initial")
+    ws.testServer.client.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      if let diag = note.params.diagnostics.first {
+        XCTAssertEqual(diag.severity, .warning)
+        XCTAssertEqual(diag.message, "UNKNOWN_MAIN_FILE")
+      }
+      expectation.fulfill()
+    }
+
+    try! ws.openDocument(unique_h.fileURL!, language: .cpp)
+    wait(for: [expectation], timeout: 15)
+
+    let use_d = self.expectation(description: "update settings to d.cpp")
+    ws.testServer.client.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      if let diag = note.params.diagnostics.first {
+        XCTAssertEqual(diag.severity, .warning)
+        XCTAssertEqual(diag.message, "UNIQUE_INCLUDED_FROM_D")
+      }
+      use_d.fulfill()
+    }
+
+    try! ws.buildAndIndex()
+    wait(for: [use_d], timeout: 15)
+
+    let use_c = self.expectation(description: "update settings to c.cpp")
+    ws.testServer.client.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      if let diag = note.params.diagnostics.first {
+        XCTAssertEqual(diag.severity, .warning)
+        XCTAssertEqual(diag.message, "UNIQUE_INCLUDED_FROM_C")
+      }
+      use_c.fulfill()
+    }
+
+    try! ws.edit(rebuild: true) { (changes, _) in
+      changes.write("""
+        // empty
+        """, to: ws.testLoc("d_func").url)
+      changes.write("""
+        #include "unique.h"
+        """, to: ws.testLoc("c_func").url)
+    }
+
+    wait(for: [use_c], timeout: 15)
+  }
 }
