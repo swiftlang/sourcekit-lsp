@@ -17,8 +17,11 @@ import SKCore
 
 extension IndexStoreDB: MainFilesProvider {
   public func mainFilesContainingFile(_ uri: DocumentURI) -> Set<DocumentURI> {
+    // We can't send over virtual file paths (URIs) to IndexStoreDB as it requires
+    // absolute paths here.
+    guard let fileURL = uri.fileURL else { return [] }
     let mainFiles = Set(
-    self.mainFilesContainingFile(path: uri.pseudoPath)
+      self.mainFilesContainingFile(path: fileURL.path)
       .lazy.map({ DocumentURI(URL(fileURLWithPath: $0)) }))
     log("mainFilesContainingFile(\(uri.pseudoPath)) -> \(mainFiles)")
     return mainFiles
