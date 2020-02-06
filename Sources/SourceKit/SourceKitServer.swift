@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -156,10 +156,6 @@ public final class SourceKitServer: LanguageServer {
   }
 
   func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
-    if let toolchain = workspace?.buildSettings.toolchain(for: uri, language) {
-      return toolchain
-    }
-
     let supportsLang = { (toolchain: Toolchain) -> Bool in
       // FIXME: the fact that we're looking at clangd/sourcekitd instead of the compiler indicates this method needs a parameter stating what kind of tool we're looking for.
       switch language {
@@ -328,12 +324,13 @@ extension SourceKitServer {
         log("no workspace found", level: .warning)
 
         self.workspace = Workspace(
-          rootUri: nil,
+          rootUri: req.params.rootURI,
           clientCapabilities: req.params.capabilities,
-          buildSettings: BuildSystemList(),
+          toolchainRegistry: self.toolchainRegistry,
+          buildSetup: self.options.buildSetup,
+          underlyingBuildSystem: BuildSystemList(),
           index: nil,
-          buildSetup: self.options.buildSetup
-        )
+          indexDelegate: nil)
       }
 
       assert(self.workspace != nil)
@@ -430,7 +427,8 @@ extension SourceKitServer {
     workspace.documentManager.open(note.params)
 
     let textDocument = note.params.textDocument
-    workspace.buildSettings.registerForChangeNotifications(for: textDocument.uri)
+    workspace.buildSettings.registerForChangeNotifications(
+      for: textDocument.uri, language: textDocument.language)
 
     if let service = languageService(for: textDocument.uri, textDocument.language, in: workspace) {
       service.openDocument(note.params)

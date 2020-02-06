@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -68,14 +68,12 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
           let cmd = db[url].first else { return nil }
     return FileBuildSettings(
       compilerArguments: Array(cmd.commandLine.dropFirst()),
-      workingDirectory: cmd.directory
-    )
+      workingDirectory: cmd.directory,
+      language: language)
   }
 
-  public func toolchain(for: DocumentURI, _ language: Language) -> Toolchain? { return nil }
-
   /// We don't support change watching.
-  public func registerForChangeNotifications(for: DocumentURI) {}
+  public func registerForChangeNotifications(for: DocumentURI, language: Language) {}
 
   /// We don't support change watching.
   public func unregisterForChangeNotifications(for: DocumentURI) {}

@@ -59,7 +59,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
     let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
     let buildSystemDelegate = TestDelegate(settingsExpectations: [DocumentURI(fileUrl): expectation])
     buildSystem.delegate = buildSystemDelegate
-    buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
+    buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl), language: .swift)
 
     XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
   }
@@ -174,7 +174,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
         data: .dictionary(["key": "value"])): expectation,
     ])
     buildSystem.delegate = buildSystemDelegate
-    buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
+    buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl), language: .swift)
 
     let result = XCTWaiter.wait(for: [expectation], timeout: 15)
     if result != .completed {

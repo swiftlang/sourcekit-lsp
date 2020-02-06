@@ -63,12 +63,20 @@ public final class SKTibsTestWorkspace {
 
   func initWorkspace(clientCapabilities: ClientCapabilities) {
     let buildPath = AbsolutePath(builder.buildRoot.path)
+    let buildSystem = CompilationDatabaseBuildSystem(projectRoot: buildPath)
+    let indexDelegate = SourceKitIndexDelegate()
+    tibsWorkspace.delegate = indexDelegate
+
     testServer.server!.workspace = Workspace(
       rootUri: DocumentURI(sources.rootDirectory),
       clientCapabilities: clientCapabilities,
-      buildSettings: CompilationDatabaseBuildSystem(projectRoot: buildPath),
+      toolchainRegistry: ToolchainRegistry.shared,
+      buildSetup: BuildSetup(configuration: .debug, path: buildPath, flags: BuildFlags()),
+      underlyingBuildSystem: buildSystem,
       index: index,
-      buildSetup: BuildSetup(configuration: .debug, path: buildPath, flags: BuildFlags()))
+      indexDelegate: indexDelegate)
+
+    testServer.server!.workspace!.buildSettings.delegate = testServer.server!
   }
 }
 
@@ -78,6 +86,14 @@ extension SKTibsTestWorkspace {
 
   public func buildAndIndex() throws {
     try tibsWorkspace.buildAndIndex()
+  }
+
+  /// Perform a group of edits to the project sources and optionally rebuild.
+  public func edit(
+    rebuild: Bool = false,
+    _ block: (inout TestSources.ChangeBuilder, _ current: SourceFileCache) throws -> ()) throws
+  {
+    try tibsWorkspace.edit(rebuild: rebuild, block)
   }
 }
 
