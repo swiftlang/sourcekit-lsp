@@ -20,21 +20,44 @@ extension CodeAction {
     let keys = fixit.sourcekitd.keys
 
     guard let utf8Offset: Int = fixit[keys.offset],
-        let length: Int = fixit[keys.length],
-        let replacement: String = fixit[keys.sourcetext] else {
+          let length: Int = fixit[keys.length],
+          let replacement: String = fixit[keys.sourcetext],
+          let position = snapshot.positionOf(utf8Offset: utf8Offset),
+          let endPosition = snapshot.positionOf(utf8Offset: utf8Offset + length),
+          let startIndex = snapshot.indexOf(utf8Offset: utf8Offset),
+          let endIndex = snapshot.indexOf(utf8Offset: utf8Offset + length),
+          length > 0 || !replacement.isEmpty
+    else {
       return nil
     }
-    guard let position = snapshot.positionOf(utf8Offset: utf8Offset),
-        let endPosition = snapshot.positionOf(utf8Offset: utf8Offset + length) else {
-      return nil
-    }
-    let textEdit = TextEdit(range: position..<endPosition, newText: replacement)
 
-    let workspaceEdit = WorkspaceEdit(changes: [snapshot.document.uri:[textEdit]])
-    self.init(title: "Fix",
-              kind: .quickFix,
-              diagnostics: nil,
-              edit: workspaceEdit)
+    let range = position..<endPosition
+    let original = String(snapshot.text[startIndex..<endIndex])
+    let title = Self.fixitTitle(replace: original, with: replacement)
+    let workspaceEdit = WorkspaceEdit(
+      changes: [snapshot.document.uri:[TextEdit(range: range, newText: replacement)]])
+
+    self.init(
+      title: title,
+      kind: .quickFix,
+      diagnostics: nil,
+      edit: workspaceEdit)
+  }
+
+  /// Describe a fixit's edit briefly.
+  ///
+  /// For example, "Replace 'x' with 'y'", or "Remove 'z'".
+  public static func fixitTitle(replace oldText: String, with newText: String) -> String {
+    switch (oldText.isEmpty, newText.isEmpty) {
+    case (false, false):
+      return "Replace '\(oldText)' with '\(newText)'"
+    case (false, true):
+      return "Remove '\(oldText)'"
+    case (true, false):
+      return "Insert '\(newText)'"
+    case (true, true):
+      preconditionFailure("FixIt makes no changes")
+    }
   }
 }
 
