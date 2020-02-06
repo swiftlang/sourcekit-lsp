@@ -7,6 +7,7 @@ extension BuildSystemTests {
     // to regenerate.
     static let __allTests__BuildSystemTests = [
         ("testClangdDocumentUpdatedBuildSettings", testClangdDocumentUpdatedBuildSettings),
+        ("testMainFilesChanged", testMainFilesChanged),
         ("testSwiftDocumentBuildSettingsChangedFalseAlarm", testSwiftDocumentBuildSettingsChangedFalseAlarm),
         ("testSwiftDocumentUpdatedBuildSettings", testSwiftDocumentUpdatedBuildSettings),
     ]
@@ -18,8 +19,8 @@ extension CodeActionTests {
     // to regenerate.
     static let __allTests__CodeActionTests = [
         ("testCodeActionResponseCommandMetadataInjection", testCodeActionResponseCommandMetadataInjection),
-        ("testCodeActionResponseLegacySupport", testCodeActionResponseLegacySupport),
         ("testCodeActionResponseIgnoresSupportedKinds", testCodeActionResponseIgnoresSupportedKinds),
+        ("testCodeActionResponseLegacySupport", testCodeActionResponseLegacySupport),
         ("testCommandEncoding", testCommandEncoding),
         ("testEmptyCodeActionResult", testEmptyCodeActionResult),
         ("testSemanticRefactorLocalRenameResult", testSemanticRefactorLocalRenameResult),
