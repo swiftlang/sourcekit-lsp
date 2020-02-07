@@ -77,9 +77,14 @@ public struct DiagnosticRelatedInformation: Codable, Hashable {
 
   public var message: String
 
-  public init(location: Location, message: String) {
+  /// All the code actions that address the parent diagnostic via this note.
+  /// **LSP Extension from clangd**.
+  public var codeActions: [CodeAction]?
+
+  public init(location: Location, message: String, codeActions: [CodeAction]?) {
     self.location = location
     self.message = message
+    self.codeActions = codeActions
   }
 }
 

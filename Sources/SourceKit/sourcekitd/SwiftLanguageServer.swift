@@ -1087,7 +1087,11 @@ extension SwiftLanguageServer {
     let codeActions = cachedDiags.flatMap { (cachedDiag) -> [CodeAction] in
       let diag = cachedDiag.diagnostic
 
-      guard let codeActions = diag.codeActions else {
+      let codeActions: [CodeAction] =
+        (diag.codeActions ?? []) +
+        (diag.relatedInformation?.flatMap{ $0.codeActions ?? [] } ?? [])
+
+      if codeActions.isEmpty {
         // The diagnostic doesn't have fix-its. Don't return anything.
         return []
       }
@@ -1115,6 +1119,13 @@ extension SwiftLanguageServer {
         var codeAction = $0
         var diagnosticWithoutCodeActions = diag
         diagnosticWithoutCodeActions.codeActions = nil
+        if let related = diagnosticWithoutCodeActions.relatedInformation {
+          diagnosticWithoutCodeActions.relatedInformation = related.map {
+            var withoutCodeActions = $0
+            withoutCodeActions.codeActions = nil
+            return withoutCodeActions
+          }
+        }
         codeAction.diagnostics = [diagnosticWithoutCodeActions]
         return codeAction
       })
