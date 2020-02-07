@@ -7,6 +7,8 @@ endif()
 
 add_library(SourceKit
   DocumentManager.swift
+  IndexStoreDB+MainFilesProvider.swift
+  SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
   SourceKitServer+Options.swift
   SourceKitServer.swift
