@@ -1203,6 +1203,10 @@ extension DocumentSnapshot {
       Position(line: zeroBasedLine, utf16index: $0)
     }
   }
+
+  func indexOf(utf8Offset: Int) -> String.Index? {
+    return text.utf8.index(text.startIndex, offsetBy: utf8Offset, limitedBy: text.endIndex)
+  }
 }
 
 func makeLocalSwiftServer(

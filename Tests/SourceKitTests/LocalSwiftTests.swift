@@ -443,12 +443,53 @@ final class LocalSwiftTests: XCTestCase {
 
       // Expected Fix-it: Replace `let a` with `_` because it's never used
       let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 7), newText: "_")
-      XCTAssertEqual(fixit, CodeAction(title: "Fix",
-                                       kind: .quickFix,
-                                       diagnostics: nil,
-                                       edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
-                                       command: nil))
+      XCTAssertEqual(fixit, CodeAction(
+        title: "Replace 'let a' with '_'",
+        kind: .quickFix,
+        diagnostics: nil,
+        edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+        command: nil))
     })
+  }
+
+  func testFixitInsert() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    let uri = DocumentURI(url)
+
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: """
+      func foo() {
+        print("")print("")
+      }
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      let diag = note.params.diagnostics.first!
+      XCTAssertNotNil(diag.codeActions)
+      XCTAssertEqual(diag.codeActions!.count, 1)
+      let fixit = diag.codeActions!.first!
+
+      // Expected Fix-it: Insert `;`
+      let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 11)..<Position(line: 1, utf16index: 11), newText: ";")
+      XCTAssertEqual(fixit, CodeAction(
+        title: "Insert ';'",
+        kind: .quickFix,
+        diagnostics: nil,
+        edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+        command: nil))
+    })
+  }
+
+  func testFixitTitle() {
+    XCTAssertEqual("Insert ';'", CodeAction.fixitTitle(replace: "", with: ";"))
+    XCTAssertEqual("Replace 'let a' with '_'", CodeAction.fixitTitle(replace: "let a", with: "_"))
+    XCTAssertEqual("Remove 'foo ='", CodeAction.fixitTitle(replace: "foo =", with: ""))
   }
 
   func testFixitsAreReturnedFromCodeActions() {
@@ -489,17 +530,20 @@ final class LocalSwiftTests: XCTestCase {
 
     // Expected Fix-it: Replace `let a` with `_` because it's never used
     let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 7), newText: "_")
-    XCTAssertEqual(fixit, CodeAction(title: "Fix",
-                                     kind: .quickFix,
-                                     diagnostics: [Diagnostic(range: Position(line: 1, utf16index: 6)..<Position(line: 1, utf16index: 6),
-                                                              severity: .warning,
-                                                              code: nil,
-                                                              source: "sourcekitd",
-                                                              message: "initialization of immutable value \'a\' was never used; consider replacing with assignment to \'_\' or removing it",
-                                                              relatedInformation: [],
-                                                              codeActions: nil)],
-                                     edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
-                                     command: nil))
+    XCTAssertEqual(fixit, CodeAction(
+      title: "Replace 'let a' with '_'",
+      kind: .quickFix,
+      diagnostics: [
+        Diagnostic(
+          range: Position(line: 1, utf16index: 6)..<Position(line: 1, utf16index: 6),
+          severity: .warning,
+          code: nil,
+          source: "sourcekitd",
+          message: "initialization of immutable value \'a\' was never used; consider replacing with assignment to \'_\' or removing it",
+          relatedInformation: [],
+          codeActions: nil)],
+      edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+      command: nil))
   }
 
   func testXMLToMarkdownDeclaration() {
