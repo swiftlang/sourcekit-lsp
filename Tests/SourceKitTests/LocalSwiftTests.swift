@@ -478,7 +478,7 @@ final class LocalSwiftTests: XCTestCase {
           // Expected Fix-it: Replace `let a` with `_` because it's never used
           let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 7)..<Position(line: 1, utf16index: 7), newText: "?")
           XCTAssertEqual(fixit, CodeAction(
-            title: "Insert '?'",
+            title: "chain the optional using '?' to access member 'bigEndian' only for non-'nil' base values",
             kind: .quickFix,
             diagnostics: nil,
             edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
@@ -493,7 +493,7 @@ final class LocalSwiftTests: XCTestCase {
           // Expected Fix-it: Replace `let a` with `_` because it's never used
           let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 7)..<Position(line: 1, utf16index: 7), newText: "!")
           XCTAssertEqual(fixit, CodeAction(
-            title: "Insert '!'",
+            title: "force-unwrap using '!' to abort execution if the optional value contains 'nil'",
             kind: .quickFix,
             diagnostics: nil,
             edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
@@ -638,11 +638,11 @@ final class LocalSwiftTests: XCTestCase {
 
     for fixit in quickFixes {
       if fixit.title.contains("!") {
-        XCTAssertEqual(fixit.title, "Insert '!'")
+        XCTAssert(fixit.title.starts(with: "force-unwrap using '!'"))
         expectedTextEdit.newText = "!"
         XCTAssertEqual(fixit.edit, WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil))
       } else {
-        XCTAssertEqual(fixit.title, "Insert '?'")
+        XCTAssert(fixit.title.starts(with: "chain the optional using '?'"))
         expectedTextEdit.newText = "?"
         XCTAssertEqual(fixit.edit, WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil))
       }
@@ -652,6 +652,97 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertEqual(fixit.diagnostics?.first?.range, Range(Position(line: 1, utf16index: 6)))
       XCTAssert(fixit.diagnostics?.first?.message.starts(with: "value of optional type") == true)
     }
+  }
+
+  func testMuliEditFixitCodeActionPrimary() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    let uri = DocumentURI(url)
+
+    var diagnostic: Diagnostic! = nil
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: """
+      @available(*, introduced: 10, deprecated: 11)
+      func foo() {}
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      diagnostic = note.params.diagnostics.first!
+    })
+
+    let request = CodeActionRequest(
+      range: Position(line: 0, utf16index: 1)..<Position(line: 0, utf16index: 10),
+      context: CodeActionContext(diagnostics: [diagnostic], only: nil),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let response = try! sk.sendSync(request)
+
+    XCTAssertNotNil(response)
+    guard case .codeActions(let codeActions) = response else {
+      XCTFail("Expected code actions as response")
+      return
+    }
+    let quickFixes = codeActions.filter{ $0.kind == .quickFix }
+    XCTAssertEqual(quickFixes.count, 1)
+    guard let fixit = quickFixes.first  else { return }
+
+    XCTAssertEqual(fixit.title, "Remove ': 10'...")
+    XCTAssertEqual(fixit.diagnostics?.count, 1)
+    XCTAssertEqual(fixit.edit?.changes?[uri], [
+      TextEdit(range: Position(line: 0, utf16index: 24)..<Position(line: 0, utf16index: 28), newText: ""),
+      TextEdit(range: Position(line: 0, utf16index: 40)..<Position(line: 0, utf16index: 44), newText: ""),
+    ])
+  }
+
+  func testMuliEditFixitCodeActionNote() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    let uri = DocumentURI(url)
+
+    var diagnostic: Diagnostic! = nil
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: """
+      @available(*, deprecated, renamed: "new(_:hotness:)")
+      func old(and: Int, busted: Int) {}
+      func test() {
+        old(and: 1, busted: 2)
+      }
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      diagnostic = note.params.diagnostics.first!
+    })
+
+    let request = CodeActionRequest(
+      range: Position(line: 3, utf16index: 2)..<Position(line: 3, utf16index: 2),
+      context: CodeActionContext(diagnostics: [diagnostic], only: nil),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let response = try! sk.sendSync(request)
+
+    XCTAssertNotNil(response)
+    guard case .codeActions(let codeActions) = response else {
+      XCTFail("Expected code actions as response")
+      return
+    }
+    let quickFixes = codeActions.filter{ $0.kind == .quickFix }
+    XCTAssertEqual(quickFixes.count, 1)
+    guard let fixit = quickFixes.first  else { return }
+
+    XCTAssertEqual(fixit.title, "use 'new(_:hotness:)' instead")
+    XCTAssertEqual(fixit.diagnostics?.count, 1)
+    XCTAssert(fixit.diagnostics?.first?.message.contains("is deprecated") == true)
+    XCTAssertEqual(fixit.edit?.changes?[uri], [
+      TextEdit(range: Position(line: 3, utf16index: 2)..<Position(line: 3, utf16index: 5), newText: "new"),
+      TextEdit(range: Position(line: 3, utf16index: 6)..<Position(line: 3, utf16index: 11), newText: ""),
+      TextEdit(range: Position(line: 3, utf16index: 14)..<Position(line: 3, utf16index: 20), newText: "hotness"),
+    ])
   }
 
   func testXMLToMarkdownDeclaration() {

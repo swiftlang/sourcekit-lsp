@@ -117,6 +117,8 @@ extension LocalSwiftTests {
         ("testFixitTitle", testFixitTitle),
         ("testHover", testHover),
         ("testHoverNameEscaping", testHoverNameEscaping),
+        ("testMuliEditFixitCodeActionNote", testMuliEditFixitCodeActionNote),
+        ("testMuliEditFixitCodeActionPrimary", testMuliEditFixitCodeActionPrimary),
         ("testSymbolInfo", testSymbolInfo),
         ("testXMLToMarkdownComment", testXMLToMarkdownComment),
         ("testXMLToMarkdownDeclaration", testXMLToMarkdownDeclaration),
