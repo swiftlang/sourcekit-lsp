@@ -116,8 +116,8 @@ extension Diagnostic {
         guard let note = Diagnostic(sknote, in: snapshot) else { return true }
         notes?.append(DiagnosticRelatedInformation(
           location: Location(uri: snapshot.document.uri, range: note.range),
-          message: note.message
-        ))
+          message: note.message,
+          codeActions: note.codeActions))
         return true
       }
     }

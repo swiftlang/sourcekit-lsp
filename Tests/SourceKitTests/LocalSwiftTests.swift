@@ -452,6 +452,59 @@ final class LocalSwiftTests: XCTestCase {
     })
   }
 
+  func testFixitsAreIncludedInPublishDiagnosticsNotes() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    let uri = DocumentURI(url)
+
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: """
+      func foo(a: Int?) {
+        _ = a.bigEndian
+      }
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      let diag = note.params.diagnostics.first!
+      XCTAssertEqual(diag.relatedInformation?.count, 2)
+      if let note1 = diag.relatedInformation?.first(where: { $0.message.contains("'?'") }) {
+        XCTAssertEqual(note1.codeActions?.count, 1)
+        if let fixit = note1.codeActions?.first {
+          // Expected Fix-it: Replace `let a` with `_` because it's never used
+          let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 7)..<Position(line: 1, utf16index: 7), newText: "?")
+          XCTAssertEqual(fixit, CodeAction(
+            title: "Insert '?'",
+            kind: .quickFix,
+            diagnostics: nil,
+            edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+            command: nil))
+        }
+      } else {
+        XCTFail("missing '?' note")
+      }
+      if let note2 = diag.relatedInformation?.first(where: { $0.message.contains("'!'") }) {
+        XCTAssertEqual(note2.codeActions?.count, 1)
+        if let fixit = note2.codeActions?.first {
+          // Expected Fix-it: Replace `let a` with `_` because it's never used
+          let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 7)..<Position(line: 1, utf16index: 7), newText: "!")
+          XCTAssertEqual(fixit, CodeAction(
+            title: "Insert '!'",
+            kind: .quickFix,
+            diagnostics: nil,
+            edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+            command: nil))
+        }
+      } else {
+        XCTFail("missing '!' note")
+      }
+    })
+  }
+
   func testFixitInsert() {
     let url = URL(fileURLWithPath: "/a.swift")
     let uri = DocumentURI(url)
@@ -544,6 +597,61 @@ final class LocalSwiftTests: XCTestCase {
           codeActions: nil)],
       edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
       command: nil))
+  }
+
+  func testFixitsAreReturnedFromCodeActionsNotes() {
+    let url = URL(fileURLWithPath: "/a.swift")
+    let uri = DocumentURI(url)
+
+    var diagnostic: Diagnostic! = nil
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: """
+      func foo(a: Int?) {
+        _ = a.bigEndian
+      }
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      diagnostic = note.params.diagnostics.first!
+    })
+
+    let request = CodeActionRequest(
+      range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 11),
+      context: CodeActionContext(diagnostics: [diagnostic], only: nil),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let response = try! sk.sendSync(request)
+
+    XCTAssertNotNil(response)
+    guard case .codeActions(let codeActions) = response else {
+      XCTFail("Expected code actions as response")
+      return
+    }
+    let quickFixes = codeActions.filter{ $0.kind == .quickFix }
+    XCTAssertEqual(quickFixes.count, 2)
+
+    var expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 7)..<Position(line: 1, utf16index: 7), newText: "_")
+
+    for fixit in quickFixes {
+      if fixit.title.contains("!") {
+        XCTAssertEqual(fixit.title, "Insert '!'")
+        expectedTextEdit.newText = "!"
+        XCTAssertEqual(fixit.edit, WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil))
+      } else {
+        XCTAssertEqual(fixit.title, "Insert '?'")
+        expectedTextEdit.newText = "?"
+        XCTAssertEqual(fixit.edit, WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil))
+      }
+      XCTAssertEqual(fixit.kind, .quickFix)
+      XCTAssertEqual(fixit.diagnostics?.count, 1)
+      XCTAssertEqual(fixit.diagnostics?.first?.severity, .error)
+      XCTAssertEqual(fixit.diagnostics?.first?.range, Range(Position(line: 1, utf16index: 6)))
+      XCTAssert(fixit.diagnostics?.first?.message.starts(with: "value of optional type") == true)
+    }
   }
 
   func testXMLToMarkdownDeclaration() {
