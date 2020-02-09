@@ -8,7 +8,7 @@ The SourceKit-LSP server is included with the Swift toolchain. Depending on how 
 
 1. Get SourceKit-LSP with a Swift toolchain
 
-    1. If you have installed Xcode 11.4+ or the corresponding Command Line Tools pacakge, the SourceKit-LSP server is included and can be run with `xcrun sourcekit-lsp`.
+    1. If you have installed Xcode 11.4+ or the corresponding Command Line Tools package, the SourceKit-LSP server is included and can be run with `xcrun sourcekit-lsp`.
 
     2. If you are using a [toolchain from Swift.org](https://swift.org/download/), the SourceKit-LSP server is included and can be run with `xcrun --toolchain swift sourcekit-lsp` on macOS, or using the full path to the `sourcekit-lsp` executable on Linux.
 
