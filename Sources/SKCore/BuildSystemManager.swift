@@ -212,7 +212,7 @@ extension BuildSystemManager: BuildSystemDelegate {
   public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
     if let delegate = self.delegate {
       notifyQueue.async {
-        delegate.fileBuildSettingsChanged(changedFiles)
+        delegate.filesDependenciesUpdated(changedFiles)
       }
     }
   }
