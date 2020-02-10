@@ -129,11 +129,13 @@ extension ClangLanguageServerShim {
   }
 
   public func documentDependenciesUpdated(_ uri: DocumentURI, language: Language) {
-    // In order to tell clangd to reload an AST, we send it an empty `didChangeTextDocument`. This
-    // works well for us as the moment since clangd ignores the document version.
+    // In order to tell clangd to reload an AST, we send it an empty `didChangeTextDocument`
+    // with `forceRebuild` set in case any missing header files have been added.
+    // This works well for us as the moment since clangd ignores the document version.
     let note = DidChangeTextDocumentNotification(
       textDocument: VersionedTextDocumentIdentifier(uri, version: nil),
-      contentChanges: [])
+      contentChanges: [],
+      forceRebuild: true)
     clangd.send(note)
   }
 
