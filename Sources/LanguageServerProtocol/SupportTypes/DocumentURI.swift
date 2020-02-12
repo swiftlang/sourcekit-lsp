@@ -24,6 +24,11 @@ public struct DocumentURI: Codable, Hashable {
     }
   }
 
+  /// The document's URL scheme, if present.
+  public var scheme: String? {
+    return storage.scheme
+  }
+
   /// Returns a filepath if the URI is a URL. If the URI is not a URL, returns
   /// the full URI as a fallback.
   /// This value is intended to be used when interacting with sourcekitd which

@@ -37,6 +37,27 @@ fileprivate extension Range {
   }
 }
 
+/// Explicitly blacklisted `DocumentURI` schemes.
+fileprivate let excludedDocumentURISchemes: [String] = [
+  "git",
+  "hg",
+]
+
+/// Returns true if diagnostics should be emitted for the given document.
+///
+/// Some editors  (like Visual Studio Code) use non-file URLs to manage source control diff bases
+/// for the active document, which can lead to duplicate diagnostics in the Problems view.
+/// As a workaround we explicitly blacklist those URIs and don't emit diagnostics for them.
+///
+/// Additionally, as of Xcode 11.4, sourcekitd does not properly handle non-file URLs when
+/// the `-working-directory` argument is passed since it incorrectly applies it to the input
+/// argument but not the internal primary file, leading sourcekitd to believe that the input
+/// file is missing.
+fileprivate func diagnosticsEnabled(for document: DocumentURI) -> Bool {
+  guard let scheme = document.scheme else { return true }
+  return !excludedDocumentURISchemes.contains(scheme)
+}
+
 public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   /// The server's request queue, used to serialize requests and responses to `sourcekitd`.
@@ -79,6 +100,12 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     response: SKResponseDictionary,
     for snapshot: DocumentSnapshot)
   {
+    let documentUri = snapshot.document.uri
+    guard diagnosticsEnabled(for: documentUri) else {
+      log("Ignoring diagnostics for blacklisted file \(documentUri.pseudoPath)", level: .debug)
+      return
+    }
+
     let stageUID: sourcekitd_uid_t? = response[sourcekitd.keys.diagnostic_stage]
     let stage = stageUID.flatMap { DiagnosticStage($0, sourcekitd: sourcekitd) } ?? .sema
 
