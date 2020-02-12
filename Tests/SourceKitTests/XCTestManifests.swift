@@ -140,6 +140,7 @@ extension SKTests {
     // to regenerate.
     static let __allTests__SKTests = [
         ("testCodeCompleteSwiftTibs", testCodeCompleteSwiftTibs),
+        ("testDependenciesUpdatedCXXTibs", testDependenciesUpdatedCXXTibs),
         ("testDependenciesUpdatedSwiftTibs", testDependenciesUpdatedSwiftTibs),
         ("testIndexShutdown", testIndexShutdown),
         ("testIndexSwiftModules", testIndexSwiftModules),
