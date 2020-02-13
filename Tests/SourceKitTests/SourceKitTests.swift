@@ -235,4 +235,52 @@ final class SKTests: XCTestCase {
       fatalError("error \(finished) waiting for post-build diagnostics notification")
     }
   }
+
+  func testDependenciesUpdatedCXXTibs() throws {
+    guard let ws = try mutableSourceKitTibsTestWorkspace(name: "GeneratedHeader") else { return }
+    guard let server = ws.testServer.server else {
+      XCTFail("Unable to fetch SourceKitServer to notify for build system events.")
+      return
+    }
+
+    let moduleRef = ws.testLoc("libX:call:main")
+    let startExpectation = XCTestExpectation(description: "initial diagnostics")
+    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      // Expect one error:
+      // - Implicit declaration of function invalid
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      startExpectation.fulfill()
+    }
+
+    let generatedHeaderURL = moduleRef.url.deletingLastPathComponent()
+        .appendingPathComponent("lib-generated.h", isDirectory: false)
+
+    // Write an empty header file first since clangd doesn't handle missing header
+    // files without a recently upstreamed extension.
+    try "".write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
+    try ws.openDocument(moduleRef.url, language: .c)
+    let started = XCTWaiter.wait(for: [startExpectation], timeout: 3)
+    if started != .completed {
+      fatalError("error \(started) waiting for initial diagnostics notification")
+    }
+
+    // Update the header file to have the proper contents for our code to build.
+    let contents = "int libX(int value);"
+    try contents.write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
+    try ws.buildAndIndex()
+
+    let finishExpectation = XCTestExpectation(description: "post-build diagnostics")
+    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      // No more errors expected, import should resolve since we the generated header file
+      // now has the proper contents.
+      XCTAssertEqual(note.params.diagnostics.count, 0)
+      finishExpectation.fulfill()
+    }
+    server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
+
+    let finished = XCTWaiter.wait(for: [finishExpectation], timeout: 3)
+    if finished != .completed {
+      fatalError("error \(finished) waiting for post-build diagnostics notification")
+    }
+  }
 }
