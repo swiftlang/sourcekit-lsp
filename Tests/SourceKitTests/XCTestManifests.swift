@@ -109,6 +109,7 @@ extension LocalSwiftTests {
         ("testEditing", testEditing),
         ("testEditingNonURL", testEditingNonURL),
         ("testEditorPlaceholderParsing", testEditorPlaceholderParsing),
+        ("testExcludedDocumentSchemeDiagnostics", testExcludedDocumentSchemeDiagnostics),
         ("testFixitInsert", testFixitInsert),
         ("testFixitsAreIncludedInPublishDiagnostics", testFixitsAreIncludedInPublishDiagnostics),
         ("testFixitsAreIncludedInPublishDiagnosticsNotes", testFixitsAreIncludedInPublishDiagnosticsNotes),
