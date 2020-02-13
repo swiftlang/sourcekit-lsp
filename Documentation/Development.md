@@ -12,9 +12,9 @@ This document contains notes about development and testing of SourceKit-LSP.
 
 ## Getting Started Developing SourceKit-LSP
 
-SourceKit-LSP is under heavy development, and requires the use of a Swift development toolchain.
+For maximum compatibility with toolchain components such as the Swift Package Manager, the only supported way to develop SourceKit-LSP is with the latest toolchain snapshot. We make an effort to keep the build and tests working with the latest release of Swift, but this is not always possible.
 
-1. Install the latest master toolchain snapshot from https://swift.org/download/#snapshots. **If you're looking for swift-5.1 support**, use the `swift-5.1-branch` of SourceKit-LSP with the latest swift-5.1 toolchain snapshot. See [Toolchains](#toolchains) for more information.
+1. Install the latest master toolchain snapshot from https://swift.org/download/#snapshots. **If you're looking for swift-5.x**, use the `swift-5.x-branch` of SourceKit-LSP with the latest swift-5.x toolchain snapshot. See [Toolchains](#toolchains) for more information.
 
 2. Build the language server executable `sourcekit-lsp` using `swift build`. See [Building](#building-sourcekit-lsp) for more information.
 
@@ -59,7 +59,8 @@ Use the latest toolchain snapshot from https://swift.org/download/#snapshots. So
 | SourceKit-LSP branch | Toolchain |
 |:---------------------|:----------|
 | master               | Trunk Development (master) |
-| swift-5.1-branch     | Swift 5.1 Development |
+| swift-5.2-branch     | Swift 5.2 Development |
+| swift-5.1-branch     | Swift 5.1.1+ |
 
 *Note*: there is no branch of SourceKit-LSP that supports Swift 5.0.
 

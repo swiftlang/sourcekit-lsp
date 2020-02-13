@@ -21,9 +21,16 @@ public protocol BuildSystemDelegate: AnyObject {
   /// interest.
   func buildTargetsChanged(_ changes: [BuildTargetEvent])
 
-  /// Notify the delegate that the given files' build settings have changed.
+  /// Notify the delegate that the given files' build settings have changed. If the given set is
+  /// empty, assume that all open files are affected.
   ///
   /// The callee should request new build settings for any of the given files
   /// that they are interested in.
   func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>)
+
+  /// Notify the delegate that the dependencies of the given files have changed and that ASTs
+  /// may need to be refreshed. If the given set is empty, assume that all open files are affected.
+  ///
+  /// The callee should refresh ASTs unless it is able to determine that a refresh is not necessary.
+  func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>)
 }

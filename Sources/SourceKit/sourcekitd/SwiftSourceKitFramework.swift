@@ -46,6 +46,8 @@ final class SwiftSourceKitFramework {
     self.path = path
     #if os(Windows)
     self.dylib = try dlopen(path.pathString, mode: [])
+    #elseif os(Android)
+    self.dylib = try dlopen(path.pathString, mode: [.lazy, .local, .first])
     #else
     self.dylib = try dlopen(path.pathString, mode: [.lazy, .local, .first, .deepBind])
     #endif
@@ -213,6 +215,7 @@ struct sourcekitd_keys {
   let name: sourcekitd_uid_t
   let kind: sourcekitd_uid_t
   let notification: sourcekitd_uid_t
+  let fixits: sourcekitd_uid_t
   let diagnostics: sourcekitd_uid_t
   let diagnostic_stage: sourcekitd_uid_t
   let severity: sourcekitd_uid_t
@@ -261,6 +264,7 @@ struct sourcekitd_keys {
     name = api.uid_get_from_cstr("key.name")!
     kind = api.uid_get_from_cstr("key.kind")!
     notification = api.uid_get_from_cstr("key.notification")!
+    fixits = api.uid_get_from_cstr("key.fixits")!
     diagnostics = api.uid_get_from_cstr("key.diagnostics")!
     diagnostic_stage = api.uid_get_from_cstr("key.diagnostic_stage")!
     severity = api.uid_get_from_cstr("key.severity")!

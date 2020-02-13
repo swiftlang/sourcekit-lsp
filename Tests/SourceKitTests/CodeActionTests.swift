@@ -77,7 +77,12 @@ final class CodeActionTests: XCTestCase {
     XCTAssertEqual(commands, [command])
   }
 
-  func testCodeActionResponseRespectsSupportedKinds() {
+  func testCodeActionResponseIgnoresSupportedKinds() {
+    // The client guarantees that unsupported kinds will be handled, and in
+    // practice some clients use `"codeActionKind":{"valueSet":[]}`, since
+    // they support all kinds anyway. So to avoid filtering all actions, we
+    // ignore the supported kinds.
+
     let unspecifiedAction = CodeAction(title: "Unspecified")
     let refactorAction = CodeAction(title: "Refactor", kind: .refactor)
     let quickfixAction = CodeAction(title: "Quickfix", kind: .quickFix)
@@ -103,7 +108,7 @@ final class CodeActionTests: XCTestCase {
                                              from: data)
 
     response = .init(codeActions: actions, clientCapabilities: capabilities)
-    XCTAssertEqual(response, .codeActions([unspecifiedAction, refactorAction]))
+    XCTAssertEqual(response, .codeActions([unspecifiedAction, refactorAction, quickfixAction]))
 
     capabilityJson =
     """
@@ -121,7 +126,7 @@ final class CodeActionTests: XCTestCase {
                                              from: data)
 
     response = .init(codeActions: actions, clientCapabilities: capabilities)
-    XCTAssertEqual(response, .codeActions([unspecifiedAction]))
+    XCTAssertEqual(response, .codeActions([unspecifiedAction, refactorAction, quickfixAction]))
   }
 
   func testCodeActionResponseCommandMetadataInjection() {

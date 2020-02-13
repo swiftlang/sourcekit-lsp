@@ -44,9 +44,20 @@ def get_swiftpm_options(args):
       # For <Block.h>
       '-Xcxx', '-I', '-Xcxx',
       os.path.join(args.toolchain, 'usr', 'lib', 'swift', 'Block'),
-      # Library rpath for swift, dispatch, Foundation, etc. when installing
-      '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/linux',
     ]
+
+    if 'ANDROID_DATA' in os.environ:
+      swiftpm_args += [
+        '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/android',
+        # SwiftPM will otherwise try to compile against GNU strerror_r on
+        # Android and fail.
+        '-Xswiftc', '-Xcc', '-Xswiftc', '-U_GNU_SOURCE',
+      ]
+    else:
+      # Library rpath for swift, dispatch, Foundation, etc. when installing
+      swiftpm_args += [
+        '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/linux',
+      ]
 
   return swiftpm_args
 

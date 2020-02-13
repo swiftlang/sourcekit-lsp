@@ -63,12 +63,20 @@ public final class SKTibsTestWorkspace {
 
   func initWorkspace(clientCapabilities: ClientCapabilities) {
     let buildPath = AbsolutePath(builder.buildRoot.path)
+    let buildSystem = CompilationDatabaseBuildSystem(projectRoot: buildPath)
+    let indexDelegate = SourceKitIndexDelegate()
+    tibsWorkspace.delegate = indexDelegate
+
     testServer.server!.workspace = Workspace(
       rootUri: DocumentURI(sources.rootDirectory),
       clientCapabilities: clientCapabilities,
-      buildSettings: CompilationDatabaseBuildSystem(projectRoot: buildPath),
+      toolchainRegistry: ToolchainRegistry.shared,
+      buildSetup: BuildSetup(configuration: .debug, path: buildPath, flags: BuildFlags()),
+      underlyingBuildSystem: buildSystem,
       index: index,
-      buildSetup: BuildSetup(configuration: .debug, path: buildPath, flags: BuildFlags()))
+      indexDelegate: indexDelegate)
+
+    testServer.server!.workspace!.buildSettings.delegate = testServer.server!
   }
 }
 
@@ -78,6 +86,14 @@ extension SKTibsTestWorkspace {
 
   public func buildAndIndex() throws {
     try tibsWorkspace.buildAndIndex()
+  }
+
+  /// Perform a group of edits to the project sources and optionally rebuild.
+  public func edit(
+    rebuild: Bool = false,
+    _ block: (inout TestSources.ChangeBuilder, _ current: SourceFileCache) throws -> ()) throws
+  {
+    try tibsWorkspace.edit(rebuild: rebuild, block)
   }
 }
 
@@ -109,6 +125,34 @@ extension XCTestCase {
       tmpDir: tmpDir ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),
       removeTmpDir: removeTmpDir,
+      toolchain: ToolchainRegistry.shared.default!,
+      clientCapabilities: clientCapabilities)
+
+    if workspace.builder.targets.contains(where: { target in !target.clangTUs.isEmpty })
+      && !workspace.builder.toolchain.clangHasIndexSupport {
+      fputs("warning: skipping test because '\(workspace.builder.toolchain.clang.path)' does not " +
+            "have indexstore support; use swift-clang\n", stderr)
+      return nil
+    }
+
+    return workspace
+  }
+
+  /// Constructs a mutable SKTibsTestWorkspace for the given test from INPUTS.
+  ///
+  /// The resulting workspace allow edits and is not persistent.
+  public func mutableSourceKitTibsTestWorkspace(
+    name: String,
+    clientCapabilities: ClientCapabilities = .init(),
+    tmpDir: URL? = nil,
+    testFile: String = #file
+  ) throws -> SKTibsTestWorkspace? {
+    let testDirName = testDirectoryName
+    let workspace = try SKTibsTestWorkspace(
+      projectDir: inputsDirectory(testFile: testFile)
+        .appendingPathComponent(name, isDirectory: true),
+      tmpDir: tmpDir ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),
       toolchain: ToolchainRegistry.shared.default!,
       clientCapabilities: clientCapabilities)
 

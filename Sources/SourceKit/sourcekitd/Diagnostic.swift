@@ -15,6 +15,95 @@ import LSPLogging
 import SKSupport
 import sourcekitd
 
+extension CodeAction {
+
+  /// Creates a CodeAction from a list for sourcekit fixits.
+  ///
+  /// If this is from a note, the note's description should be passed as `fromNote`.
+  init?(fixits: SKResponseArray, in snapshot: DocumentSnapshot, fromNote: String?) {
+    var edits: [TextEdit] = []
+    let editsMapped = fixits.forEach { (_, skfixit) -> Bool in
+      if let edit = TextEdit(fixit: skfixit, in: snapshot) {
+        edits.append(edit)
+        return true
+      }
+      return false
+    }
+
+    if !editsMapped {
+      log("failed to construct TextEdits from response \(fixits)", level: .warning)
+      return nil
+    }
+
+    if edits.isEmpty {
+      return nil
+    }
+
+    let title: String
+    if let fromNote = fromNote {
+      title = fromNote
+    } else {
+      guard let startIndex = snapshot.index(of: edits[0].range.lowerBound),
+            let endIndex = snapshot.index(of: edits[0].range.upperBound),
+            startIndex <= endIndex,
+            snapshot.text.indices.contains(startIndex),
+            endIndex <= snapshot.text.endIndex
+      else {
+        logAssertionFailure("position mapped, but indices failed for edit range \(edits[0])")
+        return nil
+      }
+      let oldText = String(snapshot.text[startIndex..<endIndex])
+      let description = Self.fixitTitle(replace: oldText, with: edits[0].newText)
+      if edits.count == 1 {
+        title = description
+      } else {
+        title = description + "..."
+      }
+    }
+
+    self.init(
+      title: title,
+      kind: .quickFix,
+      diagnostics: nil,
+      edit: WorkspaceEdit(changes: [snapshot.document.uri:edits]))
+  }
+
+  /// Describe a fixit's edit briefly.
+  ///
+  /// For example, "Replace 'x' with 'y'", or "Remove 'z'".
+  public static func fixitTitle(replace oldText: String, with newText: String) -> String {
+    switch (oldText.isEmpty, newText.isEmpty) {
+    case (false, false):
+      return "Replace '\(oldText)' with '\(newText)'"
+    case (false, true):
+      return "Remove '\(oldText)'"
+    case (true, false):
+      return "Insert '\(newText)'"
+    case (true, true):
+      preconditionFailure("FixIt makes no changes")
+    }
+  }
+}
+
+extension TextEdit {
+
+  /// Creates a TextEdit from a sourcekitd fixit response dictionary.
+  init?(fixit: SKResponseDictionary, in snapshot: DocumentSnapshot) {
+    let keys = fixit.sourcekitd.keys
+    if let utf8Offset: Int = fixit[keys.offset],
+       let length: Int = fixit[keys.length],
+       let replacement: String = fixit[keys.sourcetext],
+       let position = snapshot.positionOf(utf8Offset: utf8Offset),
+       let endPosition = snapshot.positionOf(utf8Offset: utf8Offset + length),
+       length > 0 || !replacement.isEmpty
+    {
+      self.init(range: position..<endPosition, newText: replacement)
+    } else {
+      return nil
+    }
+  }
+}
+
 extension Diagnostic {
 
   /// Creates a diagnostic from a sourcekitd response dictionary.
@@ -52,15 +141,18 @@ extension Diagnostic {
       }
     }
 
+    var actions: [CodeAction]? = nil
+    if let skfixits: SKResponseArray = diag[keys.fixits],
+       let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: nil) {
+      actions = [action]
+    }
+
     var notes: [DiagnosticRelatedInformation]? = nil
     if let sknotes: SKResponseArray = diag[keys.diagnostics] {
       notes = []
       sknotes.forEach { (_, sknote) -> Bool in
-        guard let note = Diagnostic(sknote, in: snapshot) else { return true }
-        notes?.append(DiagnosticRelatedInformation(
-          location: Location(uri: snapshot.document.uri, range: note.range),
-          message: note.message
-        ))
+        guard let note = DiagnosticRelatedInformation(sknote, in: snapshot) else { return true }
+        notes?.append(note)
         return true
       }
     }
@@ -71,7 +163,43 @@ extension Diagnostic {
       code: nil,
       source: "sourcekitd",
       message: message,
-      relatedInformation: notes)
+      relatedInformation: notes,
+      codeActions: actions)
+  }
+}
+
+extension DiagnosticRelatedInformation {
+
+  /// Creates related information from a sourcekitd note response dictionary.
+  init?(_ diag: SKResponseDictionary, in snapshot: DocumentSnapshot) {
+    let keys = diag.sourcekitd.keys
+
+    var position: Position? = nil
+    if let line: Int = diag[keys.line],
+       let utf8Column: Int = diag[keys.column],
+       line > 0, utf8Column > 0
+    {
+      position = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: utf8Column - 1)
+    } else if let utf8Offset: Int = diag[keys.offset] {
+      position = snapshot.positionOf(utf8Offset: utf8Offset)
+    }
+
+    if position == nil {
+      return nil
+    }
+
+    guard let message: String = diag[keys.description] else { return nil }
+
+    var actions: [CodeAction]? = nil
+    if let skfixits: SKResponseArray = diag[keys.fixits],
+       let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: message) {
+      actions = [action]
+    }
+
+    self.init(
+      location: Location(uri: snapshot.document.uri, range: Range(position!)),
+      message: message,
+      codeActions: actions)
   }
 }
 

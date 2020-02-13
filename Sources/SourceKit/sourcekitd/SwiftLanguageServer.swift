@@ -19,6 +19,24 @@ import SKSupport
 import sourcekitd
 import TSCBasic
 
+fileprivate extension Range {
+  /// Checks if this range overlaps with the other range, counting an overlap with an empty range as a valid overlap.
+  /// The standard library implementation makes `1..<3.overlaps(2..<2)` return false because the second range is empty and thus the overlap is also empty.
+  /// This implementation over overlap considers such an inclusion of an empty range as a valid overlap.
+  func overlapsIncludingEmptyRanges(other: Range<Bound>) -> Bool {
+    switch (self.isEmpty, other.isEmpty) {
+    case (true, true):
+      return self.lowerBound == other.lowerBound
+    case (true, false):
+      return other.contains(self.lowerBound)
+    case (false, true):
+      return self.contains(other.lowerBound)
+    case (false, false):
+      return self.overlaps(other)
+    }
+  }
+}
+
 public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   /// The server's request queue, used to serialize requests and responses to `sourcekitd`.
@@ -155,7 +173,7 @@ extension SwiftLanguageServer {
       documentSymbolProvider: true,
       codeActionProvider: .value(CodeActionServerCapabilities(
         clientCapabilities: initialize.capabilities.textDocument?.codeAction,
-        codeActionOptions: CodeActionOptions(codeActionKinds: nil),
+        codeActionOptions: CodeActionOptions(codeActionKinds: [.quickFix, .refactor]),
         supportsCodeActions: true)),
       colorProvider: .bool(true),
       foldingRangeProvider: .bool(true),
@@ -168,7 +186,7 @@ extension SwiftLanguageServer {
     // Nothing to do.
   }
 
-  func shutdown(_ request: Request<Shutdown>) {
+  func shutdown(_ request: Request<ShutdownRequest>) {
     api.set_notification_handler(nil)
   }
 
@@ -177,7 +195,32 @@ extension SwiftLanguageServer {
     onExit()
   }
 
-  // MARK: - Workspace
+  // MARK: - Build System Integration
+
+  /// Should be called on self.queue.
+  private func reopenDocument(_ snapshot: DocumentSnapshot, _ settings: FileBuildSettings?) {
+    let keys = self.keys
+    let path = snapshot.document.uri.pseudoPath
+
+    let closeReq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+    closeReq[keys.request] = self.requests.editor_close
+    closeReq[keys.name] = path
+    _ = self.sourcekitd.sendSync(closeReq)
+
+    let openReq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+    openReq[keys.request] = self.requests.editor_open
+    openReq[keys.name] = path
+    openReq[keys.sourcetext] = snapshot.text
+    if let settings = settings {
+      openReq[keys.compilerargs] = settings.compilerArguments
+    }
+
+    guard let dict = self.sourcekitd.sendSync(openReq).success else {
+      // Already logged failure.
+      return
+    }
+    self.publishDiagnostics(response: dict, for: snapshot)
+  }
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI, language: Language) {
     self.queue.async {
@@ -193,28 +236,21 @@ extension SwiftLanguageServer {
       }
       self.buildSettingsByFile[uri] = newSettings
 
-      let keys = self.keys
-
       // Close and re-open the document internally to inform sourcekitd to
       // update the settings. At the moment there's no better way to do this.
-      let closeReq = SKRequestDictionary(sourcekitd: self.sourcekitd)
-      closeReq[keys.request] = self.requests.editor_close
-      closeReq[keys.name] = uri.pseudoPath
-      _ = self.sourcekitd.sendSync(closeReq)
+      self.reopenDocument(snapshot, newSettings)
+    }
+  }
 
-      let openReq = SKRequestDictionary(sourcekitd: self.sourcekitd)
-      openReq[keys.request] = self.requests.editor_open
-      openReq[keys.name] = uri.pseudoPath
-      openReq[keys.sourcetext] = snapshot.text
-      if let settings = newSettings {
-        openReq[keys.compilerargs] = settings.compilerArguments
-      }
-
-      guard let dict = self.sourcekitd.sendSync(openReq).success else {
-        // Already logged failure.
+  public func documentDependenciesUpdated(_ uri: DocumentURI, language: Language) {
+    self.queue.async {
+      guard let snapshot = self.documentManager.latestSnapshot(uri) else {
         return
       }
-      self.publishDiagnostics(response: dict, for: snapshot)
+
+      // Forcefully reopen the document since the `BuildSystem` has informed us
+      // that the dependencies have changed and the AST needs to be reloaded.
+      self.reopenDocument(snapshot, self.buildSettingsByFile[uri])
     }
   }
 
@@ -963,9 +999,8 @@ extension SwiftLanguageServer {
 
   public func codeAction(_ req: Request<CodeActionRequest>) {
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
-      (retrieveRefactorCodeActions, .refactor)
-      //TODO: Implement the providers.
-      //(retrieveQuickFixCodeActions, .quickFix)
+      (retrieveRefactorCodeActions, .refactor),
+      (retrieveQuickFixCodeActions, .quickFix)
     ]
     let wantedActionKinds = req.params.context.only
     let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
@@ -1041,6 +1076,62 @@ extension SwiftLanguageServer {
       }
       completion(.success(codeActions))
     }
+  }
+
+  func retrieveQuickFixCodeActions(_ params: CodeActionRequest, completion: @escaping CodeActionProviderCompletion) {
+    guard let cachedDiags = currentDiagnostics[params.textDocument.uri] else {
+      completion(.success([]))
+      return
+    }
+
+    let codeActions = cachedDiags.flatMap { (cachedDiag) -> [CodeAction] in
+      let diag = cachedDiag.diagnostic
+
+      let codeActions: [CodeAction] =
+        (diag.codeActions ?? []) +
+        (diag.relatedInformation?.flatMap{ $0.codeActions ?? [] } ?? [])
+
+      if codeActions.isEmpty {
+        // The diagnostic doesn't have fix-its. Don't return anything.
+        return []
+      }
+
+      // Check if the diagnostic overlaps with the selected range.
+      guard params.range.overlapsIncludingEmptyRanges(other: diag.range) else {
+        return []
+      }
+
+      // Check if the set of diagnostics provided by the request contains this diagnostic.
+      // For this, only compare the 'basic' properties of the diagnostics, excluding related information and code actions since
+      // code actions are only defined in an LSP extension and might not be sent back to us.
+      guard params.context.diagnostics.contains(where: { (contextDiag) -> Bool in
+        return contextDiag.range == diag.range &&
+          contextDiag.severity == diag.severity &&
+          contextDiag.code == diag.code &&
+          contextDiag.source == diag.source &&
+          contextDiag.message == diag.message
+      }) else {
+        return []
+      }
+
+      // Flip the attachment of diagnostic to code action instead of the code action being attached to the diagnostic
+      return codeActions.map({
+        var codeAction = $0
+        var diagnosticWithoutCodeActions = diag
+        diagnosticWithoutCodeActions.codeActions = nil
+        if let related = diagnosticWithoutCodeActions.relatedInformation {
+          diagnosticWithoutCodeActions.relatedInformation = related.map {
+            var withoutCodeActions = $0
+            withoutCodeActions.codeActions = nil
+            return withoutCodeActions
+          }
+        }
+        codeAction.diagnostics = [diagnosticWithoutCodeActions]
+        return codeAction
+      })
+    }
+
+    completion(.success(codeActions))
   }
 
   public func executeCommand(_ req: Request<ExecuteCommandRequest>) {
@@ -1122,6 +1213,10 @@ extension DocumentSnapshot {
     return lineTable.utf16ColumnAt(line: zeroBasedLine, utf8Column: utf8Column).map {
       Position(line: zeroBasedLine, utf16index: $0)
     }
+  }
+
+  func indexOf(utf8Offset: Int) -> String.Index? {
+    return text.utf8.index(text.startIndex, offsetBy: utf8Offset, limitedBy: text.endIndex)
   }
 }
 
