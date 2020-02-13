@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -51,12 +51,10 @@ public final class FallbackBuildSystem: BuildSystem {
   }
 
   /// We don't support change watching.
-  public func registerForChangeNotifications(for: DocumentURI) {}
+  public func registerForChangeNotifications(for: DocumentURI, language: Language) {}
 
   /// We don't support change watching.
   public func unregisterForChangeNotifications(for: DocumentURI) {}
-
-  public func toolchain(for: DocumentURI, _ language: Language) -> Toolchain? { return nil }
 
   public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
     reply(.failure(buildTargetsNotSupported))
@@ -79,7 +77,7 @@ public final class FallbackBuildSystem: BuildSystem {
       ]
     }
     args.append(file)
-    return FileBuildSettings(compilerArguments: args)
+    return FileBuildSettings(compilerArguments: args, language: .swift)
   }
 
   func settingsClang(_ file: String, _ language: Language) -> FileBuildSettings {
@@ -91,6 +89,6 @@ public final class FallbackBuildSystem: BuildSystem {
       ]
     }
     args.append(file)
-    return FileBuildSettings(compilerArguments: args)
+    return FileBuildSettings(compilerArguments: args, language: language)
   }
 }

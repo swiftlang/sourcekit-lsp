@@ -24,11 +24,7 @@ final class ExecuteCommandTests: XCTestCase {
   /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
 
-  /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
-  var workspace: Workspace! = nil
-
   override func tearDown() {
-    workspace = nil
     sk = nil
     connection = nil
   }
@@ -44,8 +40,6 @@ final class ExecuteCommandTests: XCTestCase {
       capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
       trace: .off,
       workspaceFolders: nil))
-
-    workspace = connection.server!.workspace!
   }
 
   func testLocationSemanticRefactoring() throws {

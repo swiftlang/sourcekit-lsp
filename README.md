@@ -4,15 +4,19 @@ SourceKit-LSP is an implementation of the [Language Server Protocol](https://mic
 
 ## Getting Started
 
-SourceKit-LSP is under heavy development! The best way to try it out is to install a recent Swift development toolchain from https://swift.org/download/#snapshots. Make sure you build your package with the same toolchain as you got sourcekit-lsp from to ensure compatibility.
+The SourceKit-LSP server is included with the Swift toolchain. Depending on how you installed Swift, you may already have SourceKit-LSP. Make sure you build your package with the same toolchain as you use sourcekit-lsp from to ensure compatibility.
 
-### Using a Swift Toolchain from Swift.org
+1. Get SourceKit-LSP with a Swift toolchain
 
-1. Install the latest master or 5.1 development toolchain snapshot from https://swift.org/download/#snapshots.
+    1. If you have installed Xcode 11.4+ or the corresponding Command Line Tools package, the SourceKit-LSP server is included and can be run with `xcrun sourcekit-lsp`.
 
-2. Configure your editor to use the `sourcekit-lsp` executable from the toolchain snapshot. See [Editors](Editors) for more information about editor integration.
+    2. If you are using a [toolchain from Swift.org](https://swift.org/download/), the SourceKit-LSP server is included and can be run with `xcrun --toolchain swift sourcekit-lsp` on macOS, or using the full path to the `sourcekit-lsp` executable on Linux.
 
-3. Build the project you are working on with `swift build` using the same toolchain snapshot. The language server depends on the build to provide module dependencies and to update the global index.
+    3. If your toolchain did not come with SourceKit-LSP, see [Development](Documentation/Development.md) for how to build it from source.
+
+2. Configure your editor to use SourceKit-LSP. See [Editors](Editors) for more information about editor integration.
+
+3. Build the project you are working on with `swift build` using the same toolchain as the SourceKit-LSP server. The language server depends on the build to provide module dependencies and to update the global index.
 
 ## Development
 
@@ -31,11 +35,11 @@ SourceKit-LSP is still in early development, so you may run into rough edges wit
 | Feature | Status | Notes |
 |---------|:------:|-------|
 | Swift | ✅ | |
-| C/C++/ObjC | ❌ | As of `swift-DEVELOPMENT-SNAPSHOT-2019-02-14-a` [clangd](https://clang.llvm.org/extra/clangd.html) is available but hitting frequent assertion failures.
+| C/C++/ObjC | ✅ | Uses [clangd](https://clangd.github.io) |
 | Code completion | ✅ | |
 | Quick Help (Hover) | ✅ | |
 | Diagnostics | ✅ | |
-| Fix-its | ❌ | |
+| Fix-its | ✅ | |
 | Jump to Definition | ✅ | |
 | Find References | ✅ | |
 | Background Indexing | ❌ | Build project to update the index using [Indexing While Building](#indexing-while-building) |

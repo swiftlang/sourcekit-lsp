@@ -37,6 +37,16 @@ public func logAsync(level: LogLevel = .default, messageProducer: @escaping (_ c
   Logger.shared.logAsync(level: level, messageProducer: messageProducer)
 }
 
+/// Log an error and trigger an assertion failure (if compiled with assertions).
+///
+/// If `level >= Logger.shared.currentLevel`, it will be emitted. However, the converse is not necessarily true: on platforms that provide `os_log`, the message may be emitted by `os_log` according to its own rules about log level.
+///
+/// - parameter message: The message to print.
+public func logAssertionFailure(_ message: String, file: StaticString = #file, line: UInt = #line) {
+  Logger.shared.log(message, level: .error)
+  assertionFailure(message, file: file, line: line)
+}
+
 /// Like `try?`, but logs the error on failure.
 public func orLog<R>(
   _ prefix: String = "",

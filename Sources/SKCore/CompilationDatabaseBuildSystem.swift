@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -31,6 +31,20 @@ public final class CompilationDatabaseBuildSystem {
 
   let fileSystem: FileSystem
 
+  public lazy var indexStorePath: AbsolutePath? = {
+    if let allCommands = self.compdb?.allCommands {
+      for command in allCommands {
+        let args = command.commandLine
+        for i in args.indices.reversed() {
+          if args[i] == "-index-store-path" && i != args.endIndex - 1 {
+            return try? AbsolutePath(validating: args[i+1])
+          }
+        }
+      }
+    }
+    return nil
+  }()
+
   public init(projectRoot: AbsolutePath? = nil, fileSystem: FileSystem = localFileSystem) {
     self.fileSystem = fileSystem
     if let path = projectRoot {
@@ -41,9 +55,9 @@ public final class CompilationDatabaseBuildSystem {
 
 extension CompilationDatabaseBuildSystem: BuildSystem {
 
-  // FIXME: derive from the compiler arguments.
-  public var indexStorePath: AbsolutePath? { return nil }
-  public var indexDatabasePath: AbsolutePath? { return nil }
+  public var indexDatabasePath: AbsolutePath? {
+    indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
+  }
 
   public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
     guard let url = uri.fileURL else {
@@ -54,14 +68,12 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
           let cmd = db[url].first else { return nil }
     return FileBuildSettings(
       compilerArguments: Array(cmd.commandLine.dropFirst()),
-      workingDirectory: cmd.directory
-    )
+      workingDirectory: cmd.directory,
+      language: language)
   }
 
-  public func toolchain(for: DocumentURI, _ language: Language) -> Toolchain? { return nil }
-
   /// We don't support change watching.
-  public func registerForChangeNotifications(for: DocumentURI) {}
+  public func registerForChangeNotifications(for: DocumentURI, language: Language) {}
 
   /// We don't support change watching.
   public func unregisterForChangeNotifications(for: DocumentURI) {}

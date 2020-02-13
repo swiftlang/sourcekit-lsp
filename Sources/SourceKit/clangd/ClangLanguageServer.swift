@@ -106,6 +106,8 @@ extension ClangLanguageServerShim {
 
   }
 
+  // MARK: - Build System Integration
+
   public func documentUpdatedBuildSettings(_ uri: DocumentURI, language: Language) {
     guard let url = uri.fileURL else {
       // FIXME: The clang workspace can probably be reworked to support non-file URIs.
@@ -124,6 +126,15 @@ extension ClangLanguageServerShim {
         ClangWorkspaceSettings(
           compilationDatabaseChanges: [url.path: ClangCompileCommand(settings, clang: clang)]))))
     }
+  }
+
+  public func documentDependenciesUpdated(_ uri: DocumentURI, language: Language) {
+    // In order to tell clangd to reload an AST, we send it an empty `didChangeTextDocument`. This
+    // works well for us as the moment since clangd ignores the document version.
+    let note = DidChangeTextDocumentNotification(
+      textDocument: VersionedTextDocumentIdentifier(uri, version: nil),
+      contentChanges: [])
+    clangd.send(note)
   }
 
   // MARK: - Text Document

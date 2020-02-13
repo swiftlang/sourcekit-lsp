@@ -17,7 +17,7 @@
 /// `MessageRegistry._register()` which allows you to avoid bloating the real server implementation.
 public let builtinRequests: [_RequestType.Type] = [
   InitializeRequest.self,
-  Shutdown.self,
+  ShutdownRequest.self,
   WorkspaceFoldersRequest.self,
   CompletionRequest.self,
   HoverRequest.self,

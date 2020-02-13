@@ -2,13 +2,15 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
 // See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 //
 //===----------------------------------------------------------------------===//
+
+import LanguageServerProtocol
 
 /// Build settings for a single file.
 ///
@@ -22,11 +24,16 @@ public struct FileBuildSettings: Equatable {
   /// The working directory to resolve any relative paths in `compilerArguments`.
   public var workingDirectory: String? = nil
 
+  /// The language of this file.
+  public var language: Language
+
   public init(
     compilerArguments: [String],
-    workingDirectory: String? = nil)
+    workingDirectory: String? = nil,
+    language: Language)
   {
     self.compilerArguments = compilerArguments
     self.workingDirectory = workingDirectory
+    self.language = language
   }
 }

@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -45,7 +45,7 @@ public final class SwiftPMWorkspace {
   let packageRoot: AbsolutePath
   var packageGraph: PackageGraph
   let workspace: Workspace
-  let buildParameters: BuildParameters
+  public let buildParameters: BuildParameters
   let fileSystem: FileSystem
 
   var fileToTarget: [AbsolutePath: TargetBuildDescription] = [:]
@@ -91,7 +91,7 @@ public final class SwiftPMWorkspace {
       fileSystem: fileSystem,
       skipUpdate: true)
 
-    let triple = Triple.hostTriple
+    let triple = toolchain.triple
 
     let swiftPMConfiguration: PackageModel.BuildConfiguration
     switch buildSetup.configuration {
@@ -222,13 +222,9 @@ extension SwiftPMWorkspace: BuildSystem {
     return nil
   }
 
-  public func toolchain(for: DocumentURI, _ language: Language) -> SKCore.Toolchain? {
-    return nil
-  }
-
   /// Register the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func registerForChangeNotifications(for uri: DocumentURI) {
+  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     // TODO: Support for change detection (via file watching)
   }
 
@@ -294,7 +290,7 @@ extension SwiftPMWorkspace {
     func impl(_ path: AbsolutePath) -> FileBuildSettings? {
       for package in packageGraph.packages where path == package.manifest.path {
         let compilerArgs = workspace.interpreterFlags(for: package.path) + [path.pathString]
-        return FileBuildSettings(compilerArguments: compilerArgs)
+        return FileBuildSettings(compilerArguments: compilerArgs, language: .swift)
       }
       return nil
     }
@@ -354,7 +350,8 @@ extension SwiftPMWorkspace {
 
     return FileBuildSettings(
       compilerArguments: args,
-      workingDirectory: workspacePath.pathString)
+      workingDirectory: workspacePath.pathString,
+      language: .swift)
   }
 
   /// Retrieve settings for the given C-family language file, which is part of a known target build
@@ -416,7 +413,8 @@ extension SwiftPMWorkspace {
 
     return FileBuildSettings(
       compilerArguments: args,
-      workingDirectory: workspacePath.pathString)
+      workingDirectory: workspacePath.pathString,
+      language: language)
   }
 }
 

@@ -16,9 +16,12 @@
 /// not reach the client). See `Exit`.
 ///
 /// - Returns: Void.
-public struct Shutdown: RequestType, Hashable {
+public struct ShutdownRequest: RequestType, Hashable {
   public static let method: String = "shutdown"
   public typealias Response = VoidResponse
 
   public init() { }
 }
+
+@available(*, deprecated, renamed: "ShutdownRequest")
+public typealias Shutdown = ShutdownRequest

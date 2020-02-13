@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -156,10 +156,6 @@ public final class SourceKitServer: LanguageServer {
   }
 
   func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
-    if let toolchain = workspace?.buildSettings.toolchain(for: uri, language) {
-      return toolchain
-    }
-
     let supportsLang = { (toolchain: Toolchain) -> Bool in
       // FIXME: the fact that we're looking at clangd/sourcekitd instead of the compiler indicates this method needs a parameter stating what kind of tool we're looking for.
       switch language {
@@ -245,21 +241,45 @@ extension SourceKitServer: BuildSystemDelegate {
     // TODO: do something with these changes once build target support is in place
   }
 
-  public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
-    guard let workspace = self.workspace else {
-      return
+  private func affectedOpenDocumentsForChangeSet(
+    _ changes: Set<DocumentURI>,
+    _ documentManager: DocumentManager
+  ) -> Set<DocumentURI> {
+    // An empty change set is treated as if all open files have been modified.
+    guard !changes.isEmpty else {
+      return documentManager.openDocuments
     }
-    let documentManager = workspace.documentManager
-    let openDocuments = documentManager.openDocuments
-    for uri in changedFiles {
-      guard openDocuments.contains(uri) else {
-        continue
-      }
+    return documentManager.openDocuments.intersection(changes)
+  }
 
-      log("Build settings changed for opened file \(uri)")
-      if let snapshot = documentManager.latestSnapshot(uri),
-        let service = languageService(for: uri, snapshot.document.language, in: workspace) {
-        service.documentUpdatedBuildSettings(uri, language: snapshot.document.language)
+  public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
+    queue.async {
+      guard let workspace = self.workspace else {
+        return
+      }
+      let documentManager = workspace.documentManager
+      for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, documentManager) {
+        log("Build settings changed for opened file \(uri)")
+        if let snapshot = documentManager.latestSnapshot(uri),
+          let service = self.languageService(for: uri, snapshot.document.language, in: workspace) {
+          service.documentUpdatedBuildSettings(uri, language: snapshot.document.language)
+        }
+      }
+    }
+  }
+
+  public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
+    queue.async {
+      guard let workspace = self.workspace else {
+        return
+      }
+      let documentManager = workspace.documentManager
+      for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, documentManager) {
+        log("Dependencies updated for opened file \(uri)")
+        if let snapshot = documentManager.latestSnapshot(uri),
+          let service = self.languageService(for: uri, snapshot.document.language, in: workspace) {
+          service.documentDependenciesUpdated(uri, language: snapshot.document.language)
+        }
       }
     }
   }
@@ -273,43 +293,49 @@ extension SourceKitServer {
 
   func initialize(_ req: Request<InitializeRequest>) {
 
-    var indexOptions = IndexOptions()
+    var indexOptions = self.options.indexOptions
     if case .dictionary(let options) = req.params.initializationOptions {
       if case .bool(let listenToUnitEvents) = options["listenToUnitEvents"] {
         indexOptions.listenToUnitEvents = listenToUnitEvents
       }
     }
 
-    if let uri = req.params.rootURI {
-      self.workspace = try? Workspace(
-        rootUri: uri,
-        clientCapabilities: req.params.capabilities,
-        toolchainRegistry: self.toolchainRegistry,
-        buildSetup: self.options.buildSetup,
-        indexOptions: indexOptions)
-    } else if let path = req.params.rootPath {
-      self.workspace = try? Workspace(
-        rootUri: DocumentURI(URL(fileURLWithPath: path)),
-        clientCapabilities: req.params.capabilities,
-        toolchainRegistry: self.toolchainRegistry,
-        buildSetup: self.options.buildSetup,
-        indexOptions: indexOptions)
+    // Any messages sent before initialize returns are expected to fail, so this will run before
+    // the first "supported" request. Run asynchronously to hide the latency of setting up the
+    // build system and index.
+    queue.async {
+      if let uri = req.params.rootURI {
+        self.workspace = try? Workspace(
+          rootUri: uri,
+          clientCapabilities: req.params.capabilities,
+          toolchainRegistry: self.toolchainRegistry,
+          buildSetup: self.options.buildSetup,
+          indexOptions: indexOptions)
+      } else if let path = req.params.rootPath {
+        self.workspace = try? Workspace(
+          rootUri: DocumentURI(URL(fileURLWithPath: path)),
+          clientCapabilities: req.params.capabilities,
+          toolchainRegistry: self.toolchainRegistry,
+          buildSetup: self.options.buildSetup,
+          indexOptions: indexOptions)
+      }
+
+      if self.workspace == nil {
+        log("no workspace found", level: .warning)
+
+        self.workspace = Workspace(
+          rootUri: req.params.rootURI,
+          clientCapabilities: req.params.capabilities,
+          toolchainRegistry: self.toolchainRegistry,
+          buildSetup: self.options.buildSetup,
+          underlyingBuildSystem: BuildSystemList(),
+          index: nil,
+          indexDelegate: nil)
+      }
+
+      assert(self.workspace != nil)
+      self.workspace?.buildSettings.delegate = self
     }
-
-    if self.workspace == nil {
-      log("no workspace found", level: .warning)
-
-      self.workspace = Workspace(
-        rootUri: nil,
-        clientCapabilities: req.params.capabilities,
-        buildSettings: BuildSystemList(),
-        index: nil,
-        buildSetup: self.options.buildSetup
-      )
-    }
-
-    assert(self.workspace != nil)
-    self.workspace?.buildSettings.delegate = self
 
     req.reply(InitializeResult(capabilities: ServerCapabilities(
       textDocumentSync: TextDocumentSyncOptions(
@@ -378,7 +404,7 @@ extension SourceKitServer {
   }
 
 
-  func shutdown(_ request: Request<Shutdown>) {
+  func shutdown(_ request: Request<ShutdownRequest>) {
     _prepareForExit()
     request.reply(VoidResponse())
   }
@@ -401,7 +427,8 @@ extension SourceKitServer {
     workspace.documentManager.open(note.params)
 
     let textDocument = note.params.textDocument
-    workspace.buildSettings.registerForChangeNotifications(for: textDocument.uri)
+    workspace.buildSettings.registerForChangeNotifications(
+      for: textDocument.uri, language: textDocument.language)
 
     if let service = languageService(for: textDocument.uri, textDocument.language, in: workspace) {
       service.openDocument(note.params)

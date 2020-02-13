@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -33,9 +33,6 @@ final class TestBuildSystem: BuildSystem {
   /// Build settings by file.
   var buildSettingsByFile: [DocumentURI: FileBuildSettings] = [:]
 
-  /// Toolchains by file.
-  var toolchainsByFile: [DocumentURI: Toolchain] = [:]
-
   /// Files currently being watched by our delegate.
   var watchedFiles: Set<DocumentURI> = []
 
@@ -43,11 +40,7 @@ final class TestBuildSystem: BuildSystem {
     return buildSettingsByFile[uri]
   }
 
-  func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
-    return toolchainsByFile[uri]
-  }
-
-  func registerForChangeNotifications(for uri: DocumentURI) {
+  func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     watchedFiles.insert(uri)
   }
 
@@ -93,9 +86,12 @@ final class BuildSystemTests: XCTestCase {
     self.workspace = Workspace(
       rootUri: nil,
       clientCapabilities: ClientCapabilities(),
-      buildSettings: buildSystem,
+      toolchainRegistry: ToolchainRegistry.shared,
+      buildSetup: TestSourceKitServer.serverOptions.buildSetup,
+      underlyingBuildSystem: buildSystem,
       index: nil,
-      buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+      indexDelegate: nil)
+
     testServer.server!.workspace = workspace
 
     sk = testServer.client
@@ -132,7 +128,8 @@ final class BuildSystemTests: XCTestCase {
     }
     """
 
-    buildSystem.buildSettingsByFile[DocumentURI(url)] = FileBuildSettings(compilerArguments: args)
+    buildSystem.buildSettingsByFile[DocumentURI(url)] =
+      FileBuildSettings(compilerArguments: args, language: .objective_c)
 
     sk.allowUnexpectedNotification = false
 
@@ -148,8 +145,8 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    buildSystem.buildSettingsByFile[DocumentURI(url)] = FileBuildSettings(compilerArguments: args +  ["-DFOO"])
-    testServer.server?.fileBuildSettingsChanged([DocumentURI(url)])
+    buildSystem.buildSettingsByFile[DocumentURI(url)] = 
+      FileBuildSettings(compilerArguments: args +  ["-DFOO"], language: .objective_c)
 
     let expectation = XCTestExpectation(description: "refresh")
     sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
@@ -157,6 +154,8 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(DocumentURI(url))!.text)
       expectation.fulfill()
     }
+
+    buildSystem.delegate?.fileBuildSettingsChanged([DocumentURI(url)])
 
     let result = XCTWaiter.wait(for: [expectation], timeout: 5)
     if result != .completed {
@@ -168,7 +167,8 @@ final class BuildSystemTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.swift")
     let args = FallbackBuildSystem().settings(for: DocumentURI(url), .swift)!.compilerArguments
 
-    buildSystem.buildSettingsByFile[DocumentURI(url)] = FileBuildSettings(compilerArguments: args)
+    buildSystem.buildSettingsByFile[DocumentURI(url)] =
+      FileBuildSettings(compilerArguments: args, language: .swift)
 
     let text = """
     #if FOO
@@ -196,7 +196,8 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    buildSystem.buildSettingsByFile[DocumentURI(url)] = FileBuildSettings(compilerArguments: args + ["-DFOO"])
+    buildSystem.buildSettingsByFile[DocumentURI(url)] =
+      FileBuildSettings(compilerArguments: args + ["-DFOO"], language: .swift)
 
     let expectation = XCTestExpectation(description: "refresh")
     expectation.expectedFulfillmentCount = 2
@@ -210,7 +211,7 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 0)
       expectation.fulfill()
     }
-    testServer.server?.fileBuildSettingsChanged([DocumentURI(url)])
+    buildSystem.delegate?.fileBuildSettingsChanged([DocumentURI(url)])
 
     let result = XCTWaiter.wait(for: [expectation], timeout: 5)
     if result != .completed {
@@ -237,7 +238,7 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the SourceKitServer.
     // This shouldn't trigger new diagnostics since nothing actually changed (false alarm).
-    testServer.server?.fileBuildSettingsChanged([DocumentURI(url)])
+    buildSystem.delegate?.fileBuildSettingsChanged([DocumentURI(url)])
 
     let expectation = XCTestExpectation(description: "refresh doesn't occur")
     expectation.isInverted = true
@@ -251,5 +252,59 @@ final class BuildSystemTests: XCTestCase {
     if result != .completed {
       fatalError("error \(result) unexpected diagnostics notification")
     }
+  }
+
+  func testMainFilesChanged() {
+    let ws = try! mutableSourceKitTibsTestWorkspace(name: "MainFiles")!
+    let unique_h = ws.testLoc("unique").docIdentifier.uri
+
+    ws.testServer.client.allowUnexpectedNotification = false
+
+    let expectation = self.expectation(description: "initial")
+    ws.testServer.client.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      if let diag = note.params.diagnostics.first {
+        XCTAssertEqual(diag.severity, .warning)
+        XCTAssertEqual(diag.message, "UNKNOWN_MAIN_FILE")
+      }
+      expectation.fulfill()
+    }
+
+    try! ws.openDocument(unique_h.fileURL!, language: .cpp)
+    wait(for: [expectation], timeout: 15)
+
+    let use_d = self.expectation(description: "update settings to d.cpp")
+    ws.testServer.client.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      if let diag = note.params.diagnostics.first {
+        XCTAssertEqual(diag.severity, .warning)
+        XCTAssertEqual(diag.message, "UNIQUE_INCLUDED_FROM_D")
+      }
+      use_d.fulfill()
+    }
+
+    try! ws.buildAndIndex()
+    wait(for: [use_d], timeout: 15)
+
+    let use_c = self.expectation(description: "update settings to c.cpp")
+    ws.testServer.client.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      if let diag = note.params.diagnostics.first {
+        XCTAssertEqual(diag.severity, .warning)
+        XCTAssertEqual(diag.message, "UNIQUE_INCLUDED_FROM_C")
+      }
+      use_c.fulfill()
+    }
+
+    try! ws.edit(rebuild: true) { (changes, _) in
+      changes.write("""
+        // empty
+        """, to: ws.testLoc("d_func").url)
+      changes.write("""
+        #include "unique.h"
+        """, to: ws.testLoc("c_func").url)
+    }
+
+    wait(for: [use_c], timeout: 15)
   }
 }

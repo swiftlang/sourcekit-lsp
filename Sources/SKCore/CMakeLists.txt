@@ -11,11 +11,13 @@ add_library(SKCore
   BuildSystem.swift
   BuildSystemDelegate.swift
   BuildSystemList.swift
+  BuildSystemManager.swift
   CompilationDatabase.swift
   CompilationDatabaseBuildSystem.swift
   FallbackBuildSystem.swift
   FileBuildSettings.swift
   LanguageServer.swift
+  MainFilesProvider.swift
   Toolchain.swift
   ToolchainRegistry.swift
   XCToolchainPlist.swift)

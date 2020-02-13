@@ -49,6 +49,8 @@ func parseArguments() throws -> CommandLineOptions {
   let buildFlagsLinker = parser.add(option: "-Xlinker", kind: [String].self, strategy: .oneByOne, usage: "Pass flag through to all linker invocations")
   let buildFlagsSwift = parser.add(option: "-Xswiftc", kind: [String].self, strategy: .oneByOne, usage: "Pass flag through to all Swift compiler invocations")
   let clangdOptions = parser.add(option: "-Xclangd", kind: [String].self, strategy: .oneByOne, usage: "Pass options to clangd command-line")
+  let indexStorePath = parser.add(option: "-index-store-path", kind: PathArgument.self, usage: "Override index-store-path from the build system")
+  let indexDatabasePath = parser.add(option: "-index-db-path", kind: PathArgument.self, usage: "Override index-database-path from the build system")
 
   let parsedArguments = try parser.parse(arguments)
 
@@ -75,6 +77,13 @@ func parseArguments() throws -> CommandLineOptions {
 
   if let options = parsedArguments.get(clangdOptions) {
     result.serverOptions.clangdOptions = options
+  }
+
+  if let path = parsedArguments.get(indexStorePath)?.path {
+    result.serverOptions.indexOptions.indexStorePath = path
+  }
+  if let path = parsedArguments.get(indexDatabasePath)?.path {
+    result.serverOptions.indexOptions.indexDatabasePath = path
   }
 
   if let logLevel = parsedArguments.get(loggingOption) {
