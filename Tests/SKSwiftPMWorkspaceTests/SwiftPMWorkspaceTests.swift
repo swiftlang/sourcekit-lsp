@@ -101,8 +101,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let hostTriple = ws.buildParameters.triple
-      let build = buildPath(root: packageRoot, triple: hostTriple)
+      let build = buildPath(root: packageRoot)
 
       XCTAssertEqual(ws.buildPath, build)
       XCTAssertNotNil(ws.indexStorePath)
@@ -115,11 +114,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       check("-target", arguments: arguments) // Only one!
   #if os(macOS)
-      check("-target", hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
+      check("-target", Triple.hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
       check("-sdk", arguments: arguments)
       check("-F", arguments: arguments)
   #else
-      check("-target", hostTriple.tripleString, arguments: arguments)
+      check("-target", Triple.hostTriple.tripleString, arguments: arguments)
   #endif
 
       check("-I", build.pathString, arguments: arguments)
@@ -156,8 +155,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         buildSetup: config)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let hostTriple = ws.buildParameters.triple
-      let build = buildPath(root: packageRoot, config: config, triple: hostTriple)
+      let build = buildPath(root: packageRoot, config: config)
 
       XCTAssertEqual(ws.buildPath, build)
       let arguments = ws.settings(for: aswift.asURI, .swift)!.compilerArguments
@@ -334,8 +332,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
-      let hostTriple = ws.buildParameters.triple
-      let build = buildPath(root: packageRoot, triple: hostTriple)
+      let build = buildPath(root: packageRoot)
 
       XCTAssertEqual(ws.buildPath, build)
       XCTAssertNotNil(ws.indexStorePath)
@@ -347,11 +344,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         check("-target", arguments: arguments) // Only one!
     #if os(macOS)
         check("-target",
-          hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
+          Triple.hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
         check("-isysroot", arguments: arguments)
         check("-F", arguments: arguments)
     #else
-        check("-target", hostTriple.tripleString, arguments: arguments)
+        check("-target", Triple.hostTriple.tripleString, arguments: arguments)
     #endif
 
         check("-I", packageRoot.appending(components: "Sources", "lib", "include").pathString,
@@ -400,13 +397,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = ws.settings(for: aswift.asURI, .swift)!.compilerArguments
       check("-target", arguments: arguments) // Only one!
-      let hostTriple = ws.buildParameters.triple
-
       #if os(macOS)
         check("-target",
-          hostTriple.tripleString(forPlatformVersion: "10.13"), arguments: arguments)
+          Triple.hostTriple.tripleString(forPlatformVersion: "10.13"), arguments: arguments)
       #else
-        check("-target", hostTriple.tripleString, arguments: arguments)
+        check("-target", Triple.hostTriple.tripleString, arguments: arguments)
       #endif
     }
   }
@@ -540,9 +535,8 @@ private func check(
 
 private func buildPath(
   root: AbsolutePath,
-  config: BuildSetup = TestSourceKitServer.serverOptions.buildSetup,
-  triple: Triple) -> AbsolutePath
+  config: BuildSetup = TestSourceKitServer.serverOptions.buildSetup) -> AbsolutePath
 {
   let buildPath = config.path ?? root.appending(component: ".build")
-  return buildPath.appending(components: triple.tripleString, "\(config.configuration)")
+  return buildPath.appending(components: Triple.hostTriple.tripleString, "\(config.configuration)")
 }
