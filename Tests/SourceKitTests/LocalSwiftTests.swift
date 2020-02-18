@@ -733,7 +733,6 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testMuliEditFixitCodeActionNote() {
-#if os(macOS)
     let url = URL(fileURLWithPath: "/a.swift")
     let uri = DocumentURI(url)
 
@@ -779,7 +778,6 @@ final class LocalSwiftTests: XCTestCase {
       TextEdit(range: Position(line: 3, utf16index: 6)..<Position(line: 3, utf16index: 11), newText: ""),
       TextEdit(range: Position(line: 3, utf16index: 14)..<Position(line: 3, utf16index: 20), newText: "hotness"),
     ])
-#endif
   }
 
   func testXMLToMarkdownDeclaration() {
