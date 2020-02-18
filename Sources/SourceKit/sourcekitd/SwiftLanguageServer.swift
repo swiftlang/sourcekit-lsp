@@ -426,6 +426,12 @@ extension SwiftLanguageServer {
     return TextEdit(range: textEditRangeStart..<requestPosition, newText: newText)
   }
 
+  /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
+  public func definition(_ request: Request<DefinitionRequest>) -> Bool {
+    // We don't handle it.
+    return false
+  }
+
   public func completion(_ req: Request<CompletionRequest>) {
     let keys = self.keys
 

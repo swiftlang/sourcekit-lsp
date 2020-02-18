@@ -599,6 +599,8 @@ extension SourceKitServer {
     let index = self.workspace?.index
     let callback = callbackOnQueue(self.queue) { (result: Result<SymbolInfoRequest.Response, ResponseError>) in
       guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
+        let handled = languageService.definition(req)
+        guard !handled else { return }
         if let error = result.failure {
           req.reply(.failure(error))
         } else {
