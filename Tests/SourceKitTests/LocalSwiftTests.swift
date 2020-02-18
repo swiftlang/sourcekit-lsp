@@ -307,6 +307,41 @@ final class LocalSwiftTests: XCTestCase {
     })
   }
 
+  func testExcludedDocumentSchemeDiagnostics() {
+    let includedURL = URL(fileURLWithPath: "/a.swift")
+    let includedURI = DocumentURI(includedURL)
+
+    let excludedURI = DocumentURI(string: "git:/a.swift")
+
+    let text = """
+    func
+    """
+
+    sk.allowUnexpectedNotification = false
+
+    // Open the excluded URI first so our later notification handlers can confirm
+    // that no diagnostics were emitted for this excluded URI.
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: excludedURI,
+      language: .swift,
+      version: 1,
+      text: text
+    )))
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: includedURI,
+      language: .swift,
+      version: 1,
+      text: text
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+      XCTAssertEqual(note.params.uri, includedURI)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.uri, includedURI)
+    })
+  }
+
   func testCrossFileDiagnostics() {
     let urlA = URL(fileURLWithPath: "/a.swift")
     let urlB = URL(fileURLWithPath: "/b.swift")
