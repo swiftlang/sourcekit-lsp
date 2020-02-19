@@ -43,7 +43,7 @@ final class DocumentColorTests: XCTestCase {
   }
 
   func performDocumentColorRequest(text: String) -> [ColorInformation] {
-    let url = URL(fileURLWithPath: "/a.swift")
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
 
     sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),
@@ -56,7 +56,7 @@ final class DocumentColorTests: XCTestCase {
   }
 
   func performColorPresentationRequest(text: String, color: Color, range: Range<Position>) -> [ColorPresentation] {
-    let url = URL(fileURLWithPath: "/a.swift")
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
 
     sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),

@@ -80,7 +80,7 @@ final class SwiftCompletionTests: XCTestCase {
 
   func testCompletion() {
     initializeServer()
-    let url = URL(fileURLWithPath: "/a.swift")
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     openDocument(url: url)
 
     let selfDot = try! sk.sendSync(CompletionRequest(
@@ -129,7 +129,7 @@ final class SwiftCompletionTests: XCTestCase {
     capabilities.completionItem = CompletionCapabilities.CompletionItem(snippetSupport: true)
 
     initializeServer(capabilities: capabilities)
-    let url = URL(fileURLWithPath: "/a.swift")
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     openDocument(url: url)
 
     func getTestMethodCompletion(_ position: Position, label: String) -> CompletionItem? {
@@ -200,7 +200,7 @@ final class SwiftCompletionTests: XCTestCase {
 
   func testCompletionPosition() {
     initializeServer()
-    let url = URL(fileURLWithPath: "/a.swift")
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     openDocument(text: "foo", url: url)
 
     for col in 0 ... 3 {
@@ -224,7 +224,7 @@ final class SwiftCompletionTests: XCTestCase {
 
   func testCompletionOptional() {
     initializeServer()
-    let url = URL(fileURLWithPath: "/a.swift")
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     let text = """
     struct Foo {
       let bar: Int
@@ -250,7 +250,7 @@ final class SwiftCompletionTests: XCTestCase {
 
   func testCompletionOverride() {
     initializeServer()
-    let url = URL(fileURLWithPath: "/a.swift")
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     let text = """
     class Base {
       func foo() {}
@@ -275,7 +275,7 @@ final class SwiftCompletionTests: XCTestCase {
 
   func testCompletionOverrideInNewLine() {
     initializeServer()
-    let url = URL(fileURLWithPath: "/a.swift")
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     let text = """
     class Base {
       func foo() {}
