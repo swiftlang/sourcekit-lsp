@@ -46,7 +46,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
   }
 
   func performDocumentSymbolRequest(text: String) -> DocumentSymbolResponse {
-    let url = URL(fileURLWithPath: "/a.swift")
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
 
     sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),

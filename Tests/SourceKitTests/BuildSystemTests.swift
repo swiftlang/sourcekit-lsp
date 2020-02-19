@@ -115,7 +115,7 @@ final class BuildSystemTests: XCTestCase {
   func testClangdDocumentUpdatedBuildSettings() {
     guard haveClangd else { return }
 
-    let url = URL(fileURLWithPath: "/file.m")
+    let url = URL(fileURLWithPath: "/\(#function)/file.m")
     let args = [url.path, "-DDEBUG"]
     let text = """
     #ifdef FOO
@@ -164,7 +164,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testSwiftDocumentUpdatedBuildSettings() {
-    let url = URL(fileURLWithPath: "/a.swift")
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     let args = FallbackBuildSystem().settings(for: DocumentURI(url), .swift)!.compilerArguments
 
     buildSystem.buildSettingsByFile[DocumentURI(url)] =
@@ -220,7 +220,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testSwiftDocumentBuildSettingsChangedFalseAlarm() {
-    let url = URL(fileURLWithPath: "/a.swift")
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
 
     sk.allowUnexpectedNotification = false
 
