@@ -164,34 +164,4 @@ final class LocalClangTests: XCTestCase {
       fatalError("error \(result) waiting for diagnostics notification")
     }
   }
-
-  func testClangGoToInclude() throws {
-    guard let ws = try staticSourceKitTibsWorkspace(name: "BasicCXX") else { return }
-    guard haveClangd else { return }
-
-    let mainLoc = ws.testLoc("Object:include:main")
-    let expectedDoc = ws.testLoc("Object").docIdentifier.uri
-    let includePosition =
-        Position(line: mainLoc.position.line, utf16index: mainLoc.utf16Column + 2)
-
-    try ws.openDocument(mainLoc.url, language: .c)
-
-    let goToInclude = DefinitionRequest(
-      textDocument: mainLoc.docIdentifier, position: includePosition)
-    let resp = try! ws.sk.sendSync(goToInclude)
-
-    let locationsOrLinks = try XCTUnwrap(resp, "Response is nil")
-    switch locationsOrLinks {
-    case .locations(let locations):
-      XCTAssert(!locations.isEmpty, "Found no locations for go-to-#include")
-      if let loc = locations.first {
-        XCTAssertEqual(loc.uri, expectedDoc)
-      }
-    case .locationLinks(let locationLinks):
-      XCTAssert(!locationLinks.isEmpty, "Found no location links for go-to-#include")
-      if let link = locationLinks.first {
-        XCTAssertEqual(link.targetUri, expectedDoc)
-      }
-    }
-  }
 }
