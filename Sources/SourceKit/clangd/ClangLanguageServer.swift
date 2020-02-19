@@ -144,7 +144,7 @@ extension ClangLanguageServerShim {
 
   /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
   public func definition(_ req: Request<DefinitionRequest>) -> Bool {
-    // We handle it to provide jump-to-header support for import/includes.
+    // We handle it to provide jump-to-header support for #import/#include.
     forwardRequest(req, to: clangd)
     return true
   }
