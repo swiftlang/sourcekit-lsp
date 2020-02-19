@@ -81,7 +81,7 @@ public struct DiagnosticRelatedInformation: Codable, Hashable {
   /// **LSP Extension from clangd**.
   public var codeActions: [CodeAction]?
 
-  public init(location: Location, message: String, codeActions: [CodeAction]?) {
+  public init(location: Location, message: String, codeActions: [CodeAction]? = nil) {
     self.location = location
     self.message = message
     self.codeActions = codeActions
