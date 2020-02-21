@@ -10,6 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(SPMBuildCore)
+import SPMBuildCore
+#endif
 import Build
 import BuildServerProtocol
 import LanguageServerProtocol
@@ -181,7 +184,7 @@ extension SwiftPMWorkspace {
   }
 }
 
-extension SwiftPMWorkspace: BuildSystem {
+extension SwiftPMWorkspace: SKCore.BuildSystem {
 
   public var buildPath: AbsolutePath {
     return buildParameters.buildPath

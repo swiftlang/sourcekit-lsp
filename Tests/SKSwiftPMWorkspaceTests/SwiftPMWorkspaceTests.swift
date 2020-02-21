@@ -10,6 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(SPMBuildCore)
+import SPMBuildCore
+#endif
 import Build
 import LanguageServerProtocol
 import SKCore
