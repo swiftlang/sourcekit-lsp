@@ -286,6 +286,61 @@ final class BuildSystemManagerTests: XCTestCase {
     bsm.fileBuildSettingsChanged(Set([cpp]))
 
     wait(for: [changed1, changed2], timeout: 10, enforceOrder: false)
+
+    bs.map[cpp] = FileBuildSettings(compilerArguments: ["Third C++ Main File"], language: .cpp)
+    let changed3 = expectation(description: "third settings h1 via cpp")
+    let changed4 = expectation(description: "third settings h2 via cpp")
+    del.expected = [
+      (h1, bs.map[cpp]!, changed3, #file, #line),
+      (h2, bs.map[cpp]!, changed4, #file, #line),
+    ]
+    bsm.fileBuildSettingsChanged(Set([])) // Empty => all
+    wait(for: [changed3, changed4], timeout: 10, enforceOrder: false)
+  }
+
+  func testSettingsChangedAfterUnregister() {
+    let a = DocumentURI(string: "bsm:a.swift")
+    let b = DocumentURI(string: "bsm:b.swift")
+    let c = DocumentURI(string: "bsm:c.swift")
+    let mainFiles = ManualMainFilesProvider()
+    mainFiles.mainFiles = [a: Set([a]), b: Set([b]), c: Set([c])]
+    let bs = ManualBuildSystem()
+    let bsm = BuildSystemManager(buildSystem: bs, mainFilesProvider: mainFiles)
+    let del = BSMDelegate(bsm)
+
+    bs.map[a] = FileBuildSettings(compilerArguments: ["a"], language: .swift)
+    bs.map[b] = FileBuildSettings(compilerArguments: ["b"], language: .swift)
+    bs.map[c] = FileBuildSettings(compilerArguments: ["c"], language: .swift)
+
+    let initialA = expectation(description: "initial settings a")
+    let initialB = expectation(description: "initial settings b")
+    let initialC = expectation(description: "initial settings c")
+    del.expected = [
+      (a, bs.map[a]!, initialA, #file, #line),
+      (b, bs.map[b]!, initialB, #file, #line),
+      (c, bs.map[c]!, initialC, #file, #line),
+    ]
+    bsm.registerForChangeNotifications(for: a, language: .swift)
+    bsm.registerForChangeNotifications(for: b, language: .swift)
+    bsm.registerForChangeNotifications(for: c, language: .swift)
+    wait(for: [initialA, initialB, initialC], timeout: 10, enforceOrder: false)
+
+    bs.map[a] = FileBuildSettings(compilerArguments: ["new-a"], language: .swift)
+    bs.map[b] = FileBuildSettings(compilerArguments: ["new-b"], language: .swift)
+    bs.map[c] = FileBuildSettings(compilerArguments: ["new-c"], language: .swift)
+
+    let changedB = expectation(description: "changed settings b")
+    del.expected = [
+      (b, bs.map[b]!, changedB, #file, #line),
+    ]
+
+    bsm.unregisterForChangeNotifications(for: a)
+    bsm.unregisterForChangeNotifications(for: c)
+    // At this point only b is registered, but that can race with notifications,
+    // so ensure nothing bad happens and we still get the notification for b.
+    bsm.fileBuildSettingsChanged([a, b, c])
+
+    wait(for: [changedB], timeout: 10, enforceOrder: false)
   }
 }
 

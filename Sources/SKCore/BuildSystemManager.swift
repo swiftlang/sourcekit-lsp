@@ -181,14 +181,14 @@ extension BuildSystemManager: BuildSystemDelegate {
   public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
     queue.async {
       // Empty -> assume all files have been changed.
-      let filesToCheck = changedFiles.isEmpty ? Set(self.watchedFiles.keys) : changedFiles
+      let filesToCheck = changedFiles.isEmpty ? Set(self.mainFileSettings.keys) : changedFiles
       var changedWatchedFiles = Set<DocumentURI>()
 
       for mainFile in filesToCheck {
         let watches = self.watchedFiles.filter { $1.mainFile == mainFile }
         guard !watches.isEmpty else {
           // We got a notification after the file was unregistered. Ignore.
-          return
+          continue
         }
 
         // FIXME: we need to stop threading the langauge everywhere, or we need the build system
