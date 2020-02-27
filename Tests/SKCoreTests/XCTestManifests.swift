@@ -21,6 +21,7 @@ extension BuildSystemManagerTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__BuildSystemManagerTests = [
+        ("testDependenciesUpdated", testDependenciesUpdated),
         ("testMainFiles", testMainFiles),
         ("testSettingsChangedAfterUnregister", testSettingsChangedAfterUnregister),
         ("testSettingsHeaderChangeMainFile", testSettingsHeaderChangeMainFile),

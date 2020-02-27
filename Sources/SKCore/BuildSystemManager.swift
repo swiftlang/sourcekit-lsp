@@ -210,17 +210,21 @@ extension BuildSystemManager: BuildSystemDelegate {
   }
 
   public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
-    if let delegate = self.delegate {
-      notifyQueue.async {
-        delegate.filesDependenciesUpdated(changedFiles)
+    queue.async {
+      if let delegate = self._delegate {
+        self.notifyQueue.async {
+          delegate.filesDependenciesUpdated(changedFiles)
+        }
       }
     }
   }
 
   public func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
-    if let delegate = self.delegate {
-      notifyQueue.async {
-        delegate.buildTargetsChanged(changes)
+    queue.async {
+      if let delegate = self._delegate {
+        self.notifyQueue.async {
+          delegate.buildTargetsChanged(changes)
+        }
       }
     }
   }
