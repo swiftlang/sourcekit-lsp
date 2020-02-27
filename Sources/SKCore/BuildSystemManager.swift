@@ -188,7 +188,7 @@ extension BuildSystemManager: BuildSystemDelegate {
         let watches = self.watchedFiles.filter { $1.mainFile == mainFile }
         guard !watches.isEmpty else {
           // We got a notification after the file was unregistered. Ignore.
-          return
+          continue
         }
 
         // FIXME: we need to stop threading the langauge everywhere, or we need the build system
