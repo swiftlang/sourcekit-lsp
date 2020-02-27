@@ -342,6 +342,38 @@ final class BuildSystemManagerTests: XCTestCase {
 
     wait(for: [changedB], timeout: 10, enforceOrder: false)
   }
+
+  func testDependenciesUpdated() {
+    let a = DocumentURI(string: "bsm:a.swift")
+    let mainFiles = ManualMainFilesProvider()
+    mainFiles.mainFiles = [a: Set([a])]
+
+    class DepUpdateDuringRegistrationBS: ManualBuildSystem {
+        override func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+          delegate?.filesDependenciesUpdated([uri])
+        }
+    }
+
+    let bs = DepUpdateDuringRegistrationBS()
+    let bsm = BuildSystemManager(buildSystem: bs, mainFilesProvider: mainFiles)
+    let del = BSMDelegate(bsm)
+
+    bs.map[a] = FileBuildSettings(compilerArguments: ["x"], language: .swift)
+    let initial = expectation(description: "initial settings")
+    del.expected = [(a, bs.map[a]!, initial, #file, #line)]
+
+    let depUpdate1 = expectation(description: "dependencies update during registration")
+    del.expectedDependenciesUpdate = [(a, depUpdate1, #file, #line)]
+
+    bsm.registerForChangeNotifications(for: a, language: .swift)
+    wait(for: [initial, depUpdate1], timeout: 10, enforceOrder: false)
+
+    let depUpdate2 = expectation(description: "dependencies update 2")
+    del.expectedDependenciesUpdate = [(a, depUpdate2, #file, #line)]
+
+    bsm.filesDependenciesUpdated([a])
+    wait(for: [depUpdate2], timeout: 10, enforceOrder: false)
+  }
 }
 
 // MARK: Helper Classes for Testing
@@ -359,7 +391,7 @@ private final class ManualMainFilesProvider: MainFilesProvider {
 }
 
 /// A simple `BuildSystem` that wraps a dictionary, for testing.
-final class ManualBuildSystem: BuildSystem {
+class ManualBuildSystem: BuildSystem {
   var map: [DocumentURI: FileBuildSettings] = [:]
 
   var delegate: BuildSystemDelegate? = nil
@@ -397,6 +429,7 @@ private final class BSMDelegate: BuildSystemDelegate {
   let queue: DispatchQueue = DispatchQueue(label: "\(BSMDelegate.self)")
   unowned let bsm: BuildSystemManager
   var expected: [(uri: DocumentURI, settings: FileBuildSettings?, expectation: XCTestExpectation, file: StaticString, line: UInt)] = []
+  var expectedDependenciesUpdate: [(uri: DocumentURI, expectation: XCTestExpectation, file: StaticString, line: UInt)] = []
 
   init(_ bsm: BuildSystemManager) {
     self.bsm = bsm
@@ -420,5 +453,17 @@ private final class BSMDelegate: BuildSystemDelegate {
   }
 
   func buildTargetsChanged(_ changes: [BuildTargetEvent]) {}
-  func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {}
+  func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
+    queue.sync {
+      for uri in changedFiles {
+        guard let expected = expectedDependenciesUpdate.first(where: { $0.uri == uri }) else {
+          XCTFail("unexpected filesDependenciesUpdated for \(uri)")
+          continue
+        }
+
+        XCTAssertEqual(uri, expected.uri, file: expected.file, line: expected.line)
+        expected.expectation.fulfill()
+      }
+    }
+  }
 }
