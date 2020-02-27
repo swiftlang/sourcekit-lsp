@@ -22,6 +22,7 @@ extension BuildSystemManagerTests {
     // to regenerate.
     static let __allTests__BuildSystemManagerTests = [
         ("testMainFiles", testMainFiles),
+        ("testSettingsChangedAfterUnregister", testSettingsChangedAfterUnregister),
         ("testSettingsHeaderChangeMainFile", testSettingsHeaderChangeMainFile),
         ("testSettingsMainFile", testSettingsMainFile),
         ("testSettingsMainFileInitialIntersect", testSettingsMainFileInitialIntersect),
