@@ -286,6 +286,16 @@ final class BuildSystemManagerTests: XCTestCase {
     bsm.fileBuildSettingsChanged(Set([cpp]))
 
     wait(for: [changed1, changed2], timeout: 10, enforceOrder: false)
+
+    bs.map[cpp] = FileBuildSettings(compilerArguments: ["Third C++ Main File"], language: .cpp)
+    let changed3 = expectation(description: "third settings h1 via cpp")
+    let changed4 = expectation(description: "third settings h2 via cpp")
+    del.expected = [
+      (h1, bs.map[cpp]!, changed3, #file, #line),
+      (h2, bs.map[cpp]!, changed4, #file, #line),
+    ]
+    bsm.fileBuildSettingsChanged(Set([])) // Empty => all
+    wait(for: [changed3, changed4], timeout: 10, enforceOrder: false)
   }
 }
 

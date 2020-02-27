@@ -181,7 +181,7 @@ extension BuildSystemManager: BuildSystemDelegate {
   public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
     queue.async {
       // Empty -> assume all files have been changed.
-      let filesToCheck = changedFiles.isEmpty ? Set(self.watchedFiles.keys) : changedFiles
+      let filesToCheck = changedFiles.isEmpty ? Set(self.mainFileSettings.keys) : changedFiles
       var changedWatchedFiles = Set<DocumentURI>()
 
       for mainFile in filesToCheck {
