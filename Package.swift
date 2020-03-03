@@ -207,6 +207,6 @@ if getenv("SWIFTCI_USE_LOCAL_DEPS") == nil {
   package.dependencies += [
     .package(path: "../indexstore-db"),
     .package(path: "../swiftpm"),
-    .package(path: "../swiftpm/TSC"),
+    .package(path: "../swiftpm/swift-tools-support-core"),
   ]
 }
