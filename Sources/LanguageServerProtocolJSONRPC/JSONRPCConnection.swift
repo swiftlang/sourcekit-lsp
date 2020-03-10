@@ -64,16 +64,28 @@ public final class JSONRPCConnection {
     self.messageRegistry = messageRegistry
     self.syncRequests = syncRequests
 
+    let ioGroup = DispatchGroup()
+
+    ioGroup.enter()
     receiveIO = DispatchIO(type: .stream, fileDescriptor: inFD, queue: queue) { (error: Int32) in
       if error != 0 {
         log("IO error \(error)", level: .error)
       }
+      ioGroup.leave()
     }
 
+    ioGroup.enter()
     sendIO = DispatchIO(type: .stream, fileDescriptor: outFD, queue: sendQueue) { (error: Int32) in
       if error != 0 {
         log("IO error \(error)", level: .error)
       }
+      ioGroup.leave()
+    }
+
+    ioGroup.notify(queue: queue) { [weak self] in
+      guard let self = self else { return }
+      self.closeHandler()
+      self.receiveHandler = nil // break retain cycle
     }
 
     // We cannot assume the client will send us bytes in packets of any particular size, so set the lower limit to 1.
@@ -99,7 +111,9 @@ public final class JSONRPCConnection {
 
     receiveIO.read(offset: 0, length: Int.max, queue: queue) { done, data, errorCode in
       guard errorCode == 0 else {
-        log("IO error \(errorCode)", level: .error)
+        if errorCode != POSIXError.ECANCELED.rawValue {
+          log("IO error reading \(errorCode)", level: .error)
+        }
         if done { self._close() }
         return
       }
@@ -287,6 +301,9 @@ public final class JSONRPCConnection {
   }
 
   /// Close the connection.
+  ///
+  /// The user-provided close handler will be called *asynchronously* when all outstanding I/O
+  /// operations have completed. No new I/O will be accepted after `close` returns.
   public func close() {
     queue.sync { _close() }
   }
@@ -298,10 +315,10 @@ public final class JSONRPCConnection {
       state = .closed
 
       log("\(JSONRPCConnection.self): closing...")
+      // Attempt to close the reader immediately; we do not need to accept remaining inputs.
       receiveIO.close(flags: .stop)
-      sendIO.close(flags: .stop)
-      receiveHandler = nil // break retain cycle
-      closeHandler()
+      // Close the writer after it finishes outstanding work.
+      sendIO.close()
     }
   }
 
