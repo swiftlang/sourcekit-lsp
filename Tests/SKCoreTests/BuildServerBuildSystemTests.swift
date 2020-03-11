@@ -118,11 +118,11 @@ final class BuildServerBuildSystemTests: XCTestCase {
         XCTAssertEqual(items[1].target.uri, targets[1].uri)
         XCTAssertEqual(items[0].sources[0].uri, DocumentURI(URL(fileURLWithPath: "/path/to/a/file")))
         XCTAssertEqual(items[0].sources[0].kind, SourceItemKind.file)
-        XCTAssertEqual(items[0].sources[1].uri, DocumentURI(URL(fileURLWithPath: "/path/to/a/folder/")))
+        XCTAssertEqual(items[0].sources[1].uri, DocumentURI(URL(fileURLWithPath: "/path/to/a/folder", isDirectory: true)))
         XCTAssertEqual(items[0].sources[1].kind, SourceItemKind.directory)
         XCTAssertEqual(items[1].sources[0].uri, DocumentURI(URL(fileURLWithPath: "/path/to/b/file")))
         XCTAssertEqual(items[1].sources[0].kind, SourceItemKind.file)
-        XCTAssertEqual(items[1].sources[1].uri, DocumentURI(URL(fileURLWithPath: "/path/to/b/folder/")))
+        XCTAssertEqual(items[1].sources[1].uri, DocumentURI(URL(fileURLWithPath: "/path/to/b/folder", isDirectory: true)))
         XCTAssertEqual(items[1].sources[1].kind, SourceItemKind.directory)
         expectation.fulfill()
       case .failure(let error):
