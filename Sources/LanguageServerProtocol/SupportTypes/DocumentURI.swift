@@ -53,7 +53,10 @@ public struct DocumentURI: Codable, Hashable {
     guard let url = URL(string: string) else {
       fatalError("Failed to construct DocumentURI from '\(string)'")
     }
-    self.init(url)
+    // We need to call `standardizedFileURL` which will handle escaping file URLs of special
+    // sequences like `%40` (`@`). For non-file URLs, this explicitly is documented to
+    // return itself.
+    self.init(url.standardizedFileURL)
   }
 
   public init(_ url: URL) {
