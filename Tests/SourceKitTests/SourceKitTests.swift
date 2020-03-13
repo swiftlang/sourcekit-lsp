@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import SKCore
 import SKTestSupport
 import XCTest
 
@@ -281,6 +282,39 @@ final class SKTests: XCTestCase {
     let finished = XCTWaiter.wait(for: [finishExpectation], timeout: 3)
     if finished != .completed {
       fatalError("error \(finished) waiting for post-build diagnostics notification")
+    }
+  }
+
+  func testClangdGoToInclude() throws {
+    guard let ws = try staticSourceKitTibsWorkspace(name: "BasicCXX") else { return }
+    guard ToolchainRegistry.shared.default?.clangd != nil else { return }
+
+    let mainLoc = ws.testLoc("Object:include:main")
+    let expectedDoc = ws.testLoc("Object").docIdentifier.uri
+    let includePosition =
+        Position(line: mainLoc.position.line, utf16index: mainLoc.utf16Column + 2)
+
+    try ws.openDocument(mainLoc.url, language: .c)
+
+    let goToInclude = DefinitionRequest(
+      textDocument: mainLoc.docIdentifier, position: includePosition)
+    let resp = try! ws.sk.sendSync(goToInclude)
+
+    guard let locationsOrLinks = resp else {
+      XCTFail("No response for go-to-#include")
+      return
+    }
+    switch locationsOrLinks {
+    case .locations(let locations):
+      XCTAssert(!locations.isEmpty, "Found no locations for go-to-#include")
+      if let loc = locations.first {
+        XCTAssertEqual(loc.uri, expectedDoc)
+      }
+    case .locationLinks(let locationLinks):
+      XCTAssert(!locationLinks.isEmpty, "Found no location links for go-to-#include")
+      if let link = locationLinks.first {
+        XCTAssertEqual(link.targetUri, expectedDoc)
+      }
     }
   }
 }

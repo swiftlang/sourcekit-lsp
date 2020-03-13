@@ -40,6 +40,9 @@ public protocol ToolchainLanguageServer: AnyObject {
   func hover(_ req: Request<HoverRequest>)
   func symbolInfo(_ request: Request<SymbolInfoRequest>)
 
+  /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
+  func definition(_ request: Request<DefinitionRequest>) -> Bool
+
   func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>)
   func foldingRange(_ req: Request<FoldingRangeRequest>)
   func documentSymbol(_ req: Request<DocumentSymbolRequest>)
