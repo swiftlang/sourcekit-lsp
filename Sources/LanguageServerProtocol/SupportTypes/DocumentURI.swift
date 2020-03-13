@@ -12,6 +12,22 @@
 
 import Foundation
 
+/// Standardize the URL.
+///
+/// This normalizes escape sequences in file URLs, like `%40` --> `@`.
+/// But for non-file URLs, has no effect.
+fileprivate func standardize(url: URL) -> URL {
+  guard url.isFileURL else { return url }
+
+  // This has the side-effect of removing trailing slashes from file URLs
+  // on Linux, so we may need to add it back.
+  let standardized = url.standardizedFileURL
+  if url.absoluteString.hasSuffix("/") && !standardized.absoluteString.hasSuffix("/") {
+    return URL(fileURLWithPath: standardized.path, isDirectory: true)
+  }
+  return standardized
+}
+
 public struct DocumentURI: Codable, Hashable {
   /// The URL that store the URIs value
   private let storage: URL
@@ -53,10 +69,7 @@ public struct DocumentURI: Codable, Hashable {
     guard let url = URL(string: string) else {
       fatalError("Failed to construct DocumentURI from '\(string)'")
     }
-    // We need to call `standardizedFileURL` which will handle escaping file URLs of special
-    // sequences like `%40` (`@`). For non-file URLs, this explicitly is documented to
-    // return itself.
-    self.init(url.standardizedFileURL)
+    self.init(standardize(url: url))
   }
 
   public init(_ url: URL) {
