@@ -238,6 +238,10 @@ final class SKTests: XCTestCase {
   }
 
   func testDependenciesUpdatedCXXTibs() throws {
+    // SR-12378: this is failing occassionally in CI. Disabling while we
+    // investigate and fix.
+#if false
+
     guard let ws = try mutableSourceKitTibsTestWorkspace(name: "GeneratedHeader") else { return }
     guard let server = ws.testServer.server else {
       XCTFail("Unable to fetch SourceKitServer to notify for build system events.")
@@ -283,6 +287,7 @@ final class SKTests: XCTestCase {
     if finished != .completed {
       fatalError("error \(finished) waiting for post-build diagnostics notification")
     }
+#endif
   }
 
   func testClangdGoToInclude() throws {
