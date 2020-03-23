@@ -40,10 +40,10 @@ def get_swiftpm_options(args):
     swiftpm_args += [
       # Dispatch headers
       '-Xcxx', '-I', '-Xcxx',
-      os.path.join(args.toolchain, 'usr', 'lib', 'swift'),
+      os.path.join(args.toolchain, 'lib', 'swift'),
       # For <Block.h>
       '-Xcxx', '-I', '-Xcxx',
-      os.path.join(args.toolchain, 'usr', 'lib', 'swift', 'Block'),
+      os.path.join(args.toolchain, 'lib', 'swift', 'Block'),
     ]
 
     if 'ANDROID_DATA' in os.environ:
@@ -62,7 +62,7 @@ def get_swiftpm_options(args):
   return swiftpm_args
 
 def install(swiftpm_bin_path, toolchain):
-  toolchain_bin = os.path.join(toolchain, 'usr', 'bin')
+  toolchain_bin = os.path.join(toolchain, 'bin')
   for exe in ['sourcekit-lsp']:
     install_binary(exe, swiftpm_bin_path, toolchain_bin, toolchain)
 
@@ -73,7 +73,7 @@ def install_binary(exe, source_dir, install_dir, toolchain):
 
   if platform.system() == 'Darwin':
     result_path = os.path.join(install_dir, exe)
-    stdlib_rpath = os.path.join(toolchain, 'usr', 'lib', 'swift', 'macosx')
+    stdlib_rpath = os.path.join(toolchain, 'lib', 'swift', 'macosx')
     delete_rpath(stdlib_rpath, result_path)
 
 def delete_rpath(rpath, binary):
@@ -110,7 +110,7 @@ def main():
   args.toolchain = os.path.abspath(args.toolchain)
 
   if args.toolchain:
-    swift_exec = os.path.join(args.toolchain, 'usr', 'bin', 'swift')
+    swift_exec = os.path.join(args.toolchain, 'bin', 'swift')
   else:
     swift_exec = 'swift'
 
