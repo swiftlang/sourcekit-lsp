@@ -245,6 +245,8 @@ struct sourcekitd_keys {
   let text: sourcekitd_uid_t
 
   // Code Completion related keys.
+  let codecomplete_options: sourcekitd_uid_t
+  let codecomplete_sort_byname: sourcekitd_uid_t
   let context: sourcekitd_uid_t
   let doc: sourcekitd_uid_t
   let not_recommended: sourcekitd_uid_t
@@ -294,6 +296,8 @@ struct sourcekitd_keys {
     text = api.uid_get_from_cstr("key.text")!
 
     // Code Completion related keys.
+    codecomplete_options = api.uid_get_from_cstr("key.codecomplete.options")!
+    codecomplete_sort_byname = api.uid_get_from_cstr("key.codecomplete.sort.byname")!
     context = api.uid_get_from_cstr("key.context")!
     doc = api.uid_get_from_cstr("key.doc.brief")!
     not_recommended = api.uid_get_from_cstr("key.not_recommended")!
