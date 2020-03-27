@@ -460,6 +460,10 @@ extension SwiftLanguageServer {
       skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
       skreq[keys.sourcetext] = snapshot.text
 
+      let skreqOptions = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      skreqOptions[keys.codecomplete_sort_byname] = 1
+      skreq[keys.codecomplete_options] = skreqOptions
+
       // FIXME: SourceKit should probably cache this for us.
       if let settings = self.buildSettingsByFile[snapshot.document.uri] {
         skreq[keys.compilerargs] = settings.compilerArguments
