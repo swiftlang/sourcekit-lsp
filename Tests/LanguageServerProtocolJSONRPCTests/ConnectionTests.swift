@@ -148,7 +148,7 @@ class ConnectionTests: XCTestCase {
       static let method: String = "unknown"
     }
 
-    _ = client.send(UnknownNote())
+    client.send(UnknownNote())
 
     // Nothing bad should happen; check that the next request works.
 
