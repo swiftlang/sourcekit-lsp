@@ -32,8 +32,17 @@ public struct FileBuildSettings: Equatable {
     workingDirectory: String? = nil,
     language: Language)
   {
-    self.compilerArguments = compilerArguments
     self.workingDirectory = workingDirectory
     self.language = language
+    // For swift, sourcekit only accepts `working-directry` through compiler args.
+    // Injecting the arg here if workingDirectory presents in the settings,
+    // but not in the actual compiler args.
+    var compilerArgumentsWithWorkingDirectory = compilerArguments
+    if language == .swift,
+      let workingDirectory = workingDirectory,
+      !compilerArguments.contains("-working-directory") {
+      compilerArgumentsWithWorkingDirectory += ["-working-directory", workingDirectory]
+    }
+    self.compilerArguments = compilerArgumentsWithWorkingDirectory
   }
 }
