@@ -239,8 +239,7 @@ class ConnectionTests: XCTestCase {
         expectation.fulfill()
       })
 
-
-      close(to.fileHandleForWriting.fileDescriptor)
+      to.fileHandleForWriting.closeFile()
       // 100 us was chosen empirically to encourage races.
       usleep(100)
       conn.close()
