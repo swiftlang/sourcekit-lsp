@@ -200,7 +200,7 @@ final class CompilationDatabaseTests: XCTestCase {
       let settings = buildSystem.settings(for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")), .swift)
       XCTAssertNotNil(settings)
       XCTAssertEqual(settings?.workingDirectory, "/a")
-      XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", "/a/a.swift"])
+      XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", "/a/a.swift", "-working-directory", "/a"])
       XCTAssertNil(buildSystem.indexStorePath)
       XCTAssertNil(buildSystem.indexDatabasePath)
     }
