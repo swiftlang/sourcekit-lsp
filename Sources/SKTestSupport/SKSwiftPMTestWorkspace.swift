@@ -57,11 +57,11 @@ public final class SKSwiftPMTestWorkspace {
     _ = try? fm.removeItem(at: tmpDir)
 
     buildDir = tmpDir.appendingPathComponent("build", isDirectory: true)
-    try fm.createDirectory(at: buildDir, withIntermediateDirectories: true, attributes: nil)
+    try fm.tibs_createDirectoryWithIntermediates(at: buildDir)
     let sourceDir = tmpDir.appendingPathComponent("src", isDirectory: true)
     try fm.copyItem(at: projectDir, to: sourceDir)
     let databaseDir = tmpDir.appendingPathComponent("db", isDirectory: true)
-    try fm.createDirectory(at: databaseDir, withIntermediateDirectories: true, attributes: nil)
+    try fm.tibs_createDirectoryWithIntermediates(at: databaseDir)
 
     self.sources = try TestSources(rootDirectory: sourceDir)
 
@@ -76,7 +76,7 @@ public final class SKSwiftPMTestWorkspace {
 
     let libIndexStore = try IndexStoreLibrary(dylibPath: toolchain.libIndexStore!.pathString)
 
-    try fm.createDirectory(atPath: swiftpm.indexStorePath!.pathString, withIntermediateDirectories: true)
+    try fm.tibs_createDirectoryWithIntermediates(at: swiftpm.indexStorePath!.asURL)
 
     let indexDelegate = SourceKitIndexDelegate()
 
