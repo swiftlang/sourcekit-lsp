@@ -41,7 +41,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
     let fileURL = URL(fileURLWithPath: "/path/to/some/file.swift")
     let settings = buildSystem.settings(for: DocumentURI(fileURL), Language.swift)
     XCTAssertNotNil(settings)
-    XCTAssertEqual(settings?.compilerArguments, ["-a", "-b"])
+    XCTAssertEqual(settings?.compilerArguments, ["-a", "-b", "-working-directory", "/path/to/some"])
     XCTAssertEqual(settings?.workingDirectory, fileURL.deletingLastPathComponent().path)
 
     // test error
