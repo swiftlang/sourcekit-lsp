@@ -221,21 +221,34 @@ final class CrashRecoveryTests: XCTestCase {
     
     let clangdCrashed = self.expectation(description: "clangd crashed")
     clangdCrashed.assertForOverFulfill = false
+    // assertForOverFulfill is not working on Linux (SR-12575). Manually keep track if we have already called fulfill on the expectation
+    var clangdCrashedFulfilled = false
+    
     let clangdRestartedFirstTime = self.expectation(description: "clangd restarted for the first time")
+    
     let clangdRestartedSecondTime = self.expectation(description: "clangd restarted for the second time")
     clangdRestartedSecondTime.assertForOverFulfill = false
+    // assertForOverFulfill is not working on Linux (SR-12575). Manually keep track if we have already called fulfill on the expectation
+    var clangdRestartedSecondTimeFulfilled = false
+    
     var clangdHasRestartedFirstTime = false
 
     clangdServer.addStateChangeHandler { (oldState, newState) in
       switch newState {
       case .connectionInterrupted:
-        clangdCrashed.fulfill()
+        if !clangdCrashedFulfilled {
+          clangdCrashed.fulfill()
+          clangdCrashedFulfilled = true
+        }
       case .connected:
         if !clangdHasRestartedFirstTime {
           clangdRestartedFirstTime.fulfill()
           clangdHasRestartedFirstTime = true
         } else {
-          clangdRestartedSecondTime.fulfill()
+          if !clangdRestartedSecondTimeFulfilled {
+            clangdRestartedSecondTime.fulfill()
+            clangdRestartedSecondTimeFulfilled = true
+          }
         }
       default:
         break
