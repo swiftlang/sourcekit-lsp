@@ -24,7 +24,7 @@ def get_swiftpm_options(args):
   swiftpm_args = [
     '--package-path', args.package_path,
     '--build-path', args.build_path,
-    '--configuration', args.configuration,
+    '--configuration', 'debug',
   ]
 
   if args.verbose:
@@ -136,7 +136,7 @@ def main():
     tests = os.path.join(bin_path, 'sk-tests')
     print('Cleaning ' + tests)
     shutil.rmtree(tests, ignore_errors=True)
-    swiftpm('test', swift_exec, swiftpm_args + ['--parallel'], env)
+    swiftpm('test', swift_exec, swiftpm_args, env)
   elif args.action == 'install':
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
     swiftpm('build', swift_exec, swiftpm_args, env)
