@@ -8,7 +8,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     const sourcekit: langclient.Executable = {
         command: config.get<string>('serverPath', 'sourcekit-lsp'),
-        args: config.get<string[]>('serverArguments', [])
+        args: config.get<string[]>('serverOptions', [])
     };
 
     const toolchain = config.get<string>('toolchainPath', '');
