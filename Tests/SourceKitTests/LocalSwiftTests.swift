@@ -787,6 +787,9 @@ final class LocalSwiftTests: XCTestCase {
       ```
       func foo(_ bar: Baz)
       ```
+
+      ---
+
       """)
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Declaration>func foo() -&gt; <Type>Bar</Type></Declaration>
@@ -794,6 +797,9 @@ final class LocalSwiftTests: XCTestCase {
       ```
       func foo() -> Bar
       ```
+
+      ---
+
       """)
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Declaration>func replacingOccurrences&lt;Target, Replacement&gt;(of target: Target, with replacement: Replacement, options: <Type usr="s:SS">String</Type>.<Type usr="s:SS10FoundationE14CompareOptionsa">CompareOptions</Type> = default, range searchRange: <Type usr="s:Sn">Range</Type>&lt;<Type usr="s:SS">String</Type>.<Type usr="s:SS5IndexV">Index</Type>&gt;? = default) -&gt; <Type usr="s:SS">String</Type> where Target : <Type usr="s:Sy">StringProtocol</Type>, Replacement : <Type usr="s:Sy">StringProtocol</Type></Declaration>
@@ -801,6 +807,9 @@ final class LocalSwiftTests: XCTestCase {
       ```
       func replacingOccurrences<Target, Replacement>(of target: Target, with replacement: Replacement, options: String.CompareOptions = default, range searchRange: Range<String.Index>? = default) -> String where Target : StringProtocol, Replacement : StringProtocol
       ```
+
+      ---
+
       """)
   }
 
@@ -811,6 +820,9 @@ final class LocalSwiftTests: XCTestCase {
       ```
       var foo
       ```
+
+      ---
+
       """)
 
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
@@ -819,6 +831,9 @@ final class LocalSwiftTests: XCTestCase {
       ```
       var foo
       ```
+
+      ---
+
       """)
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Class><USR>asdf</USR><Declaration>var foo</Declaration><Name>foo</Name></Class>
@@ -826,6 +841,9 @@ final class LocalSwiftTests: XCTestCase {
       ```
       var foo
       ```
+
+      ---
+
       """)
 
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
@@ -841,6 +859,9 @@ final class LocalSwiftTests: XCTestCase {
       ```
       var foo
       ```
+
+      ---
+
       """)
 
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
@@ -970,6 +991,7 @@ final class LocalSwiftTests: XCTestCase {
       struct String
       ```
 
+      ---
       A Unicode s
 
       ### Discussion
@@ -1135,11 +1157,12 @@ final class LocalSwiftTests: XCTestCase {
         }
         XCTAssertEqual(content.kind, .markdown)
         XCTAssertEqual(content.value, """
-          # S
+          S
           ```
           struct S
           ```
 
+          ---
           This is a doc comment for S.
 
           ### Discussion
@@ -1186,11 +1209,12 @@ final class LocalSwiftTests: XCTestCase {
         }
         XCTAssertEqual(content.kind, .markdown)
         XCTAssertEqual(content.value, ##"""
-          # test(\_:\_:)
+          test(\_:\_:)
           ```
           func test(_ a: Int, _ b: Int)
           ```
 
+          ---
           this is **bold** documentation
           """##)
       }
@@ -1210,11 +1234,12 @@ final class LocalSwiftTests: XCTestCase {
         }
         XCTAssertEqual(content.kind, .markdown)
         XCTAssertEqual(content.value, ##"""
-          # \*%\*(\_:\_:)
+          \*%\*(\_:\_:)
           ```
           func *%* (lhs: String, rhs: String)
           ```
 
+          ---
           this is *italic* documentation
           """##)
       }

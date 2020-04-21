@@ -624,7 +624,7 @@ extension SwiftLanguageServer {
         return String(str.flatMap({ ($0 == "*" || $0 == "_") ? ["\\", $0] : [$0] }))
       }
 
-      var result = "# \(escapeNameMarkdown(name))"
+      var result = escapeNameMarkdown(name)
       if let doc = cursorInfo.documentationXML {
         result += """
 
