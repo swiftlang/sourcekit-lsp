@@ -49,6 +49,9 @@
                 "sourcekit-lsp.serverArguments": {
                     "type": "array",
                     "default": [],
+                    "items": {
+                        "type": "string"
+                    },
                     "description": "Arguments to pass to sourcekit-lsp. Argument keys and values should be provided as separate entries in the array e.g. ['--log-level', 'debug']"
                 },
                 "sourcekit-lsp.toolchainPath": {
