@@ -86,6 +86,15 @@ def delete_rpath(rpath, binary):
   subprocess.check_call(cmd)
 
 
+def should_test_parallel():
+  if platform.system() == 'Linux':
+    distro = platform.distro()
+    if distro[0] != 'Ubuntu':
+      # Workaround hang in Process.run() that hasn't been tracked down yet.
+      return False
+  return True
+
+
 def handle_invocation(swift_exec, args):
   swiftpm_args = get_swiftpm_options(args)
 
@@ -114,7 +123,10 @@ def handle_invocation(swift_exec, args):
     tests = os.path.join(bin_path, 'sk-tests')
     print('Cleaning ' + tests)
     shutil.rmtree(tests, ignore_errors=True)
-    swiftpm('test', swift_exec, swiftpm_args, env)
+    test_args = swiftpm_args
+    if should_test_parallel():
+      test_args += ['--parallel']
+    swiftpm('test', swift_exec, test_args, env)
   elif args.action == 'install':
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
     swiftpm('build', swift_exec, swiftpm_args, env)
