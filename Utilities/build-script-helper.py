@@ -88,7 +88,7 @@ def delete_rpath(rpath, binary):
 
 def should_test_parallel():
   if platform.system() == 'Linux':
-    distro = platform.distro()
+    distro = platform.linux_distribution()
     if distro[0] != 'Ubuntu':
       # Workaround hang in Process.run() that hasn't been tracked down yet.
       return False
