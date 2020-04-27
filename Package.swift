@@ -46,8 +46,12 @@ let package = Package(
       ),
 
       .target(
+        name: "CSKTestSupport",
+        dependencies: []),
+      .target(
         name: "SKTestSupport",
         dependencies: [
+          "CSKTestSupport",
           "ISDBTestSupport",
           "LSPTestSupport",
           "SourceKit",
