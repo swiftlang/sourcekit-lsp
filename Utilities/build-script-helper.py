@@ -114,7 +114,8 @@ def handle_invocation(swift_exec, args):
   if args.sanitize and 'undefined' in args.sanitize:
     supp = os.path.join(args.package_path, 'Utilities', 'ubsan_supressions.supp')
     env['UBSAN_OPTIONS'] = 'halt_on_error=true,suppressions=%s' % supp
-
+  if args.sanitize and 'thread' in args.sanitize:
+    env['TSAN_OPTIONS'] = 'halt_on_error=true'
 
   if args.action == 'build':
     swiftpm('build', swift_exec, swiftpm_args, env)

@@ -380,7 +380,12 @@ final class BuildSystemManagerTests: XCTestCase {
 
 /// A simple `MainFilesProvider` that wraps a dictionary, for testing.
 private final class ManualMainFilesProvider: MainFilesProvider {
-  var mainFiles: [DocumentURI: Set<DocumentURI>] = [:]
+  let lock: DispatchQueue = DispatchQueue(label: "\(ManualMainFilesProvider.self)-lock")
+  private var _mainFiles: [DocumentURI: Set<DocumentURI>] = [:]
+  var mainFiles: [DocumentURI: Set<DocumentURI>] {
+    get { lock.sync { _mainFiles } }
+    set { lock.sync { _mainFiles = newValue } }
+  }
 
   func mainFilesContainingFile(_ file: DocumentURI) -> Set<DocumentURI> {
     if let result = mainFiles[file] {
