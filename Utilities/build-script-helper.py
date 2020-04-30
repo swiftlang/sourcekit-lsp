@@ -126,6 +126,9 @@ def main():
   if args.ninja_bin:
     env['NINJA_BIN'] = args.ninja_bin
 
+  print('Cleaning ' + args.build_path)
+  shutil.rmtree(args.build_path, ignore_errors=True)
+
   if args.action == 'build':
     swiftpm('build', swift_exec, swiftpm_args, env)
   elif args.action == 'test':
