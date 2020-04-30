@@ -117,6 +117,9 @@ def handle_invocation(swift_exec, args):
   if args.sanitize and 'thread' in args.sanitize:
     env['TSAN_OPTIONS'] = 'halt_on_error=true'
 
+  print('Cleaning ' + args.build_path)
+  shutil.rmtree(args.build_path, ignore_errors=True)
+
   if args.action == 'build':
     swiftpm('build', swift_exec, swiftpm_args, env)
   elif args.action == 'test':
