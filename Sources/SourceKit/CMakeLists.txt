@@ -38,6 +38,10 @@ target_link_libraries(SourceKit PUBLIC
   SKCore
   SKSwiftPMWorkspace
   TSCUtility)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
+  target_link_libraries(SourceKit PRIVATE
+    FoundationXML)
+endif()
 
 if(BUILD_SHARED_LIBS)
   get_swift_host_arch(swift_arch)
