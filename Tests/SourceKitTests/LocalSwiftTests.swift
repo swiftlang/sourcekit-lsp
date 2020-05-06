@@ -46,7 +46,8 @@ final class LocalSwiftTests: XCTestCase {
                                           codeAction: .init(
                                             codeActionLiteralSupport: .init(
                                               codeActionKind: .init(valueSet: [.quickFix])
-                                          )))),
+                                            )),
+                                          publishDiagnostics: .init(complexDiagnosticCodeSupport: true))),
         trace: .off,
         workspaceFolders: nil))
   }
@@ -450,6 +451,29 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertEqual(
         note.params.diagnostics.first?.range.lowerBound,
         Position(line: 0, utf16index: 3))
+    })
+  }
+
+  func testEducationalNotesAreUsedAsDiagnosticCodes() {
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let uri = DocumentURI(url)
+
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: "extension (Int, Int) {}"
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      let diag = note.params.diagnostics.first!
+      // FIXME: Once Swift 5.3 ships, assert `code` is non-nil.
+      if let code = diag.code {
+        XCTAssertEqual(code.value, .string("nominal-types"))
+        XCTAssertEqual(code.target?.fileURL?.lastPathComponent, "nominal-types.md")
+      }
     })
   }
 

@@ -203,8 +203,30 @@ final class CodingTests: XCTestCase {
     checkCoding(Language.swift, json: "\"swift\"")
     checkCoding(Language(rawValue: "unknown"), json: "\"unknown\"")
 
-    checkCoding(DiagnosticCode.number(123), json: "123")
-    checkCoding(DiagnosticCode.string("hi"), json: "\"hi\"")
+    checkCoding(DiagnosticCode(number: 123), json: "123")
+    checkCoding(DiagnosticCode(string: "hi"), json: "\"hi\"")
+    checkCoding(DiagnosticCode(number: 123, target: DocumentURI(string: "http://www.swift.org")), json: """
+      {
+        "target" : "http:\\/\\/www.swift.org",
+        "value" : 123
+      }
+      """)
+    checkCoding(DiagnosticCode(string: "hi", target: DocumentURI(string: "http://www.swift.org")), json: """
+      {
+        "target" : "http:\\/\\/www.swift.org",
+        "value" : "hi"
+      }
+      """)
+    checkDecoding(json: """
+      {
+        "value" : "foo"
+      }
+      """, expected: DiagnosticCode(string: "foo"))
+    checkDecoding(json: """
+    {
+      "value" : 123
+    }
+    """, expected: DiagnosticCode(number: 123))
 
     let markup = MarkupContent(kind: .plaintext, value: "a")
     checkCoding(HoverResponse(contents: .markupContent(markup), range: nil), json: """

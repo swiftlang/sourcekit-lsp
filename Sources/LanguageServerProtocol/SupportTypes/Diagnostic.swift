@@ -19,9 +19,24 @@ public enum DiagnosticSeverity: Int, Codable, Hashable {
 }
 
 /// A unique diagnostic code, which may be used identifier the diagnostic in e.g. documentation.
-public enum DiagnosticCode: Hashable {
-  case number(Int)
-  case string(String)
+public struct DiagnosticCode: Hashable {
+  public enum NumberOrString: Hashable {
+    case number(Int)
+    case string(String)
+  }
+
+  public var value: NumberOrString
+  public var target: DocumentURI?
+
+  public init(number: Int, target: DocumentURI? = nil) {
+    self.value = .number(number)
+    self.target = target
+  }
+
+  public init(string: String, target: DocumentURI? = nil) {
+    self.value = .string(string)
+    self.target = target
+  }
 }
 
 /// A diagnostic message such a compiler error or warning.
@@ -88,7 +103,7 @@ public struct DiagnosticRelatedInformation: Codable, Hashable {
   }
 }
 
-extension DiagnosticCode: Codable {
+extension DiagnosticCode.NumberOrString: Codable {
   public init(from decoder: Decoder) throws {
     let value = try decoder.singleValueContainer()
     if let intValue = try? value.decode(Int.self) {
@@ -111,11 +126,48 @@ extension DiagnosticCode: Codable {
   }
 }
 
-extension DiagnosticCode: CustomStringConvertible {
+extension DiagnosticCode: Codable {
+  enum ComplexCodingKeys: CodingKey {
+    case value
+    case target
+  }
+
+  public init(from decoder: Decoder) throws {
+    if let simpleCodeValue = try? NumberOrString(from: decoder) {
+      self.value = simpleCodeValue
+    } else {
+      let container = try decoder.container(keyedBy: ComplexCodingKeys.self)
+      self.value = try container.decode(NumberOrString.self, forKey: .value)
+      self.target = try container.decodeIfPresent(DocumentURI.self, forKey: .target)
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    if let target = target {
+      var container = encoder.container(keyedBy: ComplexCodingKeys.self)
+      try container.encode(value, forKey: .value)
+      try container.encode(target, forKey: .target)
+    } else {
+      try value.encode(to: encoder)
+    }
+  }
+}
+
+extension DiagnosticCode.NumberOrString: CustomStringConvertible {
   public var description: String {
     switch self {
     case .number(let n): return String(n)
     case .string(let s): return "\"\(s)\""
     }
+  }
+}
+
+extension DiagnosticCode: CustomStringConvertible {
+  public var description: String {
+    var description = value.description
+    if let target = target {
+      description += ": \(target)"
+    }
+    return description
   }
 }

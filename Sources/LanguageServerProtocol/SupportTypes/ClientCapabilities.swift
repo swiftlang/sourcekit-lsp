@@ -356,13 +356,18 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     /// Whether the client accepts diagnostics with related information.
     public var relatedInformation: Bool? = nil
 
+    // Clients support complex diagnostic codes (e.g. code and target URI).
+    public var complexDiagnosticCodeSupport: Bool? = nil
+
     /// Requests that SourceKit-LSP send `Diagnostic.codeActions`.
     /// **LSP Extension from clangd**.
     public var codeActionsInline: Bool? = nil
 
     public init(relatedInformation: Bool? = nil,
+                complexDiagnosticCodeSupport: Bool? = nil,
                 codeActionsInline: Bool? = nil) {
       self.relatedInformation = relatedInformation
+      self.complexDiagnosticCodeSupport = complexDiagnosticCodeSupport
       self.codeActionsInline = codeActionsInline
     }
   }

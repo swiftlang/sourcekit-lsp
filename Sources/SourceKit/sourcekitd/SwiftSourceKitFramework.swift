@@ -217,6 +217,7 @@ struct sourcekitd_keys {
   let notification: sourcekitd_uid_t
   let fixits: sourcekitd_uid_t
   let diagnostics: sourcekitd_uid_t
+  let educational_note_paths: sourcekitd_uid_t
   let diagnostic_stage: sourcekitd_uid_t
   let severity: sourcekitd_uid_t
   let line: sourcekitd_uid_t
@@ -268,6 +269,7 @@ struct sourcekitd_keys {
     notification = api.uid_get_from_cstr("key.notification")!
     fixits = api.uid_get_from_cstr("key.fixits")!
     diagnostics = api.uid_get_from_cstr("key.diagnostics")!
+    educational_note_paths = api.uid_get_from_cstr("key.educational_note_paths")!
     diagnostic_stage = api.uid_get_from_cstr("key.diagnostic_stage")!
     severity = api.uid_get_from_cstr("key.severity")!
     line = api.uid_get_from_cstr("key.line")!

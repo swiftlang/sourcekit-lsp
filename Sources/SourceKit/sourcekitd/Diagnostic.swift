@@ -107,7 +107,8 @@ extension TextEdit {
 extension Diagnostic {
 
   /// Creates a diagnostic from a sourcekitd response dictionary.
-  init?(_ diag: SKResponseDictionary, in snapshot: DocumentSnapshot) {
+  init?(_ diag: SKResponseDictionary, in snapshot: DocumentSnapshot,
+        useEducationalNoteAsCode: Bool = false) {
     // FIXME: this assumes that the diagnostics are all in the same file.
 
     let keys = diag.sourcekitd.keys
@@ -157,10 +158,26 @@ extension Diagnostic {
       }
     }
 
+    var code: DiagnosticCode? = nil
+    // If useEducationalNoteAsCode is true, use the name of the first educational
+    // note as the diagnostic code, and its file path as the target. By convention,
+    // the first educational note attached to a diagnostic is the most important.
+    // In the future, we should find a way to expose any additional educational
+    // notes, and any educational notes attached to a diagnostic note.
+    if useEducationalNoteAsCode,
+       let educationalNotePaths: SKResponseArray = diag[keys.educational_note_paths],
+       educationalNotePaths.count > 0,
+       let path = educationalNotePaths.sourcekitd.api.variant_array_get_string(educationalNotePaths.array, 0)
+    {
+      let url = URL(fileURLWithPath: String(cString: path))
+      let name = url.deletingPathExtension().lastPathComponent
+      code = DiagnosticCode(string: name, target: DocumentURI(url))
+    }
+
     self.init(
       range: Range(position!),
       severity: severity,
-      code: nil,
+      code: code,
       source: "sourcekitd",
       message: message,
       relatedInformation: notes,
@@ -209,9 +226,12 @@ struct CachedDiagnostic {
 }
 
 extension CachedDiagnostic {
-  init?(_ diag: SKResponseDictionary, in snapshot: DocumentSnapshot) {
+  init?(_ diag: SKResponseDictionary, in snapshot: DocumentSnapshot,
+        useEducationalNoteAsCode: Bool = false) {
     let sk = diag.sourcekitd
-    guard let diagnostic = Diagnostic(diag, in: snapshot) else { return nil }
+    guard let diagnostic = Diagnostic(diag,
+                                      in: snapshot,
+                                      useEducationalNoteAsCode: useEducationalNoteAsCode) else { return nil }
     self.diagnostic = diagnostic
     let stageUID: sourcekitd_uid_t? = diag[sk.keys.diagnostic_stage]
     self.stage = stageUID.flatMap { DiagnosticStage($0, sourcekitd: sk) } ?? .parse

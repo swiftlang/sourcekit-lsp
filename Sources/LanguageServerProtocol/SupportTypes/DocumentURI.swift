@@ -85,3 +85,7 @@ public struct DocumentURI: Codable, Hashable {
     try storage.absoluteString.encode(to: encoder)
   }
 }
+
+extension DocumentURI: CustomStringConvertible {
+  public var description: String { storage.absoluteString }
+}
