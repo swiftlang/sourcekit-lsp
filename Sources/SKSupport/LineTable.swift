@@ -172,15 +172,37 @@ extension LineTable {
   /// - parameter utf8Column: UTF-8 column offset (zero-based).
   @inlinable
   public func utf16ColumnAt(line: Int, utf8Column: Int) -> Int? {
+    return convertColumn(
+      line: line,
+      column: utf8Column,
+      indexFunction: content.utf8.index(_:offsetBy:limitedBy:),
+      distanceFunction: content.utf16.distance(from:to:))
+  }
+
+  /// Returns UTF8 column offset at UTF16 version of logical position.
+  ///
+  /// - parameter line: Line number (zero-based).
+  /// - parameter utf16Column: UTF-16 column offset (zero-based).
+  @inlinable
+  public func utf8ColumnAt(line: Int, utf16Column: Int) -> Int? {
+    return convertColumn(
+      line: line,
+      column: utf16Column,
+      indexFunction: content.utf16.index(_:offsetBy:limitedBy:),
+      distanceFunction: content.utf8.distance(from:to:))
+  }
+
+  @inlinable
+  func convertColumn(line: Int, column: Int, indexFunction: (Substring.Index, Int, Substring.Index) -> Substring.Index?, distanceFunction: (Substring.Index, Substring.Index) -> Int) -> Int? {
     guard line < count else {
       // Line out of range.
       return nil
     }
     let lineSlice = self[line]
-    guard let targetIndex = content.utf8.index(lineSlice.startIndex, offsetBy: utf8Column, limitedBy: lineSlice.endIndex) else {
+    guard let targetIndex = indexFunction(lineSlice.startIndex, column, lineSlice.endIndex) else {
       // Column out of range
       return nil
     }
-    return content.utf16.distance(from: lineSlice.startIndex, to: targetIndex)
+    return distanceFunction(lineSlice.startIndex, targetIndex)
   }
 }

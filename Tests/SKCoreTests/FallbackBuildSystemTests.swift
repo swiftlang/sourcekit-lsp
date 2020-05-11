@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKCore
 import LanguageServerProtocol
+import SKCore
 import TSCBasic
 import XCTest
 
@@ -27,7 +27,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     XCTAssertNil(bs.indexStorePath)
     XCTAssertNil(bs.indexDatabasePath)
 
-    let settings = bs.settings(for: source.asURL, .swift)!
+    let settings = bs.settings(for: source.asURI, .swift)!
     XCTAssertNil(settings.workingDirectory)
 
     let args = settings.compilerArguments
@@ -39,7 +39,7 @@ final class FallbackBuildSystemTests: XCTestCase {
 
     bs.sdkpath = nil
 
-    XCTAssertEqual(bs.settings(for: source.asURL, .swift)?.compilerArguments, [
+    XCTAssertEqual(bs.settings(for: source.asURI, .swift)?.compilerArguments, [
       source.pathString,
     ])
   }
@@ -51,7 +51,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let bs = FallbackBuildSystem()
     bs.sdkpath = sdk
 
-    let settings = bs.settings(for: source.asURL, .cpp)!
+    let settings = bs.settings(for: source.asURI, .cpp)!
     XCTAssertNil(settings.workingDirectory)
 
     let args = settings.compilerArguments
@@ -63,7 +63,7 @@ final class FallbackBuildSystemTests: XCTestCase {
 
     bs.sdkpath = nil
 
-    XCTAssertEqual(bs.settings(for: source.asURL, .cpp)?.compilerArguments, [
+    XCTAssertEqual(bs.settings(for: source.asURI, .cpp)?.compilerArguments, [
       source.pathString,
     ])
   }
@@ -72,7 +72,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let source = AbsolutePath("/my/source.c")
     let bs = FallbackBuildSystem()
     bs.sdkpath = nil
-    XCTAssertEqual(bs.settings(for: source.asURL, .c)?.compilerArguments, [
+    XCTAssertEqual(bs.settings(for: source.asURI, .c)?.compilerArguments, [
       source.pathString,
     ])
   }
@@ -81,7 +81,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let source = AbsolutePath("/my/source.m")
     let bs = FallbackBuildSystem()
     bs.sdkpath = nil
-    XCTAssertEqual(bs.settings(for: source.asURL, .objective_c)?.compilerArguments, [
+    XCTAssertEqual(bs.settings(for: source.asURI, .objective_c)?.compilerArguments, [
       source.pathString,
     ])
   }
@@ -90,7 +90,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let source = AbsolutePath("/my/source.mm")
     let bs = FallbackBuildSystem()
     bs.sdkpath = nil
-    XCTAssertEqual(bs.settings(for: source.asURL, .objective_cpp)?.compilerArguments, [
+    XCTAssertEqual(bs.settings(for: source.asURI, .objective_cpp)?.compilerArguments, [
       source.pathString,
     ])
   }
@@ -98,6 +98,6 @@ final class FallbackBuildSystemTests: XCTestCase {
   func testUnknown() {
     let source = AbsolutePath("/my/source.mm")
     let bs = FallbackBuildSystem()
-    XCTAssertNil(bs.settings(for: source.asURL, Language(rawValue: "unknown")))
+    XCTAssertNil(bs.settings(for: source.asURI, Language(rawValue: "unknown")))
   }
 }

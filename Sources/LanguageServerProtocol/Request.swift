@@ -10,8 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-
 /// A request object, wrapping the parameters of a `RequestType` and tracking its state.
 public final class Request<R: RequestType> {
 
@@ -92,8 +90,7 @@ extension Request: CustomStringConvertible {
     Request<\(R.method)>(
       id: \(id),
       clientID: \(clientID),
-      params: \(params),
-      replied: \(replied)
+      params: \(params)
     )
     """
   }

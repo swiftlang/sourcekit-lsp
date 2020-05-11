@@ -10,15 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocolJSONRPC
 import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
+import LSPTestSupport
 import XCTest
-import SKTestSupport
 
 final class CodingTests: XCTestCase {
 
   func testMessageCoding() {
-    checkMessageCoding(InitializeRequest(processId: 1, rootPath: "/foo", rootURL: nil, initializationOptions: nil, capabilities: ClientCapabilities(workspace: nil, textDocument: nil), trace: .off, workspaceFolders: nil), id: .number(2), json: """
+    checkMessageCoding(InitializeRequest(processId: 1, rootPath: "/foo", rootURI: nil, initializationOptions: nil, capabilities: ClientCapabilities(workspace: nil, textDocument: nil), trace: .off, workspaceFolders: nil), id: .number(2), json: """
     {
       "id" : 2,
       "jsonrpc" : "2.0",
@@ -34,7 +34,7 @@ final class CodingTests: XCTestCase {
     }
     """)
 
-    checkMessageCoding(InitializeRequest(processId: 1, rootPath: "/foo", rootURL: nil, initializationOptions: nil, capabilities: ClientCapabilities(workspace: nil, textDocument: nil), trace: .off, workspaceFolders: nil), id: .string("3"), json: """
+    checkMessageCoding(InitializeRequest(processId: 1, rootPath: "/foo", rootURI: nil, initializationOptions: nil, capabilities: ClientCapabilities(workspace: nil, textDocument: nil), trace: .off, workspaceFolders: nil), id: .string("3"), json: """
     {
       "id" : "3",
       "jsonrpc" : "2.0",
@@ -50,7 +50,7 @@ final class CodingTests: XCTestCase {
     }
     """)
 
-    checkMessageCoding(CancelRequest(id: .number(1)), json: """
+    checkMessageCoding(CancelRequestNotification(id: .number(1)), json: """
     {
       "jsonrpc" : "2.0",
       "method" : "$\\/cancelRequest",
@@ -79,15 +79,7 @@ final class CodingTests: XCTestCase {
         save: TextDocumentSyncOptions.SaveOptions(includeText: false)),
       completionProvider: CompletionOptions(
         resolveProvider: false,
-        triggerCharacters: ["."]),
-      hoverProvider: nil,
-      definitionProvider: nil,
-      implementationProvider: nil,
-      referencesProvider: nil,
-      documentHighlightProvider: nil,
-      foldingRangeProvider: nil,
-      codeActionProvider: nil,
-      workspaceSymbolProvider: nil)), id: .number(2), json: """
+        triggerCharacters: ["."]))), id: .number(2), json: """
     {
       "id" : 2,
       "jsonrpc" : "2.0",
@@ -179,7 +171,7 @@ final class CodingTests: XCTestCase {
     {"jsonrpc":"2.0","method":"$/cancelRequest"}
     """)
 
-    checkMessageDecodingError(MessageDecodingError.invalidParams("type mistmatch at params : Expected to decode Dictionary<String, Any> but found a number instead.", messageKind: .notification), json: """
+    checkMessageDecodingError(MessageDecodingError.invalidParams("type mismatch at params : Expected to decode Dictionary<String, Any> but found a number instead.", messageKind: .notification), json: """
     {"jsonrpc":"2.0","method":"$/cancelRequest","params":2}
     """)
 

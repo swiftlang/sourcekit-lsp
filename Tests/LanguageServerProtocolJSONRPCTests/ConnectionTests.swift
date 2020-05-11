@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocolJSONRPC
 import LanguageServerProtocol
-import SKTestSupport
+import LanguageServerProtocolJSONRPC
+import LSPTestSupport
 import XCTest
 
 // Workaround ambiguity with Foundation.
@@ -24,6 +24,7 @@ class ConnectionTests: XCTestCase {
 
   override func setUp() {
     connection = TestJSONRPCConnection()
+    connection.client.allowUnexpectedNotification = false
   }
 
   override func tearDown() {
@@ -46,8 +47,6 @@ class ConnectionTests: XCTestCase {
     }
 
     waitForExpectations(timeout: 10)
-
-    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
   func testMessageBuffer() {
@@ -73,7 +72,6 @@ class ConnectionTests: XCTestCase {
     clientConnection.send(_rawData: [note1Str.utf8.last!, note2Str.utf8.first!].withUnsafeBytes { DispatchData(bytes: $0) })
 
     waitForExpectations(timeout: 10)
-    XCTAssertEqual(connection.serverConnection._requestBuffer, [note2Str.utf8.first!])
 
     let expectation2 = self.expectation(description: "note received")
 
@@ -87,6 +85,9 @@ class ConnectionTests: XCTestCase {
     }
 
     waitForExpectations(timeout: 10)
+
+    // Close the connection before accessing _requestBuffer, which ensures we don't race.
+    connection.serverConnection.close()
     XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
@@ -106,8 +107,6 @@ class ConnectionTests: XCTestCase {
     }
 
     waitForExpectations(timeout: 10)
-
-    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
   func testEchoNote() {
@@ -122,8 +121,6 @@ class ConnectionTests: XCTestCase {
     client.send(EchoNotification(string: "hello!"))
 
     waitForExpectations(timeout: 10)
-
-    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
   }
 
   func testUnknownRequest() {
@@ -136,7 +133,7 @@ class ConnectionTests: XCTestCase {
     }
 
     _ = client.send(UnknownRequest()) { result in
-      XCTAssertEqual(result.failure, ResponseError.methodNotFound("unknown"))
+      XCTAssertEqual(result, .failure(ResponseError.methodNotFound("unknown")))
       expectation.fulfill()
     }
 
@@ -151,7 +148,7 @@ class ConnectionTests: XCTestCase {
       static let method: String = "unknown"
     }
 
-    _ = client.send(UnknownNote())
+    client.send(UnknownNote())
 
     // Nothing bad should happen; check that the next request works.
 
@@ -188,7 +185,7 @@ class ConnectionTests: XCTestCase {
 
     client.send(EchoNotification(string: "hi"))
     _ = client.send(EchoRequest(string: "yo")) { result in
-      XCTAssertEqual(result.failure, ResponseError.cancelled)
+      XCTAssertEqual(result, .failure(ResponseError.cancelled))
       expectation.fulfill()
     }
 
@@ -200,6 +197,20 @@ class ConnectionTests: XCTestCase {
     waitForExpectations(timeout: 10)
   }
 
+  func testSendBeforeClose() {
+    let client = connection.client
+    let server = connection.server
+
+    let expectation = self.expectation(description: "received notification")
+    client.handleNextNotification { (note: Notification<EchoNotification>) in
+      expectation.fulfill()
+    }
+
+    server.client.send(EchoNotification(string: "about to close!"))
+    connection.serverConnection.close()
+
+    waitForExpectations(timeout: 10)
+  }
 
   /// We can explicitly close a connection, but the connection also
   /// automatically closes itself if the pipe is closed (or has an error).
@@ -213,24 +224,22 @@ class ConnectionTests: XCTestCase {
       let expectation = self.expectation(description: "closed")
       expectation.assertForOverFulfill = true
 
-      let conn = JSONRPCConection(
+      let conn = JSONRPCConnection(
         protocol: MessageRegistry(requests: [], notifications: []),
         inFD: to.fileHandleForReading.fileDescriptor,
-        outFD: from.fileHandleForWriting.fileDescriptor,
-        closeHandler: {
-        // We get an error from XCTest if this is fulfilled more than once.
-        expectation.fulfill()
-      })
+        outFD: from.fileHandleForWriting.fileDescriptor)
 
       final class DummyHandler: MessageHandler {
         func handle<N: NotificationType>(_: N, from: ObjectIdentifier) {}
         func handle<R: RequestType>(_: R, id: RequestID, from: ObjectIdentifier, reply: @escaping (LSPResult<R.Response>) -> Void) {}
       }
 
-      conn.start(receiveHandler: DummyHandler())
+      conn.start(receiveHandler: DummyHandler(), closeHandler: {
+        // We get an error from XCTest if this is fulfilled more than once.
+        expectation.fulfill()
+      })
 
-
-      close(to.fileHandleForWriting.fileDescriptor)
+      to.fileHandleForWriting.closeFile()
       // 100 us was chosen empirically to encourage races.
       usleep(100)
       conn.close()

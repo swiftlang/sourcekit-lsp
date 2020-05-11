@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import SKSupport
+import LSPTestSupport
 import SKTestSupport
-import XCTest
 import SourceKit
+import XCTest
 
 final class DocumentSymbolTest: XCTestCase {
   typealias DocumentSymbolCapabilities = TextDocumentClientCapabilities.DocumentSymbol
@@ -25,11 +25,7 @@ final class DocumentSymbolTest: XCTestCase {
   /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
 
-  /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
-  var workspace: Workspace! = nil
-
 override func tearDown() {
-  workspace = nil
   sk = nil
   connection = nil
 }
@@ -42,21 +38,18 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     _ = try! sk.sendSync(InitializeRequest(
       processId: nil,
       rootPath: nil,
-      rootURL: nil,
+      rootURI: nil,
       initializationOptions: nil,
       capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
       trace: .off,
       workspaceFolders: nil))
-
-    workspace = connection.server!.workspace!
   }
 
-  func performDocumentSymbolRequest(text: String) -> [DocumentSymbol] {
-    let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
+  func performDocumentSymbolRequest(text: String) -> DocumentSymbolResponse {
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: DocumentURI(url),
       language: .swift,
       version: 17,
       text: text
@@ -66,10 +59,10 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     return try! sk.sendSync(request)!
   }
 
-  func range(from startTuple: (Int, Int), to endTuple: (Int, Int)) -> PositionRange {
+  func range(from startTuple: (Int, Int), to endTuple: (Int, Int)) -> Range<Position> {
     let startPos = Position(line: startTuple.0, utf16index: startTuple.1)
     let endPos = Position(line: endTuple.0, utf16index: endTuple.1)
-    return PositionRange(startPos..<endPos)
+    return startPos..<endPos
   }
 
   func testEmpty() {
@@ -78,7 +71,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
 
     let text = ""
     let symbols = performDocumentSymbolRequest(text: text)
-    XCTAssertEqual(symbols, [])
+    XCTAssertEqual(symbols, .documentSymbols([]))
   }
 
   func testStruct() {
@@ -90,7 +83,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     """
     let symbols = performDocumentSymbolRequest(text: text)
 
-    XCTAssertEqual(symbols, [
+    XCTAssertEqual(symbols, .documentSymbols([
       DocumentSymbol(
         name: "Foo",
         detail: nil,
@@ -100,7 +93,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
         selectionRange: range(from: (0, 7), to: (0, 10)),
         children: []
       ),
-    ])
+    ]))
   }
 
   func testUnicode() {
@@ -119,7 +112,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     // but cake is two utf-16 code units
     let cakeRange = range(from: (1, 0), to: (1, 13))
     let cakeSelectionRange = range(from: (1, 7), to: (1, 9))
-    XCTAssertEqual(symbols, [
+    XCTAssertEqual(symbols, .documentSymbols([
       DocumentSymbol(
         name: "Żółć",
         detail: nil,
@@ -138,7 +131,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
         selectionRange: cakeSelectionRange,
         children: []
       ),
-    ])
+    ]))
   }
 
   func testEnum() {
@@ -160,7 +153,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     """
     let symbols = performDocumentSymbolRequest(text: text)
 
-    XCTAssertEqual(symbols, [
+    XCTAssertEqual(symbols, .documentSymbols([
       DocumentSymbol(
         name: "Foo",
         detail: nil,
@@ -289,7 +282,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
           )
         ]
       )
-    ])
+    ]))
   }
 
   func testAll() {
@@ -334,7 +327,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
     """
     let symbols = performDocumentSymbolRequest(text: text)
 
-    XCTAssertEqual(symbols, [
+    XCTAssertEqual(symbols, .documentSymbols([
       DocumentSymbol(
         name: "Int",
         detail: nil,
@@ -647,6 +640,6 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
           )
         ]
       )
-    ])
+    ]))
   }
 }

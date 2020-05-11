@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -10,16 +10,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import SKCore
-import TSCBasic
-import TSCUtility
-import SKSupport
+#if canImport(SPMBuildCore)
+import SPMBuildCore
+#endif
 import Build
-import PackageModel
+import BuildServerProtocol
+import LanguageServerProtocol
+import LSPLogging
 import PackageGraph
 import PackageLoading
+import PackageModel
+import SKCore
+import SKSupport
 import Workspace
+import struct Foundation.URL
 
 /// Swift Package Manager build system and workspace support.
 ///
@@ -44,7 +48,7 @@ public final class SwiftPMWorkspace {
   let packageRoot: AbsolutePath
   var packageGraph: PackageGraph
   let workspace: Workspace
-  let buildParameters: BuildParameters
+  public let buildParameters: BuildParameters
   let fileSystem: FileSystem
 
   var fileToTarget: [AbsolutePath: TargetBuildDescription] = [:]
@@ -90,7 +94,7 @@ public final class SwiftPMWorkspace {
       fileSystem: fileSystem,
       skipUpdate: true)
 
-    let triple = Triple.hostTriple
+    let triple = toolchain.triple
 
     let swiftPMConfiguration: PackageModel.BuildConfiguration
     switch buildSetup.configuration {
@@ -114,7 +118,7 @@ public final class SwiftPMWorkspace {
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
   /// - Returns: nil if `workspacePath` is not part of a package or there is an error.
-  public convenience init?(url: LanguageServerProtocol.URL,
+  public convenience init?(url: URL,
                            toolchainRegistry: ToolchainRegistry,
                            buildSetup: BuildSetup)
   {
@@ -180,7 +184,7 @@ extension SwiftPMWorkspace {
   }
 }
 
-extension SwiftPMWorkspace: BuildSystem {
+extension SwiftPMWorkspace: SKCore.BuildSystem {
 
   public var buildPath: AbsolutePath {
     return buildParameters.buildPath
@@ -195,9 +199,13 @@ extension SwiftPMWorkspace: BuildSystem {
   }
 
   public func settings(
-    for url: LanguageServerProtocol.URL,
+    for uri: DocumentURI,
     _ language: Language) -> FileBuildSettings?
   {
+    guard let url = uri.fileURL else {
+      // We can't determine build settings for non-file URIs.
+      return nil
+    }
     guard let path = try? AbsolutePath(validating: url.path) else {
       return nil
     }
@@ -217,20 +225,29 @@ extension SwiftPMWorkspace: BuildSystem {
     return nil
   }
 
-  public func toolchain(for: LanguageServerProtocol.URL, _ language: Language) -> SKCore.Toolchain? {
-    return nil
-  }
-
   /// Register the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func registerForChangeNotifications(for url: LanguageServerProtocol.URL) {
+  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     // TODO: Support for change detection (via file watching)
   }
 
   /// Unregister the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
-  public func unregisterForChangeNotifications(for url: LanguageServerProtocol.URL) {
+  public func unregisterForChangeNotifications(for uri: DocumentURI) {
     // TODO: Support for change detection (via file watching)
+  }
+
+  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
+    // TODO: Support for build targets
+    reply(.failure(buildTargetsNotSupported))
+  }
+
+  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[SourcesItem]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
+  }
+
+  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
   }
 
   /// Returns the resolved target description for the given file, if one is known.
@@ -276,7 +293,7 @@ extension SwiftPMWorkspace {
     func impl(_ path: AbsolutePath) -> FileBuildSettings? {
       for package in packageGraph.packages where path == package.manifest.path {
         let compilerArgs = workspace.interpreterFlags(for: package.path) + [path.pathString]
-        return FileBuildSettings(compilerArguments: compilerArgs)
+        return FileBuildSettings(compilerArguments: compilerArgs, language: .swift)
       }
       return nil
     }
@@ -336,7 +353,8 @@ extension SwiftPMWorkspace {
 
     return FileBuildSettings(
       compilerArguments: args,
-      workingDirectory: workspacePath.pathString)
+      workingDirectory: workspacePath.pathString,
+      language: .swift)
   }
 
   /// Retrieve settings for the given C-family language file, which is part of a known target build
@@ -398,7 +416,8 @@ extension SwiftPMWorkspace {
 
     return FileBuildSettings(
       compilerArguments: args,
-      workingDirectory: workspacePath.pathString)
+      workingDirectory: workspacePath.pathString,
+      language: language)
   }
 }
 

@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "name": "main",
+      "sources": [
+        "a.swift",
+        "b.swift",
+        "c.cpp",
+      ],
+      "clang_flags": [
+        "-DTHIS_IS_FROM_C",
+      ],
+      "bridging_header": "bridging.h",
+    },
+    {
+      "name": "just_d",
+      "sources": [
+        "d.cpp",
+      ],
+      "clang_flags": [
+        "-DTHIS_IS_FROM_D",
+      ],
+    }
+  ]
+}

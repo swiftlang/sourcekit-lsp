@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -12,12 +12,13 @@
 
 import XCTest
 import LanguageServerProtocol
-import SKTestSupport
+import LSPTestSupport
 
 final class CodingTests: XCTestCase {
 
   func testValueCoding() {
     let url = URL(fileURLWithPath: "/foo.swift")
+    let uri = DocumentURI(url)
     // The \\/\\/\\/ is escaping file:// + /foo.swift, which is silly but allowed by json.
     let urljson = "file:\\/\\/\\/foo.swift"
 
@@ -38,10 +39,8 @@ final class CodingTests: XCTestCase {
 
     let indent2rangejson = rangejson.indented(2, skipFirstLine: true)
 
-    checkCoding(PositionRange(range), json: rangejson)
-
     // url -> uri
-    checkCoding(Location(url: url, range: range), json: """
+    checkCoding(Location(uri: uri, range: range), json: """
       {
         "range" : \(indent2rangejson),
         "uri" : "\(urljson)"
@@ -56,26 +55,26 @@ final class CodingTests: XCTestCase {
       """)
 
     // url -> uri
-    checkCoding(TextDocumentIdentifier(url), json: """
+    checkCoding(TextDocumentIdentifier(uri), json: """
       {
         "uri" : "\(urljson)"
       }
       """)
 
-    checkCoding(VersionedTextDocumentIdentifier(url, version: nil), json: """
+    checkCoding(VersionedTextDocumentIdentifier(uri, version: nil), json: """
       {
         "uri" : "\(urljson)"
       }
       """)
 
-    checkCoding(VersionedTextDocumentIdentifier(url, version: 3), json: """
+    checkCoding(VersionedTextDocumentIdentifier(uri, version: 3), json: """
       {
         "uri" : "\(urljson)",
         "version" : 3
       }
       """)
 
-    checkCoding(TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(url, version: 1), edits: [TextEdit(range: range, newText: "foo")]), json: """
+    checkCoding(TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(uri, version: 1), edits: [TextEdit(range: range, newText: "foo")]), json: """
       {
         "edits" : [
           {
@@ -91,21 +90,21 @@ final class CodingTests: XCTestCase {
       """)
 
     // url -> uri
-    checkCoding(WorkspaceFolder(url: url, name: "foo"), json: """
+    checkCoding(WorkspaceFolder(uri: uri, name: "foo"), json: """
       {
         "name" : "foo",
         "uri" : "\(urljson)"
       }
       """)
 
-    checkCoding(WorkspaceFolder(url: url), json: """
+    checkCoding(WorkspaceFolder(uri: uri), json: """
       {
         "name" : "foo.swift",
         "uri" : "\(urljson)"
       }
       """)
 
-    checkCoding(WorkspaceFolder(url: url, name: ""), json: """
+    checkCoding(WorkspaceFolder(uri: uri, name: ""), json: """
       {
         "name" : "unknown_workspace",
         "uri" : "\(urljson)"
@@ -206,6 +205,273 @@ final class CodingTests: XCTestCase {
 
     checkCoding(DiagnosticCode.number(123), json: "123")
     checkCoding(DiagnosticCode.string("hi"), json: "\"hi\"")
+
+    let markup = MarkupContent(kind: .plaintext, value: "a")
+    checkCoding(HoverResponse(contents: .markupContent(markup), range: nil), json: """
+      {
+        "contents" : {
+          "kind" : "plaintext",
+          "value" : "a"
+        }
+      }
+      """)
+
+    checkDecoding(json: """
+    {
+      "contents" : "test"
+    }
+    """, expected: HoverResponse(contents: .markedStrings([.markdown(value: "test")]), range: nil))
+
+    checkCoding(HoverResponse(contents: .markedStrings([.markdown(value: "test"), .codeBlock(language: "swift", value: "let foo = 2")]), range: nil), json: """
+      {
+        "contents" : [
+          "test",
+          {
+            "language" : "swift",
+            "value" : "let foo = 2"
+          }
+        ]
+      }
+      """)
+
+    checkCoding(HoverResponse(contents: .markupContent(markup), range: range), json: """
+      {
+        "contents" : {
+          "kind" : "plaintext",
+          "value" : "a"
+        },
+        "range" : \(rangejson.indented(2, skipFirstLine: true))
+      }
+      """)
+
+    checkCoding(TextDocumentContentChangeEvent(text: "a"), json: """
+      {
+        "text" : "a"
+      }
+      """)
+    checkCoding(TextDocumentContentChangeEvent(range: range, rangeLength: 10, text: "a"), json: """
+      {
+        "range" : \(rangejson.indented(2, skipFirstLine: true)),
+        "rangeLength" : 10,
+        "text" : "a"
+      }
+      """)
+    checkCoding(WorkspaceEdit(changes: [uri: []]), json: """
+      {
+        "changes" : {
+          "\(urljson)" : [
+
+          ]
+        }
+      }
+      """)
+
+    checkCoding(CompletionList(isIncomplete: true, items: [CompletionItem(label: "abc", kind: .function)]), json: """
+      {
+        "isIncomplete" : true,
+        "items" : [
+          {
+            "kind" : 3,
+            "label" : "abc"
+          }
+        ]
+      }
+      """)
+
+    checkDecoding(json: """
+      [
+        {
+          "kind" : 3,
+          "label" : "abc"
+        }
+      ]
+      """, expected: CompletionList(isIncomplete: false, items: [CompletionItem(label: "abc", kind: .function)]))
+
+    checkCoding(CompletionItemDocumentation.markupContent(MarkupContent(kind: .markdown, value: "some **Markdown***")), json: """
+      {
+        "kind" : "markdown",
+        "value" : "some **Markdown***"
+      }
+      """)
+
+    checkCoding(CompletionItemDocumentation.string("Some documentation"), json: """
+      "Some documentation"
+      """)
+
+    checkCoding(LocationsOrLocationLinksResponse.locations([Location(uri: uri, range: range)]), json: """
+      [
+        {
+          "range" : \(rangejson.indented(4, skipFirstLine: true)),
+          "uri" : "\(urljson)"
+        }
+      ]
+      """)
+
+    checkCoding(LocationsOrLocationLinksResponse.locationLinks([LocationLink(targetUri: uri, targetRange: range, targetSelectionRange: range)]), json: """
+      [
+        {
+          "targetRange" : \(rangejson.indented(4, skipFirstLine: true)),
+          "targetSelectionRange" : \(rangejson.indented(4, skipFirstLine: true)),
+          "targetUri" : "\(urljson)"
+        }
+      ]
+      """)
+
+    checkDecoding(json: """
+      {
+        "range" : \(rangejson.indented(2, skipFirstLine: true)),
+        "uri" : "\(urljson)"
+      }
+      """, expected: LocationsOrLocationLinksResponse.locations([Location(uri: uri, range: range)]))
+
+    checkCoding(DocumentSymbolResponse.documentSymbols([DocumentSymbol(name: "mySymbol", kind: .function, range: range, selectionRange: range)]), json: """
+      [
+        {
+          "kind" : 12,
+          "name" : "mySymbol",
+          "range" : \(rangejson.indented(4, skipFirstLine: true)),
+          "selectionRange" : \(rangejson.indented(4, skipFirstLine: true))
+        }
+      ]
+      """)
+
+    checkCoding(DocumentSymbolResponse.symbolInformation([SymbolInformation(name: "mySymbol", kind: .function, location: Location(uri: uri, range: range))]), json: """
+      [
+        {
+          "kind" : 12,
+          "location" : {
+            "range" : \(rangejson.indented(6, skipFirstLine: true)),
+            "uri" : "\(urljson)"
+          },
+          "name" : "mySymbol"
+        }
+      ]
+      """)
+
+    checkCoding(ValueOrBool.value(5), json: "5")
+    checkCoding(ValueOrBool<Int>.bool(false), json: "false")
+
+    checkDecoding(json: "2", expected: TextDocumentSyncOptions(openClose: nil, change: .incremental, willSave: nil, willSaveWaitUntil: nil, save: nil))
+
+    checkCoding(TextDocumentSyncOptions(), json: """
+      {
+        "change" : 2,
+        "openClose" : true,
+        "save" : {
+          "includeText" : false
+        },
+        "willSave" : true,
+        "willSaveWaitUntil" : false
+      }
+      """)
+    
+    checkCoding(WorkspaceEdit(documentChanges: [.textDocumentEdit(TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(uri, version: 2), edits: []))]), json: """
+      {
+        "documentChanges" : [
+          {
+            "edits" : [
+
+            ],
+            "textDocument" : {
+              "uri" : "\(urljson)",
+              "version" : 2
+            }
+          }
+        ]
+      }
+      """)
+    checkCoding(WorkspaceEdit(documentChanges: [.createFile(CreateFile(uri: uri))]), json: """
+    {
+      "documentChanges" : [
+        {
+          "kind" : "create",
+          "uri" : "\(urljson)"
+        }
+      ]
+    }
+    """)
+    checkCoding(WorkspaceEdit(documentChanges: [.renameFile(RenameFile(oldUri: uri, newUri: uri))]), json: """
+    {
+      "documentChanges" : [
+        {
+          "kind" : "rename",
+          "newUri" : "\(urljson)",
+          "oldUri" : "\(urljson)"
+        }
+      ]
+    }
+    """)
+    checkCoding(WorkspaceEdit(documentChanges: [.deleteFile(DeleteFile(uri: uri))]), json: """
+    {
+      "documentChanges" : [
+        {
+          "kind" : "delete",
+          "uri" : "\(urljson)"
+        }
+      ]
+    }
+    """)
+
+
+  }
+
+  func testValueOrBool() {
+    XCTAssertTrue(ValueOrBool.value(5).isSupported)
+    XCTAssertTrue(ValueOrBool.value(0).isSupported)
+    XCTAssertTrue(ValueOrBool<Int>.bool(true).isSupported)
+    XCTAssertFalse(ValueOrBool<Int>.bool(false).isSupported)
+  }
+
+  func testPositionRange() {
+    struct WithPosRange: Codable, Equatable {
+      @CustomCodable<PositionRange>
+      var range: Range<Position>
+    }
+
+    let range = Position(line: 5, utf16index: 23) ..< Position(line: 6, utf16index: 0)
+    checkCoding(WithPosRange(range: range), json: """
+      {
+        "range" : {
+          "end" : {
+            "character" : 0,
+            "line" : 6
+          },
+          "start" : {
+            "character" : 23,
+            "line" : 5
+          }
+        }
+      }
+      """)
+  }
+
+  func testCustomCodableOptional() {
+    struct WithPosRange: Codable, Equatable {
+      @CustomCodable<PositionRange?>
+      var range: Range<Position>?
+    }
+
+    let range = Position(line: 5, utf16index: 23) ..< Position(line: 6, utf16index: 0)
+    checkCoding(WithPosRange(range: range), json: """
+      {
+        "range" : {
+          "end" : {
+            "character" : 0,
+            "line" : 6
+          },
+          "start" : {
+            "character" : 23,
+            "line" : 5
+          }
+        }
+      }
+      """)
+
+    checkCoding(WithPosRange(range: nil), json: """
+      {
+
+      }
+      """)
   }
 }
 

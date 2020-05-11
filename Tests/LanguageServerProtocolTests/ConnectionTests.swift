@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import SKTestSupport
+import LSPTestSupport
 import XCTest
 
 // Workaround ambiguity with Foundation.
@@ -23,6 +23,7 @@ class ConnectionTests: XCTestCase {
 
   override func setUp() {
     connection = TestLocalConnection()
+    connection.client.allowUnexpectedNotification = false
   }
 
   override func tearDown() {

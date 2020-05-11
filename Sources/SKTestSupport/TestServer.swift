@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -17,6 +17,7 @@ import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SourceKit
 import class Foundation.Pipe
+import LSPTestSupport
 
 public struct TestSourceKitServer {
   public enum ConnectionKind {
@@ -30,13 +31,11 @@ public struct TestSourceKitServer {
     case jsonrpc(
       clientToServer: Pipe,
       serverToClient: Pipe,
-      clientConnection: JSONRPCConection,
-      serverConnection: JSONRPCConection)
+      clientConnection: JSONRPCConnection,
+      serverConnection: JSONRPCConnection)
   }
 
-  public static let buildSetup: BuildSetup = BuildSetup(configuration: .debug,
-                                                        path: nil,
-                                                        flags: BuildFlags())
+  public static let serverOptions: SourceKitServer.Options = SourceKitServer.Options()
 
   public let client: TestClient
   let connImpl: ConnectionImpl
@@ -51,7 +50,7 @@ public struct TestSourceKitServer {
         let clientConnection = LocalConnection()
         let serverConnection = LocalConnection()
         client = TestClient(server: serverConnection)
-        server = SourceKitServer(client: clientConnection, buildSetup: TestSourceKitServer.buildSetup, onExit: {
+        server = SourceKitServer(client: clientConnection, options: Self.serverOptions, onExit: {
           clientConnection.close()
         })
 
@@ -69,19 +68,19 @@ public struct TestSourceKitServer {
         _ = Unmanaged.passRetained(clientToServer)
         _ = Unmanaged.passRetained(serverToClient)
 
-        let clientConnection = JSONRPCConection(
+        let clientConnection = JSONRPCConnection(
           protocol: MessageRegistry.lspProtocol,
           inFD: serverToClient.fileHandleForReading.fileDescriptor,
           outFD: clientToServer.fileHandleForWriting.fileDescriptor
         )
-        let serverConnection = JSONRPCConection(
+        let serverConnection = JSONRPCConnection(
           protocol: MessageRegistry.lspProtocol,
           inFD: clientToServer.fileHandleForReading.fileDescriptor,
           outFD: serverToClient.fileHandleForWriting.fileDescriptor
         )
 
         client = TestClient(server: clientConnection)
-        server = SourceKitServer(client: serverConnection, buildSetup: TestSourceKitServer.buildSetup, onExit: {
+        server = SourceKitServer(client: serverConnection, options: Self.serverOptions, onExit: {
           serverConnection.close()
         })
 

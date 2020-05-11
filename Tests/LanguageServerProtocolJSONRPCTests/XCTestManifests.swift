@@ -34,6 +34,7 @@ extension ConnectionTests {
         ("testMessageBuffer", testMessageBuffer),
         ("testRound", testRound),
         ("testSendAfterClose", testSendAfterClose),
+        ("testSendBeforeClose", testSendBeforeClose),
         ("testUnexpectedResponse", testUnexpectedResponse),
         ("testUnknownNotification", testUnknownNotification),
         ("testUnknownRequest", testUnknownRequest),
@@ -45,6 +46,8 @@ extension MessageParsingTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__MessageParsingTests = [
+        ("testFindSubsequence", testFindSubsequence),
+        ("testIntFromAscii", testIntFromAscii),
         ("testParseHeader", testParseHeader),
         ("testParseHeaderField", testParseHeaderField),
         ("testSplitMessage", testSplitMessage),

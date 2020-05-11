@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
 import LanguageServerProtocol
 import TSCBasic
 import enum TSCUtility.Platform
@@ -38,30 +39,36 @@ public final class FallbackBuildSystem: BuildSystem {
 
   public var indexDatabasePath: AbsolutePath? { return nil }
 
-  public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
-    guard let path = try? AbsolutePath(validating: url.path) else {
-      return nil
-    }
-
+  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
     switch language {
     case .swift:
-      return settingsSwift(path)
+      return settingsSwift(uri.pseudoPath)
     case .c, .cpp, .objective_c, .objective_cpp:
-      return settingsClang(path, language)
+      return settingsClang(uri.pseudoPath, language)
     default:
       return nil
     }
   }
 
   /// We don't support change watching.
-  public func registerForChangeNotifications(for: URL) {}
+  public func registerForChangeNotifications(for: DocumentURI, language: Language) {}
 
   /// We don't support change watching.
-  public func unregisterForChangeNotifications(for: URL) {}
+  public func unregisterForChangeNotifications(for: DocumentURI) {}
 
-  public func toolchain(for: URL, _ language: Language) -> Toolchain? { return nil }
+  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
+  }
 
-  func settingsSwift(_ path: AbsolutePath) -> FileBuildSettings {
+  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[SourcesItem]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
+  }
+
+  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
+  }
+
+  func settingsSwift(_ file: String) -> FileBuildSettings {
     var args: [String] = []
     if let sdkpath = sdkpath {
       args += [
@@ -69,11 +76,11 @@ public final class FallbackBuildSystem: BuildSystem {
         sdkpath.pathString,
       ]
     }
-    args.append(path.pathString)
-    return FileBuildSettings(compilerArguments: args)
+    args.append(file)
+    return FileBuildSettings(compilerArguments: args, language: .swift)
   }
 
-  func settingsClang(_ path: AbsolutePath, _ language: Language) -> FileBuildSettings {
+  func settingsClang(_ file: String, _ language: Language) -> FileBuildSettings {
     var args: [String] = []
     if let sdkpath = sdkpath {
       args += [
@@ -81,7 +88,7 @@ public final class FallbackBuildSystem: BuildSystem {
         sdkpath.pathString,
       ]
     }
-    args.append(path.pathString)
-    return FileBuildSettings(compilerArguments: args)
+    args.append(file)
+    return FileBuildSettings(compilerArguments: args, language: language)
   }
 }

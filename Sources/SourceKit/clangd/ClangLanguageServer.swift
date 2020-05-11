@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -10,15 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-import SKCore
-import TSCBasic
+import Foundation
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import Foundation
+import LSPLogging
+import SKCore
+import SKSupport
+import TSCBasic
 
 /// A thin wrapper over a connection to a clangd server providing build setting handling.
-final class ClangLanguageServerShim: LanguageServer {
+final class ClangLanguageServerShim: ToolchainLanguageServer {
+
+  /// The server's request queue, used to serialize requests and responses to `clangd`.
+  public let queue: DispatchQueue = DispatchQueue(label: "clangd-language-server-queue", qos: .userInitiated)
 
   let clangd: Connection
 
@@ -34,30 +38,6 @@ final class ClangLanguageServerShim: LanguageServer {
     self.clangd = clangd
     self.buildSystem = buildSystem
     self.clang = clang
-    super.init(client: client)
-  }
-
-  public override func _registerBuiltinHandlers() {
-    _register(ClangLanguageServerShim.initialize)
-    _register(ClangLanguageServerShim.didChangeConfiguration)
-    _register(ClangLanguageServerShim.openDocument)
-    _register(ClangLanguageServerShim.foldingRange)
-  }
-
-  public override func _handleUnknown<R>(_ req: Request<R>) {
-    if req.clientID == ObjectIdentifier(clangd) {
-      forwardRequest(req, to: client)
-    } else {
-      forwardRequest(req, to: clangd)
-    }
-  }
-
-  public override func _handleUnknown<N>(_ note: Notification<N>) {
-    if note.clientID == ObjectIdentifier(clangd) {
-      client.send(note.params)
-    } else {
-      clangd.send(note.params)
-    }
   }
 
   /// Forwards a request to the given connection, taking care of replying to the original request
@@ -83,7 +63,7 @@ final class ClangLanguageServerShim: LanguageServer {
       request.reply(result)
     }
     request.cancellationToken.addCancellationHandler {
-      to.send(CancelRequest(id: id))
+      to.send(CancelRequestNotification(id: id))
     }
   }
 }
@@ -92,59 +72,137 @@ final class ClangLanguageServerShim: LanguageServer {
 
 extension ClangLanguageServerShim {
 
-  func initialize(_ req: Request<InitializeRequest>) {
-    forwardRequest(req, to: clangd) { result in
-      self.capabilities = result.success?.capabilities
-    }
+  func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult {
+    let result = try clangd.sendSync(initialize)
+    self.capabilities = result.capabilities
+    return result
   }
 
-  // MARK: - Workspace
-
-  func didChangeConfiguration(_ note: Notification<DidChangeConfiguration>) {
-    switch note.params.settings {
-    case .clangd:
-      break
-    case .documentUpdated(let settings):
-      updateDocumentSettings(url: settings.url, language: settings.language)
-    case .unknown:
-      break
-    }
+  public func clientInitialized(_ initialized: InitializedNotification) {
+    clangd.send(initialized)
   }
 
   // MARK: - Text synchronization
 
-  func openDocument(_ note: Notification<DidOpenTextDocument>) {
-    let textDocument = note.params.textDocument
-    updateDocumentSettings(url: textDocument.url, language: textDocument.language)
-    clangd.send(note.params)
+  public func openDocument(_ note: DidOpenTextDocumentNotification) {
+    let textDocument = note.textDocument
+    documentUpdatedBuildSettings(textDocument.uri, language: textDocument.language)
+    clangd.send(note)
   }
 
-  private func updateDocumentSettings(url: URL, language: Language) {
-    let settings = buildSystem.settings(for: url, language)
+  public func closeDocument(_ note: DidCloseTextDocumentNotification) {
+    clangd.send(note)
+  }
+
+  public func changeDocument(_ note: DidChangeTextDocumentNotification) {
+    clangd.send(note)
+  }
+
+  public func willSaveDocument(_ note: WillSaveTextDocumentNotification) {
+
+  }
+
+  public func didSaveDocument(_ note: DidSaveTextDocumentNotification) {
+
+  }
+
+  // MARK: - Build System Integration
+
+  public func documentUpdatedBuildSettings(_ uri: DocumentURI, language: Language) {
+    guard let url = uri.fileURL else {
+      // FIXME: The clang workspace can probably be reworked to support non-file URIs.
+      log("Received updated build settings for non-file URI '\(uri)'. Ignoring the update.")
+      return
+    }
+    let settings = buildSystem.settings(for: uri, language)
 
     logAsync(level: settings == nil ? .warning : .debug) { _ in
       let settingsStr = settings == nil ? "nil" : settings!.compilerArguments.description
-      return "settings for \(url): \(settingsStr)"
+      return "settings for \(uri): \(settingsStr)"
     }
 
     if let settings = settings {
-      clangd.send(DidChangeConfiguration(settings: .clangd(
+      clangd.send(DidChangeConfigurationNotification(settings: .clangd(
         ClangWorkspaceSettings(
           compilationDatabaseChanges: [url.path: ClangCompileCommand(settings, clang: clang)]))))
     }
   }
 
+  public func documentDependenciesUpdated(_ uri: DocumentURI, language: Language) {
+    // In order to tell clangd to reload an AST, we send it an empty `didChangeTextDocument`
+    // with `forceRebuild` set in case any missing header files have been added.
+    // This works well for us as the moment since clangd ignores the document version.
+    let note = DidChangeTextDocumentNotification(
+      textDocument: VersionedTextDocumentIdentifier(uri, version: nil),
+      contentChanges: [],
+      forceRebuild: true)
+    clangd.send(note)
+  }
+
+  // MARK: - Text Document
+
+
+  /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
+  public func definition(_ req: Request<DefinitionRequest>) -> Bool {
+    // We handle it to provide jump-to-header support for #import/#include.
+    forwardRequest(req, to: clangd)
+    return true
+  }
+
+  func completion(_ req: Request<CompletionRequest>) {
+    forwardRequest(req, to: clangd)
+  }
+
+  func hover(_ req: Request<HoverRequest>) {
+    forwardRequest(req, to: clangd)
+  }
+
+  func symbolInfo(_ req: Request<SymbolInfoRequest>) {
+    forwardRequest(req, to: clangd)
+  }
+
+  func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
+    forwardRequest(req, to: clangd)
+  }
+
+  func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
+    forwardRequest(req, to: clangd)
+  }
+
+  func documentColor(_ req: Request<DocumentColorRequest>) {
+    forwardRequest(req, to: clangd)
+  }
+
+  func colorPresentation(_ req: Request<ColorPresentationRequest>) {
+    forwardRequest(req, to: clangd)
+  }
+
+  func codeAction(_ req: Request<CodeActionRequest>) {
+    forwardRequest(req, to: clangd)
+  }
+
   func foldingRange(_ req: Request<FoldingRangeRequest>) {
-    if capabilities?.foldingRangeProvider == true {
+    if capabilities?.foldingRangeProvider?.isSupported == true {
       forwardRequest(req, to: clangd)
     } else {
       req.reply(.success(nil))
     }
   }
+
+  // MARK: - Other
+
+  func executeCommand(_ req: Request<ExecuteCommandRequest>) {
+    //TODO: Implement commands.
+    return req.reply(nil)
+  }
 }
 
-func makeJSONRPCClangServer(client: MessageHandler, toolchain: Toolchain, buildSettings: BuildSystem?) throws -> Connection {
-
+func makeJSONRPCClangServer(
+  client: MessageHandler,
+  toolchain: Toolchain,
+  buildSettings: BuildSystem?,
+  clangdOptions: [String]
+) throws -> ToolchainLanguageServer {
   guard let clangd = toolchain.clangd else {
     preconditionFailure("missing clang from toolchain \(toolchain.identifier)")
   }
@@ -152,13 +210,12 @@ func makeJSONRPCClangServer(client: MessageHandler, toolchain: Toolchain, buildS
   let clientToServer: Pipe = Pipe()
   let serverToClient: Pipe = Pipe()
 
-  let connection = JSONRPCConection(
+  let connection = JSONRPCConnection(
     protocol: MessageRegistry.lspProtocol,
     inFD: serverToClient.fileHandleForReading.fileDescriptor,
     outFD: clientToServer.fileHandleForWriting.fileDescriptor
   )
 
-  let connectionToShim = LocalConnection()
   let connectionToClient = LocalConnection()
 
   let shim = try ClangLanguageServerShim(
@@ -167,9 +224,8 @@ func makeJSONRPCClangServer(client: MessageHandler, toolchain: Toolchain, buildS
     buildSystem: buildSettings ?? BuildSystemList(),
     clang: toolchain.clang)
 
-  connectionToShim.start(handler: shim)
   connectionToClient.start(handler: client)
-  connection.start(receiveHandler: shim)
+  connection.start(receiveHandler: client)
 
   let process = Foundation.Process()
 
@@ -180,8 +236,11 @@ func makeJSONRPCClangServer(client: MessageHandler, toolchain: Toolchain, buildS
   }
 
   process.arguments = [
-    "-compile_args_from=lsp", // Provide compiler args programmatically.
-  ]
+    "-compile_args_from=lsp",   // Provide compiler args programmatically.
+    "-background-index=false",  // Disable clangd indexing, we use the build
+    "-index=false",             // system index store instead.
+  ] + clangdOptions
+
   process.standardOutput = serverToClient
   process.standardInput = clientToServer
   process.terminationHandler = { process in
@@ -195,7 +254,7 @@ func makeJSONRPCClangServer(client: MessageHandler, toolchain: Toolchain, buildS
     process.launch()
   }
 
-  return connectionToShim
+  return shim
 }
 
 extension ClangCompileCommand {

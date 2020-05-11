@@ -39,12 +39,12 @@ public struct InitializeBuild: RequestType, Hashable {
   public var bspVersion: String
 
   /// The rootUri of the workspace
-  public var rootUri: URL
+  public var rootUri: URI
 
   /// The capabilities of the client
   public var capabilities: BuildClientCapabilities
 
-  public init(displayName: String, version: String, bspVersion: String, rootUri: URL, capabilities: BuildClientCapabilities) {
+  public init(displayName: String, version: String, bspVersion: String, rootUri: URI, capabilities: BuildClientCapabilities) {
     self.displayName = displayName
     self.version = version
     self.bspVersion = bspVersion

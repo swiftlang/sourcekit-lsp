@@ -10,15 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-import LanguageServerProtocol
 import Dispatch
 import Foundation
+import LanguageServerProtocol
+import LSPLogging
 
 /// A connection between a message handler (e.g. language server) in the same process as the connection object and a remote message handler (e.g. language client) that may run in another process using JSON RPC messages sent over a pair of in/out file descriptors.
 ///
 /// For example, inside a language server, the `JSONRPCConnection` takes the language service implemenation as its `receiveHandler` and itself provides the client connection for sending notifications and callbacks.
-public final class JSONRPCConection {
+public final class JSONRPCConnection {
 
   var receiveHandler: MessageHandler? = nil
   let queue: DispatchQueue = DispatchQueue(label: "jsonrpc-queue", qos: .userInitiated)
@@ -52,30 +52,40 @@ public final class JSONRPCConection {
   /// The set of currently outstanding outgoing requests along with information about how to decode and handle their responses.
   var outstandingRequests: [RequestID: OutstandingRequest] = [:]
 
-  var closeHandler: () -> Void
+  var closeHandler: (() -> Void)! = nil
 
   public init(
     protocol messageRegistry: MessageRegistry,
     inFD: Int32,
     outFD: Int32,
-    syncRequests: Bool = false,
-    closeHandler: @escaping () -> Void = {})
+    syncRequests: Bool = false)
   {
     state = .created
-    self.closeHandler = closeHandler
     self.messageRegistry = messageRegistry
     self.syncRequests = syncRequests
 
+    let ioGroup = DispatchGroup()
+
+    ioGroup.enter()
     receiveIO = DispatchIO(type: .stream, fileDescriptor: inFD, queue: queue) { (error: Int32) in
       if error != 0 {
         log("IO error \(error)", level: .error)
       }
+      ioGroup.leave()
     }
 
+    ioGroup.enter()
     sendIO = DispatchIO(type: .stream, fileDescriptor: outFD, queue: sendQueue) { (error: Int32) in
       if error != 0 {
         log("IO error \(error)", level: .error)
       }
+      ioGroup.leave()
+    }
+
+    ioGroup.notify(queue: queue) { [weak self] in
+      guard let self = self else { return }
+      self.closeHandler()
+      self.receiveHandler = nil // break retain cycle
     }
 
     // We cannot assume the client will send us bytes in packets of any particular size, so set the lower limit to 1.
@@ -93,14 +103,17 @@ public final class JSONRPCConection {
   /// Start processing `inFD` and send messages to `receiveHandler`.
   ///
   /// - parameter receiveHandler: The message handler to invoke for requests received on the `inFD`.
-  public func start(receiveHandler: MessageHandler) {
+  public func start(receiveHandler: MessageHandler, closeHandler: @escaping () -> Void = {}) {
     precondition(state == .created)
     state = .running
     self.receiveHandler = receiveHandler
+    self.closeHandler = closeHandler
 
     receiveIO.read(offset: 0, length: Int.max, queue: queue) { done, data, errorCode in
       guard errorCode == 0 else {
-        log("IO error \(errorCode)", level: .error)
+        if errorCode != POSIXError.ECANCELED.rawValue {
+          log("IO error reading \(errorCode)", level: .error)
+        }
         if done { self._close() }
         return
       }
@@ -218,7 +231,13 @@ public final class JSONRPCConection {
     case .notification(let notification):
       notification._handle(receiveHandler!, connection: self)
     case .request(let request, id: let id):
-      request._handle(receiveHandler!, id: id, connection: self, sync: syncRequests)
+      let semaphore: DispatchSemaphore? = syncRequests ? .init(value: 0) : nil
+      request._handle(receiveHandler!, id: id, connection: self) { (response, id) in
+        self.sendReply(response, id: id)
+        semaphore?.signal()
+      }
+      semaphore?.wait()
+
     case .response(let response, id: let id):
       guard let outstanding = outstandingRequests.removeValue(forKey: id) else {
         log("Unknown request for \(id)", level: .error)
@@ -242,7 +261,9 @@ public final class JSONRPCConection {
       if errorCode != 0 {
         log("IO error sending message \(errorCode)", level: .error)
         if done {
-          self?.close()
+          self?.queue.async {
+            self?._close()
+          }
         }
       }
     }
@@ -280,20 +301,25 @@ public final class JSONRPCConection {
   }
 
   /// Close the connection.
+  ///
+  /// The user-provided close handler will be called *asynchronously* when all outstanding I/O
+  /// operations have completed. No new I/O will be accepted after `close` returns.
   public func close() {
     queue.sync { _close() }
   }
 
   /// Close the connection. *Must be called on `queue`.*
   func _close() {
-    guard state == .running else { return }
+    sendQueue.sync {
+      guard state == .running else { return }
+      state = .closed
 
-    log("\(JSONRPCConection.self): closing...")
-    receiveIO.close(flags: .stop)
-    sendIO.close(flags: .stop)
-    state = .closed
-    receiveHandler = nil // break retain cycle
-    closeHandler()
+      log("\(JSONRPCConnection.self): closing...")
+      // Attempt to close the reader immediately; we do not need to accept remaining inputs.
+      receiveIO.close(flags: .stop)
+      // Close the writer after it finishes outstanding work.
+      sendIO.close()
+    }
   }
 
   /// Request id for the next outgoing request.
@@ -304,7 +330,7 @@ public final class JSONRPCConection {
 
 }
 
-extension JSONRPCConection: _IndirectConnection {
+extension JSONRPCConnection: Connection {
   // MARK: Connection interface
 
   public func send<Notification>(_ notification: Notification) where Notification: NotificationType {
@@ -343,7 +369,7 @@ extension JSONRPCConection: _IndirectConnection {
     return id
   }
 
-  public func sendReply<Response>(_ response: LSPResult<Response>, id: RequestID) where Response: ResponseType {
+  public func sendReply(_ response: LSPResult<ResponseType>, id: RequestID) {
     guard readyToSend() else { return }
 
     send { encoder in

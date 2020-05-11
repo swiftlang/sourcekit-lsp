@@ -15,7 +15,7 @@ def swiftpm(action, swift_exec, swiftpm_args, env=None):
   subprocess.check_call(cmd, env=env)
 
 def swiftpm_bin_path(swift_exec, swiftpm_args, env=None):
-  swiftpm_args = filter(lambda arg: arg != '-v' and arg != '--verbose', swiftpm_args)
+  swiftpm_args = list(filter(lambda arg: arg != '-v' and arg != '--verbose', swiftpm_args))
   cmd = [swift_exec, 'build', '--show-bin-path'] + swiftpm_args
   print(' '.join(cmd))
   return subprocess.check_output(cmd, env=env).strip()
@@ -30,6 +30,10 @@ def get_swiftpm_options(args):
   if args.verbose:
     swiftpm_args += ['--verbose']
 
+  if args.sanitize:
+    for san in args.sanitize:
+      swiftpm_args += ['--sanitize=%s' % san]
+
   if platform.system() == 'Darwin':
     swiftpm_args += [
       # Relative library rpath for swift; will only be used when /usr/lib/swift
@@ -40,35 +44,100 @@ def get_swiftpm_options(args):
     swiftpm_args += [
       # Dispatch headers
       '-Xcxx', '-I', '-Xcxx',
-      os.path.join(args.toolchain, 'usr', 'lib', 'swift'),
+      os.path.join(args.toolchain, 'lib', 'swift'),
       # For <Block.h>
       '-Xcxx', '-I', '-Xcxx',
-      os.path.join(args.toolchain, 'usr', 'lib', 'swift', 'Block'),
-      # Library rpath for swift, dispatch, Foundation, etc. when installing
-      '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/linux',
+      os.path.join(args.toolchain, 'lib', 'swift', 'Block'),
     ]
+
+    if 'ANDROID_DATA' in os.environ:
+      swiftpm_args += [
+        '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/android',
+        # SwiftPM will otherwise try to compile against GNU strerror_r on
+        # Android and fail.
+        '-Xswiftc', '-Xcc', '-Xswiftc', '-U_GNU_SOURCE',
+      ]
+    else:
+      # Library rpath for swift, dispatch, Foundation, etc. when installing
+      swiftpm_args += [
+        '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/linux',
+      ]
 
   return swiftpm_args
 
 def install(swiftpm_bin_path, toolchain):
-  toolchain_bin = os.path.join(toolchain, 'usr', 'bin')
+  toolchain_bin = os.path.join(toolchain, 'bin')
   for exe in ['sourcekit-lsp']:
     install_binary(exe, swiftpm_bin_path, toolchain_bin, toolchain)
 
 def install_binary(exe, source_dir, install_dir, toolchain):
-  cmd = ['rsync', '-a', os.path.join(source_dir, exe), install_dir]
+  cmd = ['rsync', '-a', os.path.join(source_dir.decode('UTF-8'), exe), install_dir]
   print(' '.join(cmd))
   subprocess.check_call(cmd)
 
   if platform.system() == 'Darwin':
     result_path = os.path.join(install_dir, exe)
-    stdlib_rpath = os.path.join(toolchain, 'usr', 'lib', 'swift', 'macosx')
+    stdlib_rpath = os.path.join(toolchain, 'lib', 'swift', 'macosx')
     delete_rpath(stdlib_rpath, result_path)
 
 def delete_rpath(rpath, binary):
   cmd = ["install_name_tool", "-delete_rpath", rpath, binary]
   print(' '.join(cmd))
   subprocess.check_call(cmd)
+
+
+def should_test_parallel():
+  if platform.system() == 'Linux':
+    distro = platform.linux_distribution()
+    if distro[0] != 'Ubuntu':
+      # Workaround hang in Process.run() that hasn't been tracked down yet.
+      return False
+  return True
+
+
+def handle_invocation(swift_exec, args):
+  swiftpm_args = get_swiftpm_options(args)
+
+  env = os.environ
+  # Set the toolchain used in tests at runtime
+  env['SOURCEKIT_TOOLCHAIN_PATH'] = args.toolchain
+  # Use local dependencies (i.e. checked out next sourcekit-lsp).
+  if not args.no_local_deps:
+    env['SWIFTCI_USE_LOCAL_DEPS'] = "1"
+
+  if args.ninja_bin:
+    env['NINJA_BIN'] = args.ninja_bin
+
+  if args.sanitize and 'address' in args.sanitize:
+    # Workaround reports in Foundation: https://bugs.swift.org/browse/SR-12551
+    env['ASAN_OPTIONS'] = 'detect_leaks=false'
+  if args.sanitize and 'undefined' in args.sanitize:
+    supp = os.path.join(args.package_path, 'Utilities', 'ubsan_supressions.supp')
+    env['UBSAN_OPTIONS'] = 'halt_on_error=true,suppressions=%s' % supp
+  if args.sanitize and 'thread' in args.sanitize:
+    env['TSAN_OPTIONS'] = 'halt_on_error=true'
+
+  print('Cleaning ' + args.build_path)
+  shutil.rmtree(args.build_path, ignore_errors=True)
+
+  if args.action == 'build':
+    swiftpm('build', swift_exec, swiftpm_args, env)
+  elif args.action == 'test':
+    bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
+    tests = os.path.join(bin_path, 'sk-tests')
+    print('Cleaning ' + tests)
+    shutil.rmtree(tests, ignore_errors=True)
+    test_args = swiftpm_args
+    if should_test_parallel():
+      test_args += ['--parallel']
+    swiftpm('test', swift_exec, test_args, env)
+  elif args.action == 'install':
+    bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
+    swiftpm('build', swift_exec, swiftpm_args, env)
+    install(bin_path, args.toolchain)
+  else:
+    assert False, 'unknown action \'{}\''.format(args.action)
+
 
 def main():
   parser = argparse.ArgumentParser(description='Build along with the Swift build-script.')
@@ -79,6 +148,8 @@ def main():
     parser.add_argument('--build-path', metavar='PATH', default='.build', help='build in the given path')
     parser.add_argument('--configuration', '-c', default='debug', help='build using configuration (release|debug)')
     parser.add_argument('--no-local-deps', action='store_true', help='use normal remote dependencies when building')
+    parser.add_argument('--sanitize', action='append', help='build using the given sanitizer(s) (address|thread|undefined)')
+    parser.add_argument('--sanitize-all', action='store_true', help='build using every available sanitizer in sub-directories of build path')
     parser.add_argument('--verbose', '-v', action='store_true', help='enable verbose output')
 
   subparsers = parser.add_subparsers(title='subcommands', dest='action', metavar='action')
@@ -93,42 +164,40 @@ def main():
 
   args = parser.parse_args(sys.argv[1:])
 
+  if args.sanitize and args.sanitize_all:
+    assert False, 'cannot combine --sanitize with --sanitize-all'
+
   # Canonicalize paths
   args.package_path = os.path.abspath(args.package_path)
   args.build_path = os.path.abspath(args.build_path)
   args.toolchain = os.path.abspath(args.toolchain)
 
   if args.toolchain:
-    swift_exec = os.path.join(args.toolchain, 'usr', 'bin', 'swift')
+    swift_exec = os.path.join(args.toolchain, 'bin', 'swift')
   else:
     swift_exec = 'swift'
 
-  swiftpm_args = get_swiftpm_options(args)
+  handle_invocation(swift_exec, args)
+  if args.sanitize_all:
+    base = args.build_path
 
-  env = os.environ
-  # Set the toolchain used in tests at runtime
-  env['SOURCEKIT_TOOLCHAIN_PATH'] = args.toolchain
-  # Use local dependencies (i.e. checked out next sourcekit-lsp).
-  if not args.no_local_deps:
-    env['SWIFTCI_USE_LOCAL_DEPS'] = "1"
+    print('=== %s sourcekit-lsp with asan ===' % args.action)
+    args.sanitize = ['address']
+    args.build_path = os.path.join(base, 'test-asan')
+    handle_invocation(swift_exec, args)
 
-  if args.ninja_bin:
-    env['NINJA_BIN'] = args.ninja_bin
+    print('=== %s sourcekit-lsp with tsan ===' % args.action)
+    args.sanitize = ['thread']
+    args.build_path = os.path.join(base, 'test-tsan')
+    handle_invocation(swift_exec, args)
 
-  if args.action == 'build':
-    swiftpm('build', swift_exec, swiftpm_args, env)
-  elif args.action == 'test':
-    bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
-    tests = os.path.join(bin_path, 'sk-tests')
-    print('Cleaning ' + tests)
-    shutil.rmtree(tests, ignore_errors=True)
-    swiftpm('test', swift_exec, swiftpm_args, env)
-  elif args.action == 'install':
-    bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
-    swiftpm('build', swift_exec, swiftpm_args, env)
-    install(bin_path, args.toolchain)
-  else:
-    assert False, 'unknown action \'{}\''.format(args.action)
+    # Linux ubsan disabled: https://bugs.swift.org/browse/SR-12550
+    if platform.system() != 'Linux':
+      print('=== %s sourcekit-lsp with ubsan ===' % args.action)
+      args.sanitize = ['undefined']
+      args.build_path = os.path.join(base, 'test-ubsan')
+      handle_invocation(swift_exec, args)
+
 
 if __name__ == '__main__':
   main()

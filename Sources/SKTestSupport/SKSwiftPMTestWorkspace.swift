@@ -21,6 +21,7 @@ import TSCBasic
 import TSCUtility
 import XCTest
 import Foundation
+import LSPTestSupport
 
 public final class SKSwiftPMTestWorkspace {
 
@@ -56,11 +57,11 @@ public final class SKSwiftPMTestWorkspace {
     _ = try? fm.removeItem(at: tmpDir)
 
     buildDir = tmpDir.appendingPathComponent("build", isDirectory: true)
-    try fm.createDirectory(at: buildDir, withIntermediateDirectories: true, attributes: nil)
+    try fm.tibs_createDirectoryWithIntermediates(at: buildDir)
     let sourceDir = tmpDir.appendingPathComponent("src", isDirectory: true)
     try fm.copyItem(at: projectDir, to: sourceDir)
     let databaseDir = tmpDir.appendingPathComponent("db", isDirectory: true)
-    try fm.createDirectory(at: databaseDir, withIntermediateDirectories: true, attributes: nil)
+    try fm.tibs_createDirectoryWithIntermediates(at: databaseDir)
 
     self.sources = try TestSources(rootDirectory: sourceDir)
 
@@ -75,22 +76,25 @@ public final class SKSwiftPMTestWorkspace {
 
     let libIndexStore = try IndexStoreLibrary(dylibPath: toolchain.libIndexStore!.pathString)
 
-    try fm.createDirectory(atPath: swiftpm.indexStorePath!.pathString, withIntermediateDirectories: true)
+    try fm.tibs_createDirectoryWithIntermediates(at: swiftpm.indexStorePath!.asURL)
+
+    let indexDelegate = SourceKitIndexDelegate()
 
     self.index = try IndexStoreDB(
       storePath: swiftpm.indexStorePath!.pathString,
       databasePath: tmpDir.path,
       library: libIndexStore,
+      delegate: indexDelegate,
       listenToUnitEvents: false)
 
-    sk.allowUnexpectedNotification = true
-
     testServer.server!.workspace = Workspace(
-      rootPath: sourcePath,
+      rootUri: DocumentURI(sources.rootDirectory),
       clientCapabilities: ClientCapabilities(),
-      buildSettings: swiftpm,
+      toolchainRegistry: ToolchainRegistry.shared,
+      buildSetup: buildSetup,
+      underlyingBuildSystem: swiftpm,
       index: index,
-      buildSetup: buildSetup)
+      indexDelegate: indexDelegate)
   }
 
   deinit {
@@ -121,8 +125,8 @@ extension SKSwiftPMTestWorkspace {
 
 extension SKSwiftPMTestWorkspace {
   public func openDocument(_ url: URL, language: Language) throws {
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: DocumentURI(url),
       language: language,
       version: 1,
       text: try sources.sourceCache.get(url))))

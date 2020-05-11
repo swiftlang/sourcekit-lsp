@@ -4,8 +4,8 @@ This extension adds support to Visual Studio Code for using SourceKit-LSP, a
 language server for Swift and C/C++/Objective-C languages.
 
 **Note**: SourceKit-LSP is under heavy development and this should be considered
-a preview. Users will need to separately provide the `sourcekit-lsp` executable
-as well as a Swift toolchain.
+a preview. Users will need to provide the `sourcekit-lsp` executable
+and Swift toolchain.
 
 ## Building and Installing the Extension
 

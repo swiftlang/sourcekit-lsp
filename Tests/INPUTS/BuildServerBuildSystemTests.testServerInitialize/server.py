@@ -26,6 +26,7 @@ while True:
                 "rootUri": "blah",
                 "capabilities": {"languageIds": ["a", "b"]},
                 "data": {
+                    "indexDatabasePath": "some/index/db/path",
                     "indexStorePath": "some/index/store/path"
                 }
             }
@@ -53,5 +54,9 @@ while True:
 
     if response:
         responseStr = json.dumps(response)
-        sys.stdout.write("Content-Length: {}\r\n\r\n{}".format(len(responseStr), responseStr))
-        sys.stdout.flush()
+        try:
+            sys.stdout.write("Content-Length: {}\r\n\r\n{}".format(len(responseStr), responseStr))
+            sys.stdout.flush()
+        except IOError:
+            # stdout closed, time to quit
+            break

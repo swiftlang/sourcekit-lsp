@@ -77,8 +77,8 @@ private struct XMLToMarkdown {
       newlineIfNeeded(count: 2)
       out += "```\n"
       toMarkdown(node.children)
-      out += "\n```"
-
+      out += "\n```\n\n---\n"
+      
     case "Name", "USR", "Direction":
       break
 

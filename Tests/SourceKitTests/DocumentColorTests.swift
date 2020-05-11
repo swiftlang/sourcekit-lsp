@@ -10,11 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-import SKTestSupport
-import XCTest
 import LanguageServerProtocol
+import LSPTestSupport
+import SKTestSupport
 import SourceKit
+import XCTest
 
 final class DocumentColorTests: XCTestCase {
   /// Connection and lifetime management for the service.
@@ -23,11 +23,7 @@ final class DocumentColorTests: XCTestCase {
   /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
 
-  /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
-  var workspace: Workspace! = nil
-
   override func tearDown() {
-    workspace = nil
     sk = nil
     connection = nil
   }
@@ -39,21 +35,18 @@ final class DocumentColorTests: XCTestCase {
     _ = try! sk.sendSync(InitializeRequest(
       processId: nil,
       rootPath: nil,
-      rootURL: nil,
+      rootURI: nil,
       initializationOptions: nil,
       capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
       trace: .off,
       workspaceFolders: nil))
-
-    workspace = connection.server!.workspace!
   }
 
   func performDocumentColorRequest(text: String) -> [ColorInformation] {
-    let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: DocumentURI(url),
       language: .swift,
       version: 12,
       text: text)))
@@ -63,11 +56,10 @@ final class DocumentColorTests: XCTestCase {
   }
 
   func performColorPresentationRequest(text: String, color: Color, range: Range<Position>) -> [ColorPresentation] {
-    let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: DocumentURI(url),
       language: .swift,
       version: 12,
       text: text)))
@@ -143,7 +135,7 @@ final class DocumentColorTests: XCTestCase {
     XCTAssertEqual(presentations.count, 1)
     let presentation = presentations[0]
     XCTAssertEqual(presentation.label, "Color Literal")
-    XCTAssertEqual(presentation.textEdit?.range.asRange, range)
+    XCTAssertEqual(presentation.textEdit?.range, range)
     XCTAssertEqual(presentation.textEdit?.newText, newText)
   }
 }

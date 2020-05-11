@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPTestSupport
 import SKSupport
 import SKTestSupport
-import TSCBasic
 import XCTest
 
 final class SupportPerfTests: PerfTestCase {

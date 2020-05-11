@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -10,13 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSwiftPMWorkspace
+#if canImport(SPMBuildCore)
+import SPMBuildCore
+#endif
+import Build
+import LanguageServerProtocol
 import SKCore
-import PackageModel
+import SKSwiftPMWorkspace
+import SKTestSupport
 import TSCBasic
 import TSCUtility
-import SKTestSupport
-import Build
 import XCTest
 
 final class SwiftPMWorkspaceTests: XCTestCase {
@@ -33,7 +36,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup))
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup))
     }
   }
 
@@ -54,7 +57,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup))
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup))
     }
   }
 
@@ -75,7 +78,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: ToolchainRegistry(),
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup))
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup))
     }
   }
 
@@ -98,14 +101,15 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let build = buildPath(root: packageRoot)
+      let hostTriple = ws.buildParameters.triple
+      let build = buildPath(root: packageRoot, triple: hostTriple)
 
       XCTAssertEqual(ws.buildPath, build)
       XCTAssertNotNil(ws.indexStorePath)
-      let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
+      let arguments = ws.settings(for: aswift.asURI, .swift)!.compilerArguments
 
       check(
         "-module-name", "lib", "-incremental", "-emit-dependencies",
@@ -114,11 +118,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       check("-target", arguments: arguments) // Only one!
   #if os(macOS)
-      check("-target", Triple.hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
+      check("-target", hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
       check("-sdk", arguments: arguments)
       check("-F", arguments: arguments)
   #else
-      check("-target", Triple.hostTriple.tripleString, arguments: arguments)
+      check("-target", hostTriple.tripleString, arguments: arguments)
   #endif
 
       check("-I", build.pathString, arguments: arguments)
@@ -155,10 +159,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         buildSetup: config)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let build = buildPath(root: packageRoot, config: config)
+      let hostTriple = ws.buildParameters.triple
+      let build = buildPath(root: packageRoot, config: config, triple: hostTriple)
 
       XCTAssertEqual(ws.buildPath, build)
-      let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
+      let arguments = ws.settings(for: aswift.asURI, .swift)!.compilerArguments
 
       check("-typecheck", arguments: arguments)
       check("-Xcc", "-m32", arguments: arguments)
@@ -185,10 +190,10 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let source = resolveSymlinks(packageRoot.appending(component: "Package.swift"))
-      let arguments = ws.settings(for: source.asURL, .swift)!.compilerArguments
+      let arguments = ws.settings(for: source.asURI, .swift)!.compilerArguments
 
       check("-swift-version", "4.2", arguments: arguments)
       check(source.pathString, arguments: arguments)
@@ -215,15 +220,15 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
 
-      let argumentsA = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
+      let argumentsA = ws.settings(for: aswift.asURI, .swift)!.compilerArguments
       check(aswift.pathString, arguments: argumentsA)
       check(bswift.pathString, arguments: argumentsA)
-      let argumentsB = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
+      let argumentsB = ws.settings(for: aswift.asURI, .swift)!.compilerArguments
       check(aswift.pathString, arguments: argumentsB)
       check(bswift.pathString, arguments: argumentsB)
     }
@@ -255,18 +260,18 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
-      let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
+      let arguments = ws.settings(for: aswift.asURI, .swift)!.compilerArguments
       check(aswift.pathString, arguments: arguments)
       checkNot(bswift.pathString, arguments: arguments)
       check(
         "-I", packageRoot.appending(components: "Sources", "libC", "include").pathString,
         arguments: arguments)
 
-      let argumentsB = ws.settings(for: bswift.asURL, .swift)!.compilerArguments
+      let argumentsB = ws.settings(for: bswift.asURI, .swift)!.compilerArguments
       check(bswift.pathString, arguments: argumentsB)
       checkNot(aswift.pathString, arguments: argumentsB)
       checkNot("-I", packageRoot.appending(components: "Sources", "libC", "include").pathString,
@@ -296,13 +301,13 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
-      XCTAssertNotNil(ws.settings(for: aswift.asURL, .swift))
-      XCTAssertNil(ws.settings(for: bswift.asURL, .swift))
-      XCTAssertNil(ws.settings(for: URL(string: "https://www.apple.com")!, .swift))
+      XCTAssertNotNil(ws.settings(for: aswift.asURI, .swift))
+      XCTAssertNil(ws.settings(for: bswift.asURI, .swift))
+      XCTAssertNil(ws.settings(for: DocumentURI(URL(string: "https://www.apple.com")!), .swift))
     }
   }
 
@@ -328,11 +333,12 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
-      let build = buildPath(root: packageRoot)
+      let hostTriple = ws.buildParameters.triple
+      let build = buildPath(root: packageRoot, triple: hostTriple)
 
       XCTAssertEqual(ws.buildPath, build)
       XCTAssertNotNil(ws.indexStorePath)
@@ -344,11 +350,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         check("-target", arguments: arguments) // Only one!
     #if os(macOS)
         check("-target",
-          Triple.hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
+          hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
         check("-isysroot", arguments: arguments)
         check("-F", arguments: arguments)
     #else
-        check("-target", Triple.hostTriple.tripleString, arguments: arguments)
+        check("-target", hostTriple.tripleString, arguments: arguments)
     #endif
 
         check("-I", packageRoot.appending(components: "Sources", "lib", "include").pathString,
@@ -357,7 +363,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         checkNot(bcxx.pathString, arguments: arguments)
       }
 
-      let args = ws.settings(for: acxx.asURL, .cpp)!.compilerArguments
+      let args = ws.settings(for: acxx.asURI, .cpp)!.compilerArguments
       checkArgsCommon(args)
       check("-MD", "-MT", "dependencies",
           "-MF", build.appending(components: "lib.build", "a.cpp.d").pathString,
@@ -366,7 +372,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       check("-o", build.appending(components: "lib.build", "a.cpp.o").pathString, arguments: args)
 
       let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
-      let headerArgs = ws.settings(for: header.asURL, .cpp)!.compilerArguments
+      let headerArgs = ws.settings(for: header.asURI, .cpp)!.compilerArguments
       checkArgsCommon(headerArgs)
       check("-c", "-x", "c++-header", header.pathString, arguments: headerArgs)
     }
@@ -392,16 +398,18 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: ToolchainRegistry.shared,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let arguments = ws.settings(for: aswift.asURL, .swift)!.compilerArguments
+      let arguments = ws.settings(for: aswift.asURI, .swift)!.compilerArguments
       check("-target", arguments: arguments) // Only one!
+      let hostTriple = ws.buildParameters.triple
+
       #if os(macOS)
         check("-target",
-          Triple.hostTriple.tripleString(forPlatformVersion: "10.13"), arguments: arguments)
+          hostTriple.tripleString(forPlatformVersion: "10.13"), arguments: arguments)
       #else
-        check("-target", Triple.hostTriple.tripleString, arguments: arguments)
+        check("-target", hostTriple.tripleString, arguments: arguments)
       #endif
     }
   }
@@ -430,7 +438,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let aswift1 = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let aswift2 = tempDir
@@ -438,8 +446,8 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         .appending(components: "Sources", "lib", "a.swift")
       let manifest = packageRoot.appending(components: "Package.swift")
 
-      let arguments1 = ws.settings(for: aswift1.asURL, .swift)?.compilerArguments
-      let arguments2 = ws.settings(for: aswift2.asURL, .swift)?.compilerArguments
+      let arguments1 = ws.settings(for: aswift1.asURI, .swift)?.compilerArguments
+      let arguments2 = ws.settings(for: aswift2.asURI, .swift)?.compilerArguments
       XCTAssertNotNil(arguments1)
       XCTAssertNotNil(arguments2)
       XCTAssertEqual(arguments1, arguments2)
@@ -447,7 +455,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       checkNot(aswift1.pathString, arguments: arguments1 ?? [])
       check(resolveSymlinks(aswift1).pathString, arguments: arguments1 ?? [])
 
-      let argsManifest = ws.settings(for: manifest.asURL, .swift)?.compilerArguments
+      let argsManifest = ws.settings(for: manifest.asURI, .swift)?.compilerArguments
       XCTAssertNotNil(argsManifest)
 
       checkNot(manifest.pathString, arguments: argsManifest ?? [])
@@ -483,17 +491,17 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let ah = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
 
-      let argsCxx = ws.settings(for: acxx.asURL, .cpp)?.compilerArguments
+      let argsCxx = ws.settings(for: acxx.asURI, .cpp)?.compilerArguments
       XCTAssertNotNil(argsCxx)
       check(acxx.pathString, arguments: argsCxx ?? [])
       checkNot(resolveSymlinks(acxx).pathString, arguments: argsCxx ?? [])
 
-      let argsH = ws.settings(for: ah.asURL, .cpp)?.compilerArguments
+      let argsH = ws.settings(for: ah.asURI, .cpp)?.compilerArguments
       XCTAssertNotNil(argsH)
       checkNot(ah.pathString, arguments: argsH ?? [])
       check(resolveSymlinks(ah).pathString, arguments: argsH ?? [])
@@ -535,8 +543,9 @@ private func check(
 
 private func buildPath(
   root: AbsolutePath,
-  config: BuildSetup = TestSourceKitServer.buildSetup) -> AbsolutePath
+  config: BuildSetup = TestSourceKitServer.serverOptions.buildSetup,
+  triple: Triple) -> AbsolutePath
 {
   let buildPath = config.path ?? root.appending(component: ".build")
-  return buildPath.appending(components: Triple.hostTriple.tripleString, "\(config.configuration)")
+  return buildPath.appending(components: triple.tripleString, "\(config.configuration)")
 }

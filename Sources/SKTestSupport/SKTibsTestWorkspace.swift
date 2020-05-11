@@ -20,6 +20,7 @@ import TSCBasic
 import TSCUtility
 import XCTest
 import Foundation
+import LSPTestSupport
 
 public typealias URL = Foundation.URL
 
@@ -37,36 +38,45 @@ public final class SKTibsTestWorkspace {
     immutableProjectDir: URL,
     persistentBuildDir: URL,
     tmpDir: URL,
-    toolchain: Toolchain) throws
+    removeTmpDir: Bool,
+    toolchain: Toolchain,
+    clientCapabilities: ClientCapabilities) throws
   {
     self.tibsWorkspace = try TibsTestWorkspace(
       immutableProjectDir: immutableProjectDir,
       persistentBuildDir: persistentBuildDir,
       tmpDir: tmpDir,
+      removeTmpDir: removeTmpDir,
       toolchain: TibsToolchain(toolchain))
 
-    sk.allowUnexpectedNotification = true
-    initWorkspace()
+    initWorkspace(clientCapabilities: clientCapabilities)
   }
 
-  public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain) throws {
+  public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain, clientCapabilities: ClientCapabilities) throws {
     self.tibsWorkspace = try TibsTestWorkspace(
       projectDir: projectDir,
       tmpDir: tmpDir,
       toolchain: TibsToolchain(toolchain))
 
-    sk.allowUnexpectedNotification = true
-    initWorkspace()
+    initWorkspace(clientCapabilities: clientCapabilities)
   }
 
-  func initWorkspace() {
+  func initWorkspace(clientCapabilities: ClientCapabilities) {
     let buildPath = AbsolutePath(builder.buildRoot.path)
+    let buildSystem = CompilationDatabaseBuildSystem(projectRoot: buildPath)
+    let indexDelegate = SourceKitIndexDelegate()
+    tibsWorkspace.delegate = indexDelegate
+
     testServer.server!.workspace = Workspace(
-      rootPath: AbsolutePath(sources.rootDirectory.path),
-      clientCapabilities: ClientCapabilities(),
-      buildSettings: CompilationDatabaseBuildSystem(projectRoot: buildPath),
+      rootUri: DocumentURI(sources.rootDirectory),
+      clientCapabilities: clientCapabilities,
+      toolchainRegistry: ToolchainRegistry.shared,
+      buildSetup: BuildSetup(configuration: .debug, path: buildPath, flags: BuildFlags()),
+      underlyingBuildSystem: buildSystem,
       index: index,
-      buildSetup: BuildSetup(configuration: .debug, path: buildPath, flags: BuildFlags()))
+      indexDelegate: indexDelegate)
+
+    testServer.server!.workspace!.buildSettings.delegate = testServer.server!
   }
 }
 
@@ -77,12 +87,20 @@ extension SKTibsTestWorkspace {
   public func buildAndIndex() throws {
     try tibsWorkspace.buildAndIndex()
   }
+
+  /// Perform a group of edits to the project sources and optionally rebuild.
+  public func edit(
+    rebuild: Bool = false,
+    _ block: (inout TestSources.ChangeBuilder, _ current: SourceFileCache) throws -> ()) throws
+  {
+    try tibsWorkspace.edit(rebuild: rebuild, block)
+  }
 }
 
 extension SKTibsTestWorkspace {
   public func openDocument(_ url: URL, language: Language) throws {
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: DocumentURI(url),
       language: language,
       version: 1,
       text: try sources.sourceCache.get(url))))
@@ -91,16 +109,52 @@ extension SKTibsTestWorkspace {
 
 extension XCTestCase {
 
-  public func staticSourceKitTibsWorkspace(name: String, testFile: String = #file) throws -> SKTibsTestWorkspace? {
+  public func staticSourceKitTibsWorkspace(
+    name: String,
+    clientCapabilities: ClientCapabilities = .init(),
+    tmpDir: URL? = nil,
+    removeTmpDir: Bool = true,
+    testFile: String = #file
+  ) throws -> SKTibsTestWorkspace? {
     let testDirName = testDirectoryName
     let workspace = try SKTibsTestWorkspace(
       immutableProjectDir: inputsDirectory(testFile: testFile)
         .appendingPathComponent(name, isDirectory: true),
       persistentBuildDir: XCTestCase.productsDirectory
         .appendingPathComponent("sk-tests/\(testDirName)", isDirectory: true),
-      tmpDir: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+      tmpDir: tmpDir ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),
-      toolchain: ToolchainRegistry.shared.default!)
+      removeTmpDir: removeTmpDir,
+      toolchain: ToolchainRegistry.shared.default!,
+      clientCapabilities: clientCapabilities)
+
+    if workspace.builder.targets.contains(where: { target in !target.clangTUs.isEmpty })
+      && !workspace.builder.toolchain.clangHasIndexSupport {
+      fputs("warning: skipping test because '\(workspace.builder.toolchain.clang.path)' does not " +
+            "have indexstore support; use swift-clang\n", stderr)
+      return nil
+    }
+
+    return workspace
+  }
+
+  /// Constructs a mutable SKTibsTestWorkspace for the given test from INPUTS.
+  ///
+  /// The resulting workspace allow edits and is not persistent.
+  public func mutableSourceKitTibsTestWorkspace(
+    name: String,
+    clientCapabilities: ClientCapabilities = .init(),
+    tmpDir: URL? = nil,
+    testFile: String = #file
+  ) throws -> SKTibsTestWorkspace? {
+    let testDirName = testDirectoryName
+    let workspace = try SKTibsTestWorkspace(
+      projectDir: inputsDirectory(testFile: testFile)
+        .appendingPathComponent(name, isDirectory: true),
+      tmpDir: tmpDir ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),
+      toolchain: ToolchainRegistry.shared.default!,
+      clientCapabilities: clientCapabilities)
 
     if workspace.builder.targets.contains(where: { target in !target.clangTUs.isEmpty })
       && !workspace.builder.toolchain.clangHasIndexSupport {
@@ -133,13 +187,13 @@ extension Position {
 
 extension Location {
   public init(_ loc: TestLocation) {
-    self.init(url: loc.url, range: Range(Position(loc)))
+    self.init(uri: DocumentURI(loc.url), range: Range(Position(loc)))
   }
 
   /// Incorrectly use the UTF-8 column index in place of the UTF-16 one, to match the incorrect
   /// implementation in SourceKitServer when using the index.
   public init(badUTF16 loc: TestLocation) {
-    self.init(url: loc.url, range: Range(Position(badUTF16: loc)))
+    self.init(uri: DocumentURI(loc.url), range: Range(Position(badUTF16: loc)))
   }
 }
 

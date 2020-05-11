@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LSPTestSupport
 import SKCore
 import SKTestSupport
 import XCTest
-import SourceKit
 
 final class LocalClangTests: XCTestCase {
 
@@ -41,7 +41,7 @@ final class LocalClangTests: XCTestCase {
     _ = try! sk.sendSync(InitializeRequest(
         processId: nil,
         rootPath: nil,
-        rootURL: nil,
+        rootURI: nil,
         initializationOptions: nil,
         capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
@@ -58,10 +58,9 @@ final class LocalClangTests: XCTestCase {
   func testSymbolInfo() {
     guard haveClangd else { return }
     let url = URL(fileURLWithPath: "/a.cpp")
-    sk.allowUnexpectedNotification = true
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: DocumentURI(url),
       language: .cpp,
       version: 1,
       text: """
@@ -123,10 +122,9 @@ final class LocalClangTests: XCTestCase {
   func testFoldingRange() {
     guard haveClangd else { return }
     let url = URL(fileURLWithPath: "/a.cpp")
-    sk.allowUnexpectedNotification = true
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: DocumentURI(url),
       language: .cpp,
       version: 1,
       text: """
@@ -149,15 +147,13 @@ final class LocalClangTests: XCTestCase {
 
     let expectation = XCTestExpectation(description: "diagnostics")
 
-    ws.sk.handleNextNotification { (note: Notification<PublishDiagnostics>) in
-      XCTAssertEqual(note.params.diagnostics, [
-        Diagnostic(
-          range: Position(loc) ..< Position(ws.testLoc("unused_b:end")),
-          severity: .warning,
-          source: nil,
-          message: "Unused variable 'b'")
-      ])
-
+    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      // Don't use exact equality because of differences in recent clang.
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(note.params.diagnostics.first?.range,
+        Position(loc) ..< Position(ws.testLoc("unused_b:end")))
+      XCTAssertEqual(note.params.diagnostics.first?.severity, .warning)
+      XCTAssertEqual(note.params.diagnostics.first?.message, "Unused variable 'b'")
       expectation.fulfill()
     }
 

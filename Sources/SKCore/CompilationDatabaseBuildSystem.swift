@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -10,9 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+import BuildServerProtocol
+import LanguageServerProtocol
+import LSPLogging
 import SKSupport
 import TSCBasic
-import LanguageServerProtocol
+import struct Foundation.URL
 
 /// A `BuildSystem` based on loading clang-compatible compilation database(s).
 ///
@@ -28,6 +31,20 @@ public final class CompilationDatabaseBuildSystem {
 
   let fileSystem: FileSystem
 
+  public lazy var indexStorePath: AbsolutePath? = {
+    if let allCommands = self.compdb?.allCommands {
+      for command in allCommands {
+        let args = command.commandLine
+        for i in args.indices.reversed() {
+          if args[i] == "-index-store-path" && i != args.endIndex - 1 {
+            return try? AbsolutePath(validating: args[i+1])
+          }
+        }
+      }
+    }
+    return nil
+  }()
+
   public init(projectRoot: AbsolutePath? = nil, fileSystem: FileSystem = localFileSystem) {
     self.fileSystem = fileSystem
     if let path = projectRoot {
@@ -38,26 +55,40 @@ public final class CompilationDatabaseBuildSystem {
 
 extension CompilationDatabaseBuildSystem: BuildSystem {
 
-  // FIXME: derive from the compiler arguments.
-  public var indexStorePath: AbsolutePath? { return nil }
-  public var indexDatabasePath: AbsolutePath? { return nil }
+  public var indexDatabasePath: AbsolutePath? {
+    indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
+  }
 
-  public func settings(for url: URL, _ language: Language) -> FileBuildSettings? {
+  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
+    guard let url = uri.fileURL else {
+      // We can't determine build settings for non-file URIs.
+      return nil
+    }
     guard let db = database(for: url),
           let cmd = db[url].first else { return nil }
     return FileBuildSettings(
       compilerArguments: Array(cmd.commandLine.dropFirst()),
-      workingDirectory: cmd.directory
-    )
+      workingDirectory: cmd.directory,
+      language: language)
   }
 
-  public func toolchain(for: URL, _ language: Language) -> Toolchain? { return nil }
+  /// We don't support change watching.
+  public func registerForChangeNotifications(for: DocumentURI, language: Language) {}
 
   /// We don't support change watching.
-  public func registerForChangeNotifications(for: URL) {}
+  public func unregisterForChangeNotifications(for: DocumentURI) {}
 
-  /// We don't support change watching.
-  public func unregisterForChangeNotifications(for: URL) {}
+  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
+  }
+
+  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[SourcesItem]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
+  }
+
+  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
+    reply(.failure(buildTargetsNotSupported))
+  }
 
   func database(for url: URL) -> CompilationDatabase? {
     if let path = try? AbsolutePath(validating: url.path) {

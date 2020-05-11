@@ -6,7 +6,10 @@ extension CodingTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__CodingTests = [
+        ("testCustomCodableOptional", testCustomCodableOptional),
+        ("testPositionRange", testPositionRange),
         ("testValueCoding", testValueCoding),
+        ("testValueOrBool", testValueOrBool),
     ]
 }
 
@@ -27,6 +30,7 @@ extension LanguageServerProtocolTests {
     // to regenerate.
     static let __allTests__LanguageServerProtocolTests = [
         ("testLanguageXFlag", testLanguageXFlag),
+        ("testURLEscaping", testURLEscaping),
     ]
 }
 

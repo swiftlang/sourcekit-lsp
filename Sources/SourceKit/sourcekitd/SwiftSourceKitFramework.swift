@@ -10,10 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Dispatch
 import LanguageServerProtocol
-import TSCBasic
+import LSPLogging
 import SKSupport
 import sourcekitd
+import TSCBasic
 
 /// A wrapper for accessing the API of a sourcekitd library loaded via `dlopen`.
 final class SwiftSourceKitFramework {
@@ -45,7 +47,7 @@ final class SwiftSourceKitFramework {
     #if os(Windows)
     self.dylib = try dlopen(path.pathString, mode: [])
     #else
-    self.dylib = try dlopen(path.pathString, mode: [.lazy, .local, .first, .deepBind])
+    self.dylib = try dlopen(path.pathString, mode: [.lazy, .local, .first])
     #endif
 
     func dlsym_required<T>(_ handle: DLHandle, symbol: String) throws -> T {
@@ -163,8 +165,12 @@ extension SwiftSourceKitFramework {
     return .success(dict)
   }
 
-  /// Send the given request and synchronously receive a reply dictionary (or error).
-  func send(_ req: SKRequestDictionary, reply: @escaping (LSPResult<SKResponseDictionary>) -> Void) -> sourcekitd_request_handle_t? {
+  /// Send the given request and asynchronously receive a reply dictionary (or error) on the given queue.
+  func send(
+    _ req: SKRequestDictionary,
+    _ queue: DispatchQueue,
+    reply: @escaping (LSPResult<SKResponseDictionary>) -> Void
+  ) -> sourcekitd_request_handle_t? {
     logAsync { _ in req.description }
 
     var handle: sourcekitd_request_handle_t? = nil
@@ -176,13 +182,17 @@ extension SwiftSourceKitFramework {
 
       guard let dict = resp.value else {
         log(resp.description, level: .error)
-        reply(.failure(resp.error!))
+        queue.async {
+         reply(.failure(resp.error!))
+        }
         return
       }
 
       logAsync(level: .debug) { _ in dict.description }
 
-      reply(.success(dict))
+      queue.async {
+        reply(.success(dict))
+      }
     }
 
     return handle
@@ -203,11 +213,14 @@ struct sourcekitd_keys {
   let name: sourcekitd_uid_t
   let kind: sourcekitd_uid_t
   let notification: sourcekitd_uid_t
+  let fixits: sourcekitd_uid_t
   let diagnostics: sourcekitd_uid_t
   let diagnostic_stage: sourcekitd_uid_t
   let severity: sourcekitd_uid_t
   let line: sourcekitd_uid_t
   let column: sourcekitd_uid_t
+  let endline: sourcekitd_uid_t
+  let endcolumn: sourcekitd_uid_t
   let filepath: sourcekitd_uid_t
   let ranges: sourcekitd_uid_t
   let usr: sourcekitd_uid_t
@@ -221,6 +234,23 @@ struct sourcekitd_keys {
   let syntaxmap: sourcekitd_uid_t
   let namelength: sourcekitd_uid_t
   let nameoffset: sourcekitd_uid_t
+  let retrieve_refactor_actions: sourcekitd_uid_t
+  let refactor_actions: sourcekitd_uid_t
+  let actionname: sourcekitd_uid_t
+  let actionuid: sourcekitd_uid_t
+  let categorizededits: sourcekitd_uid_t
+  let edits: sourcekitd_uid_t
+  let text: sourcekitd_uid_t
+
+  // Code Completion related keys.
+  let codecomplete_options: sourcekitd_uid_t
+  let codecomplete_sort_byname: sourcekitd_uid_t
+  let context: sourcekitd_uid_t
+  let doc: sourcekitd_uid_t
+  let not_recommended: sourcekitd_uid_t
+  let num_bytes_to_erase: sourcekitd_uid_t
+  let associated_usrs: sourcekitd_uid_t
+
 
   init(api: sourcekitd_functions_t) {
     request = api.uid_get_from_cstr("key.request")!
@@ -234,11 +264,14 @@ struct sourcekitd_keys {
     name = api.uid_get_from_cstr("key.name")!
     kind = api.uid_get_from_cstr("key.kind")!
     notification = api.uid_get_from_cstr("key.notification")!
+    fixits = api.uid_get_from_cstr("key.fixits")!
     diagnostics = api.uid_get_from_cstr("key.diagnostics")!
     diagnostic_stage = api.uid_get_from_cstr("key.diagnostic_stage")!
     severity = api.uid_get_from_cstr("key.severity")!
     line = api.uid_get_from_cstr("key.line")!
     column = api.uid_get_from_cstr("key.column")!
+    endline = api.uid_get_from_cstr("key.endline")!
+    endcolumn = api.uid_get_from_cstr("key.endcolumn")!
     filepath = api.uid_get_from_cstr("key.filepath")!
     ranges = api.uid_get_from_cstr("key.ranges")!
     usr = api.uid_get_from_cstr("key.usr")!
@@ -252,6 +285,22 @@ struct sourcekitd_keys {
     syntaxmap = api.uid_get_from_cstr("key.syntaxmap")!
     namelength = api.uid_get_from_cstr("key.namelength")!
     nameoffset = api.uid_get_from_cstr("key.nameoffset")!
+    retrieve_refactor_actions = api.uid_get_from_cstr("key.retrieve_refactor_actions")!
+    refactor_actions = api.uid_get_from_cstr("key.refactor_actions")!
+    actionname = api.uid_get_from_cstr("key.actionname")!
+    actionuid = api.uid_get_from_cstr("key.actionuid")!
+    categorizededits = api.uid_get_from_cstr("key.categorizededits")!
+    edits = api.uid_get_from_cstr("key.edits")!
+    text = api.uid_get_from_cstr("key.text")!
+
+    // Code Completion related keys.
+    codecomplete_options = api.uid_get_from_cstr("key.codecomplete.options")!
+    codecomplete_sort_byname = api.uid_get_from_cstr("key.codecomplete.sort.byname")!
+    context = api.uid_get_from_cstr("key.context")!
+    doc = api.uid_get_from_cstr("key.doc.brief")!
+    not_recommended = api.uid_get_from_cstr("key.not_recommended")!
+    num_bytes_to_erase = api.uid_get_from_cstr("key.num_bytes_to_erase")!
+    associated_usrs = api.uid_get_from_cstr("key.associated_usrs")!
   }
 }
 
@@ -263,6 +312,7 @@ struct sourcekitd_requests {
   let codecomplete: sourcekitd_uid_t
   let cursorinfo: sourcekitd_uid_t
   let relatedidents: sourcekitd_uid_t
+  let semantic_refactoring: sourcekitd_uid_t
 
   init(api: sourcekitd_functions_t) {
     editor_open = api.uid_get_from_cstr("source.request.editor.open")!
@@ -271,6 +321,7 @@ struct sourcekitd_requests {
     codecomplete = api.uid_get_from_cstr("source.request.codecomplete")!
     cursorinfo = api.uid_get_from_cstr("source.request.cursorinfo")!
     relatedidents = api.uid_get_from_cstr("source.request.relatedidents")!
+    semantic_refactoring = api.uid_get_from_cstr("source.request.semantic.refactoring")!
   }
 }
 

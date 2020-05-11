@@ -10,10 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKit
 import LanguageServerProtocol
-import SKSupport
+import LSPLogging
+import LSPTestSupport
 import SKTestSupport
+import SourceKit
 import XCTest
 
 // Workaround ambiguity with Foundation.
@@ -28,7 +29,9 @@ final class LocalSwiftTests: XCTestCase {
   var sk: TestClient! = nil
 
   /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
-  var workspace: Workspace! = nil
+  var workspace: Workspace! {
+    connection.server!.workspace!
+  }
 
   override func setUp() {
     connection = TestSourceKitServer()
@@ -36,130 +39,745 @@ final class LocalSwiftTests: XCTestCase {
     _ = try! sk.sendSync(InitializeRequest(
         processId: nil,
         rootPath: nil,
-        rootURL: nil,
+        rootURI: nil,
         initializationOptions: nil,
-        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
+        capabilities: ClientCapabilities(workspace: nil,
+                                         textDocument: TextDocumentClientCapabilities(
+                                          codeAction: .init(
+                                            codeActionLiteralSupport: .init(
+                                              codeActionKind: .init(valueSet: [.quickFix])
+                                          )))),
         trace: .off,
         workspaceFolders: nil))
-
-    workspace = connection.server!.workspace!
   }
 
   override func tearDown() {
-    workspace = nil
     sk = nil
     connection = nil
   }
 
   func testEditing() {
-    let url = URL(fileURLWithPath: "/a.swift")
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let uri = DocumentURI(url)
 
-    sk.sendNoteSync(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri,
       language: .swift,
       version: 12,
       text: """
       func
       """
-    )), { (note: Notification<PublishDiagnostics>) in
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - syntactic")
+      XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(url)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(uri)!.text)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
         note.params.diagnostics.first?.range.lowerBound,
         Position(line: 0, utf16index: 4))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 13), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 13), contentChanges: [
       .init(range: Range(Position(line: 0, utf16index: 4)), text: " foo() {}\n")
-    ]), { (note: Notification<PublishDiagnostics>) in
+    ]), { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 1 - syntactic")
       // 1 = remaining semantic error
       // 0 = semantic update finished already
+      XCTAssertEqual(note.params.version, 13)
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func foo() {}\n", self.workspace.documentManager.latestSnapshot(url)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+      XCTAssertEqual("func foo() {}\n", self.workspace.documentManager.latestSnapshot(uri)!.text)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 1 - semantic")
+      XCTAssertEqual(note.params.version, 13)
       XCTAssertEqual(note.params.diagnostics.count, 0)
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 14), contentChanges: [
-      .init(range: Range(Position(line: 1, utf16index: 0)), text: "_ = bar()")
-      ]), { (note: Notification<PublishDiagnostics>) in
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 14), contentChanges: [
+      .init(range: Range(Position(line: 1, utf16index: 0)), text: "bar()")
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
         log("Received diagnostics for edit 2 - syntactic")
+        XCTAssertEqual(note.params.version, 14)
         // 1 = semantic update finished already
         // 0 = only syntactic
         XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
         XCTAssertEqual("""
         func foo() {}
-        _ = bar()
-        """, self.workspace.documentManager.latestSnapshot(url)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+        bar()
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 2 - semantic")
+      XCTAssertEqual(note.params.version, 14)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
         note.params.diagnostics.first?.range.lowerBound,
-        Position(line: 1, utf16index: 4))
+        Position(line: 1, utf16index: 0))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 14), contentChanges: [
-      .init(range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 7), text: "foo")
-      ]), { (note: Notification<PublishDiagnostics>) in
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 14), contentChanges: [
+      .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "foo")
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
         log("Received diagnostics for edit 3 - syntactic")
+        // 1 = remaining semantic error
+        // 0 = semantic update finished already
+        XCTAssertEqual(note.params.version, 14)
+        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
+        XCTAssertEqual("""
+        func foo() {}
+        foo()
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for edit 3 - semantic")
+      XCTAssertEqual(note.params.version, 14)
+      XCTAssertEqual(note.params.diagnostics.count, 0)
+    })
+
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 15), contentChanges: [
+      .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "fooTypo")
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
+        log("Received diagnostics for edit 4 - syntactic")
+        XCTAssertEqual(note.params.version, 15)
+        // 1 = semantic update finished already
+        // 0 = only syntactic
+        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
+        XCTAssertEqual("""
+        func foo() {}
+        fooTypo()
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for edit 4 - semantic")
+      XCTAssertEqual(note.params.version, 15)
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(
+        note.params.diagnostics.first?.range.lowerBound,
+        Position(line: 1, utf16index: 0))
+    })
+
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 16), contentChanges: [
+      .init(range: nil, text: """
+      func bar() {}
+      foo()
+      """)
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
+        log("Received diagnostics for edit 5 - syntactic")
+        XCTAssertEqual(note.params.version, 16)
+        // Could be remaining semantic error or new one.
+        XCTAssertEqual(note.params.diagnostics.count, 1)
+        XCTAssertEqual("""
+        func bar() {}
+        foo()
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for edit 5 - semantic")
+      XCTAssertEqual(note.params.version, 16)
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(
+        note.params.diagnostics.first?.range.lowerBound,
+        Position(line: 1, utf16index: 0))
+    })
+  }
+
+  func testEditingNonURL() {
+    let uri = DocumentURI(string: "urn:uuid:A1B08909-E791-469E-BF0F-F5790977E051")
+
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri,
+      language: .swift,
+      version: 12,
+      text: """
+      func
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+      XCTAssertEqual(note.params.version, 12)
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(uri)!.text)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.version, 12)
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(
+        note.params.diagnostics.first?.range.lowerBound,
+        Position(line: 0, utf16index: 4))
+    })
+
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 13), contentChanges: [
+      .init(range: Range(Position(line: 0, utf16index: 4)), text: " foo() {}\n")
+    ]), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for edit 1 - syntactic")
+      XCTAssertEqual(note.params.version, 13)
+      // 1 = remaining semantic error
+      // 0 = semantic update finished already
+      XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual("func foo() {}\n", self.workspace.documentManager.latestSnapshot(uri)!.text)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for edit 1 - semantic")
+      XCTAssertEqual(note.params.version, 13)
+      XCTAssertEqual(note.params.diagnostics.count, 0)
+    })
+
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 14), contentChanges: [
+      .init(range: Range(Position(line: 1, utf16index: 0)), text: "bar()")
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
+        log("Received diagnostics for edit 2 - syntactic")
+        XCTAssertEqual(note.params.version, 14)
+        // 1 = semantic update finished already
+        // 0 = only syntactic
+        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
+        XCTAssertEqual("""
+        func foo() {}
+        bar()
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for edit 2 - semantic")
+      XCTAssertEqual(note.params.version, 14)
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(
+        note.params.diagnostics.first?.range.lowerBound,
+        Position(line: 1, utf16index: 0))
+    })
+
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 14), contentChanges: [
+      .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "foo")
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
+        log("Received diagnostics for edit 3 - syntactic")
+        XCTAssertEqual(note.params.version, 14)
         // 1 = remaining semantic error
         // 0 = semantic update finished already
         XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
         XCTAssertEqual("""
         func foo() {}
-        _ = foo()
-        """, self.workspace.documentManager.latestSnapshot(url)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+        foo()
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 3 - semantic")
+      XCTAssertEqual(note.params.version, 14)
       XCTAssertEqual(note.params.diagnostics.count, 0)
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 15), contentChanges: [
-      .init(range: Position(line: 1, utf16index: 4)..<Position(line: 1, utf16index: 7), text: "fooTypo")
-      ]), { (note: Notification<PublishDiagnostics>) in
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 15), contentChanges: [
+      .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "fooTypo")
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
         log("Received diagnostics for edit 4 - syntactic")
+        XCTAssertEqual(note.params.version, 15)
         // 1 = semantic update finished already
         // 0 = only syntactic
         XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
         XCTAssertEqual("""
         func foo() {}
-        _ = fooTypo()
-        """, self.workspace.documentManager.latestSnapshot(url)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+        fooTypo()
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 4 - semantic")
+      XCTAssertEqual(note.params.version, 15)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
         note.params.diagnostics.first?.range.lowerBound,
-        Position(line: 1, utf16index: 4))
+        Position(line: 1, utf16index: 0))
     })
 
-    sk.sendNoteSync(DidChangeTextDocument(textDocument: .init(url, version: 16), contentChanges: [
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 16), contentChanges: [
       .init(range: nil, text: """
       func bar() {}
-      _ = foo()
+      foo()
       """)
-      ]), { (note: Notification<PublishDiagnostics>) in
+      ]), { (note: Notification<PublishDiagnosticsNotification>) in
         log("Received diagnostics for edit 5 - syntactic")
-        // Could be remaining semantic error or new one.
+        XCTAssertEqual(note.params.version, 16)
+         // Could be remaining semantic error or new one.
         XCTAssertEqual(note.params.diagnostics.count, 1)
         XCTAssertEqual("""
         func bar() {}
-        _ = foo()
-        """, self.workspace.documentManager.latestSnapshot(url)!.text)
-    }, { (note: Notification<PublishDiagnostics>) in
+        foo()
+        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 5 - semantic")
+      XCTAssertEqual(note.params.version, 16)
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(
         note.params.diagnostics.first?.range.lowerBound,
-        Position(line: 1, utf16index: 4))
+        Position(line: 1, utf16index: 0))
     })
+  }
+
+  func testExcludedDocumentSchemeDiagnostics() {
+    let includedURL = URL(fileURLWithPath: "/a.swift")
+    let includedURI = DocumentURI(includedURL)
+
+    let excludedURI = DocumentURI(string: "git:/a.swift")
+
+    let text = """
+    func
+    """
+
+    sk.allowUnexpectedNotification = false
+
+    // Open the excluded URI first so our later notification handlers can confirm
+    // that no diagnostics were emitted for this excluded URI.
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: excludedURI,
+      language: .swift,
+      version: 1,
+      text: text
+    )))
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: includedURI,
+      language: .swift,
+      version: 1,
+      text: text
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+      XCTAssertEqual(note.params.uri, includedURI)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.uri, includedURI)
+    })
+  }
+
+  func testCrossFileDiagnostics() {
+    let urlA = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let urlB = URL(fileURLWithPath: "/\(#function)/b.swift")
+    let uriA = DocumentURI(urlA)
+    let uriB = DocumentURI(urlB)
+
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uriA, language: .swift, version: 12,
+      text: """
+      foo()
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+      XCTAssertEqual(note.params.version, 12)
+      // 1 = semantic update finished already
+      // 0 = only syntactic
+      XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.version, 12)
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(
+        note.params.diagnostics.first?.range.lowerBound,
+        Position(line: 0, utf16index: 0))
+    })
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uriB, language: .swift, version: 12,
+      text: """
+      bar()
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+      XCTAssertEqual(note.params.version, 12)
+      // 1 = semantic update finished already
+      // 0 = only syntactic
+      XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.version, 12)
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(
+        note.params.diagnostics.first?.range.lowerBound,
+        Position(line: 0, utf16index: 0))
+    })
+
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uriA, version: 13), contentChanges: [
+      .init(range: nil, text: "foo()\n")
+    ]), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for edit 1 - syntactic")
+      XCTAssertEqual(note.params.version, 13)
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for edit 1 - semantic")
+      XCTAssertEqual(note.params.version, 13)
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+    })
+  }
+
+  func testDiagnosticsReopen() {
+    let urlA = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let uriA = DocumentURI(urlA)
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uriA, language: .swift, version: 12,
+      text: """
+      foo()
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+      XCTAssertEqual(note.params.version, 12)
+      // 1 = semantic update finished already
+      // 0 = only syntactic
+      XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.version, 12)
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(
+        note.params.diagnostics.first?.range.lowerBound,
+        Position(line: 0, utf16index: 0))
+    })
+
+    sk.send(DidCloseTextDocumentNotification(textDocument: .init(urlA)))
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uriA, language: .swift, version: 13,
+      text: """
+      var
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+      XCTAssertEqual(note.params.version, 13)
+      // 1 = syntactic, no cached semantic diagnostic from previous version
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(
+        note.params.diagnostics.first?.range.lowerBound,
+        Position(line: 0, utf16index: 3))
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.version, 13)
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(
+        note.params.diagnostics.first?.range.lowerBound,
+        Position(line: 0, utf16index: 3))
+    })
+  }
+
+  func testFixitsAreIncludedInPublishDiagnostics() {
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let uri = DocumentURI(url)
+
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: """
+      func foo() {
+        let a = 2
+      }
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      let diag = note.params.diagnostics.first!
+      XCTAssertNotNil(diag.codeActions)
+      XCTAssertEqual(diag.codeActions!.count, 1)
+      let fixit = diag.codeActions!.first!
+
+      // Expected Fix-it: Replace `let a` with `_` because it's never used
+      let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 7), newText: "_")
+      XCTAssertEqual(fixit, CodeAction(
+        title: "Replace 'let a' with '_'",
+        kind: .quickFix,
+        diagnostics: nil,
+        edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+        command: nil))
+    })
+  }
+
+  func testFixitsAreIncludedInPublishDiagnosticsNotes() {
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let uri = DocumentURI(url)
+
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: """
+      func foo(a: Int?) {
+        _ = a.bigEndian
+      }
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      let diag = note.params.diagnostics.first!
+      XCTAssertEqual(diag.relatedInformation?.count, 2)
+      if let note1 = diag.relatedInformation?.first(where: { $0.message.contains("'?'") }) {
+        XCTAssertEqual(note1.codeActions?.count, 1)
+        if let fixit = note1.codeActions?.first {
+          // Expected Fix-it: Replace `let a` with `_` because it's never used
+          let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 7)..<Position(line: 1, utf16index: 7), newText: "?")
+          XCTAssertEqual(fixit, CodeAction(
+            title: "chain the optional using '?' to access member 'bigEndian' only for non-'nil' base values",
+            kind: .quickFix,
+            diagnostics: nil,
+            edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+            command: nil))
+        }
+      } else {
+        XCTFail("missing '?' note")
+      }
+      if let note2 = diag.relatedInformation?.first(where: { $0.message.contains("'!'") }) {
+        XCTAssertEqual(note2.codeActions?.count, 1)
+        if let fixit = note2.codeActions?.first {
+          // Expected Fix-it: Replace `let a` with `_` because it's never used
+          let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 7)..<Position(line: 1, utf16index: 7), newText: "!")
+          XCTAssertEqual(fixit, CodeAction(
+            title: "force-unwrap using '!' to abort execution if the optional value contains 'nil'",
+            kind: .quickFix,
+            diagnostics: nil,
+            edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+            command: nil))
+        }
+      } else {
+        XCTFail("missing '!' note")
+      }
+    })
+  }
+
+  func testFixitInsert() {
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let uri = DocumentURI(url)
+
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: """
+      func foo() {
+        print("")print("")
+      }
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      let diag = note.params.diagnostics.first!
+      XCTAssertNotNil(diag.codeActions)
+      XCTAssertEqual(diag.codeActions!.count, 1)
+      let fixit = diag.codeActions!.first!
+
+      // Expected Fix-it: Insert `;`
+      let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 11)..<Position(line: 1, utf16index: 11), newText: ";")
+      XCTAssertEqual(fixit, CodeAction(
+        title: "Insert ';'",
+        kind: .quickFix,
+        diagnostics: nil,
+        edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+        command: nil))
+    })
+  }
+
+  func testFixitTitle() {
+    XCTAssertEqual("Insert ';'", CodeAction.fixitTitle(replace: "", with: ";"))
+    XCTAssertEqual("Replace 'let a' with '_'", CodeAction.fixitTitle(replace: "let a", with: "_"))
+    XCTAssertEqual("Remove 'foo ='", CodeAction.fixitTitle(replace: "foo =", with: ""))
+  }
+
+  func testFixitsAreReturnedFromCodeActions() {
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let uri = DocumentURI(url)
+
+    var diagnostic: Diagnostic! = nil
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: """
+      func foo() {
+        let a = 2
+      }
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      diagnostic = note.params.diagnostics.first!
+    })
+
+    let request = CodeActionRequest(
+      range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 11),
+      context: CodeActionContext(diagnostics: [diagnostic], only: nil),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let response = try! sk.sendSync(request)
+
+    XCTAssertNotNil(response)
+    guard case .codeActions(let codeActions) = response else {
+      XCTFail("Expected code actions as response")
+      return
+    }
+    let quickFixes = codeActions.filter{ $0.kind == .quickFix }
+    XCTAssertEqual(quickFixes.count, 1)
+    let fixit = quickFixes.first!
+
+    // Expected Fix-it: Replace `let a` with `_` because it's never used
+    let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 7), newText: "_")
+    XCTAssertEqual(fixit, CodeAction(
+      title: "Replace 'let a' with '_'",
+      kind: .quickFix,
+      diagnostics: [
+        Diagnostic(
+          range: Position(line: 1, utf16index: 6)..<Position(line: 1, utf16index: 6),
+          severity: .warning,
+          code: nil,
+          source: "sourcekitd",
+          message: "initialization of immutable value \'a\' was never used; consider replacing with assignment to \'_\' or removing it",
+          relatedInformation: [],
+          codeActions: nil)],
+      edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+      command: nil))
+  }
+
+  func testFixitsAreReturnedFromCodeActionsNotes() {
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let uri = DocumentURI(url)
+
+    var diagnostic: Diagnostic! = nil
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: """
+      func foo(a: Int?) {
+        _ = a.bigEndian
+      }
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      diagnostic = note.params.diagnostics.first!
+    })
+
+    let request = CodeActionRequest(
+      range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 11),
+      context: CodeActionContext(diagnostics: [diagnostic], only: nil),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let response = try! sk.sendSync(request)
+
+    XCTAssertNotNil(response)
+    guard case .codeActions(let codeActions) = response else {
+      XCTFail("Expected code actions as response")
+      return
+    }
+    let quickFixes = codeActions.filter{ $0.kind == .quickFix }
+    XCTAssertEqual(quickFixes.count, 2)
+
+    var expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 7)..<Position(line: 1, utf16index: 7), newText: "_")
+
+    for fixit in quickFixes {
+      if fixit.title.contains("!") {
+        XCTAssert(fixit.title.starts(with: "force-unwrap using '!'"))
+        expectedTextEdit.newText = "!"
+        XCTAssertEqual(fixit.edit, WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil))
+      } else {
+        XCTAssert(fixit.title.starts(with: "chain the optional using '?'"))
+        expectedTextEdit.newText = "?"
+        XCTAssertEqual(fixit.edit, WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil))
+      }
+      XCTAssertEqual(fixit.kind, .quickFix)
+      XCTAssertEqual(fixit.diagnostics?.count, 1)
+      XCTAssertEqual(fixit.diagnostics?.first?.severity, .error)
+      XCTAssertEqual(fixit.diagnostics?.first?.range, Range(Position(line: 1, utf16index: 6)))
+      XCTAssert(fixit.diagnostics?.first?.message.starts(with: "value of optional type") == true)
+    }
+  }
+
+  func testMuliEditFixitCodeActionPrimary() {
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let uri = DocumentURI(url)
+
+    var diagnostic: Diagnostic! = nil
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: """
+      @available(*, introduced: 10, deprecated: 11)
+      func foo() {}
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      diagnostic = note.params.diagnostics.first!
+    })
+
+    let request = CodeActionRequest(
+      range: Position(line: 0, utf16index: 1)..<Position(line: 0, utf16index: 10),
+      context: CodeActionContext(diagnostics: [diagnostic], only: nil),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let response = try! sk.sendSync(request)
+
+    XCTAssertNotNil(response)
+    guard case .codeActions(let codeActions) = response else {
+      XCTFail("Expected code actions as response")
+      return
+    }
+    let quickFixes = codeActions.filter{ $0.kind == .quickFix }
+    XCTAssertEqual(quickFixes.count, 1)
+    guard let fixit = quickFixes.first  else { return }
+
+    XCTAssertEqual(fixit.title, "Remove ': 10'...")
+    XCTAssertEqual(fixit.diagnostics?.count, 1)
+    XCTAssertEqual(fixit.edit?.changes?[uri], [
+      TextEdit(range: Position(line: 0, utf16index: 24)..<Position(line: 0, utf16index: 28), newText: ""),
+      TextEdit(range: Position(line: 0, utf16index: 40)..<Position(line: 0, utf16index: 44), newText: ""),
+    ])
+  }
+
+  func testMuliEditFixitCodeActionNote() {
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let uri = DocumentURI(url)
+
+    var diagnostic: Diagnostic! = nil
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: """
+      @available(*, deprecated, renamed: "new(_:hotness:)")
+      func old(and: Int, busted: Int) {}
+      func test() {
+        old(and: 1, busted: 2)
+      }
+      """
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      diagnostic = note.params.diagnostics.first!
+    })
+
+    let request = CodeActionRequest(
+      range: Position(line: 3, utf16index: 2)..<Position(line: 3, utf16index: 2),
+      context: CodeActionContext(diagnostics: [diagnostic], only: nil),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let response = try! sk.sendSync(request)
+
+    XCTAssertNotNil(response)
+    guard case .codeActions(let codeActions) = response else {
+      XCTFail("Expected code actions as response")
+      return
+    }
+    let quickFixes = codeActions.filter{ $0.kind == .quickFix }
+    XCTAssertEqual(quickFixes.count, 1)
+    guard let fixit = quickFixes.first  else { return }
+
+    XCTAssertEqual(fixit.title, "use 'new(_:hotness:)' instead")
+    XCTAssertEqual(fixit.diagnostics?.count, 1)
+    XCTAssert(fixit.diagnostics?.first?.message.contains("is deprecated") == true)
+    XCTAssertEqual(fixit.edit?.changes?[uri], [
+      TextEdit(range: Position(line: 3, utf16index: 2)..<Position(line: 3, utf16index: 5), newText: "new"),
+      TextEdit(range: Position(line: 3, utf16index: 6)..<Position(line: 3, utf16index: 11), newText: ""),
+      TextEdit(range: Position(line: 3, utf16index: 14)..<Position(line: 3, utf16index: 20), newText: "hotness"),
+    ])
   }
 
   func testXMLToMarkdownDeclaration() {
@@ -169,6 +787,9 @@ final class LocalSwiftTests: XCTestCase {
       ```
       func foo(_ bar: Baz)
       ```
+
+      ---
+
       """)
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Declaration>func foo() -&gt; <Type>Bar</Type></Declaration>
@@ -176,6 +797,9 @@ final class LocalSwiftTests: XCTestCase {
       ```
       func foo() -> Bar
       ```
+
+      ---
+
       """)
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Declaration>func replacingOccurrences&lt;Target, Replacement&gt;(of target: Target, with replacement: Replacement, options: <Type usr="s:SS">String</Type>.<Type usr="s:SS10FoundationE14CompareOptionsa">CompareOptions</Type> = default, range searchRange: <Type usr="s:Sn">Range</Type>&lt;<Type usr="s:SS">String</Type>.<Type usr="s:SS5IndexV">Index</Type>&gt;? = default) -&gt; <Type usr="s:SS">String</Type> where Target : <Type usr="s:Sy">StringProtocol</Type>, Replacement : <Type usr="s:Sy">StringProtocol</Type></Declaration>
@@ -183,6 +807,9 @@ final class LocalSwiftTests: XCTestCase {
       ```
       func replacingOccurrences<Target, Replacement>(of target: Target, with replacement: Replacement, options: String.CompareOptions = default, range searchRange: Range<String.Index>? = default) -> String where Target : StringProtocol, Replacement : StringProtocol
       ```
+
+      ---
+
       """)
   }
 
@@ -193,6 +820,9 @@ final class LocalSwiftTests: XCTestCase {
       ```
       var foo
       ```
+
+      ---
+
       """)
 
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
@@ -201,6 +831,9 @@ final class LocalSwiftTests: XCTestCase {
       ```
       var foo
       ```
+
+      ---
+
       """)
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Class><USR>asdf</USR><Declaration>var foo</Declaration><Name>foo</Name></Class>
@@ -208,6 +841,9 @@ final class LocalSwiftTests: XCTestCase {
       ```
       var foo
       ```
+
+      ---
+
       """)
 
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
@@ -223,6 +859,9 @@ final class LocalSwiftTests: XCTestCase {
       ```
       var foo
       ```
+
+      ---
+
       """)
 
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
@@ -352,6 +991,7 @@ final class LocalSwiftTests: XCTestCase {
       struct String
       ```
 
+      ---
       A Unicode s
 
       ### Discussion
@@ -416,11 +1056,11 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testSymbolInfo() {
-    let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let uri = DocumentURI(url)
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri,
       language: .swift,
       version: 1,
       text: """
@@ -441,7 +1081,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(sym.name, "S")
         XCTAssertNil(sym.containerName)
         XCTAssertEqual(sym.usr, "s:1a1SV")
-        XCTAssertEqual(sym.bestLocalDeclaration?.url, url)
+        XCTAssertEqual(sym.bestLocalDeclaration?.uri, uri)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 0)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 7)
       }
@@ -457,7 +1097,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(sym.name, "foo()")
         XCTAssertNil(sym.containerName)
         XCTAssertEqual(sym.usr, "s:1a1SV3fooyyF")
-        XCTAssertEqual(sym.bestLocalDeclaration?.url, url)
+        XCTAssertEqual(sym.bestLocalDeclaration?.uri, uri)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 1)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 7)
       }
@@ -473,7 +1113,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(sym.name, "local")
         XCTAssertNil(sym.containerName)
         XCTAssertEqual(sym.usr, "s:1a1SV3fooyyF5localL_Sivp")
-        XCTAssertEqual(sym.bestLocalDeclaration?.url, url)
+        XCTAssertEqual(sym.bestLocalDeclaration?.uri, uri)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 2)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 8)
       }
@@ -489,11 +1129,11 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testHover() {
-    let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let uri = DocumentURI(url)
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri,
       language: .swift,
       version: 1,
       text: """
@@ -511,13 +1151,18 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertNotNil(resp)
       if let hover = resp {
         XCTAssertNil(hover.range)
-        XCTAssertEqual(hover.contents.kind, .markdown)
-        XCTAssertEqual(hover.contents.value, """
-          # S
+        guard case .markupContent(let content) = hover.contents else {
+          XCTFail("hover.contents is not .markupContents")
+          return
+        }
+        XCTAssertEqual(content.kind, .markdown)
+        XCTAssertEqual(content.value, """
+          S
           ```
           struct S
           ```
 
+          ---
           This is a doc comment for S.
 
           ### Discussion
@@ -537,11 +1182,10 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testHoverNameEscaping() {
-    let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: DocumentURI(url),
       language: .swift,
       version: 1,
       text: """
@@ -559,13 +1203,18 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertNotNil(resp)
       if let hover = resp {
         XCTAssertNil(hover.range)
-        XCTAssertEqual(hover.contents.kind, .markdown)
-        XCTAssertEqual(hover.contents.value, ##"""
-          # test(\_:\_:)
+        guard case .markupContent(let content) = hover.contents else {
+          XCTFail("hover.contents is not .markupContents")
+          return
+        }
+        XCTAssertEqual(content.kind, .markdown)
+        XCTAssertEqual(content.value, ##"""
+          test(\_:\_:)
           ```
           func test(_ a: Int, _ b: Int)
           ```
 
+          ---
           this is **bold** documentation
           """##)
       }
@@ -579,13 +1228,18 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertNotNil(resp)
       if let hover = resp {
         XCTAssertNil(hover.range)
-        XCTAssertEqual(hover.contents.kind, .markdown)
-        XCTAssertEqual(hover.contents.value, ##"""
-          # \*%\*(\_:\_:)
+        guard case .markupContent(let content) = hover.contents else {
+          XCTFail("hover.contents is not .markupContents")
+          return
+        }
+        XCTAssertEqual(content.kind, .markdown)
+        XCTAssertEqual(content.value, ##"""
+          \*%\*(\_:\_:)
           ```
           func *%* (lhs: String, rhs: String)
           ```
 
+          ---
           this is *italic* documentation
           """##)
       }
@@ -593,11 +1247,11 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testDocumentSymbolHighlight() {
-    let url = URL(fileURLWithPath: "/a.swift")
-    sk.allowUnexpectedNotification = true
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let uri = DocumentURI(url)
 
-    sk.send(DidOpenTextDocument(textDocument: TextDocumentItem(
-      url: url,
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri,
       language: .swift,
       version: 1,
       text: """

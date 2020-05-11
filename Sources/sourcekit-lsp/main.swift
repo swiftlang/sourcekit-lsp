@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -10,19 +10,34 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKit
-import LanguageServerProtocolJSONRPC
-import LanguageServerProtocol
-import SKSupport
-import SKCore
-import TSCLibc
 import Dispatch
-import TSCBasic
-import TSCUtility
 import Foundation
+import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
+import LSPLogging
+import SKCore
+import SKSupport
+import SourceKit
 import sourcekitd // Not needed here, but fixes debugging...
+import TSCBasic
+import TSCLibc
+import TSCUtility
 
-func parseArguments() throws -> (BuildSetup, sync: Bool) {
+extension LogLevel: ArgumentKind {
+  public static var completion: ShellCompletion {
+    return ShellCompletion.none
+  }
+}
+
+struct CommandLineOptions {
+  /// Options for the server.
+  var serverOptions: SourceKitServer.Options = SourceKitServer.Options()
+
+  /// Whether to wait for a response before handling the next request.
+  var syncRequests: Bool = false
+}
+
+func parseArguments() throws -> CommandLineOptions {
   let arguments = Array(ProcessInfo.processInfo.arguments.dropFirst())
   let parser = ArgumentParser(usage: "[options]", overview: "Language Server Protocol implementation for Swift and C-based languages")
   let loggingOption = parser.add(option: "--log-level", kind: LogLevel.self, usage: "Set the logging level (debug|info|warning|error) [default: \(LogLevel.default)]")
@@ -33,14 +48,43 @@ func parseArguments() throws -> (BuildSetup, sync: Bool) {
   let buildFlagsCxx = parser.add(option: "-Xcxx", kind: [String].self, strategy: .oneByOne, usage: "Pass flag through to all C++ compiler invocations")
   let buildFlagsLinker = parser.add(option: "-Xlinker", kind: [String].self, strategy: .oneByOne, usage: "Pass flag through to all linker invocations")
   let buildFlagsSwift = parser.add(option: "-Xswiftc", kind: [String].self, strategy: .oneByOne, usage: "Pass flag through to all Swift compiler invocations")
+  let clangdOptions = parser.add(option: "-Xclangd", kind: [String].self, strategy: .oneByOne, usage: "Pass options to clangd command-line")
+  let indexStorePath = parser.add(option: "-index-store-path", kind: PathArgument.self, usage: "Override index-store-path from the build system")
+  let indexDatabasePath = parser.add(option: "-index-db-path", kind: PathArgument.self, usage: "Override index-database-path from the build system")
 
   let parsedArguments = try parser.parse(arguments)
 
-  var buildFlags = BuildSetup.default.flags
-  buildFlags.cCompilerFlags = parsedArguments.get(buildFlagsCc) ?? []
-  buildFlags.cxxCompilerFlags = parsedArguments.get(buildFlagsCxx) ?? []
-  buildFlags.linkerFlags = parsedArguments.get(buildFlagsLinker) ?? []
-  buildFlags.swiftCompilerFlags = parsedArguments.get(buildFlagsSwift) ?? []
+  var result = CommandLineOptions()
+
+  if let config = parsedArguments.get(buildConfigurationOption) {
+    result.serverOptions.buildSetup.configuration = config
+  }
+  if let buildPath = parsedArguments.get(buildPathOption)?.path {
+    result.serverOptions.buildSetup.path = buildPath
+  }
+  if let flags = parsedArguments.get(buildFlagsCc) {
+    result.serverOptions.buildSetup.flags.cCompilerFlags = flags
+  }
+  if let flags = parsedArguments.get(buildFlagsCxx) {
+    result.serverOptions.buildSetup.flags.cxxCompilerFlags = flags
+  }
+  if let flags = parsedArguments.get(buildFlagsLinker) {
+    result.serverOptions.buildSetup.flags.linkerFlags = flags
+  }
+  if let flags = parsedArguments.get(buildFlagsSwift) {
+    result.serverOptions.buildSetup.flags.swiftCompilerFlags = flags
+  }
+
+  if let options = parsedArguments.get(clangdOptions) {
+    result.serverOptions.clangdOptions = options
+  }
+
+  if let path = parsedArguments.get(indexStorePath)?.path {
+    result.serverOptions.indexOptions.indexStorePath = path
+  }
+  if let path = parsedArguments.get(indexDatabasePath)?.path {
+    result.serverOptions.indexOptions.indexDatabasePath = path
+  }
 
   if let logLevel = parsedArguments.get(loggingOption) {
     Logger.shared.currentLevel = logLevel
@@ -48,43 +92,41 @@ func parseArguments() throws -> (BuildSetup, sync: Bool) {
     Logger.shared.setLogLevel(environmentVariable: "SOURCEKIT_LOGGING")
   }
 
-  let sync = parsedArguments.get(syncOption) ?? false
+  if let sync = parsedArguments.get(syncOption) {
+    result.syncRequests = sync
+  }
 
-  return (BuildSetup(
-    configuration: parsedArguments.get(buildConfigurationOption) ?? BuildSetup.default.configuration,
-    path: parsedArguments.get(buildPathOption)?.path,
-    flags: buildFlags),
-    sync: sync)
+  return result
 }
 
-let buildSetup: BuildSetup
-let sync: Bool
+let options: CommandLineOptions
 do {
-  (buildSetup, sync) = try parseArguments()
+  options = try parseArguments()
 } catch {
   fputs("error: \(error)\n", TSCLibc.stderr)
   exit(1)
 }
 
-let clientConnection = JSONRPCConection(
+let clientConnection = JSONRPCConnection(
   protocol: MessageRegistry.lspProtocol,
   inFD: STDIN_FILENO,
   outFD: STDOUT_FILENO,
-  syncRequests: sync,
-  closeHandler: {
-  exit(0)
-})
-
-Logger.shared.addLogHandler { message, _ in
-  clientConnection.send(LogMessage(type: .log, message: message))
-}
+  syncRequests: options.syncRequests)
 
 let installPath = AbsolutePath(Bundle.main.bundlePath)
 ToolchainRegistry.shared = ToolchainRegistry(installPath: installPath, localFileSystem)
 
-let server = SourceKitServer(client: clientConnection, buildSetup: buildSetup, onExit: {
+let server = SourceKitServer(client: clientConnection, options: options.serverOptions, onExit: {
   clientConnection.close()
 })
-clientConnection.start(receiveHandler: server)
+clientConnection.start(receiveHandler: server, closeHandler: {
+  server.prepareForExit()
+  // Use _Exit to avoid running static destructors due to SR-12668.
+  _Exit(0)
+})
+
+Logger.shared.addLogHandler { message, _ in
+  clientConnection.send(LogMessageNotification(type: .log, message: message))
+}
 
 dispatchMain()
