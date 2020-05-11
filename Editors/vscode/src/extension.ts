@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import * as langclient from 'vscode-languageclient';
 import { SwiftPMTaskProvider } from './taskProvider';
 
-let swiftpmTaskProvider: vscode.Disposable | undefined;
+let disposable: vscode.Disposable | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -38,15 +38,15 @@ export function activate(context: vscode.ExtensionContext) {
 
     let workspaceRoot = vscode.workspace.rootPath;
     if (workspaceRoot) {
-      let taskProvider = new SwiftPMTaskProvider(workspaceRoot);
-      swiftpmTaskProvider = vscode.tasks.registerTaskProvider(SwiftPMTaskProvider.taskType, taskProvider);
+      let provider = new SwiftPMTaskProvider(workspaceRoot);
+      disposable = vscode.tasks.registerTaskProvider(SwiftPMTaskProvider.taskType, provider);
     }
 
     console.log('SourceKit-LSP is now active!');
 }
 
 export function deactivate() {
-  if (swiftpmTaskProvider) {
-    swiftpmTaskProvider.dispose();
+  if (disposable) {
+    disposable.dispose();
   }
 }
