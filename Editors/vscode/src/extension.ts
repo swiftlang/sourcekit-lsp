@@ -26,7 +26,11 @@ export function activate(context: vscode.ExtensionContext) {
             'objective-c',
             'objective-cpp'
         ],
-        synchronize: undefined
+        synchronize: {
+          fileEvents: [
+            vscode.workspace.createFileSystemWatcher("**/*.swift"),
+          ],
+        }
     };
 
     const client = new langclient.LanguageClient('sourcekit-lsp', 'SourceKit Language Server', serverOptions, clientOptions);
