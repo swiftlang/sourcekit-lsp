@@ -103,7 +103,8 @@ final class BuildSystemManagerTests: XCTestCase {
 
     bs.map[a] = nil
     let changed = expectation(description: "changed settings")
-    del.expected = [(a, nil, changed, #file, #line)]
+    let fallbackSettings = bsm._fallbackBuildSystem.settings(for: a, .swift)
+    del.expected = [(a, fallbackSettings, changed, #file, #line)]
     bsm.fileBuildSettingsChanged(Set([a]))
     wait(for: [changed], timeout: 10, enforceOrder: true)
   }
@@ -116,7 +117,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = BuildSystemManager(buildSystem: bs, mainFilesProvider: mainFiles)
     let del = BSMDelegate(bsm)
     let initial = expectation(description: "initial settings")
-    del.expected = [(a, nil, initial, #file, #line)]
+    let fallbackSettings = bsm._fallbackBuildSystem.settings(for: a, .swift)
+    del.expected = [(a, fallbackSettings, initial, #file, #line)]
     bsm.registerForChangeNotifications(for: a, language: .swift)
     wait(for: [initial], timeout: 10, enforceOrder: true)
 
@@ -191,7 +193,8 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[a] = nil
     bs.map[b] = nil
     let changed = expectation(description: "changed settings")
-    del.expected = [(b, nil, changed, #file, #line)]
+    let fallbackSettings = bsm._fallbackBuildSystem.settings(for: b, .swift)
+    del.expected = [(b, fallbackSettings, changed, #file, #line)]
     bsm.fileBuildSettingsChanged(Set([b]))
     wait(for: [changed], timeout: 10, enforceOrder: true)
   }
@@ -243,7 +246,8 @@ final class BuildSystemManagerTests: XCTestCase {
     mainFiles.mainFiles[h] = Set([])
 
     let changed4 = expectation(description: "changed settings to []")
-    del.expected = [(h, nil, changed4, #file, #line)]
+    let fallbackSettings = bsm._fallbackBuildSystem.settings(for: h, .c)
+    del.expected = [(h, fallbackSettings, changed4, #file, #line)]
     bsm.mainFilesChanged()
     wait(for: [changed4], timeout: 10, enforceOrder: true)
   }

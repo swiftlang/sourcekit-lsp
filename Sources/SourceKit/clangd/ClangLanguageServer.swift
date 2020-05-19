@@ -200,7 +200,7 @@ extension ClangLanguageServerShim {
 func makeJSONRPCClangServer(
   client: MessageHandler,
   toolchain: Toolchain,
-  buildSettings: BuildSystem?,
+  buildSystem: BuildSystem,
   clangdOptions: [String]
 ) throws -> ToolchainLanguageServer {
   guard let clangd = toolchain.clangd else {
@@ -221,7 +221,7 @@ func makeJSONRPCClangServer(
   let shim = try ClangLanguageServerShim(
     client: connectionToClient,
     clangd: connection,
-    buildSystem: buildSettings ?? BuildSystemList(),
+    buildSystem: buildSystem,
     clang: toolchain.clang)
 
   connectionToClient.start(handler: client)

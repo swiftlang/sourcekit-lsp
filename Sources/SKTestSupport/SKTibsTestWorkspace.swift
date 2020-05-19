@@ -76,7 +76,7 @@ public final class SKTibsTestWorkspace {
       index: index,
       indexDelegate: indexDelegate)
 
-    testServer.server!.workspace!.buildSettings.delegate = testServer.server!
+    testServer.server!.workspace!.buildSystemManager.delegate = testServer.server!
   }
 }
 

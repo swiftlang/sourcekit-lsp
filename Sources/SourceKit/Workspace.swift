@@ -33,8 +33,8 @@ public final class Workspace {
 
   public let clientCapabilities: ClientCapabilities
 
-  /// The build settings provider to use for documents in this workspace.
-  public let buildSettings: BuildSystem
+  /// The build system manager to use for documents in this workspace.
+  public let buildSystemManager: BuildSystemManager
 
   /// Build setup
   public let buildSetup: BuildSetup
@@ -53,7 +53,7 @@ public final class Workspace {
     clientCapabilities: ClientCapabilities,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
-    underlyingBuildSystem: BuildSystem,
+    underlyingBuildSystem: BuildSystem?,
     index: IndexStoreDB?,
     indexDelegate: SourceKitIndexDelegate?)
   {
@@ -63,7 +63,7 @@ public final class Workspace {
     self.index = index
     let bsm = BuildSystemManager(buildSystem: underlyingBuildSystem, mainFilesProvider: index)
     indexDelegate?.registerMainFileChanged(bsm)
-    self.buildSettings = bsm
+    self.buildSystemManager = bsm
   }
 
   /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
@@ -79,18 +79,16 @@ public final class Workspace {
     buildSetup: BuildSetup,
     indexOptions: IndexOptions = IndexOptions()
   ) throws {
-
-    let settings = BuildSystemList()
+    var buildSystem: BuildSystem? = nil
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
       if let buildServer = BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
-        settings.providers.insert(buildServer, at: 0)
-      } else {
-        settings.providers.insert(CompilationDatabaseBuildSystem(projectRoot: rootPath), at: 0)
-        if let swiftpm = SwiftPMWorkspace(url: rootUrl,
+        buildSystem = buildServer
+      } else if let swiftpm = SwiftPMWorkspace(url: rootUrl,
                                           toolchainRegistry: toolchainRegistry,
                                           buildSetup: buildSetup) {
-          settings.providers.insert(swiftpm, at: 0)
-        }
+        buildSystem = swiftpm
+      } else {
+        buildSystem = CompilationDatabaseBuildSystem(projectRoot: rootPath)
       }
     } else {
       // We assume that workspaces are directories. This is only true for URLs not for URIs in general.
@@ -101,8 +99,8 @@ public final class Workspace {
     var index: IndexStoreDB? = nil
     var indexDelegate: SourceKitIndexDelegate? = nil
 
-    if let storePath = indexOptions.indexStorePath ?? settings.indexStorePath,
-       let dbPath = indexOptions.indexDatabasePath ?? settings.indexDatabasePath,
+    if let storePath = indexOptions.indexStorePath ?? buildSystem?.indexStorePath,
+       let dbPath = indexOptions.indexDatabasePath ?? buildSystem?.indexDatabasePath,
        let libPath = toolchainRegistry.default?.libIndexStore
     {
       do {
@@ -125,7 +123,7 @@ public final class Workspace {
       clientCapabilities: clientCapabilities,
       toolchainRegistry: toolchainRegistry,
       buildSetup: buildSetup,
-      underlyingBuildSystem: settings,
+      underlyingBuildSystem: buildSystem,
       index: index,
       indexDelegate: indexDelegate)
   }
