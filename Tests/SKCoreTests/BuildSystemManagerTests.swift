@@ -35,6 +35,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let bsm = BuildSystemManager(
       buildSystem: FallbackBuildSystem(),
+      fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
 
     XCTAssertEqual(bsm._cachedMainFile(for: a), nil)
@@ -92,7 +93,10 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a])]
     let bs = ManualBuildSystem()
-    let bsm = BuildSystemManager(buildSystem: bs, mainFilesProvider: mainFiles)
+    let bsm = BuildSystemManager(
+      buildSystem: bs,
+      fallbackBuildSystem: nil,
+      mainFilesProvider: mainFiles)
     let del = BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"], language: .swift)
@@ -103,8 +107,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     bs.map[a] = nil
     let changed = expectation(description: "changed settings")
-    let fallbackSettings = bsm._fallbackBuildSystem.settings(for: a, .swift)
-    del.expected = [(a, fallbackSettings, changed, #file, #line)]
+    del.expected = [(a, nil, changed, #file, #line)]
     bsm.fileBuildSettingsChanged(Set([a]))
     wait(for: [changed], timeout: 10, enforceOrder: true)
   }
@@ -114,11 +117,13 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a])]
     let bs = ManualBuildSystem()
-    let bsm = BuildSystemManager(buildSystem: bs, mainFilesProvider: mainFiles)
+    let bsm = BuildSystemManager(
+      buildSystem: bs,
+      fallbackBuildSystem: nil,
+      mainFilesProvider: mainFiles)
     let del = BSMDelegate(bsm)
     let initial = expectation(description: "initial settings")
-    let fallbackSettings = bsm._fallbackBuildSystem.settings(for: a, .swift)
-    del.expected = [(a, fallbackSettings, initial, #file, #line)]
+    del.expected = [(a, nil, initial, #file, #line)]
     bsm.registerForChangeNotifications(for: a, language: .swift)
     wait(for: [initial], timeout: 10, enforceOrder: true)
 
@@ -129,13 +134,46 @@ final class BuildSystemManagerTests: XCTestCase {
     wait(for: [changed], timeout: 10, enforceOrder: true)
   }
 
+  func testSettingsMainFileWithFallback() {
+    let a = DocumentURI(string: "bsm:a.swift")
+    let mainFiles = ManualMainFilesProvider()
+    mainFiles.mainFiles = [a: Set([a])]
+    let bs = ManualBuildSystem()
+    let fallback = FallbackBuildSystem()
+    let bsm = BuildSystemManager(
+      buildSystem: bs,
+      fallbackBuildSystem: fallback,
+      mainFilesProvider: mainFiles)
+    let del = BSMDelegate(bsm)
+    let fallbackSettings = fallback.settings(for: a, .swift)
+    let initial = expectation(description: "initial fallback settings")
+    del.expected = [(a, fallbackSettings, initial, #file, #line)]
+    bsm.registerForChangeNotifications(for: a, language: .swift)
+    wait(for: [initial], timeout: 10, enforceOrder: true)
+
+    bs.map[a] = FileBuildSettings(compilerArguments: ["non-fallback", "args"], language: .swift)
+    let changed = expectation(description: "changed settings")
+    del.expected = [(a, bs.map[a]!, changed, #file, #line)]
+    bsm.fileBuildSettingsChanged(Set([a]))
+    wait(for: [changed], timeout: 10, enforceOrder: true)
+
+    bs.map[a] = nil
+    let revert = expectation(description: "revert to fallback settings")
+    del.expected = [(a, fallbackSettings, revert, #file, #line)]
+    bsm.fileBuildSettingsChanged(Set([a]))
+    wait(for: [revert], timeout: 10, enforceOrder: true)
+  }
+
   func testSettingsMainFileInitialIntersect() {
     let a = DocumentURI(string: "bsm:a.swift")
     let b = DocumentURI(string: "bsm:b.swift")
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a]), b: Set([b])]
     let bs = ManualBuildSystem()
-    let bsm = BuildSystemManager(buildSystem: bs, mainFilesProvider: mainFiles)
+    let bsm = BuildSystemManager(
+      buildSystem: bs,
+      fallbackBuildSystem: nil,
+      mainFilesProvider: mainFiles)
     let del = BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"], language: .swift)
@@ -174,7 +212,10 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a]), b: Set([b])]
     let bs = ManualBuildSystem()
-    let bsm = BuildSystemManager(buildSystem: bs, mainFilesProvider: mainFiles)
+    let bsm = BuildSystemManager(
+      buildSystem: bs,
+      fallbackBuildSystem: nil,
+      mainFilesProvider: mainFiles)
     let del = BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["a"], language: .swift)
@@ -193,8 +234,7 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[a] = nil
     bs.map[b] = nil
     let changed = expectation(description: "changed settings")
-    let fallbackSettings = bsm._fallbackBuildSystem.settings(for: b, .swift)
-    del.expected = [(b, fallbackSettings, changed, #file, #line)]
+    del.expected = [(b, nil, changed, #file, #line)]
     bsm.fileBuildSettingsChanged(Set([b]))
     wait(for: [changed], timeout: 10, enforceOrder: true)
   }
@@ -211,7 +251,10 @@ final class BuildSystemManagerTests: XCTestCase {
     ]
 
     let bs = ManualBuildSystem()
-    let bsm = BuildSystemManager(buildSystem: bs, mainFilesProvider: mainFiles)
+    let bsm = BuildSystemManager(
+      buildSystem: bs,
+      fallbackBuildSystem: nil,
+      mainFilesProvider: mainFiles)
     let del = BSMDelegate(bsm)
 
     bs.map[cpp1] = FileBuildSettings(compilerArguments: ["C++ 1"], language: .cpp)
@@ -246,8 +289,7 @@ final class BuildSystemManagerTests: XCTestCase {
     mainFiles.mainFiles[h] = Set([])
 
     let changed4 = expectation(description: "changed settings to []")
-    let fallbackSettings = bsm._fallbackBuildSystem.settings(for: h, .c)
-    del.expected = [(h, fallbackSettings, changed4, #file, #line)]
+    del.expected = [(h, nil, changed4, #file, #line)]
     bsm.mainFilesChanged()
     wait(for: [changed4], timeout: 10, enforceOrder: true)
   }
@@ -263,7 +305,10 @@ final class BuildSystemManagerTests: XCTestCase {
     ]
 
     let bs = ManualBuildSystem()
-    let bsm = BuildSystemManager(buildSystem: bs, mainFilesProvider: mainFiles)
+    let bsm = BuildSystemManager(
+      buildSystem: bs,
+      fallbackBuildSystem: nil,
+      mainFilesProvider: mainFiles)
     let del = BSMDelegate(bsm)
 
     bs.map[cpp] = FileBuildSettings(compilerArguments: ["C++ Main File"], language: .cpp)
@@ -309,7 +354,10 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a]), b: Set([b]), c: Set([c])]
     let bs = ManualBuildSystem()
-    let bsm = BuildSystemManager(buildSystem: bs, mainFilesProvider: mainFiles)
+    let bsm = BuildSystemManager(
+      buildSystem: bs,
+      fallbackBuildSystem: nil,
+      mainFilesProvider: mainFiles)
     let del = BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["a"], language: .swift)
@@ -359,7 +407,10 @@ final class BuildSystemManagerTests: XCTestCase {
     }
 
     let bs = DepUpdateDuringRegistrationBS()
-    let bsm = BuildSystemManager(buildSystem: bs, mainFilesProvider: mainFiles)
+    let bsm = BuildSystemManager(
+      buildSystem: bs,
+      fallbackBuildSystem: nil,
+      mainFilesProvider: mainFiles)
     let del = BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"], language: .swift)

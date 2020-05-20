@@ -19,9 +19,10 @@ import Dispatch
 /// `BuildSystem` that integrates client-side information such as main-file lookup as well as providing
 ///  common functionality such as caching.
 ///
-/// This `BuildSystem` combines settings from an optional primary build system with a required fallback
-/// build system. We assume the fallback system does not integrate with change notifications; at the
-/// moment the `FallbackBuildSystem` is always used as the fallback.
+/// This `BuildSystem` combines settings from optional primary and fallback
+/// build systems. We assume the fallback system does not integrate with change
+/// notifications; at the moment the fallback must be a `FallbackBuildSystem` if
+/// present.
 public final class BuildSystemManager {
 
   /// Queue for processing asynchronous work and mutual exclusion for shared state.
@@ -43,8 +44,9 @@ public final class BuildSystemManager {
   /// The underlying primary build system.
   let buildSystem: BuildSystem?
 
-  /// The fallback build system, used when the `buildSystem` is not set or cannot provide settings.
-  let fallbackBuildSystem = FallbackBuildSystem()
+  /// The fallback build system. If present, used when the `buildSystem` is not
+  /// set or cannot provide settings.
+  let fallbackBuildSystem: FallbackBuildSystem?
 
   /// Provider of file to main file mappings.
   weak var mainFilesProvider: MainFilesProvider?
@@ -52,11 +54,13 @@ public final class BuildSystemManager {
   /// Build system delegate that will receive notifications about setting changes, etc.
   var _delegate: BuildSystemDelegate?
 
-  /// Create a BuildSystemManager that wraps the given build system. The new manager will modify the
-  /// delegate of the underlying build system.
-  public init(buildSystem: BuildSystem?, mainFilesProvider: MainFilesProvider?) {
+  /// Create a BuildSystemManager that wraps the given build system. The new
+  /// manager will modify the delegate of the underlying build system.
+  public init(buildSystem: BuildSystem?, fallbackBuildSystem: FallbackBuildSystem?,
+              mainFilesProvider: MainFilesProvider?) {
     precondition(buildSystem?.delegate == nil)
     self.buildSystem = buildSystem
+    self.fallbackBuildSystem = fallbackBuildSystem
     self.mainFilesProvider = mainFilesProvider
     self.buildSystem?.delegate = self
   }
@@ -147,7 +151,7 @@ extension BuildSystemManager: BuildSystem {
        let settings = buildSystem.settings(for: file, language) {
       return settings
     }
-    return self.fallbackBuildSystem.settings(for: file, language)
+    return self.fallbackBuildSystem?.settings(for: file, language)
   }
 
   public func unregisterForChangeNotifications(for uri: DocumentURI) {
@@ -306,11 +310,6 @@ extension BuildSystemManager {
     queue.sync {
       mainFileSettings[uri]
     }
-  }
-
-  /// *For Testing* Get the fallback build system.
-  public var _fallbackBuildSystem: FallbackBuildSystem {
-    return fallbackBuildSystem
   }
 }
 

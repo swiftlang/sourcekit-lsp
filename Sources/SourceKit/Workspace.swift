@@ -61,7 +61,10 @@ public final class Workspace {
     self.rootUri = rootUri
     self.clientCapabilities = clientCapabilities
     self.index = index
-    let bsm = BuildSystemManager(buildSystem: underlyingBuildSystem, mainFilesProvider: index)
+    let bsm = BuildSystemManager(
+      buildSystem: underlyingBuildSystem,
+      fallbackBuildSystem: FallbackBuildSystem(),
+      mainFilesProvider: index)
     indexDelegate?.registerMainFileChanged(bsm)
     self.buildSystemManager = bsm
   }
