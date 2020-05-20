@@ -234,6 +234,9 @@ final class BuildSystemTests: XCTestCase {
     )), { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(DocumentURI(url))!.text)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      // Semantic analysis - expect one error here.
+      XCTAssertEqual(note.params.diagnostics.count, 1)
     })
 
     // Modify the build settings and inform the SourceKitServer.

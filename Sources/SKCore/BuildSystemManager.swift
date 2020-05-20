@@ -16,8 +16,13 @@ import LSPLogging
 import TSCBasic
 import Dispatch
 
-/// `BuildSystem` that integrates client-side information such as main-file lookup on top of one or
-/// or more concrete build systems, as well as providing common functionality such as caching.
+/// `BuildSystem` that integrates client-side information such as main-file lookup as well as providing
+///  common functionality such as caching.
+///
+/// This `BuildSystem` combines settings from optional primary and fallback
+/// build systems. We assume the fallback system does not integrate with change
+/// notifications; at the moment the fallback must be a `FallbackBuildSystem` if
+/// present.
 public final class BuildSystemManager {
 
   /// Queue for processing asynchronous work and mutual exclusion for shared state.
@@ -29,15 +34,19 @@ public final class BuildSystemManager {
   /// The set of watched files, along with their main file and language.
   var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
 
-  /// Build settings for each main file.
+  /// Build settings for each main file, potentially from fallback build system.
   ///
   /// * `.none`: Build settings not computed yet.
   /// * `.some(.none)`: Build system returned `nil`.
   /// * `.some(.some(_))`: Build settings available!
   var mainFileSettings: [DocumentURI: FileBuildSettings?] = [:]
 
-  /// The underlying build system.
-  let buildSystem: BuildSystem
+  /// The underlying primary build system.
+  let buildSystem: BuildSystem?
+
+  /// The fallback build system. If present, used when the `buildSystem` is not
+  /// set or cannot provide settings.
+  let fallbackBuildSystem: FallbackBuildSystem?
 
   /// Provider of file to main file mappings.
   weak var mainFilesProvider: MainFilesProvider?
@@ -45,27 +54,29 @@ public final class BuildSystemManager {
   /// Build system delegate that will receive notifications about setting changes, etc.
   var _delegate: BuildSystemDelegate?
 
-  /// Create a BuildSystemManager that wraps the given build system. The new manager will modify the
-  /// delegate of the underlying build system.
-  public init(buildSystem: BuildSystem, mainFilesProvider: MainFilesProvider?) {
-    precondition(buildSystem.delegate == nil)
+  /// Create a BuildSystemManager that wraps the given build system. The new
+  /// manager will modify the delegate of the underlying build system.
+  public init(buildSystem: BuildSystem?, fallbackBuildSystem: FallbackBuildSystem?,
+              mainFilesProvider: MainFilesProvider?) {
+    precondition(buildSystem?.delegate == nil)
     self.buildSystem = buildSystem
+    self.fallbackBuildSystem = fallbackBuildSystem
     self.mainFilesProvider = mainFilesProvider
-    self.buildSystem.delegate = self
+    self.buildSystem?.delegate = self
   }
 }
 
 extension BuildSystemManager: BuildSystem {
 
-  public var indexStorePath: AbsolutePath? {  queue.sync { buildSystem.indexStorePath } }
+  public var indexStorePath: AbsolutePath? {  queue.sync { buildSystem?.indexStorePath } }
 
-  public var indexDatabasePath: AbsolutePath? { queue.sync { buildSystem.indexDatabasePath } }
+  public var indexDatabasePath: AbsolutePath? { queue.sync { buildSystem?.indexDatabasePath } }
 
   /// Synchronously lookup the `FileBuildSettings` for `uri`.
   ///
   /// If `uri` was previously registered with `registerForChangeNotifications`, or if `uri`
   /// corresponds to a main file that was previously registered, this returns the cached settings.
-  /// Otherwise it makes a one-off query to the build system and returns the settings.
+  /// Otherwise it makes a one-off query to the build systems and returns the settings.
   public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
     queue.sync {
       if let watched = self.watchedFiles[uri] {
@@ -80,7 +91,7 @@ extension BuildSystemManager: BuildSystem {
         if let cached: FileBuildSettings? = self.mainFileSettings[mainFile] {
           return cached
         } else {
-          return self.buildSystem.settings(for: mainFile, language)
+          return self.querySettings(for: mainFile, language)
         }
       }
     }
@@ -123,14 +134,24 @@ extension BuildSystemManager: BuildSystem {
   ///
   /// *Invariant*: `mainFileSettings[mainFile]` is non-nil if and only-if `mainFile` is currently
   /// registered for settings.
-  func cachedOrRegisterForSettings(mainFile: DocumentURI, language: Language) -> FileBuildSettings?{
+  func cachedOrRegisterForSettings(mainFile: DocumentURI, language: Language) -> FileBuildSettings? {
     if let cached: FileBuildSettings? = self.mainFileSettings[mainFile] {
       return cached
     }
-    self.buildSystem.registerForChangeNotifications(for: mainFile, language: language)
-    let settings = self.buildSystem.settings(for: mainFile, language)
+    self.buildSystem?.registerForChangeNotifications(for: mainFile, language: language)
+    let settings = self.querySettings(for: mainFile, language)
     self.mainFileSettings[mainFile] = .some(settings)
     return settings
+  }
+
+  /// *Must be called on queue*. Query the build system and/or fallback build system
+  /// for build settings.
+  private func querySettings(for file: DocumentURI, _ language: Language) -> FileBuildSettings? {
+    if let buildSystem = self.buildSystem,
+       let settings = buildSystem.settings(for: file, language) {
+      return settings
+    }
+    return self.fallbackBuildSystem?.settings(for: file, language)
   }
 
   public func unregisterForChangeNotifications(for uri: DocumentURI) {
@@ -146,14 +167,18 @@ extension BuildSystemManager: BuildSystem {
   func checkUnreferencedMainFile(_ mainFile: DocumentURI) {
     if !self.watchedFiles.values.lazy.map({ $0.mainFile }).contains(mainFile) {
       // This was the last reference to the main file. Remove it.
-      self.buildSystem.unregisterForChangeNotifications(for: mainFile)
+      self.buildSystem?.unregisterForChangeNotifications(for: mainFile)
       self.mainFileSettings[mainFile] = nil
     }
   }
 
   public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
     queue.async {
-      self.buildSystem.buildTargets(reply: reply)
+      if let buildSystem = self.buildSystem {
+        buildSystem.buildTargets(reply: reply)
+      } else {
+        reply(.success([]))
+      }
     }
   }
 
@@ -162,7 +187,11 @@ extension BuildSystemManager: BuildSystem {
     reply: @escaping (LSPResult<[SourcesItem]>) -> Void)
   {
     queue.async {
-      self.buildSystem.buildTargetSources(targets: targets, reply: reply)
+      if let buildSystem = self.buildSystem {
+        buildSystem.buildTargetSources(targets: targets, reply: reply)
+      } else {
+        reply(.success([]))
+      }
     }
   }
 
@@ -171,7 +200,11 @@ extension BuildSystemManager: BuildSystem {
     reply: @escaping (LSPResult<[OutputsItem]>) -> Void)
   {
     queue.async {
-      self.buildSystem.buildTargetOutputPaths(targets: targets, reply: reply)
+      if let buildSystem = self.buildSystem {
+        buildSystem.buildTargetOutputPaths(targets: targets, reply: reply)
+      } else {
+        reply(.success([]))
+      }
     }
   }
 }
@@ -195,7 +228,7 @@ extension BuildSystemManager: BuildSystemDelegate {
         // itself to pass it in here.
         let language = self.mainFileSettings[mainFile]??.language ?? watches.first!.value.language
 
-        let settings = self.buildSystem.settings(for: mainFile, language)
+        let settings = self.querySettings(for: mainFile, language)
         self.mainFileSettings[mainFile] = settings
 
         changedWatchedFiles.formUnion(watches.map { $0.key })

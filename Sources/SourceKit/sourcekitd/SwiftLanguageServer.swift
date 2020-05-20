@@ -1258,14 +1258,14 @@ extension DocumentSnapshot {
 }
 
 func makeLocalSwiftServer(
-  client: MessageHandler, sourcekitd: AbsolutePath, buildSettings: BuildSystem?,
+  client: MessageHandler, sourcekitd: AbsolutePath, buildSystem: BuildSystem,
   clientCapabilities: ClientCapabilities?) throws -> ToolchainLanguageServer {
   let connectionToClient = LocalConnection()
 
   let server = try SwiftLanguageServer(
     client: connectionToClient,
     sourcekitd: sourcekitd,
-    buildSystem: buildSettings ?? BuildSystemList(),
+    buildSystem: buildSystem,
     clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil)
   )
   connectionToClient.start(handler: client)
