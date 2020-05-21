@@ -256,17 +256,22 @@ extension SourceKitServer: BuildSystemDelegate {
     return documentManager.openDocuments.intersection(changes)
   }
 
-  public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
+  public func fileBuildSettingsChanged(
+    _ changedFiles: [DocumentURI: FileBuildSettingsChange]
+  ) {
     queue.async {
       guard let workspace = self.workspace else {
         return
       }
       let documentManager = workspace.documentManager
-      for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, documentManager) {
+      let openDocuments = documentManager.openDocuments
+      for (uri, change) in changedFiles {
+        guard openDocuments.contains(uri) else { continue }
         log("Build settings changed for opened file \(uri)")
+
         if let snapshot = documentManager.latestSnapshot(uri),
-          let service = self.languageService(for: uri, snapshot.document.language, in: workspace) {
-          service.documentUpdatedBuildSettings(uri, language: snapshot.document.language)
+           let service = self.languageService(for: uri, snapshot.document.language, in: workspace) {
+          service.documentUpdatedBuildSettings(uri, settings: change.newSettings)
         }
       }
     }

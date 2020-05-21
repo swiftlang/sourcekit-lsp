@@ -85,8 +85,6 @@ extension ClangLanguageServerShim {
   // MARK: - Text synchronization
 
   public func openDocument(_ note: DidOpenTextDocumentNotification) {
-    let textDocument = note.textDocument
-    documentUpdatedBuildSettings(textDocument.uri, language: textDocument.language)
     clangd.send(note)
   }
 
@@ -108,13 +106,12 @@ extension ClangLanguageServerShim {
 
   // MARK: - Build System Integration
 
-  public func documentUpdatedBuildSettings(_ uri: DocumentURI, language: Language) {
+  public func documentUpdatedBuildSettings(_ uri: DocumentURI, settings: FileBuildSettings?) {
     guard let url = uri.fileURL else {
       // FIXME: The clang workspace can probably be reworked to support non-file URIs.
       log("Received updated build settings for non-file URI '\(uri)'. Ignoring the update.")
       return
     }
-    let settings = buildSystem.settings(for: uri, language)
 
     logAsync(level: settings == nil ? .warning : .debug) { _ in
       let settingsStr = settings == nil ? "nil" : settings!.compilerArguments.description

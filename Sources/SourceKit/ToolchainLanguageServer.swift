@@ -12,6 +12,7 @@
 
 import Foundation
 import LanguageServerProtocol
+import SKCore
 
 /// A `LanguageServer` that exists within the context of the current process.
 public protocol ToolchainLanguageServer: AnyObject {
@@ -23,7 +24,12 @@ public protocol ToolchainLanguageServer: AnyObject {
 
   // MARK: - Text synchronization
 
+  /// Sent to open up a document on the Language Server.
+  /// This may be called before or after a corresponding
+  /// `documentUpdatedBuildSettings` call for the same document.
   func openDocument(_ note: DidOpenTextDocumentNotification)
+
+  /// Sent to close a document on the Language Server.
   func closeDocument(_ note: DidCloseTextDocumentNotification)
   func changeDocument(_ note: DidChangeTextDocumentNotification)
   func willSaveDocument(_ note: WillSaveTextDocumentNotification)
@@ -31,7 +37,10 @@ public protocol ToolchainLanguageServer: AnyObject {
 
   // MARK: - Build System Integration
 
-  func documentUpdatedBuildSettings(_ uri: DocumentURI, language: Language)
+  /// Sent when the `BuildSystem` has resolved build settings,
+  /// such as for the intial build settings or when the settings
+  /// have changed (e.g. modified build sytem files).
+  func documentUpdatedBuildSettings(_ uri: DocumentURI, settings: FileBuildSettings?)
   func documentDependenciesUpdated(_ uri: DocumentURI, language: Language)
 
   // MARK: - Text Document

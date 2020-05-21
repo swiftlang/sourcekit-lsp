@@ -126,9 +126,23 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
   return nil
 }
 
+private func toFileBuildSettings(
+  _ result: SourceKitOptionsResult,
+  _ language: Language
+) -> FileBuildSettings {
+  return FileBuildSettings(
+    compilerArguments: result.options,
+    workingDirectory: result.workingDirectory,
+    language: language)
+}
+
 final class BuildServerHandler: LanguageServerEndpoint {
 
   public weak var delegate: BuildSystemDelegate? = nil
+  
+  /// Maps from DocumentURI to language for all registered documents.
+  /// FIXME: Should this be added to the BSP Protocol?
+  var uriToLanguage: [DocumentURI: Language] = [:]
 
   override func _registerBuiltinHandlers() {
     _register(BuildServerHandler.handleBuildTargetsChanged)
@@ -140,8 +154,11 @@ final class BuildServerHandler: LanguageServerEndpoint {
   }
 
   func handleFileOptionsChanged(_ notification: Notification<FileOptionsChangedNotification>) {
-    // TODO: add delegate method to include the changed settings directly
-    self.delegate?.fileBuildSettingsChanged([notification.params.uri])
+    let uri = notification.params.uri
+    if let language = self.uriToLanguage[uri] {
+      let settings = toFileBuildSettings(notification.params.updatedOptions, language)
+      self.delegate?.fileBuildSettingsChanged([uri: .modified(settings)])
+    }
   }
 }
 
@@ -150,6 +167,7 @@ extension BuildServerBuildSystem: BuildSystem {
   /// Register the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+    self.handler?.uriToLanguage[uri] = language
     let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request, queue: requestQueue, reply: { result in
       if let error = result.failure {
@@ -167,16 +185,6 @@ extension BuildServerBuildSystem: BuildSystem {
         log("error unregistering \(uri): \(error)", level: .error)
       }
     })
-  }
-
-  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
-    if let response = try? self.buildServer?.sendSync(SourceKitOptions(uri: uri)) {
-      return FileBuildSettings(
-        compilerArguments: response.options,
-        workingDirectory: response.workingDirectory,
-        language: language)
-    }
-    return nil
   }
 
   public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {

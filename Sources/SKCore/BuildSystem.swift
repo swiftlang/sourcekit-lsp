@@ -31,9 +31,6 @@ public protocol BuildSystem: AnyObject {
   /// The path to put the index database, if any.
   var indexDatabasePath: AbsolutePath? { get }
 
-  /// Returns the settings for the given url and language mode, if known.
-  func settings(for: DocumentURI, _ language: Language) -> FileBuildSettings?
-
   /// Delegate to handle any build system events such as file build settings
   /// changing.
   var delegate: BuildSystemDelegate? { get set }

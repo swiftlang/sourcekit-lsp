@@ -249,23 +249,23 @@ extension SwiftLanguageServer {
     self.publishDiagnostics(response: dict, for: snapshot)
   }
 
-  public func documentUpdatedBuildSettings(_ uri: DocumentURI, language: Language) {
+  public func documentUpdatedBuildSettings(_ uri: DocumentURI, settings: FileBuildSettings?) {
     self.queue.async {
+      // Confirm that the build settings actually changed, otherwise we don't
+      // need to do anything.
+      guard self.buildSettingsByFile[uri] != settings else {
+        return
+      }
+      self.buildSettingsByFile[uri] = settings
+
+      // We may not have a snapshot if this is called just before `openDocument`.
       guard let snapshot = self.documentManager.latestSnapshot(uri) else {
         return
       }
 
-      // Confirm that the build settings actually changed, otherwise we don't
-      // need to do anything.
-      let newSettings = self.buildSystem.settings(for: uri, language)
-      guard self.buildSettingsByFile[uri] != newSettings else {
-        return
-      }
-      self.buildSettingsByFile[uri] = newSettings
-
       // Close and re-open the document internally to inform sourcekitd to
       // update the settings. At the moment there's no better way to do this.
-      self.reopenDocument(snapshot, newSettings)
+      self.reopenDocument(snapshot, settings)
     }
   }
 
@@ -293,17 +293,12 @@ extension SwiftLanguageServer {
       }
 
       let uri = snapshot.document.uri
-
-      // Cache the `BuildSystem`'s settings interally.
-      let settings = self.buildSystem.settings(for: uri, snapshot.document.language)
-      self.buildSettingsByFile[uri] = settings
-
       let req = SKRequestDictionary(sourcekitd: self.sourcekitd)
       req[keys.request] = self.requests.editor_open
       req[keys.name] = note.textDocument.uri.pseudoPath
       req[keys.sourcetext] = snapshot.text
 
-      if let settings = settings {
+      if let settings = self.buildSettingsByFile[uri] {
         req[keys.compilerargs] = settings.compilerArguments
       }
 
