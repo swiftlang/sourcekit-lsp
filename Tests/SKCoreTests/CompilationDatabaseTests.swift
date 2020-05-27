@@ -197,7 +197,7 @@ final class CompilationDatabaseTests: XCTestCase {
       }
     ]
     """) { buildSystem in
-      let settings = buildSystem.settings(for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")), .swift)
+      let settings = buildSystem._settings(for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")), .swift)
       XCTAssertNotNil(settings)
       XCTAssertEqual(settings?.workingDirectory, "/a")
       XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", "/a/a.swift", "-working-directory", "/a"])
@@ -305,10 +305,10 @@ final class CompilationDatabaseTests: XCTestCase {
   }
 }
 
-private func checkCompilationDatabaseBuildSystem(_ compdb: ByteString, file: StaticString = #file, line: UInt = #line, block: (BuildSystem) -> ()) {
+private func checkCompilationDatabaseBuildSystem(_ compdb: ByteString, file: StaticString = #file, line: UInt = #line, block: (CompilationDatabaseBuildSystem) -> ()) {
   let fs = InMemoryFileSystem()
   XCTAssertNoThrow(try fs.createDirectory(AbsolutePath("/a")), file: file, line: line)
   XCTAssertNoThrow(try fs.writeFileContents(AbsolutePath("/a/compile_commands.json"), bytes: compdb), file: file, line: line)
-  let buildSystem: BuildSystem = CompilationDatabaseBuildSystem(projectRoot: AbsolutePath("/a"), fileSystem: fs)
+  let buildSystem = CompilationDatabaseBuildSystem(projectRoot: AbsolutePath("/a"), fileSystem: fs)
   block(buildSystem)
 }

@@ -36,6 +36,18 @@ enum MainFileStatus: Equatable {
 }
 
 extension MainFileStatus {
+  /// Whether fallback build settings are being used.
+  /// If no build settings are available, returns false.
+  var usingFallbackSettings: Bool {
+    switch self {
+    case .waiting: return false
+    case .unsupported: return false
+    case .waitingUsingFallback(_): return true
+    case .fallback(_): return true
+    case .primary(_): return false
+    }
+  }
+
   /// The active build settings, if any.
   var buildSettings: FileBuildSettings? {
     switch self {

@@ -59,21 +59,11 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }
 
-  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
-    guard let url = uri.fileURL else {
-      // We can't determine build settings for non-file URIs.
-      return nil
-    }
-    guard let db = database(for: url),
-          let cmd = db[url].first else { return nil }
-    return FileBuildSettings(
-      compilerArguments: Array(cmd.commandLine.dropFirst()),
-      workingDirectory: cmd.directory,
-      language: language)
-  }
-
   /// We don't support change watching.
-  public func registerForChangeNotifications(for: DocumentURI, language: Language) {}
+  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+    let settings = self._settings(for: uri, language)
+    self.delegate?.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+  }
 
   /// We don't support change watching.
   public func unregisterForChangeNotifications(for: DocumentURI) {}
@@ -114,5 +104,21 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     }
 
     return compdb
+  }
+}
+
+extension CompilationDatabaseBuildSystem {
+  /// Exposed for *testing*.
+  public func _settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
+    guard let url = uri.fileURL else {
+      // We can't determine build settings for non-file URIs.
+      return nil
+    }
+    guard let db = database(for: url),
+          let cmd = db[url].first else { return nil }
+    return FileBuildSettings(
+      compilerArguments: Array(cmd.commandLine.dropFirst()),
+      workingDirectory: cmd.directory,
+      language: language)
   }
 }

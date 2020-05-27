@@ -229,6 +229,8 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
   /// line flag changes, dependency changes, etc.
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     // TODO: Support for change detection (via file watching)
+    let settings = self.settings(for: uri, language)
+    self.delegate?.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
   }
 
   /// Unregister the given file for build-system level change notifications, such as command

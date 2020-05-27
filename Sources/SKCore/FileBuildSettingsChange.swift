@@ -21,12 +21,20 @@ public enum FileBuildSettingsChange {
 }
 
 public extension FileBuildSettingsChange {
-    var newSettings: FileBuildSettings? {
+  var newSettings: FileBuildSettings? {
     switch self {
     case .removedOrUnavailable:
       return nil
     case .modified(let settings):
       return settings
+    }
+  }
+
+  init(_ settings: FileBuildSettings?) {
+    if let settings = settings {
+      self = .modified(settings)
+    } else {
+      self = .removedOrUnavailable
     }
   }
 }

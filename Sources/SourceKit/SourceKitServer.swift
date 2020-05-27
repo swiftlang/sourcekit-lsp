@@ -24,6 +24,37 @@ import TSCUtility
 
 public typealias URL = Foundation.URL
 
+private struct NotificationRequestOperation {
+  let operation: () -> Void
+  let cancellationHandler: (() -> Void)?
+}
+
+/// Used to queue up notifications and requests for documents which are blocked
+/// on `BuildSystem` operations such as fetching build settings.
+private struct DocumentNotificationRequestQueue {
+  private var queue = [NotificationRequestOperation]()
+
+  mutating func add(operation: @escaping () -> Void, cancellationHandler: (() -> Void)? = nil) {
+    queue.append(NotificationRequestOperation(operation: operation, cancellationHandler: cancellationHandler))
+  }
+
+  mutating func handleAll() {
+    for task in queue {
+      task.operation()
+    }
+    queue = []
+  }
+
+  mutating func cancelAll() {
+    for task in queue {
+      if let cancellationHandler = task.cancellationHandler {
+        cancellationHandler()
+      }
+    }
+    queue = []
+  }
+}
+
 /// The SourceKit language server.
 ///
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
@@ -41,6 +72,12 @@ public final class SourceKitServer: LanguageServer {
   let toolchainRegistry: ToolchainRegistry
 
   var languageService: [LanguageServiceKey: ToolchainLanguageServer] = [:]
+
+  /// Documents that are ready for requests and notifications.
+  /// This generally means that the `BuildSystem` has notified of us of build settings.
+  var documentsReady: Set<DocumentURI> = []
+
+  private var documentToPendingQueue: [DocumentURI: DocumentNotificationRequestQueue] = [:]
 
   public var workspace: Workspace?
 
@@ -73,7 +110,6 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceNotfication(SourceKitServer.didSaveDocument)
 
     registerWorkspaceRequest(SourceKitServer.workspaceSymbols)
-    registerWorkspaceRequest(SourceKitServer.references)
     registerWorkspaceRequest(SourceKitServer.pollIndex)
     registerWorkspaceRequest(SourceKitServer.executeCommand)
 
@@ -81,6 +117,7 @@ public final class SourceKitServer: LanguageServer {
                                          CompletionList(isIncomplete: false, items: []))
     registerToolchainTextDocumentRequest(SourceKitServer.hover, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.definition, .locations([]))
+    registerToolchainTextDocumentRequest(SourceKitServer.references, [])
     registerToolchainTextDocumentRequest(SourceKitServer.implementation, .locations([]))
     registerToolchainTextDocumentRequest(SourceKitServer.symbolInfo, [])
     registerToolchainTextDocumentRequest(SourceKitServer.documentSymbolHighlight, nil)
@@ -91,8 +128,11 @@ public final class SourceKitServer: LanguageServer {
     registerToolchainTextDocumentRequest(SourceKitServer.codeAction, nil)
   }
 
+  /// Register a `TextDocumentRequest` that requires a valid `Workspace`, `ToolchainLanguageServer`,
+  /// and open file with resolved (yet potentially invalid) build settings.
   func registerToolchainTextDocumentRequest<PositionRequest: TextDocumentRequest>(
-    _ requestHandler: @escaping (SourceKitServer) -> (Request<PositionRequest>, ToolchainLanguageServer) -> Void,
+    _ requestHandler: @escaping (SourceKitServer) ->
+        (Request<PositionRequest>, Workspace, ToolchainLanguageServer) -> Void,
     _ fallback: PositionRequest.Response
   ) {
     _register { [unowned self] (req: Request<PositionRequest>) in
@@ -102,7 +142,20 @@ public final class SourceKitServer: LanguageServer {
       guard let languageService = workspace.documentService[req.params.textDocument.uri] else {
         return req.reply(fallback)
       }
-      requestHandler(self)(req, languageService)
+
+      // See if we're ready to handle it now.
+      let doc = req.params.textDocument.uri
+      guard !self.documentsReady.contains(doc) else {
+        requestHandler(self)(req, workspace, languageService)
+        return
+      }
+
+      // Not ready to handle it, we'll queue it and handle it later.
+      self.documentToPendingQueue[doc, default: DocumentNotificationRequestQueue()].add(operation: {
+        requestHandler(self)(req, workspace, languageService)
+      }, cancellationHandler: {
+        req.reply(fallback)
+      })
     }
   }
 
@@ -267,8 +320,26 @@ extension SourceKitServer: BuildSystemDelegate {
       let openDocuments = documentManager.openDocuments
       for (uri, change) in changedFiles {
         guard openDocuments.contains(uri) else { continue }
-        log("Build settings changed for opened file \(uri)")
+        guard self.documentsReady.contains(uri) else {
+          log("Initial build settings received for opened file \(uri)")
 
+          guard let snapshot = documentManager.latestSnapshot(uri),
+                let service = self.languageService(for: uri, snapshot.document.language, in: workspace) else {
+            log("No snapshot or language service for opened file \(uri)", level: .error)
+            continue
+          }
+
+          // Notify the language server so it can apply the proper arguments.
+          service.documentUpdatedBuildSettings(uri, settings: change.newSettings)
+
+          // Catch up on any queued notifications and requests.
+          self.documentToPendingQueue[uri]?.handleAll()
+          self.documentToPendingQueue[uri] = nil
+          self.documentsReady.insert(uri)
+          continue
+        }
+
+        log("Build settings changed for opened file \(uri)")
         if let snapshot = documentManager.latestSnapshot(uri),
            let service = self.languageService(for: uri, snapshot.document.language, in: workspace) {
           service.documentUpdatedBuildSettings(uri, settings: change.newSettings)
@@ -433,27 +504,56 @@ extension SourceKitServer {
   // MARK: - Text synchronization
 
   func openDocument(_ note: Notification<DidOpenTextDocumentNotification>, workspace: Workspace) {
+    // Immediately open the document even if the build system isn't ready. This is important since
+    // we check that the document is open when we receive messages from the build system.
     workspace.documentManager.open(note.params)
 
     let textDocument = note.params.textDocument
-    workspace.buildSystemManager.registerForChangeNotifications(
-      for: textDocument.uri, language: textDocument.language)
+    let uri = textDocument.uri
+    let language = textDocument.language
 
-    if let service = languageService(for: textDocument.uri, textDocument.language, in: workspace) {
-      service.openDocument(note.params)
+    // If we can't create a service, this document is unsupported and we can bail here.
+    guard let service = languageService(for: uri, language, in: workspace) else {
+      return
     }
+
+    workspace.buildSystemManager.registerForChangeNotifications(for: uri, language: language)
+
+    // If the document is ready, we can immediately send the notification.
+    guard !documentsReady.contains(uri) else {
+      service.openDocument(note.params)
+      return
+    }
+
+    // Need to queue the open call so we can handle it when ready.
+    self.documentToPendingQueue[uri, default: DocumentNotificationRequestQueue()].add(operation: {
+      service.openDocument(note.params)
+    })
   }
 
   func closeDocument(_ note: Notification<DidCloseTextDocumentNotification>, workspace: Workspace) {
+    // Immediately close the document. We need to be sure to clear our pending work queue in case
+    // the build system still isn't ready.
     workspace.documentManager.close(note.params)
 
-    workspace.buildSystemManager.unregisterForChangeNotifications(for: note.params.textDocument.uri)
+    let uri = note.params.textDocument.uri
 
-    if let service = workspace.documentService[note.params.textDocument.uri] {
-      service.closeDocument(note.params)
+    workspace.buildSystemManager.unregisterForChangeNotifications(for: uri)
+
+    // If the document is ready, we can send the notification.
+    guard !documentsReady.contains(uri) else {
+      workspace.documentService[uri]?.closeDocument(note.params)
+      return
     }
+
+    // Clear any queued notifications via their cancellation handlers.
+    // No need to send the notification since it was never considered opened.
+    self.documentToPendingQueue[uri]?.cancelAll()
+    self.documentToPendingQueue[uri] = nil
+    self.documentsReady.insert(uri)
   }
 
+  // TODO(DavidGoldman): properly queue these up if the document isn't yet ready.
   func changeDocument(_ note: Notification<DidChangeTextDocumentNotification>, workspace: Workspace) {
     workspace.documentManager.edit(note.params)
 
@@ -476,11 +576,19 @@ extension SourceKitServer {
 
   // MARK: - Language features
 
-  func completion(_ req: Request<CompletionRequest>, languageService: ToolchainLanguageServer) {
+  func completion(
+    _ req: Request<CompletionRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
     languageService.completion(req)
   }
 
-  func hover(_ req: Request<HoverRequest>, languageService: ToolchainLanguageServer) {
+  func hover(
+    _ req: Request<HoverRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
     languageService.hover(req)
   }
 
@@ -530,23 +638,32 @@ extension SourceKitServer {
   }
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
-  func symbolInfo(_ req: Request<SymbolInfoRequest>, languageService: ToolchainLanguageServer) {
+  func symbolInfo(
+    _ req: Request<SymbolInfoRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
     languageService.symbolInfo(req)
   }
 
   func documentSymbolHighlight(
     _ req: Request<DocumentHighlightRequest>,
+    workspace: Workspace,
     languageService: ToolchainLanguageServer
   ) {
     languageService.documentSymbolHighlight(req)
   }
 
-  func foldingRange(_ req: Request<FoldingRangeRequest>, languageService: ToolchainLanguageServer) {
+  func foldingRange(
+    _ req: Request<FoldingRangeRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer) {
     languageService.foldingRange(req)
   }
 
   func documentSymbol(
     _ req: Request<DocumentSymbolRequest>,
+    workspace: Workspace,
     languageService: ToolchainLanguageServer
   ) {
     languageService.documentSymbol(req)
@@ -554,6 +671,7 @@ extension SourceKitServer {
 
   func documentColor(
     _ req: Request<DocumentColorRequest>,
+    workspace: Workspace,
     languageService: ToolchainLanguageServer
   ) {
     languageService.documentColor(req)
@@ -561,6 +679,7 @@ extension SourceKitServer {
 
   func colorPresentation(
     _ req: Request<ColorPresentationRequest>,
+    workspace: Workspace,
     languageService: ToolchainLanguageServer
   ) {
     languageService.colorPresentation(req)
@@ -576,6 +695,24 @@ extension SourceKitServer {
       req.reply(nil)
       return
     }
+
+    // If the document isn't yet ready, queue the request.
+    guard self.documentsReady.contains(uri) else {
+      self.documentToPendingQueue[uri, default: DocumentNotificationRequestQueue()].add(operation: {
+        self.fowardExecuteCommand(req, languageService: languageService)
+      }, cancellationHandler: {
+        req.reply(nil)
+      })
+      return
+    }
+
+    self.fowardExecuteCommand(req, languageService: languageService)
+  }
+
+  func fowardExecuteCommand(
+    _ req: Request<ExecuteCommandRequest>,
+    languageService: ToolchainLanguageServer
+  ) {
     let params = req.params
     let executeCommand = ExecuteCommandRequest(command: params.command,
                                                arguments: params.argumentsWithoutSourceKitMetadata)
@@ -587,7 +724,11 @@ extension SourceKitServer {
     languageService.executeCommand(request)
   }
 
-  func codeAction(_ req: Request<CodeActionRequest>, languageService: ToolchainLanguageServer) {
+  func codeAction(
+    _ req: Request<CodeActionRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
     let codeAction = CodeActionRequest(range: req.params.range, context: req.params.context,
                                        textDocument: req.params.textDocument)
     let callback = callbackOnQueue(self.queue) { (result: Result<CodeActionRequest.Response, ResponseError>) in
@@ -603,7 +744,11 @@ extension SourceKitServer {
     languageService.codeAction(request)
   }
 
-  func definition(_ req: Request<DefinitionRequest>, languageService: ToolchainLanguageServer) {
+  func definition(
+    _ req: Request<DefinitionRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
     let index = self.workspace?.index
     let callback = callbackOnQueue(self.queue) { (result: Result<SymbolInfoRequest.Response, ResponseError>) in
@@ -657,6 +802,7 @@ extension SourceKitServer {
   // FIXME: a lot of duplication with definition request
   func implementation(
     _ req: Request<ImplementationRequest>,
+    workspace: Workspace,
     languageService: ToolchainLanguageServer
   ) {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
@@ -702,12 +848,11 @@ extension SourceKitServer {
   }
 
   // FIXME: a lot of duplication with definition request
-  func references(_ req: Request<ReferencesRequest>, workspace: Workspace) {
-    guard let service = workspace.documentService[req.params.textDocument.uri] else {
-      req.reply([])
-      return
-    }
-
+  func references(
+    _ req: Request<ReferencesRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
     let callback = callbackOnQueue(self.queue) { (result: Result<SymbolInfoRequest.Response, ResponseError>) in
       guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
@@ -751,7 +896,7 @@ extension SourceKitServer {
     }
     let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
                           cancellation: req.cancellationToken, reply: callback)
-    service.symbolInfo(request)
+    languageService.symbolInfo(request)
   }
 
   func pollIndex(_ req: Request<PollIndexRequest>, workspace: Workspace) {

@@ -162,6 +162,19 @@ final class BuildServerHandler: LanguageServerEndpoint {
   }
 }
 
+extension BuildServerBuildSystem {
+  /// Exposed for *testing*.
+  public func _settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
+    if let response = try? self.buildServer?.sendSync(SourceKitOptions(uri: uri)) {
+      return FileBuildSettings(
+        compilerArguments: response.options,
+        workingDirectory: response.workingDirectory,
+        language: language)
+    }
+    return nil
+  }
+}
+
 extension BuildServerBuildSystem: BuildSystem {
 
   /// Register the given file for build-system level change notifications, such as command

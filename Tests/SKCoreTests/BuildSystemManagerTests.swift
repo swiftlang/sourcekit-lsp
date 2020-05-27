@@ -108,7 +108,7 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[a] = nil
     let changed = expectation(description: "changed settings")
     del.expected = [(a, nil, changed, #file, #line)]
-    bsm.fileBuildSettingsChanged(Set([a]))
+    bsm.fileBuildSettingsChanged([a: .removedOrUnavailable])
     wait(for: [changed], timeout: 10, enforceOrder: true)
   }
 
@@ -130,7 +130,7 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"], language: .swift)
     let changed = expectation(description: "changed settings")
     del.expected = [(a, bs.map[a]!, changed, #file, #line)]
-    bsm.fileBuildSettingsChanged(Set([a]))
+    bsm.fileBuildSettingsChanged([a: .modified(bs.map[a]!)])
     wait(for: [changed], timeout: 10, enforceOrder: true)
   }
 
@@ -154,13 +154,13 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[a] = FileBuildSettings(compilerArguments: ["non-fallback", "args"], language: .swift)
     let changed = expectation(description: "changed settings")
     del.expected = [(a, bs.map[a]!, changed, #file, #line)]
-    bsm.fileBuildSettingsChanged(Set([a]))
+    bsm.fileBuildSettingsChanged([a: .modified(bs.map[a]!)])
     wait(for: [changed], timeout: 10, enforceOrder: true)
 
     bs.map[a] = nil
     let revert = expectation(description: "revert to fallback settings")
     del.expected = [(a, fallbackSettings, revert, #file, #line)]
-    bsm.fileBuildSettingsChanged(Set([a]))
+    bsm.fileBuildSettingsChanged([a: .removedOrUnavailable])
     wait(for: [revert], timeout: 10, enforceOrder: true)
   }
 
@@ -191,9 +191,10 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[b] = FileBuildSettings(compilerArguments: ["yy"], language: .swift)
     let changed = expectation(description: "changed settings")
     del.expected = [(a, bs.map[a]!, changed, #file, #line)]
-    bsm.fileBuildSettingsChanged(Set([a]))
+    bsm.fileBuildSettingsChanged([a: .modified(bs.map[a]!)])
     wait(for: [changed], timeout: 10, enforceOrder: true)
 
+    // Test multiple changes.
     bs.map[a] = FileBuildSettings(compilerArguments: ["xxx"], language: .swift)
     bs.map[b] = FileBuildSettings(compilerArguments: ["yyy"], language: .swift)
     let changedBothA = expectation(description: "changed setting a")
@@ -202,7 +203,10 @@ final class BuildSystemManagerTests: XCTestCase {
       (a, bs.map[a]!, changedBothA, #file, #line),
       (b, bs.map[b]!, changedBothB, #file, #line),
     ]
-    bsm.fileBuildSettingsChanged(Set([])) // empty => all
+    bsm.fileBuildSettingsChanged([
+      a:. modified(bs.map[a]!),
+      b: .modified(bs.map[b]!)
+    ])
     wait(for: [changedBothA, changedBothB], timeout: 10, enforceOrder: false)
   }
 
@@ -235,7 +239,9 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[b] = nil
     let changed = expectation(description: "changed settings")
     del.expected = [(b, nil, changed, #file, #line)]
-    bsm.fileBuildSettingsChanged(Set([b]))
+    bsm.fileBuildSettingsChanged([
+      b: .removedOrUnavailable
+    ])
     wait(for: [changed], timeout: 10, enforceOrder: true)
   }
 
@@ -323,7 +329,9 @@ final class BuildSystemManagerTests: XCTestCase {
     bsm.registerForChangeNotifications(for: h1, language: .c)
     bsm.registerForChangeNotifications(for: h2, language: .c)
 
-    wait(for: [initial1, initial2], timeout: 10, enforceOrder: true)
+    // Since the registration is async, it's possible that they get grouped together
+    // since they are backed by the same underlying cpp file.
+    wait(for: [initial1, initial2], timeout: 10, enforceOrder: false)
 
     bs.map[cpp] = FileBuildSettings(compilerArguments: ["New C++ Main File"], language: .cpp)
     let changed1 = expectation(description: "initial settings h1 via cpp")
@@ -332,19 +340,9 @@ final class BuildSystemManagerTests: XCTestCase {
       (h1, bs.map[cpp]!, changed1, #file, #line),
       (h2, bs.map[cpp]!, changed2, #file, #line),
     ]
-    bsm.fileBuildSettingsChanged(Set([cpp]))
+    bsm.fileBuildSettingsChanged([cpp: .modified(bs.map[cpp]!)])
 
     wait(for: [changed1, changed2], timeout: 10, enforceOrder: false)
-
-    bs.map[cpp] = FileBuildSettings(compilerArguments: ["Third C++ Main File"], language: .cpp)
-    let changed3 = expectation(description: "third settings h1 via cpp")
-    let changed4 = expectation(description: "third settings h2 via cpp")
-    del.expected = [
-      (h1, bs.map[cpp]!, changed3, #file, #line),
-      (h2, bs.map[cpp]!, changed4, #file, #line),
-    ]
-    bsm.fileBuildSettingsChanged(Set([])) // Empty => all
-    wait(for: [changed3, changed4], timeout: 10, enforceOrder: false)
   }
 
   func testSettingsChangedAfterUnregister() {
@@ -390,7 +388,11 @@ final class BuildSystemManagerTests: XCTestCase {
     bsm.unregisterForChangeNotifications(for: c)
     // At this point only b is registered, but that can race with notifications,
     // so ensure nothing bad happens and we still get the notification for b.
-    bsm.fileBuildSettingsChanged([a, b, c])
+    bsm.fileBuildSettingsChanged([
+      a: .modified(bs.map[a]!),
+      b: .modified(bs.map[b]!),
+      c: .modified(bs.map[c]!)
+    ])
 
     wait(for: [changedB], timeout: 10, enforceOrder: false)
   }
@@ -403,6 +405,7 @@ final class BuildSystemManagerTests: XCTestCase {
     class DepUpdateDuringRegistrationBS: ManualBuildSystem {
         override func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
           delegate?.filesDependenciesUpdated([uri])
+          super.registerForChangeNotifications(for: uri, language: language)
         }
     }
 
@@ -460,7 +463,9 @@ class ManualBuildSystem: BuildSystem {
     return map[uri]
   }
 
-  func registerForChangeNotifications(for: DocumentURI, language: Language) {
+  func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+    let settings = self.settings(for: uri, language)
+    self.delegate?.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
   }
 
   func unregisterForChangeNotifications(for: DocumentURI) {
@@ -496,16 +501,16 @@ private final class BSMDelegate: BuildSystemDelegate {
     bsm.delegate = self
   }
 
-  func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
+  func fileBuildSettingsChanged(_ changes: [DocumentURI: FileBuildSettingsChange]) {
     queue.sync {
-      for uri in changedFiles {
+      for (uri, change) in changes {
         guard let expected = expected.first(where: { $0.uri == uri }) else {
           XCTFail("unexpected settings change for \(uri)")
           continue
         }
 
         XCTAssertEqual(uri, expected.uri, file: expected.file, line: expected.line)
-        let settings = bsm.settings(for: uri, .swift)
+        let settings = change.newSettings
         XCTAssertEqual(settings, expected.settings, file: expected.file, line: expected.line)
         expected.expectation.fulfill()
       }
