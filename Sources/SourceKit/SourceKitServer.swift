@@ -86,6 +86,7 @@ public final class SourceKitServer: LanguageServer {
     registerToolchainTextDocumentRequest(SourceKitServer.documentSymbolHighlight, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.foldingRange, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.documentSymbol, nil)
+    registerToolchainTextDocumentRequest(SourceKitServer.documentSemanticToken, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.documentColor, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.colorPresentation, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.codeAction, nil)
@@ -359,6 +360,7 @@ extension SourceKitServer {
       referencesProvider: true,
       documentHighlightProvider: true,
       documentSymbolProvider: true,
+      semanticTokensProvider: SemanticTokensRegistrationOptions(),
       workspaceSymbolProvider: true,
       codeActionProvider: .value(CodeActionServerCapabilities(
         clientCapabilities: req.params.capabilities.textDocument?.codeAction,
@@ -545,6 +547,13 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) {
     languageService.documentSymbol(req)
+  }
+
+  func documentSemanticToken(
+    _ req: Request<DocumentSemanticTokenRequest>,
+     languageService: ToolchainLanguageServer
+  ) {
+    languageService.documentSemanticToken(req)
   }
 
   func documentColor(
@@ -786,7 +795,13 @@ public func languageService(
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
-    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, buildSystem: workspace.buildSystemManager, clientCapabilities: workspace.clientCapabilities)
+    return try makeLocalSwiftServer(
+      client: client,
+      sourcekitd: sourcekitd,
+      buildSettings: workspace.buildSystemManager,
+      clientCapabilities: workspace.clientCapabilities,
+      indexDB: workspace.index
+    )
 
   default:
     return nil

@@ -301,6 +301,19 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     }
   }
 
+  /// Capabilities specific to the `textDocument/semanticTokens` request.
+  public struct SemanticTokens: Hashable, Codable {
+
+    /// Whether the client supports dynamic registaration of this request.
+    public var dynamicRegistration: Bool? = nil
+    public var tokenTypes: [String] = []
+    public var tokenModifiers: [String] = []
+
+    public init(dynamicRegistration: Bool? = nil) {
+      self.dynamicRegistration = dynamicRegistration
+    }
+  }
+
   /// Capabilities specific to the `textDocument/codeAction` request.
   public struct CodeAction: Hashable, Codable {
 
@@ -403,6 +416,8 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
   public var documentSymbol: DocumentSymbol? = nil
 
+  public var semanticTokens: SemanticTokens? = nil
+
   public var formatting: DynamicRegistrationCapability? = nil
 
   public var rangeFormatting: DynamicRegistrationCapability? = nil
@@ -438,6 +453,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
               references: DynamicRegistrationCapability? = nil,
               documentHighlight: DynamicRegistrationCapability? = nil,
               documentSymbol: DocumentSymbol? = nil,
+              semanticTokens: SemanticTokens? = nil,
               formatting: DynamicRegistrationCapability? = nil,
               rangeFormatting: DynamicRegistrationCapability? = nil,
               onTypeFormatting: DynamicRegistrationCapability? = nil,
@@ -459,6 +475,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     self.references = references
     self.documentHighlight = documentHighlight
     self.documentSymbol = documentSymbol
+    self.semanticTokens = semanticTokens
     self.formatting = formatting
     self.rangeFormatting = rangeFormatting
     self.onTypeFormatting = onTypeFormatting

@@ -18,6 +18,7 @@ import SKCore
 import SKSupport
 import sourcekitd
 import TSCBasic
+import IndexStoreDB
 
 fileprivate extension Range {
   /// Checks if this range overlaps with the other range, counting an overlap with an empty range as a valid overlap.
@@ -71,6 +72,8 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   let clientCapabilities: ClientCapabilities
 
+  let indexProvider: IndexStoreDB?
+
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
 
@@ -86,12 +89,13 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   var values: sourcekitd_values { return sourcekitd.values }
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, clientCapabilities: ClientCapabilities, onExit: @escaping () -> Void = {}) throws {
+  public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, clientCapabilities: ClientCapabilities, indexProvider: IndexStoreDB? = nil,  onExit: @escaping () -> Void = {}) throws {
     self.client = client
     self.sourcekitd = try SwiftSourceKitFramework(dylib: sourcekitd)
     self.buildSystem = buildSystem
     self.clientCapabilities = clientCapabilities
     self.documentManager = DocumentManager()
+    self.indexProvider = indexProvider
     self.onExit = onExit
   }
 
@@ -182,7 +186,7 @@ extension SwiftLanguageServer {
       }
     }
 
-    return InitializeResult(capabilities: ServerCapabilities(
+    return InitializeResult(capabilities: ServerCapabilities.init(
       textDocumentSync: TextDocumentSyncOptions(
         openClose: true,
         change: .incremental,
@@ -198,6 +202,7 @@ extension SwiftLanguageServer {
       referencesProvider: nil,
       documentHighlightProvider: true,
       documentSymbolProvider: true,
+      semanticTokensProvider: SemanticTokensRegistrationOptions(),
       codeActionProvider: .value(CodeActionServerCapabilities(
         clientCapabilities: initialize.capabilities.textDocument?.codeAction,
         codeActionOptions: CodeActionOptions(codeActionKinds: [.quickFix, .refactor]),
@@ -656,6 +661,91 @@ extension SwiftLanguageServer {
     }
   }
 
+  public func documentSemanticToken(_ req: Request<DocumentSemanticTokenRequest>) {
+    queue.async { [keys] in
+      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
+        log("failed to find snapshot for url \(req.params.textDocument.uri)")
+        req.reply(DocumentSemanticTokenResponse(data: []))
+        return
+      }
+
+      let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      skreq[keys.request] = self.requests.editor_open
+      skreq[keys.name] = "DocumentSemanticTokens:" + snapshot.document.uri.pseudoPath
+      skreq[keys.sourcetext] = snapshot.text
+      skreq[keys.syntaxmap] = 1
+      skreq[keys.enable_syntaxmap] = 1
+      
+      let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
+        guard let self = self else { return }
+        guard let dict = result.success else {
+          req.reply(.failure(result.failure!))
+          return
+        }
+        guard let results: SKResponseArray = dict[keys.substructure] else {
+          return req.reply(DocumentSemanticTokenResponse(data: []))
+        }
+        
+        let parser = SemanticTokenParser(
+          sourcekitd: self.sourcekitd,
+          snapshot: snapshot,
+          symbolNames: self.indexProvider?.allSymbolNames() ?? []
+        )
+      
+        var tokens = parser.parseTokens(results).filter { $0.tokenType != nil }
+        var syntaxmap: [SemanticToken] = []
+        if let syntaxDict: SKResponseArray = dict[keys.syntaxmap] {
+          syntaxmap = parser.parseTokens(syntaxDict).filter { $0.tokenType == .keyword || $0.tokenType == .type }
+        }
+        tokens.append(contentsOf: syntaxmap)
+
+        tokens = tokens.sorted {
+          guard $0.line != $1.line else {
+            return $0.startChar <= $1.startChar
+          }
+          return $0.line <= $1.line
+        }
+
+        func calculateOffsetsRelation(tokens: [SemanticToken]) -> [SemanticToken] {
+          var currentLine = 0
+          var currentOffset = 0
+          return tokens.reduce([SemanticToken]()) { acc, next in
+            let previousLine = currentLine
+            let previousOffset = (previousLine == next.line ? currentOffset : 0)
+            currentLine = next.line
+            currentOffset = next.startChar
+            return acc + [SemanticToken(
+              name: next.name,
+              line: next.line - previousLine,
+              startChar: next.startChar - previousOffset,
+              length: next.length,
+              tokenType: next.tokenType,
+              tokenModifiers: next.tokenModifiers
+            )]
+          }
+        }
+
+        func toIntArrayRepresentation(token: SemanticToken, legend: [String]) -> [Int] {
+          let kindCode: Int
+          if let tokenType = token.tokenType {
+            kindCode = legend.firstIndex(of: tokenType.rawValue) ?? 0
+          } else {
+            kindCode = 0
+          }
+          //let kindCode = (token.tokenType != nil ? (legend.firstIndex(of: token.tokenType!.rawValue) ?? 0) : 0)
+          return [token.line, token.startChar, token.length, kindCode, token.tokenModifiers]
+        }
+
+        let tokensFormatted = calculateOffsetsRelation(tokens: tokens).flatMap { 
+          toIntArrayRepresentation(token: $0, legend: TokenLegend().tokenTypes) //FIXME: Legend should be taken from client/server capabilities
+        }
+        req.reply(DocumentSemanticTokenResponse(data: tokensFormatted))
+      }
+      // FIXME: cancellation
+      _ = handle
+    }
+  }
+
   public func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
     let keys = self.keys
 
@@ -692,7 +782,7 @@ extension SwiftLanguageServer {
                 let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
             return nil
           }
-
+          
           let range = start..<end
           let selectionRange: Range<Position>
           if let nameOffset: Int = value[self.keys.nameoffset],
@@ -1258,15 +1348,16 @@ extension DocumentSnapshot {
 }
 
 func makeLocalSwiftServer(
-  client: MessageHandler, sourcekitd: AbsolutePath, buildSystem: BuildSystem,
-  clientCapabilities: ClientCapabilities?) throws -> ToolchainLanguageServer {
+  client: MessageHandler, sourcekitd: AbsolutePath, buildSettings: BuildSystem,
+  clientCapabilities: ClientCapabilities?, indexDB: IndexStoreDB? = nil) throws -> ToolchainLanguageServer {
   let connectionToClient = LocalConnection()
 
   let server = try SwiftLanguageServer(
     client: connectionToClient,
     sourcekitd: sourcekitd,
-    buildSystem: buildSystem,
-    clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil)
+    buildSystem: buildSettings,
+    clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil),
+    indexProvider: indexDB
   )
   connectionToClient.start(handler: client)
   return server
@@ -1284,6 +1375,70 @@ extension sourcekitd_uid_t {
 
   func isDocCommentKind(_ vals: sourcekitd_values) -> Bool {
     return self == vals.syntaxtype_doccomment || self == vals.syntaxtype_doccomment_field
+  }
+
+  enum SemanticTokenKind: String {
+    case comment
+    case keyword
+    case regexp
+    case `operator`
+    case namespace
+    case type
+    case `struct`
+    case `class`
+    case interface
+    case `enum`
+    case typeParameter
+    case function
+    case member
+    case variable
+    case parameter
+    case property
+    case label
+  }
+
+  func asSemanticToken(_ vals: sourcekitd_values) -> SemanticTokenKind? {
+    switch self {
+       case vals.kind_keyword, vals.syntaxtype_keyword:
+        return .keyword
+      case vals.decl_module:
+        return .namespace
+      case vals.decl_class:
+        return .class
+      case vals.decl_struct:
+        return .struct
+      case vals.decl_enum:
+        return .enum
+      case vals.decl_protocol:
+        return .interface
+      case vals.decl_associatedtype:
+        return .typeParameter
+      case vals.decl_typealias:
+        return .typeParameter
+      case vals.decl_generic_type_param:
+        return .typeParameter
+      case vals.decl_function_constructor, vals.decl_function_subscript, vals.decl_function_method_static, vals.decl_function_method_instance:
+        return .function
+      case vals.decl_function_operator_prefix,
+           vals.decl_function_operator_postfix,
+           vals.decl_function_operator_infix:
+        return .operator
+      case vals.decl_function_free:
+        return .function
+      case vals.decl_var_static, vals.decl_var_class, vals.decl_var_instance:
+        return .property
+      case vals.decl_var_local,
+           vals.decl_var_global:
+        return .variable
+      case vals.decl_var_parameter:
+        return .parameter
+      case vals.ref_class, vals.ref_enum, vals.ref_struct, vals.ref_protocol, vals.ref_typealias:
+        return .variable
+      case vals.syntaxtype_type_identifier:
+        return .type
+      default:
+        return nil
+    }
   }
 
   func asCompletionItemKind(_ vals: sourcekitd_values) -> CompletionItemKind? {

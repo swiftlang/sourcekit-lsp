@@ -31,6 +31,7 @@ public let builtinRequests: [_RequestType.Type] = [
   DocumentOnTypeFormattingRequest.self,
   FoldingRangeRequest.self,
   DocumentSymbolRequest.self,
+  DocumentSemanticTokenRequest.self,
   DocumentColorRequest.self,
   ColorPresentationRequest.self,
   CodeActionRequest.self,

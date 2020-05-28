@@ -44,6 +44,9 @@ public struct ServerCapabilities: Codable, Hashable {
   /// Whether the server provides "textDocument/documentSymbol"
   public var documentSymbolProvider: Bool?
 
+  /// Whether the server provides "textDocument/semanticTokens"
+  public var semanticTokensProvider: SemanticTokensRegistrationOptions?
+
   /// The server provides workspace symbol support.
   public var workspaceSymbolProvider: Bool?
 
@@ -94,6 +97,7 @@ public struct ServerCapabilities: Codable, Hashable {
     referencesProvider: Bool? = nil,
     documentHighlightProvider: Bool? = nil,
     documentSymbolProvider: Bool? = nil,
+    semanticTokensProvider: SemanticTokensRegistrationOptions? = nil,
     workspaceSymbolProvider: Bool? = nil,
     codeActionProvider: ValueOrBool<CodeActionServerCapabilities>? = nil,
     codeLensProvider: CodeLensOptions? = nil,
@@ -120,6 +124,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.referencesProvider = referencesProvider
     self.documentHighlightProvider = documentHighlightProvider
     self.documentSymbolProvider = documentSymbolProvider
+    self.semanticTokensProvider = semanticTokensProvider
     self.workspaceSymbolProvider = workspaceSymbolProvider
     self.codeActionProvider = codeActionProvider
     self.codeLensProvider = codeLensProvider
@@ -406,6 +411,73 @@ public struct DocumentLinkOptions: Codable, Hashable {
 
   public init(resolveProvider: Bool? = nil) {
     self.resolveProvider = resolveProvider
+  }
+}
+
+public struct SemanticTokensCapabilities: Codable, Hashable {
+  
+  public var textDocument: SemanticTokensDocumentCapabilities?
+
+  public init(textDocument: SemanticTokensDocumentCapabilities? = nil) {
+    self.textDocument = textDocument
+  }
+}
+
+public struct SemanticTokensDocumentCapabilities: Codable, Hashable {
+
+  public struct SemnaticTokenOptions: Codable, Hashable {
+
+    public var dynamicRegistration: Bool?
+    public var tokenTypes: [String]
+    public var tokenModifiers: [String]
+
+    public init(dynamicRegistration: Bool?, tokenTypes: [String], tokenModifiers: [String]) {
+      self.dynamicRegistration = dynamicRegistration
+      self.tokenTypes = tokenTypes
+      self.tokenModifiers = tokenModifiers
+    }
+  }
+
+  public var semanticTokens: SemnaticTokenOptions?
+
+  public init(semanticTokens: SemnaticTokenOptions?) {
+    self.semanticTokens = semanticTokens
+  }
+}
+
+public struct TokenLegend: Codable, Hashable {
+  public var tokenTypes: [String] = [
+    "comment",
+    "keyword",
+    "number",
+    "regexp",
+    "operator",
+    "namespace",
+    "type",
+    "struct",
+    "class",
+    "interface",
+    "enum",
+    "typeParameter",
+    "function",
+    "member",
+    "macro",
+    "variable",
+    "parameter",
+    "property",
+    "label"
+  ]
+  public var tokenModifiers: [String] = []
+
+  public init() {}
+}
+
+public struct SemanticTokensRegistrationOptions: Codable, Hashable {
+
+  public var legend: TokenLegend
+
+  public init(legend: TokenLegend = TokenLegend()) {
+    self.legend = legend
   }
 }
 

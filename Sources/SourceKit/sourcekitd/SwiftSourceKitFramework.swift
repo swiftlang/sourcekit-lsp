@@ -232,6 +232,7 @@ struct sourcekitd_keys {
   let bodyoffset: sourcekitd_uid_t
   let bodylength: sourcekitd_uid_t
   let syntaxmap: sourcekitd_uid_t
+  let enable_syntaxmap: sourcekitd_uid_t
   let namelength: sourcekitd_uid_t
   let nameoffset: sourcekitd_uid_t
   let retrieve_refactor_actions: sourcekitd_uid_t
@@ -283,6 +284,7 @@ struct sourcekitd_keys {
     bodyoffset = api.uid_get_from_cstr("key.bodyoffset")!
     bodylength = api.uid_get_from_cstr("key.bodylength")!
     syntaxmap = api.uid_get_from_cstr("key.syntaxmap")!
+    enable_syntaxmap = api.uid_get_from_cstr("key.enablesyntaxmap")!
     namelength = api.uid_get_from_cstr("key.namelength")!
     nameoffset = api.uid_get_from_cstr("key.nameoffset")!
     retrieve_refactor_actions = api.uid_get_from_cstr("key.retrieve_refactor_actions")!
@@ -414,7 +416,10 @@ struct sourcekitd_values {
   let syntaxtype_comment_url: sourcekitd_uid_t
   let syntaxtype_doccomment: sourcekitd_uid_t
   let syntaxtype_doccomment_field: sourcekitd_uid_t
+  let syntaxtype_keyword: sourcekitd_uid_t
+  let syntaxtype_type_identifier: sourcekitd_uid_t
   let expr_object_literal: sourcekitd_uid_t
+  let expr_call: sourcekitd_uid_t
 
   let kind_keyword: sourcekitd_uid_t
 
@@ -506,7 +511,10 @@ struct sourcekitd_values {
     syntaxtype_comment_url = api.uid_get_from_cstr("source.lang.swift.syntaxtype.comment.url")!
     syntaxtype_doccomment = api.uid_get_from_cstr("source.lang.swift.syntaxtype.doccomment")!
     syntaxtype_doccomment_field = api.uid_get_from_cstr("source.lang.swift.syntaxtype.doccomment.field")!
+    syntaxtype_keyword = api.uid_get_from_cstr("source.lang.swift.syntaxtype.keyword")!
+    syntaxtype_type_identifier = api.uid_get_from_cstr("source.lang.swift.syntaxtype.typeidentifier")!
     expr_object_literal = api.uid_get_from_cstr("source.lang.swift.expr.object_literal")!
+    expr_call = api.uid_get_from_cstr("source.lang.swift.expr.call")!
 
     kind_keyword = api.uid_get_from_cstr("source.lang.swift.keyword")!
   }
@@ -620,6 +628,11 @@ final class SKResponseDictionary {
     return sourcekitd.api.variant_dictionary_get_string(dict, key).map(String.init(cString:))
   }
   subscript(key: sourcekitd_uid_t?) -> Int? {
+    let result = sourcekitd.api.variant_dictionary_get_value(dict, key)
+    if sourcekitd.api.variant_get_type(result) == SOURCEKITD_VARIANT_TYPE_NULL {
+      return nil
+    }
+
     return Int(sourcekitd.api.variant_dictionary_get_int64(dict, key))
   }
   subscript(key: sourcekitd_uid_t?) -> sourcekitd_uid_t? {

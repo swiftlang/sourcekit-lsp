@@ -169,6 +169,10 @@ extension ClangLanguageServerShim {
     forwardRequest(req, to: clangd)
   }
 
+  func documentSemanticToken(_ req: Request<DocumentSemanticTokenRequest>) {
+    forwardRequest(req, to: clangd)
+  }
+
   func documentColor(_ req: Request<DocumentColorRequest>) {
     forwardRequest(req, to: clangd)
   }
