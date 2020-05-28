@@ -136,6 +136,12 @@ extension BuildSystemManager: BuildSystem {
     set { queue.sync { _delegate = newValue } }
   }
 
+  /// Register the given file for build-system level change notifications, such
+  /// as command line flag changes, dependency changes, etc.
+  ///
+  /// IMPORTANT: When first receiving a register request, the `BuildSystem`
+  /// MUST eventually inform its delegate of any initial settings for the given file
+  /// via the `fileBuildSettingsChanged` method.
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     return queue.async {
       log("registerForChangeNotifications(\(uri.pseudoPath))")
@@ -179,7 +185,7 @@ extension BuildSystemManager: BuildSystem {
       buildSystem.registerForChangeNotifications(for: mainFile, language: language)
 
       // Register the timeout if it's applicable.
-      if let fallback = self.fallbackBuildSystem, self.fallbackSettingsTimeout != .never {
+      if let fallback = self.fallbackBuildSystem {
         self.queue.asyncAfter(deadline: DispatchTime.now() + self.fallbackSettingsTimeout) { [weak self] in
           guard let self = self else { return }
           self.handleFallbackTimer(for: mainFile, language: language, fallback)

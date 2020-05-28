@@ -32,11 +32,15 @@ public protocol BuildSystem: AnyObject {
   var indexDatabasePath: AbsolutePath? { get }
 
   /// Delegate to handle any build system events such as file build settings
-  /// changing.
+  /// initial reports as well as changes.
   var delegate: BuildSystemDelegate? { get set }
 
   /// Register the given file for build-system level change notifications, such
   /// as command line flag changes, dependency changes, etc.
+  ///
+  /// IMPORTANT: When first receiving a register request, the `BuildSystem`
+  /// MUST eventually inform its delegate of any initial settings for the given file
+  /// via the `fileBuildSettingsChanged` method.
   func registerForChangeNotifications(for: DocumentURI, language: Language)
 
   /// Unregister the given file for build-system level change notifications,

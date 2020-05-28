@@ -59,7 +59,12 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }
 
-  /// We don't support change watching.
+  /// Register the given file for build-system level change notifications, such
+  /// as command line flag changes, dependency changes, etc.
+  ///
+  /// IMPORTANT: When first receiving a register request, the `BuildSystem`
+  /// MUST eventually inform its delegate of any initial settings for the given file
+  /// via the `fileBuildSettingsChanged` method.
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     let settings = self._settings(for: uri, language)
     self.delegate?.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])

@@ -24,6 +24,8 @@ import TSCUtility
 
 public typealias URL = Foundation.URL
 
+/// Simple struct for pending notifications/requests, including a cancellation handler.
+/// For convenience the notifications/request handlers are type erased via wrapping.
 private struct NotificationRequestOperation {
   let operation: () -> Void
   let cancellationHandler: (() -> Void)?
@@ -31,13 +33,17 @@ private struct NotificationRequestOperation {
 
 /// Used to queue up notifications and requests for documents which are blocked
 /// on `BuildSystem` operations such as fetching build settings.
+///
+/// Note: This is not thread safe. Must be called from the `SourceKitServer.queue`.
 private struct DocumentNotificationRequestQueue {
   private var queue = [NotificationRequestOperation]()
 
+  /// Add an operation to the end of the queue.
   mutating func add(operation: @escaping () -> Void, cancellationHandler: (() -> Void)? = nil) {
     queue.append(NotificationRequestOperation(operation: operation, cancellationHandler: cancellationHandler))
   }
 
+  /// Invoke all operations in the queue.
   mutating func handleAll() {
     for task in queue {
       task.operation()
@@ -45,6 +51,8 @@ private struct DocumentNotificationRequestQueue {
     queue = []
   }
 
+  /// Cancel all operations in the queue. No-op for operations without a cancellation
+  /// handler.
   mutating func cancelAll() {
     for task in queue {
       if let cancellationHandler = task.cancellationHandler {
@@ -106,8 +114,9 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceNotfication(SourceKitServer.openDocument)
     registerWorkspaceNotfication(SourceKitServer.closeDocument)
     registerWorkspaceNotfication(SourceKitServer.changeDocument)
-    registerWorkspaceNotfication(SourceKitServer.willSaveDocument)
-    registerWorkspaceNotfication(SourceKitServer.didSaveDocument)
+
+    registerToolchainTextDocumentNotification(SourceKitServer.willSaveDocument)
+    registerToolchainTextDocumentNotification(SourceKitServer.didSaveDocument)
 
     registerWorkspaceRequest(SourceKitServer.workspaceSymbols)
     registerWorkspaceRequest(SourceKitServer.pollIndex)
@@ -139,12 +148,15 @@ public final class SourceKitServer: LanguageServer {
       guard let workspace = self.workspace else {
         return req.reply(.failure(.serverNotInitialized))
       }
-      guard let languageService = workspace.documentService[req.params.textDocument.uri] else {
+      let doc = req.params.textDocument.uri
+
+      // This should be created as soon as we receive an open call, even if the document
+      // isn't yet ready.
+      guard let languageService = workspace.documentService[doc] else {
         return req.reply(fallback)
       }
 
-      // See if we're ready to handle it now.
-      let doc = req.params.textDocument.uri
+      // If the document is ready, we can handle it right now.
       guard !self.documentsReady.contains(doc) else {
         requestHandler(self)(req, workspace, languageService)
         return
@@ -159,6 +171,40 @@ public final class SourceKitServer: LanguageServer {
     }
   }
 
+  /// Register a `TextDocumentNotification` that requires a valid
+  /// `ToolchainLanguageServer` and open file with resolved (yet
+  /// potentially invalid) build settings.
+  func registerToolchainTextDocumentNotification<TextNotification: TextDocumentNotification>(
+    _ notificationHandler: @escaping (SourceKitServer) ->
+        (Notification<TextNotification>, ToolchainLanguageServer) -> Void
+  ) {
+    _register { [unowned self] (note: Notification<TextNotification>) in
+      guard let workspace = self.workspace else {
+        return
+      }
+      let doc = note.params.textDocument.uri
+
+      // This should be created as soon as we receive an open call, even if the document
+      // isn't yet ready.
+      guard let languageService = workspace.documentService[doc] else {
+        return
+      }
+
+      // If the document is ready, we can handle it right now.
+      guard !self.documentsReady.contains(doc) else {
+        notificationHandler(self)(note, languageService)
+        return
+      }
+
+      // Not ready to handle it, we'll queue it and handle it later.
+      self.documentToPendingQueue[doc, default: DocumentNotificationRequestQueue()].add(operation: {
+        notificationHandler(self)(note, languageService)
+      })
+    }
+  }
+
+  /// Register a request handler which requires a valid `Workspace`. If called before a valid
+  /// `Workspace` exists, this will immediately fail the request.
   func registerWorkspaceRequest<R>(
     _ requestHandler: @escaping (SourceKitServer) -> (Request<R>, Workspace) -> Void)
   {
@@ -171,6 +217,8 @@ public final class SourceKitServer: LanguageServer {
     }
   }
 
+  /// Register a notification handler which requires a valid `Workspace`. If called before a
+  /// valid `Workspace` exists, the notification is ignored and an error is logged.
   func registerWorkspaceNotfication<N>(
     _ noteHandler: @escaping (SourceKitServer) -> (Notification<N>, Workspace) -> Void)
   {
@@ -309,6 +357,10 @@ extension SourceKitServer: BuildSystemDelegate {
     return documentManager.openDocuments.intersection(changes)
   }
 
+  /// Handle a build settings change notification from the `BuildSystem`.
+  /// This has two primary cases:
+  /// - Initial settings reported for a given file, now we can fully open it
+  /// - Changed settings for an already open file
   public func fileBuildSettingsChanged(
     _ changedFiles: [DocumentURI: FileBuildSettingsChange]
   ) {
@@ -319,8 +371,11 @@ extension SourceKitServer: BuildSystemDelegate {
       let documentManager = workspace.documentManager
       let openDocuments = documentManager.openDocuments
       for (uri, change) in changedFiles {
+        // Non-ready documents should be considered open even though we haven't
+        // opened it with the language service yet.
         guard openDocuments.contains(uri) else { continue }
         guard self.documentsReady.contains(uri) else {
+          // Case 1: initial settings for a given file. Now we can process our backlog.
           log("Initial build settings received for opened file \(uri)")
 
           guard let snapshot = documentManager.latestSnapshot(uri),
@@ -339,6 +394,7 @@ extension SourceKitServer: BuildSystemDelegate {
           continue
         }
 
+        // Case 2: changed settings for an already open file.
         log("Build settings changed for opened file \(uri)")
         if let snapshot = documentManager.latestSnapshot(uri),
            let service = self.languageService(for: uri, snapshot.document.language, in: workspace) {
@@ -348,6 +404,9 @@ extension SourceKitServer: BuildSystemDelegate {
     }
   }
 
+  /// Handle a dependencies updated notification from the `BuildSystem`.
+  /// We inform the respective language services as long as the given file is open
+  /// (not queued for opening).
   public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
     queue.async {
       guard let workspace = self.workspace else {
@@ -355,6 +414,11 @@ extension SourceKitServer: BuildSystemDelegate {
       }
       let documentManager = workspace.documentManager
       for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, documentManager) {
+        // Make sure the document is ready - otherwise the language service won't
+        // know about the document yet.
+        guard self.documentsReady.contains(uri) else {
+          continue
+        }
         log("Dependencies updated for opened file \(uri)")
         if let snapshot = documentManager.latestSnapshot(uri),
           let service = self.languageService(for: uri, snapshot.document.language, in: workspace) {
@@ -553,25 +617,35 @@ extension SourceKitServer {
     self.documentsReady.insert(uri)
   }
 
-  // TODO(DavidGoldman): properly queue these up if the document isn't yet ready.
   func changeDocument(_ note: Notification<DidChangeTextDocumentNotification>, workspace: Workspace) {
-    workspace.documentManager.edit(note.params)
+    let uri = note.params.textDocument.uri
 
-    if let service = workspace.documentService[note.params.textDocument.uri] {
-      service.changeDocument(note.params)
+    // If the document is ready, we can handle the change right now.
+    guard !documentsReady.contains(uri) else {
+      workspace.documentManager.edit(note.params)
+      workspace.documentService[uri]?.changeDocument(note.params)
+      return
     }
+
+    // Need to queue the change call so we can handle it when ready.
+    self.documentToPendingQueue[uri, default: DocumentNotificationRequestQueue()].add(operation: {
+      workspace.documentManager.edit(note.params)
+      workspace.documentService[uri]?.changeDocument(note.params)
+    })
   }
 
-  func willSaveDocument(_ note: Notification<WillSaveTextDocumentNotification>, workspace: Workspace) {
-    if let service = workspace.documentService[note.params.textDocument.uri] {
-      service.willSaveDocument(note.params)
-    }
+  func willSaveDocument(
+    _ note: Notification<WillSaveTextDocumentNotification>,
+    languageService: ToolchainLanguageServer
+  ) {
+    languageService.willSaveDocument(note.params)
   }
 
-  func didSaveDocument(_ note: Notification<DidSaveTextDocumentNotification>, workspace: Workspace) {
-    if let service = workspace.documentService[note.params.textDocument.uri] {
-      service.didSaveDocument(note.params)
-    }
+  func didSaveDocument(
+    _ note: Notification<DidSaveTextDocumentNotification>,
+    languageService: ToolchainLanguageServer
+  ) {
+    languageService.didSaveDocument(note.params)
   }
 
   // MARK: - Language features

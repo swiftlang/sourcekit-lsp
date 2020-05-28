@@ -50,8 +50,16 @@ public final class FallbackBuildSystem: BuildSystem {
     }
   }
 
-  /// We don't support change watching.
-  public func registerForChangeNotifications(for: DocumentURI, language: Language) {}
+  /// Register the given file for build-system level change notifications, such
+  /// as command line flag changes, dependency changes, etc.
+  ///
+  /// IMPORTANT: When first receiving a register request, the `BuildSystem`
+  /// MUST eventually inform its delegate of any initial settings for the given file
+  /// via the `fileBuildSettingsChanged` method.
+  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+    let settings = self.settings(for: uri, language)
+    self.delegate?.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+  }
 
   /// We don't support change watching.
   public func unregisterForChangeNotifications(for: DocumentURI) {}

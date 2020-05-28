@@ -177,8 +177,12 @@ extension BuildServerBuildSystem {
 
 extension BuildServerBuildSystem: BuildSystem {
 
-  /// Register the given file for build-system level change notifications, such as command
-  /// line flag changes, dependency changes, etc.
+  /// Register the given file for build-system level change notifications, such
+  /// as command line flag changes, dependency changes, etc.
+  ///
+  /// IMPORTANT: When first receiving a register request, the `BuildSystem`
+  /// MUST eventually inform its delegate of any initial settings for the given file
+  /// via the `fileBuildSettingsChanged` method.
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     self.handler?.uriToLanguage[uri] = language
     let request = RegisterForChanges(uri: uri, action: .register)

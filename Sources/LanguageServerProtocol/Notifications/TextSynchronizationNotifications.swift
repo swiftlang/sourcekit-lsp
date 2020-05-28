@@ -97,7 +97,7 @@ public struct DidChangeTextDocumentNotification: NotificationType, Hashable {
 ///   - reason: Whether this was user-initiated, auto-saved, etc.
 ///
 /// Servers that support willSave should set the `willSave` text document sync option.
-public struct WillSaveTextDocumentNotification: NotificationType, Hashable {
+public struct WillSaveTextDocumentNotification: TextDocumentNotification, Hashable {
   public static let method: String = "textDocument/willSave"
 
   /// The document that will be saved.
@@ -114,7 +114,7 @@ public struct WillSaveTextDocumentNotification: NotificationType, Hashable {
 ///   - text: The content of the document at the time of save.
 ///
 /// Servers that support didSave should set the `save` text document sync option.
-public struct DidSaveTextDocumentNotification: NotificationType, Hashable {
+public struct DidSaveTextDocumentNotification: TextDocumentNotification, Hashable {
   public static let method: String = "textDocument/didSave"
 
   /// The document that was saved.

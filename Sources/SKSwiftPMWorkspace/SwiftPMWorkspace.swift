@@ -225,8 +225,12 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     return nil
   }
 
-  /// Register the given file for build-system level change notifications, such as command
-  /// line flag changes, dependency changes, etc.
+  /// Register the given file for build-system level change notifications, such
+  /// as command line flag changes, dependency changes, etc.
+  ///
+  /// IMPORTANT: When first receiving a register request, the `BuildSystem`
+  /// MUST eventually inform its delegate of any initial settings for the given file
+  /// via the `fileBuildSettingsChanged` method.
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     // TODO: Support for change detection (via file watching)
     let settings = self.settings(for: uri, language)
