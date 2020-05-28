@@ -142,7 +142,7 @@ final class BuildServerHandler: LanguageServerEndpoint {
   
   /// Maps from DocumentURI to language for all registered documents.
   /// FIXME: Should this be added to the BSP Protocol?
-  var uriToLanguage: [DocumentURI: Language] = [:]
+  private var uriToLanguage: [DocumentURI: Language] = [:]
 
   override func _registerBuiltinHandlers() {
     _register(BuildServerHandler.handleBuildTargetsChanged)
@@ -158,6 +158,13 @@ final class BuildServerHandler: LanguageServerEndpoint {
     if let language = self.uriToLanguage[uri] {
       let settings = toFileBuildSettings(notification.params.updatedOptions, language)
       self.delegate?.fileBuildSettingsChanged([uri: .modified(settings)])
+    }
+  }
+
+  /// Update the cached language for the given document.
+  func updateLanguage(for uri: DocumentURI, _ language: Language) {
+    self.queue.async {
+      self.uriToLanguage[uri] = language
     }
   }
 }
@@ -184,11 +191,16 @@ extension BuildServerBuildSystem: BuildSystem {
   /// MUST eventually inform its delegate of any initial settings for the given file
   /// via the `fileBuildSettingsChanged` method.
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
-    self.handler?.uriToLanguage[uri] = language
+    self.handler?.updateLanguage(for: uri, language)
+
     let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request, queue: requestQueue, reply: { result in
       if let error = result.failure {
         log("error registering \(uri): \(error)", level: .error)
+
+        // BuildServer registration failed, so tell our delegate that no build
+        // settings are available.
+        self.delegate?.fileBuildSettingsChanged([uri: .removedOrUnavailable])
       }
     })
   }
