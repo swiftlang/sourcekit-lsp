@@ -20,8 +20,8 @@ public enum FileBuildSettingsChange {
   case modified(FileBuildSettings)
 }
 
-public extension FileBuildSettingsChange {
-  var newSettings: FileBuildSettings? {
+extension FileBuildSettingsChange {
+  public var newSettings: FileBuildSettings? {
     switch self {
     case .removedOrUnavailable:
       return nil
@@ -30,7 +30,7 @@ public extension FileBuildSettingsChange {
     }
   }
 
-  init(_ settings: FileBuildSettings?) {
+  public init(_ settings: FileBuildSettings?) {
     if let settings = settings {
       self = .modified(settings)
     } else {
