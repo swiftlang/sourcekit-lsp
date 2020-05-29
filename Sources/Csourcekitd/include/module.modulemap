@@ -1,4 +1,4 @@
-module sourcekitd {
+module Csourcekitd {
   // header "sourcekitd.h"
   header "sourcekitd_functions.h"
   export *

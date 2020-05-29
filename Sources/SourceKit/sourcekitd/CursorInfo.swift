@@ -12,7 +12,7 @@
 
 import LanguageServerProtocol
 import TSCBasic
-import sourcekitd
+import SourceKitD
 
 /// Detailed information about a symbol under the cursor.
 ///
@@ -76,7 +76,7 @@ extension SwiftLanguageServer {
   func _cursorInfo(
     _ uri: DocumentURI,
     _ range: Range<Position>,
-    additionalParameters appendAdditionalParameters: ((SKRequestDictionary) -> Void)? = nil,
+    additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil,
     _ completion: @escaping (Swift.Result<CursorInfo?, CursorInfoError>) -> Void)
   {
     guard let snapshot = documentManager.latestSnapshot(uri) else {
@@ -89,7 +89,7 @@ extension SwiftLanguageServer {
 
     let keys = self.keys
 
-    let skreq = SKRequestDictionary(sourcekitd: sourcekitd)
+    let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.cursorinfo
     skreq[keys.offset] = offsetRange.lowerBound
     if offsetRange.upperBound != offsetRange.lowerBound {
@@ -107,7 +107,7 @@ extension SwiftLanguageServer {
     let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
       guard let self = self else { return }
       guard let dict = result.success else {
-        return completion(.failure(.responseError(result.failure!)))
+        return completion(.failure(.responseError(ResponseError(result.failure!))))
       }
 
       guard let _: sourcekitd_uid_t = dict[keys.kind] else {
@@ -123,7 +123,7 @@ extension SwiftLanguageServer {
         location = Location(uri: DocumentURI(URL(fileURLWithPath: filepath)), range: Range(pos))
       }
 
-      let refactorActionsArray: SKResponseArray? = dict[keys.refactor_actions]
+      let refactorActionsArray: SKDResponseArray? = dict[keys.refactor_actions]
 
       completion(.success(
         CursorInfo(
@@ -160,7 +160,7 @@ extension SwiftLanguageServer {
   func cursorInfo(
     _ uri: DocumentURI,
     _ range: Range<Position>,
-    additionalParameters appendAdditionalParameters: ((SKRequestDictionary) -> Void)? = nil,
+    additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil,
     _ completion: @escaping (Swift.Result<CursorInfo?, CursorInfoError>) -> Void)
   {
     self.queue.async {

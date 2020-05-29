@@ -18,7 +18,7 @@ import LSPLogging
 import SKCore
 import SKSupport
 import SourceKit
-import sourcekitd // Not needed here, but fixes debugging...
+import Csourcekitd // Not needed here, but fixes debugging...
 import TSCBasic
 import TSCLibc
 import TSCUtility

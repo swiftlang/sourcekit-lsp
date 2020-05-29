@@ -34,12 +34,12 @@ let package = Package(
       .target(
         name: "SourceKit",
         dependencies: [
-          "Csourcekitd",
           "BuildServerProtocol",
           "IndexStoreDB",
           "LanguageServerProtocol",
           "LanguageServerProtocolJSONRPC",
           "SKCore",
+          "SourceKitD",
           "SKSwiftPMWorkspace",
           "SwiftToolsSupport-auto",
         ]
@@ -85,17 +85,12 @@ let package = Package(
         ]
       ),
 
-      // Csourcekitd: C modules wrapper for sourcekitd.
-      .target(
-        name: "Csourcekitd",
-        dependencies: []
-      ),
-
       // SKCore: Data structures and algorithms useful across the project, but not necessarily
       // suitable for use in other packages.
       .target(
         name: "SKCore",
         dependencies: [
+          "SourceKitD",
           "BuildServerProtocol",
           "LanguageServerProtocol",
           "LanguageServerProtocolJSONRPC",
@@ -109,6 +104,23 @@ let package = Package(
           "SKCore",
           "SKTestSupport",
         ]
+      ),
+
+      // SourceKitD: Swift bindings for sourcekitd.
+      .target(
+        name: "SourceKitD",
+        dependencies: [
+          "Csourcekitd",
+          "LSPLogging",
+          "SKSupport",
+          "SwiftToolsSupport-auto",
+        ]
+      ),
+
+      // Csourcekitd: C modules wrapper for sourcekitd.
+      .target(
+        name: "Csourcekitd",
+        dependencies: []
       ),
 
       // Logging support used in LSP modules.

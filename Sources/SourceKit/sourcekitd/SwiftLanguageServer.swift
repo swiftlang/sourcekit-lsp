@@ -16,7 +16,7 @@ import LanguageServerProtocol
 import LSPLogging
 import SKCore
 import SKSupport
-import sourcekitd
+import SourceKitD
 import TSCBasic
 
 fileprivate extension Range {
@@ -83,7 +83,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   let client: Connection
 
-  let sourcekitd: SwiftSourceKitFramework
+  let sourcekitd: SourceKitD
 
   let buildSystem: BuildSystem
 
@@ -106,7 +106,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
   public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, clientCapabilities: ClientCapabilities, onExit: @escaping () -> Void = {}) throws {
     self.client = client
-    self.sourcekitd = try SwiftSourceKitFramework(dylib: sourcekitd)
+    self.sourcekitd = try SourceKitD(dylib: sourcekitd)
     self.buildSystem = buildSystem
     self.clientCapabilities = clientCapabilities
     self.documentManager = DocumentManager()
@@ -115,7 +115,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   /// Should be called on self.queue.
   func publishDiagnostics(
-    response: SKResponseDictionary,
+    response: SKDResponseDictionary,
     for snapshot: DocumentSnapshot)
   {
     let documentUri = snapshot.document.uri
@@ -154,14 +154,14 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
     // Make the magic 0,0 replacetext request to update diagnostics.
 
-    let req = SKRequestDictionary(sourcekitd: sourcekitd)
+    let req = SKDRequestDictionary(sourcekitd: sourcekitd)
     req[keys.request] = requests.editor_replacetext
     req[keys.name] = uri.pseudoPath
     req[keys.offset] = 0
     req[keys.length] = 0
     req[keys.sourcetext] = ""
 
-    if let dict = self.sourcekitd.sendSync(req).success {
+    if let dict = try? self.sourcekitd.sendSync(req) {
       publishDiagnostics(response: dict, for: snapshot)
     }
   }
@@ -174,7 +174,7 @@ extension SwiftLanguageServer {
 
     api.set_notification_handler { [weak self] notification in
       guard let self = self else { return }
-      let notification = SKResponse(notification, sourcekitd: self.sourcekitd)
+      let notification = SKDResponse(notification, sourcekitd: self.sourcekitd)
 
       guard let dict = notification.value else {
         log(notification.description, level: .error)
@@ -247,12 +247,12 @@ extension SwiftLanguageServer {
     let keys = self.keys
     let path = snapshot.document.uri.pseudoPath
 
-    let closeReq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+    let closeReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     closeReq[keys.request] = self.requests.editor_close
     closeReq[keys.name] = path
-    _ = self.sourcekitd.sendSync(closeReq)
+    _ = try? self.sourcekitd.sendSync(closeReq)
 
-    let openReq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+    let openReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     openReq[keys.request] = self.requests.editor_open
     openReq[keys.name] = path
     openReq[keys.sourcetext] = snapshot.text
@@ -260,7 +260,7 @@ extension SwiftLanguageServer {
       openReq[keys.compilerargs] = compileCmd.compilerArgs
     }
 
-    guard let dict = self.sourcekitd.sendSync(openReq).success else {
+    guard let dict = try? self.sourcekitd.sendSync(openReq) else {
       // Already logged failure.
       return
     }
@@ -311,7 +311,7 @@ extension SwiftLanguageServer {
       }
 
       let uri = snapshot.document.uri
-      let req = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       req[keys.request] = self.requests.editor_open
       req[keys.name] = note.textDocument.uri.pseudoPath
       req[keys.sourcetext] = snapshot.text
@@ -320,7 +320,7 @@ extension SwiftLanguageServer {
         req[keys.compilerargs] = compileCommand.compilerArgs
       }
 
-      guard let dict = self.sourcekitd.sendSync(req).success else {
+      guard let dict = try? self.sourcekitd.sendSync(req) else {
         // Already logged failure.
         return
       }
@@ -337,7 +337,7 @@ extension SwiftLanguageServer {
 
       let uri = note.textDocument.uri
 
-      let req = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       req[keys.request] = self.requests.editor_close
       req[keys.name] = uri.pseudoPath
 
@@ -345,7 +345,7 @@ extension SwiftLanguageServer {
       self.commandsByFile[uri] = nil
       self.currentDiagnostics[uri] = nil
 
-      _ = self.sourcekitd.sendSync(req)
+      _ = try? self.sourcekitd.sendSync(req)
     }
   }
 
@@ -353,10 +353,10 @@ extension SwiftLanguageServer {
     let keys = self.keys
 
     self.queue.async {
-      var lastResponse: SKResponseDictionary? = nil
+      var lastResponse: SKDResponseDictionary? = nil
 
       let snapshot = self.documentManager.edit(note) { (before: DocumentSnapshot, edit: TextDocumentContentChangeEvent) in
-        let req = SKRequestDictionary(sourcekitd: self.sourcekitd)
+        let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
         req[keys.request] = self.requests.editor_replacetext
         req[keys.name] = note.textDocument.uri.pseudoPath
 
@@ -376,7 +376,7 @@ extension SwiftLanguageServer {
 
         req[keys.sourcetext] = edit.text
 
-        lastResponse = self.sourcekitd.sendSync(req).success
+        lastResponse = try? self.sourcekitd.sendSync(req)
       }
 
       if let dict = lastResponse, let snapshot = snapshot {
@@ -467,13 +467,13 @@ extension SwiftLanguageServer {
         return
       }
 
-      let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       skreq[keys.request] = self.requests.codecomplete
       skreq[keys.offset] = offset
       skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
       skreq[keys.sourcetext] = snapshot.text
 
-      let skreqOptions = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      let skreqOptions = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       skreqOptions[keys.codecomplete_sort_byname] = 1
       skreq[keys.codecomplete_options] = skreqOptions
 
@@ -487,11 +487,11 @@ extension SwiftLanguageServer {
       let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
         guard let self = self else { return }
         guard let dict = result.success else {
-          req.reply(.failure(result.failure!))
+          req.reply(.failure(ResponseError(result.failure!)))
           return
         }
 
-        guard let completions: SKResponseArray = dict[self.keys.results] else {
+        guard let completions: SKDResponseArray = dict[self.keys.results] else {
           req.reply(CompletionList(isIncomplete: false, items: []))
           return
         }
@@ -679,7 +679,7 @@ extension SwiftLanguageServer {
         return
       }
 
-      let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       skreq[keys.request] = self.requests.editor_open
       skreq[keys.name] = "DocumentSymbols:" + snapshot.document.uri.pseudoPath
       skreq[keys.sourcetext] = snapshot.text
@@ -688,14 +688,14 @@ extension SwiftLanguageServer {
       let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
         guard let self = self else { return }
         guard let dict = result.success else {
-          req.reply(.failure(result.failure!))
+          req.reply(.failure(ResponseError(result.failure!)))
           return
         }
-        guard let results: SKResponseArray = dict[self.keys.substructure] else {
+        guard let results: SKDResponseArray = dict[self.keys.substructure] else {
           return req.reply(.documentSymbols([]))
         }
 
-        func documentSymbol(value: SKResponseDictionary) -> DocumentSymbol? {
+        func documentSymbol(value: SKDResponseDictionary) -> DocumentSymbol? {
           guard let name: String = value[self.keys.name],
                 let uid: sourcekitd_uid_t = value[self.keys.kind],
                 let kind: SymbolKind = uid.asSymbolKind(self.values),
@@ -718,7 +718,7 @@ extension SwiftLanguageServer {
           }
 
           let children: [DocumentSymbol]?
-          if let substructure: SKResponseArray = value[self.keys.substructure] {
+          if let substructure: SKDResponseArray = value[self.keys.substructure] {
             children = documentSymbols(array: substructure)
           } else {
             children = nil
@@ -732,12 +732,12 @@ extension SwiftLanguageServer {
                                 children: children)
         }
 
-        func documentSymbols(array: SKResponseArray) -> [DocumentSymbol] {
+        func documentSymbols(array: SKDResponseArray) -> [DocumentSymbol] {
           var result: [DocumentSymbol] = []
-          array.forEach { (i: Int, value: SKResponseDictionary) in
+          array.forEach { (i: Int, value: SKDResponseDictionary) in
             if let documentSymbol = documentSymbol(value: value) {
               result.append(documentSymbol)
-            } else if let substructure: SKResponseArray = value[self.keys.substructure] {
+            } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
               result += documentSymbols(array: substructure)
             }
             return true
@@ -762,7 +762,7 @@ extension SwiftLanguageServer {
         return
       }
 
-      let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       skreq[keys.request] = self.requests.editor_open
       skreq[keys.name] = "DocumentColor:" + snapshot.document.uri.pseudoPath
       skreq[keys.sourcetext] = snapshot.text
@@ -771,15 +771,15 @@ extension SwiftLanguageServer {
       let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
         guard let self = self else { return }
         guard let dict = result.success else {
-          req.reply(.failure(result.failure!))
+          req.reply(.failure(ResponseError(result.failure!)))
           return
         }
 
-        guard let results: SKResponseArray = dict[self.keys.substructure] else {
+        guard let results: SKDResponseArray = dict[self.keys.substructure] else {
           return req.reply([])
         }
 
-        func colorInformation(dict: SKResponseDictionary) -> ColorInformation? {
+        func colorInformation(dict: SKDResponseDictionary) -> ColorInformation? {
           guard let kind: sourcekitd_uid_t = dict[self.keys.kind],
                 kind == self.values.expr_object_literal,
                 let name: String = dict[self.keys.name],
@@ -788,11 +788,11 @@ extension SwiftLanguageServer {
                 let start: Position = snapshot.positionOf(utf8Offset: offset),
                 let length: Int = dict[self.keys.length],
                 let end: Position = snapshot.positionOf(utf8Offset: offset + length),
-                let substructure: SKResponseArray = dict[self.keys.substructure] else {
+                let substructure: SKDResponseArray = dict[self.keys.substructure] else {
             return nil
           }
           var red, green, blue, alpha: Double?
-          substructure.forEach{ (i: Int, value: SKResponseDictionary) in
+          substructure.forEach{ (i: Int, value: SKDResponseDictionary) in
             guard let name: String = value[self.keys.name],
                   let bodyoffset: Int = value[self.keys.bodyoffset],
                   let bodylength: Int = value[self.keys.bodylength] else {
@@ -827,12 +827,12 @@ extension SwiftLanguageServer {
           }
         }
 
-        func colorInformation(array: SKResponseArray) -> [ColorInformation] {
+        func colorInformation(array: SKDResponseArray) -> [ColorInformation] {
           var result: [ColorInformation] = []
-          array.forEach { (i: Int, value: SKResponseDictionary) in
+          array.forEach { (i: Int, value: SKDResponseDictionary) in
             if let documentSymbol = colorInformation(dict: value) {
               result.append(documentSymbol)
-            } else if let substructure: SKResponseArray = value[self.keys.substructure] {
+            } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
               result += colorInformation(array: substructure)
             }
             return true
@@ -873,7 +873,7 @@ extension SwiftLanguageServer {
         return
       }
 
-      let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       skreq[keys.request] = self.requests.relatedidents
       skreq[keys.offset] = offset
       skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
@@ -886,11 +886,11 @@ extension SwiftLanguageServer {
       let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
         guard let self = self else { return }
         guard let dict = result.success else {
-          req.reply(.failure(result.failure!))
+          req.reply(.failure(ResponseError(result.failure!)))
           return
         }
 
-        guard let results: SKResponseArray = dict[self.keys.results] else {
+        guard let results: SKDResponseArray = dict[self.keys.results] else {
           return req.reply([])
         }
 
@@ -928,7 +928,7 @@ extension SwiftLanguageServer {
         return
       }
 
-      let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       skreq[keys.request] = self.requests.editor_open
       skreq[keys.name] = "FoldingRanges:" + snapshot.document.uri.pseudoPath
       skreq[keys.sourcetext] = snapshot.text
@@ -937,12 +937,12 @@ extension SwiftLanguageServer {
       let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
         guard let self = self else { return }
         guard let dict = result.success else {
-          req.reply(.failure(result.failure!))
+          req.reply(.failure(ResponseError(result.failure!)))
           return
         }
 
-        guard let syntaxMap: SKResponseArray = dict[self.keys.syntaxmap],
-              let substructure: SKResponseArray = dict[self.keys.substructure] else {
+        guard let syntaxMap: SKDResponseArray = dict[self.keys.syntaxmap],
+              let substructure: SKDResponseArray = dict[self.keys.substructure] else {
           return req.reply([])
         }
 
@@ -989,7 +989,7 @@ extension SwiftLanguageServer {
           currentComment = nil
         }
 
-        var structureStack: [SKResponseArray] = [substructure]
+        var structureStack: [SKDResponseArray] = [substructure]
         while !hasReachedLimit, let substructure = structureStack.popLast() {
           substructure.forEach { _, value in
             if let offset: Int = value[self.keys.bodyoffset],
@@ -1001,7 +1001,7 @@ extension SwiftLanguageServer {
                 return false
               }
             }
-            if let substructure: SKResponseArray = value[self.keys.substructure] {
+            if let substructure: SKDResponseArray = value[self.keys.substructure] {
               structureStack.append(substructure)
             }
             return true
@@ -1092,7 +1092,7 @@ extension SwiftLanguageServer {
   }
 
   func retrieveRefactorCodeActions(_ params: CodeActionRequest, completion: @escaping CodeActionProviderCompletion) {
-    let additionalCursorInfoParameters: ((SKRequestDictionary) -> Void) = { skreq in
+    let additionalCursorInfoParameters: ((SKDRequestDictionary) -> Void) = { skreq in
       skreq[self.keys.retrieve_refactor_actions] = 1
     }
 
