@@ -14,6 +14,7 @@ import BuildServerProtocol
 import LanguageServerProtocol
 import TSCBasic
 import enum TSCUtility.Platform
+import Dispatch
 
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
 public final class FallbackBuildSystem: BuildSystem {
@@ -51,8 +52,12 @@ public final class FallbackBuildSystem: BuildSystem {
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+    guard let delegate = self.delegate else { return }
+
     let settings = self.settings(for: uri, language)
-    self.delegate?.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    DispatchQueue.global().async {
+      delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    }
   }
 
   /// We don't support change watching.

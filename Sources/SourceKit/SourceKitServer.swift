@@ -24,45 +24,6 @@ import TSCUtility
 
 public typealias URL = Foundation.URL
 
-/// Simple struct for pending notifications/requests, including a cancellation handler.
-/// For convenience the notifications/request handlers are type erased via wrapping.
-private struct NotificationRequestOperation {
-  let operation: () -> Void
-  let cancellationHandler: (() -> Void)?
-}
-
-/// Used to queue up notifications and requests for documents which are blocked
-/// on `BuildSystem` operations such as fetching build settings.
-///
-/// Note: This is not thread safe. Must be called from the `SourceKitServer.queue`.
-private struct DocumentNotificationRequestQueue {
-  private var queue = [NotificationRequestOperation]()
-
-  /// Add an operation to the end of the queue.
-  mutating func add(operation: @escaping () -> Void, cancellationHandler: (() -> Void)? = nil) {
-    queue.append(NotificationRequestOperation(operation: operation, cancellationHandler: cancellationHandler))
-  }
-
-  /// Invoke all operations in the queue.
-  mutating func handleAll() {
-    for task in queue {
-      task.operation()
-    }
-    queue = []
-  }
-
-  /// Cancel all operations in the queue. No-op for operations without a cancellation
-  /// handler.
-  mutating func cancelAll() {
-    for task in queue {
-      if let cancellationHandler = task.cancellationHandler {
-        cancellationHandler()
-      }
-    }
-    queue = []
-  }
-}
-
 /// The SourceKit language server.
 ///
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
@@ -164,6 +125,8 @@ public final class SourceKitServer: LanguageServer {
 
       // Not ready to handle it, we'll queue it and handle it later.
       self.documentToPendingQueue[doc, default: DocumentNotificationRequestQueue()].add(operation: {
+          [weak self] in
+        guard let self = self else { return }
         requestHandler(self)(req, workspace, languageService)
       }, cancellationHandler: {
         req.reply(fallback)
@@ -198,6 +161,8 @@ public final class SourceKitServer: LanguageServer {
 
       // Not ready to handle it, we'll queue it and handle it later.
       self.documentToPendingQueue[doc, default: DocumentNotificationRequestQueue()].add(operation: {
+          [weak self] in
+        guard let self = self else { return }
         notificationHandler(self)(note, languageService)
       })
     }
@@ -604,8 +569,9 @@ extension SourceKitServer {
 
     workspace.buildSystemManager.unregisterForChangeNotifications(for: uri)
 
-    // If the document is ready, we can send the notification.
+    // If the document is ready, we can close it now.
     guard !documentsReady.contains(uri) else {
+      self.documentsReady.remove(uri)
       workspace.documentService[uri]?.closeDocument(note.params)
       return
     }
@@ -614,7 +580,6 @@ extension SourceKitServer {
     // No need to send the notification since it was never considered opened.
     self.documentToPendingQueue[uri]?.cancelAll()
     self.documentToPendingQueue[uri] = nil
-    self.documentsReady.insert(uri)
   }
 
   func changeDocument(_ note: Notification<DidChangeTextDocumentNotification>, workspace: Workspace) {
@@ -773,6 +738,8 @@ extension SourceKitServer {
     // If the document isn't yet ready, queue the request.
     guard self.documentsReady.contains(uri) else {
       self.documentToPendingQueue[uri, default: DocumentNotificationRequestQueue()].add(operation: {
+          [weak self] in
+        guard let self = self else { return }
         self.fowardExecuteCommand(req, languageService: languageService)
       }, cancellationHandler: {
         req.reply(nil)
@@ -1054,5 +1021,44 @@ extension SymbolOccurrence {
   /// Get the name of the symbol that is a parent of this symbol, if one exists
   func getContainerName() -> String? {
     return relations.first(where: { $0.roles.contains(.childOf) })?.symbol.name
+  }
+}
+
+/// Simple struct for pending notifications/requests, including a cancellation handler.
+/// For convenience the notifications/request handlers are type erased via wrapping.
+private struct NotificationRequestOperation {
+  let operation: () -> Void
+  let cancellationHandler: (() -> Void)?
+}
+
+/// Used to queue up notifications and requests for documents which are blocked
+/// on `BuildSystem` operations such as fetching build settings.
+///
+/// Note: This is not thread safe. Must be called from the `SourceKitServer.queue`.
+private struct DocumentNotificationRequestQueue {
+  private var queue = [NotificationRequestOperation]()
+
+  /// Add an operation to the end of the queue.
+  mutating func add(operation: @escaping () -> Void, cancellationHandler: (() -> Void)? = nil) {
+    queue.append(NotificationRequestOperation(operation: operation, cancellationHandler: cancellationHandler))
+  }
+
+  /// Invoke all operations in the queue.
+  mutating func handleAll() {
+    for task in queue {
+      task.operation()
+    }
+    queue = []
+  }
+
+  /// Cancel all operations in the queue. No-op for operations without a cancellation
+  /// handler.
+  mutating func cancelAll() {
+    for task in queue {
+      if let cancellationHandler = task.cancellationHandler {
+        cancellationHandler()
+      }
+    }
+    queue = []
   }
 }

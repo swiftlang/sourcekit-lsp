@@ -15,6 +15,7 @@ import LanguageServerProtocol
 import LSPLogging
 import SKSupport
 import TSCBasic
+import Dispatch
 import struct Foundation.URL
 
 /// A `BuildSystem` based on loading clang-compatible compilation database(s).
@@ -60,8 +61,12 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+    guard let delegate = self.delegate else { return }
+
     let settings = self._settings(for: uri)
-    self.delegate?.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    DispatchQueue.global().async {
+      delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    }
   }
 
   /// We don't support change watching.

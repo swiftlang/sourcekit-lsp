@@ -23,6 +23,7 @@ import PackageModel
 import SKCore
 import SKSupport
 import Workspace
+import Dispatch
 import struct Foundation.URL
 
 /// Swift Package Manager build system and workspace support.
@@ -226,9 +227,13 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+    guard let delegate = self.delegate else { return }
+
     // TODO: Support for change detection (via file watching)
     let settings = self.settings(for: uri, language)
-    self.delegate?.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    DispatchQueue.global().async {
+      delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    }
   }
 
   /// Unregister the given file for build-system level change notifications, such as command

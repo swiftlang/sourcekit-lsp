@@ -39,9 +39,14 @@ final class TestBuildSystem: BuildSystem {
   func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     watchedFiles.insert(uri)
 
-    // Immediately inform our delegate of settings for the file if they're available.
-    if let settings = self.buildSettingsByFile[uri] {
-      self.delegate?.fileBuildSettingsChanged([uri: .modified(settings)])
+    // Inform our delegate of settings for the file if they're available.
+    guard let delegate = self.delegate,
+          let settings = self.buildSettingsByFile[uri] else {
+      return
+    }
+
+    DispatchQueue.global().async {
+      delegate.fileBuildSettingsChanged([uri: .modified(settings)])
     }
   }
 
