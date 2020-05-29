@@ -125,7 +125,7 @@ extension ClangLanguageServerShim {
     }
   }
 
-  public func documentDependenciesUpdated(_ uri: DocumentURI, language: Language) {
+  public func documentDependenciesUpdated(_ uri: DocumentURI) {
     // In order to tell clangd to reload an AST, we send it an empty `didChangeTextDocument`
     // with `forceRebuild` set in case any missing header files have been added.
     // This works well for us as the moment since clangd ignores the document version.

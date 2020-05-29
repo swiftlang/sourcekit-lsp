@@ -343,9 +343,15 @@ extension SourceKitServer: BuildSystemDelegate {
           // Case 1: initial settings for a given file. Now we can process our backlog.
           log("Initial build settings received for opened file \(uri)")
 
-          guard let snapshot = documentManager.latestSnapshot(uri),
-                let service = self.languageService(for: uri, snapshot.document.language, in: workspace) else {
-            log("No snapshot or language service for opened file \(uri)", level: .error)
+          guard let service = workspace.documentService[uri] else {
+            // Unexpected: we should have an existing language service if we've registered for
+            // change notifications for an opened but non-ready document.
+            log("No language service for build settings change to non-ready file \(uri)",
+                level: .error)
+
+            // We're in an odd state, cancel pending requests if we have any.
+            self.documentToPendingQueue[uri]?.cancelAll()
+            self.documentToPendingQueue[uri] = nil
             continue
           }
 
@@ -361,8 +367,7 @@ extension SourceKitServer: BuildSystemDelegate {
 
         // Case 2: changed settings for an already open file.
         log("Build settings changed for opened file \(uri)")
-        if let snapshot = documentManager.latestSnapshot(uri),
-           let service = self.languageService(for: uri, snapshot.document.language, in: workspace) {
+        if let service = workspace.documentService[uri] {
           service.documentUpdatedBuildSettings(uri, settings: change.newSettings)
         }
       }
@@ -377,17 +382,15 @@ extension SourceKitServer: BuildSystemDelegate {
       guard let workspace = self.workspace else {
         return
       }
-      let documentManager = workspace.documentManager
-      for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, documentManager) {
+      for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, workspace.documentManager) {
         // Make sure the document is ready - otherwise the language service won't
         // know about the document yet.
         guard self.documentsReady.contains(uri) else {
           continue
         }
         log("Dependencies updated for opened file \(uri)")
-        if let snapshot = documentManager.latestSnapshot(uri),
-          let service = self.languageService(for: uri, snapshot.document.language, in: workspace) {
-          service.documentDependenciesUpdated(uri, language: snapshot.document.language)
+        if let service = workspace.documentService[uri] {
+          service.documentDependenciesUpdated(uri)
         }
       }
     }

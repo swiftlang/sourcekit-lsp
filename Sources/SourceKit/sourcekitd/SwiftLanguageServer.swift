@@ -287,7 +287,7 @@ extension SwiftLanguageServer {
     }
   }
 
-  public func documentDependenciesUpdated(_ uri: DocumentURI, language: Language) {
+  public func documentDependenciesUpdated(_ uri: DocumentURI) {
     self.queue.async {
       guard let snapshot = self.documentManager.latestSnapshot(uri) else {
         return
