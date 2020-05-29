@@ -39,14 +39,14 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
     // test settings with a response
     let fileURL = URL(fileURLWithPath: "/path/to/some/file.swift")
-    let settings = buildSystem._settings(for: DocumentURI(fileURL), Language.swift)
+    let settings = buildSystem._settings(for: DocumentURI(fileURL))
     XCTAssertNotNil(settings)
-    XCTAssertEqual(settings?.compilerArguments, ["-a", "-b", "-working-directory", "/path/to/some"])
+    XCTAssertEqual(settings?.compilerArguments, ["-a", "-b"])
     XCTAssertEqual(settings?.workingDirectory, fileURL.deletingLastPathComponent().path)
 
     // test error
     let missingFileURL = URL(fileURLWithPath: "/path/to/some/missingfile.missing")
-    XCTAssertNil(buildSystem._settings(for: DocumentURI(missingFileURL), Language.swift))
+    XCTAssertNil(buildSystem._settings(for: DocumentURI(missingFileURL)))
   }
 
   func testFileRegistration() throws {

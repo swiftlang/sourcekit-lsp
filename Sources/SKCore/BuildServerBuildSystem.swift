@@ -126,23 +126,9 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
   return nil
 }
 
-private func toFileBuildSettings(
-  _ result: SourceKitOptionsResult,
-  _ language: Language
-) -> FileBuildSettings {
-  return FileBuildSettings(
-    compilerArguments: result.options,
-    workingDirectory: result.workingDirectory,
-    language: language)
-}
-
 final class BuildServerHandler: LanguageServerEndpoint {
 
   public weak var delegate: BuildSystemDelegate? = nil
-  
-  /// Maps from DocumentURI to language for all registered documents.
-  /// FIXME: Should this be added to the BSP Protocol?
-  private var uriToLanguage: [DocumentURI: Language] = [:]
 
   override func _registerBuiltinHandlers() {
     _register(BuildServerHandler.handleBuildTargetsChanged)
@@ -154,29 +140,20 @@ final class BuildServerHandler: LanguageServerEndpoint {
   }
 
   func handleFileOptionsChanged(_ notification: Notification<FileOptionsChangedNotification>) {
-    let uri = notification.params.uri
-    if let language = self.uriToLanguage[uri] {
-      let settings = toFileBuildSettings(notification.params.updatedOptions, language)
-      self.delegate?.fileBuildSettingsChanged([uri: .modified(settings)])
-    }
-  }
-
-  /// Update the cached language for the given document.
-  func updateLanguage(for uri: DocumentURI, _ language: Language) {
-    self.queue.async {
-      self.uriToLanguage[uri] = language
-    }
+    let result = notification.params.updatedOptions
+    let settings = FileBuildSettings(
+        compilerArguments: result.options, workingDirectory: result.workingDirectory)
+    self.delegate?.fileBuildSettingsChanged([notification.params.uri: .modified(settings)])
   }
 }
 
 extension BuildServerBuildSystem {
   /// Exposed for *testing*.
-  public func _settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
+  public func _settings(for uri: DocumentURI) -> FileBuildSettings? {
     if let response = try? self.buildServer?.sendSync(SourceKitOptions(uri: uri)) {
       return FileBuildSettings(
         compilerArguments: response.options,
-        workingDirectory: response.workingDirectory,
-        language: language)
+        workingDirectory: response.workingDirectory)
     }
     return nil
   }
@@ -184,15 +161,7 @@ extension BuildServerBuildSystem {
 
 extension BuildServerBuildSystem: BuildSystem {
 
-  /// Register the given file for build-system level change notifications, such
-  /// as command line flag changes, dependency changes, etc.
-  ///
-  /// IMPORTANT: When first receiving a register request, the `BuildSystem`
-  /// MUST eventually inform its delegate of any initial settings for the given file
-  /// via the `fileBuildSettingsChanged` method.
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
-    self.handler?.updateLanguage(for: uri, language)
-
     let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request, queue: requestQueue, reply: { result in
       if let error = result.failure {

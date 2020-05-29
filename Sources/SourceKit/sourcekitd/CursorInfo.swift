@@ -98,8 +98,8 @@ extension SwiftLanguageServer {
     skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
 
     // FIXME: SourceKit should probably cache this for us.
-    if let settings = self.buildSettingsByFile[uri] {
-      skreq[keys.compilerargs] = settings.compilerArguments
+    if let compileCommand = self.commandsByFile[uri] {
+      skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
     appendAdditionalParameters?(skreq)

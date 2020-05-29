@@ -59,14 +59,8 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }
 
-  /// Register the given file for build-system level change notifications, such
-  /// as command line flag changes, dependency changes, etc.
-  ///
-  /// IMPORTANT: When first receiving a register request, the `BuildSystem`
-  /// MUST eventually inform its delegate of any initial settings for the given file
-  /// via the `fileBuildSettingsChanged` method.
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
-    let settings = self._settings(for: uri, language)
+    let settings = self._settings(for: uri)
     self.delegate?.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
   }
 
@@ -114,7 +108,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
 
 extension CompilationDatabaseBuildSystem {
   /// Exposed for *testing*.
-  public func _settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
+  public func _settings(for uri: DocumentURI) -> FileBuildSettings? {
     guard let url = uri.fileURL else {
       // We can't determine build settings for non-file URIs.
       return nil
@@ -123,7 +117,6 @@ extension CompilationDatabaseBuildSystem {
           let cmd = db[url].first else { return nil }
     return FileBuildSettings(
       compilerArguments: Array(cmd.commandLine.dropFirst()),
-      workingDirectory: cmd.directory,
-      language: language)
+      workingDirectory: cmd.directory)
   }
 }

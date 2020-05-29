@@ -39,8 +39,8 @@ public protocol BuildSystem: AnyObject {
   /// as command line flag changes, dependency changes, etc.
   ///
   /// IMPORTANT: When first receiving a register request, the `BuildSystem`
-  /// MUST eventually inform its delegate of any initial settings for the given file
-  /// via the `fileBuildSettingsChanged` method.
+  /// MUST eventually inform its delegate of any initial settings for the given
+  /// file via the `fileBuildSettingsChanged` method, even if unavailable.
   func registerForChangeNotifications(for: DocumentURI, language: Language)
 
   /// Unregister the given file for build-system level change notifications,

@@ -136,12 +136,6 @@ extension BuildSystemManager: BuildSystem {
     set { queue.sync { _delegate = newValue } }
   }
 
-  /// Register the given file for build-system level change notifications, such
-  /// as command line flag changes, dependency changes, etc.
-  ///
-  /// IMPORTANT: When first receiving a register request, the `BuildSystem`
-  /// MUST eventually inform its delegate of any initial settings for the given file
-  /// via the `fileBuildSettingsChanged` method.
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     return queue.async {
       log("registerForChangeNotifications(\(uri.pseudoPath))")
@@ -155,8 +149,7 @@ extension BuildSystemManager: BuildSystem {
         self.watchedFiles[uri] = (mainFile, language)
       }
 
-      let newStatus = self.handleFetch(for: mainFile, language: language)
-      self.mainFileStatuses[mainFile] = newStatus
+      let newStatus = self.cachedStatusOrRegisterForSettings( for: mainFile, language: language)
 
       if let change = newStatus.buildSettingsChange,
          let delegate = self._delegate {
@@ -168,9 +161,8 @@ extension BuildSystemManager: BuildSystem {
   }
 
   /// *Must be called on queue*. Handle a request for `FileBuildSettings` on
-  /// `mainFile`. Return the new `MainFileStatus` for `mainFile`, which still
-  /// needs to be saved internally.
-  func handleFetch(
+  /// `mainFile`. Updates and returns the new `MainFileStatus` for `mainFile`.
+  func cachedStatusOrRegisterForSettings(
     for mainFile: DocumentURI,
     language: Language
   ) -> MainFileStatus {
@@ -181,9 +173,8 @@ extension BuildSystemManager: BuildSystem {
     }
     // This is a new `mainFile` that we need to handle. We need to fetch the
     // build settings.
+    let newStatus: MainFileStatus
     if let buildSystem = self.buildSystem {
-      buildSystem.registerForChangeNotifications(for: mainFile, language: language)
-
       // Register the timeout if it's applicable.
       if let fallback = self.fallbackBuildSystem {
         self.queue.asyncAfter(deadline: DispatchTime.now() + self.fallbackSettingsTimeout) { [weak self] in
@@ -191,18 +182,27 @@ extension BuildSystemManager: BuildSystem {
           self.handleFallbackTimer(for: mainFile, language: language, fallback)
         }
       }
-      return .waiting
+
+      // Intentionally register with the `BuildSystem` after setting the fallback to allow for
+      // testing of the fallback system triggering before the `BuildSystem` can reply (e.g. if a
+      // fallback time of 0 is specified).
+      buildSystem.registerForChangeNotifications(for: mainFile, language: language)
+
+
+      newStatus = .waiting
     } else if let fallback = self.fallbackBuildSystem {
       // Only have a fallback build system. We consider it be a primary build
       // system that functions synchronously.
       if let settings = fallback.settings(for: mainFile, language) {
-        return .fallback(settings)
+        newStatus = .fallback(settings)
       } else {
-        return .unsupported
+        newStatus = .unsupported
       }
     } else {  // Don't have any build systems.
-      return .unsupported
+      newStatus = .unsupported
     }
+    self.mainFileStatuses[mainFile] = newStatus
+    return newStatus
   }
 
   /// *Must be called on queue*. Update and notify our delegate for the given
@@ -215,7 +215,15 @@ extension BuildSystemManager: BuildSystem {
         // Possible notification after the file was unregistered. Ignore.
         continue
       }
+      let prevStatus = self.mainFileStatuses[mainFile]
       self.mainFileStatuses[mainFile] = status
+
+      // It's possible that the command line arguments didn't change
+      // (waitingFallback --> fallback), in that case we don't need to report a change.
+      // If we were waiting though, we need to emit an initial change.
+      guard prevStatus == .waiting || status.buildSettings != prevStatus?.buildSettings else {
+        continue
+      }
       if let change = status.buildSettingsChange {
         for watch in watches {
           changedWatchedFiles[watch.key] = change
@@ -237,11 +245,11 @@ extension BuildSystemManager: BuildSystem {
   func handleFallbackTimer(
     for mainFile: DocumentURI,
     language: Language,
-    _ fallback: FallbackBuildSystem) {
+    _ fallback: FallbackBuildSystem
+  ) {
     // There won't be a current status if it's unreferenced by any watched file.
     // Simiarly, if the status isn't `waiting` then there's nothing to do.
-    guard let status = self.mainFileStatuses[mainFile],
-        status == .waiting else {
+    guard let status = self.mainFileStatuses[mainFile], status == .waiting else {
       return
     }
     if let settings = fallback.settings(for: mainFile, language) {
@@ -395,8 +403,8 @@ extension BuildSystemManager: MainFilesDelegate {
           log("main file for '\(uri)' changed old: '\(state.mainFile)' -> new: '\(newMainFile)'", level: .info)
           self.checkUnreferencedMainFile(state.mainFile)
 
-          let newStatus = self.handleFetch(for: newMainFile, language: language)
-          self.mainFileStatuses[newMainFile] = newStatus
+          let newStatus = self.cachedStatusOrRegisterForSettings(
+              for: newMainFile, language: language)
           buildSettingsChanges[uri] = newStatus.buildSettingsChange
         }
       }

@@ -58,6 +58,24 @@ fileprivate func diagnosticsEnabled(for document: DocumentURI) -> Bool {
   return !excludedDocumentURISchemes.contains(scheme)
 }
 
+/// A swift compiler command derived from a `FileBuildSettings`.
+public struct SwiftCompileCommand: Equatable {
+
+  /// The compiler arguments, including working directory. This is required since sourcekitd only
+  /// accepts the working directory via the compiler arguments.
+  public let compilerArgs: [String]
+
+  public init(_ settings: FileBuildSettings) {
+    let baseArgs = settings.compilerArguments
+    // Add working directory arguments if needed.
+    if let workingDirectory = settings.workingDirectory, !baseArgs.contains("-working-directory") {
+      self.compilerArgs = baseArgs + ["-working-directory", workingDirectory]
+    } else {
+      self.compilerArgs = baseArgs
+    }
+  }
+}
+
 public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   /// The server's request queue, used to serialize requests and responses to `sourcekitd`.
@@ -76,7 +94,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   var currentDiagnostics: [DocumentURI: [CachedDiagnostic]] = [:]
 
-  var buildSettingsByFile: [DocumentURI: FileBuildSettings] = [:]
+  var commandsByFile: [DocumentURI: SwiftCompileCommand] = [:]
 
   let onExit: () -> Void
 
@@ -225,7 +243,7 @@ extension SwiftLanguageServer {
   // MARK: - Build System Integration
 
   /// Should be called on self.queue.
-  private func reopenDocument(_ snapshot: DocumentSnapshot, _ settings: FileBuildSettings?) {
+  private func reopenDocument(_ snapshot: DocumentSnapshot, _ compileCmd: SwiftCompileCommand?) {
     let keys = self.keys
     let path = snapshot.document.uri.pseudoPath
 
@@ -238,8 +256,8 @@ extension SwiftLanguageServer {
     openReq[keys.request] = self.requests.editor_open
     openReq[keys.name] = path
     openReq[keys.sourcetext] = snapshot.text
-    if let settings = settings {
-      openReq[keys.compilerargs] = settings.compilerArguments
+    if let compileCmd = compileCmd {
+      openReq[keys.compilerargs] = compileCmd.compilerArgs
     }
 
     guard let dict = self.sourcekitd.sendSync(openReq).success else {
@@ -251,21 +269,21 @@ extension SwiftLanguageServer {
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI, settings: FileBuildSettings?) {
     self.queue.async {
-      // Confirm that the build settings actually changed, otherwise we don't
-      // need to do anything.
-      guard self.buildSettingsByFile[uri] != settings else {
+      let compileCommand = settings.map { SwiftCompileCommand($0) }
+      // Confirm that the compile commands actually changed, otherwise we don't need to do anything.
+      guard self.commandsByFile[uri] != compileCommand else {
         return
       }
-      self.buildSettingsByFile[uri] = settings
+      self.commandsByFile[uri] = compileCommand
 
       // We may not have a snapshot if this is called just before `openDocument`.
       guard let snapshot = self.documentManager.latestSnapshot(uri) else {
         return
       }
 
-      // Close and re-open the document internally to inform sourcekitd to
-      // update the settings. At the moment there's no better way to do this.
-      self.reopenDocument(snapshot, settings)
+      // Close and re-open the document internally to inform sourcekitd to update the compile
+      // command. At the moment there's no better way to do this.
+      self.reopenDocument(snapshot, compileCommand)
     }
   }
 
@@ -277,7 +295,7 @@ extension SwiftLanguageServer {
 
       // Forcefully reopen the document since the `BuildSystem` has informed us
       // that the dependencies have changed and the AST needs to be reloaded.
-      self.reopenDocument(snapshot, self.buildSettingsByFile[uri])
+      self.reopenDocument(snapshot, self.commandsByFile[uri])
     }
   }
 
@@ -298,8 +316,8 @@ extension SwiftLanguageServer {
       req[keys.name] = note.textDocument.uri.pseudoPath
       req[keys.sourcetext] = snapshot.text
 
-      if let settings = self.buildSettingsByFile[uri] {
-        req[keys.compilerargs] = settings.compilerArguments
+      if let compileCommand = self.commandsByFile[uri] {
+        req[keys.compilerargs] = compileCommand.compilerArgs
       }
 
       guard let dict = self.sourcekitd.sendSync(req).success else {
@@ -324,7 +342,7 @@ extension SwiftLanguageServer {
       req[keys.name] = uri.pseudoPath
 
       // Clear settings that should not be cached for closed documents.
-      self.buildSettingsByFile[uri] = nil
+      self.commandsByFile[uri] = nil
       self.currentDiagnostics[uri] = nil
 
       _ = self.sourcekitd.sendSync(req)
@@ -460,8 +478,8 @@ extension SwiftLanguageServer {
       skreq[keys.codecomplete_options] = skreqOptions
 
       // FIXME: SourceKit should probably cache this for us.
-      if let settings = self.buildSettingsByFile[snapshot.document.uri] {
-        skreq[keys.compilerargs] = settings.compilerArguments
+      if let compileCommand = self.commandsByFile[snapshot.document.uri] {
+        skreq[keys.compilerargs] = compileCommand.compilerArgs
       }
 
       logAsync { _ in skreq.description }
@@ -861,8 +879,8 @@ extension SwiftLanguageServer {
       skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
 
       // FIXME: SourceKit should probably cache this for us.
-      if let settings = self.buildSettingsByFile[snapshot.document.uri] {
-        skreq[keys.compilerargs] = settings.compilerArguments
+      if let compileCommand = self.commandsByFile[snapshot.document.uri] {
+        skreq[keys.compilerargs] = compileCommand.compilerArgs
       }
 
       let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in

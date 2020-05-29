@@ -132,8 +132,7 @@ final class BuildSystemTests: XCTestCase {
     }
     """
 
-    buildSystem.buildSettingsByFile[doc] =
-      FileBuildSettings(compilerArguments: args, language: .objective_c)
+    buildSystem.buildSettingsByFile[doc] = FileBuildSettings(compilerArguments: args)
 
     sk.allowUnexpectedNotification = false
 
@@ -149,7 +148,7 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    let newSettings = FileBuildSettings(compilerArguments: args +  ["-DFOO"], language: .objective_c)
+    let newSettings = FileBuildSettings(compilerArguments: args +  ["-DFOO"])
     buildSystem.buildSettingsByFile[doc] = newSettings
 
     let expectation = XCTestExpectation(description: "refresh")
@@ -172,8 +171,7 @@ final class BuildSystemTests: XCTestCase {
     let doc = DocumentURI(url)
     let args = FallbackBuildSystem().settings(for: doc, .swift)!.compilerArguments
 
-    buildSystem.buildSettingsByFile[doc] =
-      FileBuildSettings(compilerArguments: args, language: .swift)
+    buildSystem.buildSettingsByFile[doc] = FileBuildSettings(compilerArguments: args)
 
     let text = """
     #if FOO
@@ -201,7 +199,7 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    let newSettings = FileBuildSettings(compilerArguments: args + ["-DFOO"], language: .swift)
+    let newSettings = FileBuildSettings(compilerArguments: args + ["-DFOO"])
     buildSystem.buildSettingsByFile[doc] = newSettings
 
     let expectation = XCTestExpectation(description: "refresh")
