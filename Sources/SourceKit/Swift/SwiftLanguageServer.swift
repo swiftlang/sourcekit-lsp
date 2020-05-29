@@ -98,7 +98,6 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   let onExit: () -> Void
 
-  var api: sourcekitd_functions_t { return sourcekitd.api }
   var keys: sourcekitd_keys { return sourcekitd.keys }
   var requests: sourcekitd_requests { return sourcekitd.requests }
   var values: sourcekitd_values { return sourcekitd.values }
@@ -170,35 +169,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 extension SwiftLanguageServer {
 
   public func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult {
-    api.initialize()
-
-    api.set_notification_handler { [weak self] notification in
-      guard let self = self else { return }
-      let notification = SKDResponse(notification, sourcekitd: self.sourcekitd)
-
-      guard let dict = notification.value else {
-        log(notification.description, level: .error)
-        return
-      }
-
-      logAsync(level: .debug) { _ in notification.description }
-
-      if let kind: sourcekitd_uid_t = dict[self.keys.notification],
-        kind == self.values.notification_documentupdate,
-        let name: String = dict[self.keys.name] {
-
-        self.queue.async {
-          let uri: DocumentURI
-          if name.starts(with: "/") {
-            // If sourcekitd returns us a path, translate it back into a URL
-            uri = DocumentURI(URL(fileURLWithPath: name))
-          } else {
-            uri = DocumentURI(string: name)
-          }
-          self.handleDocumentUpdate(uri: uri)
-        }
-      }
-    }
+    sourcekitd.addNotificationHandler(self)
 
     return InitializeResult(capabilities: ServerCapabilities(
       textDocumentSync: TextDocumentSyncOptions(
@@ -232,11 +203,10 @@ extension SwiftLanguageServer {
   }
 
   func shutdown(_ request: Request<ShutdownRequest>) {
-    api.set_notification_handler(nil)
+    sourcekitd.removeNotificationHandler(self)
   }
 
   func exit(_ notification: Notification<ExitNotification>) {
-    api.shutdown()
     onExit()
   }
 
@@ -1235,6 +1205,33 @@ extension SwiftLanguageServer {
 
     // FIXME: cancellation
     _ = handle
+  }
+}
+
+extension SwiftLanguageServer: SKDNotificationHandler {
+  public func notification(_ notification: SKDResponse) {
+    guard let dict = notification.value else {
+      log(notification.description, level: .error)
+      return
+    }
+
+    logAsync(level: .debug) { _ in notification.description }
+
+    if let kind: sourcekitd_uid_t = dict[self.keys.notification],
+       kind == self.values.notification_documentupdate,
+       let name: String = dict[self.keys.name] {
+
+      self.queue.async {
+        let uri: DocumentURI
+        if name.starts(with: "/") {
+          // If sourcekitd returns us a path, translate it back into a URL
+          uri = DocumentURI(URL(fileURLWithPath: name))
+        } else {
+          uri = DocumentURI(string: name)
+        }
+        self.handleDocumentUpdate(uri: uri)
+      }
+    }
   }
 }
 

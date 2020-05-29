@@ -16,8 +16,13 @@ import SKSupport
 import LSPLogging
 import TSCBasic
 import Dispatch
+import Foundation
 
-/// A wrapper for accessing the API of a sourcekitd library loaded via `dlopen`.
+/// Wrapper for sourcekitd, taking care of initialization, shutdown, and notification handler
+/// multiplexing.
+///
+/// Users of this class should not call the api functions `initialize`, `shutdown`, or
+/// `set_notification_handler`, which are global state managed internally by this class.
 public final class SourceKitD {
 
   /// The path to the sourcekitd dylib.
@@ -37,6 +42,17 @@ public final class SourceKitD {
 
   /// Convenience for accessing known keys.
   public let values: sourcekitd_values
+
+  /// Lock protecting private state.
+  let lock: NSLock = NSLock()
+
+  /// List of notification handlers that will be called for each notification.
+  private var _notificationHandlers: [WeakSKDNotificationHandler] = []
+
+  var notificationHandlers: [SKDNotificationHandler] {
+    lock.lock(); defer { lock.unlock() }
+    return _notificationHandlers.compactMap { $0.value }
+  }
 
   public enum Error: Swift.Error {
     /// The service has crashed.
@@ -66,11 +82,39 @@ public final class SourceKitD {
     self.keys = sourcekitd_keys(api: self.api)
     self.requests = sourcekitd_requests(api: self.api)
     self.values = sourcekitd_values(api: self.api)
+
+    self.api.initialize()
+    self.api.set_notification_handler { [weak self] rawResponse in
+      guard let self = self else { return }
+      self.lock.lock()
+      let handlers = self._notificationHandlers.compactMap(\.value)
+      self.lock.unlock()
+
+      let response = SKDResponse(rawResponse, sourcekitd: self)
+      for handler in handlers {
+        handler.notification(response)
+      }
+    }
   }
 
   deinit {
+    self.api.set_notification_handler(nil)
+    self.api.shutdown()
     // FIXME: is it safe to dlclose() sourcekitd? If so, do that here. For now, let the handle leak.
     dylib.leak()
+  }
+
+  /// Adds a new notification handler (referenced weakly).
+  public func addNotificationHandler(_ handler: SKDNotificationHandler) {
+    lock.lock(); defer { lock.unlock() }
+    _notificationHandlers.removeAll(where: { $0.value == nil })
+    _notificationHandlers.append(.init(handler))
+  }
+
+  /// Removes a previously registered notification handler.
+  public func removeNotificationHandler(_ handler: SKDNotificationHandler) {
+    lock.lock(); defer { lock.unlock() }
+    _notificationHandlers.removeAll(where: { $0.value == nil || $0.value === handler})
   }
 }
 
@@ -125,5 +169,16 @@ extension SourceKitD {
     }
 
     return handle
+  }
+}
+
+public protocol SKDNotificationHandler: class {
+  func notification(_: SKDResponse) -> Void
+}
+
+struct WeakSKDNotificationHandler {
+  weak private(set) var value: SKDNotificationHandler?
+  init(_ value: SKDNotificationHandler) {
+    self.value = value
   }
 }

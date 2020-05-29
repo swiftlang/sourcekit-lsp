@@ -140,7 +140,7 @@ extension SwiftLanguageServer {
           range: range,
           textDocument: TextDocumentIdentifier(uri),
           keys,
-          self.api)
+          self.sourcekitd.api)
       )))
     }
 
