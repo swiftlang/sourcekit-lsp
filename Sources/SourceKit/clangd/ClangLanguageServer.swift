@@ -101,7 +101,9 @@ extension ClangLanguageServerShim {
   }
 
   public func didSaveDocument(_ note: DidSaveTextDocumentNotification) {
-
+    if capabilities?.textDocumentSync?.save?.isSupported == true {
+      clangd.send(note)
+    }
   }
 
   // MARK: - Build System Integration
@@ -167,11 +169,19 @@ extension ClangLanguageServerShim {
   }
 
   func documentColor(_ req: Request<DocumentColorRequest>) {
-    forwardRequest(req, to: clangd)
+    if capabilities?.colorProvider?.isSupported == true {
+      forwardRequest(req, to: clangd)
+    } else {
+      req.reply(.success([]))
+    }
   }
 
   func colorPresentation(_ req: Request<ColorPresentationRequest>) {
-    forwardRequest(req, to: clangd)
+    if capabilities?.colorProvider?.isSupported == true {
+      forwardRequest(req, to: clangd)
+    } else {
+      req.reply(.success([]))
+    }
   }
 
   func codeAction(_ req: Request<CodeActionRequest>) {

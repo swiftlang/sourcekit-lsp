@@ -52,7 +52,7 @@ final class DocumentColorTests: XCTestCase {
       text: text)))
 
     let request = DocumentColorRequest(textDocument: TextDocumentIdentifier(url))
-    return try! sk.sendSync(request)!
+    return try! sk.sendSync(request)
   }
 
   func performColorPresentationRequest(text: String, color: Color, range: Range<Position>) -> [ColorPresentation] {
@@ -68,7 +68,7 @@ final class DocumentColorTests: XCTestCase {
       textDocument: TextDocumentIdentifier(url), 
       color: color, 
       range: range)
-    return try! sk.sendSync(request)!
+    return try! sk.sendSync(request)
   }
 
   func testEmptyText() {

@@ -194,16 +194,21 @@ public struct TextDocumentSyncOptions: Codable, Hashable {
     public init(includeText: Bool = false) {
       self.includeText = includeText
     }
+
+    public init(from decoder: Decoder) throws {
+      let container = try decoder.container(keyedBy: CodingKeys.self)
+      self.includeText = try container.decodeIfPresent(Bool.self, forKey: .includeText) ?? false
+    }
   }
 
   /// Whether save notifications should be sent to the server.
-  public var save: SaveOptions?
+  public var save: ValueOrBool<SaveOptions>?
 
   public init(openClose: Bool? = true,
               change: TextDocumentSyncKind? = .incremental,
               willSave: Bool? = true,
               willSaveWaitUntil: Bool? = false,
-              save: SaveOptions? = SaveOptions()) {
+              save: ValueOrBool<SaveOptions>? = .value(SaveOptions(includeText: false))) {
     self.openClose = openClose
     self.change = change
     self.willSave = willSave
@@ -218,7 +223,7 @@ public struct TextDocumentSyncOptions: Codable, Hashable {
       self.change = try container.decodeIfPresent(TextDocumentSyncKind.self, forKey: .change)
       self.willSave = try container.decodeIfPresent(Bool.self, forKey: .willSave)
       self.willSaveWaitUntil = try container.decodeIfPresent(Bool.self, forKey: .willSaveWaitUntil)
-      self.save = try container.decodeIfPresent(SaveOptions.self, forKey: .save)
+      self.save = try container.decodeIfPresent(ValueOrBool<SaveOptions>.self, forKey: .save)
       return
     } catch {}
     do {

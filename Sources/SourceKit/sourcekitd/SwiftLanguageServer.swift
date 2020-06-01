@@ -206,7 +206,7 @@ extension SwiftLanguageServer {
         change: .incremental,
         willSave: true,
         willSaveWaitUntil: false,
-        save: TextDocumentSyncOptions.SaveOptions(includeText: false)),
+        save: .value(TextDocumentSyncOptions.SaveOptions(includeText: false))),
       hoverProvider: true,
       completionProvider: CompletionOptions(
         resolveProvider: false,
@@ -758,7 +758,7 @@ extension SwiftLanguageServer {
     queue.async {
       guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
         log("failed to find snapshot for url \(req.params.textDocument.uri)")
-        req.reply(nil)
+        req.reply([])
         return
       }
 
