@@ -23,6 +23,7 @@ import PackageModel
 import SKCore
 import SKSupport
 import Workspace
+import Dispatch
 import struct Foundation.URL
 
 /// Swift Package Manager build system and workspace support.
@@ -225,10 +226,14 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     return nil
   }
 
-  /// Register the given file for build-system level change notifications, such as command
-  /// line flag changes, dependency changes, etc.
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+    guard let delegate = self.delegate else { return }
+
     // TODO: Support for change detection (via file watching)
+    let settings = self.settings(for: uri, language)
+    DispatchQueue.global().async {
+      delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    }
   }
 
   /// Unregister the given file for build-system level change notifications, such as command
@@ -293,7 +298,7 @@ extension SwiftPMWorkspace {
     func impl(_ path: AbsolutePath) -> FileBuildSettings? {
       for package in packageGraph.packages where path == package.manifest.path {
         let compilerArgs = workspace.interpreterFlags(for: package.path) + [path.pathString]
-        return FileBuildSettings(compilerArguments: compilerArgs, language: .swift)
+        return FileBuildSettings(compilerArguments: compilerArgs)
       }
       return nil
     }
@@ -353,8 +358,7 @@ extension SwiftPMWorkspace {
 
     return FileBuildSettings(
       compilerArguments: args,
-      workingDirectory: workspacePath.pathString,
-      language: .swift)
+      workingDirectory: workspacePath.pathString)
   }
 
   /// Retrieve settings for the given C-family language file, which is part of a known target build
@@ -416,8 +420,7 @@ extension SwiftPMWorkspace {
 
     return FileBuildSettings(
       compilerArguments: args,
-      workingDirectory: workspacePath.pathString,
-      language: language)
+      workingDirectory: workspacePath.pathString)
   }
 }
 

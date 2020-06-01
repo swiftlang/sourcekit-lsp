@@ -15,6 +15,7 @@ import LanguageServerProtocol
 import LSPLogging
 import SKSupport
 import TSCBasic
+import Dispatch
 import struct Foundation.URL
 
 /// A `BuildSystem` based on loading clang-compatible compilation database(s).
@@ -59,21 +60,14 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }
 
-  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
-    guard let url = uri.fileURL else {
-      // We can't determine build settings for non-file URIs.
-      return nil
-    }
-    guard let db = database(for: url),
-          let cmd = db[url].first else { return nil }
-    return FileBuildSettings(
-      compilerArguments: Array(cmd.commandLine.dropFirst()),
-      workingDirectory: cmd.directory,
-      language: language)
-  }
+  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+    guard let delegate = self.delegate else { return }
 
-  /// We don't support change watching.
-  public func registerForChangeNotifications(for: DocumentURI, language: Language) {}
+    let settings = self._settings(for: uri)
+    DispatchQueue.global().async {
+      delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    }
+  }
 
   /// We don't support change watching.
   public func unregisterForChangeNotifications(for: DocumentURI) {}
@@ -114,5 +108,20 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     }
 
     return compdb
+  }
+}
+
+extension CompilationDatabaseBuildSystem {
+  /// Exposed for *testing*.
+  public func _settings(for uri: DocumentURI) -> FileBuildSettings? {
+    guard let url = uri.fileURL else {
+      // We can't determine build settings for non-file URIs.
+      return nil
+    }
+    guard let db = database(for: url),
+          let cmd = db[url].first else { return nil }
+    return FileBuildSettings(
+      compilerArguments: Array(cmd.commandLine.dropFirst()),
+      workingDirectory: cmd.directory)
   }
 }

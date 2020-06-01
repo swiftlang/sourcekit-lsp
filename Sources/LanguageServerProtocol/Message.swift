@@ -67,8 +67,14 @@ extension NotificationType {
   }
 }
 
-/// A `textDocument/*` request, which takes a text document identifier indicating which document it
-/// operates in or on.
+/// A `textDocument/*` notification, which takes a text document identifier
+/// indicating which document it operates in or on.
+public protocol TextDocumentNotification: NotificationType {
+  var textDocument: TextDocumentIdentifier { get }
+}
+
+/// A `textDocument/*` request, which takes a text document identifier
+/// indicating which document it operates in or on.
 public protocol TextDocumentRequest: RequestType {
   var textDocument: TextDocumentIdentifier { get }
 }

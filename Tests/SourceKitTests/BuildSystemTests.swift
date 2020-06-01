@@ -36,12 +36,18 @@ final class TestBuildSystem: BuildSystem {
   /// Files currently being watched by our delegate.
   var watchedFiles: Set<DocumentURI> = []
 
-  func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
-    return buildSettingsByFile[uri]
-  }
-
   func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     watchedFiles.insert(uri)
+
+    // Inform our delegate of settings for the file if they're available.
+    guard let delegate = self.delegate,
+          let settings = self.buildSettingsByFile[uri] else {
+      return
+    }
+
+    DispatchQueue.global().async {
+      delegate.fileBuildSettingsChanged([uri: .modified(settings)])
+    }
   }
 
   func unregisterForChangeNotifications(for uri: DocumentURI) {
@@ -83,6 +89,7 @@ final class BuildSystemTests: XCTestCase {
     testServer = TestSourceKitServer()
     buildSystem = TestBuildSystem()
 
+    let server = testServer.server!
     self.workspace = Workspace(
       rootUri: nil,
       clientCapabilities: ClientCapabilities(),
@@ -92,7 +99,8 @@ final class BuildSystemTests: XCTestCase {
       index: nil,
       indexDelegate: nil)
 
-    testServer.server!.workspace = workspace
+    server.workspace = workspace
+    workspace.buildSystemManager.delegate = server
 
     sk = testServer.client
     _ = try! sk.sendSync(InitializeRequest(
@@ -116,6 +124,7 @@ final class BuildSystemTests: XCTestCase {
     guard haveClangd else { return }
 
     let url = URL(fileURLWithPath: "/\(#function)/file.m")
+    let doc = DocumentURI(url)
     let args = [url.path, "-DDEBUG"]
     let text = """
     #ifdef FOO
@@ -128,34 +137,33 @@ final class BuildSystemTests: XCTestCase {
     }
     """
 
-    buildSystem.buildSettingsByFile[DocumentURI(url)] =
-      FileBuildSettings(compilerArguments: args, language: .objective_c)
+    buildSystem.buildSettingsByFile[doc] = FileBuildSettings(compilerArguments: args)
 
     sk.allowUnexpectedNotification = false
 
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: DocumentURI(url),
+      uri: doc,
       language: .objective_c,
       version: 12,
       text: text
     )), { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(DocumentURI(url))!.text)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(doc)!.text)
     })
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    buildSystem.buildSettingsByFile[DocumentURI(url)] = 
-      FileBuildSettings(compilerArguments: args +  ["-DFOO"], language: .objective_c)
+    let newSettings = FileBuildSettings(compilerArguments: args +  ["-DFOO"])
+    buildSystem.buildSettingsByFile[doc] = newSettings
 
     let expectation = XCTestExpectation(description: "refresh")
     sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 0)
-      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(DocumentURI(url))!.text)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(doc)!.text)
       expectation.fulfill()
     }
 
-    buildSystem.delegate?.fileBuildSettingsChanged([DocumentURI(url)])
+    buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
     let result = XCTWaiter.wait(for: [expectation], timeout: 5)
     if result != .completed {
@@ -165,10 +173,10 @@ final class BuildSystemTests: XCTestCase {
 
   func testSwiftDocumentUpdatedBuildSettings() {
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
-    let args = FallbackBuildSystem().settings(for: DocumentURI(url), .swift)!.compilerArguments
+    let doc = DocumentURI(url)
+    let args = FallbackBuildSystem().settings(for: doc, .swift)!.compilerArguments
 
-    buildSystem.buildSettingsByFile[DocumentURI(url)] =
-      FileBuildSettings(compilerArguments: args, language: .swift)
+    buildSystem.buildSettingsByFile[doc] = FileBuildSettings(compilerArguments: args)
 
     let text = """
     #if FOO
@@ -181,14 +189,14 @@ final class BuildSystemTests: XCTestCase {
     sk.allowUnexpectedNotification = false
 
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: DocumentURI(url),
+      uri: doc,
       language: .swift,
       version: 12,
       text: text
     )), { (note: Notification<PublishDiagnosticsNotification>) in
       // Syntactic analysis - no expected errors here.
       XCTAssertEqual(note.params.diagnostics.count, 0)
-      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(DocumentURI(url))!.text)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(doc)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       // Semantic analysis - expect one error here.
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -196,8 +204,8 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    buildSystem.buildSettingsByFile[DocumentURI(url)] =
-      FileBuildSettings(compilerArguments: args + ["-DFOO"], language: .swift)
+    let newSettings = FileBuildSettings(compilerArguments: args + ["-DFOO"])
+    buildSystem.buildSettingsByFile[doc] = newSettings
 
     let expectation = XCTestExpectation(description: "refresh")
     expectation.expectedFulfillmentCount = 2
@@ -211,7 +219,7 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 0)
       expectation.fulfill()
     }
-    buildSystem.delegate?.fileBuildSettingsChanged([DocumentURI(url)])
+    buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
     let result = XCTWaiter.wait(for: [expectation], timeout: 5)
     if result != .completed {
@@ -221,11 +229,12 @@ final class BuildSystemTests: XCTestCase {
 
   func testSwiftDocumentBuildSettingsChangedFalseAlarm() {
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let doc = DocumentURI(url)
 
     sk.allowUnexpectedNotification = false
 
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: DocumentURI(url),
+      uri: doc,
       language: .swift,
       version: 12,
       text: """
@@ -233,7 +242,7 @@ final class BuildSystemTests: XCTestCase {
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(DocumentURI(url))!.text)
+      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(doc)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       // Semantic analysis - expect one error here.
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -241,13 +250,13 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the SourceKitServer.
     // This shouldn't trigger new diagnostics since nothing actually changed (false alarm).
-    buildSystem.delegate?.fileBuildSettingsChanged([DocumentURI(url)])
+    buildSystem.delegate?.fileBuildSettingsChanged([doc: .removedOrUnavailable])
 
     let expectation = XCTestExpectation(description: "refresh doesn't occur")
     expectation.isInverted = true
     sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(DocumentURI(url))!.text)
+      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(doc)!.text)
       expectation.fulfill()
     }
 

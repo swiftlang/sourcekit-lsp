@@ -140,20 +140,36 @@ final class BuildServerHandler: LanguageServerEndpoint {
   }
 
   func handleFileOptionsChanged(_ notification: Notification<FileOptionsChangedNotification>) {
-    // TODO: add delegate method to include the changed settings directly
-    self.delegate?.fileBuildSettingsChanged([notification.params.uri])
+    let result = notification.params.updatedOptions
+    let settings = FileBuildSettings(
+        compilerArguments: result.options, workingDirectory: result.workingDirectory)
+    self.delegate?.fileBuildSettingsChanged([notification.params.uri: .modified(settings)])
+  }
+}
+
+extension BuildServerBuildSystem {
+  /// Exposed for *testing*.
+  public func _settings(for uri: DocumentURI) -> FileBuildSettings? {
+    if let response = try? self.buildServer?.sendSync(SourceKitOptions(uri: uri)) {
+      return FileBuildSettings(
+        compilerArguments: response.options,
+        workingDirectory: response.workingDirectory)
+    }
+    return nil
   }
 }
 
 extension BuildServerBuildSystem: BuildSystem {
 
-  /// Register the given file for build-system level change notifications, such as command
-  /// line flag changes, dependency changes, etc.
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request, queue: requestQueue, reply: { result in
       if let error = result.failure {
         log("error registering \(uri): \(error)", level: .error)
+
+        // BuildServer registration failed, so tell our delegate that no build
+        // settings are available.
+        self.delegate?.fileBuildSettingsChanged([uri: .removedOrUnavailable])
       }
     })
   }
@@ -167,16 +183,6 @@ extension BuildServerBuildSystem: BuildSystem {
         log("error unregistering \(uri): \(error)", level: .error)
       }
     })
-  }
-
-  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
-    if let response = try? self.buildServer?.sendSync(SourceKitOptions(uri: uri)) {
-      return FileBuildSettings(
-        compilerArguments: response.options,
-        workingDirectory: response.workingDirectory,
-        language: language)
-    }
-    return nil
   }
 
   public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {

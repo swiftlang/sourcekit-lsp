@@ -210,7 +210,7 @@ final class SKTests: XCTestCase {
     }
 
     try ws.openDocument(moduleRef.url, language: .swift)
-    let started = XCTWaiter.wait(for: [startExpectation], timeout: 3)
+    let started = XCTWaiter.wait(for: [startExpectation], timeout: 5)
     if started != .completed {
       fatalError("error \(started) waiting for initial diagnostics notification")
     }
@@ -231,7 +231,7 @@ final class SKTests: XCTestCase {
     }
     server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
 
-    let finished = XCTWaiter.wait(for: [finishExpectation], timeout: 3)
+    let finished = XCTWaiter.wait(for: [finishExpectation], timeout: 5)
     if finished != .completed {
       fatalError("error \(finished) waiting for post-build diagnostics notification")
     }

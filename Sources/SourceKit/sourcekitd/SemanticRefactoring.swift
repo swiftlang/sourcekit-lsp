@@ -155,8 +155,8 @@ extension SwiftLanguageServer {
       skreq[keys.actionuid] = self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!
 
       // FIXME: SourceKit should probably cache this for us.
-      if let settings = self.buildSettingsByFile[snapshot.document.uri] {
-        skreq[keys.compilerargs] = settings.compilerArguments
+      if let compileCommand = self.commandsByFile[snapshot.document.uri] {
+        skreq[keys.compilerargs] = compileCommand.compilerArgs
       }
 
       let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in

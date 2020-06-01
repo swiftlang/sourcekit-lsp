@@ -16,6 +16,61 @@ import LSPLogging
 import TSCBasic
 import Dispatch
 
+/// Status for a given main file.
+enum MainFileStatus: Equatable {
+  /// Waiting for the `BuildSystem` to return settings.
+  case waiting
+
+  /// No response from `BuildSystem` yet, using fallback arguments.
+  case waitingUsingFallback(FileBuildSettings)
+
+  /// `BuildSystem` didn't handle the file, using fallback arguments.
+  /// No longer waiting.
+  case fallback(FileBuildSettings)
+
+  /// Using settings from the primary `BuildSystem`.
+  case primary(FileBuildSettings)
+
+  /// No settings provided by primary and fallback `BuildSystem`s.
+  case unsupported
+}
+
+extension MainFileStatus {
+  /// Whether fallback build settings are being used.
+  /// If no build settings are available, returns false.
+  var usingFallbackSettings: Bool {
+    switch self {
+    case .waiting: return false
+    case .unsupported: return false
+    case .waitingUsingFallback(_): return true
+    case .fallback(_): return true
+    case .primary(_): return false
+    }
+  }
+
+  /// The active build settings, if any.
+  var buildSettings: FileBuildSettings? {
+    switch self {
+    case .waiting: return nil
+    case .unsupported: return nil
+    case .waitingUsingFallback(let settings): return settings
+    case .fallback(let settings): return settings
+    case .primary(let settings): return settings
+    }
+  }
+
+  /// Corresponding change from this status, if any.
+  var buildSettingsChange: FileBuildSettingsChange? {
+    switch self {
+    case .waiting: return nil
+    case .unsupported: return .removedOrUnavailable
+    case .waitingUsingFallback(let settings): return .modified(settings)
+    case .fallback(let settings): return .modified(settings)
+    case .primary(let settings): return .modified(settings)
+    }
+  }
+}
+
 /// `BuildSystem` that integrates client-side information such as main-file lookup as well as providing
 ///  common functionality such as caching.
 ///
@@ -23,6 +78,10 @@ import Dispatch
 /// build systems. We assume the fallback system does not integrate with change
 /// notifications; at the moment the fallback must be a `FallbackBuildSystem` if
 /// present.
+///
+/// Since some `BuildSystem`s may require a bit of a time to compute their arguments asynchronously,
+/// this class has a configurable `buildSettings` timeout which denotes the amount of time to give
+/// the build system before applying the fallback arguments.
 public final class BuildSystemManager {
 
   /// Queue for processing asynchronous work and mutual exclusion for shared state.
@@ -34,15 +93,14 @@ public final class BuildSystemManager {
   /// The set of watched files, along with their main file and language.
   var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
 
-  /// Build settings for each main file, potentially from fallback build system.
-  ///
-  /// * `.none`: Build settings not computed yet.
-  /// * `.some(.none)`: Build system returned `nil`.
-  /// * `.some(.some(_))`: Build settings available!
-  var mainFileSettings: [DocumentURI: FileBuildSettings?] = [:]
+  /// Statuses for each main file, containing build settings from the build systems.
+  var mainFileStatuses: [DocumentURI: MainFileStatus] = [:]
 
   /// The underlying primary build system.
   let buildSystem: BuildSystem?
+
+  /// Timeout before fallback build settings are used.
+  let fallbackSettingsTimeout: DispatchTimeInterval
 
   /// The fallback build system. If present, used when the `buildSystem` is not
   /// set or cannot provide settings.
@@ -57,11 +115,12 @@ public final class BuildSystemManager {
   /// Create a BuildSystemManager that wraps the given build system. The new
   /// manager will modify the delegate of the underlying build system.
   public init(buildSystem: BuildSystem?, fallbackBuildSystem: FallbackBuildSystem?,
-              mainFilesProvider: MainFilesProvider?) {
+              mainFilesProvider: MainFilesProvider?, fallbackSettingsTimeout: DispatchTimeInterval = .seconds(3)) {
     precondition(buildSystem?.delegate == nil)
     self.buildSystem = buildSystem
     self.fallbackBuildSystem = fallbackBuildSystem
     self.mainFilesProvider = mainFilesProvider
+    self.fallbackSettingsTimeout = fallbackSettingsTimeout
     self.buildSystem?.delegate = self
   }
 }
@@ -72,31 +131,6 @@ extension BuildSystemManager: BuildSystem {
 
   public var indexDatabasePath: AbsolutePath? { queue.sync { buildSystem?.indexDatabasePath } }
 
-  /// Synchronously lookup the `FileBuildSettings` for `uri`.
-  ///
-  /// If `uri` was previously registered with `registerForChangeNotifications`, or if `uri`
-  /// corresponds to a main file that was previously registered, this returns the cached settings.
-  /// Otherwise it makes a one-off query to the build systems and returns the settings.
-  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
-    queue.sync {
-      if let watched = self.watchedFiles[uri] {
-        let mainFile = watched.mainFile
-        guard let cached: FileBuildSettings? = self.mainFileSettings[mainFile] else {
-          fatalError("no cached settings for known main file \(mainFile)")
-        }
-        return cached
-      } else {
-        let mainFiles = self.mainFilesProvider?.mainFilesContainingFile(uri) ?? []
-        let mainFile = chooseMainFile(for: uri, from: mainFiles)
-        if let cached: FileBuildSettings? = self.mainFileSettings[mainFile] {
-          return cached
-        } else {
-          return self.querySettings(for: mainFile, language)
-        }
-      }
-    }
-  }
-
   public var delegate: BuildSystemDelegate? {
     get { queue.sync { _delegate } }
     set { queue.sync { _delegate = newValue } }
@@ -104,54 +138,125 @@ extension BuildSystemManager: BuildSystem {
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     return queue.async {
-      log("registerForSettings(\(uri.pseudoPath))")
-      let settings: FileBuildSettings?
+      log("registerForChangeNotifications(\(uri.pseudoPath))")
+      let mainFile: DocumentURI
 
-      if let (mainFile, _) = self.watchedFiles[uri] {
-        guard let cached: FileBuildSettings? = self.mainFileSettings[mainFile] else {
-          fatalError("no settings for main file \(mainFile)")
-        }
-        settings = cached
+      if let watchedFile = self.watchedFiles[uri] {
+        mainFile = watchedFile.mainFile
       } else {
         let mainFiles = self.mainFilesProvider?.mainFilesContainingFile(uri)
-        let mainFile = chooseMainFile(for: uri, from: mainFiles ?? [])
+        mainFile = chooseMainFile(for: uri, from: mainFiles ?? [])
         self.watchedFiles[uri] = (mainFile, language)
-        settings = self.cachedOrRegisterForSettings(mainFile: mainFile, language: language)
       }
 
-      if let delegate = self._delegate {
+      let newStatus = self.cachedStatusOrRegisterForSettings( for: mainFile, language: language)
+
+      if let change = newStatus.buildSettingsChange,
+         let delegate = self._delegate {
         self.notifyQueue.async {
-          // TODO: send back in the notification.
-          _ = settings
-          delegate.fileBuildSettingsChanged([uri])
+          delegate.fileBuildSettingsChanged([uri: change])
         }
       }
     }
   }
 
-  /// *Must be called on queue*. Returns build settings for the given main file either from the
-  /// cache, or by querying the build system and registering for notifications.
-  ///
-  /// *Invariant*: `mainFileSettings[mainFile]` is non-nil if and only-if `mainFile` is currently
-  /// registered for settings.
-  func cachedOrRegisterForSettings(mainFile: DocumentURI, language: Language) -> FileBuildSettings? {
-    if let cached: FileBuildSettings? = self.mainFileSettings[mainFile] {
-      return cached
+  /// *Must be called on queue*. Handle a request for `FileBuildSettings` on
+  /// `mainFile`. Updates and returns the new `MainFileStatus` for `mainFile`.
+  func cachedStatusOrRegisterForSettings(
+    for mainFile: DocumentURI,
+    language: Language
+  ) -> MainFileStatus {
+    // If we already have a status for the main file, use that.
+    // Don't update any existing timeout.
+    if let status = self.mainFileStatuses[mainFile] {
+      return status
     }
-    self.buildSystem?.registerForChangeNotifications(for: mainFile, language: language)
-    let settings = self.querySettings(for: mainFile, language)
-    self.mainFileSettings[mainFile] = .some(settings)
-    return settings
+    // This is a new `mainFile` that we need to handle. We need to fetch the
+    // build settings.
+    let newStatus: MainFileStatus
+    if let buildSystem = self.buildSystem {
+      // Register the timeout if it's applicable.
+      if let fallback = self.fallbackBuildSystem {
+        self.queue.asyncAfter(deadline: DispatchTime.now() + self.fallbackSettingsTimeout) { [weak self] in
+          guard let self = self else { return }
+          self.handleFallbackTimer(for: mainFile, language: language, fallback)
+        }
+      }
+
+      // Intentionally register with the `BuildSystem` after setting the fallback to allow for
+      // testing of the fallback system triggering before the `BuildSystem` can reply (e.g. if a
+      // fallback time of 0 is specified).
+      buildSystem.registerForChangeNotifications(for: mainFile, language: language)
+
+
+      newStatus = .waiting
+    } else if let fallback = self.fallbackBuildSystem {
+      // Only have a fallback build system. We consider it be a primary build
+      // system that functions synchronously.
+      if let settings = fallback.settings(for: mainFile, language) {
+        newStatus = .fallback(settings)
+      } else {
+        newStatus = .unsupported
+      }
+    } else {  // Don't have any build systems.
+      newStatus = .unsupported
+    }
+    self.mainFileStatuses[mainFile] = newStatus
+    return newStatus
   }
 
-  /// *Must be called on queue*. Query the build system and/or fallback build system
-  /// for build settings.
-  private func querySettings(for file: DocumentURI, _ language: Language) -> FileBuildSettings? {
-    if let buildSystem = self.buildSystem,
-       let settings = buildSystem.settings(for: file, language) {
-      return settings
+  /// *Must be called on queue*. Update and notify our delegate for the given
+  /// main file changes if they are convertable into `FileBuildSettingsChange`.
+  func updateAndNotifyStatuses(changes: [DocumentURI: MainFileStatus]) {
+    var changedWatchedFiles = [DocumentURI: FileBuildSettingsChange]()
+    for (mainFile, status) in changes {
+      let watches = self.watchedFiles.filter { $1.mainFile == mainFile }
+      guard !watches.isEmpty else {
+        // Possible notification after the file was unregistered. Ignore.
+        continue
+      }
+      let prevStatus = self.mainFileStatuses[mainFile]
+      self.mainFileStatuses[mainFile] = status
+
+      // It's possible that the command line arguments didn't change
+      // (waitingFallback --> fallback), in that case we don't need to report a change.
+      // If we were waiting though, we need to emit an initial change.
+      guard prevStatus == .waiting || status.buildSettings != prevStatus?.buildSettings else {
+        continue
+      }
+      if let change = status.buildSettingsChange {
+        for watch in watches {
+          changedWatchedFiles[watch.key] = change
+        }
+      }
     }
-    return self.fallbackBuildSystem?.settings(for: file, language)
+
+    if !changedWatchedFiles.isEmpty, let delegate = self._delegate {
+      self.notifyQueue.async {
+        delegate.fileBuildSettingsChanged(changedWatchedFiles)
+      }
+    }
+  }
+
+  /// *Must be called on queue*. Handle the fallback timer firing for a given
+  /// `mainFile`. Since this doesn't occur immediately it's possible that the
+  /// `mainFile` is no longer referenced or is referenced by multiple watched
+  /// files.
+  func handleFallbackTimer(
+    for mainFile: DocumentURI,
+    language: Language,
+    _ fallback: FallbackBuildSystem
+  ) {
+    // There won't be a current status if it's unreferenced by any watched file.
+    // Simiarly, if the status isn't `waiting` then there's nothing to do.
+    guard let status = self.mainFileStatuses[mainFile], status == .waiting else {
+      return
+    }
+    if let settings = fallback.settings(for: mainFile, language) {
+      self.updateAndNotifyStatuses(changes: [mainFile: .waitingUsingFallback(settings)])
+    } else {
+      // Keep the status as waiting.
+    }
   }
 
   public func unregisterForChangeNotifications(for uri: DocumentURI) {
@@ -162,13 +267,14 @@ extension BuildSystemManager: BuildSystem {
     }
   }
 
-  /// *Must be called on queue*. If the given main file is no longer referenced by any watched
-  /// files, remove it and unregister it at the underlying build system.
+  /// *Must be called on queue*. If the given main file is no longer referenced
+  /// by any watched files, remove it and unregister it at the underlying
+  /// build system.
   func checkUnreferencedMainFile(_ mainFile: DocumentURI) {
     if !self.watchedFiles.values.lazy.map({ $0.mainFile }).contains(mainFile) {
       // This was the last reference to the main file. Remove it.
       self.buildSystem?.unregisterForChangeNotifications(for: mainFile)
-      self.mainFileSettings[mainFile] = nil
+      self.mainFileStatuses[mainFile] = nil
     }
   }
 
@@ -211,42 +317,57 @@ extension BuildSystemManager: BuildSystem {
 
 extension BuildSystemManager: BuildSystemDelegate {
 
-  public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
+  public func fileBuildSettingsChanged(_ changes: [DocumentURI: FileBuildSettingsChange]) {
     queue.async {
-      // Empty -> assume all files have been changed.
-      let filesToCheck = changedFiles.isEmpty ? Set(self.mainFileSettings.keys) : changedFiles
-      var changedWatchedFiles = Set<DocumentURI>()
-
-      for mainFile in filesToCheck {
+      let statusChanges: [DocumentURI: MainFileStatus] =
+          changes.reduce(into: [:]) { (result, entry) in
+        let mainFile = entry.key
+        let settingsChange = entry.value
         let watches = self.watchedFiles.filter { $1.mainFile == mainFile }
-        guard !watches.isEmpty else {
-          // We got a notification after the file was unregistered. Ignore.
-          continue
+        guard let firstWatch = watches.first else {
+          // Possible notification after the file was unregistered. Ignore.
+          return
         }
+        let newStatus: MainFileStatus
 
-        // FIXME: we need to stop threading the langauge everywhere, or we need the build system
-        // itself to pass it in here.
-        let language = self.mainFileSettings[mainFile]??.language ?? watches.first!.value.language
-
-        let settings = self.querySettings(for: mainFile, language)
-        self.mainFileSettings[mainFile] = settings
-
-        changedWatchedFiles.formUnion(watches.map { $0.key })
-      }
-
-      if let delegate = self._delegate, !changedWatchedFiles.isEmpty {
-        self.notifyQueue.async {
-          delegate.fileBuildSettingsChanged(changedWatchedFiles)
+        if let newSettings = settingsChange.newSettings {
+          newStatus = .primary(newSettings)
+        } else if let fallback = self.fallbackBuildSystem {
+          // FIXME: we need to stop threading the language everywhere, or we need the build system
+          // itself to pass it in here. Or alteratively cache the fallback settings/language earlier?
+          let language = firstWatch.value.language
+          if let settings = fallback.settings(for: mainFile, language) {
+            newStatus = .fallback(settings)
+          } else {
+            newStatus = .unsupported
+          }
+        } else {
+          newStatus = .unsupported
         }
+        result[mainFile] = newStatus
       }
+      self.updateAndNotifyStatuses(changes: statusChanges)
     }
   }
 
   public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
     queue.async {
-      if let delegate = self._delegate {
+      // Empty changes --> assume everything has changed.
+      guard !changedFiles.isEmpty else {
+        if let delegate = self._delegate {
+          self.notifyQueue.async {
+            delegate.filesDependenciesUpdated(changedFiles)
+          }
+        }
+        return
+      }
+
+      // Need to map the changed main files back into changed watch files.
+      let changedWatchedFiles = self.watchedFiles.filter { changedFiles.contains($1.mainFile) }
+      let newChangedFiles = Set(changedWatchedFiles.map { $0.key })
+      if let delegate = self._delegate, !newChangedFiles.isEmpty {
         self.notifyQueue.async {
-          delegate.filesDependenciesUpdated(changedFiles)
+          delegate.filesDependenciesUpdated(newChangedFiles)
         }
       }
     }
@@ -269,27 +390,28 @@ extension BuildSystemManager: MainFilesDelegate {
     queue.async {
       let origWatched = self.watchedFiles
       self.watchedFiles = [:]
-      var changedWatchedFiles = Set<DocumentURI>()
+      var buildSettingsChanges = [DocumentURI: FileBuildSettingsChange]()
 
       for (uri, state) in origWatched {
         let mainFiles = self.mainFilesProvider?.mainFilesContainingFile(uri) ?? []
         let newMainFile = chooseMainFile(for: uri, previous: state.mainFile, from: mainFiles)
+        let language = state.language
 
-        self.watchedFiles[uri] = (newMainFile, state.language)
+        self.watchedFiles[uri] = (newMainFile, language)
 
         if state.mainFile != newMainFile {
           log("main file for '\(uri)' changed old: '\(state.mainFile)' -> new: '\(newMainFile)'", level: .info)
-          changedWatchedFiles.insert(uri)
           self.checkUnreferencedMainFile(state.mainFile)
-          let settings = self.cachedOrRegisterForSettings(mainFile: newMainFile, language: state.language)
-          // TODO: send back in the notification.
-          _ = settings
+
+          let newStatus = self.cachedStatusOrRegisterForSettings(
+              for: newMainFile, language: language)
+          buildSettingsChanges[uri] = newStatus.buildSettingsChange
         }
       }
 
-      if let delegate = self._delegate, !changedWatchedFiles.isEmpty {
+      if let delegate = self._delegate, !buildSettingsChanges.isEmpty {
         self.notifyQueue.async {
-          delegate.fileBuildSettingsChanged(changedWatchedFiles)
+          delegate.fileBuildSettingsChanged(buildSettingsChanges)
         }
       }
     }
@@ -308,7 +430,7 @@ extension BuildSystemManager {
   /// *For Testing* Returns the main file used for `uri`, if this is a registered file.
   public func _cachedMainFileSettings(for uri: DocumentURI) -> FileBuildSettings?? {
     queue.sync {
-      mainFileSettings[uri]
+      mainFileStatuses[uri]?.buildSettings
     }
   }
 }

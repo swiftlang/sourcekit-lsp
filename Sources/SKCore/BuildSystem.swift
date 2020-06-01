@@ -31,15 +31,16 @@ public protocol BuildSystem: AnyObject {
   /// The path to put the index database, if any.
   var indexDatabasePath: AbsolutePath? { get }
 
-  /// Returns the settings for the given url and language mode, if known.
-  func settings(for: DocumentURI, _ language: Language) -> FileBuildSettings?
-
   /// Delegate to handle any build system events such as file build settings
-  /// changing.
+  /// initial reports as well as changes.
   var delegate: BuildSystemDelegate? { get set }
 
   /// Register the given file for build-system level change notifications, such
   /// as command line flag changes, dependency changes, etc.
+  ///
+  /// IMPORTANT: When first receiving a register request, the `BuildSystem` MUST asynchronously
+  /// inform its delegate of any initial settings for the given file via the
+  /// `fileBuildSettingsChanged` method, even if unavailable.
   func registerForChangeNotifications(for: DocumentURI, language: Language)
 
   /// Unregister the given file for build-system level change notifications,
