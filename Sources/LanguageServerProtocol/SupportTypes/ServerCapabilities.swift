@@ -189,15 +189,10 @@ public struct TextDocumentSyncOptions: Codable, Hashable {
   public struct SaveOptions: Codable, Hashable {
 
     /// Whether the client should include the file content in save notifications.
-    public var includeText: Bool
+    public var includeText: Bool?
 
-    public init(includeText: Bool = false) {
+    public init(includeText: Bool? = nil) {
       self.includeText = includeText
-    }
-
-    public init(from decoder: Decoder) throws {
-      let container = try decoder.container(keyedBy: CodingKeys.self)
-      self.includeText = try container.decodeIfPresent(Bool.self, forKey: .includeText) ?? false
     }
   }
 
