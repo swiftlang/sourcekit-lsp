@@ -116,6 +116,12 @@ let package = Package(
           "SwiftToolsSupport-auto",
         ]
       ),
+      .testTarget(
+        name: "SourceKitDTests",
+        dependencies: [
+          "SourceKitD",
+        ]
+      ),
 
       // Csourcekitd: C modules wrapper for sourcekitd.
       .target(

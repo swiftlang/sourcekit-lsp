@@ -51,7 +51,12 @@ public final class SourceKitDImpl: SourceKitD {
     }
   }
 
-  public init(dylib path: AbsolutePath) throws {
+  public static func getOrCreate(dylibPath: AbsolutePath) throws -> SourceKitD {
+    try SourceKitDRegistry.shared
+      .getOrAdd(dylibPath, create: { try SourceKitDImpl(dylib: dylibPath) })
+  }
+
+  init(dylib path: AbsolutePath) throws {
     self.path = path
     #if os(Windows)
     self.dylib = try dlopen(path.pathString, mode: [])

@@ -105,7 +105,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
   public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, clientCapabilities: ClientCapabilities, onExit: @escaping () -> Void = {}) throws {
     self.client = client
-    self.sourcekitd = try SourceKitDImpl(dylib: sourcekitd)
+    self.sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitd)
     self.buildSystem = buildSystem
     self.clientCapabilities = clientCapabilities
     self.documentManager = DocumentManager()

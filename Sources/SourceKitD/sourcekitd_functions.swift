@@ -14,7 +14,7 @@ import Csourcekitd
 import SKSupport
 
 extension sourcekitd_functions_t {
-  init(_ sourcekitd: DLHandle) throws {
+  public init(_ sourcekitd: DLHandle) throws {
     // Zero-initialize
     self.init()
 
