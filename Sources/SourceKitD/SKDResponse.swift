@@ -25,7 +25,7 @@ public final class SKDResponse {
     sourcekitd.api.response_dispose(response)
   }
 
-  public var error: SourceKitD.Error? {
+  public var error: SKDError? {
     if !sourcekitd.api.response_is_error(response) {
       return nil
     }

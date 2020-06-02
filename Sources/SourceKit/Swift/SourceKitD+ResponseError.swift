@@ -14,7 +14,7 @@ import SourceKitD
 import LanguageServerProtocol
 
 extension ResponseError {
-  public init(_ value: SourceKitD.Error) {
+  public init(_ value: SKDError) {
     switch value {
     case .requestCancelled:
       self = .cancelled

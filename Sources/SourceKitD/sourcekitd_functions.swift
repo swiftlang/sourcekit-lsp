@@ -27,7 +27,7 @@ extension sourcekitd_functions_t {
 
     func loadRequired<T>(_ symbol: String) throws -> T {
       guard let sym: T = dlsym(sourcekitd, symbol: symbol) else {
-        throw SourceKitD.Error.missingRequiredSymbol(symbol)
+        throw SKDError.missingRequiredSymbol(symbol)
       }
       return sym
     }
