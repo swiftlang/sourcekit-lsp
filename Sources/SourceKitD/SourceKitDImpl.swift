@@ -40,14 +40,15 @@ public final class SourceKitDImpl: SourceKitD {
   public let values: sourcekitd_values
 
   /// Lock protecting private state.
-  let lock: NSLock = NSLock()
+  let lock: Lock = Lock()
 
   /// List of notification handlers that will be called for each notification.
   private var _notificationHandlers: [WeakSKDNotificationHandler] = []
 
   var notificationHandlers: [SKDNotificationHandler] {
-    lock.lock(); defer { lock.unlock() }
-    return _notificationHandlers.compactMap { $0.value }
+    lock.withLock {
+      _notificationHandlers.compactMap { $0.value }
+    }
   }
 
   public init(dylib path: AbsolutePath) throws {
@@ -65,9 +66,7 @@ public final class SourceKitDImpl: SourceKitD {
     self.api.initialize()
     self.api.set_notification_handler { [weak self] rawResponse in
       guard let self = self else { return }
-      self.lock.lock()
-      let handlers = self._notificationHandlers.compactMap(\.value)
-      self.lock.unlock()
+      let handlers = self.lock.withLock { self._notificationHandlers.compactMap(\.value) }
 
       let response = SKDResponse(rawResponse, sourcekitd: self)
       for handler in handlers {
@@ -85,15 +84,17 @@ public final class SourceKitDImpl: SourceKitD {
 
   /// Adds a new notification handler (referenced weakly).
   public func addNotificationHandler(_ handler: SKDNotificationHandler) {
-    lock.lock(); defer { lock.unlock() }
-    _notificationHandlers.removeAll(where: { $0.value == nil })
-    _notificationHandlers.append(.init(handler))
+    lock.withLock {
+      _notificationHandlers.removeAll(where: { $0.value == nil })
+      _notificationHandlers.append(.init(handler))
+    }
   }
 
   /// Removes a previously registered notification handler.
   public func removeNotificationHandler(_ handler: SKDNotificationHandler) {
-    lock.lock(); defer { lock.unlock() }
-    _notificationHandlers.removeAll(where: { $0.value == nil || $0.value === handler})
+    lock.withLock {
+      _notificationHandlers.removeAll(where: { $0.value == nil || $0.value === handler})
+    }
   }
 }
 
