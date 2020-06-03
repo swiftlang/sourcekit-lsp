@@ -6,9 +6,11 @@ extension BuildSystemTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__BuildSystemTests = [
+        ("testClangdDocumentFallbackWithholdsDiagnostics", testClangdDocumentFallbackWithholdsDiagnostics),
         ("testClangdDocumentUpdatedBuildSettings", testClangdDocumentUpdatedBuildSettings),
         ("testMainFilesChanged", testMainFilesChanged),
         ("testSwiftDocumentBuildSettingsChangedFalseAlarm", testSwiftDocumentBuildSettingsChangedFalseAlarm),
+        ("testSwiftDocumentFallbackWithholdsSemanticDiagnostics", testSwiftDocumentFallbackWithholdsSemanticDiagnostics),
         ("testSwiftDocumentUpdatedBuildSettings", testSwiftDocumentUpdatedBuildSettings),
     ]
 }

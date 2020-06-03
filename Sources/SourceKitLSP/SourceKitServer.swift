@@ -358,7 +358,7 @@ extension SourceKitServer: BuildSystemDelegate {
           }
 
           // Notify the language server so it can apply the proper arguments.
-          service.documentUpdatedBuildSettings(uri, settings: change.newSettings)
+          service.documentUpdatedBuildSettings(uri, change: change)
 
           // Catch up on any queued notifications and requests.
           self.documentToPendingQueue[uri]?.handleAll()
@@ -370,7 +370,7 @@ extension SourceKitServer: BuildSystemDelegate {
         // Case 2: changed settings for an already open file.
         log("Build settings changed for opened file \(uri)")
         if let service = workspace.documentService[uri] {
-          service.documentUpdatedBuildSettings(uri, settings: change.newSettings)
+          service.documentUpdatedBuildSettings(uri, change: change)
         }
       }
     }
@@ -978,11 +978,11 @@ public func languageService(
 
   case .c, .cpp, .objective_c, .objective_cpp:
     guard toolchain.clangd != nil else { return nil }
-    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, buildSystem: workspace.buildSystemManager, clangdOptions: options.clangdOptions)
+    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, clangdOptions: options.clangdOptions)
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
-    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, buildSystem: workspace.buildSystemManager, clientCapabilities: workspace.clientCapabilities)
+    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, clientCapabilities: workspace.clientCapabilities)
 
   default:
     return nil

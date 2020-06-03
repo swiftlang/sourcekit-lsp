@@ -223,9 +223,17 @@ extension CachedDiagnostic {
 ///
 /// Sourcekitd returns parse diagnostics immediately after edits, but we do not want to clear the
 /// semantic diagnostics until we have semantic level diagnostics from after the edit.
-func mergeDiagnostics(old: [CachedDiagnostic], new: [CachedDiagnostic], stage: DiagnosticStage) -> [CachedDiagnostic] {
+///
+/// However, if fallback arguments are being used, we withhold semantic diagnostics in favor of only
+/// emitting syntactic diagnostics.
+func mergeDiagnostics(
+  old: [CachedDiagnostic],
+  new: [CachedDiagnostic],
+  stage: DiagnosticStage,
+  isFallback: Bool
+) -> [CachedDiagnostic] {
   if stage == .sema {
-    return new
+    return isFallback ? old.filter { $0.stage == .parse } : new
   }
 
 #if DEBUG

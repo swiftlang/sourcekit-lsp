@@ -26,10 +26,4 @@ final class LanguageServerProtocolTests: XCTestCase {
     XCTAssertEqual(Language.objective_cpp.xflag, "objective-c++")
     XCTAssertEqual(Language.objective_cpp.xflagHeader, "objective-c++-header")
   }
-
-  func testURLEscaping() {
-    let expectedURL = URL(string: "file:///folder/image@3x.png")
-    let doc = DocumentURI(string: "file:///folder/image%403x.png")
-    XCTAssertEqual(doc.fileURL, expectedURL)
-  }
 }

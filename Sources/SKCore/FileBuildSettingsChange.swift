@@ -16,8 +16,16 @@ public enum FileBuildSettingsChange {
   /// The `BuildSystem` has no `FileBuildSettings` for the file.
   case removedOrUnavailable
 
-  /// The `FileBuildSettings` have been modified.
+  /// The `FileBuildSettings` have been modified or are newly available.
   case modified(FileBuildSettings)
+
+  /// The `BuildSystem` is providing fallback arguments which may not be correct,
+  /// or potentially is missing some generated inputs (e.g. prebuilding required).
+  ///
+  /// This indicates that diagnostics should be withheld for the given file. In addition, going from
+  /// fallback --> modified with the exact same `FileBuildSettings` is supported and indicates that
+  /// the LSP should rebuild its AST for the given file and emit new diagnostics.
+  case fallback(FileBuildSettings)
 }
 
 extension FileBuildSettingsChange {
@@ -27,12 +35,26 @@ extension FileBuildSettingsChange {
       return nil
     case .modified(let settings):
       return settings
+    case .fallback(let settings):
+      return settings
     }
   }
 
-  public init(_ settings: FileBuildSettings?) {
+  /// Whether the change represents fallback arguments.
+  public var isFallback: Bool {
+    switch self {
+    case .removedOrUnavailable:
+      return false
+    case .modified(_):
+      return false
+    case .fallback(_):
+      return true
+    }
+  }
+
+  public init(_ settings: FileBuildSettings?, fallback: Bool = false) {
     if let settings = settings {
-      self = .modified(settings)
+      self = fallback ? .fallback(settings) : .modified(settings)
     } else {
       self = .removedOrUnavailable
     }

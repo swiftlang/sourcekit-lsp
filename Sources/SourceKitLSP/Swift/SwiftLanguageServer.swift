@@ -58,20 +58,33 @@ fileprivate func diagnosticsEnabled(for document: DocumentURI) -> Bool {
   return !excludedDocumentURISchemes.contains(scheme)
 }
 
-/// A swift compiler command derived from a `FileBuildSettings`.
+/// A swift compiler command derived from a `FileBuildSettingsChange`.
 public struct SwiftCompileCommand: Equatable {
 
   /// The compiler arguments, including working directory. This is required since sourcekitd only
   /// accepts the working directory via the compiler arguments.
   public let compilerArgs: [String]
 
-  public init(_ settings: FileBuildSettings) {
+  /// Whether the compiler arguments are considered fallback - we withhold diagnostics for
+  /// fallback arguments and represent the file state differently.
+  public let isFallback: Bool
+
+  public init(_ settings: FileBuildSettings, isFallback: Bool = false) {
     let baseArgs = settings.compilerArguments
     // Add working directory arguments if needed.
     if let workingDirectory = settings.workingDirectory, !baseArgs.contains("-working-directory") {
       self.compilerArgs = baseArgs + ["-working-directory", workingDirectory]
     } else {
       self.compilerArgs = baseArgs
+    }
+    self.isFallback = isFallback
+  }
+
+  public init?(change: FileBuildSettingsChange) {
+    switch change {
+    case .fallback(let settings): self.init(settings, isFallback: true)
+    case .modified(let settings): self.init(settings, isFallback: false)
+    case .removedOrUnavailable: return nil
     }
   }
 }
@@ -84,8 +97,6 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   let client: Connection
 
   let sourcekitd: SourceKitD
-
-  let buildSystem: BuildSystem
 
   let clientCapabilities: ClientCapabilities
 
@@ -103,25 +114,30 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   var values: sourcekitd_values { return sourcekitd.values }
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, clientCapabilities: ClientCapabilities, onExit: @escaping () -> Void = {}) throws {
+  public init(client: Connection, sourcekitd: AbsolutePath, clientCapabilities: ClientCapabilities, onExit: @escaping () -> Void = {}) throws {
     self.client = client
     self.sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitd)
-    self.buildSystem = buildSystem
     self.clientCapabilities = clientCapabilities
     self.documentManager = DocumentManager()
     self.onExit = onExit
   }
 
+  /// Publish diagnostics for the given `snapshot`. We withhold semantic diagnostics if we are using
+  /// fallback arguments.
+  ///
   /// Should be called on self.queue.
   func publishDiagnostics(
     response: SKDResponseDictionary,
-    for snapshot: DocumentSnapshot)
-  {
+    for snapshot: DocumentSnapshot,
+    compileCommand: SwiftCompileCommand?
+  ) {
     let documentUri = snapshot.document.uri
     guard diagnosticsEnabled(for: documentUri) else {
       log("Ignoring diagnostics for blacklisted file \(documentUri.pseudoPath)", level: .debug)
       return
     }
+
+    let isFallback = compileCommand?.isFallback ?? true
 
     let stageUID: sourcekitd_uid_t? = response[sourcekitd.keys.diagnostic_stage]
     let stage = stageUID.flatMap { DiagnosticStage($0, sourcekitd: sourcekitd) } ?? .sema
@@ -135,14 +151,13 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
       return true
     }
 
-    let document = snapshot.document.uri
-
     let result = mergeDiagnostics(
-      old: currentDiagnostics[document] ?? [],
-      new: newDiags, stage: stage)
-    currentDiagnostics[document] = result
+      old: currentDiagnostics[documentUri] ?? [],
+      new: newDiags, stage: stage, isFallback: isFallback)
+    currentDiagnostics[documentUri] = result
 
-    client.send(PublishDiagnosticsNotification(uri: document, version: snapshot.version, diagnostics: result.map { $0.diagnostic }))
+    client.send(PublishDiagnosticsNotification(
+        uri: documentUri, version: snapshot.version, diagnostics: result.map { $0.diagnostic }))
   }
 
   /// Should be called on self.queue.
@@ -150,6 +165,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     guard let snapshot = documentManager.latestSnapshot(uri) else {
       return
     }
+    let compileCommand = self.commandsByFile[uri]
 
     // Make the magic 0,0 replacetext request to update diagnostics.
 
@@ -161,7 +177,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     req[keys.sourcetext] = ""
 
     if let dict = try? self.sourcekitd.sendSync(req) {
-      publishDiagnostics(response: dict, for: snapshot)
+      publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
     }
   }
 }
@@ -234,13 +250,16 @@ extension SwiftLanguageServer {
       // Already logged failure.
       return
     }
-    self.publishDiagnostics(response: dict, for: snapshot)
+    self.publishDiagnostics(
+        response: dict, for: snapshot, compileCommand: compileCmd)
   }
 
-  public func documentUpdatedBuildSettings(_ uri: DocumentURI, settings: FileBuildSettings?) {
+  public func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) {
     self.queue.async {
-      let compileCommand = settings.map { SwiftCompileCommand($0) }
+      let compileCommand = SwiftCompileCommand(change: change)
       // Confirm that the compile commands actually changed, otherwise we don't need to do anything.
+      // This includes when the compiler arguments are the same but the command is no longer
+      // considered to be fallback.
       guard self.commandsByFile[uri] != compileCommand else {
         return
       }
@@ -286,16 +305,18 @@ extension SwiftLanguageServer {
       req[keys.name] = note.textDocument.uri.pseudoPath
       req[keys.sourcetext] = snapshot.text
 
-      if let compileCommand = self.commandsByFile[uri] {
-        req[keys.compilerargs] = compileCommand.compilerArgs
+      let compileCommand = self.commandsByFile[uri]
+
+      if let compilerArgs = compileCommand?.compilerArgs {
+        req[keys.compilerargs] = compilerArgs
       }
 
       guard let dict = try? self.sourcekitd.sendSync(req) else {
         // Already logged failure.
         return
       }
-
-      self.publishDiagnostics(response: dict, for: snapshot)
+      self.publishDiagnostics(
+          response: dict, for: snapshot, compileCommand: compileCommand)
     }
   }
 
@@ -350,7 +371,8 @@ extension SwiftLanguageServer {
       }
 
       if let dict = lastResponse, let snapshot = snapshot {
-        self.publishDiagnostics(response: dict, for: snapshot)
+        let compileCommand = self.commandsByFile[note.textDocument.uri]
+        self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
       }
     }
   }
@@ -1268,14 +1290,13 @@ extension DocumentSnapshot {
 }
 
 func makeLocalSwiftServer(
-  client: MessageHandler, sourcekitd: AbsolutePath, buildSystem: BuildSystem,
+  client: MessageHandler, sourcekitd: AbsolutePath,
   clientCapabilities: ClientCapabilities?) throws -> ToolchainLanguageServer {
   let connectionToClient = LocalConnection()
 
   let server = try SwiftLanguageServer(
     client: connectionToClient,
     sourcekitd: sourcekitd,
-    buildSystem: buildSystem,
     clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil)
   )
   connectionToClient.start(handler: client)

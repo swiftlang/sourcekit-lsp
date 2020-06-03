@@ -40,7 +40,7 @@ public protocol ToolchainLanguageServer: AnyObject {
   /// Sent when the `BuildSystem` has resolved build settings, such as for the intial build settings
   /// or when the settings have changed (e.g. modified build system files). This may be sent before
   /// the respective `DocumentURI` has been opened.
-  func documentUpdatedBuildSettings(_ uri: DocumentURI, settings: FileBuildSettings?)
+  func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange)
 
   /// Sent when the `BuildSystem` has detected that dependencies of the given file have changed
   /// (e.g. header files, swiftmodule files, other compiler input files).

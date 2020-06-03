@@ -12,25 +12,12 @@
 
 import Foundation
 
-/// Standardize the URL.
-///
-/// This normalizes escape sequences in file URLs, like `%40` --> `@`.
-/// But for non-file URLs, has no effect.
-fileprivate func standardize(url: URL) -> URL {
-  guard url.isFileURL else { return url }
-
-  // This has the side-effect of removing trailing slashes from file URLs
-  // on Linux, so we may need to add it back.
-  let standardized = url.standardizedFileURL
-  if url.absoluteString.hasSuffix("/") && !standardized.absoluteString.hasSuffix("/") {
-    return URL(fileURLWithPath: standardized.path, isDirectory: true)
-  }
-  return standardized
-}
-
 public struct DocumentURI: Codable, Hashable {
   /// The URL that store the URIs value
   private let storage: URL
+
+  /// Standardized URL.
+  private let standardizedStorage: URL
 
   public var fileURL: URL? {
     if storage.isFileURL {
@@ -69,16 +56,27 @@ public struct DocumentURI: Codable, Hashable {
     guard let url = URL(string: string) else {
       fatalError("Failed to construct DocumentURI from '\(string)'")
     }
-    self.init(standardize(url: url))
+    self.init(url)
   }
 
   public init(_ url: URL) {
     self.storage = url
+    self.standardizedStorage = url.standardizedFileURL
     assert(self.storage.scheme != nil, "Received invalid URI without a scheme '\(self.storage.absoluteString)'")
   }
 
   public init(from decoder: Decoder) throws {
     self.init(string: try decoder.singleValueContainer().decode(String.self))
+  }
+
+  /// Equality check to handle escape sequences in URLs, which we otherwise preserve.
+  public static func == (lhs: DocumentURI, rhs: DocumentURI) -> Bool {
+    return lhs.standardizedStorage == rhs.standardizedStorage
+  }
+
+  /// Use the standardizedFileURL like our equality comparison.
+  public func hash(into hasher: inout Hasher) {
+    hasher.combine(self.standardizedStorage)
   }
 
   public func encode(to encoder: Encoder) throws {

@@ -30,7 +30,6 @@ extension LanguageServerProtocolTests {
     // to regenerate.
     static let __allTests__LanguageServerProtocolTests = [
         ("testLanguageXFlag", testLanguageXFlag),
-        ("testURLEscaping", testURLEscaping),
     ]
 }
 
