@@ -120,7 +120,14 @@ extension ClangLanguageServerShim {
       return "settings for \(uri): \(settingsStr)"
     }
 
-    if let settings = settings {
+    if var settings = settings {
+      if settings.compilerArguments.contains("-fmodules") == true {
+        // Clangd is not built with support for the 'obj' format.
+        settings.compilerArguments.append(contentsOf: [
+          "-Xclang", "-fmodule-format=raw"
+        ])
+      }
+
       clangd.send(DidChangeConfigurationNotification(settings: .clangd(
         ClangWorkspaceSettings(
           compilationDatabaseChanges: [url.path: ClangCompileCommand(settings, clang: clang)]))))

@@ -1,0 +1,4 @@
+{
+  "clang_flags": ["-gmodules"],
+  "sources": ["ClangModules_main.m"]
+}
