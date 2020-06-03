@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 import LanguageServerProtocol
 import TSCBasic
-import sourcekitd
+import SourceKitD
 
 /// Detailed information about the result of a specific refactoring operation.
 ///
@@ -36,15 +36,15 @@ struct SemanticRefactoring {
   ///   - dict: Response dictionary to extract information from.
   ///   - url: The client URL that triggered the `semantic_refactoring` request.
   ///   - keys: The sourcekitd key set to use for looking up into `dict`.
-  init?(_ title: String, _ dict: SKResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_keys) {
-    guard let categorizedEdits: SKResponseArray = dict[keys.categorizededits] else {
+  init?(_ title: String, _ dict: SKDResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_keys) {
+    guard let categorizedEdits: SKDResponseArray = dict[keys.categorizededits] else {
       return nil
     }
 
     var textEdits = [TextEdit]()
 
     categorizedEdits.forEach { _, value in
-      guard let edits: SKResponseArray = value[keys.edits] else {
+      guard let edits: SKDResponseArray = value[keys.edits] else {
         return false
       }
       edits.forEach { _, value in
@@ -142,7 +142,7 @@ extension SwiftLanguageServer {
         return completion(.failure(.invalidRange(refactorCommand.positionRange)))
       }
 
-      let skreq = SKRequestDictionary(sourcekitd: self.sourcekitd)
+      let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       skreq[keys.request] = self.requests.semantic_refactoring
       // Preferred name for e.g. an extracted variable.
       // Empty string means sourcekitd chooses a name automatically.
@@ -162,7 +162,7 @@ extension SwiftLanguageServer {
       let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
         guard let self = self else { return }
         guard let dict = result.success else {
-          return completion(.failure(.responseError(result.failure!)))
+          return completion(.failure(.responseError(ResponseError(result.failure!))))
         }
         guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {
           return completion(.failure(.noEditsNeeded(uri)))

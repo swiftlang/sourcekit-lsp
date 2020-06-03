@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 import LanguageServerProtocol
-import sourcekitd
+import SourceKitD
 
 public struct SemanticRefactorCommand: SwiftCommand {
 
@@ -64,7 +64,7 @@ public struct SemanticRefactorCommand: SwiftCommand {
 }
 
 extension Array where Element == SemanticRefactorCommand {
-  init?(array: SKResponseArray?, range: Range<Position>, textDocument: TextDocumentIdentifier, _ keys: sourcekitd_keys, _ api: sourcekitd_functions_t) {
+  init?(array: SKDResponseArray?, range: Range<Position>, textDocument: TextDocumentIdentifier, _ keys: sourcekitd_keys, _ api: sourcekitd_functions_t) {
     guard let results = array else {
       return nil
     }

@@ -6,6 +6,7 @@ import LanguageServerProtocolTests
 import SKCoreTests
 import SKSupportTests
 import SKSwiftPMWorkspaceTests
+import SourceKitDTests
 import SourceKitTests
 
 var tests = [XCTestCaseEntry]()
@@ -15,6 +16,7 @@ tests += LanguageServerProtocolTests.__allTests()
 tests += SKCoreTests.__allTests()
 tests += SKSupportTests.__allTests()
 tests += SKSwiftPMWorkspaceTests.__allTests()
+tests += SourceKitDTests.__allTests()
 tests += SourceKitTests.__allTests()
 
 XCTMain(tests)
