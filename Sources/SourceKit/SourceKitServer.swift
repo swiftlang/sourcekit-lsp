@@ -93,8 +93,8 @@ public final class SourceKitServer: LanguageServer {
     registerToolchainTextDocumentRequest(SourceKitServer.documentSymbolHighlight, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.foldingRange, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.documentSymbol, nil)
-    registerToolchainTextDocumentRequest(SourceKitServer.documentColor, nil)
-    registerToolchainTextDocumentRequest(SourceKitServer.colorPresentation, nil)
+    registerToolchainTextDocumentRequest(SourceKitServer.documentColor, [])
+    registerToolchainTextDocumentRequest(SourceKitServer.colorPresentation, [])
     registerToolchainTextDocumentRequest(SourceKitServer.codeAction, nil)
   }
 
@@ -455,7 +455,7 @@ extension SourceKitServer {
         change: .incremental,
         willSave: true,
         willSaveWaitUntil: false,
-        save: TextDocumentSyncOptions.SaveOptions(includeText: false)
+        save: .value(TextDocumentSyncOptions.SaveOptions(includeText: false))
       ),
       hoverProvider: true,
       completionProvider: CompletionOptions(

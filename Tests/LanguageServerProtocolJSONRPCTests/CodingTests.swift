@@ -76,7 +76,7 @@ final class CodingTests: XCTestCase {
         change: .incremental,
         willSave: true,
         willSaveWaitUntil: false,
-        save: TextDocumentSyncOptions.SaveOptions(includeText: false)),
+        save: .value(TextDocumentSyncOptions.SaveOptions(includeText: false))),
       completionProvider: CompletionOptions(
         resolveProvider: false,
         triggerCharacters: ["."]))), id: .number(2), json: """

@@ -21,7 +21,7 @@
 /// - Returns: A list of color references for the given document.
 public struct DocumentColorRequest: TextDocumentRequest, Hashable {
   public static let method: String = "textDocument/documentColor"
-  public typealias Response = [ColorInformation]?
+  public typealias Response = [ColorInformation]
 
   /// The document in which to search for color references.
   public var textDocument: TextDocumentIdentifier

@@ -23,7 +23,7 @@
 /// - Returns: A list of color presentations for the given document.
 public struct ColorPresentationRequest: TextDocumentRequest, Hashable {
   public static let method: String = "textDocument/colorPresentation"
-  public typealias Response = [ColorPresentation]?
+  public typealias Response = [ColorPresentation]
 
   /// The document to request presentations for.
   public var textDocument: TextDocumentIdentifier

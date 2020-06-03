@@ -189,21 +189,21 @@ public struct TextDocumentSyncOptions: Codable, Hashable {
   public struct SaveOptions: Codable, Hashable {
 
     /// Whether the client should include the file content in save notifications.
-    public var includeText: Bool
+    public var includeText: Bool?
 
-    public init(includeText: Bool = false) {
+    public init(includeText: Bool? = nil) {
       self.includeText = includeText
     }
   }
 
   /// Whether save notifications should be sent to the server.
-  public var save: SaveOptions?
+  public var save: ValueOrBool<SaveOptions>?
 
   public init(openClose: Bool? = true,
               change: TextDocumentSyncKind? = .incremental,
               willSave: Bool? = true,
               willSaveWaitUntil: Bool? = false,
-              save: SaveOptions? = SaveOptions()) {
+              save: ValueOrBool<SaveOptions>? = .value(SaveOptions(includeText: false))) {
     self.openClose = openClose
     self.change = change
     self.willSave = willSave
@@ -218,7 +218,7 @@ public struct TextDocumentSyncOptions: Codable, Hashable {
       self.change = try container.decodeIfPresent(TextDocumentSyncKind.self, forKey: .change)
       self.willSave = try container.decodeIfPresent(Bool.self, forKey: .willSave)
       self.willSaveWaitUntil = try container.decodeIfPresent(Bool.self, forKey: .willSaveWaitUntil)
-      self.save = try container.decodeIfPresent(SaveOptions.self, forKey: .save)
+      self.save = try container.decodeIfPresent(ValueOrBool<SaveOptions>.self, forKey: .save)
       return
     } catch {}
     do {
