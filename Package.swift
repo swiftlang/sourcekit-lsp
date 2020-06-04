@@ -26,13 +26,13 @@ let package = Package(
         name: "sourcekit-lsp",
         dependencies: [
           "LanguageServerProtocolJSONRPC",
-          "SourceKit",
+          "SourceKitLSP",
           "SwiftToolsSupport-auto",
         ]
       ),
 
       .target(
-        name: "SourceKit",
+        name: "SourceKitLSP",
         dependencies: [
           "BuildServerProtocol",
           "IndexStoreDB",
@@ -54,16 +54,16 @@ let package = Package(
           "CSKTestSupport",
           "ISDBTestSupport",
           "LSPTestSupport",
-          "SourceKit",
+          "SourceKitLSP",
           "tibs", // Never imported, needed at runtime
           "SwiftToolsSupport-auto",
         ]
       ),
       .testTarget(
-        name: "SourceKitTests",
+        name: "SourceKitLSPTests",
         dependencies: [
           "SKTestSupport",
-          "SourceKit",
+          "SourceKitLSP",
         ]
       ),
 

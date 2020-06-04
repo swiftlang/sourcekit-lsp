@@ -17,7 +17,7 @@ import LanguageServerProtocolJSONRPC
 import LSPLogging
 import SKCore
 import SKSupport
-import SourceKit
+import SourceKitLSP
 import Csourcekitd // Not needed here, but fixes debugging...
 import TSCBasic
 import TSCLibc
