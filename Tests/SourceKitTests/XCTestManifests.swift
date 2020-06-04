@@ -92,6 +92,7 @@ extension LocalClangTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__LocalClangTests = [
+        ("testClangModules", testClangModules),
         ("testClangStdHeaderCanary", testClangStdHeaderCanary),
         ("testFoldingRange", testFoldingRange),
         ("testSymbolInfo", testSymbolInfo),

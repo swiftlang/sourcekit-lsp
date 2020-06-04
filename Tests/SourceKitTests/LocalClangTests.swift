@@ -164,4 +164,22 @@ final class LocalClangTests: XCTestCase {
       fatalError("error \(result) waiting for diagnostics notification")
     }
   }
+
+  func testClangModules() {
+    guard let ws = try! staticSourceKitTibsWorkspace(name: "ClangModules") else { return }
+    if ToolchainRegistry.shared.default?.clangd == nil { return }
+
+    let loc = ws.testLoc("main_file")
+
+    let expectation = self.expectation(description: "diagnostics")
+
+    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(note.params.diagnostics.count, 0)
+      expectation.fulfill()
+    }
+
+    try! ws.openDocument(loc.url, language: .objective_c)
+
+    waitForExpectations(timeout: 15)
+  }
 }

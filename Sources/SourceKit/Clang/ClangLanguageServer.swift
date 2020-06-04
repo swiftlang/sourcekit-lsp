@@ -120,7 +120,22 @@ extension ClangLanguageServerShim {
       return "settings for \(uri): \(settingsStr)"
     }
 
-    if let settings = settings {
+    if var settings = settings {
+      if settings.compilerArguments.contains("-fmodules") == true {
+        // Clangd is not built with support for the 'obj' format.
+        settings.compilerArguments.append(contentsOf: [
+          "-Xclang", "-fmodule-format=raw"
+        ])
+      }
+      if let workingDirectory = settings.workingDirectory {
+        // FIXME: this is a workaround for clangd not respecting the compilation
+        // database's "directory" field for relative -fmodules-cache-path.
+        // rdar://63984913
+        settings.compilerArguments.append(contentsOf: [
+          "-working-directory", workingDirectory
+        ])
+      }
+
       clangd.send(DidChangeConfigurationNotification(settings: .clangd(
         ClangWorkspaceSettings(
           compilationDatabaseChanges: [url.path: ClangCompileCommand(settings, clang: clang)]))))
