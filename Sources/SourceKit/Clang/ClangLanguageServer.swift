@@ -127,6 +127,14 @@ extension ClangLanguageServerShim {
           "-Xclang", "-fmodule-format=raw"
         ])
       }
+      if let workingDirectory = settings.workingDirectory {
+        // FIXME: this is a workaround for clangd not respecting the compilation
+        // database's "directory" field for relative -fmodules-cache-path.
+        // rdar://63984913
+        settings.compilerArguments.append(contentsOf: [
+          "-working-directory", workingDirectory
+        ])
+      }
 
       clangd.send(DidChangeConfigurationNotification(settings: .clangd(
         ClangWorkspaceSettings(
