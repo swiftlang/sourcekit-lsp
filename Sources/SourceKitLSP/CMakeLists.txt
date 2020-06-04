@@ -5,7 +5,7 @@ if(CMAKE_VERSION VERSION_LESS 3.16)
   endif()
 endif()
 
-add_library(SourceKit
+add_library(SourceKitLSP
   DocumentManager.swift
   IndexStoreDB+MainFilesProvider.swift
   SourceKitIndexDelegate.swift
@@ -14,9 +14,9 @@ add_library(SourceKit
   SourceKitServer.swift
   ToolchainLanguageServer.swift
   Workspace.swift)
-target_sources(SourceKit PRIVATE
+target_sources(SourceKitLSP PRIVATE
   Clang/ClangLanguageServer.swift)
-target_sources(SourceKit PRIVATE
+target_sources(SourceKitLSP PRIVATE
   Swift/CommentXML.swift
   Swift/CursorInfo.swift
   Swift/Diagnostic.swift
@@ -26,10 +26,10 @@ target_sources(SourceKit PRIVATE
   Swift/SourceKitD+ResponseError.swift
   Swift/SwiftCommand.swift
   Swift/SwiftLanguageServer.swift)
-set_target_properties(SourceKit PROPERTIES
+set_target_properties(SourceKitLSP PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 # TODO(compnerd) reduce the exposure here, why is everything PUBLIC-ly linked?
-target_link_libraries(SourceKit PUBLIC
+target_link_libraries(SourceKitLSP PUBLIC
   Csourcekitd
   BuildServerProtocol
   IndexStoreDB
@@ -42,12 +42,12 @@ target_link_libraries(SourceKit PUBLIC
 
 if(BUILD_SHARED_LIBS)
   get_swift_host_arch(swift_arch)
-  install(TARGETS SourceKit
+  install(TARGETS SourceKitLSP
     ARCHIVE DESTINATION lib/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>
     LIBRARY DESTINATION lib/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>
     RUNTIME DESTINATION bin)
   install(FILES
-    $<TARGET_PROPERTY:SourceKit,Swift_MODULE_DIRECTORY>/SourceKit.swiftdoc
-    $<TARGET_PROPERTY:SourceKit,Swift_MODULE_DIRECTORY>/SourceKit.swiftmodule
+    $<TARGET_PROPERTY:SourceKitLSP,Swift_MODULE_DIRECTORY>/SourceKitLSP.swiftdoc
+    $<TARGET_PROPERTY:SourceKitLSP,Swift_MODULE_DIRECTORY>/SourceKitLSP.swiftmodule
     DESTINATION lib/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>)
 endif()

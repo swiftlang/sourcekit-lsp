@@ -14,7 +14,7 @@ import LanguageServerProtocol
 import LSPLogging
 import LSPTestSupport
 import SKTestSupport
-import SourceKit
+import SourceKitLSP
 import XCTest
 
 // Workaround ambiguity with Foundation.

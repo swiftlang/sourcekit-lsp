@@ -13,7 +13,7 @@
 import LanguageServerProtocol
 import LSPTestSupport
 import SKTestSupport
-import SourceKit
+import SourceKitLSP
 import XCTest
 
 final class DocumentColorTests: XCTestCase {

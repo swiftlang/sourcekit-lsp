@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKit
+import SourceKitLSP
 import SKCore
 import XCTest
 

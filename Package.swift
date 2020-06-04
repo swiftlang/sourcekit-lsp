@@ -10,6 +10,11 @@ let package = Package(
         targets: ["sourcekit-lsp"]
       ),
       .library(
+        name: "_SourceKitLSP",
+        type: .dynamic,
+        targets: ["SourceKitLSP"]
+      ),
+      .library(
         name: "LSPBindings",
         type: .static,
         targets: [
@@ -26,13 +31,13 @@ let package = Package(
         name: "sourcekit-lsp",
         dependencies: [
           "LanguageServerProtocolJSONRPC",
-          "SourceKit",
+          "SourceKitLSP",
           "SwiftToolsSupport-auto",
         ]
       ),
 
       .target(
-        name: "SourceKit",
+        name: "SourceKitLSP",
         dependencies: [
           "BuildServerProtocol",
           "IndexStoreDB",
@@ -54,16 +59,16 @@ let package = Package(
           "CSKTestSupport",
           "ISDBTestSupport",
           "LSPTestSupport",
-          "SourceKit",
+          "SourceKitLSP",
           "tibs", // Never imported, needed at runtime
           "SwiftToolsSupport-auto",
         ]
       ),
       .testTarget(
-        name: "SourceKitTests",
+        name: "SourceKitLSPTests",
         dependencies: [
           "SKTestSupport",
-          "SourceKit",
+          "SourceKitLSP",
         ]
       ),
 

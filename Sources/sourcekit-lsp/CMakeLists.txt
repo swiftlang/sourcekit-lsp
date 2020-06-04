@@ -9,7 +9,7 @@ add_executable(sourcekit-lsp
   main.swift)
 target_link_libraries(sourcekit-lsp PRIVATE
   LanguageServerProtocolJSONRPC
-  SourceKit
+  SourceKitLSP
   TSCUtility)
 
 install(TARGETS sourcekit-lsp

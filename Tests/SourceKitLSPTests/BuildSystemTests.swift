@@ -15,7 +15,7 @@ import LanguageServerProtocol
 import LSPTestSupport
 import SKCore
 import SKTestSupport
-import SourceKit
+import SourceKitLSP
 import TSCBasic
 import XCTest
 

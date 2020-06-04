@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKit
+import SourceKitLSP
 import SKSwiftPMWorkspace
 import LanguageServerProtocol
 import SKCore

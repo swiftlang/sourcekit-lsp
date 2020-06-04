@@ -259,7 +259,9 @@ public final class SourceKitServer: LanguageServer {
 
     // Start a new service.
     return orLog("failed to start language service", level: .error) {
-      guard let service = try SourceKit.languageService(for: toolchain, language, options: options, client: self, in: workspace) else {
+      guard let service = try SourceKitLSP.languageService(
+        for: toolchain, language, options: options, client: self, in: workspace)
+      else {
         return nil
       }
 

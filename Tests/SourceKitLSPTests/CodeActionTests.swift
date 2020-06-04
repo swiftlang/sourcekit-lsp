@@ -12,7 +12,7 @@
 
 import LanguageServerProtocol
 import SKTestSupport
-import SourceKit
+import SourceKitLSP
 import XCTest
 
 final class CodeActionTests: XCTestCase {

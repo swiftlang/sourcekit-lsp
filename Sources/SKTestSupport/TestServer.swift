@@ -15,7 +15,7 @@ import SKCore
 import TSCUtility
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import SourceKit
+import SourceKitLSP
 import class Foundation.Pipe
 import LSPTestSupport
 
