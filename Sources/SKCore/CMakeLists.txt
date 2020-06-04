@@ -10,12 +10,12 @@ add_library(SKCore
   BuildSetup.swift
   BuildSystem.swift
   BuildSystemDelegate.swift
-  BuildSystemList.swift
   BuildSystemManager.swift
   CompilationDatabase.swift
   CompilationDatabaseBuildSystem.swift
   FallbackBuildSystem.swift
   FileBuildSettings.swift
+  FileBuildSettingsChange.swift
   LanguageServer.swift
   MainFilesProvider.swift
   Toolchain.swift
@@ -28,6 +28,7 @@ target_link_libraries(SKCore PRIVATE
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
   SKSupport
+  SourceKitD
   TSCUtility)
 
 if(BUILD_SHARED_LIBS)

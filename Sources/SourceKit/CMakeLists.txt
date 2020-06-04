@@ -15,17 +15,17 @@ add_library(SourceKit
   ToolchainLanguageServer.swift
   Workspace.swift)
 target_sources(SourceKit PRIVATE
-  clangd/ClangLanguageServer.swift)
+  Clang/ClangLanguageServer.swift)
 target_sources(SourceKit PRIVATE
-  sourcekitd/CommentXML.swift
-  sourcekitd/CursorInfo.swift
-  sourcekitd/Diagnostic.swift
-  sourcekitd/EditorPlaceholder.swift
-  sourcekitd/SemanticRefactorCommand.swift
-  sourcekitd/SemanticRefactoring.swift
-  sourcekitd/SwiftCommand.swift
-  sourcekitd/SwiftLanguageServer.swift
-  sourcekitd/SwiftSourceKitFramework.swift)
+  Swift/CommentXML.swift
+  Swift/CursorInfo.swift
+  Swift/Diagnostic.swift
+  Swift/EditorPlaceholder.swift
+  Swift/SemanticRefactorCommand.swift
+  Swift/SemanticRefactoring.swift
+  Swift/SourceKitD+ResponseError.swift
+  Swift/SwiftCommand.swift
+  Swift/SwiftLanguageServer.swift)
 set_target_properties(SourceKit PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 # TODO(compnerd) reduce the exposure here, why is everything PUBLIC-ly linked?
@@ -37,6 +37,7 @@ target_link_libraries(SourceKit PUBLIC
   LanguageServerProtocolJSONRPC
   SKCore
   SKSwiftPMWorkspace
+  SourceKitD
   TSCUtility)
 
 if(BUILD_SHARED_LIBS)
