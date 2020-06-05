@@ -315,8 +315,7 @@ extension SwiftLanguageServer {
         // Already logged failure.
         return
       }
-      self.publishDiagnostics(
-          response: dict, for: snapshot, compileCommand: compileCommand)
+      self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
     }
   }
 
