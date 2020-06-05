@@ -316,8 +316,7 @@ func makeJSONRPCClangServer(
   process.arguments = [
     "-compile_args_from=lsp",   // Provide compiler args programmatically.
     "-background-index=false",  // Disable clangd indexing, we use the build
-    "-index=false",             // system index store instead.
-    "--log=verbose",
+    "-index=false"             // system index store instead.
   ] + clangdOptions
 
   process.standardOutput = clangdToUs

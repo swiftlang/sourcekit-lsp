@@ -234,14 +234,14 @@ final class BuildSystemTests: XCTestCase {
     let doc = DocumentURI(url)
     let args = [url.path, "-DDEBUG"]
     let text = """
-    #ifdef FOO
-    static void foo() {}
-    #endif
+      #ifdef FOO
+      static void foo() {}
+      #endif
 
-    int main() {
-      foo();
-      return 0;
-    }
+      int main() {
+        foo();
+        return 0;
+      }
     """
 
     sk.allowUnexpectedNotification = false
@@ -283,11 +283,12 @@ final class BuildSystemTests: XCTestCase {
     let settings = FallbackBuildSystem().settings(for: doc, .swift)!
 
     let text = """
-    #if FOO
-    func foo() {}
-    #endif
+      #if FOO
+      func foo() {}
+      #endif
 
-    foo()
+      foo()
+      func
     """
 
     sk.allowUnexpectedNotification = false
@@ -298,12 +299,12 @@ final class BuildSystemTests: XCTestCase {
       version: 12,
       text: text
     )), { (note: Notification<PublishDiagnosticsNotification>) in
-      // Syntactic analysis - no expected errors here.
-      XCTAssertEqual(note.params.diagnostics.count, 0)
+      // Syntactic analysis - one expected errors here (for `func`).
+      XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(doc)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       // Should be the same syntactic analysis since we are using fallback arguments
-      XCTAssertEqual(note.params.diagnostics.count, 0)
+      XCTAssertEqual(note.params.diagnostics.count, 1)
     })
 
     // Swap from fallback settings to primary build system settings.
@@ -311,13 +312,13 @@ final class BuildSystemTests: XCTestCase {
     let expectation = XCTestExpectation(description: "refresh due to fallback --> primary")
     expectation.expectedFulfillmentCount = 2
     sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
-      // Syntactic analysis - no expected errors here.
-      XCTAssertEqual(note.params.diagnostics.count, 0)
+      // Syntactic analysis with new args - one expected errors here (for `func`).
+      XCTAssertEqual(note.params.diagnostics.count, 1)
       expectation.fulfill()
     }
     sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
-      // Syntactic analysis - one error since `-DFOO` was not passed.
-      XCTAssertEqual(note.params.diagnostics.count, 1)
+      // Semantic analysis - two errors since `-DFOO` was not passed.
+      XCTAssertEqual(note.params.diagnostics.count, 2)
       expectation.fulfill()
     }
     buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(settings)])

@@ -215,8 +215,5 @@ extension TibsToolchain {
 }
 
 extension TestLocation {
-  public var docIdentifier: TextDocumentIdentifier {
-    // Resolve symlinks to mirror that of clangd.
-    TextDocumentIdentifier(url)
-  }
+  public var docIdentifier: TextDocumentIdentifier { TextDocumentIdentifier(url) }
 }
