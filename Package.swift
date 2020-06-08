@@ -126,6 +126,7 @@ let package = Package(
         dependencies: [
           "SourceKitD",
           "SKCore",
+          "SKTestSupport",
         ]
       ),
 
