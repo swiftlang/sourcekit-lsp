@@ -101,6 +101,7 @@ def handle_invocation(swift_exec, args):
   env = os.environ
   # Set the toolchain used in tests at runtime
   env['SOURCEKIT_TOOLCHAIN_PATH'] = args.toolchain
+  env['INDEXSTOREDB_TOOLCHAIN_BIN_PATH'] = args.toolchain
   # Use local dependencies (i.e. checked out next sourcekit-lsp).
   if not args.no_local_deps:
     env['SWIFTCI_USE_LOCAL_DEPS'] = "1"
