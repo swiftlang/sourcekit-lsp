@@ -40,7 +40,7 @@ target_link_libraries(SourceKitLSP PUBLIC
   SourceKitD
   TSCUtility)
 if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
-  target_link_libraries(SourceKit PRIVATE
+  target_link_libraries(SourceKitLSP PRIVATE
     FoundationXML)
 endif()
 
