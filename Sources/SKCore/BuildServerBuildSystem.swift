@@ -248,7 +248,11 @@ private func makeJSONRPCBuildServer(client: MessageHandler, serverPath: Absolute
     outFD: clientToServer.fileHandleForWriting.fileDescriptor
   )
 
-  connection.start(receiveHandler: client)
+  connection.start(receiveHandler: client) {
+    // FIXME: keep the pipes alive until we close the connection. This
+    // should be fixed systemically.
+    withExtendedLifetime((clientToServer, serverToClient)) {}
+  }
   let process = Foundation.Process()
 
   if #available(OSX 10.13, *) {
