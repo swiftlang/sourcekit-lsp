@@ -19,7 +19,7 @@ import SourceKit
 import class Foundation.Pipe
 import LSPTestSupport
 
-public struct TestSourceKitServer {
+public final class TestSourceKitServer {
   public enum ConnectionKind {
     case local, jsonrpc
   }
@@ -39,6 +39,8 @@ public struct TestSourceKitServer {
 
   public let client: TestClient
   let connImpl: ConnectionImpl
+
+  public var hasShutdown: Bool = false
 
   /// The server, if it is in the same process.
   public let server: SourceKitServer?
@@ -98,15 +100,15 @@ public struct TestSourceKitServer {
     }
   }
 
-  func close() {
-    switch connImpl {
-      case .local(clientConnection: let cc, serverConnection: let sc):
-      cc.close()
-      sc.close()
+  deinit {
+    close()
+  }
 
-    case .jsonrpc(clientToServer: _, serverToClient: _, clientConnection: let cc, serverConnection: let sc):
-      cc.close()
-      sc.close()
+  func close() {
+    if !hasShutdown {
+      hasShutdown = true
+      _ = try! self.client.sendSync(ShutdownRequest())
+      self.client.send(ExitNotification())
     }
   }
 }

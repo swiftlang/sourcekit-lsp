@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -63,7 +63,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   /// The server's request queue, used to serialize requests and responses to `sourcekitd`.
   public let queue: DispatchQueue = DispatchQueue(label: "swift-language-server-queue", qos: .userInitiated)
 
-  let client: Connection
+  let client: LocalConnection
 
   let sourcekitd: SwiftSourceKitFramework
 
@@ -82,8 +82,6 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   var buildSettingsByFile: [DocumentURI: FileBuildSettings] = [:]
 
-  let onExit: () -> Void
-
   var api: sourcekitd_functions_t { return sourcekitd.api }
   var keys: sourcekitd_keys { return sourcekitd.keys }
   var requests: sourcekitd_requests { return sourcekitd.requests }
@@ -95,8 +93,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     sourcekitd: AbsolutePath,
     buildSystem: BuildSystem,
     clientCapabilities: ClientCapabilities,
-    serverOptions: SourceKitServer.Options,
-    onExit: @escaping () -> Void = {}
+    serverOptions: SourceKitServer.Options
   ) throws {
     self.client = client
     self.sourcekitd = try SwiftSourceKitFramework(dylib: sourcekitd)
@@ -104,7 +101,6 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     self.clientCapabilities = clientCapabilities
     self.serverOptions = serverOptions
     self.documentManager = DocumentManager()
-    self.onExit = onExit
   }
 
   /// Should be called on self.queue.
@@ -225,19 +221,16 @@ extension SwiftLanguageServer {
     // Nothing to do.
   }
 
-  func shutdown(_ request: Request<ShutdownRequest>) {
+  public func shutdown() {
     queue.async {
       if let session = self.currentCompletionSession {
         session.close()
         self.currentCompletionSession = nil
       }
       self.api.set_notification_handler(nil)
+      client.close()
+      api.shutdown()
     }
-  }
-
-  func exit(_ notification: Notification<ExitNotification>) {
-    api.shutdown()
-    onExit()
   }
 
   // MARK: - Build System Integration

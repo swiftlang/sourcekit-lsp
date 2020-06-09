@@ -26,6 +26,8 @@ final class ClangLanguageServerShim: ToolchainLanguageServer {
 
   let clangd: Connection
 
+  let client: LocalConnection
+
   var capabilities: ServerCapabilities? = nil
 
   let buildSystem: BuildSystem
@@ -33,9 +35,14 @@ final class ClangLanguageServerShim: ToolchainLanguageServer {
   let clang: AbsolutePath?
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, clangd: Connection, buildSystem: BuildSystem,
-              clang: AbsolutePath?) throws {
+  public init(
+    client: LocalConnection,
+    clangd: Connection,
+    buildSystem: BuildSystem,
+    clang: AbsolutePath?
+  ) throws {
     self.clangd = clangd
+    self.client = client
     self.buildSystem = buildSystem
     self.clang = clang
   }
@@ -80,6 +87,13 @@ extension ClangLanguageServerShim {
 
   public func clientInitialized(_ initialized: InitializedNotification) {
     clangd.send(initialized)
+  }
+
+  public func shutdown() {
+    _ = clangd.send(ShutdownRequest(), queue: queue) { [weak self] _ in
+      self?.clangd.send(ExitNotification())
+      self?.client.close()
+    }
   }
 
   // MARK: - Text synchronization

@@ -421,6 +421,10 @@ extension SourceKitServer {
 
   func shutdown(_ request: Request<ShutdownRequest>) {
     _prepareForExit()
+    for service in languageService.values {
+      service.shutdown()
+    }
+    languageService = [:]
     request.reply(VoidResponse())
   }
 
