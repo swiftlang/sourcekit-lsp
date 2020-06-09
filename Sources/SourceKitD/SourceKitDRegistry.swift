@@ -69,10 +69,18 @@ public final class SourceKitDRegistry {
     lock.withLock {
       let existing = active.removeValue(forKey: key)
       if let existing = existing {
-        assert(self.cemetary[key] == nil)
+        assert(self.cemetary[key]?.value == nil)
         cemetary[key] = WeakSourceKitD(value: existing)
       }
       return existing
+    }
+  }
+
+  /// Remove all SourceKitD instances, including weak ones.
+  public func clear() {
+    lock.withLock {
+      active.removeAll()
+      cemetary.removeAll()
     }
   }
 }
