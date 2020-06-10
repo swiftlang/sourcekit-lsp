@@ -19,12 +19,9 @@ public enum FileBuildSettingsChange {
   /// The `FileBuildSettings` have been modified or are newly available.
   case modified(FileBuildSettings)
 
-  /// The `BuildSystem` is providing fallback arguments which may not be correct,
-  /// or potentially is missing some generated inputs (e.g. prebuilding required).
+  /// The `BuildSystem` is providing fallback arguments which may not be correct.
   ///
-  /// This indicates that diagnostics should be withheld for the given file. In addition, going from
-  /// fallback --> modified with the exact same `FileBuildSettings` is supported and indicates that
-  /// the LSP should rebuild its AST for the given file and emit new diagnostics.
+  /// This indicates that diagnostics should be withheld for the given file.
   case fallback(FileBuildSettings)
 }
 

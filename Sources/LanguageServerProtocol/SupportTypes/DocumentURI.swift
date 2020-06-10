@@ -16,9 +16,6 @@ public struct DocumentURI: Codable, Hashable {
   /// The URL that store the URIs value
   private let storage: URL
 
-  /// Standardized URL.
-  private let standardizedStorage: URL
-
   public var fileURL: URL? {
     if storage.isFileURL {
       return storage
@@ -61,7 +58,6 @@ public struct DocumentURI: Codable, Hashable {
 
   public init(_ url: URL) {
     self.storage = url
-    self.standardizedStorage = url.standardizedFileURL
     assert(self.storage.scheme != nil, "Received invalid URI without a scheme '\(self.storage.absoluteString)'")
   }
 
@@ -69,14 +65,14 @@ public struct DocumentURI: Codable, Hashable {
     self.init(string: try decoder.singleValueContainer().decode(String.self))
   }
 
-  /// Equality check to handle escape sequences in URLs, which we otherwise preserve.
+  /// Equality check to handle escape sequences in file URLs.
   public static func == (lhs: DocumentURI, rhs: DocumentURI) -> Bool {
-    return lhs.standardizedStorage == rhs.standardizedStorage
+    return lhs.storage.scheme == rhs.storage.scheme && lhs.pseudoPath == rhs.pseudoPath
   }
 
-  /// Use the standardizedFileURL like our equality comparison.
   public func hash(into hasher: inout Hasher) {
-    hasher.combine(self.standardizedStorage)
+    hasher.combine(self.storage.scheme)
+    hasher.combine(self.pseudoPath)
   }
 
   public func encode(to encoder: Encoder) throws {

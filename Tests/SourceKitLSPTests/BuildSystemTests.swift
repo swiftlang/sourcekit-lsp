@@ -280,7 +280,10 @@ final class BuildSystemTests: XCTestCase {
   func testSwiftDocumentFallbackWithholdsSemanticDiagnostics() {
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     let doc = DocumentURI(url)
-    let settings = FallbackBuildSystem().settings(for: doc, .swift)!
+
+    // Primary settings must be different than the fallback settings.
+    var primarySettings = FallbackBuildSystem().settings(for: doc, .swift)!
+    primarySettings.compilerArguments.append("-DPRIMARY")
 
     let text = """
       #if FOO
@@ -308,7 +311,7 @@ final class BuildSystemTests: XCTestCase {
     })
 
     // Swap from fallback settings to primary build system settings.
-    buildSystem.buildSettingsByFile[doc] = settings
+    buildSystem.buildSettingsByFile[doc] = primarySettings
     let expectation = XCTestExpectation(description: "refresh due to fallback --> primary")
     expectation.expectedFulfillmentCount = 2
     sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
@@ -321,7 +324,7 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 2)
       expectation.fulfill()
     }
-    buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(settings)])
+    buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(primarySettings)])
 
     let result = XCTWaiter.wait(for: [expectation], timeout: 5)
     if result != .completed {

@@ -223,8 +223,7 @@ extension BuildSystemManager: BuildSystem {
       // It's possible that the command line arguments didn't change
       // (waitingFallback --> fallback), in that case we don't need to report a change.
       // If we were waiting though, we need to emit an initial change.
-      guard prevStatus == .waiting || status.buildSettings != prevStatus?.buildSettings
-          || status.usingFallbackSettings != prevStatus?.usingFallbackSettings else {
+      guard prevStatus == .waiting || status.buildSettings != prevStatus?.buildSettings else {
         continue
       }
       if let change = status.buildSettingsChange {
