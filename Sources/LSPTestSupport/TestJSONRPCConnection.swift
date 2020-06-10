@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -18,7 +18,7 @@ import XCTest
 // Workaround ambiguity with Foundation.
 public typealias Notification = LanguageServerProtocol.Notification
 
-public struct TestJSONRPCConnection {
+public final class TestJSONRPCConnection {
   public let clientToServer: Pipe = Pipe()
   public let serverToClient: Pipe = Pipe()
   public let client: TestClient
@@ -27,11 +27,6 @@ public struct TestJSONRPCConnection {
   public let serverConnection: JSONRPCConnection
 
   public init() {
-    // FIXME: DispatchIO doesn't like when the Pipes close behind its back even after the tests
-    // finish. Until we fix the lifetime, leak.
-    _ = Unmanaged.passRetained(clientToServer)
-    _ = Unmanaged.passRetained(serverToClient)
-
     clientConnection = JSONRPCConnection(
       protocol: testMessageRegistry,
       inFD: serverToClient.fileHandleForReading.fileDescriptor,
@@ -47,8 +42,16 @@ public struct TestJSONRPCConnection {
     client = TestClient(server: clientConnection)
     server = TestServer(client: serverConnection)
 
-    clientConnection.start(receiveHandler: client)
-    serverConnection.start(receiveHandler: server)
+    clientConnection.start(receiveHandler: client) {
+      // FIXME: keep the pipes alive until we close the connection. This
+      // should be fixed systemically.
+      withExtendedLifetime(self) {}
+    }
+    serverConnection.start(receiveHandler: server) {
+      // FIXME: keep the pipes alive until we close the connection. This
+      // should be fixed systemically.
+      withExtendedLifetime(self) {}
+    }
   }
 
   public func close() {

@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -94,7 +94,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   /// The server's request queue, used to serialize requests and responses to `sourcekitd`.
   public let queue: DispatchQueue = DispatchQueue(label: "swift-language-server-queue", qos: .userInitiated)
 
-  let client: Connection
+  let client: LocalConnection
 
   let sourcekitd: SourceKitD
 
@@ -107,19 +107,21 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   var commandsByFile: [DocumentURI: SwiftCompileCommand] = [:]
 
-  let onExit: () -> Void
-
   var keys: sourcekitd_keys { return sourcekitd.keys }
   var requests: sourcekitd_requests { return sourcekitd.requests }
   var values: sourcekitd_values { return sourcekitd.values }
 
-  /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, sourcekitd: AbsolutePath, clientCapabilities: ClientCapabilities, onExit: @escaping () -> Void = {}) throws {
+  /// Creates a language server for the given client using the sourcekitd dylib at the specified
+  /// path.
+  public init(
+    client: LocalConnection,
+    sourcekitd: AbsolutePath,
+    clientCapabilities: ClientCapabilities
+  ) throws {
     self.client = client
     self.sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitd)
     self.clientCapabilities = clientCapabilities
     self.documentManager = DocumentManager()
-    self.onExit = onExit
   }
 
   /// Publish diagnostics for the given `snapshot`. We withhold semantic diagnostics if we are using
@@ -218,12 +220,9 @@ extension SwiftLanguageServer {
     // Nothing to do.
   }
 
-  func shutdown(_ request: Request<ShutdownRequest>) {
+  public func shutdown() {
     sourcekitd.removeNotificationHandler(self)
-  }
-
-  func exit(_ notification: Notification<ExitNotification>) {
-    onExit()
+    client.close()
   }
 
   // MARK: - Build System Integration

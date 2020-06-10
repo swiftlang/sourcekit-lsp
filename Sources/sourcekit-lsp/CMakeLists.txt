@@ -11,6 +11,10 @@ target_link_libraries(sourcekit-lsp PRIVATE
   LanguageServerProtocolJSONRPC
   SourceKitLSP
   TSCUtility)
+if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
+  target_link_libraries(sourcekit-lsp PRIVATE
+    FoundationXML)
+endif()
 
 install(TARGETS sourcekit-lsp
   DESTINATION bin)

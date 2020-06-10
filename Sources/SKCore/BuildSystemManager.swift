@@ -112,7 +112,7 @@ public final class BuildSystemManager {
   weak var mainFilesProvider: MainFilesProvider?
 
   /// Build system delegate that will receive notifications about setting changes, etc.
-  var _delegate: BuildSystemDelegate?
+  weak var _delegate: BuildSystemDelegate?
 
   /// Create a BuildSystemManager that wraps the given build system. The new
   /// manager will modify the delegate of the underlying build system.

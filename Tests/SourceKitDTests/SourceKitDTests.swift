@@ -14,6 +14,8 @@ import SourceKitD
 import SKCore
 import TSCBasic
 import TSCUtility
+import ISDBTibs
+import ISDBTestSupport
 import XCTest
 
 final class SourceKitDTests: XCTestCase {
@@ -31,26 +33,38 @@ final class SourceKitDTests: XCTestCase {
   }
 
   func testMultipleNotificationHandlers() {
+    let ws = try! mutableTibsTestWorkspace(name: "proj1")!
     let sourcekitd = try! SourceKitDImpl.getOrCreate(dylibPath: SourceKitDTests.sourcekitdPath)
     let keys = sourcekitd.keys
+    let path: String = ws.testLoc("c").url.path
+
+    let isExpectedNotification = { (response: SKDResponse) -> Bool in
+      if let notification: sourcekitd_uid_t = response.value?[keys.notification],
+         let name: String = response.value?[keys.name]
+      {
+        return name == path && notification == sourcekitd.values.notification_documentupdate
+      }
+      return false
+    }
 
     let expectation1 = expectation(description: "handler 1")
     let handler1 = ClosureNotificationHandler { response in
-      XCTAssertEqual(response.value?[keys.notification], sourcekitd.values.notification_documentupdate)
-      expectation1.fulfill()
+      if isExpectedNotification(response) {
+        expectation1.fulfill()
+      }
     }
     sourcekitd.addNotificationHandler(handler1)
 
     let expectation2 = expectation(description: "handler 2")
     let handler2 = ClosureNotificationHandler { response in
-      XCTAssertEqual(response.value?[keys.notification], sourcekitd.values.notification_documentupdate)
-      expectation2.fulfill()
+      if isExpectedNotification(response) {
+        expectation2.fulfill()
+      }
     }
     sourcekitd.addNotificationHandler(handler2)
 
     let req = SKDRequestDictionary(sourcekitd: sourcekitd)
     req[keys.request] = sourcekitd.requests.editor_open
-    let path: String = #file
     req[keys.name] = path
     req[keys.sourcetext] = """
       func foo() {}
