@@ -146,7 +146,7 @@ extension ClangLanguageServerShim {
   // MARK: - Text synchronization
 
   public func openDocument(_ note: DidOpenTextDocumentNotification) {
-    self.clangd.send(note)
+    clangd.send(note)
   }
 
   public func closeDocument(_ note: DidCloseTextDocumentNotification) {
@@ -196,7 +196,7 @@ extension ClangLanguageServerShim {
     // The compile command changed, send over the new one.
     // FIXME: what should we do if we no longer have valid build settings?
     if let compileCommand = clangBuildSettings?.compileCommand {
-      self.clangd.send(DidChangeConfigurationNotification(settings: .clangd(
+      clangd.send(DidChangeConfigurationNotification(settings: .clangd(
         ClangWorkspaceSettings(
           compilationDatabaseChanges: [url.path: compileCommand]))))
     }
@@ -210,7 +210,7 @@ extension ClangLanguageServerShim {
       textDocument: VersionedTextDocumentIdentifier(uri, version: nil),
       contentChanges: [],
       forceRebuild: true)
-    self.clangd.send(note)
+    clangd.send(note)
   }
 
   // MARK: - Text Document
