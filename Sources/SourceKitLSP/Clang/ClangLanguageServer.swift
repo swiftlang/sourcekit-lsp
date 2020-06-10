@@ -33,13 +33,17 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
   /// Path to the clang binary.
   let clang: AbsolutePath?
 
-  /// Resolved build settings by file. Must be accessed on `self.queue`.
+  /// Resolved build settings by file. Must be accessed with the `lock`.
   private var buildSettingsByFile: [DocumentURI: ClangBuildSettings] = [:]
+
+  /// Lock protecting `buildSettingsByFile`.
+  private var lock: Lock
 
   /// Creates a language server for the given client referencing the clang binary at the given path.
   public init(client: Connection, clangd: Connection, clang: AbsolutePath?) throws {
     self.clangd = clangd
     self.clang = clang
+    self.lock = Lock()
     super.init(client: client)
   }
 
@@ -97,7 +101,9 @@ extension ClangLanguageServerShim {
   /// build settings.
   func publishDiagnostics(_ note: Notification<PublishDiagnosticsNotification>) {
     let params = note.params
-    let buildSettings = self.buildSettingsByFile[params.uri]
+    let buildSettings = self.lock.withLock {
+      return self.buildSettingsByFile[params.uri]
+    }
     let isFallback = buildSettings?.isFallback ?? true
     guard isFallback else {
       client.send(note.params)
@@ -127,12 +133,7 @@ extension ClangLanguageServerShim {
   // MARK: - Text synchronization
 
   public func openDocument(_ note: DidOpenTextDocumentNotification) {
-    // Need to move this onto the keep to sync with the build settings open.
-    // FIXME: we'd have to move everything to the queue to keep ing sync with this,
-    // should we just use a lock for referencing the build settings?
-    self.queue.async {
-      self.clangd.send(note)
-    }
+    self.clangd.send(note)
   }
 
   public func closeDocument(_ note: DidCloseTextDocumentNotification) {
@@ -171,36 +172,24 @@ extension ClangLanguageServerShim {
       return "settings for \(uri): \(settingsStr)"
     }
 
-    self.queue.async {
+    let changed = lock.withLock { () -> Bool in
       let prevBuildSettings = self.buildSettingsByFile[uri]
-      guard clangBuildSettings != prevBuildSettings else { return }
+      guard clangBuildSettings != prevBuildSettings else { return false }
       self.buildSettingsByFile[uri] = clangBuildSettings
+      return true
+    }
+    guard changed else { return }
 
-      if clangBuildSettings?.compileCommand != prevBuildSettings?.compileCommand {
-        // The compile command changed, send over the new one.
-        // FIXME: what should we do if we no longer have valid build settings?
-        if let compileCommand = clangBuildSettings?.compileCommand {
-          self.clangd.send(DidChangeConfigurationNotification(settings: .clangd(
-            ClangWorkspaceSettings(
-              compilationDatabaseChanges: [url.path: compileCommand]))))
-        }
-      } else if (clangBuildSettings?.isFallback != prevBuildSettings?.isFallback) {
-        // Arguments didn't change but we swapped to/from fallback, so we need to force a rebuild.
-        self.forceRebuildAST(uri)
-      }
+    // The compile command changed, send over the new one.
+    // FIXME: what should we do if we no longer have valid build settings?
+    if let compileCommand = clangBuildSettings?.compileCommand {
+      self.clangd.send(DidChangeConfigurationNotification(settings: .clangd(
+        ClangWorkspaceSettings(
+          compilationDatabaseChanges: [url.path: compileCommand]))))
     }
   }
 
   public func documentDependenciesUpdated(_ uri: DocumentURI) {
-    self.queue.async {
-      self.forceRebuildAST(uri)
-    }
-  }
-
-  /// Force clangd to rebuild an AST for the given `DocumentURI`.
-  ///
-  /// Should be called on `self.queue`.
-  private func forceRebuildAST(_ uri: DocumentURI) {
     // In order to tell clangd to reload an AST, we send it an empty `didChangeTextDocument`
     // with `forceRebuild` set in case any missing header files have been added.
     // This works well for us as the moment since clangd ignores the document version.
