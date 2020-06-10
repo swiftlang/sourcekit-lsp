@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -26,6 +26,8 @@ final class ClangLanguageServerShim: ToolchainLanguageServer {
 
   let clangd: Connection
 
+  let client: LocalConnection
+
   var capabilities: ServerCapabilities? = nil
 
   let buildSystem: BuildSystem
@@ -33,9 +35,14 @@ final class ClangLanguageServerShim: ToolchainLanguageServer {
   let clang: AbsolutePath?
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, clangd: Connection, buildSystem: BuildSystem,
-              clang: AbsolutePath?) throws {
+  public init(
+    client: LocalConnection,
+    clangd: Connection,
+    buildSystem: BuildSystem,
+    clang: AbsolutePath?
+  ) throws {
     self.clangd = clangd
+    self.client = client
     self.buildSystem = buildSystem
     self.clang = clang
   }
@@ -80,6 +87,13 @@ extension ClangLanguageServerShim {
 
   public func clientInitialized(_ initialized: InitializedNotification) {
     clangd.send(initialized)
+  }
+
+  public func shutdown() {
+    _ = clangd.send(ShutdownRequest(), queue: queue) { [weak self] _ in
+      self?.clangd.send(ExitNotification())
+      self?.client.close()
+    }
   }
 
   // MARK: - Text synchronization
@@ -247,7 +261,11 @@ func makeJSONRPCClangServer(
     clang: toolchain.clang)
 
   connectionToClient.start(handler: client)
-  connection.start(receiveHandler: client)
+  connection.start(receiveHandler: client) {
+    // FIXME: keep the pipes alive until we close the connection. This
+    // should be fixed systemically.
+    withExtendedLifetime((clientToServer, serverToClient)) {}
+  }
 
   let process = Foundation.Process()
 
