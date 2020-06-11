@@ -20,8 +20,6 @@ public enum FileBuildSettingsChange {
   case modified(FileBuildSettings)
 
   /// The `BuildSystem` is providing fallback arguments which may not be correct.
-  ///
-  /// This indicates that diagnostics should be withheld for the given file.
   case fallback(FileBuildSettings)
 }
 
