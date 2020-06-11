@@ -28,8 +28,9 @@ final class LanguageServerProtocolTests: XCTestCase {
   }
 
   func testURLEscaping() {
-    let expectedURL = URL(string: "file:///folder/image@3x.png")
-    let doc = DocumentURI(string: "file:///folder/image%403x.png")
-    XCTAssertEqual(doc.fileURL, expectedURL)
+    let fileURI = DocumentURI(URL(fileURLWithPath: "/folder/image@3x.png", isDirectory: false))
+    let encodedURI = DocumentURI(string: "file:///folder/image%403x.png")
+    XCTAssertEqual(encodedURI, fileURI)
+    XCTAssertEqual(encodedURI.hashValue, fileURI.hashValue)
   }
 }

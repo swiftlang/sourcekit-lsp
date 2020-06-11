@@ -21,10 +21,12 @@ enum MainFileStatus: Equatable {
   /// Waiting for the `BuildSystem` to return settings.
   case waiting
 
-  /// No response from `BuildSystem` yet, using fallback arguments.
+  /// No response from `BuildSystem` yet, using arguments from the fallback build system.
   case waitingUsingFallback(FileBuildSettings)
 
-  /// `BuildSystem` didn't handle the file, using fallback arguments.
+  /// Two cases here:
+  /// - Primary build system gave us fallback arguments to use.
+  /// - Primary build system didn't handle the file, using arguments from the fallback build system.
   /// No longer waiting.
   case fallback(FileBuildSettings)
 
@@ -64,8 +66,8 @@ extension MainFileStatus {
     switch self {
     case .waiting: return nil
     case .unsupported: return .removedOrUnavailable
-    case .waitingUsingFallback(let settings): return .modified(settings)
-    case .fallback(let settings): return .modified(settings)
+    case .waitingUsingFallback(let settings): return .fallback(settings)
+    case .fallback(let settings): return .fallback(settings)
     case .primary(let settings): return .modified(settings)
     }
   }
@@ -194,7 +196,7 @@ extension BuildSystemManager: BuildSystem {
       // Only have a fallback build system. We consider it be a primary build
       // system that functions synchronously.
       if let settings = fallback.settings(for: mainFile, language) {
-        newStatus = .fallback(settings)
+        newStatus = .primary(settings)
       } else {
         newStatus = .unsupported
       }
@@ -331,7 +333,7 @@ extension BuildSystemManager: BuildSystemDelegate {
         let newStatus: MainFileStatus
 
         if let newSettings = settingsChange.newSettings {
-          newStatus = .primary(newSettings)
+          newStatus = settingsChange.isFallback ? .fallback(newSettings) : .primary(newSettings)
         } else if let fallback = self.fallbackBuildSystem {
           // FIXME: we need to stop threading the language everywhere, or we need the build system
           // itself to pass it in here. Or alteratively cache the fallback settings/language earlier?

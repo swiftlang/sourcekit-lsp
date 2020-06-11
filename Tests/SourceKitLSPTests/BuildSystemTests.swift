@@ -227,6 +227,111 @@ final class BuildSystemTests: XCTestCase {
     }
   }
 
+  func testClangdDocumentFallbackWithholdsDiagnostics() {
+    guard haveClangd else { return }
+
+    let url = URL(fileURLWithPath: "/\(#function)/file.m")
+    let doc = DocumentURI(url)
+    let args = [url.path, "-DDEBUG"]
+    let text = """
+      #ifdef FOO
+      static void foo() {}
+      #endif
+
+      int main() {
+        foo();
+        return 0;
+      }
+    """
+
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: doc,
+      language: .objective_c,
+      version: 12,
+      text: text
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      // Expect diagnostics to be withheld.
+      XCTAssertEqual(note.params.diagnostics.count, 0)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(doc)!.text)
+    })
+
+    // Modify the build settings and inform the delegate.
+    // This should trigger a new publish diagnostics and we should see a diagnostic.
+    let newSettings = FileBuildSettings(compilerArguments: args)
+    buildSystem.buildSettingsByFile[doc] = newSettings
+
+    let expectation = XCTestExpectation(description: "refresh due to fallback --> primary")
+    sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(doc)!.text)
+      expectation.fulfill()
+    }
+
+    buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
+
+    let result = XCTWaiter.wait(for: [expectation], timeout: 5)
+    if result != .completed {
+      fatalError("error \(result) waiting for diagnostics notification")
+    }
+  }
+
+  func testSwiftDocumentFallbackWithholdsSemanticDiagnostics() {
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let doc = DocumentURI(url)
+
+    // Primary settings must be different than the fallback settings.
+    var primarySettings = FallbackBuildSystem().settings(for: doc, .swift)!
+    primarySettings.compilerArguments.append("-DPRIMARY")
+
+    let text = """
+      #if FOO
+      func foo() {}
+      #endif
+
+      foo()
+      func
+    """
+
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: doc,
+      language: .swift,
+      version: 12,
+      text: text
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      // Syntactic analysis - one expected errors here (for `func`).
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(doc)!.text)
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      // Should be the same syntactic analysis since we are using fallback arguments
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+    })
+
+    // Swap from fallback settings to primary build system settings.
+    buildSystem.buildSettingsByFile[doc] = primarySettings
+    let expectation = XCTestExpectation(description: "refresh due to fallback --> primary")
+    expectation.expectedFulfillmentCount = 2
+    sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      // Syntactic analysis with new args - one expected errors here (for `func`).
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      expectation.fulfill()
+    }
+    sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+      // Semantic analysis - two errors since `-DFOO` was not passed.
+      XCTAssertEqual(note.params.diagnostics.count, 2)
+      expectation.fulfill()
+    }
+    buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(primarySettings)])
+
+    let result = XCTWaiter.wait(for: [expectation], timeout: 5)
+    if result != .completed {
+      fatalError("error \(result) waiting for diagnostics notification")
+    }
+  }
+
   func testSwiftDocumentBuildSettingsChangedFalseAlarm() {
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     let doc = DocumentURI(url)
@@ -244,7 +349,7 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 1)
       XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(doc)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
-      // Semantic analysis - expect one error here.
+      // Using fallback system, so we will receive the same syntactic diagnostics from before.
       XCTAssertEqual(note.params.diagnostics.count, 1)
     })
 
@@ -274,11 +379,8 @@ final class BuildSystemTests: XCTestCase {
 
     let expectation = self.expectation(description: "initial")
     ws.testServer.client.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
-      XCTAssertEqual(note.params.diagnostics.count, 1)
-      if let diag = note.params.diagnostics.first {
-        XCTAssertEqual(diag.severity, .warning)
-        XCTAssertEqual(diag.message, "UNKNOWN_MAIN_FILE")
-      }
+      // Should withhold diagnostics since we should be using fallback arguments.
+      XCTAssertEqual(note.params.diagnostics.count, 0)
       expectation.fulfill()
     }
 
@@ -318,5 +420,9 @@ final class BuildSystemTests: XCTestCase {
     }
 
     wait(for: [use_c], timeout: 15)
+  }
+
+  private func clangBuildSettings(for uri: DocumentURI) -> FileBuildSettings {
+    return FileBuildSettings(compilerArguments: [uri.pseudoPath, "-DDEBUG"])
   }
 }

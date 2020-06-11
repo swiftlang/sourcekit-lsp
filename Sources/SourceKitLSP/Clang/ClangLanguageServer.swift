@@ -19,32 +19,54 @@ import SKSupport
 import TSCBasic
 
 /// A thin wrapper over a connection to a clangd server providing build setting handling.
-final class ClangLanguageServerShim: ToolchainLanguageServer {
+///
+/// In addition, it also intercepts notifications and replies from clangd in order to do things
+/// like witholding diagnostics when fallback build settings are being used.
+final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
 
-  /// The server's request queue, used to serialize requests and responses to `clangd`.
-  public let queue: DispatchQueue = DispatchQueue(label: "clangd-language-server-queue", qos: .userInitiated)
-
+  /// The connection to the clangd LSP.
   let clangd: Connection
 
-  let client: LocalConnection
-
+  /// Capabilities of the clangd LSP, if received.
   var capabilities: ServerCapabilities? = nil
 
-  let buildSystem: BuildSystem
-
+  /// Path to the clang binary.
   let clang: AbsolutePath?
 
-  /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
+  /// Resolved build settings by file. Must be accessed with the `lock`.
+  private var buildSettingsByFile: [DocumentURI: ClangBuildSettings] = [:]
+
+  /// Lock protecting `buildSettingsByFile`.
+  private var lock: Lock
+
+  /// Creates a language server for the given client referencing the clang binary at the given path.
   public init(
     client: LocalConnection,
     clangd: Connection,
-    buildSystem: BuildSystem,
     clang: AbsolutePath?
   ) throws {
     self.clangd = clangd
-    self.client = client
-    self.buildSystem = buildSystem
     self.clang = clang
+    self.lock = Lock()
+    super.init(client: client)
+  }
+
+  public override func _registerBuiltinHandlers() {
+    _register(ClangLanguageServerShim.publishDiagnostics)
+  }
+
+  public override func _handleUnknown<R>(_ req: Request<R>) {
+    guard req.clientID != ObjectIdentifier(clangd) else {
+      forwardRequest(req, to: client)
+      return
+    }
+    super._handleUnknown(req)
+  }
+
+  public override func _handleUnknown<N>(_ note: Notification<N>) {
+    if note.clientID == ObjectIdentifier(clangd) {
+      client.send(note.params)
+    }
   }
 
   /// Forwards a request to the given connection, taking care of replying to the original request
@@ -75,7 +97,30 @@ final class ClangLanguageServerShim: ToolchainLanguageServer {
   }
 }
 
-// MARK: - Request and notification handling
+// MARK: - LanguageServer
+
+extension ClangLanguageServerShim {
+
+  /// Intercept clangd's `PublishDiagnosticsNotification` to withold it if we're using fallback
+  /// build settings.
+  func publishDiagnostics(_ note: Notification<PublishDiagnosticsNotification>) {
+    let params = note.params
+    let buildSettings = self.lock.withLock {
+      return self.buildSettingsByFile[params.uri]
+    }
+    let isFallback = buildSettings?.isFallback ?? true
+    guard isFallback else {
+      client.send(note.params)
+      return
+    }
+    // Fallback: send empty publish notification instead.
+    client.send(PublishDiagnosticsNotification(
+      uri: params.uri, version: params.version, diagnostics: []))
+  }
+
+}
+
+// MARK: - ToolchainLanguageServer
 
 extension ClangLanguageServerShim {
 
@@ -92,7 +137,9 @@ extension ClangLanguageServerShim {
   public func shutdown() {
     _ = clangd.send(ShutdownRequest(), queue: queue) { [weak self] _ in
       self?.clangd.send(ExitNotification())
-      self?.client.close()
+      if let localConnection = self?.client as? LocalConnection {
+        localConnection.close()
+      }
     }
   }
 
@@ -104,6 +151,10 @@ extension ClangLanguageServerShim {
 
   public func closeDocument(_ note: DidCloseTextDocumentNotification) {
     clangd.send(note)
+
+    // Don't clear cached build settings since we've already informed clangd of the settings for the
+    // file; if we clear the build settings here we should give clangd dummy build settings to make
+    // sure we're in sync.
   }
 
   public func changeDocument(_ note: DidChangeTextDocumentNotification) {
@@ -122,37 +173,32 @@ extension ClangLanguageServerShim {
 
   // MARK: - Build System Integration
 
-  public func documentUpdatedBuildSettings(_ uri: DocumentURI, settings: FileBuildSettings?) {
+  public func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) {
     guard let url = uri.fileURL else {
       // FIXME: The clang workspace can probably be reworked to support non-file URIs.
       log("Received updated build settings for non-file URI '\(uri)'. Ignoring the update.")
       return
     }
-
-    logAsync(level: settings == nil ? .warning : .debug) { _ in
-      let settingsStr = settings == nil ? "nil" : settings!.compilerArguments.description
+    let clangBuildSettings = ClangBuildSettings(change: change, clang: self.clang)
+    logAsync(level: clangBuildSettings == nil ? .warning : .debug) { _ in
+      let settingsStr = clangBuildSettings == nil ? "nil" : clangBuildSettings!.compilerArgs.description
       return "settings for \(uri): \(settingsStr)"
     }
 
-    if var settings = settings {
-      if settings.compilerArguments.contains("-fmodules") == true {
-        // Clangd is not built with support for the 'obj' format.
-        settings.compilerArguments.append(contentsOf: [
-          "-Xclang", "-fmodule-format=raw"
-        ])
-      }
-      if let workingDirectory = settings.workingDirectory {
-        // FIXME: this is a workaround for clangd not respecting the compilation
-        // database's "directory" field for relative -fmodules-cache-path.
-        // rdar://63984913
-        settings.compilerArguments.append(contentsOf: [
-          "-working-directory", workingDirectory
-        ])
-      }
+    let changed = lock.withLock { () -> Bool in
+      let prevBuildSettings = self.buildSettingsByFile[uri]
+      guard clangBuildSettings != prevBuildSettings else { return false }
+      self.buildSettingsByFile[uri] = clangBuildSettings
+      return true
+    }
+    guard changed else { return }
 
+    // The compile command changed, send over the new one.
+    // FIXME: what should we do if we no longer have valid build settings?
+    if let compileCommand = clangBuildSettings?.compileCommand {
       clangd.send(DidChangeConfigurationNotification(settings: .clangd(
         ClangWorkspaceSettings(
-          compilationDatabaseChanges: [url.path: ClangCompileCommand(settings, clang: clang)]))))
+          compilationDatabaseChanges: [url.path: compileCommand]))))
     }
   }
 
@@ -236,20 +282,19 @@ extension ClangLanguageServerShim {
 func makeJSONRPCClangServer(
   client: MessageHandler,
   toolchain: Toolchain,
-  buildSystem: BuildSystem,
   clangdOptions: [String]
 ) throws -> ToolchainLanguageServer {
   guard let clangd = toolchain.clangd else {
     preconditionFailure("missing clang from toolchain \(toolchain.identifier)")
   }
 
-  let clientToServer: Pipe = Pipe()
-  let serverToClient: Pipe = Pipe()
+  let usToClangd: Pipe = Pipe()
+  let clangdToUs: Pipe = Pipe()
 
   let connection = JSONRPCConnection(
     protocol: MessageRegistry.lspProtocol,
-    inFD: serverToClient.fileHandleForReading.fileDescriptor,
-    outFD: clientToServer.fileHandleForWriting.fileDescriptor
+    inFD: clangdToUs.fileHandleForReading.fileDescriptor,
+    outFD: usToClangd.fileHandleForWriting.fileDescriptor
   )
 
   let connectionToClient = LocalConnection()
@@ -257,14 +302,13 @@ func makeJSONRPCClangServer(
   let shim = try ClangLanguageServerShim(
     client: connectionToClient,
     clangd: connection,
-    buildSystem: buildSystem,
     clang: toolchain.clang)
 
   connectionToClient.start(handler: client)
-  connection.start(receiveHandler: client) {
+  connection.start(receiveHandler: shim) {
     // FIXME: keep the pipes alive until we close the connection. This
     // should be fixed systemically.
-    withExtendedLifetime((clientToServer, serverToClient)) {}
+    withExtendedLifetime((usToClangd, clangdToUs)) {}
   }
 
   let process = Foundation.Process()
@@ -278,11 +322,11 @@ func makeJSONRPCClangServer(
   process.arguments = [
     "-compile_args_from=lsp",   // Provide compiler args programmatically.
     "-background-index=false",  // Disable clangd indexing, we use the build
-    "-index=false",             // system index store instead.
+    "-index=false"             // system index store instead.
   ] + clangdOptions
 
-  process.standardOutput = serverToClient
-  process.standardInput = clientToServer
+  process.standardOutput = clangdToUs
+  process.standardInput = usToClangd
   process.terminationHandler = { process in
     log("clangd exited: \(process.terminationReason) \(process.terminationStatus)")
     connection.close()
@@ -297,11 +341,50 @@ func makeJSONRPCClangServer(
   return shim
 }
 
-extension ClangCompileCommand {
-  init(_ settings: FileBuildSettings, clang: AbsolutePath?) {
-    // Clang expects the first argument to be the program name, like argv.
-    self.init(
-      compilationCommand: [clang?.pathString ?? "clang"] + settings.compilerArguments,
-      workingDirectory: settings.workingDirectory ?? "")
+/// Clang build settings derived from a `FileBuildSettingsChange`.
+private struct ClangBuildSettings: Equatable {
+  /// The compiler arguments, including the program name, argv[0].
+  public let compilerArgs: [String]
+
+  /// The working directory for the invocation.
+  public let workingDirectory: String
+
+  /// Whether the compiler arguments are considered fallback - we withhold diagnostics for
+  /// fallback arguments and represent the file state differently.
+  public let isFallback: Bool
+
+  public init(_ settings: FileBuildSettings, clang: AbsolutePath?, isFallback: Bool = false) {
+    var arguments = [clang?.pathString ?? "clang"] + settings.compilerArguments
+    if arguments.contains("-fmodules") {
+      // Clangd is not built with support for the 'obj' format.
+      arguments.append(contentsOf: [
+        "-Xclang", "-fmodule-format=raw"
+      ])
+    }
+    if let workingDirectory = settings.workingDirectory {
+      // FIXME: this is a workaround for clangd not respecting the compilation
+      // database's "directory" field for relative -fmodules-cache-path.
+      // rdar://63984913
+      arguments.append(contentsOf: [
+        "-working-directory", workingDirectory
+      ])
+    }
+
+    self.compilerArgs = arguments
+    self.workingDirectory = settings.workingDirectory ?? ""
+    self.isFallback = isFallback
+  }
+
+  public init?(change: FileBuildSettingsChange, clang: AbsolutePath?) {
+    switch change {
+    case .fallback(let settings): self.init(settings, clang: clang, isFallback: true)
+    case .modified(let settings): self.init(settings, clang: clang, isFallback: false)
+    case .removedOrUnavailable: return nil
+    }
+  }
+
+  public var compileCommand: ClangCompileCommand {
+    return ClangCompileCommand(
+        compilationCommand: self.compilerArgs, workingDirectory: self.workingDirectory)
   }
 }
