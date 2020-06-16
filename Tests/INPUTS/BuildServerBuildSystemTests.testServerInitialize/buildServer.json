@@ -3,5 +3,7 @@
     "version": "10",
     "bspVersion": "2.0",
     "languages": ["a", "b"],
-    "argv": ["server.py"]
+    "argv": ["server.py"],
+    "indexStorePath": "some/index/store/path",
+    "indexStoreDatabasePath": "some/index/db/path"
 }

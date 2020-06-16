@@ -31,24 +31,6 @@ final class BuildServerBuildSystemTests: XCTestCase {
     XCTAssertEqual(buildSystem.indexStorePath, AbsolutePath("some/index/store/path", relativeTo: root))
   }
 
-  func testSettings() throws {
-    let root = AbsolutePath(
-      inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
-    let buildFolder = AbsolutePath(NSTemporaryDirectory())
-    let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
-
-    // test settings with a response
-    let fileURL = URL(fileURLWithPath: "/path/to/some/file.swift")
-    let settings = buildSystem._settings(for: DocumentURI(fileURL))
-    XCTAssertNotNil(settings)
-    XCTAssertEqual(settings?.compilerArguments, ["-a", "-b"])
-    XCTAssertEqual(settings?.workingDirectory, fileURL.deletingLastPathComponent().path)
-
-    // test error
-    let missingFileURL = URL(fileURLWithPath: "/path/to/some/missingfile.missing")
-    XCTAssertNil(buildSystem._settings(for: DocumentURI(missingFileURL)))
-  }
-
   func testFileRegistration() throws {
     let root = AbsolutePath(
       inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)

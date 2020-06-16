@@ -27,18 +27,28 @@ public final class BuildServerBuildSystem {
   let projectRoot: AbsolutePath
   let buildFolder: AbsolutePath?
   let serverConfig: BuildServerConfig
-  let requestQueue: DispatchQueue
-
-  var handler: BuildServerHandler?
+  let requestQueue = DispatchQueue(label: "build_server_request_queue")
+  let handler: BuildServerHandler = BuildServerHandler()
   var buildServer: JSONRPCConnection?
 
-  public private(set) var indexDatabasePath: AbsolutePath?
-  public private(set) var indexStorePath: AbsolutePath?
+  public var indexDatabasePath: AbsolutePath? {
+    if let indexDbPath = serverConfig.indexStoreDatabasePath {
+      return AbsolutePath(indexDbPath, relativeTo: projectRoot)
+    }
+    return nil
+  }
+
+  public var indexStorePath: AbsolutePath? {
+    if let indexStorePath = serverConfig.indexStorePath {
+      return AbsolutePath(indexStorePath, relativeTo: projectRoot)
+    }
+    return nil
+  }
 
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate? {
-    get { return self.handler?.delegate }
-    set { self.handler?.delegate = newValue }
+    get { return self.handler.delegate }
+    set { self.handler.delegate = newValue }
   }
 
   public init(projectRoot: AbsolutePath, buildFolder: AbsolutePath?, fileSystem: FileSystem = localFileSystem) throws {
@@ -46,7 +56,6 @@ public final class BuildServerBuildSystem {
     let config = try loadBuildServerConfig(path: configPath, fileSystem: fileSystem)
     self.buildFolder = buildFolder
     self.projectRoot = projectRoot
-    self.requestQueue = DispatchQueue(label: "build_server_request_queue")
     self.serverConfig = config
     try self.initializeBuildServer()
   }
@@ -99,31 +108,18 @@ public final class BuildServerBuildSystem {
       rootUri: URI(self.projectRoot.asURL),
       capabilities: BuildClientCapabilities(languageIds: languages))
 
-    let handler = BuildServerHandler()
-    let buildServer = try makeJSONRPCBuildServer(client: handler, serverPath: serverPath, serverFlags: flags)
-    let response = try buildServer.sendSync(initializeRequest)
-    buildServer.send(InitializedBuildNotification())
-    log("initialized build server \(response.displayName)")
-
-    // see if index store was set as part of the server metadata
-    if let indexDbPath = readReponseDataKey(data: response.data, key: "indexDatabasePath") {
-      self.indexDatabasePath = AbsolutePath(indexDbPath, relativeTo: self.projectRoot)
-    }
-    if let indexStorePath = readReponseDataKey(data: response.data, key: "indexStorePath") {
-      self.indexStorePath = AbsolutePath(indexStorePath, relativeTo: self.projectRoot)
-    }
-    self.buildServer = buildServer
-    self.handler = handler
+    self.buildServer = try makeJSONRPCBuildServer(client: self.handler, serverPath: serverPath, serverFlags: flags)
+    let _ = self.buildServer?.send(initializeRequest, queue: requestQueue, reply: { result in
+        switch result {
+        case .success(let response):
+          self.buildServer?.send(InitializedBuildNotification())
+          log("initialized build server \(response.displayName)")
+        case .failure(let error):
+          self.buildServer = nil
+          log("error initializing build server: \(error)")
+        }
+    })
   }
-}
-
-private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
-  if case .dictionary(let dataDict)? = data,
-    case .string(let stringVal)? = dataDict[key] {
-    return stringVal
-  }
-
-  return nil
 }
 
 final class BuildServerHandler: LanguageServerEndpoint {
@@ -144,18 +140,6 @@ final class BuildServerHandler: LanguageServerEndpoint {
     let settings = FileBuildSettings(
         compilerArguments: result.options, workingDirectory: result.workingDirectory)
     self.delegate?.fileBuildSettingsChanged([notification.params.uri: .modified(settings)])
-  }
-}
-
-extension BuildServerBuildSystem {
-  /// Exposed for *testing*.
-  public func _settings(for uri: DocumentURI) -> FileBuildSettings? {
-    if let response = try? self.buildServer?.sendSync(SourceKitOptions(uri: uri)) {
-      return FileBuildSettings(
-        compilerArguments: response.options,
-        workingDirectory: response.workingDirectory)
-    }
-    return nil
   }
 }
 
@@ -242,6 +226,12 @@ struct BuildServerConfig: Codable {
 
   /// Command arguments runnable via system processes to start a BSP server.
   let argv: [String]
+
+  /// Path to use for the index store
+  let indexStorePath: String?
+
+  /// Path to use for the index store database
+  let indexStoreDatabasePath: String?
 }
 
 private func makeJSONRPCBuildServer(client: MessageHandler, serverPath: AbsolutePath, serverFlags: [String]?) throws -> JSONRPCConnection {
