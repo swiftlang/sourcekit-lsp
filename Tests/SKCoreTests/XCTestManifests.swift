@@ -23,9 +23,9 @@ extension BuildSystemManagerTests {
     static let __allTests__BuildSystemManagerTests = [
         ("testDependenciesUpdated", testDependenciesUpdated),
         ("testMainFiles", testMainFiles),
+        ("testSettingsAndFileStatusMainFile", testSettingsAndFileStatusMainFile),
         ("testSettingsChangedAfterUnregister", testSettingsChangedAfterUnregister),
         ("testSettingsHeaderChangeMainFile", testSettingsHeaderChangeMainFile),
-        ("testSettingsMainFile", testSettingsMainFile),
         ("testSettingsMainFileInitialIntersect", testSettingsMainFileInitialIntersect),
         ("testSettingsMainFileInitialNil", testSettingsMainFileInitialNil),
         ("testSettingsMainFileUnchanged", testSettingsMainFileUnchanged),

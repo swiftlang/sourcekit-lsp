@@ -299,6 +299,16 @@ extension SwiftLanguageServer {
     }
   }
 
+  public func documentFileStatusChanged(_ uri: DocumentURI, fileStatus: FileStatus) {
+    let note = SourceKitFileStatusNotification(
+      textDocument: TextDocumentIdentifier(uri),
+      state: fileStatus.state.skFileState,
+      severity: fileStatus.severity.diagnosticSeverity,
+      message: fileStatus.message,
+      operation: fileStatus.operation)
+    client.send(note)
+  }
+
   // MARK: - Text synchronization
 
   public func openDocument(_ note: DidOpenTextDocumentNotification) {

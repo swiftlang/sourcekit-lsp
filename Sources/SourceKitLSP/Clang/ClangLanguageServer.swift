@@ -33,6 +33,9 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
   /// Path to the clang binary.
   let clang: AbsolutePath?
 
+  /// SourceKit-LSP internal language server options.
+  let internalOptions: InternalServerOptions
+
   /// Resolved build settings by file. Must be accessed with the `lock`.
   private var buildSettingsByFile: [DocumentURI: ClangBuildSettings] = [:]
 
@@ -43,11 +46,13 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
   public init(
     client: LocalConnection,
     clangd: Connection,
-    clang: AbsolutePath?
+    clang: AbsolutePath?,
+    internalOptions: InternalServerOptions
   ) throws {
     self.clangd = clangd
     self.clang = clang
     self.lock = Lock()
+    self.internalOptions = internalOptions
     super.init(client: client)
   }
 
@@ -213,6 +218,16 @@ extension ClangLanguageServerShim {
     clangd.send(note)
   }
 
+  public func documentFileStatusChanged(_ uri: DocumentURI, fileStatus: FileStatus) {
+    let note = SourceKitFileStatusNotification(
+      textDocument: TextDocumentIdentifier(uri),
+      state: fileStatus.state.skFileState,
+      severity: fileStatus.severity.diagnosticSeverity,
+      message: fileStatus.message,
+      operation: fileStatus.operation)
+    client.send(note)
+  }
+
   // MARK: - Text Document
 
 
@@ -282,7 +297,8 @@ extension ClangLanguageServerShim {
 func makeJSONRPCClangServer(
   client: MessageHandler,
   toolchain: Toolchain,
-  clangdOptions: [String]
+  clangdOptions: [String],
+  internalOptions: InternalServerOptions
 ) throws -> ToolchainLanguageServer {
   guard let clangd = toolchain.clangd else {
     preconditionFailure("missing clang from toolchain \(toolchain.identifier)")
@@ -302,7 +318,8 @@ func makeJSONRPCClangServer(
   let shim = try ClangLanguageServerShim(
     client: connectionToClient,
     clangd: connection,
-    clang: toolchain.clang)
+    clang: toolchain.clang,
+    internalOptions: internalOptions)
 
   connectionToClient.start(handler: client)
   connection.start(receiveHandler: shim) {

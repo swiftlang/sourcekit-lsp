@@ -35,4 +35,8 @@ public protocol BuildSystemDelegate: AnyObject {
   /// The callee should refresh ASTs unless it is able to determine that a
   /// refresh is not necessary.
   func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>)
+
+  /// Notify the delegate of `FileStatus` changes. This may be combined with `FileStatus`
+  /// from other components (e.g. from the language server) for a final user-visible status.
+  func fileStatusesChanged(_ changes: [DocumentURI: FileStatus])
 }

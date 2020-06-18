@@ -88,7 +88,7 @@ final class BuildSystemManagerTests: XCTestCase {
     XCTAssertEqual(bsm._cachedMainFile(for: d), nil)
   }
 
-  func testSettingsMainFile() {
+  func testSettingsAndFileStatusMainFile() {
     let a = DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a])]
@@ -98,18 +98,32 @@ final class BuildSystemManagerTests: XCTestCase {
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
     let del = BSMDelegate(bsm)
+    del.checkForStatusChanges = true
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
-    let initial = expectation(description: "initial settings")
-    del.expected = [(a, bs.map[a]!, initial, #file, #line)]
+    let initialSettings = expectation(description: "initial settings")
+    del.expected = [(a, bs.map[a]!, initialSettings, #file, #line)]
+
+    let initializing = expectation(description: "initial file status")
+    let ready = expectation(description: "ready file status")
+    del.expectedFileStatusChanges[a, default: []].append(
+        (FileStatus(state: .initializing), initializing, #file, #line))
+    del.expectedFileStatusChanges[a, default: []].append(
+        (FileStatus(state: .ready), ready, #file, #line))
+
     bsm.registerForChangeNotifications(for: a, language: .swift)
-    wait(for: [initial], timeout: 10, enforceOrder: true)
+    wait(for: [initializing, initialSettings, ready], timeout: 10, enforceOrder: true)
 
     bs.map[a] = nil
     let changed = expectation(description: "changed settings")
     del.expected = [(a, nil, changed, #file, #line)]
+
+    let error = expectation(description: "error file status")
+    del.expectedFileStatusChanges[a, default: []].append(
+        (FileStatus(state: .ready, severity: .error), error, #file, #line))
+
     bsm.fileBuildSettingsChanged([a: .removedOrUnavailable])
-    wait(for: [changed], timeout: 10, enforceOrder: true)
+    wait(for: [changed, error], timeout: 10, enforceOrder: true)
   }
 
   func testSettingsMainFileInitialNil() {
@@ -495,6 +509,8 @@ private final class BSMDelegate: BuildSystemDelegate {
   unowned let bsm: BuildSystemManager
   var expected: [(uri: DocumentURI, settings: FileBuildSettings?, expectation: XCTestExpectation, file: StaticString, line: UInt)] = []
   var expectedDependenciesUpdate: [(uri: DocumentURI, expectation: XCTestExpectation, file: StaticString, line: UInt)] = []
+  var expectedFileStatusChanges: [DocumentURI: [(status: FileStatus, expectation: XCTestExpectation, file: StaticString, line: UInt)]] = [:]
+  var checkForStatusChanges: Bool = false
 
   init(_ bsm: BuildSystemManager) {
     self.bsm = bsm
@@ -527,6 +543,24 @@ private final class BSMDelegate: BuildSystemDelegate {
         }
 
         XCTAssertEqual(uri, expected.uri, file: expected.file, line: expected.line)
+        expected.expectation.fulfill()
+      }
+    }
+  }
+
+  public func fileStatusesChanged(_ changes: [DocumentURI: FileStatus]) {
+    queue.sync {
+      guard checkForStatusChanges else { return }
+      for (file, status) in changes {
+        guard expectedFileStatusChanges[file, default: []].count > 0 else {
+          XCTFail("Unexpected file status change for \(file): \(status)")
+          continue
+        }
+        let expected = expectedFileStatusChanges[file]!.remove(at: 0)
+        XCTAssertEqual(
+          status.state, expected.status.state, file: expected.file, line: expected.line)
+        XCTAssertEqual(
+          status.severity, expected.status.severity, file: expected.file, line: expected.line)
         expected.expectation.fulfill()
       }
     }

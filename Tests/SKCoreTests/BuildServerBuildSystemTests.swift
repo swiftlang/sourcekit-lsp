@@ -215,4 +215,8 @@ final class TestDelegate: BuildSystemDelegate {
       dependenciesUpdatedExpectations[uri]?.fulfill()
     }
   }
+
+  public func fileStatusesChanged(_ changes: [DocumentURI: FileStatus]) {
+    // TODO(davg)
+  }
 }

@@ -56,7 +56,6 @@ public final class SourceKitServer: LanguageServer {
 
   /// Creates a language server for the given client.
   public init(client: Connection, fileSystem: FileSystem = localFileSystem, options: Options, onExit: @escaping () -> Void = {}) {
-
     self.fs = fileSystem
     self.toolchainRegistry = ToolchainRegistry.shared
     self.options = options
@@ -397,6 +396,28 @@ extension SourceKitServer: BuildSystemDelegate {
       }
     }
   }
+
+  /// Handle a file status change from the `BuildSystem`.
+  ///
+  /// We inform the respective language services as long as the given file is open
+  /// (not queued for opening) and file status notifications have been enabled by the client.
+  public func fileStatusesChanged(_ changes: [DocumentURI: FileStatus]) {
+    queue.async {
+      guard let workspace = self.workspace, self.options.languageServerOptions.fileStatus else {
+        return
+      }
+      let documentManager = workspace.documentManager
+      let openDocuments = documentManager.openDocuments
+      for (uri, change) in changes {
+        // Non-ready documents should be considered open even though we haven't
+        // opened it with the language service yet.
+        guard openDocuments.contains(uri) else { continue }
+        if let service = workspace.documentService[uri] {
+          service.documentFileStatusChanged(uri, fileStatus: change)
+        }
+      }
+    }
+  }
 }
 
 // MARK: - Request and notification handling
@@ -426,6 +447,9 @@ extension SourceKitServer {
         case .some(let invalid):
           log("expected null or int for 'maxResults'; got \(invalid)", level: .warning)
         }
+      }
+      if case .bool(let fileStatus) = options["sourcekit/fileStatus"] {
+        self.options.languageServerOptions.fileStatus = fileStatus
       }
     }
 
@@ -1004,10 +1028,13 @@ public func languageService(
   in workspace: Workspace) throws -> ToolchainLanguageServer?
 {
   switch language {
-
   case .c, .cpp, .objective_c, .objective_cpp:
     guard toolchain.clangd != nil else { return nil }
-    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, clangdOptions: options.clangdOptions)
+    return try makeJSONRPCClangServer(
+      client: client,
+      toolchain: toolchain,
+      clangdOptions: options.clangdOptions,
+      internalOptions: options.languageServerOptions)
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }

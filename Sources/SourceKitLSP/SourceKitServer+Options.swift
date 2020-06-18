@@ -31,16 +31,21 @@ extension SourceKitServer {
     /// Options for code-completion.
     public var completionOptions: SKCompletionOptions
 
+    /// Options for any internal `ToolchainLanguageServer`.
+    public var languageServerOptions: InternalServerOptions
+
     public init(
       buildSetup: BuildSetup = .default,
       clangdOptions: [String] = [],
       indexOptions: IndexOptions = .init(),
-      completionOptions: SKCompletionOptions = .init())
+      completionOptions: SKCompletionOptions = .init(),
+      languageServerOptions: InternalServerOptions = .init())
     {
       self.buildSetup = buildSetup
       self.clangdOptions = clangdOptions
       self.indexOptions = indexOptions
       self.completionOptions = completionOptions
+      self.languageServerOptions = languageServerOptions
     }
   }
 }

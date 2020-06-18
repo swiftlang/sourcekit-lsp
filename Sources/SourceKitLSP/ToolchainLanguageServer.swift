@@ -47,6 +47,10 @@ public protocol ToolchainLanguageServer: AnyObject {
   /// (e.g. header files, swiftmodule files, other compiler input files).
   func documentDependenciesUpdated(_ uri: DocumentURI)
 
+  /// Sent when the `BuildSystem` has updated the status for a partial file. This may be sent before
+  /// the respective `DocumentURI` has opened.
+  func documentFileStatusChanged(_ uri: DocumentURI, fileStatus: FileStatus)
+
   // MARK: - Text Document
 
   func completion(_ req: Request<CompletionRequest>)
@@ -66,4 +70,14 @@ public protocol ToolchainLanguageServer: AnyObject {
   // MARK: - Other
 
   func executeCommand(_ req: Request<ExecuteCommandRequest>)
+}
+
+/// Options for a `ToolchainLanguageServer`.
+public struct InternalServerOptions {
+  /// Whether the client supports receiving `SourceKitFileStatusNotification`.
+  public var fileStatus: Bool
+
+  public init(fileStatus: Bool = false) {
+    self.fileStatus = fileStatus
+  }
 }
