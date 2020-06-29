@@ -49,6 +49,8 @@ public final class SourceKitServer: LanguageServer {
   private var documentToPendingQueue: [DocumentURI: DocumentNotificationRequestQueue] = [:]
 
   public var workspace: Workspace?
+  
+  var schemeOutputs = [BuildTargetIdentifier: [String]]()
 
   let fs: FileSystem
 
@@ -947,6 +949,31 @@ extension SourceKitServer {
     let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
                           cancellation: req.cancellationToken, reply: callback)
     languageService.symbolInfo(request)
+  }
+  
+  func didChangeScheme(
+    _ targets: [BuildTargetIdentifier], workspace: Workspace
+  ) {
+    workspace.buildSystemManager.buildTargetOutputPaths(targets: targets) { response in
+      switch response {
+      case .success(let items):
+        let uniFilesToRemove = self.schemeOutputs.values.flatMap {$0}
+        workspace.index?.removeUnitOutFilePaths(uniFilesToRemove, waitForProcessing: false)
+        self.schemeOutputs.removeAll()
+        var unitFilesToAdd: [String] = []
+        items.forEach { item in
+          item.outputPaths.forEach { outputPathURI in
+            if outputPathURI.pseudoPath.hasSuffix(".o") {
+              unitFilesToAdd.append(outputPathURI.pseudoPath)
+              self.schemeOutputs[item.target] = self.schemeOutputs[item.target, default:[]] + [outputPathURI.pseudoPath]
+            }
+          }
+        }
+        workspace.index?.addUnitOutFilePaths(unitFilesToAdd, waitForProcessing: false)
+      case .failure(_):
+        break
+      }
+    }
   }
 
   func pollIndex(_ req: Request<PollIndexRequest>, workspace: Workspace) {
