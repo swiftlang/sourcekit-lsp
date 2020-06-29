@@ -957,19 +957,19 @@ extension SourceKitServer {
     workspace.buildSystemManager.buildTargetOutputPaths(targets: targets) { response in
       switch response {
       case .success(let items):
-        let uniFilesToRemove = self.schemeOutputs.values.flatMap {$0}
-        workspace.index?.removeUnitOutFilePaths(uniFilesToRemove, waitForProcessing: false)
+        let unitOutputsToRemove = self.schemeOutputs.values.flatMap {$0}
+        workspace.index?.removeUnitOutFilePaths(unitOutputsToRemove, waitForProcessing: false)
         self.schemeOutputs.removeAll()
-        var unitFilesToAdd: [String] = []
+        var unitOutputsToAdd: [String] = []
         items.forEach { item in
           item.outputPaths.forEach { outputPathURI in
             if outputPathURI.pseudoPath.hasSuffix(".o") {
-              unitFilesToAdd.append(outputPathURI.pseudoPath)
+              unitOutputsToAdd.append(outputPathURI.pseudoPath)
               self.schemeOutputs[item.target] = self.schemeOutputs[item.target, default:[]] + [outputPathURI.pseudoPath]
             }
           }
         }
-        workspace.index?.addUnitOutFilePaths(unitFilesToAdd, waitForProcessing: false)
+        workspace.index?.addUnitOutFilePaths(unitOutputsToAdd, waitForProcessing: false)
       case .failure(_):
         break
       }
