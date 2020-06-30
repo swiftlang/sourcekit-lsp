@@ -149,6 +149,21 @@ final class CodingTests: XCTestCase {
         "compilationDatabasePath" : "foo"
       }
       """)
+    
+    let targetUrl = URL(string: "target://path/to:target")!
+    let targetUri = DocumentURI(targetUrl)
+    let targetUrlJson = "target:\\/\\/path\\/to:target"
+    checkCoding(
+      WorkspaceSettingsChange.scheme(BuildScheme(targets: [BuildTargetIdentifier(uri: targetUri)])),
+      json: """
+      {
+        "targets" : [
+          {
+            "uri" : "\(targetUrlJson)"
+          }
+        ]
+      }
+      """)
 
     // FIXME: should probably be "unknown"; see comment in WorkspaceSettingsChange decoder.
     checkDecoding(json: """

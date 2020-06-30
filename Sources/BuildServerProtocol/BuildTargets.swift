@@ -79,14 +79,6 @@ public struct BuildTarget: Codable, Hashable {
   }
 }
 
-public struct BuildTargetIdentifier: Codable, Hashable {
-  public var uri: URI
-
-  public init(uri: URI) {
-    self.uri = uri
-  }
-}
-
 public struct BuildTargetTag: Codable, Hashable, RawRepresentable {
   public var rawValue: String
 
