@@ -143,6 +143,7 @@ extension SKTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__SKTests = [
+        ("testClangdGoToDefinitionWithoutIndex", testClangdGoToDefinitionWithoutIndex),
         ("testClangdGoToInclude", testClangdGoToInclude),
         ("testCodeCompleteSwiftTibs", testCodeCompleteSwiftTibs),
         ("testDependenciesUpdatedCXXTibs", testDependenciesUpdatedCXXTibs),
