@@ -322,4 +322,36 @@ final class SKTests: XCTestCase {
       }
     }
   }
+
+  func testClangdGoToDefinitionWithoutIndex() throws {
+    guard let ws = try staticSourceKitTibsWorkspace(name: "BasicCXX") else { return }
+    guard ToolchainRegistry.shared.default?.clangd != nil else { return }
+
+    let refLoc = ws.testLoc("Object:ref:main")
+    let expectedDoc = ws.testLoc("Object").docIdentifier.uri
+    let refPos = Position(line: refLoc.position.line, utf16index: refLoc.utf16Column + 2)
+
+    try ws.openDocument(refLoc.url, language: .c)
+
+    let goToDefinition = DefinitionRequest(
+      textDocument: refLoc.docIdentifier, position: refPos)
+    let resp = try! ws.sk.sendSync(goToDefinition)
+
+    guard let locationsOrLinks = resp else {
+      XCTFail("No response for go-to-definition")
+      return
+    }
+    switch locationsOrLinks {
+    case .locations(let locations):
+      XCTAssert(!locations.isEmpty, "Found no locations for go-to-definition")
+      if let loc = locations.first {
+        XCTAssertEqual(loc.uri, expectedDoc)
+      }
+    case .locationLinks(let locationLinks):
+      XCTAssert(!locationLinks.isEmpty, "Found no location links for go-to-definition")
+      if let link = locationLinks.first {
+        XCTAssertEqual(link.targetUri, expectedDoc)
+      }
+    }
+  }
 }
