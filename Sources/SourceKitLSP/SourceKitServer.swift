@@ -801,22 +801,32 @@ extension SourceKitServer {
   ) {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
     let index = self.workspace?.index
+    // If we're unable to handle the definition request using our index, see if the
+    // language service can handle it (e.g. clangd can provide AST based definitions).
+    let resultHandler: ([Location], ResponseError?) -> Void = { (locs, error) in
+      guard locs.isEmpty else {
+        req.reply(.locations(locs))
+        return
+      }
+      let handled = languageService.definition(req)
+      guard !handled else { return }
+      if let error = error {
+        req.reply(.failure(error))
+      } else {
+        req.reply(.locations([]))
+      }
+    }
     let callback = callbackOnQueue(self.queue) { (result: Result<SymbolInfoRequest.Response, ResponseError>) in
       guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
-        let handled = languageService.definition(req)
-        guard !handled else { return }
-        if let error = result.failure {
-          req.reply(.failure(error))
-        } else {
-          req.reply(.locations([]))
-        }
+        resultHandler([], result.failure)
         return
       }
 
       let fallbackLocation = [symbol.bestLocalDeclaration].compactMap { $0 }
 
       guard let usr = symbol.usr, let index = index else {
-        return req.reply(.locations(fallbackLocation))
+        resultHandler(fallbackLocation, nil)
+        return
       }
 
       log("performing indexed jump-to-def with usr \(usr)")
@@ -842,7 +852,7 @@ extension SourceKitServer {
         )
       }
 
-      req.reply(.locations(locations.isEmpty ? fallbackLocation : locations))
+      resultHandler(locations.isEmpty ? fallbackLocation : locations, nil)
     }
     let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
                           cancellation: req.cancellationToken, reply: callback)
