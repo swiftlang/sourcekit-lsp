@@ -107,10 +107,20 @@ do {
   exit(1)
 }
 
+// Dup stdout and redirect the fd to stderr so that a careless print()
+// will not break our connection stream.
+let realStdout = dup(STDOUT_FILENO)
+if realStdout == -1 {
+  fatalError("failed to dup stdout:  \(strerror(errno))")
+}
+if dup2(STDERR_FILENO, STDOUT_FILENO) == -1 {
+  fatalError("failed to redirect stdout -> stderr: \(strerror(errno))")
+}
+
 let clientConnection = JSONRPCConnection(
   protocol: MessageRegistry.lspProtocol,
   inFD: STDIN_FILENO,
-  outFD: STDOUT_FILENO,
+  outFD: realStdout,
   syncRequests: options.syncRequests)
 
 let installPath = AbsolutePath(Bundle.main.bundlePath)
