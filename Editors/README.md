@@ -106,7 +106,7 @@ if executable('sourcekit-lsp')
 endif
 ```
 
-
+In order for vim to recognize Swift files, you will need to have a Swift plugin like [swift.vim](https://github.com/keith/swift.vim) installed. Otherwise, `:LspStatus` will show that sourcekit-lsp is not running even if a Swift file is open.
 
 That's it! As a test, open a swift file, put cursor on top of a symbol in normal mode and
 run `:LspDefinition`. More commands are documented [here](https://github.com/prabirshrestha/vim-lsp#supported-commands).
