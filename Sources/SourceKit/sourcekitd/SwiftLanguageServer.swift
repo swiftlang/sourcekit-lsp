@@ -71,6 +71,8 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   let clientCapabilities: ClientCapabilities
 
+  let serverOptions: SourceKitServer.Options
+
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
 
@@ -86,11 +88,19 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   var values: sourcekitd_values { return sourcekitd.values }
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
-  public init(client: Connection, sourcekitd: AbsolutePath, buildSystem: BuildSystem, clientCapabilities: ClientCapabilities, onExit: @escaping () -> Void = {}) throws {
+  public init(
+    client: Connection,
+    sourcekitd: AbsolutePath,
+    buildSystem: BuildSystem,
+    clientCapabilities: ClientCapabilities,
+    serverOptions: SourceKitServer.Options,
+    onExit: @escaping () -> Void = {}
+  ) throws {
     self.client = client
     self.sourcekitd = try SwiftSourceKitFramework(dylib: sourcekitd)
     self.buildSystem = buildSystem
     self.clientCapabilities = clientCapabilities
+    self.serverOptions = serverOptions
     self.documentManager = DocumentManager()
     self.onExit = onExit
   }
@@ -1258,16 +1268,17 @@ extension DocumentSnapshot {
 }
 
 func makeLocalSwiftServer(
-  client: MessageHandler, sourcekitd: AbsolutePath, buildSettings: BuildSystem?,
-  clientCapabilities: ClientCapabilities?) throws -> ToolchainLanguageServer {
+  client: MessageHandler, sourcekitd: AbsolutePath,
+  buildSettings: BuildSystem?,
+  clientCapabilities: ClientCapabilities?, options: SourceKitServer.Options) throws -> ToolchainLanguageServer {
   let connectionToClient = LocalConnection()
 
   let server = try SwiftLanguageServer(
     client: connectionToClient,
     sourcekitd: sourcekitd,
     buildSystem: buildSettings ?? BuildSystemList(),
-    clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil)
-  )
+    clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil),
+    serverOptions: options)
   connectionToClient.start(handler: client)
   return server
 }
