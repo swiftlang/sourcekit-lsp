@@ -13,105 +13,105 @@
 import Csourcekitd
 
 public struct sourcekitd_keys {
-  public let request: sourcekitd_uid_t
-  public let compilerargs: sourcekitd_uid_t
-  public let offset: sourcekitd_uid_t
-  public let length: sourcekitd_uid_t
-  public let sourcefile: sourcekitd_uid_t
-  public let sourcetext: sourcekitd_uid_t
-  public let results: sourcekitd_uid_t
-  public let description: sourcekitd_uid_t
-  public let name: sourcekitd_uid_t
-  public let kind: sourcekitd_uid_t
-  public let notification: sourcekitd_uid_t
-  public let fixits: sourcekitd_uid_t
-  public let diagnostics: sourcekitd_uid_t
-  public let diagnostic_stage: sourcekitd_uid_t
-  public let severity: sourcekitd_uid_t
-  public let line: sourcekitd_uid_t
-  public let column: sourcekitd_uid_t
-  public let endline: sourcekitd_uid_t
-  public let endcolumn: sourcekitd_uid_t
-  public let filepath: sourcekitd_uid_t
-  public let ranges: sourcekitd_uid_t
-  public let usr: sourcekitd_uid_t
-  public let typename: sourcekitd_uid_t
-  public let annotated_decl: sourcekitd_uid_t
-  public let doc_full_as_xml: sourcekitd_uid_t
-  public let syntactic_only: sourcekitd_uid_t
-  public let substructure: sourcekitd_uid_t
-  public let bodyoffset: sourcekitd_uid_t
-  public let bodylength: sourcekitd_uid_t
-  public let syntaxmap: sourcekitd_uid_t
-  public let namelength: sourcekitd_uid_t
-  public let nameoffset: sourcekitd_uid_t
-  public let retrieve_refactor_actions: sourcekitd_uid_t
-  public let refactor_actions: sourcekitd_uid_t
   public let actionname: sourcekitd_uid_t
   public let actionuid: sourcekitd_uid_t
+  public let annotated_decl: sourcekitd_uid_t
+  public let associated_usrs: sourcekitd_uid_t
+  public let bodylength: sourcekitd_uid_t
+  public let bodyoffset: sourcekitd_uid_t
   public let categorizededits: sourcekitd_uid_t
+  public let column: sourcekitd_uid_t
+  public let compilerargs: sourcekitd_uid_t
+  public let context: sourcekitd_uid_t
+  public let description: sourcekitd_uid_t
+  public let diagnostic_stage: sourcekitd_uid_t
+  public let diagnostics: sourcekitd_uid_t
+  public let doc_brief: sourcekitd_uid_t
+  public let doc_full_as_xml: sourcekitd_uid_t
   public let edits: sourcekitd_uid_t
+  public let endcolumn: sourcekitd_uid_t
+  public let endline: sourcekitd_uid_t
+  public let filepath: sourcekitd_uid_t
+  public let fixits: sourcekitd_uid_t
+  public let kind: sourcekitd_uid_t
+  public let length: sourcekitd_uid_t
+  public let line: sourcekitd_uid_t
+  public let name: sourcekitd_uid_t
+  public let namelength: sourcekitd_uid_t
+  public let nameoffset: sourcekitd_uid_t
+  public let not_recommended: sourcekitd_uid_t
+  public let notification: sourcekitd_uid_t
+  public let num_bytes_to_erase: sourcekitd_uid_t
+  public let offset: sourcekitd_uid_t
+  public let ranges: sourcekitd_uid_t
+  public let refactor_actions: sourcekitd_uid_t
+  public let request: sourcekitd_uid_t
+  public let results: sourcekitd_uid_t
+  public let retrieve_refactor_actions: sourcekitd_uid_t
+  public let severity: sourcekitd_uid_t
+  public let sourcefile: sourcekitd_uid_t
+  public let sourcetext: sourcekitd_uid_t
+  public let substructure: sourcekitd_uid_t
+  public let syntactic_only: sourcekitd_uid_t
+  public let syntaxmap: sourcekitd_uid_t
   public let text: sourcekitd_uid_t
+  public let typename: sourcekitd_uid_t
+  public let usr: sourcekitd_uid_t
 
-  // Code Completion related keys.
+  // Code Completion options.
   public let codecomplete_options: sourcekitd_uid_t
   public let codecomplete_sort_byname: sourcekitd_uid_t
-  public let context: sourcekitd_uid_t
-  public let doc: sourcekitd_uid_t
-  public let not_recommended: sourcekitd_uid_t
-  public let num_bytes_to_erase: sourcekitd_uid_t
-  public let associated_usrs: sourcekitd_uid_t
 
 
   public init(api: sourcekitd_functions_t) {
-    request = api.uid_get_from_cstr("key.request")!
-    compilerargs = api.uid_get_from_cstr("key.compilerargs")!
-    offset = api.uid_get_from_cstr("key.offset")!
-    length = api.uid_get_from_cstr("key.length")!
-    sourcefile = api.uid_get_from_cstr("key.sourcefile")!
-    sourcetext = api.uid_get_from_cstr("key.sourcetext")!
-    results = api.uid_get_from_cstr("key.results")!
-    description = api.uid_get_from_cstr("key.description")!
-    name = api.uid_get_from_cstr("key.name")!
-    kind = api.uid_get_from_cstr("key.kind")!
-    notification = api.uid_get_from_cstr("key.notification")!
-    fixits = api.uid_get_from_cstr("key.fixits")!
-    diagnostics = api.uid_get_from_cstr("key.diagnostics")!
-    diagnostic_stage = api.uid_get_from_cstr("key.diagnostic_stage")!
-    severity = api.uid_get_from_cstr("key.severity")!
-    line = api.uid_get_from_cstr("key.line")!
-    column = api.uid_get_from_cstr("key.column")!
-    endline = api.uid_get_from_cstr("key.endline")!
-    endcolumn = api.uid_get_from_cstr("key.endcolumn")!
-    filepath = api.uid_get_from_cstr("key.filepath")!
-    ranges = api.uid_get_from_cstr("key.ranges")!
-    usr = api.uid_get_from_cstr("key.usr")!
-    typename = api.uid_get_from_cstr("key.typename")!
-    annotated_decl = api.uid_get_from_cstr("key.annotated_decl")!
-    doc_full_as_xml = api.uid_get_from_cstr("key.doc.full_as_xml")!
-    syntactic_only = api.uid_get_from_cstr("key.syntactic_only")!
-    substructure = api.uid_get_from_cstr("key.substructure")!
-    bodyoffset = api.uid_get_from_cstr("key.bodyoffset")!
-    bodylength = api.uid_get_from_cstr("key.bodylength")!
-    syntaxmap = api.uid_get_from_cstr("key.syntaxmap")!
-    namelength = api.uid_get_from_cstr("key.namelength")!
-    nameoffset = api.uid_get_from_cstr("key.nameoffset")!
-    retrieve_refactor_actions = api.uid_get_from_cstr("key.retrieve_refactor_actions")!
-    refactor_actions = api.uid_get_from_cstr("key.refactor_actions")!
     actionname = api.uid_get_from_cstr("key.actionname")!
     actionuid = api.uid_get_from_cstr("key.actionuid")!
+    annotated_decl = api.uid_get_from_cstr("key.annotated_decl")!
+    associated_usrs = api.uid_get_from_cstr("key.associated_usrs")!
+    bodylength = api.uid_get_from_cstr("key.bodylength")!
+    bodyoffset = api.uid_get_from_cstr("key.bodyoffset")!
     categorizededits = api.uid_get_from_cstr("key.categorizededits")!
+    column = api.uid_get_from_cstr("key.column")!
+    compilerargs = api.uid_get_from_cstr("key.compilerargs")!
+    context = api.uid_get_from_cstr("key.context")!
+    description = api.uid_get_from_cstr("key.description")!
+    diagnostic_stage = api.uid_get_from_cstr("key.diagnostic_stage")!
+    diagnostics = api.uid_get_from_cstr("key.diagnostics")!
+    doc_brief = api.uid_get_from_cstr("key.doc.brief")!
+    doc_full_as_xml = api.uid_get_from_cstr("key.doc.full_as_xml")!
     edits = api.uid_get_from_cstr("key.edits")!
+    endcolumn = api.uid_get_from_cstr("key.endcolumn")!
+    endline = api.uid_get_from_cstr("key.endline")!
+    filepath = api.uid_get_from_cstr("key.filepath")!
+    fixits = api.uid_get_from_cstr("key.fixits")!
+    kind = api.uid_get_from_cstr("key.kind")!
+    length = api.uid_get_from_cstr("key.length")!
+    line = api.uid_get_from_cstr("key.line")!
+    name = api.uid_get_from_cstr("key.name")!
+    namelength = api.uid_get_from_cstr("key.namelength")!
+    nameoffset = api.uid_get_from_cstr("key.nameoffset")!
+    not_recommended = api.uid_get_from_cstr("key.not_recommended")!
+    notification = api.uid_get_from_cstr("key.notification")!
+    num_bytes_to_erase = api.uid_get_from_cstr("key.num_bytes_to_erase")!
+    offset = api.uid_get_from_cstr("key.offset")!
+    ranges = api.uid_get_from_cstr("key.ranges")!
+    refactor_actions = api.uid_get_from_cstr("key.refactor_actions")!
+    request = api.uid_get_from_cstr("key.request")!
+    results = api.uid_get_from_cstr("key.results")!
+    retrieve_refactor_actions = api.uid_get_from_cstr("key.retrieve_refactor_actions")!
+    severity = api.uid_get_from_cstr("key.severity")!
+    sourcefile = api.uid_get_from_cstr("key.sourcefile")!
+    sourcetext = api.uid_get_from_cstr("key.sourcetext")!
+    substructure = api.uid_get_from_cstr("key.substructure")!
+    syntactic_only = api.uid_get_from_cstr("key.syntactic_only")!
+    syntaxmap = api.uid_get_from_cstr("key.syntaxmap")!
     text = api.uid_get_from_cstr("key.text")!
+    typename = api.uid_get_from_cstr("key.typename")!
+    usr = api.uid_get_from_cstr("key.usr")!
 
-    // Code Completion related keys.
+    // Code Completion options
     codecomplete_options = api.uid_get_from_cstr("key.codecomplete.options")!
     codecomplete_sort_byname = api.uid_get_from_cstr("key.codecomplete.sort.byname")!
-    context = api.uid_get_from_cstr("key.context")!
-    doc = api.uid_get_from_cstr("key.doc.brief")!
-    not_recommended = api.uid_get_from_cstr("key.not_recommended")!
-    num_bytes_to_erase = api.uid_get_from_cstr("key.num_bytes_to_erase")!
-    associated_usrs = api.uid_get_from_cstr("key.associated_usrs")!
   }
 }
 
