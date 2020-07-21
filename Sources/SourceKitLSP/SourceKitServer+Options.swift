@@ -27,10 +27,14 @@ extension SourceKitServer {
     /// Additional options for the index.
     public var indexOptions: IndexOptions
 
-    public init(buildSetup: BuildSetup = .default, clangdOptions: [String] = [], indexOptions: IndexOptions = .init()) {
+    /// Options for code-completion.
+    public var completionOptions: CodeCompletionOptions
+
+    public init(buildSetup: BuildSetup = .default, clangdOptions: [String] = [], indexOptions: IndexOptions = .init(), completionOptions: CodeCompletionOptions = .init()) {
       self.buildSetup = buildSetup
       self.clangdOptions = clangdOptions
       self.indexOptions = indexOptions
+      self.completionOptions = completionOptions
     }
   }
 }

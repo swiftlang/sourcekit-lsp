@@ -36,7 +36,7 @@ public final class SourceKitServer: LanguageServer {
     var language: Language
   }
 
-  let options: Options
+  var options: Options
 
   let toolchainRegistry: ToolchainRegistry
 
@@ -412,6 +412,15 @@ extension SourceKitServer {
       if case .bool(let listenToUnitEvents) = options["listenToUnitEvents"] {
         indexOptions.listenToUnitEvents = listenToUnitEvents
       }
+      // FIXME: should these move into client capabilities?
+      if case .dictionary(let completionOptions) = options["completion"] {
+        if case .bool(let serverSideFiltering) = completionOptions["serverSideFiltering"] {
+          self.options.completionOptions.serverSideFiltering = serverSideFiltering
+        }
+        if case .int(let maxResults) = completionOptions["maxResults"] {
+          self.options.completionOptions.maxResults = maxResults
+        }
+      }
     }
 
     // Any messages sent before initialize returns are expected to fail, so this will run before
@@ -460,7 +469,7 @@ extension SourceKitServer {
         save: .value(TextDocumentSyncOptions.SaveOptions(includeText: false))
       ),
       hoverProvider: true,
-      completionProvider: CompletionOptions(
+      completionProvider: LanguageServerProtocol.CompletionOptions(
         resolveProvider: false,
         triggerCharacters: ["."]
       ),
@@ -996,7 +1005,7 @@ public func languageService(
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
-    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, clientCapabilities: workspace.clientCapabilities)
+    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, clientCapabilities: workspace.clientCapabilities, options: options)
 
   default:
     return nil

@@ -100,6 +100,8 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   let clientCapabilities: ClientCapabilities
 
+  let serverOptions: SourceKitServer.Options
+
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
 
@@ -116,11 +118,13 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   public init(
     client: LocalConnection,
     sourcekitd: AbsolutePath,
-    clientCapabilities: ClientCapabilities
+    clientCapabilities: ClientCapabilities,
+    serverOptions: SourceKitServer.Options
   ) throws {
     self.client = client
     self.sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitd)
     self.clientCapabilities = clientCapabilities
+    self.serverOptions = serverOptions
     self.documentManager = DocumentManager()
   }
 
@@ -1289,14 +1293,14 @@ extension DocumentSnapshot {
 
 func makeLocalSwiftServer(
   client: MessageHandler, sourcekitd: AbsolutePath,
-  clientCapabilities: ClientCapabilities?) throws -> ToolchainLanguageServer {
+  clientCapabilities: ClientCapabilities?, options: SourceKitServer.Options) throws -> ToolchainLanguageServer {
   let connectionToClient = LocalConnection()
 
   let server = try SwiftLanguageServer(
     client: connectionToClient,
     sourcekitd: sourcekitd,
-    clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil)
-  )
+    clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil),
+    serverOptions: options)
   connectionToClient.start(handler: client)
   return server
 }
