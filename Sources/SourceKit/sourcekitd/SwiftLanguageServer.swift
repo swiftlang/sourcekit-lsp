@@ -78,6 +78,8 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   var currentDiagnostics: [DocumentURI: [CachedDiagnostic]] = [:]
 
+  var currentCompletionSession: CodeCompletionSession? = nil
+
   var buildSettingsByFile: [DocumentURI: FileBuildSettings] = [:]
 
   let onExit: () -> Void
