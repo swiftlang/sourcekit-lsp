@@ -746,17 +746,16 @@ extension SwiftLanguageServer {
   }
 
   public func documentFormatting(_ req: Request<DocumentFormattingRequest>) {
-    guard let file = req.params.textDocument.uri.fileURL else {
-      req.reply(nil)
-      return
-    }
-    guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
+    self.queue.async {
+      guard let file = req.params.textDocument.uri.fileURL else {
+        req.reply(nil)
+        return
+      }
+      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
         log("failed to find snapshot for url \(req.params.textDocument.uri)")
         req.reply(nil)
         return
-    }
-    let options = req.params.options
-    self.queue.async {
+      }
       let configuration: SwiftFormatConfiguration.Configuration
       // try to load swift-format configuration from a ".swift-format" file
       // if it fails, use values provided by the lsp
@@ -765,6 +764,7 @@ extension SwiftLanguageServer {
           configuration = config
       } else {
         var config = SwiftFormatConfiguration.Configuration()
+        let options = req.params.options
         config.indentation = options.insertSpaces ? .spaces(options.tabSize) : .tabs(1)
         config.tabWidth = options.tabSize
         configuration = config

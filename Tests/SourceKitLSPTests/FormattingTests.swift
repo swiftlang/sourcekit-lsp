@@ -28,9 +28,8 @@ final class FormattingTests: XCTestCase {
     try workspace.openDocument(workspace.testLoc("Directory").url, language: .swift)
     try workspace.openDocument(workspace.testLoc("NestedWithConfig").url, language: .swift)
     try workspace.openDocument(workspace.testLoc("NestedWithoutConfig").url, language: .swift)
-  
-    sleep(1) // FIXME: openDocument is asynchronous, wait for it to finish
   }
+
   override func tearDown() {
     workspace = nil
   }
@@ -44,7 +43,7 @@ final class FormattingTests: XCTestCase {
   }
 
   func testSpaces() throws {
-    XCTAssertNoThrow(try initialize())
+    try initialize()
     let url = workspace.testLoc("Root").url
     let options = FormattingOptions(tabSize: 3, insertSpaces: true)
     let edits = try XCTUnwrap(performFormattingRequest(file: url, options: options))
@@ -84,7 +83,7 @@ final class FormattingTests: XCTestCase {
   }
 
   func testConfigFile() throws {
-    XCTAssertNoThrow(try initialize())
+    try initialize()
     let url = workspace.testLoc("Directory").url
     let options = FormattingOptions(tabSize: 3, insertSpaces: true)
     let edits = try XCTUnwrap(performFormattingRequest(file: url, options: options))
@@ -104,7 +103,7 @@ final class FormattingTests: XCTestCase {
   }
   
   func testConfigFileInParentDirectory() throws {
-    XCTAssertNoThrow(try initialize())
+    try initialize()
     let url = workspace.testLoc("NestedWithoutConfig").url
     let options = FormattingOptions(tabSize: 3, insertSpaces: true)
     let edits = try XCTUnwrap(performFormattingRequest(file: url, options: options))
@@ -124,7 +123,7 @@ final class FormattingTests: XCTestCase {
   }
 
   func testConfigFileInNestedDirectory() throws {
-    XCTAssertNoThrow(try initialize())
+    try initialize()
     let url = workspace.testLoc("NestedWithConfig").url
     let options = FormattingOptions(tabSize: 3, insertSpaces: true)
     let edits = try XCTUnwrap(performFormattingRequest(file: url, options: options))
