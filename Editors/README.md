@@ -96,7 +96,7 @@ All methods below assume `sourcekit-lsp` is in your `PATH`. If it's not then rep
 
 Install [vim-lsp](https://github.com/prabirshrestha/vim-lsp). In your `.vimrc`, configure vim-lsp to use sourcekit-lsp for Swift source files like so:
 
-```
+```viml
 if executable('sourcekit-lsp')
     au User lsp_setup call lsp#register_server({
         \ 'name': 'sourcekit-lsp',
@@ -106,14 +106,22 @@ if executable('sourcekit-lsp')
 endif
 ```
 
+In order for vim to recognize Swift files, you need to configure the filetype. Otherwise, `:LspStatus` will show that sourcekit-lsp is not running even if a Swift file is open.
 
+If you are already using a Swift plugin for vim, like [swift.vim](https://github.com/keith/swift.vim), this may be setup already. Otherwise, you can set the filetype manually:
+
+```viml
+augroup filetype
+  au! BufRead,BufNewFile *.swift set ft=swift
+augroup END
+```
 
 That's it! As a test, open a swift file, put cursor on top of a symbol in normal mode and
 run `:LspDefinition`. More commands are documented [here](https://github.com/prabirshrestha/vim-lsp#supported-commands).
 
 There are many Vim solutions for code completion. For instance, you may want to use LSP for omnifunc:
 
-```
+```viml
 autocmd FileType swift setlocal omnifunc=lsp#complete
 ```
 
