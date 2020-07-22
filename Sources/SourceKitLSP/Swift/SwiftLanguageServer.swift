@@ -107,6 +107,8 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   var currentDiagnostics: [DocumentURI: [CachedDiagnostic]] = [:]
 
+  var currentCompletionSession: CodeCompletionSession? = nil
+
   var commandsByFile: [DocumentURI: SwiftCompileCommand] = [:]
 
   var keys: sourcekitd_keys { return sourcekitd.keys }
