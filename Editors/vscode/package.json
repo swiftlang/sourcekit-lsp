@@ -54,6 +54,10 @@
                     },
                     "description": "Arguments to pass to sourcekit-lsp. Argument keys and values should be provided as separate entries in the array e.g. ['--log-level', 'debug']"
                 },
+                "sourcekit-lsp.initializationOptions": {
+                    "type": "object",
+                    "description": "Additional initialization options to pass to sourcekit-lsp"
+                },
                 "sourcekit-lsp.toolchainPath": {
                     "type": "string",
                     "default": "",
@@ -68,6 +72,16 @@
                         "verbose"
                     ],
                     "description": "Traces the communication between VS Code and the SourceKit-LSP language server."
+                },
+                "sourcekit-lsp.indexVisibility.targets": {
+                    "type": "array",
+                    "default": [],
+                    "description": "Restrict visibility of index symbols to the given targets. Targets are in the form of Target Identifier object defined in https://build-server-protocol.github.io/docs/specification.html#build-target-identifier. Use when SourceKit-LSP language server is initialized with explicit index loading mode"
+                },
+                "sourcekit-lsp.indexVisibility.includeTargetDependencies": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "When true, transitive dependency targets' index will also be visibile. Use when SourceKit-LSP language server is initialized with explicit index loading mode"
                 }
             }
         }

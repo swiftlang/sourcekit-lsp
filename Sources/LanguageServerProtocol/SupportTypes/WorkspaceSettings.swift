@@ -14,15 +14,24 @@
 ///
 /// This is typed as `Any` in the protocol, and this enum contains the formats we support.
 public enum WorkspaceSettingsChange: Codable, Hashable {
+  
+  private enum CodingKeys: String, CodingKey {
+    case sourcekitlsp = "sourcekit-lsp"
+  }
 
   case clangd(ClangWorkspaceSettings)
+  case sourcekitlsp(SourceKitLSPWorkspaceSettings)
   case unknown(LSPAny)
 
   public init(from decoder: Decoder) throws {
     // FIXME: doing trial deserialization only works if we have at least one non-optional unique
     // key, which we don't yet.  For now, assume that if we add another kind of workspace settings
     // it will rectify this issue.
-    if let settings = try? ClangWorkspaceSettings(from: decoder) {
+    if let container = try? decoder.container(keyedBy: CodingKeys.self),
+       let settings = try? container.decode(SourceKitLSPWorkspaceSettings.self, forKey: .sourcekitlsp)
+    {
+      self = .sourcekitlsp(settings)
+    } else if let settings = try? ClangWorkspaceSettings(from: decoder) {
       self = .clangd(settings)
     } else {
       let settings = try LSPAny(from: decoder)
@@ -34,6 +43,8 @@ public enum WorkspaceSettingsChange: Codable, Hashable {
     switch self {
     case .clangd(let settings):
       try settings.encode(to: encoder)
+    case .sourcekitlsp(_):
+      fatalError("Encoding SourceKitLSPWorkspaceSettings settings is not supported")
     case .unknown(let settings):
       try settings.encode(to: encoder)
     }
@@ -73,5 +84,36 @@ public struct ClangCompileCommand: Codable, Hashable {
   public init(compilationCommand: [String], workingDirectory: String) {
     self.compilationCommand = compilationCommand
     self.workingDirectory = workingDirectory
+  }
+}
+
+public struct SourceKitLSPWorkspaceSettings: Decodable, Hashable {
+  
+  // Index visibility setting
+  public var indexVisibility: IndexVisibility? = nil
+
+  public init(indexVisibility: IndexVisibility?) {
+    self.indexVisibility = indexVisibility
+  }
+}
+
+/// Index visibility setting, represented by a list of target identifiers and whether the index of transparent target dependencies should be visibile
+public struct IndexVisibility: Decodable, Hashable {
+
+  /// all targets included in the scheme
+  public var targets: [BuildTargetIdentifier]
+  public var includeTargetDependencies: Bool
+  
+  public init(targets: [BuildTargetIdentifier], includeTargetDependencies: Bool) {
+    self.targets = targets
+    self.includeTargetDependencies = includeTargetDependencies
+  }
+}
+
+public struct BuildTargetIdentifier: Codable, Hashable {
+  public var uri: DocumentURI
+
+  public init(uri: DocumentURI) {
+    self.uri = uri
   }
 }

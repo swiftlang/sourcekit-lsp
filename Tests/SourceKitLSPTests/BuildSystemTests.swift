@@ -36,6 +36,12 @@ final class TestBuildSystem: BuildSystem {
   /// Files currently being watched by our delegate.
   var watchedFiles: Set<DocumentURI> = []
 
+  /// Mock response for `BuildTargets` request
+  var targets: [BuildTarget] = []
+
+  /// Mock response for `BuildTargetOutputPaths` request
+  var targetOutputs: (([BuildTargetIdentifier]) -> [OutputsItem])? = nil
+
   func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     watchedFiles.insert(uri)
 
@@ -55,7 +61,7 @@ final class TestBuildSystem: BuildSystem {
   }
 
   func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
-    reply(.failure(buildTargetsNotSupported))
+    reply(.success(targets))
   }
 
   func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[SourcesItem]>) -> Void) {
@@ -63,7 +69,11 @@ final class TestBuildSystem: BuildSystem {
   }
 
   func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
-    reply(.failure(buildTargetsNotSupported))
+    if let targetOutputs = targetOutputs {
+      reply(.success(targetOutputs(targets)))
+    } else {
+      reply(.failure(buildTargetsNotSupported))
+    }
   }
 }
 

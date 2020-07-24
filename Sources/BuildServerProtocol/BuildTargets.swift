@@ -79,14 +79,6 @@ public struct BuildTarget: Codable, Hashable {
   }
 }
 
-public struct BuildTargetIdentifier: Codable, Hashable {
-  public var uri: URI
-
-  public init(uri: URI) {
-    self.uri = uri
-  }
-}
-
 public struct BuildTargetTag: Codable, Hashable, RawRepresentable {
   public var rawValue: String
 
@@ -208,6 +200,11 @@ public struct OutputsItem: Codable, Hashable {
 
   /// The output paths for sources that belong to this build target.
   public var outputPaths: [URI]
+  
+  public init(target: BuildTargetIdentifier, outputPaths: [URI]) {
+    self.target = target
+    self.outputPaths = outputPaths
+  }
 }
 
 /// The build target changed notification is sent from the server to the client

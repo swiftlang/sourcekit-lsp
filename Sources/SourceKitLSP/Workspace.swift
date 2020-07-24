@@ -41,6 +41,10 @@ public final class Workspace {
 
   /// The source code index, if available.
   public var index: IndexStoreDB? = nil
+  
+  /// Indicate if indexStoreDB supports explicit unit outputs
+  /// TODO: Ideally this state could be exposed by indexStoreDB itself
+  public let explicitIndexMode: Bool
 
   /// Open documents.
   public let documentManager: DocumentManager = DocumentManager()
@@ -55,7 +59,8 @@ public final class Workspace {
     buildSetup: BuildSetup,
     underlyingBuildSystem: BuildSystem?,
     index: IndexStoreDB?,
-    indexDelegate: SourceKitIndexDelegate?)
+    indexDelegate: SourceKitIndexDelegate?,
+    explicitIndexMode: Bool = false)
   {
     self.buildSetup = buildSetup
     self.rootUri = rootUri
@@ -67,6 +72,7 @@ public final class Workspace {
       mainFilesProvider: index)
     indexDelegate?.registerMainFileChanged(bsm)
     self.buildSystemManager = bsm
+    self.explicitIndexMode = explicitIndexMode
   }
 
   /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
@@ -114,6 +120,7 @@ public final class Workspace {
           databasePath: dbPath.pathString,
           library: lib,
           delegate: indexDelegate,
+          useExplicitOutputUnits: indexOptions.explicitIndexMode,
           listenToUnitEvents: indexOptions.listenToUnitEvents)
         log("opened IndexStoreDB at \(dbPath) with store path \(storePath)")
       } catch {
@@ -128,7 +135,8 @@ public final class Workspace {
       buildSetup: buildSetup,
       underlyingBuildSystem: buildSystem,
       index: index,
-      indexDelegate: indexDelegate)
+      indexDelegate: indexDelegate,
+      explicitIndexMode: indexOptions.explicitIndexMode)
   }
 }
 
@@ -139,12 +147,14 @@ public struct IndexOptions {
 
   /// Override the index-database-path provided by the build system.
   public var indexDatabasePath: AbsolutePath?
+  
+  public var explicitIndexMode: Bool = false
 
   /// *For Testing* Whether the index should listen to unit events, or wait for
   /// explicit calls to pollForUnitChangesAndWait().
   public var listenToUnitEvents: Bool
 
-  public init(indexStorePath: AbsolutePath? = nil, indexDatabasePath: AbsolutePath? = nil, listenToUnitEvents: Bool = true) {
+  public init(indexStorePath: AbsolutePath? = nil, indexDatabasePath: AbsolutePath? = nil, explicitIndexMode: Bool = false, listenToUnitEvents: Bool = true) {
     self.listenToUnitEvents = listenToUnitEvents
   }
 }

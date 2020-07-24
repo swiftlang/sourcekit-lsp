@@ -149,6 +149,37 @@ final class CodingTests: XCTestCase {
         "compilationDatabasePath" : "foo"
       }
       """)
+    
+    let targetUrl = URL(string: "target://path/to:target")!
+    let targetUri = DocumentURI(targetUrl)
+    checkDecoding(
+      json: """
+      {
+        "sourcekit-lsp" : {
+          "indexVisibility" : {
+            "targets": [
+              {"uri": "target:\\/\\/path\\/to:target"}
+            ],
+            "includeTargetDependencies": true
+          }
+        }
+      }
+      """, expected: WorkspaceSettingsChange.sourcekitlsp(SourceKitLSPWorkspaceSettings(indexVisibility:IndexVisibility(targets: [BuildTargetIdentifier(uri: targetUri)], includeTargetDependencies: true)))
+    )
+    
+    // Targets can be empty
+    checkDecoding(
+      json: """
+      {
+        "sourcekit-lsp" : {
+          "indexVisibility" : {
+            "targets": [],
+            "includeTargetDependencies": true
+          }
+        }
+      }
+      """, expected: WorkspaceSettingsChange.sourcekitlsp(SourceKitLSPWorkspaceSettings(indexVisibility:IndexVisibility(targets: [], includeTargetDependencies: true)))
+    )
 
     // FIXME: should probably be "unknown"; see comment in WorkspaceSettingsChange decoder.
     checkDecoding(json: """

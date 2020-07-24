@@ -48,6 +48,9 @@ public final class SourceKitServer: LanguageServer {
 
   private var documentToPendingQueue: [DocumentURI: DocumentNotificationRequestQueue] = [:]
 
+  /// *Public for testing* Output files for current selected scheme
+  public var schemeOutputs: Set<URI> = []
+
   public var workspace: Workspace?
 
   let fs: FileSystem
@@ -75,6 +78,7 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceNotfication(SourceKitServer.openDocument)
     registerWorkspaceNotfication(SourceKitServer.closeDocument)
     registerWorkspaceNotfication(SourceKitServer.changeDocument)
+    registerWorkspaceNotfication(SourceKitServer.didChangeConfiguration)
 
     registerToolchainTextDocumentNotification(SourceKitServer.willSaveDocument)
     registerToolchainTextDocumentNotification(SourceKitServer.didSaveDocument)
@@ -412,6 +416,9 @@ extension SourceKitServer {
       if case .bool(let listenToUnitEvents) = options["listenToUnitEvents"] {
         indexOptions.listenToUnitEvents = listenToUnitEvents
       }
+      if case .bool(let explicitIndexLoading) = options["explicitIndexLoading"] {
+        indexOptions.explicitIndexMode = explicitIndexLoading
+      }
       if case .dictionary(let completionOptions) = options["completion"] {
         if case .bool(let serverSideFiltering) = completionOptions["serverSideFiltering"] {
           self.options.completionOptions.serverSideFiltering = serverSideFiltering
@@ -551,6 +558,17 @@ extension SourceKitServer {
     self.onExit = {}
     DispatchQueue.global().async {
       onExit()
+    }
+  }
+
+  func didChangeConfiguration(_ notification: Notification<DidChangeConfigurationNotification>, workspace: Workspace) {
+    switch notification.params.settings {
+    case .sourcekitlsp(let settings):
+      if let indexVisibility = settings.indexVisibility {
+        onIndexVisibilityChange(settings: indexVisibility, workspace: workspace)
+      }
+    default:
+      break
     }
   }
 
@@ -1028,25 +1046,25 @@ public typealias Diagnostic = LanguageServerProtocol.Diagnostic
 extension IndexSymbolKind {
   func asLspSymbolKind() -> SymbolKind {
     switch self {
-    case .class: 
+    case .class:
       return .class
-    case .classMethod, .instanceMethod, .staticMethod: 
+    case .classMethod, .instanceMethod, .staticMethod:
       return .method
-    case .instanceProperty, .staticProperty, .classProperty: 
+    case .instanceProperty, .staticProperty, .classProperty:
       return .property
-    case .enum: 
+    case .enum:
       return .enum
-    case .enumConstant: 
+    case .enumConstant:
       return .enumMember
-    case .protocol: 
+    case .protocol:
       return .interface
-    case .function, .conversionFunction: 
+    case .function, .conversionFunction:
       return .function
-    case .variable: 
+    case .variable:
       return .variable
-    case .struct: 
+    case .struct:
       return .struct
-    case .parameter: 
+    case .parameter:
       return .typeParameter
 
     default:
