@@ -19,7 +19,7 @@ public struct CodeCompletionOptions {
   /// The maximum number of completion results to return, or `nil` for unlimited.
   public var maxResults: Int?
 
-  public init(serverSideFiltering: Bool = false, maxResults: Int? = nil) {
+  public init(serverSideFiltering: Bool = false, maxResults: Int? = 200) {
     self.serverSideFiltering = serverSideFiltering
     self.maxResults = maxResults
   }
