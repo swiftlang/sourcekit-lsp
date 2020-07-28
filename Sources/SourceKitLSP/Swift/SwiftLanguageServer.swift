@@ -227,8 +227,14 @@ extension SwiftLanguageServer {
   }
 
   public func shutdown() {
-    sourcekitd.removeNotificationHandler(self)
-    client.close()
+    queue.async {
+      if let session = self.currentCompletionSession {
+        session.close()
+        self.currentCompletionSession = nil
+      }
+      self.sourcekitd.removeNotificationHandler(self)
+      self.client.close()
+    }
   }
 
   // MARK: - Build System Integration

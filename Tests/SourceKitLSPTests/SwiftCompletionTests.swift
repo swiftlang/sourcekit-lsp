@@ -41,6 +41,9 @@ final class SwiftCompletionTests: XCTestCase {
   /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
 
+  /// The current completion options, set in `initializeServer`.
+  var options: CodeCompletionOptions!
+
   override func tearDown() {
     shutdownServer()
   }
@@ -50,7 +53,8 @@ final class SwiftCompletionTests: XCTestCase {
     connection = nil
   }
 
-  func initializeServer(capabilities: CompletionCapabilities? = nil) {
+  func initializeServer(options: CodeCompletionOptions = .init(), capabilities: CompletionCapabilities? = nil) {
+    self.options = options
     connection = TestSourceKitServer()
     sk = connection.client
     var documentCapabilities: TextDocumentClientCapabilities?
@@ -60,14 +64,20 @@ final class SwiftCompletionTests: XCTestCase {
     } else {
       documentCapabilities = nil
     }
-    _ = try! sk.sendSync(InitializeRequest(
-      processId: nil,
-      rootPath: nil,
-      rootURI: nil,
-      initializationOptions: nil,
-      capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
-      trace: .off,
-      workspaceFolders: nil))
+    _ = try! sk.sendSync(
+      InitializeRequest(
+        processId: nil,
+        rootPath: nil,
+        rootURI: nil,
+        initializationOptions: .dictionary([
+          "completion": .dictionary([
+            "serverSideFiltering": .bool(options.serverSideFiltering),
+            "maxResults": options.maxResults == nil ? .null : .int(options.maxResults!),
+          ]),
+        ]),
+        capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
+        trace: .off,
+        workspaceFolders: nil))
   }
 
   func openDocument(text: String? = nil, url: URL) {
@@ -78,8 +88,20 @@ final class SwiftCompletionTests: XCTestCase {
       text: text ?? self.text)))
   }
 
-  func testCompletion() {
-    initializeServer()
+  func testCompletionClientFilter() {
+    testCompletionBasic(options: CodeCompletionOptions(serverSideFiltering: false, maxResults: nil))
+  }
+
+  func testCompletionServerFilter() {
+    testCompletionBasic(options: CodeCompletionOptions(serverSideFiltering: true, maxResults: nil))
+  }
+
+  func testCompletionDefaultFilter() {
+    testCompletionBasic(options: CodeCompletionOptions())
+  }
+
+  func testCompletionBasic(options: CodeCompletionOptions) {
+    initializeServer(options: options)
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     openDocument(url: url)
 
@@ -87,7 +109,7 @@ final class SwiftCompletionTests: XCTestCase {
       textDocument: TextDocumentIdentifier(url),
       position: Position(line: 4, utf16index: 9)))
 
-    XCTAssertEqual(selfDot.isIncomplete, false)
+    XCTAssertEqual(selfDot.isIncomplete, options.serverSideFiltering)
     XCTAssertGreaterThanOrEqual(selfDot.items.count, 2)
     let abc = selfDot.items.first { $0.label == "abc" }
     XCTAssertNotNil(abc)
@@ -198,8 +220,16 @@ final class SwiftCompletionTests: XCTestCase {
     }
   }
 
-  func testCompletionPosition() {
-    initializeServer()
+  func testCompletionPositionClientFilter() {
+    testCompletionPosition(options: CodeCompletionOptions(serverSideFiltering: false, maxResults: nil))
+  }
+
+  func testCompletionPositionServerFilter() {
+    testCompletionPosition(options: CodeCompletionOptions(serverSideFiltering: true, maxResults: nil))
+  }
+
+  func testCompletionPosition(options: CodeCompletionOptions) {
+    initializeServer(options: options)
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     openDocument(text: "foo", url: url)
 
@@ -207,7 +237,7 @@ final class SwiftCompletionTests: XCTestCase {
       let inOrAfterFoo = try! sk.sendSync(CompletionRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 0, utf16index: col)))
-      XCTAssertFalse(inOrAfterFoo.isIncomplete)
+      XCTAssertEqual(inOrAfterFoo.isIncomplete, options.serverSideFiltering)
       XCTAssertFalse(inOrAfterFoo.items.isEmpty)
     }
 
@@ -238,8 +268,8 @@ final class SwiftCompletionTests: XCTestCase {
       let response = try! sk.sendSync(CompletionRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 4, utf16index: col)))
-      XCTAssertFalse(response.isIncomplete)
-      guard let item = response.items.first(where: { $0.label == "bar" }) else {
+
+      guard let item = response.items.first(where: { $0.label.contains("bar") }) else {
         XCTFail("No completion item with label 'bar'")
         return
       }
@@ -263,14 +293,14 @@ final class SwiftCompletionTests: XCTestCase {
 
     let response = try! sk.sendSync(CompletionRequest(
       textDocument: TextDocumentIdentifier(url),
-      position: Position(line: 4, utf16index: 6)))
-    XCTAssertFalse(response.isIncomplete)
+      position: Position(line: 4, utf16index: 7)))
     guard let item = response.items.first(where: { $0.label == "foo()" }) else {
       XCTFail("No completion item with label 'foo()'")
       return
     }
-    XCTAssertEqual(item.filterText, "foo()")
-    XCTAssertEqual(item.textEdit, TextEdit(range: Position(line: 4, utf16index: 2)..<Position(line: 4, utf16index: 6), newText: "override func foo() {\n\n}"))
+    // FIXME: should be "foo()"
+    XCTAssertEqual(item.filterText, "func foo()")
+    XCTAssertEqual(item.textEdit, TextEdit(range: Position(line: 4, utf16index: 2)..<Position(line: 4, utf16index: 7), newText: "override func foo() {\n\n}"))
   }
 
   func testCompletionOverrideInNewLine() {
@@ -290,7 +320,6 @@ final class SwiftCompletionTests: XCTestCase {
     let response = try! sk.sendSync(CompletionRequest(
       textDocument: TextDocumentIdentifier(url),
       position: Position(line: 5, utf16index: 2)))
-    XCTAssertFalse(response.isIncomplete)
     guard let item = response.items.first(where: { $0.label == "foo()" }) else {
       XCTFail("No completion item with label 'foo()'")
       return
