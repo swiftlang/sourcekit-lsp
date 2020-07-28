@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LanguageServerProtocol
 import SKCore
 
 extension SourceKitServer {
