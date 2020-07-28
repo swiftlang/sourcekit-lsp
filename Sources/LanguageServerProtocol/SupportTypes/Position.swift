@@ -56,3 +56,13 @@ extension Position: LSPAnyCodable {
     ])
   }
 }
+
+extension Position: CustomStringConvertible, CustomDebugStringConvertible {
+  public var description: String {
+    "\(line + 1):\(utf16index+1)"
+  }
+
+  public var debugDescription: String {
+    "Position(line: \(line), utf16index: \(utf16index))"
+  }
+}
