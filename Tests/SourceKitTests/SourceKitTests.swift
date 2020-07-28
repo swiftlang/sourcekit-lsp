@@ -160,7 +160,7 @@ final class SKTests: XCTestCase {
     let results = try ws.sk.sendSync(
       CompletionRequest(textDocument: loc.docIdentifier, position: loc.position))
 
-    XCTAssertEqual(results, CompletionList(isIncomplete: false, items: [
+    XCTAssertEqual(results.items, [
       CompletionItem(
         label: "method(a: Int)",
         kind: .method,
@@ -181,7 +181,7 @@ final class SKTests: XCTestCase {
         insertText: "self",
         insertTextFormat: .plain,
         deprecated: false),
-    ]))
+    ])
   }
 
   func testDependenciesUpdatedSwiftTibs() throws {

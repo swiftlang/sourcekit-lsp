@@ -303,8 +303,15 @@ extension SourceKitServer {
         if case .bool(let serverSideFiltering) = completionOptions["serverSideFiltering"] {
           self.options.completionOptions.serverSideFiltering = serverSideFiltering
         }
-        if case .int(let maxResults) = completionOptions["maxResults"] {
+        switch completionOptions["maxResults"] {
+        case .none:
+          break
+        case .some(.null):
+          self.options.completionOptions.maxResults = nil
+        case .some(.int(let maxResults)):
           self.options.completionOptions.maxResults = maxResults
+        case .some(let invalid):
+          log("expected null or int for 'maxResults'; got \(invalid)", level: .warning)
         }
       }
     }

@@ -71,7 +71,7 @@ class CodeCompletionSession {
   }
 
   func _open(filterText: String, position: Position, in snapshot: DocumentSnapshot, completion: @escaping  (LSPResult<CompletionList>) -> Void) {
-    log("\(self) - open filter=\(filterText)")
+    log("\(Self.self) Open: \(self) filter=\(filterText)")
 
     let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
     let keys = server.sourcekitd.keys
@@ -97,6 +97,9 @@ class CodeCompletionSession {
         self.state = .closed
         return completion(.failure(result.failure!))
       }
+      if case .closed = self.state {
+        return completion(.failure(.cancelled))
+      }
 
       self.state = .open
 
@@ -114,7 +117,7 @@ class CodeCompletionSession {
   func _update(filterText: String, position: Position, in snapshot: DocumentSnapshot, completion: @escaping  (LSPResult<CompletionList>) -> Void) {
     // FIXME: Assertion for prefix of snapshot matching what we started with.
 
-    log("\(self) - update filter=\(filterText)")
+    log("\(Self.self) Update: \(self) filter=\(filterText)")
     let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
     let keys = server.sourcekitd.keys
     req[keys.request] = server.sourcekitd.requests.codecomplete_update
@@ -157,24 +160,28 @@ class CodeCompletionSession {
   }
 
   func close() {
-    // FIXME: Close needs to happen before the next session is opened in case they have the same
-    // location+file - we don't want to close it prematurely.
-    log("\(self) - close")
-    let req = SKDRequestDictionary(sourcekitd: self.server.sourcekitd)
-    let keys = self.server.sourcekitd.keys
-    req[keys.request] = self.server.sourcekitd.requests.codecomplete_close
-    req[keys.offset] = self.utf8StartOffset
-    req[keys.name] = self.snapshot.document.uri.pseudoPath
-    _ = try? self.server.sourcekitd.sendSync(req)
+    // Temporary back-reference to server to keep it alive during close().
+    let server = self.server
+
     queue.async {
+      if case .closed = self.state {
+        return
+      }
+      log("\(Self.self) Close: \(self)")
       self.state = .closed
+      let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
+      let keys = server.sourcekitd.keys
+      req[keys.request] = server.sourcekitd.requests.codecomplete_close
+      req[keys.offset] = self.utf8StartOffset
+      req[keys.name] = self.snapshot.document.uri.pseudoPath
+      _ = try? server.sourcekitd.sendSync(req)
     }
   }
 }
 
 extension CodeCompletionSession: CustomStringConvertible {
   var description: String {
-    "CodeCompletionSession \(uri.pseudoPath):\(position)"
+    "\(uri.pseudoPath):\(position)"
   }
 }
 

@@ -226,7 +226,13 @@ extension SwiftLanguageServer {
   }
 
   func shutdown(_ request: Request<ShutdownRequest>) {
-    api.set_notification_handler(nil)
+    queue.async {
+      if let session = self.currentCompletionSession {
+        session.close()
+        self.currentCompletionSession = nil
+      }
+      self.api.set_notification_handler(nil)
+    }
   }
 
   func exit(_ notification: Notification<ExitNotification>) {
