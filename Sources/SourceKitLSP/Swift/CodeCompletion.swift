@@ -42,11 +42,11 @@ class CodeCompletionSession {
     self.compileCommand = compileCommand
   }
 
-  func update(filterText: String, position: Position, in snapshot: DocumentSnapshot, completion: @escaping (LSPResult<CompletionList>) -> Void) {
+  func update(filterText: String, position: Position, in snapshot: DocumentSnapshot, options: CodeCompletionOptions, completion: @escaping (LSPResult<CompletionList>) -> Void) {
     queue.async {
       switch self.state {
       case .closed:
-        self._open(filterText: filterText, position: position, in: snapshot, completion: completion)
+        self._open(filterText: filterText, position: position, in: snapshot, options: options, completion: completion)
       case .opening(let group):
         group.notify(queue: self.queue) {
           switch self.state {
@@ -54,16 +54,16 @@ class CodeCompletionSession {
             // Don't try again.
             completion(.failure(.cancelled))
           case .open:
-            self._update(filterText: filterText, position: position, in: snapshot, completion: completion)
+            self._update(filterText: filterText, position: position, in: snapshot, options: options, completion: completion)
           }
         }
       case .open:
-        self._update(filterText: filterText, position: position, in: snapshot, completion: completion)
+        self._update(filterText: filterText, position: position, in: snapshot, options: options, completion: completion)
       }
     }
   }
 
-  func _open(filterText: String, position: Position, in snapshot: DocumentSnapshot, completion: @escaping  (LSPResult<CompletionList>) -> Void) {
+  func _open(filterText: String, position: Position, in snapshot: DocumentSnapshot, options: CodeCompletionOptions, completion: @escaping  (LSPResult<CompletionList>) -> Void) {
     log("\(Self.self) Open: \(self) filter=\(filterText)")
 
     let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
@@ -73,7 +73,7 @@ class CodeCompletionSession {
     req[keys.name] = uri.pseudoPath
     req[keys.sourcefile] = uri.pseudoPath
     req[keys.sourcetext] = snapshot.text
-    req[keys.codecomplete_options] = options(filterText: filterText)
+    req[keys.codecomplete_options] = optionsDictionary(filterText: filterText, options: options)
     if let compileCommand = compileCommand {
       req[keys.compilerargs] = compileCommand.compilerArgs
     }
@@ -107,7 +107,7 @@ class CodeCompletionSession {
     _ = handle
   }
 
-  func _update(filterText: String, position: Position, in snapshot: DocumentSnapshot, completion: @escaping  (LSPResult<CompletionList>) -> Void) {
+  func _update(filterText: String, position: Position, in snapshot: DocumentSnapshot, options: CodeCompletionOptions, completion: @escaping  (LSPResult<CompletionList>) -> Void) {
     // FIXME: Assertion for prefix of snapshot matching what we started with.
 
     log("\(Self.self) Update: \(self) filter=\(filterText)")
@@ -116,7 +116,7 @@ class CodeCompletionSession {
     req[keys.request] = server.sourcekitd.requests.codecomplete_update
     req[keys.offset] = utf8StartOffset
     req[keys.name] = uri.pseudoPath
-    req[keys.codecomplete_options] = options(filterText: filterText)
+    req[keys.codecomplete_options] = optionsDictionary(filterText: filterText, options: options)
 
     let handle = server.sourcekitd.send(req, queue) { result in
       guard let dict = result.success else {
@@ -133,10 +133,9 @@ class CodeCompletionSession {
     _ = handle
   }
 
-  private func options(filterText: String) -> SKDRequestDictionary {
+  private func optionsDictionary(filterText: String, options: CodeCompletionOptions) -> SKDRequestDictionary {
     let dict = SKDRequestDictionary(sourcekitd: server.sourcekitd)
     let keys = server.sourcekitd.keys
-    let completionOpts = server.serverOptions.completionOptions
     // Sorting and priority options.
     dict[keys.codecomplete_hideunderscores] = 0
     dict[keys.codecomplete_hidelowpriority] = 0
@@ -146,7 +145,7 @@ class CodeCompletionSession {
     dict[keys.codecomplete_showtopnonliteralresults] = 0
     // Filtering options.
     dict[keys.codecomplete_filtertext] = filterText
-    if let maxResults = completionOpts.maxResults {
+    if let maxResults = options.maxResults {
       dict[keys.codecomplete_requestlimit] = maxResults
     }
     return dict
@@ -200,15 +199,17 @@ extension SwiftLanguageServer {
       return
     }
 
-    if serverOptions.completionOptions.serverSideFiltering {
-      _completionWithServerFiltering(offset: offset, completionPos: completionPos, snapshot: snapshot, request: req)
+    let options = req.params.sourcekitlspOptions ?? serverOptions.completionOptions
+
+    if options.serverSideFiltering {
+      _completionWithServerFiltering(offset: offset, completionPos: completionPos, snapshot: snapshot, request: req, options: options)
     } else {
-      _completionWithClientFiltering(offset: offset, completionPos: completionPos, snapshot: snapshot, request: req)
+      _completionWithClientFiltering(offset: offset, completionPos: completionPos, snapshot: snapshot, request: req, options: options)
     }
   }
 
   /// Must be called on `queue`.
-  func _completionWithServerFiltering(offset: Int, completionPos: Position, snapshot: DocumentSnapshot, request req: Request<CompletionRequest>) {
+  func _completionWithServerFiltering(offset: Int, completionPos: Position, snapshot: DocumentSnapshot, request req: Request<CompletionRequest>, options: CodeCompletionOptions) {
     guard let start = snapshot.indexOf(utf8Offset: offset),
           let end = snapshot.index(of: req.params.position) else {
       log("invalid completion position \(req.params.position)")
@@ -242,11 +243,11 @@ extension SwiftLanguageServer {
       currentCompletionSession = session
     }
 
-    session.update(filterText: filterText, position: req.params.position, in: snapshot, completion: req.reply)
+    session.update(filterText: filterText, position: req.params.position, in: snapshot, options: options, completion: req.reply)
   }
 
   /// Must be called on `queue`.
-  func _completionWithClientFiltering(offset: Int, completionPos: Position, snapshot: DocumentSnapshot, request req: Request<CompletionRequest>) {
+  func _completionWithClientFiltering(offset: Int, completionPos: Position, snapshot: DocumentSnapshot, request req: Request<CompletionRequest>, options: CodeCompletionOptions) {
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.codecomplete
     skreq[keys.offset] = offset

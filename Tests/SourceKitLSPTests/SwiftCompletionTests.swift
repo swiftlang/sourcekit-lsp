@@ -41,9 +41,6 @@ final class SwiftCompletionTests: XCTestCase {
   /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
 
-  /// The current completion options, set in `initializeServer`.
-  var options: CodeCompletionOptions!
-
   override func tearDown() {
     shutdownServer()
   }
@@ -54,7 +51,6 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func initializeServer(options: CodeCompletionOptions = .init(), capabilities: CompletionCapabilities? = nil) {
-    self.options = options
     connection = TestSourceKitServer()
     sk = connection.client
     var documentCapabilities: TextDocumentClientCapabilities?

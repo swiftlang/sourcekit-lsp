@@ -11,7 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 /// Code-completion configuration.
-public struct CodeCompletionOptions {
+///
+/// **(LSP Extension)**: This is used as part of an extension to the code-completion request.
+public struct CodeCompletionOptions: Codable, Hashable {
 
   /// Whether to use server-side filtering or to return all results and let the client handle all filtering.
   public var serverSideFiltering: Bool
