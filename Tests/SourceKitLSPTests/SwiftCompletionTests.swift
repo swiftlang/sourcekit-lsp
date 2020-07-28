@@ -324,4 +324,231 @@ final class SwiftCompletionTests: XCTestCase {
     XCTAssertEqual(item.filterText, "foo()")
     XCTAssertEqual(item.textEdit, TextEdit(range: Position(line: 5, utf16index: 2)..<Position(line: 5, utf16index: 2), newText: "override func foo() {\n\n}"))
   }
+
+  func testMaxResults() {
+    initializeServer(options: CodeCompletionOptions(serverSideFiltering: true, maxResults: nil))
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    openDocument(text: """
+      struct S {
+        func f1() {}
+        func f2() {}
+        func f3() {}
+        func f4() {}
+        func f5() {}
+        func test() {
+          self.f
+        }
+      }
+      """, url: url)
+
+    // Server-wide option
+    XCTAssertEqual(5, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 9)))))
+
+    // Explicit option
+    XCTAssertEqual(5, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 9),
+                                                sourcekitlspOptions:
+                                                  CodeCompletionOptions(
+                                                    serverSideFiltering: true,
+                                                    maxResults: nil)))))
+
+    // MARK: Limited
+
+    XCTAssertEqual(5, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 9),
+                                                sourcekitlspOptions:
+                                                  CodeCompletionOptions(
+                                                    serverSideFiltering: true,
+                                                    maxResults: 1000)))))
+
+    XCTAssertEqual(3, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 9),
+                                                sourcekitlspOptions:
+                                                  CodeCompletionOptions(
+                                                    serverSideFiltering: true,
+                                                    maxResults: 3)))))
+    XCTAssertEqual(1, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 9),
+                                                sourcekitlspOptions:
+                                                  CodeCompletionOptions(
+                                                    serverSideFiltering: true,
+                                                    maxResults: 1)))))
+
+    // 0 also means unlimited
+    XCTAssertEqual(5, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 9),
+                                                sourcekitlspOptions:
+                                                  CodeCompletionOptions(
+                                                    serverSideFiltering: true,
+                                                    maxResults: 0)))))
+
+    // MARK: With filter='f'
+
+    XCTAssertEqual(5, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 10),
+                                                sourcekitlspOptions:
+                                                  CodeCompletionOptions(
+                                                    serverSideFiltering: true,
+                                                    maxResults: nil)))))
+    XCTAssertEqual(3, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 10),
+                                                sourcekitlspOptions:
+                                                  CodeCompletionOptions(
+                                                    serverSideFiltering: true,
+                                                    maxResults: 3)))))
+
+  }
+
+  func testRefilterAfterIncompleteResults() {
+    initializeServer(options: CodeCompletionOptions(serverSideFiltering: true, maxResults: 20))
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    openDocument(text: """
+      struct S {
+        func fooAbc() {}
+        func fooBcd() {}
+        func fooCde() {}
+        func fooDef() {}
+        func fooGoop() {}
+        func test() {
+          self.fcdez
+        }
+      }
+      """, url: url)
+
+    XCTAssertEqual(5, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 10),
+                                                context:CompletionContext(triggerKind: .invoked)))))
+
+    XCTAssertEqual(3, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 11),
+                                                context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions)))))
+    XCTAssertEqual(2, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 12),
+                                                context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions)))))
+    XCTAssertEqual(1, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 13),
+                                                context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions)))))
+    XCTAssertEqual(0, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 14),
+                                                context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions)))))
+    XCTAssertEqual(2, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 12),
+                                                context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions)))))
+
+    // Not valid for the current session.
+    // We explicitly keep the session and fail any requests that don't match so that the editor
+    // can rely on `.triggerFromIncompleteCompletions` always being fast.
+    XCTAssertThrowsError(try sk.sendSync(CompletionRequest(
+                                          textDocument: TextDocumentIdentifier(url),
+                                          position: Position(line: 7, utf16index: 0),
+                                          context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions))))
+    XCTAssertEqual(1, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 13),
+                                                context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions)))))
+
+    // Trigger kind changed => OK (20 is maxResults since we're outside the member completion)
+    XCTAssertEqual(20, try! sk.sendSync(CompletionRequest(
+                                        textDocument: TextDocumentIdentifier(url),
+                                        position: Position(line: 7, utf16index: 0),
+                                          context:CompletionContext(triggerKind: .invoked))).items.count)
+  }
+
+  func testRefilterAfterIncompleteResultsWithEdits() {
+    initializeServer(options: CodeCompletionOptions(serverSideFiltering: true, maxResults: nil))
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    openDocument(text: """
+      struct S {
+        func fooAbc() {}
+        func fooBcd() {}
+        func fooCde() {}
+        func fooDef() {}
+        func fooGoop() {}
+        func test() {
+          self.fz
+        }
+      }
+      """, url: url)
+
+    // 'f'
+    XCTAssertEqual(5, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 10),
+                                                context:CompletionContext(triggerKind: .invoked)))))
+
+    // 'fz'
+    XCTAssertEqual(0, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 11),
+                                                context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions)))))
+
+    sk.send(DidChangeTextDocumentNotification(
+              textDocument: VersionedTextDocumentIdentifier(DocumentURI(url), version: 1),
+              contentChanges: [
+                .init(range: Position(line: 7, utf16index: 10)..<Position(line: 7, utf16index: 11), text: "A ")]))
+
+    // 'fA'
+    XCTAssertEqual(1, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 11),
+                                                context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions)))))
+
+    // 'fA '
+    XCTAssertThrowsError(try sk.sendSync(CompletionRequest(
+                                          textDocument: TextDocumentIdentifier(url),
+                                          position: Position(line: 7, utf16index: 12),
+                                          context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions))))
+
+    sk.send(DidChangeTextDocumentNotification(
+              textDocument: VersionedTextDocumentIdentifier(DocumentURI(url), version: 1),
+              contentChanges: [
+                .init(range: Position(line: 7, utf16index: 10)..<Position(line: 7, utf16index: 11), text: "Ab")]))
+
+    // 'fAb'
+    XCTAssertEqual(1, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 11),
+                                                context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions)))))
+
+    sk.send(DidChangeTextDocumentNotification(
+              textDocument: VersionedTextDocumentIdentifier(DocumentURI(url), version: 1),
+              contentChanges: [
+                .init(range: Position(line: 7, utf16index: 10)..<Position(line: 7, utf16index: 11), text: "")]))
+
+    // 'fb'
+    XCTAssertEqual(2, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 11),
+                                                context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions)))))
+
+    sk.send(DidChangeTextDocumentNotification(
+              textDocument: VersionedTextDocumentIdentifier(DocumentURI(url), version: 1),
+              contentChanges: [
+                .init(range: Position(line: 7, utf16index: 11)..<Position(line: 7, utf16index: 11), text: "d")]))
+
+    // 'fbd'
+    XCTAssertEqual(1, countFs(try! sk.sendSync(CompletionRequest(
+                                                textDocument: TextDocumentIdentifier(url),
+                                                position: Position(line: 7, utf16index: 12),
+                                                context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions)))))
+  }
+}
+
+private func countFs(_ response: CompletionList) -> Int {
+  return response.items.filter{$0.label.hasPrefix("f")}.count
 }
