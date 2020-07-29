@@ -50,7 +50,7 @@ final class SwiftCompletionTests: XCTestCase {
     connection = nil
   }
 
-  func initializeServer(options: CodeCompletionOptions = .init(), capabilities: CompletionCapabilities? = nil) {
+  func initializeServer(options: SKCompletionOptions = .init(), capabilities: CompletionCapabilities? = nil) {
     connection = TestSourceKitServer()
     sk = connection.client
     var documentCapabilities: TextDocumentClientCapabilities?
@@ -85,18 +85,18 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionClientFilter() {
-    testCompletionBasic(options: CodeCompletionOptions(serverSideFiltering: false, maxResults: nil))
+    testCompletionBasic(options: SKCompletionOptions(serverSideFiltering: false, maxResults: nil))
   }
 
   func testCompletionServerFilter() {
-    testCompletionBasic(options: CodeCompletionOptions(serverSideFiltering: true, maxResults: nil))
+    testCompletionBasic(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
   }
 
   func testCompletionDefaultFilter() {
-    testCompletionBasic(options: CodeCompletionOptions())
+    testCompletionBasic(options: SKCompletionOptions())
   }
 
-  func testCompletionBasic(options: CodeCompletionOptions) {
+  func testCompletionBasic(options: SKCompletionOptions) {
     initializeServer(options: options)
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     openDocument(url: url)
@@ -217,14 +217,14 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionPositionClientFilter() {
-    testCompletionPosition(options: CodeCompletionOptions(serverSideFiltering: false, maxResults: nil))
+    testCompletionPosition(options: SKCompletionOptions(serverSideFiltering: false, maxResults: nil))
   }
 
   func testCompletionPositionServerFilter() {
-    testCompletionPosition(options: CodeCompletionOptions(serverSideFiltering: true, maxResults: nil))
+    testCompletionPosition(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
   }
 
-  func testCompletionPosition(options: CodeCompletionOptions) {
+  func testCompletionPosition(options: SKCompletionOptions) {
     initializeServer(options: options)
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     openDocument(text: "foo", url: url)
@@ -326,7 +326,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testMaxResults() {
-    initializeServer(options: CodeCompletionOptions(serverSideFiltering: true, maxResults: nil))
+    initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     openDocument(text: """
       struct S {
@@ -351,7 +351,7 @@ final class SwiftCompletionTests: XCTestCase {
                                                 textDocument: TextDocumentIdentifier(url),
                                                 position: Position(line: 7, utf16index: 9),
                                                 sourcekitlspOptions:
-                                                  CodeCompletionOptions(
+                                                  SKCompletionOptions(
                                                     serverSideFiltering: true,
                                                     maxResults: nil)))))
 
@@ -361,7 +361,7 @@ final class SwiftCompletionTests: XCTestCase {
                                                 textDocument: TextDocumentIdentifier(url),
                                                 position: Position(line: 7, utf16index: 9),
                                                 sourcekitlspOptions:
-                                                  CodeCompletionOptions(
+                                                  SKCompletionOptions(
                                                     serverSideFiltering: true,
                                                     maxResults: 1000)))))
 
@@ -369,14 +369,14 @@ final class SwiftCompletionTests: XCTestCase {
                                                 textDocument: TextDocumentIdentifier(url),
                                                 position: Position(line: 7, utf16index: 9),
                                                 sourcekitlspOptions:
-                                                  CodeCompletionOptions(
+                                                  SKCompletionOptions(
                                                     serverSideFiltering: true,
                                                     maxResults: 3)))))
     XCTAssertEqual(1, countFs(try! sk.sendSync(CompletionRequest(
                                                 textDocument: TextDocumentIdentifier(url),
                                                 position: Position(line: 7, utf16index: 9),
                                                 sourcekitlspOptions:
-                                                  CodeCompletionOptions(
+                                                  SKCompletionOptions(
                                                     serverSideFiltering: true,
                                                     maxResults: 1)))))
 
@@ -385,7 +385,7 @@ final class SwiftCompletionTests: XCTestCase {
                                                 textDocument: TextDocumentIdentifier(url),
                                                 position: Position(line: 7, utf16index: 9),
                                                 sourcekitlspOptions:
-                                                  CodeCompletionOptions(
+                                                  SKCompletionOptions(
                                                     serverSideFiltering: true,
                                                     maxResults: 0)))))
 
@@ -395,21 +395,21 @@ final class SwiftCompletionTests: XCTestCase {
                                                 textDocument: TextDocumentIdentifier(url),
                                                 position: Position(line: 7, utf16index: 10),
                                                 sourcekitlspOptions:
-                                                  CodeCompletionOptions(
+                                                  SKCompletionOptions(
                                                     serverSideFiltering: true,
                                                     maxResults: nil)))))
     XCTAssertEqual(3, countFs(try! sk.sendSync(CompletionRequest(
                                                 textDocument: TextDocumentIdentifier(url),
                                                 position: Position(line: 7, utf16index: 10),
                                                 sourcekitlspOptions:
-                                                  CodeCompletionOptions(
+                                                  SKCompletionOptions(
                                                     serverSideFiltering: true,
                                                     maxResults: 3)))))
 
   }
 
   func testRefilterAfterIncompleteResults() {
-    initializeServer(options: CodeCompletionOptions(serverSideFiltering: true, maxResults: 20))
+    initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: 20))
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     openDocument(text: """
       struct S {
@@ -470,7 +470,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testRefilterAfterIncompleteResultsWithEdits() {
-    initializeServer(options: CodeCompletionOptions(serverSideFiltering: true, maxResults: nil))
+    initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     openDocument(text: """
       struct S {

@@ -29,13 +29,13 @@ extension SourceKitServer {
     public var indexOptions: IndexOptions
 
     /// Options for code-completion.
-    public var completionOptions: CodeCompletionOptions
+    public var completionOptions: SKCompletionOptions
 
     public init(
       buildSetup: BuildSetup = .default,
       clangdOptions: [String] = [],
       indexOptions: IndexOptions = .init(),
-      completionOptions: CodeCompletionOptions = .init())
+      completionOptions: SKCompletionOptions = .init())
     {
       self.buildSetup = buildSetup
       self.clangdOptions = clangdOptions

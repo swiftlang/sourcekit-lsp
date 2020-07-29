@@ -36,13 +36,13 @@ public struct CompletionRequest: TextDocumentRequest, Hashable {
 
   public var context: CompletionContext?
 
-  public var sourcekitlspOptions: CodeCompletionOptions?
+  public var sourcekitlspOptions: SKCompletionOptions?
 
   public init(
     textDocument: TextDocumentIdentifier,
     position: Position,
     context: CompletionContext? = nil,
-    sourcekitlspOptions: CodeCompletionOptions? = nil)
+    sourcekitlspOptions: SKCompletionOptions? = nil)
   {
     self.textDocument = textDocument
     self.position = position

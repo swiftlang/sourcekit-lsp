@@ -49,7 +49,7 @@ class CodeCompletionSession {
     self.compileCommand = compileCommand
   }
 
-  func update(filterText: String, position: Position, in snapshot: DocumentSnapshot, options: CodeCompletionOptions, completion: @escaping (LSPResult<CompletionList>) -> Void) {
+  func update(filterText: String, position: Position, in snapshot: DocumentSnapshot, options: SKCompletionOptions, completion: @escaping (LSPResult<CompletionList>) -> Void) {
     queue.async {
       switch self.state {
       case .closed:
@@ -70,7 +70,7 @@ class CodeCompletionSession {
     }
   }
 
-  func _open(filterText: String, position: Position, in snapshot: DocumentSnapshot, options: CodeCompletionOptions, completion: @escaping  (LSPResult<CompletionList>) -> Void) {
+  func _open(filterText: String, position: Position, in snapshot: DocumentSnapshot, options: SKCompletionOptions, completion: @escaping  (LSPResult<CompletionList>) -> Void) {
     log("\(Self.self) Open: \(self) filter=\(filterText)")
 
     let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
@@ -114,7 +114,7 @@ class CodeCompletionSession {
     _ = handle
   }
 
-  func _update(filterText: String, position: Position, in snapshot: DocumentSnapshot, options: CodeCompletionOptions, completion: @escaping  (LSPResult<CompletionList>) -> Void) {
+  func _update(filterText: String, position: Position, in snapshot: DocumentSnapshot, options: SKCompletionOptions, completion: @escaping  (LSPResult<CompletionList>) -> Void) {
     // FIXME: Assertion for prefix of snapshot matching what we started with.
 
     log("\(Self.self) Update: \(self) filter=\(filterText)")
@@ -140,7 +140,7 @@ class CodeCompletionSession {
     _ = handle
   }
 
-  private func optionsDictionary(filterText: String, options: CodeCompletionOptions) -> SKDRequestDictionary {
+  private func optionsDictionary(filterText: String, options: SKCompletionOptions) -> SKDRequestDictionary {
     let dict = SKDRequestDictionary(sourcekitd: server.sourcekitd)
     let keys = server.sourcekitd.keys
     // Sorting and priority options.
@@ -216,7 +216,7 @@ extension SwiftLanguageServer {
   }
 
   /// Must be called on `queue`.
-  func _completionWithServerFiltering(offset: Int, completionPos: Position, snapshot: DocumentSnapshot, request req: Request<CompletionRequest>, options: CodeCompletionOptions) {
+  func _completionWithServerFiltering(offset: Int, completionPos: Position, snapshot: DocumentSnapshot, request req: Request<CompletionRequest>, options: SKCompletionOptions) {
     guard let start = snapshot.indexOf(utf8Offset: offset),
           let end = snapshot.index(of: req.params.position) else {
       log("invalid completion position \(req.params.position)")
@@ -254,7 +254,7 @@ extension SwiftLanguageServer {
   }
 
   /// Must be called on `queue`.
-  func _completionWithClientFiltering(offset: Int, completionPos: Position, snapshot: DocumentSnapshot, request req: Request<CompletionRequest>, options: CodeCompletionOptions) {
+  func _completionWithClientFiltering(offset: Int, completionPos: Position, snapshot: DocumentSnapshot, request req: Request<CompletionRequest>, options: SKCompletionOptions) {
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.codecomplete
     skreq[keys.offset] = offset
