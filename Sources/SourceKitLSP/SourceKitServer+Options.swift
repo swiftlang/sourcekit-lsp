@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LanguageServerProtocol
 import SKCore
 
 extension SourceKitServer {
@@ -27,10 +28,19 @@ extension SourceKitServer {
     /// Additional options for the index.
     public var indexOptions: IndexOptions
 
-    public init(buildSetup: BuildSetup = .default, clangdOptions: [String] = [], indexOptions: IndexOptions = .init()) {
+    /// Options for code-completion.
+    public var completionOptions: SKCompletionOptions
+
+    public init(
+      buildSetup: BuildSetup = .default,
+      clangdOptions: [String] = [],
+      indexOptions: IndexOptions = .init(),
+      completionOptions: SKCompletionOptions = .init())
+    {
       self.buildSetup = buildSetup
       self.clangdOptions = clangdOptions
       self.indexOptions = indexOptions
+      self.completionOptions = completionOptions
     }
   }
 }
