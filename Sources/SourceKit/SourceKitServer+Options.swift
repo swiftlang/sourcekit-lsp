@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -31,7 +31,12 @@ extension SourceKitServer {
     /// Options for code-completion.
     public var completionOptions: CodeCompletionOptions
 
-    public init(buildSetup: BuildSetup = .default, clangdOptions: [String] = [], indexOptions: IndexOptions = .init(), completionOptions: CodeCompletionOptions = .init()) {
+    public init(
+      buildSetup: BuildSetup = .default,
+      clangdOptions: [String] = [],
+      indexOptions: IndexOptions = .init(),
+      completionOptions: CodeCompletionOptions = .init())
+    {
       self.buildSetup = buildSetup
       self.clangdOptions = clangdOptions
       self.indexOptions = indexOptions

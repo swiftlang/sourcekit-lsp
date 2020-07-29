@@ -12,10 +12,12 @@
 
 /// Code-completion configuration.
 ///
-/// **(LSP Extension)**: This is used as part of an extension to the code-completion request.
+/// **(LSP Extension)**: This is used as part of an extension to the
+/// code-completion request.
 public struct CodeCompletionOptions: Codable, Hashable {
 
-  /// Whether to use server-side filtering or to return all results and let the client handle all filtering.
+  /// Whether to use server-side filtering or to return all results and let the
+  /// client handle all filtering.
   public var serverSideFiltering: Bool
 
   /// The maximum number of completion results to return, or `nil` for unlimited.
