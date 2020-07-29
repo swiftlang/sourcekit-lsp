@@ -12,7 +12,6 @@
 
 import LanguageServerProtocol
 import LSPLogging
-import SKCore
 import sourcekitd
 import Foundation
 
@@ -20,169 +19,6 @@ import Foundation
 // branch to avoid conflicts.
 typealias SKDResponseArray = SKResponseArray
 typealias SKDRequestDictionary = SKRequestDictionary
-
-
-class CodeCompletionSession {
-  unowned let server: SwiftLanguageServer
-  let queue: DispatchQueue
-  let snapshot: DocumentSnapshot
-  let utf8StartOffset: Int
-  let position: Position
-  let compileCommand: FileBuildSettings?
-  var state: State = .closed
-
-  enum State {
-    case closed
-    // FIXME: we should keep a real queue and cancel previous updates.
-    case opening(DispatchGroup)
-    case open
-  }
-
-  var uri: DocumentURI { snapshot.document.uri }
-
-  init(server: SwiftLanguageServer, snapshot: DocumentSnapshot, utf8Offset: Int, position: Position, compileCommand: FileBuildSettings?) {
-    self.server = server
-    self.queue = DispatchQueue(label: "CodeCompletionSession-queue", qos: .userInitiated, target: server.queue)
-    self.snapshot = snapshot
-    self.utf8StartOffset = utf8Offset
-    self.position = position
-    self.compileCommand = compileCommand
-  }
-
-  func update(filterText: String, position: Position, in snapshot: DocumentSnapshot, options: SKCompletionOptions, completion: @escaping (LSPResult<CompletionList>) -> Void) {
-    queue.async {
-      switch self.state {
-      case .closed:
-        self._open(filterText: filterText, position: position, in: snapshot, options: options, completion: completion)
-      case .opening(let group):
-        group.notify(queue: self.queue) {
-          switch self.state {
-          case .closed, .opening(_):
-            // Don't try again.
-            completion(.failure(.cancelled))
-          case .open:
-            self._update(filterText: filterText, position: position, in: snapshot, options: options, completion: completion)
-          }
-        }
-      case .open:
-        self._update(filterText: filterText, position: position, in: snapshot, options: options, completion: completion)
-      }
-    }
-  }
-
-  func _open(filterText: String, position: Position, in snapshot: DocumentSnapshot, options: SKCompletionOptions, completion: @escaping  (LSPResult<CompletionList>) -> Void) {
-    log("\(Self.self) Open: \(self) filter=\(filterText)")
-
-    let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
-    let keys = server.sourcekitd.keys
-    req[keys.request] = server.sourcekitd.requests.codecomplete_open
-    req[keys.offset] = utf8StartOffset
-    req[keys.name] = uri.pseudoPath
-    req[keys.sourcefile] = uri.pseudoPath
-    req[keys.sourcetext] = snapshot.text
-    req[keys.codecomplete_options] = optionsDictionary(filterText: filterText, options: options)
-    if let compileCommand = compileCommand {
-      req[keys.compilerargs] = compileCommand.compilerArguments
-    }
-
-    let group = DispatchGroup()
-    group.enter()
-
-    state = .opening(group)
-
-    let handle = server.sourcekitd.send(req, queue) { result in
-      defer { group.leave() }
-
-      guard let dict = result.success else {
-        self.state = .closed
-        return completion(.failure(result.failure!))
-      }
-      if case .closed = self.state {
-        return completion(.failure(.cancelled))
-      }
-
-      self.state = .open
-
-      guard let completions: SKDResponseArray = dict[keys.results] else {
-        return completion(.success(CompletionList(isIncomplete: false, items: [])))
-      }
-
-      completion(.success(self.server.completionsFromSKDResponse(completions, in: snapshot, completionPos: self.position, requestPosition: position, isIncomplete: true)))
-    }
-
-    // FIXME: cancellation
-    _ = handle
-  }
-
-  func _update(filterText: String, position: Position, in snapshot: DocumentSnapshot, options: SKCompletionOptions, completion: @escaping  (LSPResult<CompletionList>) -> Void) {
-    // FIXME: Assertion for prefix of snapshot matching what we started with.
-
-    log("\(Self.self) Update: \(self) filter=\(filterText)")
-    let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
-    let keys = server.sourcekitd.keys
-    req[keys.request] = server.sourcekitd.requests.codecomplete_update
-    req[keys.offset] = utf8StartOffset
-    req[keys.name] = uri.pseudoPath
-    req[keys.codecomplete_options] = optionsDictionary(filterText: filterText, options: options)
-
-    let handle = server.sourcekitd.send(req, queue) { result in
-      guard let dict = result.success else {
-        return completion(.failure(result.failure!))
-      }
-      guard let completions: SKDResponseArray = dict[keys.results] else {
-        return completion(.success(CompletionList(isIncomplete: false, items: [])))
-      }
-
-      completion(.success(self.server.completionsFromSKDResponse(completions, in: snapshot, completionPos: self.position, requestPosition: position, isIncomplete: true)))
-    }
-
-    // FIXME: cancellation
-    _ = handle
-  }
-
-  private func optionsDictionary(filterText: String, options: SKCompletionOptions) -> SKDRequestDictionary {
-    let dict = SKDRequestDictionary(sourcekitd: server.sourcekitd)
-    let keys = server.sourcekitd.keys
-    // Sorting and priority options.
-    dict[keys.codecomplete_hideunderscores] = 0
-    dict[keys.codecomplete_hidelowpriority] = 0
-    dict[keys.codecomplete_hidebyname] = 0
-    dict[keys.codecomplete_addinneroperators] = 0
-    dict[keys.codecomplete_callpatternheuristics] = 0
-    dict[keys.codecomplete_showtopnonliteralresults] = 0
-    // Filtering options.
-    dict[keys.codecomplete_filtertext] = filterText
-    if let maxResults = options.maxResults {
-      dict[keys.codecomplete_requestlimit] = maxResults
-    }
-    return dict
-  }
-
-  func close() {
-    // Temporary back-reference to server to keep it alive during close().
-    let server = self.server
-
-    queue.async {
-      if case .closed = self.state {
-        return
-      }
-      log("\(Self.self) Close: \(self)")
-      self.state = .closed
-      let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
-      let keys = server.sourcekitd.keys
-      req[keys.request] = server.sourcekitd.requests.codecomplete_close
-      req[keys.offset] = self.utf8StartOffset
-      req[keys.name] = self.snapshot.document.uri.pseudoPath
-      _ = try? server.sourcekitd.sendSync(req)
-    }
-  }
-}
-
-extension CodeCompletionSession: CustomStringConvertible {
-  var description: String {
-    "\(uri.pseudoPath):\(position)"
-  }
-}
 
 extension SwiftLanguageServer {
 
@@ -291,7 +127,7 @@ extension SwiftLanguageServer {
     _ = handle
   }
 
-  fileprivate func completionsFromSKDResponse(
+  func completionsFromSKDResponse(
     _ completions: SKDResponseArray,
     in snapshot: DocumentSnapshot,
     completionPos: Position,
