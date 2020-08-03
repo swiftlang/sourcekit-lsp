@@ -20,6 +20,7 @@ import LSPLogging
 import PackageGraph
 import PackageLoading
 import PackageModel
+import SourceControl
 import SKCore
 import SKSupport
 import Workspace
@@ -92,6 +93,7 @@ public final class SwiftPMWorkspace {
       pinsFile: packageRoot.appending(component: "Package.resolved"),
       manifestLoader: ManifestLoader(manifestResources: toolchain.manifestResources, cacheDir: buildPath),
       delegate: BuildSettingProviderWorkspaceDelegate(),
+      config: SwiftPMConfig(path: packageRoot.appending(components: ".swiftpm", "config"), fs: fileSystem),
       fileSystem: fileSystem,
       skipUpdate: true)
 
