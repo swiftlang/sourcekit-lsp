@@ -73,12 +73,11 @@ extension SourceKitD {
 
     let resp = SKDResponse(api.send_request_sync(req.dict), sourcekitd: self)
 
+    logResponse(resp)
+
     guard let dict = resp.value else {
-      log(resp.description, level: .error)
       throw resp.error!
     }
-
-    logAsync(level: .debug) { _ in dict.description }
 
     return dict
   }
@@ -98,15 +97,14 @@ extension SourceKitD {
 
       let resp = SKDResponse(_resp, sourcekitd: self)
 
+      logResponse(resp)
+
       guard let dict = resp.value else {
-        log(resp.description, level: .error)
         queue.async {
          reply(.failure(resp.error!))
         }
         return
       }
-
-      logAsync(level: .debug) { _ in dict.description }
 
       queue.async {
         reply(.success(dict))
@@ -114,6 +112,16 @@ extension SourceKitD {
     }
 
     return handle
+  }
+}
+
+private func logResponse(_ response: SKDResponse) {
+  if let value = response.value {
+    logAsync(level: .debug) { _ in value.description }
+  } else if case .requestCancelled = response.error! {
+    log(response.description, level: .debug)
+  } else {
+    log(response.description, level: .error)
   }
 }
 

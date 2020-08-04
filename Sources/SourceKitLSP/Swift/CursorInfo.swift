@@ -45,7 +45,7 @@ struct CursorInfo {
 }
 
 /// An error from a cursor info request.
-enum CursorInfoError: Error {
+enum CursorInfoError: Error, Equatable {
 
   /// The given URL is not a known document.
   case unknownDocument(DocumentURI)

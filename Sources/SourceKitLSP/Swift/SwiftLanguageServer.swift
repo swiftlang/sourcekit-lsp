@@ -414,7 +414,7 @@ extension SwiftLanguageServer {
     let position = req.params.position
     cursorInfo(uri, position..<position) { result in
       guard let cursorInfo: CursorInfo = result.success ?? nil else {
-        if let error = result.failure {
+        if let error = result.failure, error != .responseError(.cancelled) {
           log("cursor info failed \(uri):\(position): \(error)", level: .warning)
         }
         return req.reply(nil)
