@@ -120,10 +120,10 @@ do {
 // will not break our connection stream.
 let realStdout = dup(STDOUT_FILENO)
 if realStdout == -1 {
-  fatalError("failed to dup stdout:  \(strerror(errno))")
+  fatalError("failed to dup stdout: \(strerror(errno)!)")
 }
 if dup2(STDERR_FILENO, STDOUT_FILENO) == -1 {
-  fatalError("failed to redirect stdout -> stderr: \(strerror(errno))")
+  fatalError("failed to redirect stdout -> stderr: \(strerror(errno)!)")
 }
 
 let clientConnection = JSONRPCConnection(
