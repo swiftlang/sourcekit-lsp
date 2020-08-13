@@ -2,6 +2,10 @@
 import * as vscode from 'vscode';
 import * as langclient from 'vscode-languageclient';
 
+let client: langclient.LanguageClient;
+
+const IndexVisibilityConfigSection = 'sourcekit-lsp.indexVisibility'
+
 export function activate(context: vscode.ExtensionContext) {
 
     const config = vscode.workspace.getConfiguration('sourcekit-lsp');
@@ -18,12 +22,6 @@ export function activate(context: vscode.ExtensionContext) {
 
     const serverOptions: langclient.ServerOptions = sourcekit;
 
-    let synchronizeOptions: langclient.SynchronizeOptions = {
-        configurationSection: [
-            'sourcekit-lsp.indexVisibility'
-        ]
-    }
-
     let clientOptions: langclient.LanguageClientOptions = {
         documentSelector: [
             'swift',
@@ -32,16 +30,46 @@ export function activate(context: vscode.ExtensionContext) {
             'objective-c',
             'objective-cpp'
         ],
-        synchronize: synchronizeOptions,
         initializationOptions: config.get<any>('initializationOptions', {})
     };
 
-    const client = new langclient.LanguageClient('sourcekit-lsp', 'SourceKit Language Server', serverOptions, clientOptions);
+    client = new langclient.LanguageClient('sourcekit-lsp', 'SourceKit Language Server', serverOptions, clientOptions);
 
     context.subscriptions.push(client.start());
 
+    client.onNotification
+
     console.log('SourceKit-LSP is now active!');
+
+    client.onReady().then(() => {
+        syncConfiguration();
+
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration(IndexVisibilityConfigSection)) {
+                syncConfiguration();
+            }
+        });
+    });
 }
 
 export function deactivate() {
+}
+
+function syncConfiguration() {
+    const visibilityConfig = vscode.workspace.getConfiguration(IndexVisibilityConfigSection);
+    const visibilitySettingsParams: langclient.DidChangeConfigurationParams = {
+        settings: {
+            'sourcekit-lsp': {
+                'indexVisibility': {
+                    'targets': visibilityConfig.targets.map((uri: String) => 'uri: ' + uri),
+                    'includeTargetDependencies': visibilityConfig.includeTargetDependencies
+                }
+            }
+        }
+    }
+
+    client.sendNotification(
+        langclient.DidChangeConfigurationNotification.type,
+        visibilitySettingsParams,
+    )
 }
