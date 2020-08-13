@@ -37,8 +37,6 @@ export function activate(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(client.start());
 
-    client.onNotification
-
     console.log('SourceKit-LSP is now active!');
 
     client.onReady().then(() => {
