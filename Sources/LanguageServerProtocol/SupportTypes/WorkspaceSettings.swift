@@ -28,8 +28,7 @@ public enum WorkspaceSettingsChange: Codable, Hashable {
     // key, which we don't yet.  For now, assume that if we add another kind of workspace settings
     // it will rectify this issue.
     if let container = try? decoder.container(keyedBy: CodingKeys.self),
-       let settings = try? container.decode(SourceKitLSPWorkspaceSettings.self, forKey: .sourcekitlsp)
-    {
+       let settings = try? container.decode(SourceKitLSPWorkspaceSettings.self, forKey: .sourcekitlsp) {
       self = .sourcekitlsp(settings)
     } else if let settings = try? ClangWorkspaceSettings(from: decoder) {
       self = .clangd(settings)
@@ -43,8 +42,9 @@ public enum WorkspaceSettingsChange: Codable, Hashable {
     switch self {
     case .clangd(let settings):
       try settings.encode(to: encoder)
-    case .sourcekitlsp(_):
-      fatalError("Encoding SourceKitLSPWorkspaceSettings settings is not supported")
+    case .sourcekitlsp(let settings):
+      var container = encoder.container(keyedBy: CodingKeys.self)
+      try container.encode(settings, forKey: .sourcekitlsp)
     case .unknown(let settings):
       try settings.encode(to: encoder)
     }
@@ -87,18 +87,24 @@ public struct ClangCompileCommand: Codable, Hashable {
   }
 }
 
-public struct SourceKitLSPWorkspaceSettings: Decodable, Hashable {
+public struct SourceKitLSPWorkspaceSettings: Codable, Hashable {
   
-  // Index visibility setting
+  /// Index visibility setting
+  /// This affects indexing scope when explicit index visibility is enabled
   public var indexVisibility: IndexVisibility? = nil
 
   public init(indexVisibility: IndexVisibility?) {
-    self.indexVisibility = indexVisibility
+    if let indexVisibility = indexVisibility {
+      self.indexVisibility = indexVisibility
+    } else {
+      // nil is equivalent to no index visibility
+      self.indexVisibility = IndexVisibility(targets: [], includeTargetDependencies: false)
+    }
   }
 }
 
 /// Index visibility setting, represented by a list of target identifiers and whether the index of transparent target dependencies should be visibile
-public struct IndexVisibility: Decodable, Hashable {
+public struct IndexVisibility: Codable, Hashable {
 
   /// all targets included in the scheme
   public var targets: [BuildTargetIdentifier]

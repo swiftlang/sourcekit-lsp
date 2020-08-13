@@ -14,9 +14,24 @@ import LanguageServerProtocol
 import BuildServerProtocol
 
 extension SourceKitServer {
+  
+  /// *Public for testing*
+  public func _onIndexVisibilityChange(settings: IndexVisibility,
+                                       workspace: Workspace,
+                                       completion: @escaping ([BuildTargetIdentifier]?) -> Void) {
+    queue.async {
+      self.onIndexVisibilityChange(settings: settings,
+                                   workspace: workspace,
+                                   completion: completion)
+    }
+  }
 
-  public func onIndexVisibilityChange(settings: IndexVisibility, workspace: Workspace) {
+  /// Must be called on `queue`.
+  func onIndexVisibilityChange(settings: IndexVisibility,
+                               workspace: Workspace,
+                               completion: (([BuildTargetIdentifier]?) -> Void)? = nil) {
     guard workspace.explicitIndexMode else {
+      completion?(nil)
       return
     }
     
@@ -24,10 +39,14 @@ extension SourceKitServer {
       collectTransitiveDependencies(
         targets: settings.targets,
         workspace: workspace) { targets in
-          self.limitIndexVisibility(targets: targets, workspace: workspace)
+          self.limitIndexVisibility(targets: targets,
+                                    workspace: workspace,
+                                    completion: { completion?(targets) })
       }
     } else {
-      self.limitIndexVisibility(targets: settings.targets, workspace: workspace)
+      self.limitIndexVisibility(targets: settings.targets,
+                                workspace: workspace,
+                                completion: { completion?(settings.targets) })
     }
   }
   
@@ -57,7 +76,7 @@ extension SourceKitServer {
     }
   }
   
-  func limitIndexVisibility(targets: [BuildTargetIdentifier], workspace: Workspace) {
+  func limitIndexVisibility(targets: [BuildTargetIdentifier], workspace: Workspace, completion: @escaping () -> Void) {
     workspace.buildSystemManager.buildTargetOutputPaths(targets: targets) { response in
       guard let items = response.success else { return }
       let currentOutputs = self.schemeOutputs
@@ -69,6 +88,7 @@ extension SourceKitServer {
       let outputsToAdd = newOutputs.subtracting(currentOutputs).compactMap {$0.fileURL?.path}
       workspace.index?.removeUnitOutFilePaths(outputsToRemove, waitForProcessing: false)
       workspace.index?.addUnitOutFilePaths(outputsToAdd, waitForProcessing: false)
+      completion()
     }
   }
 }

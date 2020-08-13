@@ -60,16 +60,7 @@ final class IndexVisibilityChangeTests: XCTestCase {
         capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
         workspaceFolders: nil))
-  }
-
-  override func tearDown() {
-    buildSystem = nil
-    workspace = nil
-    sk = nil
-    testServer = nil
-  }
-
-  func testSchemeChanged() {
+    
     let targetGraph = mockBuildTargetGraph(targetStringRepr: [
          "target://a:a": [],
          "target://b:b": ["target://a:a"],
@@ -88,24 +79,60 @@ final class IndexVisibilityChangeTests: XCTestCase {
     buildSystem.targetOutputs = targetOutputResponse
 
     sk.allowUnexpectedNotification = false
+  }
 
+  override func tearDown() {
+    buildSystem = nil
+    workspace = nil
+    sk = nil
+    testServer = nil
+  }
+
+  func testIndexVisibilityChangedWithDependencies() {
     let targetURI = DocumentURI(string: "target://c:c")
-    let newSettings = IndexVisibility(targets: [BuildTargetIdentifier(uri: targetURI)], includeTargetDependencies: true)
-    let schemeChange: WorkspaceSettingsChange = .sourcekitlsp(SourceKitLSPWorkspaceSettings(indexVisibility: newSettings))
+    let indexVisibility = IndexVisibility(targets: [BuildTargetIdentifier(uri: targetURI)], includeTargetDependencies: true)
 
-    sk.send(DidChangeConfigurationNotification(settings: schemeChange))
-
-    // Unfortunately there's no callback for scheme change notification from sourcekit server, waiting here for the result
-    let expectation = self.expectation(description: "Waiting for scheme change notification handling")
-    let result = XCTWaiter.wait(for: [expectation], timeout: 1)
-    if result == .timedOut {
-      XCTAssertEqual(testServer.server?.schemeOutputs, Set([
+    let expectation = XCTestExpectation(description: "chainedTargetVisibilityChange")
+    testServer.server?._onIndexVisibilityChange(settings: indexVisibility, workspace: workspace, completion: { (targetIds: [BuildTargetIdentifier]?) in
+      XCTAssertEqual(self.testServer.server?.schemeOutputs, Set([
         URI(string: "file:///a.swift"),
         URI(string: "file:///b.swift"),
         URI(string: "file:///c.swift"),
       ]))
-    } else {
-      fatalError("Interrupted while waiting for scheme change notification")
+      expectation.fulfill()
+    })
+    let result = XCTWaiter.wait(for: [expectation], timeout: 5)
+    if result != .completed {
+      fatalError("error \(result) waiting for sourcekit server index visibility setting change response")
+    }
+  }
+  
+  func testIndexVisibilityChanged() {
+    let targetURI = DocumentURI(string: "target://c:c")
+    let indexVisibility = IndexVisibility(targets: [BuildTargetIdentifier(uri: targetURI)], includeTargetDependencies: false)
+
+    let expectation = XCTestExpectation(description: "chainedTargetVisibilityChange")
+    testServer.server?._onIndexVisibilityChange(settings: indexVisibility, workspace: workspace, completion: { (targetIds: [BuildTargetIdentifier]?) in
+      XCTAssertEqual(self.testServer.server?.schemeOutputs, Set([URI(string: "file:///c.swift")]))
+      expectation.fulfill()
+    })
+    let result = XCTWaiter.wait(for: [expectation], timeout: 5)
+    if result != .completed {
+      fatalError("error \(result) waiting for sourcekit server index visibility setting change response")
+    }
+  }
+  
+  func testNoIndexVisibility() {
+    let indexVisibility = IndexVisibility(targets: [], includeTargetDependencies: false)
+
+    let expectation = XCTestExpectation(description: "chainedTargetVisibilityChange")
+    testServer.server?._onIndexVisibilityChange(settings: indexVisibility, workspace: workspace, completion: { (targetIds: [BuildTargetIdentifier]?) in
+      XCTAssertEqual(self.testServer.server?.schemeOutputs.count, 0)
+      expectation.fulfill()
+    })
+    let result = XCTWaiter.wait(for: [expectation], timeout: 5)
+    if result != .completed {
+      fatalError("error \(result) waiting for sourcekit server index visibility setting change response")
     }
   }
 

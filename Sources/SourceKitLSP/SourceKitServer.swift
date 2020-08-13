@@ -565,7 +565,9 @@ extension SourceKitServer {
     switch notification.params.settings {
     case .sourcekitlsp(let settings):
       if let indexVisibility = settings.indexVisibility {
-        onIndexVisibilityChange(settings: indexVisibility, workspace: workspace)
+        queue.async {
+          self.onIndexVisibilityChange(settings: indexVisibility, workspace: workspace)
+        }
       }
     default:
       break

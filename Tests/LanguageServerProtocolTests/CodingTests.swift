@@ -152,33 +152,38 @@ final class CodingTests: XCTestCase {
     
     let targetUrl = URL(string: "target://path/to:target")!
     let targetUri = DocumentURI(targetUrl)
-    checkDecoding(
+    checkCoding(
+      WorkspaceSettingsChange.sourcekitlsp(SourceKitLSPWorkspaceSettings(indexVisibility:IndexVisibility(targets: [BuildTargetIdentifier(uri: targetUri)], includeTargetDependencies: true))),
       json: """
       {
         "sourcekit-lsp" : {
           "indexVisibility" : {
-            "targets": [
-              {"uri": "target:\\/\\/path\\/to:target"}
-            ],
-            "includeTargetDependencies": true
+            "includeTargetDependencies" : true,
+            "targets" : [
+              {
+                "uri" : "target:\\/\\/path\\/to:target"
+              }
+            ]
           }
         }
       }
-      """, expected: WorkspaceSettingsChange.sourcekitlsp(SourceKitLSPWorkspaceSettings(indexVisibility:IndexVisibility(targets: [BuildTargetIdentifier(uri: targetUri)], includeTargetDependencies: true)))
-    )
+      """)
     
     // Targets can be empty
-    checkDecoding(
+    checkCoding(
+      WorkspaceSettingsChange.sourcekitlsp(SourceKitLSPWorkspaceSettings(indexVisibility:IndexVisibility(targets: [], includeTargetDependencies: true))),
       json: """
       {
         "sourcekit-lsp" : {
           "indexVisibility" : {
-            "targets": [],
-            "includeTargetDependencies": true
+            "includeTargetDependencies" : true,
+            "targets" : [
+
+            ]
           }
         }
       }
-      """, expected: WorkspaceSettingsChange.sourcekitlsp(SourceKitLSPWorkspaceSettings(indexVisibility:IndexVisibility(targets: [], includeTargetDependencies: true)))
+      """
     )
 
     // FIXME: should probably be "unknown"; see comment in WorkspaceSettingsChange decoder.
