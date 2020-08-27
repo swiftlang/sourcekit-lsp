@@ -22,13 +22,6 @@ import SKSupport
 import SourceKitLSP
 import TSCBasic
 import TSCLibc
-import TSCUtility
-
-extension LogLevel: ArgumentKind {
-  public static var completion: ShellCompletion {
-    return ShellCompletion.none
-  }
-}
 
 extension AbsolutePath: ExpressibleByArgument {
   public init?(argument: String) {
