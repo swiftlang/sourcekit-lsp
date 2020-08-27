@@ -8,6 +8,7 @@ endif()
 add_executable(sourcekit-lsp
   main.swift)
 target_link_libraries(sourcekit-lsp PRIVATE
+  ArgumentParser
   LanguageServerProtocolJSONRPC
   SourceKitLSP
   TSCUtility)

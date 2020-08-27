@@ -22,6 +22,7 @@ find_package(TSC QUIET)
 find_package(IndexStoreDB QUIET)
 find_package(SwiftPM QUIET)
 find_package(LLBuild QUIET)
+find_package(ArgumentParser CONFIG REQUIRED)
 
 include(SwiftSupport)
 

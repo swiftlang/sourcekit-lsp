@@ -115,10 +115,13 @@ public final class Logger {
     }
   }
 
-  public func setLogLevel(environmentVariable: String) {
+  public func setLogLevel(environmentVariable: String) -> Bool {
     if let string = ProcessInfo.processInfo.environment[environmentVariable] {
       setLogLevel(string)
+      return true
     }
+
+    return false
   }
 
   public func setLogLevel(_ logLevel: String) {
