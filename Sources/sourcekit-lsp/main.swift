@@ -42,13 +42,6 @@ extension AbsolutePath: ExpressibleByArgument {
   }
 }
 
-struct CommandLineOptions {
-  /// Options for the server.
-  var serverOptions: SourceKitServer.Options = SourceKitServer.Options()
-
-  var syncRequests: Bool = false
-}
-
 extension LogLevel: ExpressibleByArgument {}
 extension BuildConfiguration: ExpressibleByArgument {}
 
@@ -62,12 +55,12 @@ struct Main: ParsableCommand {
   @Flag(name: .customLong("sync"))
   var syncRequests = false
 
-  @Option(help: "Set the logging level (debug|info|warning|error)")
-  var logLevel: LogLevel = LogLevel.default
+  @Option(help: "Set the logging level [debug|info|warning|error] (default: \(LogLevel.default))")
+  var logLevel: LogLevel?
 
   @Option(
     name: [.customLong("configuration"), .customShort("c")],
-    help: "Build with configuration (debug|release)"
+    help: "Build with configuration [debug|release]"
   )
   var buildConfiguration = BuildConfiguration.debug
 
@@ -122,13 +115,11 @@ struct Main: ParsableCommand {
   var indexDatabasePath: AbsolutePath?
 
   @Option(
-    name: .customLong("completion-server-side-filtering", withSingleDash: true),
     help: "Whether to enable server-side filtering in code-completion"
   )
   var completionServerSideFiltering = true
 
   @Option(
-    name: .customLong("completion-max-results", withSingleDash: true),
     help: "When server-side filtering is enabled, the maximum number of results to return"
   )
   var completionMaxResults = 200
@@ -152,8 +143,10 @@ struct Main: ParsableCommand {
   }
 
   func run() throws {
-    if !Logger.shared.setLogLevel(environmentVariable: "SOURCEKIT_LOGGING") {
+    if let logLevel = logLevel {
       Logger.shared.currentLevel = logLevel
+    } else {
+      Logger.shared.setLogLevel(environmentVariable: "SOURCEKIT_LOGGING")
     }
 
     // Dup stdout and redirect the fd to stderr so that a careless print()
