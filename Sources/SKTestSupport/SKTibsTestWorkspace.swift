@@ -10,17 +10,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKitLSP
-import LanguageServerProtocol
-import SKCore
+import Foundation
 import IndexStoreDB
-import ISDBTibs
 import ISDBTestSupport
+import ISDBTibs
+import LanguageServerProtocol
+import LSPLogging
+import LSPTestSupport
+import SKCore
+import SourceKitLSP
 import TSCBasic
 import TSCUtility
 import XCTest
-import Foundation
-import LSPTestSupport
 
 public typealias URL = Foundation.URL
 
@@ -114,7 +115,7 @@ extension XCTestCase {
     clientCapabilities: ClientCapabilities = .init(),
     tmpDir: URL? = nil,
     removeTmpDir: Bool = true,
-    testFile: String = #file
+    testFile: String = fullFilePath()
   ) throws -> SKTibsTestWorkspace? {
     let testDirName = testDirectoryName
     let workspace = try SKTibsTestWorkspace(
@@ -145,7 +146,7 @@ extension XCTestCase {
     name: String,
     clientCapabilities: ClientCapabilities = .init(),
     tmpDir: URL? = nil,
-    testFile: String = #file
+    testFile: String = fullFilePath()
   ) throws -> SKTibsTestWorkspace? {
     let testDirName = testDirectoryName
     let workspace = try SKTibsTestWorkspace(

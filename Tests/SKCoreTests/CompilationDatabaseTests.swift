@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LSPLogging
 import LSPTestSupport
 import SKCore
 import TSCBasic
@@ -18,7 +19,7 @@ import XCTest
 
 final class CompilationDatabaseTests: XCTestCase {
   func testSplitShellEscapedCommand() {
-    func check(_ str: String, _ expected: [String], file: StaticString=#file, line: UInt=#line) {
+    func check(_ str: String, _ expected: [String], file: StaticString = fullFilePath(), line: UInt = #line) {
       XCTAssertEqual(splitShellEscapedCommand(str), expected, file: file, line: line)
     }
 
@@ -61,7 +62,7 @@ final class CompilationDatabaseTests: XCTestCase {
   func testEncodeCompDBCommand() {
     // Requires JSONEncoder.OutputFormatting.sortedKeys
     if #available(macOS 10.13, *) {
-      func check(_ cmd: CompilationDatabase.Command, _ expected: String, file: StaticString = #file, line: UInt = #line) {
+      func check(_ cmd: CompilationDatabase.Command, _ expected: String, file: StaticString = fullFilePath(), line: UInt = #line) {
         let encoder = JSONEncoder()
         encoder.outputFormatting.insert(.sortedKeys)
         let encodedString = try! String(data: encoder.encode(cmd), encoding: .utf8)
@@ -78,7 +79,7 @@ final class CompilationDatabaseTests: XCTestCase {
   }
 
   func testDecodeCompDBCommand() {
-    func check(_ str: String, _ expected: CompilationDatabase.Command, file: StaticString = #file, line: UInt = #line) {
+    func check(_ str: String, _ expected: CompilationDatabase.Command, file: StaticString = fullFilePath(), line: UInt = #line) {
       let cmd = try! JSONDecoder().decode(CompilationDatabase.Command.self, from: str.data(using: .utf8)!)
       XCTAssertEqual(cmd, expected, file: file, line: line)
     }
@@ -305,7 +306,7 @@ final class CompilationDatabaseTests: XCTestCase {
   }
 }
 
-private func checkCompilationDatabaseBuildSystem(_ compdb: ByteString, file: StaticString = #file, line: UInt = #line, block: (CompilationDatabaseBuildSystem) -> ()) {
+private func checkCompilationDatabaseBuildSystem(_ compdb: ByteString, file: StaticString = fullFilePath(), line: UInt = #line, block: (CompilationDatabaseBuildSystem) -> ()) {
   let fs = InMemoryFileSystem()
   XCTAssertNoThrow(try fs.createDirectory(AbsolutePath("/a")), file: file, line: line)
   XCTAssertNoThrow(try fs.writeFileContents(AbsolutePath("/a/compile_commands.json"), bytes: compdb), file: file, line: line)

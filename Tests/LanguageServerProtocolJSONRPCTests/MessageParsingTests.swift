@@ -12,12 +12,13 @@
 
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
+import LSPLogging
 import XCTest
 
 final class MessageParsingTests: XCTestCase {
 
   func testSplitMessage() {
-    func check(_ string: String, contentLen: Int? = nil, restLen: Int?, file: StaticString = #file, line: UInt = #line) {
+    func check(_ string: String, contentLen: Int? = nil, restLen: Int?, file: StaticString = fullFilePath(), line: UInt = #line) {
       let bytes: [UInt8] = [UInt8](string.utf8)
       guard let ((content, header), rest) = try! bytes.jsonrpcSplitMessage() else {
         XCTAssert(restLen == nil, "expected non-empty field", file: file, line: line)
@@ -28,7 +29,7 @@ final class MessageParsingTests: XCTestCase {
       XCTAssertEqual(header.contentLength, contentLen, file: file, line: line)
     }
 
-    func checkError(_ string: String, _ expected: MessageDecodingError, file: StaticString = #file, line: UInt = #line) {
+    func checkError(_ string: String, _ expected: MessageDecodingError, file: StaticString = fullFilePath(), line: UInt = #line) {
       do {
         _ = try [UInt8](string.utf8).jsonrpcSplitMessage()
         XCTFail("missing expected error", file: file, line: line)
@@ -53,7 +54,7 @@ final class MessageParsingTests: XCTestCase {
   }
 
   func testParseHeader() {
-    func check(_ string: String, header expected: JSONRPCMessageHeader? = nil, restLen: Int?, file: StaticString = #file, line: UInt = #line) {
+    func check(_ string: String, header expected: JSONRPCMessageHeader? = nil, restLen: Int?, file: StaticString = fullFilePath(), line: UInt = #line) {
       let bytes: [UInt8] = [UInt8](string.utf8)
       guard let (header, rest) = try! bytes.jsonrcpParseHeader() else {
         XCTAssert(restLen == nil, "expected non-empty field", file: file, line: line)
@@ -63,7 +64,7 @@ final class MessageParsingTests: XCTestCase {
       XCTAssertEqual(header, expected, file: file, line: line)
     }
 
-    func checkErrorBytes(_ bytes: [UInt8], _ expected: MessageDecodingError, file: StaticString = #file, line: UInt = #line) {
+    func checkErrorBytes(_ bytes: [UInt8], _ expected: MessageDecodingError, file: StaticString = fullFilePath(), line: UInt = #line) {
       do {
         _ = try bytes.jsonrcpParseHeader()
         XCTFail("missing expected error", file: file, line: line)
@@ -74,7 +75,7 @@ final class MessageParsingTests: XCTestCase {
       }
     }
 
-    func checkError(_ string: String, _ expected: MessageDecodingError, file: StaticString = #file, line: UInt = #line) {
+    func checkError(_ string: String, _ expected: MessageDecodingError, file: StaticString = fullFilePath(), line: UInt = #line) {
       checkErrorBytes([UInt8](string.utf8), expected, file: file, line: line)
     }
 
@@ -95,7 +96,7 @@ final class MessageParsingTests: XCTestCase {
   }
 
   func testParseHeaderField() {
-    func check(_ string: String, keyLen: Int? = nil, valueLen: Int? = nil, restLen: Int?, file: StaticString = #file, line: UInt = #line) {
+    func check(_ string: String, keyLen: Int? = nil, valueLen: Int? = nil, restLen: Int?, file: StaticString = fullFilePath(), line: UInt = #line) {
       let bytes: [UInt8] = [UInt8](string.utf8)
       guard let (kv, rest) = try! bytes.jsonrpcParseHeaderField() else {
         XCTAssert(restLen == nil, "expected non-empty field", file: file, line: line)
@@ -112,7 +113,7 @@ final class MessageParsingTests: XCTestCase {
       }
     }
 
-    func checkError(_ string: String, _ expected: MessageDecodingError, file: StaticString = #file, line: UInt = #line) {
+    func checkError(_ string: String, _ expected: MessageDecodingError, file: StaticString = fullFilePath(), line: UInt = #line) {
       do {
         _ = try [UInt8](string.utf8).jsonrpcParseHeaderField()
         XCTFail("missing expected error", file: file, line: line)

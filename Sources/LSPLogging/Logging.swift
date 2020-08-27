@@ -42,7 +42,7 @@ public func logAsync(level: LogLevel = .default, messageProducer: @escaping (_ c
 /// If `level >= Logger.shared.currentLevel`, it will be emitted. However, the converse is not necessarily true: on platforms that provide `os_log`, the message may be emitted by `os_log` according to its own rules about log level.
 ///
 /// - parameter message: The message to print.
-public func logAssertionFailure(_ message: String, file: StaticString = #file, line: UInt = #line) {
+public func logAssertionFailure(_ message: String, file: StaticString = fullFilePath(), line: UInt = #line) {
   Logger.shared.log(message, level: .error)
   assertionFailure(message, file: file, line: line)
 }
@@ -209,3 +209,19 @@ public class AnyLogHandler: LogHandler {
     handler(message, level)
   }
 }
+
+#if compiler(>=5.3)
+public func fullFilePath(_ filePath: StaticString = #filePath) -> StaticString {
+    return filePath
+}
+public func fullFilePath(_ filePath: String = #filePath) -> String {
+    return filePath
+}
+#else
+public func fullFilePath(_ filePath: StaticString = #file) -> StaticString {
+    return filePath
+}
+public func fullFilePath(_ filePath: String = #file) -> String {
+    return filePath
+}
+#endif

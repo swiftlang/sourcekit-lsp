@@ -15,6 +15,7 @@ import SPMBuildCore
 #endif
 import Build
 import LanguageServerProtocol
+import LSPLogging
 import SKCore
 import SKSwiftPMWorkspace
 import SKTestSupport
@@ -512,7 +513,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 private func checkNot(
   _ pattern: String...,
   arguments: [String],
-  file: StaticString = #file,
+  file: StaticString = fullFilePath(),
   line: UInt = #line)
 {
   if let index = arguments.firstIndex(of: pattern) {
@@ -526,7 +527,7 @@ private func checkNot(
 private func check(
   _ pattern: String...,
   arguments: [String],
-  file: StaticString = #file,
+  file: StaticString = fullFilePath(),
   line: UInt = #line)
 {
   guard let index = arguments.firstIndex(of: pattern) else {

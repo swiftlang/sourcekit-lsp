@@ -10,18 +10,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKitLSP
-import SKSwiftPMWorkspace
-import LanguageServerProtocol
-import SKCore
+import Foundation
 import IndexStoreDB
-import ISDBTibs
 import ISDBTestSupport
+import ISDBTibs
+import LanguageServerProtocol
+import LSPLogging
+import LSPTestSupport
+import SKCore
+import SKSwiftPMWorkspace
+import SourceKitLSP
 import TSCBasic
 import TSCUtility
 import XCTest
-import Foundation
-import LSPTestSupport
 
 public final class SKSwiftPMTestWorkspace {
 
@@ -137,7 +138,7 @@ extension SKSwiftPMTestWorkspace {
 
 extension XCTestCase {
 
-  public func staticSourceKitSwiftPMWorkspace(name: String, testFile: String = #file) throws -> SKSwiftPMTestWorkspace? {
+  public func staticSourceKitSwiftPMWorkspace(name: String, testFile: String = fullFilePath()) throws -> SKSwiftPMTestWorkspace? {
     let testDirName = testDirectoryName
     let toolchain = ToolchainRegistry.shared.default!
     let workspace = try SKSwiftPMTestWorkspace(
