@@ -103,16 +103,16 @@ struct Main: ParsableCommand {
   var clangdOptions = [String]()
 
   @Option(
-    name: .customLong("index-store-path", withSingleDash: true),
+    name: [.long, .customLong("index-store-path", withSingleDash: true)],
     help: "Override index-store-path from the build system"
   )
   var indexStorePath: AbsolutePath?
 
   @Option(
-    name: .customLong("index-db-path", withSingleDash: true),
+    name: [.long, .customLong("index-db-path", withSingleDash: true)],
     help: "Override index-database-path from the build system"
   )
-  var indexDatabasePath: AbsolutePath?
+  var indexDBPath: AbsolutePath?
 
   @Option(
     help: "Whether to enable server-side filtering in code-completion"
@@ -135,7 +135,7 @@ struct Main: ParsableCommand {
     serverOptions.buildSetup.flags.swiftCompilerFlags = buildFlagsSwift
     serverOptions.clangdOptions = clangdOptions
     serverOptions.indexOptions.indexStorePath = indexStorePath
-    serverOptions.indexOptions.indexDatabasePath = indexDatabasePath
+    serverOptions.indexOptions.indexDatabasePath = indexDBPath
     serverOptions.completionOptions.serverSideFiltering = completionServerSideFiltering
     serverOptions.completionOptions.maxResults = completionMaxResults
 
