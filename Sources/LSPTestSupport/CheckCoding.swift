@@ -17,7 +17,7 @@ import XCTest
 ///
 /// - parameter value: The value to encode/decode.
 /// - parameter json: The expected json encoding.
-public func checkCoding<T>(_ value: T, json: String, file: StaticString = #file, line: UInt = #line) where T: Codable & Equatable {
+public func checkCoding<T>(_ value: T, json: String, file: StaticString = #filePath, line: UInt = #line) where T: Codable & Equatable {
   let encoder = JSONEncoder()
   encoder.outputFormatting.insert(.prettyPrinted)
   if #available(macOS 10.13, *) {
@@ -57,7 +57,7 @@ private struct WrapFragment<T>: Equatable, Codable where T: Equatable & Codable 
 ///
 /// - parameter value: The value to encode/decode.
 /// - parameter json: The expected json encoding.
-public func checkDecoding<T>(json: String, expected value: T, file: StaticString = #file, line: UInt = #line) where T: Codable & Equatable {
+public func checkDecoding<T>(json: String, expected value: T, file: StaticString = #filePath, line: UInt = #line) where T: Codable & Equatable {
 
   let wrappedStr = "{\"value\":\(json)}"
   let data = wrappedStr.data(using: .utf8)!
@@ -67,7 +67,7 @@ public func checkDecoding<T>(json: String, expected value: T, file: StaticString
   XCTAssertEqual(value, decodedValue, file: file, line: line)
 }
 
-public func checkCoding<T>(_ value: T, json: String, userInfo: [CodingUserInfoKey: Any] = [:], file: StaticString = #file, line: UInt = #line, body: (T) -> Void) where T: Codable {
+public func checkCoding<T>(_ value: T, json: String, userInfo: [CodingUserInfoKey: Any] = [:], file: StaticString = #filePath, line: UInt = #line, body: (T) -> Void) where T: Codable {
   let encoder = JSONEncoder()
   encoder.outputFormatting.insert(.prettyPrinted)
   if #available(macOS 10.13, *) {
