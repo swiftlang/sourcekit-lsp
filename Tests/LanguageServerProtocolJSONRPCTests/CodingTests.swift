@@ -126,7 +126,7 @@ final class CodingTests: XCTestCase {
       "jsonrpc" : "2.0"
     }
     """)
-    
+
     checkMessageCoding(ResponseError.cancelled, id: nil, json: """
     {
       "error" : {
@@ -216,7 +216,7 @@ final class CodingTests: XCTestCase {
 
 let defaultCodingInfo: [CodingUserInfoKey: Any] = [CodingUserInfoKey.messageRegistryKey:MessageRegistry.lspProtocol]
 
-private func checkMessageCoding<Request>(_ value: Request, id: RequestID, json: String, file: StaticString = #file, line: UInt = #line) where Request: RequestType & Equatable {
+private func checkMessageCoding<Request>(_ value: Request, id: RequestID, json: String, file: StaticString = #filePath, line: UInt = #line) where Request: RequestType & Equatable {
   checkCoding(JSONRPCMessage.request(value, id: id), json: json, userInfo: defaultCodingInfo, file: file, line: line) {
 
     guard case JSONRPCMessage.request(let decodedValueOpaque, let decodedID) = $0, let decodedValue = decodedValueOpaque as? Request else {
@@ -229,7 +229,7 @@ private func checkMessageCoding<Request>(_ value: Request, id: RequestID, json: 
   }
 }
 
-private func checkMessageCoding<Notification>(_ value: Notification, json: String, file: StaticString = #file, line: UInt = #line) where Notification: NotificationType & Equatable {
+private func checkMessageCoding<Notification>(_ value: Notification, json: String, file: StaticString = #filePath, line: UInt = #line) where Notification: NotificationType & Equatable {
   checkCoding(JSONRPCMessage.notification(value), json: json, userInfo: defaultCodingInfo, file: file, line: line) {
 
     guard case JSONRPCMessage.notification(let decodedValueOpaque) = $0, let decodedValue = decodedValueOpaque as? Notification else {
@@ -241,7 +241,7 @@ private func checkMessageCoding<Notification>(_ value: Notification, json: Strin
   }
 }
 
-private func checkMessageCoding<Response>(_ value: Response, id: RequestID, json: String, file: StaticString = #file, line: UInt = #line) where Response: ResponseType & Equatable {
+private func checkMessageCoding<Response>(_ value: Response, id: RequestID, json: String, file: StaticString = #filePath, line: UInt = #line) where Response: ResponseType & Equatable {
 
   let callback: JSONRPCMessage.ResponseTypeCallback = {
     return $0 == .string("unknown") ? nil : Response.self
@@ -262,7 +262,7 @@ private func checkMessageCoding<Response>(_ value: Response, id: RequestID, json
   }
 }
 
-private func checkMessageCoding(_ value: ResponseError, id: RequestID?, json: String, file: StaticString = #file, line: UInt = #line) {
+private func checkMessageCoding(_ value: ResponseError, id: RequestID?, json: String, file: StaticString = #filePath, line: UInt = #line) {
   checkCoding(JSONRPCMessage.errorResponse(value, id: id), json: json, userInfo: defaultCodingInfo, file: file, line: line) {
 
     guard case JSONRPCMessage.errorResponse(let decodedValue, let decodedID) = $0 else {
@@ -275,7 +275,7 @@ private func checkMessageCoding(_ value: ResponseError, id: RequestID?, json: St
   }
 }
 
-private func checkMessageDecodingError(_ expected: MessageDecodingError, json: String, userInfo: [CodingUserInfoKey: Any] = defaultCodingInfo, file: StaticString = #file, line: UInt = #line) {
+private func checkMessageDecodingError(_ expected: MessageDecodingError, json: String, userInfo: [CodingUserInfoKey: Any] = defaultCodingInfo, file: StaticString = #filePath, line: UInt = #line) {
   let data = json.data(using: .utf8)!
   let decoder = JSONDecoder()
   decoder.userInfo = userInfo
