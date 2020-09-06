@@ -14,6 +14,9 @@ import Dispatch
 import Foundation
 import LanguageServerProtocol
 import LSPLogging
+#if os(Windows)
+import let WinSDK.ECANCELED
+#endif
 
 /// A connection between a message handler (e.g. language server) in the same process as the connection object and a remote message handler (e.g. language client) that may run in another process using JSON RPC messages sent over a pair of in/out file descriptors.
 ///
@@ -111,9 +114,15 @@ public final class JSONRPCConnection {
 
     receiveIO.read(offset: 0, length: Int.max, queue: queue) { done, data, errorCode in
       guard errorCode == 0 else {
+#if os(Windows)
+        if errorCode != ECANCELED {
+          log("IO error reading \(errorCode)", level: .error)
+        }
+#else
         if errorCode != POSIXError.ECANCELED.rawValue {
           log("IO error reading \(errorCode)", level: .error)
         }
+#endif
         if done { self._close() }
         return
       }
