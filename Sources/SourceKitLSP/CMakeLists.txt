@@ -17,6 +17,8 @@ add_library(SourceKitLSP
 target_sources(SourceKitLSP PRIVATE
   Clang/ClangLanguageServer.swift)
 target_sources(SourceKitLSP PRIVATE
+  Swift/CodeCompletion.swift
+  Swift/CodeCompletionSession.swift
   Swift/CommentXML.swift
   Swift/CursorInfo.swift
   Swift/Diagnostic.swift
