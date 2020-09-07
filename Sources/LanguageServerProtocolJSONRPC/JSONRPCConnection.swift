@@ -10,10 +10,16 @@
 //
 //===----------------------------------------------------------------------===//
 
+#if canImport(CDispatch)
+import CDispatch
+#endif
 import Dispatch
 import Foundation
 import LanguageServerProtocol
 import LSPLogging
+#if os(Windows)
+import ucrt
+#endif
 
 /// A connection between a message handler (e.g. language server) in the same process as the connection object and a remote message handler (e.g. language client) that may run in another process using JSON RPC messages sent over a pair of in/out file descriptors.
 ///
@@ -67,7 +73,12 @@ public final class JSONRPCConnection {
     let ioGroup = DispatchGroup()
 
     ioGroup.enter()
-    receiveIO = DispatchIO(type: .stream, fileDescriptor: inFD, queue: queue) { (error: Int32) in
+#if os(Windows)
+    let inDesc: dispatch_fd_t = dispatch_fd_t(_get_osfhandle(inFD))
+#else
+    let inDesc: Int32 = Int32(inFD)
+#endif
+    receiveIO = DispatchIO(type: .stream, fileDescriptor: inDesc, queue: queue) { (error: Int32) in
       if error != 0 {
         log("IO error \(error)", level: .error)
       }
@@ -75,7 +86,12 @@ public final class JSONRPCConnection {
     }
 
     ioGroup.enter()
-    sendIO = DispatchIO(type: .stream, fileDescriptor: outFD, queue: sendQueue) { (error: Int32) in
+#if os(Windows)
+    let outDesc: dispatch_fd_t = dispatch_fd_t(_get_osfhandle(outFD))
+#else
+    let outDesc: Int32 = Int32(outFD)
+#endif
+    sendIO = DispatchIO(type: .stream, fileDescriptor: outDesc, queue: sendQueue) { (error: Int32) in
       if error != 0 {
         log("IO error \(error)", level: .error)
       }
