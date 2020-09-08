@@ -6,6 +6,10 @@ add_library(LanguageServerProtocol
   Message.swift
   MessageRegistry.swift
   Messages.swift
+  PositionRange.swift
+  Request.swift
+  RequestID.swift
+
   Notifications/CancelRequestNotification.swift
   Notifications/ConfigurationNotification.swift
   Notifications/DidChangeWorkspaceFoldersNotification.swift
@@ -15,9 +19,7 @@ add_library(LanguageServerProtocol
   Notifications/PublishDiagnosticsNotification.swift
   Notifications/ShowMessageNotification.swift
   Notifications/TextSynchronizationNotifications.swift
-  PositionRange.swift
-  Request.swift
-  RequestID.swift
+
   Requests/ApplyEditRequest.swift
   Requests/CodeActionRequest.swift
   Requests/ColorPresentationRequest.swift
@@ -39,6 +41,7 @@ add_library(LanguageServerProtocol
   Requests/SymbolInfoRequest.swift
   Requests/WorkspaceFoldersRequest.swift
   Requests/WorkspaceSymbolsRequest.swift
+
   SupportTypes/ClientCapabilities.swift
   SupportTypes/CodeActionKind.swift
   SupportTypes/Command.swift
@@ -47,14 +50,15 @@ add_library(LanguageServerProtocol
   SupportTypes/Diagnostic.swift
   SupportTypes/DocumentURI.swift
   SupportTypes/FoldingRangeKind.swift
-  SupportTypes/LSPAny.swift
   SupportTypes/Language.swift
   SupportTypes/Location.swift
   SupportTypes/LocationLink.swift
   SupportTypes/LocationsOrLocationLinksResponse.swift
+  SupportTypes/LSPAny.swift
   SupportTypes/MarkupContent.swift
   SupportTypes/Position.swift
   SupportTypes/ServerCapabilities.swift
+  SupportTypes/SKCompletionOptions.swift
   SupportTypes/SymbolKind.swift
   SupportTypes/TextDocumentContentChangeEvent.swift
   SupportTypes/TextDocumentEdit.swift
@@ -66,8 +70,7 @@ add_library(LanguageServerProtocol
   SupportTypes/WindowMessageType.swift
   SupportTypes/WorkspaceEdit.swift
   SupportTypes/WorkspaceFolder.swift
-  SupportTypes/WorkspaceSettings.swift
-  )
+  SupportTypes/WorkspaceSettings.swift)
 set_target_properties(LanguageServerProtocol PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
