@@ -30,7 +30,7 @@ struct CursorInfo {
   var annotatedDeclaration: String?
 
   /// The documentation comment XML string. The schema is at
-  /// https://github.com/apple/swift/blob/master/bindings/xml/comment-xml-schema.rng
+  /// https://github.com/apple/swift/blob/main/bindings/xml/comment-xml-schema.rng
   var documentationXML: String?
 
   /// The refactor actions available at this position.

@@ -14,7 +14,7 @@ This document contains notes about development and testing of SourceKit-LSP.
 
 For maximum compatibility with toolchain components such as the Swift Package Manager, the only supported way to develop SourceKit-LSP is with the latest toolchain snapshot. We make an effort to keep the build and tests working with the latest release of Swift, but this is not always possible.
 
-1. Install the latest master toolchain snapshot from https://swift.org/download/#snapshots. **If you're looking for swift-5.x**, use the `swift-5.x-branch` of SourceKit-LSP with the latest swift-5.x toolchain snapshot. See [Toolchains](#toolchains) for more information.
+1. Install the latest "Trunk Development (main)" toolchain snapshot from https://swift.org/download/#snapshots. **If you're looking for swift-5.x**, use the `swift-5.x-branch` of SourceKit-LSP with the latest swift-5.x toolchain snapshot. See [Toolchains](#toolchains) for more information.
 
 2. Build the language server executable `sourcekit-lsp` using `swift build`. See [Building](#building-sourcekit-lsp) for more information.
 
@@ -24,7 +24,7 @@ For maximum compatibility with toolchain components such as the Swift Package Ma
 
 ## Building SourceKit-LSP
 
-Install the latest snapshot from https://swift.org/download/#snapshots. SourceKit-LSP builds with the latest toolchain snapshot of the corresponding branch (e.g. to build the *master* branch, use the latest *master* snapshot of the toolchain). See [Toolchains](#toolchains) for more information about supported toolchains.
+Install the latest snapshot from https://swift.org/download/#snapshots. SourceKit-LSP builds with the latest toolchain snapshot of the corresponding branch (e.g. to build the *main* branch, use the latest *main* snapshot of the toolchain). See [Toolchains](#toolchains) for more information about supported toolchains.
 
 SourceKit-LSP is built using the [Swift Package Manager](https://github.com/apple/swift-package-manager). For a standard debug build on the command line:
 
@@ -58,7 +58,7 @@ Use the latest toolchain snapshot from https://swift.org/download/#snapshots. So
 
 | SourceKit-LSP branch | Toolchain |
 |:---------------------|:----------|
-| master               | Trunk Development (master) |
+| main                 | Trunk Development (main) |
 | swift-5.2-branch     | Swift 5.2 Development |
 | swift-5.1-branch     | Swift 5.1.1+ |
 
@@ -178,4 +178,4 @@ Position(ws.testLoc("aaa:call"))
 ## Tibs
 
 We use Tibs, the "Test Index Build System" from the IndexStoreDB project to provide build system support for test projects, including getting compiler arguments and building an index. 
-For much more information about Tibs, see [IndexStoreDB/Documentation/Tibs.md](https://github.com/apple/indexstore-db/blob/master/Documentation/Tibs.md).
+For much more information about Tibs, see [IndexStoreDB/Documentation/Tibs.md](https://github.com/apple/indexstore-db/blob/main/Documentation/Tibs.md).
