@@ -46,13 +46,7 @@ extension LogLevel: CustomStringConvertible {
 }
 
 extension LogLevel {
-  enum ConversionError: Error {
-    case unknown(value: String)
-    case custom(String)
-  }
-
-
-  public init(argument: String) throws {
+  public init?(argument: String) {
     switch argument {
     case "error":
       self = .error
@@ -66,7 +60,7 @@ extension LogLevel {
 
       // Also accept a numerical log level, for parity with SOURCEKIT_LOGGING environment variable.
       guard let value = Int(argument) else {
-        throw ConversionError.unknown(value: argument)
+        return nil
       }
 
       if let level = LogLevel(rawValue: value) {
@@ -74,7 +68,7 @@ extension LogLevel {
       } else if value > LogLevel.debug.rawValue  {
         self = .debug
       } else {
-        throw ConversionError.custom("numerical log level \(value) is out of range")
+        return nil
       }
     }
   }
