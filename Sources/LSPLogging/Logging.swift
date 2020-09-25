@@ -122,7 +122,7 @@ public final class Logger {
   }
 
   public func setLogLevel(_ logLevel: String) {
-    if let level = try? LogLevel(argument: logLevel) {
+    if let level = LogLevel(argument: logLevel) {
       currentLevel = level
     }
   }
