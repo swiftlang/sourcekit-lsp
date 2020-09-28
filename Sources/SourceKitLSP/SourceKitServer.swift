@@ -658,6 +658,13 @@ extension SourceKitServer {
   /// Find all symbols in the workspace that include a string in their name.
   /// - returns: An array of SymbolOccurrences that match the string.
   func findWorkspaceSymbols(matching: String) -> [SymbolOccurrence] {
+    // Ignore short queries since they are:
+    // - noisy and slow, since they can match many symbols
+    // - normally unintentional, triggered when the user types slowly or if the editor doesn't
+    //   debounce events while the user is typing
+    guard matching.count >= minWorkspaceSymbolPatternLength else {
+      return []
+    }
     var symbolOccurenceResults: [SymbolOccurrence] = []
     workspace?.index?.forEachCanonicalSymbolOccurrence(
       containing: matching,
@@ -665,16 +672,22 @@ extension SourceKitServer {
       anchorEnd: false,
       subsequence: true,
       ignoreCase: true
-    ) {symbol in
-      if !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) {
-        symbolOccurenceResults.append(symbol)
+    ) { symbol in
+      guard !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) else {
+        return true
       }
-      return true
+      symbolOccurenceResults.append(symbol)
+      // FIXME: Once we have cancellation support, we should fetch all results and take the top
+      // `maxWorkspaceSymbolResults` symbols but bail if cancelled.
+      //
+      // Until then, take the first `maxWorkspaceSymbolResults` symbols to limit the impact of
+      // queries which match many symbols.
+      return symbolOccurenceResults.count < maxWorkspaceSymbolResults
     }
     return symbolOccurenceResults
   }
 
-  /// Handle a workspace/symbols request, returning the SymbolInformation.
+  /// Handle a workspace/symbol request, returning the SymbolInformation.
   /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
   func workspaceSymbols(_ req: Request<WorkspaceSymbolsRequest>, workspace: Workspace) {
     let symbols = findWorkspaceSymbols(
@@ -1021,6 +1034,13 @@ public func languageService(
     return nil
   }
 }
+
+/// Minimum supported pattern length for a `workspace/symbol` request, smaller pattern
+/// strings are not queried and instead we return no results.
+private let minWorkspaceSymbolPatternLength = 3
+
+/// The maximum number of results to return from a `workspace/symbol` request.
+private let maxWorkspaceSymbolResults = 4096
 
 public typealias Notification = LanguageServerProtocol.Notification
 public typealias Diagnostic = LanguageServerProtocol.Diagnostic
