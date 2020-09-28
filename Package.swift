@@ -220,13 +220,9 @@ let package = Package(
 // by the external environment. This allows sourcekit-lsp to take advantage of the automation used
 // for building the swift toolchain, such as `update-checkout`, or cross-repo PR tests.
 
-#if canImport(Glibc)
-import Glibc
-#else
-import Darwin.C
-#endif
+import Foundation
 
-if getenv("SWIFTCI_USE_LOCAL_DEPS") == nil {
+if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
   // Building standalone.
   package.dependencies += [
     .package(url: "https://github.com/apple/indexstore-db.git", .branch("main")),
