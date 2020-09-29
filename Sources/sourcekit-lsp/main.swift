@@ -161,7 +161,7 @@ struct Main: ParsableCommand {
 
     let clientConnection = JSONRPCConnection(
       protocol: MessageRegistry.lspProtocol,
-      inFD: STDIN_FILENO,
+      inFD: fileno(stdin),
       outFD: realStdout,
       syncRequests: syncRequests
     )
