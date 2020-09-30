@@ -526,16 +526,16 @@ private func makeToolchain(
     makeExec(binPath.appending(component: "swiftc"))
   }
 
-  let dylibExt = Platform.currentPlatform?.dynamicLibraryExtension ?? "so"
+  let dylibExt = Platform.currentPlatform?.dynamicLibraryExtension ?? ".so"
 
   if sourcekitd {
     try! fs.createDirectory(libPath.appending(component: "sourcekitd.framework"))
     try! fs.writeFileContents(libPath.appending(components: "sourcekitd.framework", "sourcekitd") , bytes: "")
   }
   if sourcekitdInProc {
-    try! fs.writeFileContents(libPath.appending(component: "libsourcekitdInProc.\(dylibExt)") , bytes: "")
+    try! fs.writeFileContents(libPath.appending(component: "libsourcekitdInProc\(dylibExt)") , bytes: "")
   }
   if libIndexStore {
-    try! fs.writeFileContents(libPath.appending(component: "libIndexStore.\(dylibExt)") , bytes: "")
+    try! fs.writeFileContents(libPath.appending(component: "libIndexStore\(dylibExt)") , bytes: "")
   }
 }
