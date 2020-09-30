@@ -152,14 +152,22 @@ extension Toolchain {
       self.sourcekitd = sourcekitdPath
       foundAny = true
     } else {
+#if os(Windows)
+      let sourcekitdPath = binPath.appending(component: "sourcekitdInProc\(dylibExt)")
+#else
       let sourcekitdPath = libPath.appending(component: "libsourcekitdInProc\(dylibExt)")
+#endif
       if fs.isFile(sourcekitdPath) {
         self.sourcekitd = sourcekitdPath
         foundAny = true
       }
     }
 
+#if os(Windows)
+    let libIndexStore = binPath.appending(components: "libIndexStore\(dylibExt)")
+#else
     let libIndexStore = libPath.appending(components: "libIndexStore\(dylibExt)")
+#endif
     if fs.isFile(libIndexStore) {
       self.libIndexStore = libIndexStore
       foundAny = true
