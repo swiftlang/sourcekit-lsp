@@ -109,6 +109,14 @@ extension SKTibsTestWorkspace {
 
 extension XCTestCase {
 
+  /// The path the the test INPUTS directory.
+  public func inputsDirectory(testFile: String = #file) -> URL {
+    return URL(fileURLWithPath: testFile)
+      .deletingLastPathComponent()
+      .deletingLastPathComponent()
+      .appendingPathComponent("INPUTS", isDirectory: true)
+  }
+
   public func staticSourceKitTibsWorkspace(
     name: String,
     clientCapabilities: ClientCapabilities = .init(),
