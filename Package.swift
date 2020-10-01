@@ -34,8 +34,8 @@ let package = Package(
           "SourceKitLSP",
           .product(name: "ArgumentParser", package: "swift-argument-parser"),
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-        ]
-      ),
+        ],
+        exclude: ["CMakeLists.txt"]),
 
       .target(
         name: "SourceKitLSP",
@@ -48,8 +48,8 @@ let package = Package(
           "SourceKitD",
           "SKSwiftPMWorkspace",
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-        ]
-      ),
+        ],
+        exclude: ["CMakeLists.txt"]),
 
       .target(
         name: "CSKTestSupport",
@@ -83,8 +83,9 @@ let package = Package(
           "LanguageServerProtocol",
           "SKCore",
           .product(name: "SwiftPM-auto", package: "SwiftPM")
-        ]
-      ),
+        ],
+        exclude: ["CMakeLists.txt"]),
+
       .testTarget(
         name: "SKSwiftPMWorkspaceTests",
         dependencies: [
@@ -105,8 +106,9 @@ let package = Package(
           "LanguageServerProtocolJSONRPC",
           "SKSupport",
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-        ]
-      ),
+        ],
+        exclude: ["CMakeLists.txt"]),
+
       .testTarget(
         name: "SKCoreTests",
         dependencies: [
@@ -123,8 +125,9 @@ let package = Package(
           "LSPLogging",
           "SKSupport",
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-        ]
-      ),
+        ],
+        exclude: ["CMakeLists.txt"]),
+
       .testTarget(
         name: "SourceKitDTests",
         dependencies: [
@@ -137,14 +140,14 @@ let package = Package(
       // Csourcekitd: C modules wrapper for sourcekitd.
       .target(
         name: "Csourcekitd",
-        dependencies: []
-      ),
+        dependencies: [],
+        exclude: ["CMakeLists.txt"]),
 
       // Logging support used in LSP modules.
       .target(
         name: "LSPLogging",
-        dependencies: []
-      ),
+        dependencies: [],
+        exclude: ["CMakeLists.txt"]),
 
       .testTarget(
         name: "LSPLoggingTests",
@@ -167,8 +170,9 @@ let package = Package(
         dependencies: [
           "LanguageServerProtocol",
           "LSPLogging",
-        ]
-      ),
+        ],
+        exclude: ["CMakeLists.txt"]),
+
       .testTarget(
         name: "LanguageServerProtocolJSONRPCTests",
         dependencies: [
@@ -180,8 +184,9 @@ let package = Package(
       // LanguageServerProtocol: The core LSP types, suitable for any LSP implementation.
       .target(
         name: "LanguageServerProtocol",
-        dependencies: []
-      ),
+        dependencies: [],
+        exclude: ["CMakeLists.txt"]),
+
       .testTarget(
         name: "LanguageServerProtocolTests",
         dependencies: [
@@ -195,8 +200,8 @@ let package = Package(
         name: "BuildServerProtocol",
         dependencies: [
           "LanguageServerProtocol"
-        ]
-      ),
+        ],
+        exclude: ["CMakeLists.txt"]),
 
       // SKSupport: Data structures, algorithms and platform-abstraction code that might be generally
       // useful to any Swift package. Similar in spirit to SwiftPM's Basic module.
@@ -204,8 +209,9 @@ let package = Package(
         name: "SKSupport",
         dependencies: [
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-        ]
-      ),
+        ],
+        exclude: ["CMakeLists.txt"]),
+
       .testTarget(
         name: "SKSupportTests",
         dependencies: [
