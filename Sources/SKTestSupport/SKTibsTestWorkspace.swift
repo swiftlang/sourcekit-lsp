@@ -165,6 +165,7 @@ extension XCTestCase {
 
   /// The path to the INPUTS directory of shared test projects.
   public static var sklspInputsDirectory: URL = {
+    #if os(macOS)
     // FIXME: Use Bundle.module.resourceURL once the fix for SR-12912 is released.
     var resources = XCTestCase.productsDirectory
       .appendingPathComponent("SourceKitLSP_SKTestSupport.bundle")
@@ -175,6 +176,10 @@ extension XCTestCase {
       resources.deleteLastPathComponent()
       resources.deleteLastPathComponent()
     }
+    #else
+    let resources = XCTestCase.productsDirectory
+      .appendingPathComponent("SourceKitLSP_SKTestSupport.resources")
+    #endif
     guard FileManager.default.fileExists(atPath: resources.path) else {
       fatalError("missing resources \(resources.path)")
     }
