@@ -109,24 +109,15 @@ extension SKTibsTestWorkspace {
 
 extension XCTestCase {
 
-  /// The path the the test INPUTS directory.
-  public func inputsDirectory(testFile: String = #file) -> URL {
-    return URL(fileURLWithPath: testFile)
-      .deletingLastPathComponent()
-      .deletingLastPathComponent()
-      .appendingPathComponent("INPUTS", isDirectory: true)
-  }
-
   public func staticSourceKitTibsWorkspace(
     name: String,
     clientCapabilities: ClientCapabilities = .init(),
     tmpDir: URL? = nil,
-    removeTmpDir: Bool = true,
-    testFile: String = #file
+    removeTmpDir: Bool = true
   ) throws -> SKTibsTestWorkspace? {
     let testDirName = testDirectoryName
     let workspace = try SKTibsTestWorkspace(
-      immutableProjectDir: inputsDirectory(testFile: testFile)
+      immutableProjectDir: XCTestCase.sklspInputsDirectory
         .appendingPathComponent(name, isDirectory: true),
       persistentBuildDir: XCTestCase.productsDirectory
         .appendingPathComponent("sk-tests/\(testDirName)", isDirectory: true),
@@ -152,13 +143,11 @@ extension XCTestCase {
   public func mutableSourceKitTibsTestWorkspace(
     name: String,
     clientCapabilities: ClientCapabilities = .init(),
-    tmpDir: URL? = nil,
-    testFile: String = #file
+    tmpDir: URL? = nil
   ) throws -> SKTibsTestWorkspace? {
     let testDirName = testDirectoryName
     let workspace = try SKTibsTestWorkspace(
-      projectDir: inputsDirectory(testFile: testFile)
-        .appendingPathComponent(name, isDirectory: true),
+      projectDir: XCTestCase.sklspInputsDirectory.appendingPathComponent(name, isDirectory: true),
       tmpDir: tmpDir ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),
       toolchain: ToolchainRegistry.shared.default!,
@@ -173,6 +162,24 @@ extension XCTestCase {
 
     return workspace
   }
+
+  /// The path to the INPUTS directory of shared test projects.
+  public static var sklspInputsDirectory: URL = {
+    // FIXME: Use Bundle.module.resourceURL once the fix for SR-12912 is released.
+    var resources = XCTestCase.productsDirectory
+      .appendingPathComponent("SourceKitLSP_SKTestSupport.bundle")
+      .appendingPathComponent("Contents")
+      .appendingPathComponent("Resources")
+    if !FileManager.default.fileExists(atPath: resources.path) {
+      // Xcode and command-line swiftpm differ about the path.
+      resources.deleteLastPathComponent()
+      resources.deleteLastPathComponent()
+    }
+    guard FileManager.default.fileExists(atPath: resources.path) else {
+      fatalError("missing resources \(resources.path)")
+    }
+    return resources.appendingPathComponent("INPUTS", isDirectory: true).standardizedFileURL
+  }()
 }
 
 extension TestLocation {

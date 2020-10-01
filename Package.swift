@@ -1,4 +1,4 @@
-// swift-tools-version:5.1
+// swift-tools-version:5.3
 
 import PackageDescription
 
@@ -30,10 +30,10 @@ let package = Package(
       .target(
         name: "sourcekit-lsp",
         dependencies: [
-          "ArgumentParser",
           "LanguageServerProtocolJSONRPC",
           "SourceKitLSP",
-          "SwiftToolsSupport-auto",
+          .product(name: "ArgumentParser", package: "swift-argument-parser"),
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         ]
       ),
 
@@ -47,7 +47,7 @@ let package = Package(
           "SKCore",
           "SourceKitD",
           "SKSwiftPMWorkspace",
-          "SwiftToolsSupport-auto",
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         ]
       ),
 
@@ -58,11 +58,14 @@ let package = Package(
         name: "SKTestSupport",
         dependencies: [
           "CSKTestSupport",
-          "ISDBTestSupport",
           "LSPTestSupport",
           "SourceKitLSP",
-          "tibs", // Never imported, needed at runtime
-          "SwiftToolsSupport-auto",
+          .product(name: "ISDBTestSupport", package: "IndexStoreDB"),
+          .product(name: "tibs", package: "IndexStoreDB"), // Never imported, needed at runtime
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+        ], 
+        resources: [
+          .copy("INPUTS"),
         ]
       ),
       .testTarget(
@@ -79,7 +82,7 @@ let package = Package(
           "BuildServerProtocol",
           "LanguageServerProtocol",
           "SKCore",
-          "SwiftPM-auto",
+          .product(name: "SwiftPM-auto", package: "SwiftPM")
         ]
       ),
       .testTarget(
@@ -87,7 +90,7 @@ let package = Package(
         dependencies: [
           "SKSwiftPMWorkspace",
           "SKTestSupport",
-          "SwiftToolsSupport-auto",
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         ]
       ),
 
@@ -101,7 +104,7 @@ let package = Package(
           "LanguageServerProtocol",
           "LanguageServerProtocolJSONRPC",
           "SKSupport",
-          "SwiftToolsSupport-auto",
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         ]
       ),
       .testTarget(
@@ -119,7 +122,7 @@ let package = Package(
           "Csourcekitd",
           "LSPLogging",
           "SKSupport",
-          "SwiftToolsSupport-auto",
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         ]
       ),
       .testTarget(
@@ -200,7 +203,7 @@ let package = Package(
       .target(
         name: "SKSupport",
         dependencies: [
-          "SwiftToolsSupport-auto"
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         ]
       ),
       .testTarget(
@@ -225,15 +228,15 @@ import Foundation
 if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
   // Building standalone.
   package.dependencies += [
-    .package(url: "https://github.com/apple/indexstore-db.git", .branch("main")),
-    .package(url: "https://github.com/apple/swift-package-manager.git", .branch("main")),
+    .package(name: "IndexStoreDB", url: "https://github.com/apple/indexstore-db.git", .branch("main")),
+    .package(name: "SwiftPM", url: "https://github.com/apple/swift-package-manager.git", .branch("main")),
     .package(url: "https://github.com/apple/swift-tools-support-core.git", .branch("main")),
     .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMinor(from: "0.3.0")),
   ]
 } else {
   package.dependencies += [
-    .package(path: "../indexstore-db"),
-    .package(path: "../swiftpm"),
+    .package(name: "IndexStoreDB", path: "../indexstore-db"),
+    .package(name: "SwiftPM", path: "../swiftpm"),
     .package(path: "../swiftpm/swift-tools-support-core"),
     .package(path: "../swift-argument-parser")
   ]
