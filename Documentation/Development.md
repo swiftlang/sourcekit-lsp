@@ -107,10 +107,10 @@ As much as is practical, all code should be covered by tests. New tests can be a
 
 ### Test Projects (Fixtures)
 
-SourceKit test projects should be put in the `Tests/INPUTS` directory. Generally, they should use the [Tibs](#tibs) build system to define their sources and targets. An exception is for tests that need to specifically test the interaction with the Swift Package Manager. An example Tibs test project might look like:
+SourceKit test projects should be put in the `SKTestSupport/INPUTS` directory. Generally, they should use the [Tibs](#tibs) build system to define their sources and targets. An exception is for tests that need to specifically test the interaction with the Swift Package Manager. An example Tibs test project might look like:
 
 ```
-Tests/
+SKTestSupport/
   INPUTS/
     MyTestProj/
       a.swift

@@ -137,12 +137,11 @@ extension SKSwiftPMTestWorkspace {
 
 extension XCTestCase {
 
-  public func staticSourceKitSwiftPMWorkspace(name: String, testFile: String = #file) throws -> SKSwiftPMTestWorkspace? {
+  public func staticSourceKitSwiftPMWorkspace(name: String) throws -> SKSwiftPMTestWorkspace? {
     let testDirName = testDirectoryName
     let toolchain = ToolchainRegistry.shared.default!
     let workspace = try SKSwiftPMTestWorkspace(
-      projectDir: inputsDirectory(testFile: testFile)
-        .appendingPathComponent(name, isDirectory: true),
+      projectDir: XCTestCase.sklspInputsDirectory.appendingPathComponent(name, isDirectory: true),
       tmpDir: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),
       toolchain: toolchain)

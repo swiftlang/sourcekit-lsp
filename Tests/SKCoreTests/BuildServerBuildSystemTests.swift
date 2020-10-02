@@ -20,11 +20,13 @@ import XCTest
 
 final class BuildServerBuildSystemTests: XCTestCase {
 
-  func testServerInitialize() throws {
-    let root = AbsolutePath(
-      inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
-    let buildFolder = AbsolutePath(NSTemporaryDirectory())
+  var root: AbsolutePath {
+    AbsolutePath(XCTestCase.sklspInputsDirectory
+      .appendingPathComponent(testDirectoryName, isDirectory: true).path)
+  } 
+  let buildFolder = AbsolutePath(NSTemporaryDirectory())
 
+  func testServerInitialize() throws {
     let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     XCTAssertEqual(buildSystem.indexDatabasePath, AbsolutePath("some/index/db/path", relativeTo: root))
@@ -32,9 +34,6 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testSettings() throws {
-    let root = AbsolutePath(
-      inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
-    let buildFolder = AbsolutePath(NSTemporaryDirectory())
     let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     // test settings with a response
@@ -50,9 +49,6 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testFileRegistration() throws {
-    let root = AbsolutePath(
-      inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
-    let buildFolder = AbsolutePath(NSTemporaryDirectory())
     let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
@@ -65,9 +61,6 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testBuildTargets() throws {
-    let root = AbsolutePath(
-      inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
-    let buildFolder = AbsolutePath(NSTemporaryDirectory())
     let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     let expectation = XCTestExpectation(description: "build target expectation")
@@ -100,9 +93,6 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testBuildTargetSources() throws {
-    let root = AbsolutePath(
-      inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
-    let buildFolder = AbsolutePath(NSTemporaryDirectory())
     let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     let expectation = XCTestExpectation(description: "build target sources expectation")
@@ -133,9 +123,6 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testBuildTargetOutputs() throws {
-    let root = AbsolutePath(
-      inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
-    let buildFolder = AbsolutePath(NSTemporaryDirectory())
     let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     let expectation = XCTestExpectation(description: "build target output expectation")
@@ -160,9 +147,6 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testBuildTargetsChanged() throws {
-    let root = AbsolutePath(
-      inputsDirectory().appendingPathComponent(testDirectoryName, isDirectory: true).path)
-    let buildFolder = AbsolutePath(NSTemporaryDirectory())
     let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
