@@ -516,14 +516,16 @@ private func makeToolchain(
     }
   }
 
+  let execExt = Platform.currentPlatform?.executableExtension ?? ""
+
   if clang {
-    makeExec(binPath.appending(component: "clang"))
+    makeExec(binPath.appending(component: "clang\(execExt)"))
   }
   if clangd {
-    makeExec(binPath.appending(component: "clangd"))
+    makeExec(binPath.appending(component: "clangd\(execExt)"))
   }
   if swiftc {
-    makeExec(binPath.appending(component: "swiftc"))
+    makeExec(binPath.appending(component: "swiftc\(execExt)"))
   }
 
   let dylibExt = Platform.currentPlatform?.dynamicLibraryExtension ?? ".so"
