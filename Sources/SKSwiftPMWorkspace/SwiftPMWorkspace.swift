@@ -209,9 +209,9 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
       // We can't determine build settings for non-file URIs.
       return nil
     }
-    guard let path = try? AbsolutePath(validating: url.path) else {
-      return nil
-    }
+    guard let path = (url.withUnsafeFileSystemRepresentation {
+      try? AbsolutePath(validating: String(cString: $0!))
+    }) else { return nil }
 
     if let td = targetDescription(for: path) {
       return settings(for: path, language, td)
