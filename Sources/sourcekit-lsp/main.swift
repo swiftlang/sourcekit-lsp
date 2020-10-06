@@ -178,10 +178,6 @@ struct Main: ParsableCommand {
       _Exit(0)
     })
 
-    Logger.shared.addLogHandler { message, _ in
-      clientConnection.send(LogMessageNotification(type: .log, message: message))
-    }
-
     dispatchMain()
   }
 }
