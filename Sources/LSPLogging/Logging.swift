@@ -83,6 +83,9 @@ public final class Logger {
 
   var disableNSLog: Bool = false
 
+  /// Used to log to stderr when `NSLog` logging is disabled.
+  var dateFormatter: DateFormatter
+
   /// The current logging level.
   public var currentLevel: LogLevel {
     get { return logLevelQueue.sync { _currentLevel } }
@@ -94,6 +97,9 @@ public final class Logger {
   public init(disableOSLog: Bool = false, disableNSLog: Bool = false) {
     self.disableOSLog = disableOSLog
     self.disableNSLog = disableNSLog
+
+    self.dateFormatter = DateFormatter()
+    dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
   }
 
   public func addLogHandler(_ handler: LogHandler) {
@@ -181,11 +187,19 @@ public final class Logger {
     }
   }
 
+  private func logToStderr(_ message: String, level: LogLevel) {
+    let time = self.dateFormatter.string(from: Date())
+    let fullMessage = "[\(time)] \(message)\n"
+    fputs(fullMessage, stderr)
+  }
+
   private func logImpl(_ message: String, level: LogLevel, usedOSLog: Bool) {
 
     if !self.disableNSLog && !usedOSLog {
       // Fallback to NSLog if os_log isn't available.
       NSLog(message)
+    } else {
+      self.logToStderr(message, level: level)
     }
 
     for handler in self.handlers {
