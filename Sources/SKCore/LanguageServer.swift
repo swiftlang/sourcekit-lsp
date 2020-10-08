@@ -80,18 +80,18 @@ open class LanguageServerEndpoint {
     // Do nothing.
   }
 
-  open func _logRequest<R>(_ request: Request<R>, method: String) {
+  open func _logRequest<R>(_ request: Request<R>) {
     logAsync { currentLevel in
       guard currentLevel >= LogLevel.debug else {
-        return "\(type(of: self)): Request<\(method)(\(request.id))>"
+        return "\(type(of: self)): Request<\(R.method)(\(request.id))>"
       }
       return "\(type(of: self)): \(request)"
     }
   }
-  open func _logNotification<N>(_ notification: Notification<N>, method: String) {
+  open func _logNotification<N>(_ notification: Notification<N>) {
     logAsync { currentLevel in
       guard currentLevel >= LogLevel.debug else {
-        return "\(type(of: self)): Notification<\(method)>"
+        return "\(type(of: self)): Notification<\(N.method)>"
       }
       return "\(type(of: self)): \(notification)"
     }
@@ -167,7 +167,7 @@ extension LanguageServerEndpoint: MessageHandler {
     queue.async {
 
       let notification = Notification(params, clientID: clientID)
-      self._logNotification(notification, method: N.method)
+      self._logNotification(notification)
 
       guard let handler = self.notificationHandlers[ObjectIdentifier(N.self)] as? ((Notification<N>) -> Void) else {
         self._handleUnknown(notification)
@@ -183,7 +183,6 @@ extension LanguageServerEndpoint: MessageHandler {
 
       let cancellationToken = CancellationToken()
       let key = RequestCancelKey(client: clientID, request: id)
-      let method = R.method
 
       self.requestCancellation[key] = cancellationToken
 
@@ -192,10 +191,10 @@ extension LanguageServerEndpoint: MessageHandler {
             self?.requestCancellation[key] = nil
         }
         reply(result)
-        self?._logResponse(result, id: id, method: method)
+        self?._logResponse(result, id: id, method: R.method)
       })
 
-      self._logRequest(request, method: method)
+      self._logRequest(request)
 
       guard let handler = self.requestHandlers[ObjectIdentifier(R.self)] as? ((Request<R>) -> Void) else {
         self._handleUnknown(request)
