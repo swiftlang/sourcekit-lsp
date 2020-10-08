@@ -127,18 +127,20 @@ extension Toolchain {
 
     var foundAny = false
 
-    let clangPath = binPath.appending(component: "clang")
+    let execExt = Platform.currentPlatform?.executableExtension ?? ""
+
+    let clangPath = binPath.appending(component: "clang\(execExt)")
     if fs.isExecutableFile(clangPath) {
       self.clang = clangPath
       foundAny = true
     }
-    let clangdPath = binPath.appending(component: "clangd")
+    let clangdPath = binPath.appending(component: "clangd\(execExt)")
     if fs.isExecutableFile(clangdPath) {
       self.clangd = clangdPath
       foundAny = true
     }
 
-    let swiftcPath = binPath.appending(component: "swiftc")
+    let swiftcPath = binPath.appending(component: "swiftc\(execExt)")
     if fs.isExecutableFile(swiftcPath) {
       self.swiftc = swiftcPath
       foundAny = true
