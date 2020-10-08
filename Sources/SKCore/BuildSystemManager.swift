@@ -388,6 +388,7 @@ extension BuildSystemManager: BuildSystemDelegate {
 
 extension BuildSystemManager: MainFilesDelegate {
 
+  // FIXME: Consider debouncing/limiting this, seems to trigger often during a build.
   public func mainFilesChanged() {
     queue.async {
       let origWatched = self.watchedFiles

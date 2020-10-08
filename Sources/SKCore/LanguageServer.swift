@@ -80,20 +80,29 @@ open class LanguageServerEndpoint {
     // Do nothing.
   }
 
-  open func _logRequest<R>(_ request: Request<R>) {
-    logAsync { _ in
-      "\(type(of: self)): \(request)"
+  open func _logRequest<R>(_ request: Request<R>, method: String) {
+    logAsync { currentLevel in
+      guard currentLevel >= LogLevel.debug else {
+        return "\(type(of: self)): Request<\(method)(\(request.id))>"
+      }
+      return "\(type(of: self)): \(request)"
     }
   }
-  open func _logNotification<N>(_ notification: Notification<N>) {
-    logAsync { _ in
-      "\(type(of: self)): \(notification)"
+  open func _logNotification<N>(_ notification: Notification<N>, method: String) {
+    logAsync { currentLevel in
+      guard currentLevel >= LogLevel.debug else {
+        return "\(type(of: self)): Notification<\(method)>"
+      }
+      return "\(type(of: self)): \(notification)"
     }
   }
   open func _logResponse<Response>(_ result: LSPResult<Response>, id: RequestID, method: String) {
-    logAsync { _ in
-      """
-      \(type(of: self)): Response<\(method)>(
+    logAsync { currentLevel in
+      guard currentLevel >= LogLevel.debug else {
+        return "\(type(of: self)): Response<\(method)(\(id))>"
+      }
+      return """
+      \(type(of: self)): Response<\(method)(\(id))>(
         \(result)
       )
       """
@@ -158,8 +167,7 @@ extension LanguageServerEndpoint: MessageHandler {
     queue.async {
 
       let notification = Notification(params, clientID: clientID)
-
-      self._logNotification(notification)
+      self._logNotification(notification, method: N.method)
 
       guard let handler = self.notificationHandlers[ObjectIdentifier(N.self)] as? ((Notification<N>) -> Void) else {
         self._handleUnknown(notification)
@@ -175,6 +183,7 @@ extension LanguageServerEndpoint: MessageHandler {
 
       let cancellationToken = CancellationToken()
       let key = RequestCancelKey(client: clientID, request: id)
+      let method = R.method
 
       self.requestCancellation[key] = cancellationToken
 
@@ -183,10 +192,10 @@ extension LanguageServerEndpoint: MessageHandler {
             self?.requestCancellation[key] = nil
         }
         reply(result)
-        self?._logResponse(result, id: id, method: R.method)
+        self?._logResponse(result, id: id, method: method)
       })
 
-      self._logRequest(request)
+      self._logRequest(request, method: method)
 
       guard let handler = self.requestHandlers[ObjectIdentifier(R.self)] as? ((Request<R>) -> Void) else {
         self._handleUnknown(request)
