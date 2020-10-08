@@ -10,17 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKSupport
 import TSCBasic
 import TSCUtility
-import SKSupport
 
 /// Build configuration
 public struct BuildSetup {
-
   /// Default configuration
-  public static let `default` = BuildSetup(configuration: .debug,
-                                           path: nil,
-                                           flags: BuildFlags())
+  public static let `default` =
+    BuildSetup(configuration: .debug, path: nil, destinationFile: nil, flags: BuildFlags())
 
   /// Build configuration (debug|release).
   public var configuration: BuildConfiguration
@@ -31,9 +29,18 @@ public struct BuildSetup {
   /// Additional build flags
   public var flags: BuildFlags
 
-  public init(configuration: BuildConfiguration, path: AbsolutePath?, flags: BuildFlags) {
+  /// Path to the destination.json file that describes build destination settings
+  public var destinationFile: AbsolutePath?
+
+  public init(
+    configuration: BuildConfiguration,
+    path: AbsolutePath?,
+    destinationFile: AbsolutePath? = nil,
+    flags: BuildFlags
+  ) {
     self.configuration = configuration
     self.path = path
+    self.destinationFile = destinationFile
     self.flags = flags
   }
 }

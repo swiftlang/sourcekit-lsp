@@ -124,11 +124,17 @@ struct Main: ParsableCommand {
   )
   var completionMaxResults = 200
 
+  @Option(
+    help: "Path to the destination.json file that describes build destination settings"
+  )
+  var destination: AbsolutePath?
+
   func mapOptions() -> SourceKitServer.Options {
     var serverOptions = SourceKitServer.Options()
 
     serverOptions.buildSetup.configuration = buildConfiguration
     serverOptions.buildSetup.path = buildPath
+    serverOptions.buildSetup.destinationFile = destination
     serverOptions.buildSetup.flags.cCompilerFlags = buildFlagsCc
     serverOptions.buildSetup.flags.cxxCompilerFlags = buildFlagsCxx
     serverOptions.buildSetup.flags.linkerFlags = buildFlagsLinker
