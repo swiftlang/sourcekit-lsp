@@ -74,9 +74,14 @@ add_library(LanguageServerProtocol
 set_target_properties(LanguageServerProtocol PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
-  target_link_libraries(LanguageServerProtocol PUBLIC
-    swiftDispatch
-    Foundation)
+  if(dispatch_FOUND)
+    target_link_libraries(LanguageServerProtocol PUBLIC
+      swiftDispatch)
+  endif()
+  if(Foundation_FOUND)
+    target_link_libraries(LanguageServerProtocol PUBLIC
+      Foundation)
+  endif()
 endif()
 
 if(BUILD_SHARED_LIBS)

@@ -13,8 +13,10 @@ target_link_libraries(sourcekit-lsp PRIVATE
   SourceKitLSP
   TSCUtility)
 if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
-  target_link_libraries(sourcekit-lsp PRIVATE
-    FoundationXML)
+  if(Foundation_FOUND)
+    target_link_libraries(sourcekit-lsp PRIVATE
+      FoundationXML)
+  endif()
 endif()
 
 install(TARGETS sourcekit-lsp

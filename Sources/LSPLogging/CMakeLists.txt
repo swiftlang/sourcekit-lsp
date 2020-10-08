@@ -4,8 +4,10 @@ add_library(LSPLogging
 set_target_properties(LSPLogging PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
-  target_link_libraries(LSPLogging PRIVATE
-    Foundation)
+  if(Foundation_FOUND)
+    target_link_libraries(LSPLogging PRIVATE
+      Foundation)
+  endif()
 endif()
 
 if(BUILD_SHARED_LIBS)
