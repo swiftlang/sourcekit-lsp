@@ -69,7 +69,7 @@ extension SourceKitD {
 
   /// Send the given request and synchronously receive a reply dictionary (or error).
   public func sendSync(_ req: SKDRequestDictionary) throws -> SKDResponseDictionary {
-    logAsync { _ in req.description }
+    logRequest(req)
 
     let resp = SKDResponse(api.send_request_sync(req.dict), sourcekitd: self)
 
@@ -88,7 +88,7 @@ extension SourceKitD {
     _ queue: DispatchQueue,
     reply: @escaping (Result<SKDResponseDictionary, SKDError>) -> Void
   ) -> sourcekitd_request_handle_t? {
-    logAsync { _ in req.description }
+    logRequest(req)
 
     var handle: sourcekitd_request_handle_t? = nil
 
@@ -113,6 +113,12 @@ extension SourceKitD {
 
     return handle
   }
+}
+
+private func logRequest(_ request: SKDRequestDictionary) {
+  // FIXME: Ideally we could log the request key here at the info level but the dictionary is
+  // readonly.
+  logAsync(level: .debug) { _ in request.description }
 }
 
 private func logResponse(_ response: SKDResponse) {

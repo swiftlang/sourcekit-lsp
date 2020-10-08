@@ -81,19 +81,28 @@ open class LanguageServerEndpoint {
   }
 
   open func _logRequest<R>(_ request: Request<R>) {
-    logAsync { _ in
-      "\(type(of: self)): \(request)"
+    logAsync { currentLevel in
+      guard currentLevel >= LogLevel.debug else {
+        return "\(type(of: self)): Request<\(R.method)(\(request.id))>"
+      }
+      return "\(type(of: self)): \(request)"
     }
   }
   open func _logNotification<N>(_ notification: Notification<N>) {
-    logAsync { _ in
-      "\(type(of: self)): \(notification)"
+    logAsync { currentLevel in
+      guard currentLevel >= LogLevel.debug else {
+        return "\(type(of: self)): Notification<\(N.method)>"
+      }
+      return "\(type(of: self)): \(notification)"
     }
   }
   open func _logResponse<Response>(_ result: LSPResult<Response>, id: RequestID, method: String) {
-    logAsync { _ in
-      """
-      \(type(of: self)): Response<\(method)>(
+    logAsync { currentLevel in
+      guard currentLevel >= LogLevel.debug else {
+        return "\(type(of: self)): Response<\(method)(\(id))>"
+      }
+      return """
+      \(type(of: self)): Response<\(method)(\(id))>(
         \(result)
       )
       """
@@ -158,7 +167,6 @@ extension LanguageServerEndpoint: MessageHandler {
     queue.async {
 
       let notification = Notification(params, clientID: clientID)
-
       self._logNotification(notification)
 
       guard let handler = self.notificationHandlers[ObjectIdentifier(N.self)] as? ((Notification<N>) -> Void) else {
