@@ -42,8 +42,10 @@ target_link_libraries(SourceKitLSP PUBLIC
   SourceKitD
   TSCUtility)
 if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
-  target_link_libraries(SourceKitLSP PRIVATE
-    FoundationXML)
+  if(Foundation_FOUND)
+    target_link_libraries(SourceKitLSP PRIVATE
+      FoundationXML)
+  endif()
 endif()
 
 if(BUILD_SHARED_LIBS)
