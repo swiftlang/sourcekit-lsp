@@ -19,6 +19,7 @@ extension Platform {
     switch self {
     case .darwin: return ".dylib"
     case .linux, .android: return ".so"
+    case .windows: return ".dll"
     }
   }
 }
