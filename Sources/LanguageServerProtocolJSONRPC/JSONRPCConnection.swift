@@ -229,13 +229,17 @@ public final class JSONRPCConnection {
               continue MESSAGE_LOOP
             }
           case .unknown:
+            log("error decoding message: \(error.message)", level: .error)
             break
         }
         // FIXME: graceful shutdown?
+        Logger.shared.flush()
         fatalError("fatal error encountered decoding message \(error)")
 
       } catch {
+        log("error decoding message: \(error.localizedDescription)", level: .error)
         // FIXME: graceful shutdown?
+        Logger.shared.flush()
         fatalError("fatal error encountered decoding message \(error)")
       }
     }
