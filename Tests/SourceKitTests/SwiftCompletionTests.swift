@@ -547,6 +547,71 @@ final class SwiftCompletionTests: XCTestCase {
                                                 position: Position(line: 7, utf16index: 12),
                                                 context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions)))))
   }
+
+  /// Regression test for https://bugs.swift.org/browse/SR-13561 to make sure the a session
+  /// close waits for its respective open to finish to prevent a session geting stuck open.
+  func testSessionCloseWaitsforOpen() throws {
+    initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
+    let url = URL(fileURLWithPath: "/\(#function)/file.swift")
+    openDocument(text: """
+      struct S {
+        func forSomethingCrazy() {}
+        func forSomethingCool() {}
+        func test() {
+          self.forSome
+        }
+        func print() {}
+        func anotherOne() {
+          self.prin
+        }
+      }
+      """, url: url)
+
+    let forSomeComplete = CompletionRequest(
+          textDocument: TextDocumentIdentifier(url),
+        position: Position(line: 4, utf16index: 12), // forS^
+        context:CompletionContext(triggerKind: .invoked))
+    let printComplete = CompletionRequest(
+        textDocument: TextDocumentIdentifier(url),
+      position: Position(line: 8, utf16index: 12), // prin^
+      context:CompletionContext(triggerKind: .invoked))
+    let change = DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(DocumentURI(url), version: 1),
+        contentChanges: [
+            .init(range: Position(line: 4, utf16index: 13)..<Position(line: 4, utf16index: 14), text: "ome")])
+    let coordinationGroup = DispatchGroup()
+
+    // Code completion for "self.forSome"
+    coordinationGroup.enter()
+    _ = sk.send(forSomeComplete) { result in
+      defer { coordinationGroup.leave() }
+      guard let list = result.success else {
+        XCTFail("Request failed: \(String(describing: result.failure))")
+        return
+      }
+      XCTAssert(countFs(list) == 2)
+    }
+    sk.send(change)
+
+    // Code completion for "self.prin", previously could immediately invalidate
+    // the previous request.
+    coordinationGroup.enter()
+    _ = sk.send(printComplete) { result in
+      defer { coordinationGroup.leave() }
+      guard let list = result.success else {
+        XCTFail("Request failed: \(String(describing: result.failure))")
+        return
+      }
+      XCTAssertEqual(list.items.count, 1)
+    }
+
+    // Wait for the previous 2 completions to finish.
+    coordinationGroup.wait()
+
+    // Try code completion for "self.forSome" again to verify that it still works.
+    let result = try sk.sendSync(forSomeComplete)
+    XCTAssert(countFs(result) == 2)
+  }
 }
 
 private func countFs(_ response: CompletionList) -> Int {
