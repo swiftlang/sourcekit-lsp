@@ -1,0 +1,81 @@
+// See https://go.microsoft.com/fwlink/?LinkId=733558
+// for the documentation about the tasks.json format
+{
+    "version": "2.0.0",
+    "problemMatcher": {
+        "owner": "sourcekit-lsp",
+        "fileLocation": "autoDetect",
+        "pattern": {
+          "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+    },
+    "tasks": [
+        {
+            "label": "Build (debug)",
+            "type": "shell",
+            "command": "swift",
+            "args": [
+                "build",
+                "--configuration",
+                "debug"
+            ],
+            "presentation": {
+                "reveal": "always"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Build (release)",
+            "type": "shell",
+            "command": "swift",
+            "args": [
+                "build",
+                "--configuration",
+                "release"
+            ],
+            "presentation": {
+                "reveal": "always"
+            },
+            "group": "build"
+        },
+        {
+            "label": "Test (debug)",
+            "type": "shell",
+            "command": "swift",
+            "args": [
+                "test",
+                "--configuration",
+                "debug"
+            ],
+            "presentation": {
+                "reveal": "always"
+            },
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Test (release)",
+            "type": "shell",
+            "command": "swift",
+            "args": [
+                "test",
+                "--configuration",
+                "release"
+            ],
+            "presentation": {
+                "reveal": "always"
+            },
+            "group": "test"
+        }
+    ]
+}

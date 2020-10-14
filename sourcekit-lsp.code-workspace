@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"name": "Swift Package Dependencies",
+			"path": ".build/checkouts"
+		}
+	],
+	"settings": {
+		"files.exclude": {
+			".build": true,
+			".swiftpm": true
+		}
+	}
+}
