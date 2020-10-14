@@ -315,10 +315,7 @@ public final class JSONRPCConnection {
 
   private func sendMessageSynchronously(_ messageData: Data) {
     let header = "Content-Length: \(messageData.count)\r\n\r\n"
-    guard let headerData = header.data(using: .utf8) else {
-      log("error encoding header", level: .error)
-      return
-    }
+    let headerData = header.data(using: .utf8)!
     let stdOutHandle = FileHandle(fileDescriptor: sendIO.fileDescriptor)
     stdOutHandle.write(headerData + messageData)
   }
