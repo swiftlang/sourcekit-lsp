@@ -575,37 +575,35 @@ final class SwiftCompletionTests: XCTestCase {
         textDocument: TextDocumentIdentifier(url),
       position: Position(line: 8, utf16index: 12), // prin^
       context:CompletionContext(triggerKind: .invoked))
-    let coordinationGroup = DispatchGroup()
 
     // Code completion for "self.forSome"
-    coordinationGroup.enter()
+    let forSomeExpectation = XCTestExpectation(description: "self.forSome code completion")
     _ = sk.send(forSomeComplete) { result in
-      defer { coordinationGroup.leave() }
+      defer { forSomeExpectation.fulfill() }
       guard let list = result.success else {
         XCTFail("Request failed: \(String(describing: result.failure))")
         return
       }
-      XCTAssert(countFs(list) == 2)
+      XCTAssertEqual(2, countFs(list))
     }
 
     // Code completion for "self.prin", previously could immediately invalidate
     // the previous request.
-    coordinationGroup.enter()
+    let printExpectation = XCTestExpectation(description: "self.prin code completion")
     _ = sk.send(printComplete) { result in
-      defer { coordinationGroup.leave() }
+      defer { printExpectation.fulfill() }
       guard let list = result.success else {
         XCTFail("Request failed: \(String(describing: result.failure))")
         return
       }
-      XCTAssertEqual(list.items.count, 1)
+      XCTAssertEqual(1, list.items.count)
     }
 
-    // Wait for the previous 2 completions to finish.
-    coordinationGroup.wait()
+    wait(for: [forSomeExpectation, printExpectation], timeout: 10)
 
     // Try code completion for "self.forSome" again to verify that it still works.
     let result = try sk.sendSync(forSomeComplete)
-    XCTAssert(countFs(result) == 2)
+    XCTAssertEqual(2, countFs(result))
   }
 }
 
