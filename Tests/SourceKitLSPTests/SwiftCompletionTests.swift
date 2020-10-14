@@ -575,10 +575,6 @@ final class SwiftCompletionTests: XCTestCase {
         textDocument: TextDocumentIdentifier(url),
       position: Position(line: 8, utf16index: 12), // prin^
       context:CompletionContext(triggerKind: .invoked))
-    let change = DidChangeTextDocumentNotification(
-        textDocument: VersionedTextDocumentIdentifier(DocumentURI(url), version: 1),
-        contentChanges: [
-            .init(range: Position(line: 4, utf16index: 13)..<Position(line: 4, utf16index: 14), text: "ome")])
     let coordinationGroup = DispatchGroup()
 
     // Code completion for "self.forSome"
@@ -591,7 +587,6 @@ final class SwiftCompletionTests: XCTestCase {
       }
       XCTAssert(countFs(list) == 2)
     }
-    sk.send(change)
 
     // Code completion for "self.prin", previously could immediately invalidate
     // the previous request.
