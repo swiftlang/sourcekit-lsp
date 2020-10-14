@@ -17,7 +17,7 @@ public enum JSONRPCMessage {
   case notification(NotificationType)
   case request(_RequestType, id: RequestID)
   case response(ResponseType, id: RequestID)
-  case errorResponse(ResponseError, id: RequestID)
+  case errorResponse(ResponseError, id: RequestID?)
 }
 
 extension CodingUserInfoKey {

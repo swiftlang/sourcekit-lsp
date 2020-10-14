@@ -172,6 +172,12 @@ public final class JSONRPCConnection {
     }
     return ready
   }
+  
+  private func send(_ message: JSONRPCMessage, async: Bool = true) {
+    send(async: async) { encoder in
+      try encoder.encode(message)
+    }
+  }
 
   /// Parse and handle all messages in `bytes`, returning a slice containing any remaining incomplete data.
   func parseAndHandleMessages(from bytes: UnsafeBufferPointer<UInt8>) -> UnsafeBufferPointer<UInt8>.SubSequence {
@@ -209,9 +215,7 @@ public final class JSONRPCConnection {
         switch error.messageKind {
           case .request:
             if let id = error.id {
-              send { encoder in
-                try encoder.encode(JSONRPCMessage.errorResponse(ResponseError(error), id: id))
-              }
+              send(.errorResponse(ResponseError(error), id: id))
               continue MESSAGE_LOOP
             }
           case .response:
@@ -229,17 +233,19 @@ public final class JSONRPCConnection {
               continue MESSAGE_LOOP
             }
           case .unknown:
-            log("error decoding message: \(error.message)", level: .error)
+            send(.errorResponse(ResponseError(error), id: nil),
+                 async: false) // synchronous because the following fatalError
             break
         }
         // FIXME: graceful shutdown?
-        Logger.shared.flush()
         fatalError("fatal error encountered decoding message \(error)")
 
       } catch {
-        log("error decoding message: \(error.localizedDescription)", level: .error)
+        let responseError = ResponseError(code: .parseError,
+                                          message: "Failed to decode message. \(error.localizedDescription)")
+        send(.errorResponse(responseError, id: nil),
+             async: false) // synchronous because the following fatalError
         // FIXME: graceful shutdown?
-        Logger.shared.flush()
         fatalError("fatal error encountered decoding message \(error)")
       }
     }
@@ -265,8 +271,12 @@ public final class JSONRPCConnection {
       }
       outstanding.replyHandler(.success(response))
     case .errorResponse(let error, id: let id):
+      guard let id = id else {
+        log("Received error response for unknown request: \(error.message)", level: .error)
+        return
+      }
       guard let outstanding = outstandingRequests.removeValue(forKey: id) else {
-        log("Unknown request for \(id)", level: .error)
+        log("No outstanding requests for request ID \(id)", level: .error)
         return
       }
       outstanding.replyHandler(.failure(error))
@@ -303,7 +313,17 @@ public final class JSONRPCConnection {
     send(_rawData: dispatchData)
   }
 
-  func send(encoding: (JSONEncoder) throws -> Data) {
+  private func sendMessageSynchronously(_ messageData: Data) {
+    let header = "Content-Length: \(messageData.count)\r\n\r\n"
+    guard let headerData = header.data(using: .utf8) else {
+      log("error encoding header", level: .error)
+      return
+    }
+    let stdOutHandle = FileHandle(fileDescriptor: sendIO.fileDescriptor)
+    stdOutHandle.write(headerData + messageData)
+  }
+  
+  func send(async: Bool = true, encoding: (JSONEncoder) throws -> Data) {
     guard readyToSend() else { return }
 
     let encoder = JSONEncoder()
@@ -317,7 +337,11 @@ public final class JSONRPCConnection {
       fatalError("unexpected error while encoding response: \(error)")
     }
 
-    send(messageData: data)
+    if async {
+      send(messageData: data)
+    } else {
+      sendMessageSynchronously(data)
+    }
   }
 
   /// Close the connection.
