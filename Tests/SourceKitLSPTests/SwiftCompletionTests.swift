@@ -547,6 +547,64 @@ final class SwiftCompletionTests: XCTestCase {
                                                 position: Position(line: 7, utf16index: 12),
                                                 context:CompletionContext(triggerKind: .triggerFromIncompleteCompletions)))))
   }
+
+  /// Regression test for https://bugs.swift.org/browse/SR-13561 to make sure the a session
+  /// close waits for its respective open to finish to prevent a session geting stuck open.
+  func testSessionCloseWaitsforOpen() throws {
+    initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
+    let url = URL(fileURLWithPath: "/\(#function)/file.swift")
+    openDocument(text: """
+      struct S {
+        func forSomethingCrazy() {}
+        func forSomethingCool() {}
+        func test() {
+          self.forSome
+        }
+        func print() {}
+        func anotherOne() {
+          self.prin
+        }
+      }
+      """, url: url)
+
+    let forSomeComplete = CompletionRequest(
+          textDocument: TextDocumentIdentifier(url),
+        position: Position(line: 4, utf16index: 12), // forS^
+        context:CompletionContext(triggerKind: .invoked))
+    let printComplete = CompletionRequest(
+        textDocument: TextDocumentIdentifier(url),
+      position: Position(line: 8, utf16index: 12), // prin^
+      context:CompletionContext(triggerKind: .invoked))
+
+    // Code completion for "self.forSome"
+    let forSomeExpectation = XCTestExpectation(description: "self.forSome code completion")
+    _ = sk.send(forSomeComplete) { result in
+      defer { forSomeExpectation.fulfill() }
+      guard let list = result.success else {
+        XCTFail("Request failed: \(String(describing: result.failure))")
+        return
+      }
+      XCTAssertEqual(2, countFs(list))
+    }
+
+    // Code completion for "self.prin", previously could immediately invalidate
+    // the previous request.
+    let printExpectation = XCTestExpectation(description: "self.prin code completion")
+    _ = sk.send(printComplete) { result in
+      defer { printExpectation.fulfill() }
+      guard let list = result.success else {
+        XCTFail("Request failed: \(String(describing: result.failure))")
+        return
+      }
+      XCTAssertEqual(1, list.items.count)
+    }
+
+    wait(for: [forSomeExpectation, printExpectation], timeout: 10)
+
+    // Try code completion for "self.forSome" again to verify that it still works.
+    let result = try sk.sendSync(forSomeComplete)
+    XCTAssertEqual(2, countFs(result))
+  }
 }
 
 private func countFs(_ response: CompletionList) -> Int {

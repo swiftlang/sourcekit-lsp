@@ -205,22 +205,40 @@ class CodeCompletionSession {
     return dict
   }
 
+  private func _sendClose(_ server: SwiftLanguageServer) {
+    let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
+    let keys = server.sourcekitd.keys
+    req[keys.request] = server.sourcekitd.requests.codecomplete_close
+    req[keys.offset] = self.utf8StartOffset
+    req[keys.name] = self.snapshot.document.uri.pseudoPath
+    log("\(Self.self) Closing: \(self)")
+    _ = try? server.sourcekitd.sendSync(req)
+  }
+
   func close() {
     // Temporary back-reference to server to keep it alive during close().
     let server = self.server
 
     queue.async {
-      if case .closed = self.state {
-        return
+      switch self.state {
+        case .closed:
+          // Already closed, nothing to do.
+          break
+        case .opening(let group):
+          group.notify(queue: self.queue) {
+            switch self.state {
+            case .closed, .opening(_):
+              // Don't try again.
+              break
+            case .open:
+              self._sendClose(server)
+              self.state = .closed
+            }
+          }
+        case .open:
+          self._sendClose(server)
+          self.state = .closed
       }
-      log("\(Self.self) Close: \(self)")
-      self.state = .closed
-      let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
-      let keys = server.sourcekitd.keys
-      req[keys.request] = server.sourcekitd.requests.codecomplete_close
-      req[keys.offset] = self.utf8StartOffset
-      req[keys.name] = self.snapshot.document.uri.pseudoPath
-      _ = try? server.sourcekitd.sendSync(req)
     }
   }
 }
