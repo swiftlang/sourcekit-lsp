@@ -284,7 +284,8 @@ public final class JSONRPCConnection {
   }
 
   /// *Public for testing*.
-  public func send(_rawData dispatchData: DispatchData) {
+  public func send(_rawData dispatchData: DispatchData,
+                   handleCompletion: (() -> Void)? = nil) {
     guard readyToSend() else { return }
 
     sendIO.write(offset: 0, data: dispatchData, queue: sendQueue) { [weak self] done, _, errorCode in
@@ -293,13 +294,16 @@ public final class JSONRPCConnection {
         if done {
           self?.queue.async {
             self?._close()
+            handleCompletion?()
           }
         }
+      } else if done {
+        handleCompletion?()
       }
     }
   }
 
-  func send(messageData: Data) {
+  func send(messageData: Data, handleCompletion: (() -> Void)? = nil) {
 
     var dispatchData = DispatchData.empty
     let header = "Content-Length: \(messageData.count)\r\n\r\n"
@@ -310,14 +314,19 @@ public final class JSONRPCConnection {
       dispatchData.append(rawBufferPointer)
     }
 
-    send(_rawData: dispatchData)
+    send(_rawData: dispatchData, handleCompletion: handleCompletion)
   }
 
-  private func sendMessageSynchronously(_ messageData: Data) {
-    let header = "Content-Length: \(messageData.count)\r\n\r\n"
-    let headerData = header.data(using: .utf8)!
-    let stdOutHandle = FileHandle(fileDescriptor: sendIO.fileDescriptor)
-    stdOutHandle.write(headerData + messageData)
+  private func sendMessageSynchronously(_ messageData: Data,
+                                        timeoutInSeconds seconds: Int) {
+    let synchronizationSemaphore = DispatchSemaphore(value: 0)
+    
+    send(messageData: messageData) {
+        synchronizationSemaphore.signal()
+    }
+    
+    // blocks until timeout expires or message sending completes
+    _ = synchronizationSemaphore.wait(timeout: .now() + .seconds(seconds))
   }
   
   func send(async: Bool = true, encoding: (JSONEncoder) throws -> Data) {
@@ -337,7 +346,7 @@ public final class JSONRPCConnection {
     if async {
       send(messageData: data)
     } else {
-      sendMessageSynchronously(data)
+      sendMessageSynchronously(data, timeoutInSeconds: 3)
     }
   }
 
