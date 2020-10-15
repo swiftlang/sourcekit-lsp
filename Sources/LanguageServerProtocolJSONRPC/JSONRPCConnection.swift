@@ -173,7 +173,8 @@ public final class JSONRPCConnection {
     return ready
   }
   
-  private func send(_ message: JSONRPCMessage, async: Bool = true) {
+  /// *Public for testing*
+  public func _send(_ message: JSONRPCMessage, async: Bool = true) {
     send(async: async) { encoder in
       try encoder.encode(message)
     }
@@ -215,7 +216,7 @@ public final class JSONRPCConnection {
         switch error.messageKind {
           case .request:
             if let id = error.id {
-              send(.errorResponse(ResponseError(error), id: id))
+              _send(.errorResponse(ResponseError(error), id: id))
               continue MESSAGE_LOOP
             }
           case .response:
@@ -233,7 +234,7 @@ public final class JSONRPCConnection {
               continue MESSAGE_LOOP
             }
           case .unknown:
-            send(.errorResponse(ResponseError(error), id: nil),
+            _send(.errorResponse(ResponseError(error), id: nil),
                  async: false) // synchronous because the following fatalError
             break
         }
@@ -243,7 +244,7 @@ public final class JSONRPCConnection {
       } catch {
         let responseError = ResponseError(code: .parseError,
                                           message: "Failed to decode message. \(error.localizedDescription)")
-        send(.errorResponse(responseError, id: nil),
+        _send(.errorResponse(responseError, id: nil),
              async: false) // synchronous because the following fatalError
         // FIXME: graceful shutdown?
         fatalError("fatal error encountered decoding message \(error)")
