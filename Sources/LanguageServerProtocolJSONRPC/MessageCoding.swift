@@ -96,7 +96,7 @@ extension JSONRPCMessage: Codable {
 
         self = .response(result, id: id)
 
-      case (let id?, nil, _, let error?):
+      case (let id, nil, _, let error?):
         msgKind = .response
         self = .errorResponse(error, id: id)
 
