@@ -158,10 +158,6 @@ final class CodingTests: XCTestCase {
     {"jsonrpc":"2.0","result":{}}
     """)
 
-    checkMessageDecodingError(MessageDecodingError.invalidRequest("message not recognized as request, response or notification"), json: """
-    {"jsonrpc":"2.0","error":{"code":-32000,"message":""}}
-    """)
-
     checkMessageDecodingError(MessageDecodingError.methodNotFound("unknown", messageKind: .notification), json: """
     {"jsonrpc":"2.0","method":"unknown"}
     """)
