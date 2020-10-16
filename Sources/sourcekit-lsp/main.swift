@@ -51,8 +51,8 @@ func parseArguments() throws -> CommandLineOptions {
   let clangdOptions = parser.add(option: "-Xclangd", kind: [String].self, strategy: .oneByOne, usage: "Pass options to clangd command-line")
   let indexStorePath = parser.add(option: "-index-store-path", kind: PathArgument.self, usage: "Override index-store-path from the build system")
   let indexDatabasePath = parser.add(option: "-index-db-path", kind: PathArgument.self, usage: "Override index-database-path from the build system")
-  let completionServerSideFiltering = parser.add(option: "-completion-server-side-filtering", kind: Bool.self, usage: "Whether to enable server-side filtering in code-completion")
-  let completionMaxResults = parser.add(option: "-completion-max-results", kind: Int.self, usage: "When server-side filtering is enabled, the maximum number of results to return")
+  let completionServerSideFiltering = parser.add(option: "--completion-server-side-filtering", kind: Bool.self, usage: "Whether to enable server-side filtering in code-completion")
+  let completionMaxResults = parser.add(option: "--completion-max-results", kind: Int.self, usage: "When server-side filtering is enabled, the maximum number of results to return")
 
   let parsedArguments = try parser.parse(arguments)
 
