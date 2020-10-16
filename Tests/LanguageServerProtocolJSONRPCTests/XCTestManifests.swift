@@ -35,6 +35,7 @@ extension ConnectionTests {
         ("testRound", testRound),
         ("testSendAfterClose", testSendAfterClose),
         ("testSendBeforeClose", testSendBeforeClose),
+        ("testSendSynchronouslyBeforeClose", testSendSynchronouslyBeforeClose),
         ("testUnexpectedResponse", testUnexpectedResponse),
         ("testUnknownNotification", testUnknownNotification),
         ("testUnknownRequest", testUnknownRequest),

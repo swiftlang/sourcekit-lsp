@@ -126,6 +126,17 @@ final class CodingTests: XCTestCase {
       "jsonrpc" : "2.0"
     }
     """)
+    
+    checkMessageCoding(ResponseError.cancelled, id: nil, json: """
+    {
+      "error" : {
+        "code" : -32800,
+        "message" : "request cancelled"
+      },
+      "id" : null,
+      "jsonrpc" : "2.0"
+    }
+    """)
   }
 
   func testMessageDecodingError() {
@@ -145,10 +156,6 @@ final class CodingTests: XCTestCase {
 
     checkMessageDecodingError(MessageDecodingError.invalidRequest("message not recognized as request, response or notification"), json: """
     {"jsonrpc":"2.0","result":{}}
-    """)
-
-    checkMessageDecodingError(MessageDecodingError.invalidRequest("message not recognized as request, response or notification"), json: """
-    {"jsonrpc":"2.0","error":{"code":-32000,"message":""}}
     """)
 
     checkMessageDecodingError(MessageDecodingError.methodNotFound("unknown", messageKind: .notification), json: """
@@ -255,7 +262,7 @@ private func checkMessageCoding<Response>(_ value: Response, id: RequestID, json
   }
 }
 
-private func checkMessageCoding(_ value: ResponseError, id: RequestID, json: String, file: StaticString = #file, line: UInt = #line) {
+private func checkMessageCoding(_ value: ResponseError, id: RequestID?, json: String, file: StaticString = #file, line: UInt = #line) {
   checkCoding(JSONRPCMessage.errorResponse(value, id: id), json: json, userInfo: defaultCodingInfo, file: file, line: line) {
 
     guard case JSONRPCMessage.errorResponse(let decodedValue, let decodedID) = $0 else {

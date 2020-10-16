@@ -17,7 +17,7 @@ public enum JSONRPCMessage {
   case notification(NotificationType)
   case request(_RequestType, id: RequestID)
   case response(ResponseType, id: RequestID)
-  case errorResponse(ResponseError, id: RequestID)
+  case errorResponse(ResponseError, id: RequestID?)
 }
 
 extension CodingUserInfoKey {
@@ -96,7 +96,7 @@ extension JSONRPCMessage: Codable {
 
         self = .response(result, id: id)
 
-      case (let id?, nil, _, let error?):
+      case (let id, nil, _, let error?):
         msgKind = .response
         self = .errorResponse(error, id: id)
 

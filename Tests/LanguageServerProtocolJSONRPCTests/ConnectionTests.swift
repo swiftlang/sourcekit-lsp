@@ -211,6 +211,20 @@ class ConnectionTests: XCTestCase {
 
     waitForExpectations(timeout: 10)
   }
+  
+  func testSendSynchronouslyBeforeClose() {
+    let client = connection.client
+
+    let expectation = self.expectation(description: "received notification")
+    client.handleNextNotification { (note: Notification<EchoNotification>) in
+      expectation.fulfill()
+    }
+    let notification = EchoNotification(string: "about to close!")
+    connection.serverConnection._send(.notification(notification), async: false)
+    connection.serverConnection.close()
+
+    waitForExpectations(timeout: 10)
+  }
 
   /// We can explicitly close a connection, but the connection also
   /// automatically closes itself if the pipe is closed (or has an error).
