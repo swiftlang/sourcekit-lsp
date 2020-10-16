@@ -89,7 +89,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified path.
   public init(
-    client: Connection,
+    client: LocalConnection,
     sourcekitd: AbsolutePath,
     buildSystem: BuildSystem,
     clientCapabilities: ClientCapabilities,
@@ -228,8 +228,7 @@ extension SwiftLanguageServer {
         self.currentCompletionSession = nil
       }
       self.api.set_notification_handler(nil)
-      client.close()
-      api.shutdown()
+      self.client.close()
     }
   }
 
