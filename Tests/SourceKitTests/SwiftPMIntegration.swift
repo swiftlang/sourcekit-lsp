@@ -31,7 +31,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
 
     let completions = try ws.sk.sendSync(CompletionRequest(textDocument: call.docIdentifier, position: call.position))
 
-    XCTAssertEqual(completions, CompletionList(isIncomplete: false, items: [
+    XCTAssertEqual(completions.items, [
       CompletionItem(
         label: "foo()",
         kind: .method,
@@ -52,6 +52,6 @@ final class SwiftPMIntegrationTests: XCTestCase {
         insertText: "self",
         insertTextFormat: .plain,
         deprecated: false),
-    ]))
+    ])
   }
 }

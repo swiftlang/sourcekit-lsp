@@ -253,6 +253,14 @@ struct sourcekitd_keys {
   let num_bytes_to_erase: sourcekitd_uid_t
   let associated_usrs: sourcekitd_uid_t
 
+  let codecomplete_filtertext: sourcekitd_uid_t
+  let codecomplete_requestlimit: sourcekitd_uid_t
+  let codecomplete_hideunderscores: sourcekitd_uid_t
+  let codecomplete_hidelowpriority: sourcekitd_uid_t
+  let codecomplete_hidebyname: sourcekitd_uid_t
+  let codecomplete_addinneroperators: sourcekitd_uid_t
+  let codecomplete_callpatternheuristics: sourcekitd_uid_t
+  let codecomplete_showtopnonliteralresults: sourcekitd_uid_t
 
   init(api: sourcekitd_functions_t) {
     request = api.uid_get_from_cstr("key.request")!
@@ -303,6 +311,14 @@ struct sourcekitd_keys {
     not_recommended = api.uid_get_from_cstr("key.not_recommended")!
     num_bytes_to_erase = api.uid_get_from_cstr("key.num_bytes_to_erase")!
     associated_usrs = api.uid_get_from_cstr("key.associated_usrs")!
+    codecomplete_filtertext = api.uid_get_from_cstr("key.codecomplete.filtertext")!
+    codecomplete_requestlimit = api.uid_get_from_cstr("key.codecomplete.requestlimit")!
+    codecomplete_hideunderscores = api.uid_get_from_cstr("key.codecomplete.hideunderscores")!
+    codecomplete_hidelowpriority = api.uid_get_from_cstr("key.codecomplete.hidelowpriority")!
+    codecomplete_hidebyname = api.uid_get_from_cstr("key.codecomplete.hidebyname")!
+    codecomplete_addinneroperators = api.uid_get_from_cstr("key.codecomplete.addinneroperators")!
+    codecomplete_callpatternheuristics = api.uid_get_from_cstr("key.codecomplete.callpatternheuristics")!
+    codecomplete_showtopnonliteralresults = api.uid_get_from_cstr("key.codecomplete.showtopnonliteralresults")!
   }
 }
 
@@ -312,6 +328,9 @@ struct sourcekitd_requests {
   let editor_close: sourcekitd_uid_t
   let editor_replacetext: sourcekitd_uid_t
   let codecomplete: sourcekitd_uid_t
+  let codecomplete_open: sourcekitd_uid_t
+  let codecomplete_update: sourcekitd_uid_t
+  let codecomplete_close: sourcekitd_uid_t
   let cursorinfo: sourcekitd_uid_t
   let relatedidents: sourcekitd_uid_t
   let semantic_refactoring: sourcekitd_uid_t
@@ -321,6 +340,9 @@ struct sourcekitd_requests {
     editor_close = api.uid_get_from_cstr("source.request.editor.close")!
     editor_replacetext = api.uid_get_from_cstr("source.request.editor.replacetext")!
     codecomplete = api.uid_get_from_cstr("source.request.codecomplete")!
+    codecomplete_open = api.uid_get_from_cstr("source.request.codecomplete.open")!
+    codecomplete_update = api.uid_get_from_cstr("source.request.codecomplete.update")!
+    codecomplete_close = api.uid_get_from_cstr("source.request.codecomplete.close")!
     cursorinfo = api.uid_get_from_cstr("source.request.cursorinfo")!
     relatedidents = api.uid_get_from_cstr("source.request.relatedidents")!
     semantic_refactoring = api.uid_get_from_cstr("source.request.semantic.refactoring")!

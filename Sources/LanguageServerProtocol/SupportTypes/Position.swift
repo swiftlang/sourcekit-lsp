@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -54,5 +54,15 @@ extension Position: LSPAnyCodable {
       CodingKeys.line.stringValue: .int(line),
       CodingKeys.utf16index.stringValue: .int(utf16index)
     ])
+  }
+}
+
+extension Position: CustomStringConvertible, CustomDebugStringConvertible {
+  public var description: String {
+    "\(line + 1):\(utf16index+1)"
+  }
+
+  public var debugDescription: String {
+    "Position(line: \(line), utf16index: \(utf16index))"
   }
 }

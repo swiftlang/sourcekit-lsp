@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2019 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -19,7 +19,7 @@ import SourceKit
 import class Foundation.Pipe
 import LSPTestSupport
 
-public struct TestSourceKitServer {
+public final class TestSourceKitServer {
   public enum ConnectionKind {
     case local, jsonrpc
   }
@@ -39,6 +39,8 @@ public struct TestSourceKitServer {
 
   public let client: TestClient
   let connImpl: ConnectionImpl
+
+  public var hasShutdown: Bool = false
 
   /// The server, if it is in the same process.
   public let server: SourceKitServer?
@@ -63,11 +65,6 @@ public struct TestSourceKitServer {
         let clientToServer: Pipe = Pipe()
         let serverToClient: Pipe = Pipe()
 
-        // FIXME: DispatchIO doesn't like when the Pipes close behind its back even after the tests
-        // finish. Until we fix the lifetime, leak.
-        _ = Unmanaged.passRetained(clientToServer)
-        _ = Unmanaged.passRetained(serverToClient)
-
         let clientConnection = JSONRPCConnection(
           protocol: MessageRegistry.lspProtocol,
           inFD: serverToClient.fileHandleForReading.fileDescriptor,
@@ -84,8 +81,16 @@ public struct TestSourceKitServer {
           serverConnection.close()
         })
 
-        clientConnection.start(receiveHandler: client)
-        serverConnection.start(receiveHandler: server!)
+        clientConnection.start(receiveHandler: client) {
+          // FIXME: keep the pipes alive until we close the connection. This
+          // should be fixed systemically.
+          withExtendedLifetime((clientToServer, serverToClient)) {}
+        }
+        serverConnection.start(receiveHandler: server!) {
+          // FIXME: keep the pipes alive until we close the connection. This
+          // should be fixed systemically.
+          withExtendedLifetime((clientToServer, serverToClient)) {}
+        }
 
         connImpl = .jsonrpc(
           clientToServer: clientToServer,
@@ -95,15 +100,15 @@ public struct TestSourceKitServer {
     }
   }
 
-  func close() {
-    switch connImpl {
-      case .local(clientConnection: let cc, serverConnection: let sc):
-      cc.close()
-      sc.close()
+  deinit {
+    close()
+  }
 
-    case .jsonrpc(clientToServer: _, serverToClient: _, clientConnection: let cc, serverConnection: let sc):
-      cc.close()
-      sc.close()
+  func close() {
+    if !hasShutdown {
+      hasShutdown = true
+      _ = try! self.client.sendSync(ShutdownRequest())
+      self.client.send(ExitNotification())
     }
   }
 }

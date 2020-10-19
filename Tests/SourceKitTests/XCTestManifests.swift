@@ -156,12 +156,18 @@ extension SwiftCompletionTests {
     //   `swift test --generate-linuxmain`
     // to regenerate.
     static let __allTests__SwiftCompletionTests = [
-        ("testCompletion", testCompletion),
+        ("testCompletionClientFilter", testCompletionClientFilter),
+        ("testCompletionDefaultFilter", testCompletionDefaultFilter),
         ("testCompletionOptional", testCompletionOptional),
         ("testCompletionOverride", testCompletionOverride),
         ("testCompletionOverrideInNewLine", testCompletionOverrideInNewLine),
-        ("testCompletionPosition", testCompletionPosition),
+        ("testCompletionPositionClientFilter", testCompletionPositionClientFilter),
+        ("testCompletionPositionServerFilter", testCompletionPositionServerFilter),
+        ("testCompletionServerFilter", testCompletionServerFilter),
         ("testCompletionSnippetSupport", testCompletionSnippetSupport),
+        ("testMaxResults", testMaxResults),
+        ("testRefilterAfterIncompleteResults", testRefilterAfterIncompleteResults),
+        ("testRefilterAfterIncompleteResultsWithEdits", testRefilterAfterIncompleteResultsWithEdits),
     ]
 }
 

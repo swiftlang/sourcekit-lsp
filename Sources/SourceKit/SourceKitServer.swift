@@ -36,7 +36,7 @@ public final class SourceKitServer: LanguageServer {
     var language: Language
   }
 
-  let options: Options
+  var options: Options
 
   let toolchainRegistry: ToolchainRegistry
 
@@ -298,6 +298,21 @@ extension SourceKitServer {
       if case .bool(let listenToUnitEvents) = options["listenToUnitEvents"] {
         indexOptions.listenToUnitEvents = listenToUnitEvents
       }
+      if case .dictionary(let completionOptions) = options["completion"] {
+        if case .bool(let serverSideFiltering) = completionOptions["serverSideFiltering"] {
+          self.options.completionOptions.serverSideFiltering = serverSideFiltering
+        }
+        switch completionOptions["maxResults"] {
+        case .none:
+          break
+        case .some(.null):
+          self.options.completionOptions.maxResults = nil
+        case .some(.int(let maxResults)):
+          self.options.completionOptions.maxResults = maxResults
+        case .some(let invalid):
+          log("expected null or int for 'maxResults'; got \(invalid)", level: .warning)
+        }
+      }
     }
 
     // Any messages sent before initialize returns are expected to fail, so this will run before
@@ -346,7 +361,7 @@ extension SourceKitServer {
         save: TextDocumentSyncOptions.SaveOptions(includeText: false)
       ),
       hoverProvider: true,
-      completionProvider: CompletionOptions(
+      completionProvider: LanguageServerProtocol.CompletionOptions(
         resolveProvider: false,
         triggerCharacters: ["."]
       ),
@@ -406,6 +421,10 @@ extension SourceKitServer {
 
   func shutdown(_ request: Request<ShutdownRequest>) {
     _prepareForExit()
+    for service in languageService.values {
+      service.shutdown()
+    }
+    languageService = [:]
     request.reply(VoidResponse())
   }
 
@@ -781,7 +800,12 @@ public func languageService(
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
-    return try makeLocalSwiftServer(client: client, sourcekitd: sourcekitd, buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings, clientCapabilities: (client as? SourceKitServer)?.workspace?.clientCapabilities)
+    return try makeLocalSwiftServer(
+      client: client,
+      sourcekitd: sourcekitd,
+      buildSettings: (client as? SourceKitServer)?.workspace?.buildSettings,
+      clientCapabilities: (client as? SourceKitServer)?.workspace?.clientCapabilities,
+      options: options)
 
   default:
     return nil
