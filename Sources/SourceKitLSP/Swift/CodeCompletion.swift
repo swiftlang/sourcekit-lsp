@@ -101,8 +101,6 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    logAsync { _ in skreq.description }
-
     let handle = sourcekitd.send(skreq, queue) { [weak self] result in
       guard let self = self else { return }
       guard let dict = result.success else {
