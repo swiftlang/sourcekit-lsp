@@ -71,7 +71,7 @@ def install(swiftpm_bin_path, toolchain):
     install_binary(exe, swiftpm_bin_path, toolchain_bin, toolchain)
 
 def install_binary(exe, source_dir, install_dir, toolchain):
-  cmd = ['rsync', '-a', os.path.join(source_dir.decode('UTF-8'), exe), install_dir]
+  cmd = ['rsync', '-a', os.path.join(source_dir, exe), install_dir]
   print(' '.join(cmd))
   subprocess.check_call(cmd)
 
