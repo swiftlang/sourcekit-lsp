@@ -67,13 +67,13 @@ public final class TestSourceKitServer {
 
         let clientConnection = JSONRPCConnection(
           protocol: MessageRegistry.lspProtocol,
-          inFD: serverToClient.fileHandleForReading.fileDescriptor,
-          outFD: clientToServer.fileHandleForWriting.fileDescriptor
+          inFD: serverToClient.fileHandleForReading,
+          outFD: clientToServer.fileHandleForWriting
         )
         let serverConnection = JSONRPCConnection(
           protocol: MessageRegistry.lspProtocol,
-          inFD: clientToServer.fileHandleForReading.fileDescriptor,
-          outFD: serverToClient.fileHandleForWriting.fileDescriptor
+          inFD: clientToServer.fileHandleForReading,
+          outFD: serverToClient.fileHandleForWriting
         )
 
         client = TestClient(server: clientConnection)
