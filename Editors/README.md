@@ -31,7 +31,7 @@ After installing the extension, settings for SourceKit-LSP can be found in `Pref
 
 ## Atom
 
-Download the ide-sourcekit package for Atom from [this download link](https://atom.io/packages/ide-sourcekit). The installation instructions are given the same link.
+Download the `ide-sourcekit` package for Atom from [a corresponding package page](https://atom.io/packages/ide-sourcekit). It also contains installation instructions to get you started.
 
 ## Sublime Text
 
