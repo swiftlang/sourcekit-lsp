@@ -11,15 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 #if canImport(CDispatch)
-import CDispatch
+import struct CDispatch.dispatch_fd_t
 #endif
 import Dispatch
 import Foundation
 import LanguageServerProtocol
 import LSPLogging
-#if os(Windows)
-import ucrt
-#endif
 
 /// A connection between a message handler (e.g. language server) in the same process as the connection object and a remote message handler (e.g. language client) that may run in another process using JSON RPC messages sent over a pair of in/out file descriptors.
 ///
@@ -62,8 +59,8 @@ public final class JSONRPCConnection {
 
   public init(
     protocol messageRegistry: MessageRegistry,
-    inFD: Int32,
-    outFD: Int32,
+    inFD: FileHandle,
+    outFD: FileHandle,
     syncRequests: Bool = false)
   {
     state = .created
@@ -72,26 +69,28 @@ public final class JSONRPCConnection {
 
     let ioGroup = DispatchGroup()
 
-    ioGroup.enter()
 #if os(Windows)
-    let inDesc: dispatch_fd_t = dispatch_fd_t(_get_osfhandle(inFD))
+    let rawInFD = dispatch_fd_t(bitPattern: inFD._handle)
 #else
-    let inDesc: Int32 = Int32(inFD)
+    let rawInFD = inFD.fileDescriptor
 #endif
-    receiveIO = DispatchIO(type: .stream, fileDescriptor: inDesc, queue: queue) { (error: Int32) in
+
+    ioGroup.enter()
+    receiveIO = DispatchIO(type: .stream, fileDescriptor: rawInFD, queue: queue) { (error: Int32) in
       if error != 0 {
         log("IO error \(error)", level: .error)
       }
       ioGroup.leave()
     }
 
-    ioGroup.enter()
 #if os(Windows)
-    let outDesc: dispatch_fd_t = dispatch_fd_t(_get_osfhandle(outFD))
+    let rawOutFD = dispatch_fd_t(bitPattern: outFD._handle)
 #else
-    let outDesc: Int32 = Int32(outFD)
+    let rawOutFD = outFD.fileDescriptor
 #endif
-    sendIO = DispatchIO(type: .stream, fileDescriptor: outDesc, queue: sendQueue) { (error: Int32) in
+
+    ioGroup.enter()
+    sendIO = DispatchIO(type: .stream, fileDescriptor: rawOutFD, queue: sendQueue) { (error: Int32) in
       if error != 0 {
         log("IO error \(error)", level: .error)
       }

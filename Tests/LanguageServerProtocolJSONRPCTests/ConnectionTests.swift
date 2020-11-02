@@ -240,8 +240,8 @@ class ConnectionTests: XCTestCase {
 
       let conn = JSONRPCConnection(
         protocol: MessageRegistry(requests: [], notifications: []),
-        inFD: to.fileHandleForReading.fileDescriptor,
-        outFD: from.fileHandleForWriting.fileDescriptor)
+        inFD: to.fileHandleForReading,
+        outFD: from.fileHandleForWriting)
 
       final class DummyHandler: MessageHandler {
         func handle<N: NotificationType>(_: N, from: ObjectIdentifier) {}
