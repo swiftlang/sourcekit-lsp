@@ -159,10 +159,12 @@ struct Main: ParsableCommand {
       fatalError("failed to redirect stdout -> stderr: \(strerror(errno)!)")
     }
 
+    let realStdoutHandle = FileHandle(fileDescriptor: realStdout, closeOnDealloc: false)
+
     let clientConnection = JSONRPCConnection(
       protocol: MessageRegistry.lspProtocol,
       inFD: FileHandle.standardInput,
-      outFD: FileHandle(fileDescriptor: realStdout, closeOnDealloc: false),
+      outFD: realStdoutHandle,
       syncRequests: syncRequests
     )
 
@@ -174,6 +176,9 @@ struct Main: ParsableCommand {
     })
     clientConnection.start(receiveHandler: server, closeHandler: {
       server.prepareForExit()
+      // FIXME: keep the FileHandle alive until we close the connection to
+      // workaround SR-13822.
+      withExtendedLifetime(realStdoutHandle) {}
       // Use _Exit to avoid running static destructors due to SR-12668.
       _Exit(0)
     })
