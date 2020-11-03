@@ -29,6 +29,10 @@ After installing the extension, settings for SourceKit-LSP can be found in `Pref
 * `sourcekit-lsp.toolchainPath`: (optional) The path of the swift toolchain (sets `SOURCEKIT_TOOLCHAIN_PATH`). By default, sourcekit-lsp uses the toolchain it is installed in.
 * `sourcekit-lsp.tracing.server`: Traces the communication between VS Code and the SourceKit-LSP language server
 
+## Atom
+
+Download the `ide-sourcekit` package for Atom from [the corresponding package page](https://atom.io/packages/ide-sourcekit). It also contains installation instructions to get you started.
+
 ## Sublime Text
 
 Before using SourceKit-LSP with Sublime Text, you will need to install the LSP package from Package Control. To configure SourceKit-LSP, open the LSP package's settings. The following snippet should be enough to get started with Swift.
