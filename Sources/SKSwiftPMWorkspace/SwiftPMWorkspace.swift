@@ -101,17 +101,17 @@ public final class SwiftPMWorkspace {
 
     let triple = toolchain.triple
 
-    let swiftPMConfiguration: PackageModel.BuildConfiguration
+    let buildConfiguration: PackageModel.BuildConfiguration
     switch buildSetup.configuration {
     case .debug:
-      swiftPMConfiguration = .debug
+      buildConfiguration = .debug
     case .release:
-      swiftPMConfiguration = .release
+      buildConfiguration = .release
     }
 
     self.buildParameters = BuildParameters(
       dataPath: buildPath.appending(component: triple.tripleString),
-      configuration: swiftPMConfiguration,
+      configuration: buildConfiguration,
       toolchain: toolchain,
       flags: buildSetup.flags)
 
