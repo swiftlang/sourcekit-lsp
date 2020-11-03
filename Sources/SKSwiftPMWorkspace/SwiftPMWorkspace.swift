@@ -87,29 +87,31 @@ public final class SwiftPMWorkspace {
 
     let buildPath: AbsolutePath = buildSetup.path ?? packageRoot.appending(component: ".build")
 
+    let workspaceConfiguration = try Workspace.Configuration(path: packageRoot.appending(components: ".swiftpm", "config"), fs: fileSystem)
+
     self.workspace = Workspace(
       dataPath: buildPath,
       editablesPath: packageRoot.appending(component: "Packages"),
       pinsFile: packageRoot.appending(component: "Package.resolved"),
       manifestLoader: ManifestLoader(manifestResources: toolchain.manifestResources, cacheDir: buildPath),
       delegate: BuildSettingProviderWorkspaceDelegate(),
-      config: SwiftPMConfig(path: packageRoot.appending(components: ".swiftpm", "config"), fs: fileSystem),
+        config: workspaceConfiguration,
       fileSystem: fileSystem,
       skipUpdate: true)
 
     let triple = toolchain.triple
 
-    let swiftPMConfiguration: PackageModel.BuildConfiguration
+    let buildConfiguration: PackageModel.BuildConfiguration
     switch buildSetup.configuration {
     case .debug:
-      swiftPMConfiguration = .debug
+      buildConfiguration = .debug
     case .release:
-      swiftPMConfiguration = .release
+      buildConfiguration = .release
     }
 
     self.buildParameters = BuildParameters(
       dataPath: buildPath.appending(component: triple.tripleString),
-      configuration: swiftPMConfiguration,
+      configuration: buildConfiguration,
       toolchain: toolchain,
       flags: buildSetup.flags)
 
