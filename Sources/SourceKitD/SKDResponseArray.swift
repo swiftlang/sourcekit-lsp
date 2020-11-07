@@ -35,6 +35,14 @@ public final class SKDResponseArray {
     }
     return true
   }
+
+  /// Attempt to access the item at `index` as a string.
+  public subscript(index: Int) -> String? {
+    if let cstr = sourcekitd.api.variant_array_get_string(array, index) {
+      return String(cString: cstr)
+    }
+    return nil
+  }
 }
 
 extension SKDResponseArray: CustomStringConvertible {

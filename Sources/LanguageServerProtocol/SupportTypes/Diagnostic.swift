@@ -24,6 +24,17 @@ public enum DiagnosticCode: Hashable {
   case string(String)
 }
 
+/// Captures a description of a diagnostic error code.
+public struct CodeDescription: Codable, Hashable {
+
+  /// A URI to open with more information about the diagnostic.
+  public var href: DocumentURI
+
+  public init(href: DocumentURI) {
+    self.href = href
+  }
+}
+
 /// A diagnostic message such a compiler error or warning.
 public struct Diagnostic: Codable, Hashable {
 
@@ -37,6 +48,9 @@ public struct Diagnostic: Codable, Hashable {
   /// The "code" of the diagnostice, which might be a number or string, typically providing a unique
   /// way to reference the diagnostic in e.g. documentation.
   public var code: DiagnosticCode?
+
+  /// An optional description of the diagnostic code.
+  public var codeDescription: CodeDescription?
 
   /// A human-readable description of the source of this diagnostic, e.g. "sourcekitd"
   public var source: String?
@@ -55,6 +69,7 @@ public struct Diagnostic: Codable, Hashable {
     range: Range<Position>,
     severity: DiagnosticSeverity?,
     code: DiagnosticCode? = nil,
+    codeDescription: CodeDescription? = nil,
     source: String?,
     message: String,
     relatedInformation: [DiagnosticRelatedInformation]? = nil,
@@ -63,6 +78,7 @@ public struct Diagnostic: Codable, Hashable {
     self._range = CustomCodable<PositionRange>(wrappedValue: range)
     self.severity = severity
     self.code = code
+    self.codeDescription = codeDescription
     self.source = source
     self.message = message
     self.relatedInformation = relatedInformation

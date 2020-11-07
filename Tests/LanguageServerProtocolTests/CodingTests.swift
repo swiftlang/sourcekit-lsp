@@ -206,6 +206,12 @@ final class CodingTests: XCTestCase {
     checkCoding(DiagnosticCode.number(123), json: "123")
     checkCoding(DiagnosticCode.string("hi"), json: "\"hi\"")
 
+    checkCoding(CodeDescription(href: DocumentURI(string: "file:///some/path")), json: """
+    {
+      "href" : "file:\\/\\/\\/some\\/path"
+    }
+    """)
+
     let markup = MarkupContent(kind: .plaintext, value: "a")
     checkCoding(HoverResponse(contents: .markupContent(markup), range: nil), json: """
       {

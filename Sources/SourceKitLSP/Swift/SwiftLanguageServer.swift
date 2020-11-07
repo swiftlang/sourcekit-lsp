@@ -150,10 +150,15 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     let stageUID: sourcekitd_uid_t? = response[sourcekitd.keys.diagnostic_stage]
     let stage = stageUID.flatMap { DiagnosticStage($0, sourcekitd: sourcekitd) } ?? .sema
 
+    let supportsCodeDescription =
+           (clientCapabilities.textDocument?.publishDiagnostics?.codeDescriptionSupport == true)
+
     // Note: we make the notification even if there are no diagnostics to clear the current state.
     var newDiags: [CachedDiagnostic] = []
     response[keys.diagnostics]?.forEach { _, diag in
-      if let diag = CachedDiagnostic(diag, in: snapshot) {
+      if let diag = CachedDiagnostic(diag,
+                                     in: snapshot,
+                                     useEducationalNoteAsCode: supportsCodeDescription) {
         newDiags.append(diag)
       }
       return true
