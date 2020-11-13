@@ -307,6 +307,7 @@ final class ToolchainRegistryTests: XCTestCase {
       XCTAssertNil(t1.clangd)
       XCTAssertNil(t1.swiftc)
 
+#if !os(Windows)
       func chmodRX(_ path: AbsolutePath) {
         XCTAssertEqual(chmod(path.pathString, S_IRUSR | S_IXUSR), 0)
       }
@@ -315,6 +316,7 @@ final class ToolchainRegistryTests: XCTestCase {
       chmodRX(path.appending(components: "bin", "clangd"))
       chmodRX(path.appending(components: "bin", "swiftc"))
       chmodRX(path.appending(components: "bin", "other"))
+#endif
 
       let t2 = Toolchain(path.parentDirectory, fs)!
       XCTAssertNotNil(t2.sourcekitd)
@@ -511,9 +513,11 @@ private func makeToolchain(
 
   let makeExec = { (path: AbsolutePath) in
     try! fs.writeFileContents(path , bytes: "")
+#if !os(Windows)
     if shouldChmod {
       XCTAssertEqual(chmod(path.pathString, S_IRUSR | S_IXUSR), 0)
     }
+#endif
   }
 
   let execExt = Platform.currentPlatform?.executableExtension ?? ""
