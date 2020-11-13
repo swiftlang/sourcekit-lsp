@@ -15,6 +15,10 @@ import LanguageServerProtocolJSONRPC
 import LSPTestSupport
 import XCTest
 
+#if os(Windows)
+import WinSDK
+#endif
+
 // Workaround ambiguity with Foundation.
 typealias Notification = LanguageServerProtocol.Notification
 
@@ -258,8 +262,13 @@ class ConnectionTests: XCTestCase {
       })
 
       to.fileHandleForWriting.closeFile()
+#if os(Windows)
+      // 1 ms was chosen for simplicity.
+      _ = Sleep(1)
+#else
       // 100 us was chosen empirically to encourage races.
       usleep(100)
+#endif
       conn.close()
 
       waitForExpectations(timeout: 10)
