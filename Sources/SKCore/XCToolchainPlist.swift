@@ -46,17 +46,14 @@ extension XCToolchainPlist {
       RelativePath("Info.plist"), // Swift.org
     ]
 
-    var missingPlistPath: AbsolutePath?
     for plistPath in plistNames.lazy.map({ path.appending($0) }) {
       if fileSystem.isFile(plistPath) {
         try self.init(path: plistPath, fileSystem)
         return
       }
-
-      missingPlistPath = plistPath
     }
 
-    throw FileSystemError(.noEntry, missingPlistPath)
+    throw FileSystemError.noEntry
 #else
     throw Error.unsupportedPlatform
 #endif
