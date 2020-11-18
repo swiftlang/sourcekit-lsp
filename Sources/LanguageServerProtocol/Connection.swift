@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2018 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -104,14 +104,18 @@ public final class LocalConnection {
 
 extension LocalConnection: Connection {
   public func send<Notification>(_ notification: Notification) where Notification: NotificationType {
-    precondition(state == .started)
-    handler!.handle(notification, from: ObjectIdentifier(self))
+    handler?.handle(notification, from: ObjectIdentifier(self))
   }
 
   public func send<Request>(_ request: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
-    precondition(state == .started)
     let id = nextRequestID()
-    handler!.handle(request, id: id, from: ObjectIdentifier(self)) { result in
+    guard let handler = handler else {
+      queue.async { reply(.failure(.cancelled)) }
+      return id
+    }
+
+    precondition(state == .started)
+    handler.handle(request, id: id, from: ObjectIdentifier(self)) { result in
       queue.async {
         reply(result)
       }
