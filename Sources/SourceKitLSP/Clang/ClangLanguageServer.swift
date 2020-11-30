@@ -24,31 +24,82 @@ import TSCBasic
 /// like witholding diagnostics when fallback build settings are being used.
 final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
 
-  /// The connection to the clangd LSP.
-  let clangd: Connection
+  /// The connection to the clangd LSP. `nil` until `startClangdProcesss` has been called.
+  var clangd: Connection!
 
   /// Capabilities of the clangd LSP, if received.
   var capabilities: ServerCapabilities? = nil
 
   /// Path to the clang binary.
   let clangPath: AbsolutePath?
+  
+  /// Path to the `clangd` binary.
+  let clangdPath: AbsolutePath
+  
+  let clangdOptions: [String]
 
   /// Resolved build settings by file. Must be accessed with the `lock`.
   private var buildSettingsByFile: [DocumentURI: ClangBuildSettings] = [:]
 
   /// Lock protecting `buildSettingsByFile`.
-  private var lock: Lock
+  private var lock: Lock = Lock()
 
   /// Creates a language server for the given client referencing the clang binary at the given path.
   public init(
-    client: LocalConnection,
-    clangd: Connection,
-    clangPath: AbsolutePath?
+    client: Connection,
+    clangPath: AbsolutePath?,
+    clangdPath: AbsolutePath,
+    clangdOptions: [String]
   ) throws {
-    self.clangd = clangd
     self.clangPath = clangPath
-    self.lock = Lock()
+    self.clangdPath = clangdPath
+    self.clangdOptions = clangdOptions
     super.init(client: client)
+  }
+  
+  func startClangdProcesss() throws {
+    let usToClangd: Pipe = Pipe()
+    let clangdToUs: Pipe = Pipe()
+
+    let connectionToClangd = JSONRPCConnection(
+      protocol: MessageRegistry.lspProtocol,
+      inFD: clangdToUs.fileHandleForReading,
+      outFD: usToClangd.fileHandleForWriting
+    )
+    self.clangd = connectionToClangd
+
+    connectionToClangd.start(receiveHandler: self) {
+      // FIXME: keep the pipes alive until we close the connection. This
+      // should be fixed systemically.
+      withExtendedLifetime((usToClangd, clangdToUs)) {}
+    }
+
+    let process = Foundation.Process()
+
+    if #available(OSX 10.13, *) {
+      process.executableURL = clangdPath.asURL
+    } else {
+      process.launchPath = clangdPath.pathString
+    }
+
+    process.arguments = [
+      "-compile_args_from=lsp",   // Provide compiler args programmatically.
+      "-background-index=false",  // Disable clangd indexing, we use the build
+      "-index=false"             // system index store instead.
+    ] + clangdOptions
+
+    process.standardOutput = clangdToUs
+    process.standardInput = usToClangd
+    process.terminationHandler = { process in
+      log("clangd exited: \(process.terminationReason) \(process.terminationStatus)")
+      connectionToClangd.close()
+    }
+
+    if #available(OSX 10.13, *) {
+      try process.run()
+    } else {
+      process.launch()
+    }
   }
 
   public override func _registerBuiltinHandlers() {
@@ -284,60 +335,21 @@ func makeJSONRPCClangServer(
   toolchain: Toolchain,
   clangdOptions: [String]
 ) throws -> ToolchainLanguageServer {
-  guard let clangd = toolchain.clangd else {
+  guard let clangdPath = toolchain.clangd else {
     preconditionFailure("missing clang from toolchain \(toolchain.identifier)")
   }
 
-  let usToClangd: Pipe = Pipe()
-  let clangdToUs: Pipe = Pipe()
-
-  let connection = JSONRPCConnection(
-    protocol: MessageRegistry.lspProtocol,
-    inFD: clangdToUs.fileHandleForReading,
-    outFD: usToClangd.fileHandleForWriting
-  )
-
   let connectionToClient = LocalConnection()
-
+  connectionToClient.start(handler: client)
+  
   let shim = try ClangLanguageServerShim(
     client: connectionToClient,
-    clangd: connection,
-    clangPath: toolchain.clang)
-
-  connectionToClient.start(handler: client)
-  connection.start(receiveHandler: shim) {
-    // FIXME: keep the pipes alive until we close the connection. This
-    // should be fixed systemically.
-    withExtendedLifetime((usToClangd, clangdToUs)) {}
-  }
-
-  let process = Foundation.Process()
-
-  if #available(OSX 10.13, *) {
-    process.executableURL = clangd.asURL
-  } else {
-    process.launchPath = clangd.pathString
-  }
-
-  process.arguments = [
-    "-compile_args_from=lsp",   // Provide compiler args programmatically.
-    "-background-index=false",  // Disable clangd indexing, we use the build
-    "-index=false"             // system index store instead.
-  ] + clangdOptions
-
-  process.standardOutput = clangdToUs
-  process.standardInput = usToClangd
-  process.terminationHandler = { process in
-    log("clangd exited: \(process.terminationReason) \(process.terminationStatus)")
-    connection.close()
-  }
-
-  if #available(OSX 10.13, *) {
-    try process.run()
-  } else {
-    process.launch()
-  }
-
+    clangPath: toolchain.clang,
+    clangdPath: clangdPath,
+    clangdOptions: clangdOptions
+  )
+  try shim.startClangdProcesss()
+  
   return shim
 }
 
