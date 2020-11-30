@@ -131,6 +131,7 @@ public struct sourcekitd_keys {
 }
 
 public struct sourcekitd_requests {
+  public let crash_exit: sourcekitd_uid_t
   public let editor_open: sourcekitd_uid_t
   public let editor_close: sourcekitd_uid_t
   public let editor_replacetext: sourcekitd_uid_t
@@ -143,6 +144,7 @@ public struct sourcekitd_requests {
   public let semantic_refactoring: sourcekitd_uid_t
 
   public init(api: sourcekitd_functions_t) {
+    crash_exit = api.uid_get_from_cstr("source.request.crash_exit")!
     editor_open = api.uid_get_from_cstr("source.request.editor.open")!
     editor_close = api.uid_get_from_cstr("source.request.editor.close")!
     editor_replacetext = api.uid_get_from_cstr("source.request.editor.replacetext")!
@@ -158,6 +160,7 @@ public struct sourcekitd_requests {
 
 public struct sourcekitd_values {
   public let notification_documentupdate: sourcekitd_uid_t
+  public let notification_sema_enabled: sourcekitd_uid_t
   public let diag_error: sourcekitd_uid_t
   public let diag_warning: sourcekitd_uid_t
   public let diag_note: sourcekitd_uid_t
@@ -250,6 +253,7 @@ public struct sourcekitd_values {
 
   public init(api: sourcekitd_functions_t) {
     notification_documentupdate = api.uid_get_from_cstr("source.notification.editor.documentupdate")!
+    notification_sema_enabled = api.uid_get_from_cstr("source.notification.sema_enabled")!
     diag_error = api.uid_get_from_cstr("source.diagnostic.severity.error")!
     diag_warning = api.uid_get_from_cstr("source.diagnostic.severity.warning")!
     diag_note = api.uid_get_from_cstr("source.diagnostic.severity.note")!

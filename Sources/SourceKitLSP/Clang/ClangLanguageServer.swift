@@ -44,20 +44,65 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
   /// Lock protecting `buildSettingsByFile`.
   private var lock: Lock = Lock()
 
+  /// The current state of the `clangd` language server.
+  /// Changing the property automatically notified the state change handlers.
+  private var state: LanguageServerState {
+    didSet {
+      if #available(OSX 10.12, *) {
+        // `state` must only be set from `queue`.
+        dispatchPrecondition(condition: .onQueue(queue))
+      }
+      for handler in stateChangeHandlers {
+        handler(oldValue, state)
+      }
+    }
+  }
+  
+  private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
+  
+  /// The date at which `clangd` was last restarted.
+  /// Used to delay restarting in case of a crash loop.
+  private var lastClangdRestart: Date?
+  
+  /// Whether or not a restart of `clangd` has been scheduled.
+  /// Used to make sure we are not restarting `clangd` twice.
+  private var clangRestartScheduled = false
+  
+  /// The `InitializeRequest` with which `clangd` was originally initialized.
+  /// Stored so we can replay the initialization when clangd crashes.
+  private var initializeRequest: InitializeRequest?
+
+  /// A callback with which `ClangLanguageServer` can request its owner to reopen all documents in case it has crashed.
+  private let reopenDocuments: (ToolchainLanguageServer) -> Void
+
   /// Creates a language server for the given client referencing the clang binary at the given path.
   public init(
     client: Connection,
     clangPath: AbsolutePath?,
     clangdPath: AbsolutePath,
-    clangdOptions: [String]
+    clangdOptions: [String],
+    reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
   ) throws {
     self.clangPath = clangPath
     self.clangdPath = clangdPath
     self.clangdOptions = clangdOptions
+    self.reopenDocuments = reopenDocuments
+    self.state = .connected
     super.init(client: client)
+    try startClangdProcesss()
   }
-  
-  func startClangdProcesss() throws {
+
+  func addStateChangeHandler(handler: @escaping (LanguageServerState, LanguageServerState) -> Void) {
+    queue.async {
+      self.stateChangeHandlers.append(handler)
+    }
+  }
+
+  /// Start the `clangd` process, either on creation of the `ClangLanguageServerShim` or after `clangd` has crashed.
+  private func startClangdProcesss() throws {
+    // Since we are starting a new clangd process, reset the build settings we have transmitted to clangd
+    buildSettingsByFile = [:]
+
     let usToClangd: Pipe = Pipe()
     let clangdToUs: Pipe = Pipe()
 
@@ -90,9 +135,17 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
 
     process.standardOutput = clangdToUs
     process.standardInput = usToClangd
-    process.terminationHandler = { process in
+    process.terminationHandler = { [weak self] process in
       log("clangd exited: \(process.terminationReason) \(process.terminationStatus)")
       connectionToClangd.close()
+      if process.terminationStatus != 0 {
+        if let self = self {
+          self.queue.async {
+            self.state = .connectionInterrupted
+            self.restartClangd()
+          }
+        }
+      }
     }
 
     if #available(OSX 10.13, *) {
@@ -102,6 +155,49 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
     }
   }
 
+  /// Restart `clangd` after it has crashed.
+  /// Delays restarting of `clangd` in case there is a crash loop.
+  private func restartClangd() {
+    queue.async {
+      precondition(self.state == .connectionInterrupted)
+      
+      precondition(self.clangRestartScheduled == false)
+      self.clangRestartScheduled = true
+      
+      guard let initializeRequest = self.initializeRequest else {
+        log("clangd crashed before it was sent an InitializeRequest.", level: .error)
+        return
+      }
+      
+      let restartDelay: Int
+      if let lastClangdRestart = self.lastClangdRestart, Date().timeIntervalSince(lastClangdRestart) < 30 {
+        log("clangd has already been restarted in the last 30 seconds. Delaying another restart by 10 seconds.", level: .info)
+        restartDelay = 10
+      } else {
+        restartDelay = 0
+      }
+      self.lastClangdRestart = Date()
+      
+      DispatchQueue.global(qos: .default).asyncAfter(deadline: .now() + .seconds(restartDelay)) {
+        self.clangRestartScheduled = false
+        do {
+          try self.startClangdProcesss()
+          // FIXME: We assume that clangd will return the same capabilites after restarting.
+          // Theoretically they could have changed and we would need to inform SourceKitServer about them.
+          // But since SourceKitServer more or less ignores them right now anyway, this should be fine for now.
+          _ = try self.initializeSync(initializeRequest)
+          self.clientInitialized(InitializedNotification())
+          self.reopenDocuments(self)
+          self.queue.async {
+            self.state = .connected
+          }
+        } catch {
+          log("Failed to restart clangd after a crash.", level: .error)
+        }
+      }
+    }
+  }
+  
   public override func _registerBuiltinHandlers() {
     _register(ClangLanguageServerShim.publishDiagnostics)
   }
@@ -146,6 +242,20 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
       to.send(CancelRequestNotification(id: id))
     }
   }
+  
+  /// Forward the given `notification` to `clangd` by asynchronously switching to `queue` for a thread-safe access to `clangd`.
+  private func forwardNotificationToClangdOnQueue<Notification>(_ notification: Notification) where Notification: NotificationType {
+    queue.async {
+      self.clangd.send(notification)
+    }
+  }
+  
+  /// Forward the given `request` to `clangd` by asynchronously switching to `queue` for a thread-safe access to `clangd`.
+  private func forwardRequestToClangdOnQueue<R>(_ request: Request<R>, _ handler: ((LSPResult<R.Response>) -> Void)? = nil) {
+    queue.async {
+      self.forwardRequest(request, to: self.clangd, handler)
+    }
+  }
 }
 
 // MARK: - LanguageServer
@@ -176,20 +286,27 @@ extension ClangLanguageServerShim {
 extension ClangLanguageServerShim {
 
   func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult {
-    let result = try clangd.sendSync(initialize)
-    self.capabilities = result.capabilities
-    return result
+    return try queue.sync {
+      // Store the initialize request so we can replay it in case clangd crashes
+      self.initializeRequest = initialize
+      
+      let result = try clangd.sendSync(initialize)
+      self.capabilities = result.capabilities
+      return result
+    }
   }
 
   public func clientInitialized(_ initialized: InitializedNotification) {
-    clangd.send(initialized)
+    forwardNotificationToClangdOnQueue(initialized)
   }
 
   public func shutdown() {
-    _ = clangd.send(ShutdownRequest(), queue: queue) { [weak self] _ in
-      self?.clangd.send(ExitNotification())
-      if let localConnection = self?.client as? LocalConnection {
-        localConnection.close()
+    queue.async {
+      _ = self.clangd.send(ShutdownRequest(), queue: self.queue) { [weak self] _ in
+        self?.clangd.send(ExitNotification())
+        if let localConnection = self?.client as? LocalConnection {
+          localConnection.close()
+        }
       }
     }
   }
@@ -197,11 +314,11 @@ extension ClangLanguageServerShim {
   // MARK: - Text synchronization
 
   public func openDocument(_ note: DidOpenTextDocumentNotification) {
-    clangd.send(note)
+    forwardNotificationToClangdOnQueue(note)
   }
 
   public func closeDocument(_ note: DidCloseTextDocumentNotification) {
-    clangd.send(note)
+    forwardNotificationToClangdOnQueue(note)
 
     // Don't clear cached build settings since we've already informed clangd of the settings for the
     // file; if we clear the build settings here we should give clangd dummy build settings to make
@@ -209,7 +326,7 @@ extension ClangLanguageServerShim {
   }
 
   public func changeDocument(_ note: DidChangeTextDocumentNotification) {
-    clangd.send(note)
+    forwardNotificationToClangdOnQueue(note)
   }
 
   public func willSaveDocument(_ note: WillSaveTextDocumentNotification) {
@@ -218,7 +335,7 @@ extension ClangLanguageServerShim {
 
   public func didSaveDocument(_ note: DidSaveTextDocumentNotification) {
     if capabilities?.textDocumentSync?.save?.isSupported == true {
-      clangd.send(note)
+      forwardNotificationToClangdOnQueue(note)
     }
   }
 
@@ -247,9 +364,10 @@ extension ClangLanguageServerShim {
     // The compile command changed, send over the new one.
     // FIXME: what should we do if we no longer have valid build settings?
     if let compileCommand = clangBuildSettings?.compileCommand {
-      clangd.send(DidChangeConfigurationNotification(settings: .clangd(
+      let note = DidChangeConfigurationNotification(settings: .clangd(
         ClangWorkspaceSettings(
-          compilationDatabaseChanges: [url.path: compileCommand]))))
+          compilationDatabaseChanges: [url.path: compileCommand])))
+      forwardNotificationToClangdOnQueue(note)
     }
   }
 
@@ -261,7 +379,7 @@ extension ClangLanguageServerShim {
       textDocument: VersionedTextDocumentIdentifier(uri, version: nil),
       contentChanges: [],
       forceRebuild: true)
-    clangd.send(note)
+    forwardNotificationToClangdOnQueue(note)
   }
 
   // MARK: - Text Document
@@ -270,55 +388,61 @@ extension ClangLanguageServerShim {
   /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
   public func definition(_ req: Request<DefinitionRequest>) -> Bool {
     // We handle it to provide jump-to-header support for #import/#include.
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangdOnQueue(req)
     return true
   }
 
   func completion(_ req: Request<CompletionRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangdOnQueue(req)
   }
 
   func hover(_ req: Request<HoverRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangdOnQueue(req)
   }
 
   func symbolInfo(_ req: Request<SymbolInfoRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangdOnQueue(req)
   }
 
   func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangdOnQueue(req)
   }
 
   func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangdOnQueue(req)
   }
 
   func documentColor(_ req: Request<DocumentColorRequest>) {
-    if capabilities?.colorProvider?.isSupported == true {
-      forwardRequest(req, to: clangd)
-    } else {
-      req.reply(.success([]))
+    queue.async {
+      if self.capabilities?.colorProvider?.isSupported == true {
+        self.forwardRequestToClangdOnQueue(req)
+      } else {
+        req.reply(.success([]))
+      }
     }
   }
 
   func colorPresentation(_ req: Request<ColorPresentationRequest>) {
-    if capabilities?.colorProvider?.isSupported == true {
-      forwardRequest(req, to: clangd)
-    } else {
-      req.reply(.success([]))
+    queue.async {
+      if self.capabilities?.colorProvider?.isSupported == true {
+        self.forwardRequestToClangdOnQueue(req)
+      } else {
+        req.reply(.success([]))
+      }
     }
   }
 
   func codeAction(_ req: Request<CodeActionRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangdOnQueue(req)
   }
 
   func foldingRange(_ req: Request<FoldingRangeRequest>) {
-    if capabilities?.foldingRangeProvider?.isSupported == true {
-      forwardRequest(req, to: clangd)
-    } else {
-      req.reply(.success(nil))
+    queue.async {
+      if self.capabilities?.foldingRangeProvider?.isSupported == true {
+        self.forwardRequestToClangdOnQueue(req)
+      } else {
+        req.reply(.success(nil))
+      }
     }
   }
 
@@ -333,7 +457,8 @@ extension ClangLanguageServerShim {
 func makeJSONRPCClangServer(
   client: MessageHandler,
   toolchain: Toolchain,
-  clangdOptions: [String]
+  clangdOptions: [String],
+  reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
 ) throws -> ToolchainLanguageServer {
   guard let clangdPath = toolchain.clangd else {
     preconditionFailure("missing clang from toolchain \(toolchain.identifier)")
@@ -346,9 +471,9 @@ func makeJSONRPCClangServer(
     client: connectionToClient,
     clangPath: toolchain.clang,
     clangdPath: clangdPath,
-    clangdOptions: clangdOptions
+    clangdOptions: clangdOptions,
+    reopenDocuments: reopenDocuments
   )
-  try shim.startClangdProcesss()
   
   return shim
 }

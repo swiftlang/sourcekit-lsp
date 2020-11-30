@@ -115,6 +115,8 @@ def handle_invocation(swift_exec, args):
   if args.action == 'build':
     swiftpm('build', swift_exec, swiftpm_args, env)
   elif args.action == 'test':
+    if not args.skip_long_tests:
+      env['SOURCEKIT_LSP_ENABLE_LONG_TESTS'] = '1'
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
     tests = os.path.join(bin_path, 'sk-tests')
     print('Cleaning ' + tests)
@@ -152,6 +154,7 @@ def main():
 
   test_parser = subparsers.add_parser('test', help='test the package')
   add_common_args(test_parser)
+  test_parser.add_argument('--skip-long-tests', action='store_true', help='skip run long-running tests')
 
   install_parser = subparsers.add_parser('install', help='build the package')
   add_common_args(install_parser)
