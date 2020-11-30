@@ -219,17 +219,19 @@ extension Location {
 
 extension TibsToolchain {
   public convenience init(_ sktc: Toolchain) {
+    let execExt: String = Platform.currentPlatform?.executableExtension ?? ""
+
     let ninja: URL?
     if let ninjaPath = ProcessInfo.processInfo.environment["NINJA_BIN"] {
       ninja = URL(fileURLWithPath: ninjaPath, isDirectory: false)
     } else {
-      ninja = findTool(name: "ninja")
+      ninja = findTool(name: "ninja\(execExt)")
     }
     self.init(
       swiftc: sktc.swiftc!.asURL,
       clang: sktc.clang!.asURL,
       libIndexStore: sktc.libIndexStore!.asURL,
-      tibs: XCTestCase.productsDirectory.appendingPathComponent("tibs", isDirectory: false),
+      tibs: XCTestCase.productsDirectory.appendingPathComponent("tibs\(execExt)", isDirectory: false),
       ninja: ninja)
   }
 }
