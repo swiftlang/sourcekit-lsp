@@ -378,7 +378,11 @@ extension SwiftPMWorkspace {
 
     var args = td.basicArguments()
 
-    let compilePath = td.compilePaths().first(where: { $0.source == path })
+    let nativePath: AbsolutePath =
+        URL(fileURLWithPath: path.pathString).withUnsafeFileSystemRepresentation {
+          AbsolutePath(String(cString: $0!))
+        }
+    let compilePath = td.compilePaths().first(where: { $0.source == nativePath })
     if let compilePath = compilePath {
       args += [
         "-MD",
