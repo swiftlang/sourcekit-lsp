@@ -31,7 +31,7 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
   var capabilities: ServerCapabilities? = nil
 
   /// Path to the clang binary.
-  let clang: AbsolutePath?
+  let clangPath: AbsolutePath?
 
   /// Resolved build settings by file. Must be accessed with the `lock`.
   private var buildSettingsByFile: [DocumentURI: ClangBuildSettings] = [:]
@@ -43,10 +43,10 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
   public init(
     client: LocalConnection,
     clangd: Connection,
-    clang: AbsolutePath?
+    clangPath: AbsolutePath?
   ) throws {
     self.clangd = clangd
-    self.clang = clang
+    self.clangPath = clangPath
     self.lock = Lock()
     super.init(client: client)
   }
@@ -179,7 +179,7 @@ extension ClangLanguageServerShim {
       log("Received updated build settings for non-file URI '\(uri)'. Ignoring the update.")
       return
     }
-    let clangBuildSettings = ClangBuildSettings(change: change, clang: self.clang)
+    let clangBuildSettings = ClangBuildSettings(change: change, clangPath: self.clangPath)
     logAsync(level: clangBuildSettings == nil ? .warning : .debug) { _ in
       let settingsStr = clangBuildSettings == nil ? "nil" : clangBuildSettings!.compilerArgs.description
       return "settings for \(uri): \(settingsStr)"
@@ -302,7 +302,7 @@ func makeJSONRPCClangServer(
   let shim = try ClangLanguageServerShim(
     client: connectionToClient,
     clangd: connection,
-    clang: toolchain.clang)
+    clangPath: toolchain.clang)
 
   connectionToClient.start(handler: client)
   connection.start(receiveHandler: shim) {
@@ -353,8 +353,8 @@ private struct ClangBuildSettings: Equatable {
   /// fallback arguments and represent the file state differently.
   public let isFallback: Bool
 
-  public init(_ settings: FileBuildSettings, clang: AbsolutePath?, isFallback: Bool = false) {
-    var arguments = [clang?.pathString ?? "clang"] + settings.compilerArguments
+  public init(_ settings: FileBuildSettings, clangPath: AbsolutePath?, isFallback: Bool = false) {
+    var arguments = [clangPath?.pathString ?? "clang"] + settings.compilerArguments
     if arguments.contains("-fmodules") {
       // Clangd is not built with support for the 'obj' format.
       arguments.append(contentsOf: [
@@ -375,10 +375,10 @@ private struct ClangBuildSettings: Equatable {
     self.isFallback = isFallback
   }
 
-  public init?(change: FileBuildSettingsChange, clang: AbsolutePath?) {
+  public init?(change: FileBuildSettingsChange, clangPath: AbsolutePath?) {
     switch change {
-    case .fallback(let settings): self.init(settings, clang: clang, isFallback: true)
-    case .modified(let settings): self.init(settings, clang: clang, isFallback: false)
+    case .fallback(let settings): self.init(settings, clangPath: clangPath, isFallback: true)
+    case .modified(let settings): self.init(settings, clangPath: clangPath, isFallback: false)
     case .removedOrUnavailable: return nil
     }
   }
