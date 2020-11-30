@@ -365,16 +365,27 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let args = ws.settings(for: acxx.asURI, .cpp)!.compilerArguments
       checkArgsCommon(args)
-      check("-MD", "-MT", "dependencies",
-          "-MF", build.appending(components: "lib.build", "a.cpp.d").pathString,
-          arguments: args)
-      check("-c", acxx.pathString, arguments: args)
-      check("-o", build.appending(components: "lib.build", "a.cpp.o").pathString, arguments: args)
+
+      URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.d").pathString)
+          .withUnsafeFileSystemRepresentation {
+        check("-MD", "-MT", "dependencies", "-MF", String(cString: $0!), arguments: args)
+      }
+
+      URL(fileURLWithPath: acxx.pathString).withUnsafeFileSystemRepresentation {
+        check("-c", String(cString: $0!), arguments: args)
+      }
+
+      URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.o").pathString)
+          .withUnsafeFileSystemRepresentation {
+        check("-o", String(cString: $0!), arguments: args)
+      }
 
       let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
       let headerArgs = ws.settings(for: header.asURI, .cpp)!.compilerArguments
       checkArgsCommon(headerArgs)
-      check("-c", "-x", "c++-header", header.pathString, arguments: headerArgs)
+
+      check("-c", "-x", "c++-header", URL(fileURLWithPath: header.pathString).path,
+            arguments: headerArgs)
     }
   }
 
