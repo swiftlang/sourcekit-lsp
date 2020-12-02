@@ -222,8 +222,8 @@ final class CompilationDatabaseTests: XCTestCase {
       }
     ]
     """) { buildSystem in
-      XCTAssertEqual(buildSystem.indexStorePath, AbsolutePath("/b"))
-      XCTAssertEqual(buildSystem.indexDatabasePath, AbsolutePath("/IndexDatabase"))
+      XCTAssertEqual(URL(fileURLWithPath: buildSystem.indexStorePath?.pathString ?? "").path, "/b")
+      XCTAssertEqual(URL(fileURLWithPath: buildSystem.indexDatabasePath?.pathString ?? "").path, "/IndexDatabase")
     }
   }
 
@@ -299,8 +299,8 @@ final class CompilationDatabaseTests: XCTestCase {
       }
     ]
     """) { buildSystem in
-      XCTAssertEqual(buildSystem.indexStorePath, AbsolutePath("/b"))
-      XCTAssertEqual(buildSystem.indexDatabasePath, AbsolutePath("/IndexDatabase"))
+      XCTAssertEqual(URL(fileURLWithPath: buildSystem.indexStorePath?.pathString ?? "").path, "/b")
+      XCTAssertEqual(URL(fileURLWithPath: buildSystem.indexDatabasePath?.pathString ?? "").path, "/IndexDatabase")
     }
   }
 }
