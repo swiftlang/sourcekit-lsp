@@ -441,8 +441,8 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let packageRoot = tempDir.appending(component: "pkg")
 
       try! FileManager.default.createSymbolicLink(
-        atPath: packageRoot.pathString,
-        withDestinationPath: "pkg_real")
+        at: URL(fileURLWithPath: packageRoot.pathString),
+        withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString))
 
       let tr = ToolchainRegistry.shared
       let ws = try! SwiftPMWorkspace(
@@ -494,8 +494,8 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let packageRoot = tempDir.appending(component: "pkg")
 
       try! FileManager.default.createSymbolicLink(
-        atPath: packageRoot.pathString,
-        withDestinationPath: "pkg_real")
+        at: URL(fileURLWithPath: packageRoot.pathString),
+        withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString))
 
       let tr = ToolchainRegistry.shared
       let ws = try! SwiftPMWorkspace(
