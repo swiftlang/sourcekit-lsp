@@ -11,6 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import Csourcekitd
+#if canImport(Glibc)
+import Glibc
+#endif
 
 public final class SKDResponseDictionary {
   public let dict: sourcekitd_variant_t

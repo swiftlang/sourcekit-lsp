@@ -11,6 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import Csourcekitd
+#if canImport(Glibc)
+import Glibc
+#endif
 
 public final class SKDRequestArray {
   public let array: sourcekitd_object_t?
