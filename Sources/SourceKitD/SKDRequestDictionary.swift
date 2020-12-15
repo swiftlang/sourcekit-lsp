@@ -11,6 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import Csourcekitd
+#if canImport(Glibc)
+import Glibc
+#endif
 
 public final class SKDRequestDictionary {
   public let dict: sourcekitd_object_t?
