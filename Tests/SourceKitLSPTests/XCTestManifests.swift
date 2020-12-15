@@ -183,6 +183,7 @@ extension SwiftCompletionTests {
         ("testMaxResults", testMaxResults),
         ("testRefilterAfterIncompleteResults", testRefilterAfterIncompleteResults),
         ("testRefilterAfterIncompleteResultsWithEdits", testRefilterAfterIncompleteResultsWithEdits),
+        ("testSessionCloseWaitsforOpen", testSessionCloseWaitsforOpen),
     ]
 }
 
