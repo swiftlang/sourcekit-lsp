@@ -11,6 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import Csourcekitd
+#if canImport(Glibc)
+import Glibc
+#endif
 
 public final class SKDResponse {
   public let response: sourcekitd_response_t?
