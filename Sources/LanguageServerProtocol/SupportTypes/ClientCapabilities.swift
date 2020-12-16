@@ -360,10 +360,15 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     /// **LSP Extension from clangd**.
     public var codeActionsInline: Bool? = nil
 
+    /// Whether the client supports a `codeDescription` property.
+    public var codeDescriptionSupport: Bool? = nil
+
     public init(relatedInformation: Bool? = nil,
-                codeActionsInline: Bool? = nil) {
+                codeActionsInline: Bool? = nil,
+                codeDescriptionSupport: Bool? = nil) {
       self.relatedInformation = relatedInformation
       self.codeActionsInline = codeActionsInline
+      self.codeDescriptionSupport = codeDescriptionSupport
     }
   }
 

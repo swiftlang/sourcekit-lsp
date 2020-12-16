@@ -46,7 +46,9 @@ final class LocalSwiftTests: XCTestCase {
                                           codeAction: .init(
                                             codeActionLiteralSupport: .init(
                                               codeActionKind: .init(valueSet: [.quickFix])
-                                          )))),
+                                          )),
+                                          publishDiagnostics: .init(codeDescriptionSupport: true)
+                                         )),
         trace: .off,
         workspaceFolders: nil))
   }
@@ -450,6 +452,26 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertEqual(
         note.params.diagnostics.first?.range.lowerBound,
         Position(line: 0, utf16index: 3))
+    })
+  }
+
+  func testEducationalNotesAreUsedAsDiagnosticCodes() {
+    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let uri = DocumentURI(url)
+
+    sk.allowUnexpectedNotification = false
+
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri, language: .swift, version: 12,
+      text: "@propertyWrapper struct Bar {}"
+    )), { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      let diag = note.params.diagnostics.first!
+      XCTAssertEqual(diag.code, .string("property-wrapper-requirements"))
+      XCTAssertEqual(diag.codeDescription?.href.fileURL?.lastPathComponent, "property-wrapper-requirements.md")
     })
   }
 

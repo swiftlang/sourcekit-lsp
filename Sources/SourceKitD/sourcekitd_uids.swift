@@ -29,6 +29,7 @@ public struct sourcekitd_keys {
   public let doc_brief: sourcekitd_uid_t
   public let doc_full_as_xml: sourcekitd_uid_t
   public let edits: sourcekitd_uid_t
+  public let educational_note_paths: sourcekitd_uid_t
   public let endcolumn: sourcekitd_uid_t
   public let endline: sourcekitd_uid_t
   public let filepath: sourcekitd_uid_t
@@ -87,6 +88,7 @@ public struct sourcekitd_keys {
     doc_brief = api.uid_get_from_cstr("key.doc.brief")!
     doc_full_as_xml = api.uid_get_from_cstr("key.doc.full_as_xml")!
     edits = api.uid_get_from_cstr("key.edits")!
+    educational_note_paths = api.uid_get_from_cstr("key.educational_note_paths")!
     endcolumn = api.uid_get_from_cstr("key.endcolumn")!
     endline = api.uid_get_from_cstr("key.endline")!
     filepath = api.uid_get_from_cstr("key.filepath")!

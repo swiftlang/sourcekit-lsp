@@ -1,6 +1,6 @@
 'use strict';
 import * as vscode from 'vscode';
-import * as langclient from 'vscode-languageclient';
+import * as langclient from 'vscode-languageclient/node';
 
 export function activate(context: vscode.ExtensionContext) {
 
