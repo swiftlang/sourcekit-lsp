@@ -54,6 +54,10 @@ final class BuildServerBuildSystemTests: XCTestCase {
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
     let buildSystemDelegate = TestDelegate(settingsExpectations: [DocumentURI(fileUrl): expectation])
+    defer {
+      // BuildSystemManager has a weak reference to delegate. Keep it alive.
+      _fixLifetime(buildSystemDelegate)
+    }
     buildSystem.delegate = buildSystemDelegate
     buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl), language: .swift)
 
@@ -157,6 +161,10 @@ final class BuildServerBuildSystemTests: XCTestCase {
         kind: .created,
         data: .dictionary(["key": "value"])): expectation,
     ])
+    defer {
+      // BuildSystemManager has a weak reference to delegate. Keep it alive.
+      _fixLifetime(buildSystemDelegate)
+    }
     buildSystem.delegate = buildSystemDelegate
     buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl), language: .swift)
 

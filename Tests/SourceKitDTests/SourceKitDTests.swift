@@ -53,6 +53,10 @@ final class SourceKitDTests: XCTestCase {
         expectation1.fulfill()
       }
     }
+    // SourceKitDImpl weakly references handlers
+    defer {
+      _fixLifetime(handler1)
+    }
     sourcekitd.addNotificationHandler(handler1)
 
     let expectation2 = expectation(description: "handler 2")
@@ -60,6 +64,10 @@ final class SourceKitDTests: XCTestCase {
       if isExpectedNotification(response) {
         expectation2.fulfill()
       }
+    }
+    // SourceKitDImpl weakly references handlers
+    defer {
+      _fixLifetime(handler2)
     }
     sourcekitd.addNotificationHandler(handler2)
 

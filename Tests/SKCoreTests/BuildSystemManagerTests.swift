@@ -26,6 +26,10 @@ final class BuildSystemManagerTests: XCTestCase {
     let d = DocumentURI(string: "bsm:d")
 
     let mainFiles = ManualMainFilesProvider()
+    defer {
+      // BuildSystemManager has a weak reference to mainFiles. Keep it alive.
+      _fixLifetime(mainFiles)
+    }
     mainFiles.mainFiles = [
       a: Set([c]),
       b: Set([c, d]),
@@ -91,6 +95,10 @@ final class BuildSystemManagerTests: XCTestCase {
   func testSettingsMainFile() {
     let a = DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider()
+    defer {
+      // BuildSystemManager has a weak reference to mainFiles. Keep it alive.
+      _fixLifetime(mainFiles)
+    }
     mainFiles.mainFiles = [a: Set([a])]
     let bs = ManualBuildSystem()
     let bsm = BuildSystemManager(
@@ -115,6 +123,10 @@ final class BuildSystemManagerTests: XCTestCase {
   func testSettingsMainFileInitialNil() {
     let a = DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider()
+    defer {
+      // BuildSystemManager has a weak reference to mainFiles. Keep it alive.
+      _fixLifetime(mainFiles)
+    }
     mainFiles.mainFiles = [a: Set([a])]
     let bs = ManualBuildSystem()
     let bsm = BuildSystemManager(
@@ -137,6 +149,10 @@ final class BuildSystemManagerTests: XCTestCase {
   func testSettingsMainFileWithFallback() {
     let a = DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider()
+    defer {
+      // BuildSystemManager has a weak reference to mainFiles. Keep it alive.
+      _fixLifetime(mainFiles)
+    }
     mainFiles.mainFiles = [a: Set([a])]
     let bs = ManualBuildSystem()
     let fallback = FallbackBuildSystem()
@@ -168,6 +184,10 @@ final class BuildSystemManagerTests: XCTestCase {
     let a = DocumentURI(string: "bsm:a.swift")
     let b = DocumentURI(string: "bsm:b.swift")
     let mainFiles = ManualMainFilesProvider()
+    defer {
+      // BuildSystemManager has a weak reference to mainFiles. Keep it alive.
+      _fixLifetime(mainFiles)
+    }
     mainFiles.mainFiles = [a: Set([a]), b: Set([b])]
     let bs = ManualBuildSystem()
     let bsm = BuildSystemManager(
@@ -214,6 +234,10 @@ final class BuildSystemManagerTests: XCTestCase {
     let a = DocumentURI(string: "bsm:a.swift")
     let b = DocumentURI(string: "bsm:b.swift")
     let mainFiles = ManualMainFilesProvider()
+    defer {
+      // BuildSystemManager has a weak reference to mainFiles. Keep it alive.
+      _fixLifetime(mainFiles)
+    }
     mainFiles.mainFiles = [a: Set([a]), b: Set([b])]
     let bs = ManualBuildSystem()
     let bsm = BuildSystemManager(
@@ -250,6 +274,10 @@ final class BuildSystemManagerTests: XCTestCase {
     let cpp1 = DocumentURI(string: "bsm:main.cpp")
     let cpp2 = DocumentURI(string: "bsm:other.cpp")
     let mainFiles = ManualMainFilesProvider()
+    defer {
+      // BuildSystemManager has a weak reference to mainFiles. Keep it alive.
+      _fixLifetime(mainFiles)
+    }
     mainFiles.mainFiles = [
       h: Set([cpp1]),
       cpp1: Set([cpp1]),
@@ -305,6 +333,10 @@ final class BuildSystemManagerTests: XCTestCase {
     let h2 = DocumentURI(string: "bsm:header2.h")
     let cpp = DocumentURI(string: "bsm:main.cpp")
     let mainFiles = ManualMainFilesProvider()
+    defer {
+      // BuildSystemManager has a weak reference to mainFiles. Keep it alive.
+      _fixLifetime(mainFiles)
+    }
     mainFiles.mainFiles = [
       h1: Set([cpp]),
       h2: Set([cpp]),
@@ -350,6 +382,10 @@ final class BuildSystemManagerTests: XCTestCase {
     let b = DocumentURI(string: "bsm:b.swift")
     let c = DocumentURI(string: "bsm:c.swift")
     let mainFiles = ManualMainFilesProvider()
+    defer {
+      // BuildSystemManager has a weak reference to mainFiles. Keep it alive.
+      _fixLifetime(mainFiles)
+    }
     mainFiles.mainFiles = [a: Set([a]), b: Set([b]), c: Set([c])]
     let bs = ManualBuildSystem()
     let bsm = BuildSystemManager(
@@ -400,6 +436,10 @@ final class BuildSystemManagerTests: XCTestCase {
   func testDependenciesUpdated() {
     let a = DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider()
+    defer {
+      // BuildSystemManager has a weak reference to mainFiles. Keep it alive.
+      _fixLifetime(mainFiles)
+    }
     mainFiles.mainFiles = [a: Set([a])]
 
     class DepUpdateDuringRegistrationBS: ManualBuildSystem {
