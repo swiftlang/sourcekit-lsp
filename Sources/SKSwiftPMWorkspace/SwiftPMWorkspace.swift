@@ -115,7 +115,7 @@ public final class SwiftPMWorkspace {
       toolchain: toolchain,
       flags: buildSetup.flags)
 
-    self.packageGraph = PackageGraph(rootPackages: [], requiredDependencies: [])
+    self.packageGraph = try PackageGraph(rootPackages: [], dependencies: [])
 
     try reloadPackage()
   }
@@ -153,8 +153,8 @@ extension SwiftPMWorkspace {
       log(diag.localizedDescription, level: diag.behavior.asLogLevel)
     }])
 
-    self.packageGraph = self.workspace.loadPackageGraph(
-      root: PackageGraphRootInput(packages: [packageRoot]),
+    self.packageGraph = try self.workspace.loadPackageGraph(
+      rootInput: PackageGraphRootInput(packages: [packageRoot]),
       diagnostics: diags)
 
     let plan = try BuildPlan(
