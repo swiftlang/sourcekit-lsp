@@ -175,6 +175,10 @@ Location(ws.testLoc("aaa:call"))
 Position(ws.testLoc("aaa:call"))
 ```
 
+### Long tests
+
+Tests that run longer than approx. 1 second are only executed if the the `SOURCEKIT_LSP_ENABLE_LONG_TESTS` environment variable is set to `YES` or `1`. This, in particular, includes the crash recovery tests.
+
 ## Tibs
 
 We use Tibs, the "Test Index Build System" from the IndexStoreDB project to provide build system support for test projects, including getting compiler arguments and building an index. 

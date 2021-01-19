@@ -246,6 +246,33 @@ public final class SourceKitServer: LanguageServer {
 
     return nil
   }
+  
+  /// After the language service has crashed, send `DidOpenTextDocumentNotification`s to a newly instantiated language service for previously open documents.
+  func reopenDocuments(for languageService: ToolchainLanguageServer) {
+    queue.async {
+      guard let workspace = self.workspace else {
+        return
+      }
+      
+      for documentUri in workspace.documentManager.openDocuments where workspace.documentService[documentUri] === languageService {
+        guard let snapshot = workspace.documentManager.latestSnapshot(documentUri) else {
+          // The document has been closed since we retrieved its URI. We don't care about it anymore.
+          continue
+        }
+
+        // Close the docuemnt properly in the document manager and build system manager to start with a clean sheet when re-opening it.
+        let closeNotification = DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(documentUri))
+        self.closeDocument(closeNotification, workspace: workspace)
+
+        let textDocument = TextDocumentItem(uri: documentUri,
+                                            language: snapshot.document.language,
+                                            version: snapshot.version,
+                                            text: snapshot.text)
+        self.openDocument(DidOpenTextDocumentNotification(textDocument: textDocument), workspace: workspace)
+
+      }
+    }
+  }
 
   func languageService(
     for toolchain: Toolchain,
@@ -260,7 +287,7 @@ public final class SourceKitServer: LanguageServer {
     // Start a new service.
     return orLog("failed to start language service", level: .error) {
       guard let service = try SourceKitLSP.languageService(
-        for: toolchain, language, options: options, client: self, in: workspace)
+        for: toolchain, language, options: options, client: self, in: workspace, reopenDocuments: { [weak self] in self?.reopenDocuments(for: $0) })
       else {
         return nil
       }
@@ -286,6 +313,11 @@ public final class SourceKitServer: LanguageServer {
       languageService[key] = service
       return service
     }
+  }
+
+  /// **Public for testing purposes only**
+  public func _languageService(for uri: DocumentURI, _ language: Language, in workspace: Workspace) -> ToolchainLanguageServer? {
+    return languageService(for: uri, language, in: workspace)
   }
 
   func languageService(for uri: DocumentURI, _ language: Language, in workspace: Workspace) -> ToolchainLanguageServer? {
@@ -557,11 +589,15 @@ extension SourceKitServer {
   // MARK: - Text synchronization
 
   func openDocument(_ note: Notification<DidOpenTextDocumentNotification>, workspace: Workspace) {
+    openDocument(note.params, workspace: workspace)
+  }
+  
+  private func openDocument(_ note: DidOpenTextDocumentNotification, workspace: Workspace) {
     // Immediately open the document even if the build system isn't ready. This is important since
     // we check that the document is open when we receive messages from the build system.
-    workspace.documentManager.open(note.params)
+    workspace.documentManager.open(note)
 
-    let textDocument = note.params.textDocument
+    let textDocument = note.textDocument
     let uri = textDocument.uri
     let language = textDocument.language
 
@@ -574,29 +610,33 @@ extension SourceKitServer {
 
     // If the document is ready, we can immediately send the notification.
     guard !documentsReady.contains(uri) else {
-      service.openDocument(note.params)
+      service.openDocument(note)
       return
     }
 
     // Need to queue the open call so we can handle it when ready.
     self.documentToPendingQueue[uri, default: DocumentNotificationRequestQueue()].add(operation: {
-      service.openDocument(note.params)
+      service.openDocument(note)
     })
   }
 
   func closeDocument(_ note: Notification<DidCloseTextDocumentNotification>, workspace: Workspace) {
+    self.closeDocument(note.params, workspace: workspace)
+  }
+
+  func closeDocument(_ note: DidCloseTextDocumentNotification, workspace: Workspace) {
     // Immediately close the document. We need to be sure to clear our pending work queue in case
     // the build system still isn't ready.
-    workspace.documentManager.close(note.params)
+    workspace.documentManager.close(note)
 
-    let uri = note.params.textDocument.uri
+    let uri = note.textDocument.uri
 
     workspace.buildSystemManager.unregisterForChangeNotifications(for: uri)
 
     // If the document is ready, we can close it now.
     guard !documentsReady.contains(uri) else {
       self.documentsReady.remove(uri)
-      workspace.documentService[uri]?.closeDocument(note.params)
+      workspace.documentService[uri]?.closeDocument(note)
       return
     }
 
@@ -1014,13 +1054,14 @@ public func languageService(
   _ language: Language,
   options: SourceKitServer.Options,
   client: MessageHandler,
-  in workspace: Workspace) throws -> ToolchainLanguageServer?
-{
+  in workspace: Workspace,
+  reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
+) throws -> ToolchainLanguageServer? {
   switch language {
 
   case .c, .cpp, .objective_c, .objective_cpp:
     guard toolchain.clangd != nil else { return nil }
-    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, clangdOptions: options.clangdOptions)
+    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, clangdOptions: options.clangdOptions, reopenDocuments: reopenDocuments)
 
   case .swift:
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
@@ -1028,7 +1069,8 @@ public func languageService(
       client: client,
       sourcekitd: sourcekitd,
       clientCapabilities: workspace.clientCapabilities,
-      options: options)
+      options: options,
+      reopenDocuments: reopenDocuments)
 
   default:
     return nil

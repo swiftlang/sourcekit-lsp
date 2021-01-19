@@ -114,20 +114,48 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   var keys: sourcekitd_keys { return sourcekitd.keys }
   var requests: sourcekitd_requests { return sourcekitd.requests }
   var values: sourcekitd_values { return sourcekitd.values }
+  
+  private var state: LanguageServerState {
+    didSet {
+      if #available(OSX 10.12, *) {
+        // `state` must only be set from `queue`.
+        dispatchPrecondition(condition: .onQueue(queue))
+      }
+      for handler in stateChangeHandlers {
+        handler(oldValue, state)
+      }
+    }
+  }
+  
+  private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
+  
+  /// A callback with which `SwiftLanguageServer` can request its owner to reopen all documents in case it has crashed.
+  private let reopenDocuments: (ToolchainLanguageServer) -> Void
 
   /// Creates a language server for the given client using the sourcekitd dylib at the specified
   /// path.
+  /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the
+  /// `SwiftLanguageServer` asks its parent server to reopen all of its documents.
   public init(
     client: LocalConnection,
     sourcekitd: AbsolutePath,
     clientCapabilities: ClientCapabilities,
-    serverOptions: SourceKitServer.Options
+    serverOptions: SourceKitServer.Options,
+    reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
   ) throws {
     self.client = client
     self.sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitd)
     self.clientCapabilities = clientCapabilities
     self.serverOptions = serverOptions
     self.documentManager = DocumentManager()
+    self.state = .connected
+    self.reopenDocuments = reopenDocuments
+  }
+
+  public func addStateChangeHandler(handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void) {
+    queue.async {
+      self.stateChangeHandlers.append(handler)
+    }
   }
 
   /// Publish diagnostics for the given `snapshot`. We withhold semantic diagnostics if we are using
@@ -242,6 +270,13 @@ extension SwiftLanguageServer {
     }
   }
 
+  /// Tell sourcekitd to crash itself. For testing purposes only.
+  public func _crash() {
+    let req = SKDRequestDictionary(sourcekitd: sourcekitd)
+    req[sourcekitd.keys.request] = sourcekitd.requests.crash_exit
+    _ = try? sourcekitd.sendSync(req)
+  }
+  
   // MARK: - Build System Integration
 
   /// Should be called on self.queue.
@@ -1040,6 +1075,33 @@ extension SwiftLanguageServer {
 
 extension SwiftLanguageServer: SKDNotificationHandler {
   public func notification(_ notification: SKDResponse) {
+    // Check if we need to update our `state` based on the contents of the notification.
+    // Execute the entire code block on `queue` because we need to switch to `queue` anyway to
+    // check `state` in the second `if`. Moving `queue.async` up ensures we only need to switch
+    // queues once and makes the code inside easier to read.
+    self.queue.async {
+      if notification.value?[self.keys.notification] == self.values.notification_sema_enabled {
+        self.state = .connected
+      }
+
+      if self.state == .connectionInterrupted {
+        // If we get a notification while we are restoring the connection, it means that the server has restarted.
+        // We still need to wait for semantic functionality to come back up.
+        self.state = .semanticFunctionalityDisabled
+
+        // Ask our parent to re-open all of our documents.
+        self.reopenDocuments(self)
+      }
+
+      if case .connectionInterrupted = notification.error {
+        self.state = .connectionInterrupted
+
+        // We don't have any open documents anymore after sourcekitd crashed.
+        // Reset the document manager to reflect that.
+        self.documentManager = DocumentManager()
+      }
+    }
+    
     guard let dict = notification.value else {
       log(notification.description, level: .error)
       return
@@ -1101,7 +1163,8 @@ func makeLocalSwiftServer(
   client: MessageHandler,
   sourcekitd: AbsolutePath,
   clientCapabilities: ClientCapabilities?,
-  options: SourceKitServer.Options
+  options: SourceKitServer.Options,
+  reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
 ) throws -> ToolchainLanguageServer {
   let connectionToClient = LocalConnection()
 
@@ -1109,7 +1172,8 @@ func makeLocalSwiftServer(
     client: connectionToClient,
     sourcekitd: sourcekitd,
     clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil),
-    serverOptions: options)
+    serverOptions: options,
+    reopenDocuments: reopenDocuments)
   connectionToClient.start(handler: client)
   return server
 }
