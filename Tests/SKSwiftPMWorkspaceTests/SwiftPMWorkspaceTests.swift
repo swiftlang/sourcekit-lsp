@@ -267,9 +267,18 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let arguments = ws.settings(for: aswift.asURI, .swift)!.compilerArguments
       check(aswift.pathString, arguments: arguments)
       checkNot(bswift.pathString, arguments: arguments)
-      check(
-        "-I", packageRoot.appending(components: "Sources", "libC", "include").pathString,
-        arguments: arguments)
+      // Temporary conditional to work around revlock between SourceKit-LSP and SwiftPM
+      // as a result of fix for SR-12050.  Can be removed when that fix has been merged.
+      if arguments.joined(separator: " ").contains("-Xcc -I -Xcc") {
+        check(
+          "-Xcc", "-I", "-Xcc", packageRoot.appending(components: "Sources", "libC", "include").pathString,
+          arguments: arguments)
+      }
+      else {
+        check(
+          "-I", packageRoot.appending(components: "Sources", "libC", "include").pathString,
+          arguments: arguments)
+      }
 
       let argumentsB = ws.settings(for: bswift.asURI, .swift)!.compilerArguments
       check(bswift.pathString, arguments: argumentsB)
