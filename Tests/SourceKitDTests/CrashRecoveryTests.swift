@@ -84,7 +84,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     sourcekitdServer._crash()
 
-    self.wait(for: [sourcekitdCrashed], timeout: 5)
+    self.wait(for: [sourcekitdCrashed], timeout: 15)
     self.wait(for: [sourcekitdRestarted], timeout: 30)
 
     // Check that we have syntactic functionality again
@@ -130,7 +130,7 @@ final class CrashRecoveryTests: XCTestCase {
     let addCrashPragma = TextDocumentContentChangeEvent(range: loc.position..<loc.position, rangeLength: 0, text: "#pragma clang __debug crash\n")
     ws.sk.send(DidChangeTextDocumentNotification(textDocument: VersionedTextDocumentIdentifier(loc.docUri, version: 3), contentChanges: [addCrashPragma]))
 
-    self.wait(for: [clangdCrashed], timeout: 5)
+    self.wait(for: [clangdCrashed], timeout: 15)
 
     // Once clangds has crashed, remove the pragma again to allow it to restart
     let removeCrashPragma = TextDocumentContentChangeEvent(range: loc.position..<Position(line: 1, utf16index: 0), rangeLength: 28, text: "")
@@ -140,7 +140,6 @@ final class CrashRecoveryTests: XCTestCase {
   }
 
   func testClangdCrashRecovery() throws {
-    throw XCTSkip("failing on rebranch - rdar://73717447")
     try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
@@ -178,7 +177,6 @@ final class CrashRecoveryTests: XCTestCase {
   }
     
   func testClangdCrashRecoveryReopensWithCorrectBuildSettings() throws {
-    throw XCTSkip("failing on rebranch - rdar://73717447")
     try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings")!
@@ -212,7 +210,6 @@ final class CrashRecoveryTests: XCTestCase {
   }
   
   func testPreventClangdCrashLoop() throws {
-    throw XCTSkip("failing on rebranch - rdar://73717447")
     try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!

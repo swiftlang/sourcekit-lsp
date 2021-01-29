@@ -1100,20 +1100,18 @@ extension SwiftLanguageServer: SKDNotificationHandler {
         // Reset the document manager to reflect that.
         self.documentManager = DocumentManager()
       }
-    }
-    
-    guard let dict = notification.value else {
-      log(notification.description, level: .error)
-      return
-    }
 
-    logAsync(level: .debug) { _ in notification.description }
+      guard let dict = notification.value else {
+        log(notification.description, level: .error)
+        return
+      }
 
-    if let kind: sourcekitd_uid_t = dict[self.keys.notification],
-       kind == self.values.notification_documentupdate,
-       let name: String = dict[self.keys.name] {
+      logAsync(level: .debug) { _ in notification.description }
 
-      self.queue.async {
+      if let kind: sourcekitd_uid_t = dict[self.keys.notification],
+         kind == self.values.notification_documentupdate,
+         let name: String = dict[self.keys.name] {
+
         let uri: DocumentURI
         if name.starts(with: "/") {
           // If sourcekitd returns us a path, translate it back into a URL
