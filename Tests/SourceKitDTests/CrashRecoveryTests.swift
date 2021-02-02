@@ -12,6 +12,7 @@
 
 import ISDBTestSupport
 import LanguageServerProtocol
+import LSPLogging
 import SourceKitLSP
 import SourceKitD
 import SKTestSupport
@@ -45,7 +46,20 @@ final class CrashRecoveryTests: XCTestCase {
     let ws = try! staticSourceKitTibsWorkspace(name: "sourcekitdCrashRecovery")!
     let loc = ws.testLoc("loc")
 
+    // Open the document. Wait for the semantic diagnostics to know it has been fully opened and we are not entering any data races about outstanding diagnostics when we crash sourcekitd.
+
+    let documentOpened = self.expectation(description: "documentOpened")
+    documentOpened.expectedFulfillmentCount = 2
+    ws.sk.handleNextNotification({ (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - syntactic")
+      documentOpened.fulfill()
+    })
+    ws.sk.appendOneShotNotificationHandler({ (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) in
+      log("Received diagnostics for open - semantic")
+      documentOpened.fulfill()
+    })
     try! ws.openDocument(loc.url, language: .swift)
+    self.wait(for: [documentOpened], timeout: 10)
 
     // Make a change to the file that's not saved to disk. This way we can check that we re-open the correct in-memory state.
 
@@ -55,7 +69,11 @@ final class CrashRecoveryTests: XCTestCase {
         print("Hello world")
       }
       """)
-    ws.sk.send(DidChangeTextDocumentNotification(textDocument: VersionedTextDocumentIdentifier(loc.docUri, version: 2), contentChanges: [addFuncChange]))
+    ws.sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: VersionedTextDocumentIdentifier(loc.docUri, version: 2), contentChanges: [addFuncChange]), { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
+      log("Received diagnostics for text edit - syntactic")
+    }, { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
+      log("Received diagnostics for text edit - semantic")
+    })
 
     // Do a sanity check and verify that we get the expected result from a hover response before crashing sourcekitd.
 
