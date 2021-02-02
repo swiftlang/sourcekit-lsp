@@ -79,4 +79,7 @@ public protocol ToolchainLanguageServer: AnyObject {
   // MARK: - Other
 
   func executeCommand(_ req: Request<ExecuteCommandRequest>)
+
+  /// Crash the language server. Should be used for crash recovery testing only.
+  func _crash()
 }
