@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "SourceKitLSP",
+    platforms: [.macOS(.v10_15)],
     products: [
       .executable(
         name: "sourcekit-lsp",
