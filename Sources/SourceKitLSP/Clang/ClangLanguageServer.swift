@@ -18,6 +18,10 @@ import SKCore
 import SKSupport
 import TSCBasic
 
+#if os(Windows)
+import WinSDK
+#endif
+
 /// A thin wrapper over a connection to a clangd server providing build setting handling.
 ///
 /// In addition, it also intercepts notifications and replies from clangd in order to do things
@@ -76,7 +80,11 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
   private let reopenDocuments: (ToolchainLanguageServer) -> Void
 
   /// While `clangd` is running, its PID.
+#if os(Windows)
+  private var hClangd: HANDLE = INVALID_HANDLE_VALUE
+#else
   private var clangdPid: Int32?
+#endif
 
   /// Creates a language server for the given client referencing the clang binary at the given path.
   public init(
@@ -143,7 +151,11 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
       connectionToClangd.close()
       guard let self = self else { return }
       self.queue.async {
+#if os(Windows)
+        self.hClangd = INVALID_HANDLE_VALUE
+#else
         self.clangdPid = nil
+#endif
         if process.terminationStatus != 0 {
           self.state = .connectionInterrupted
           self.restartClangd()
@@ -156,7 +168,11 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
     } else {
       process.launch()
     }
+#if os(Windows)
+    self.hClangd = process.processHandle
+#else
     self.clangdPid = process.processIdentifier
+#endif
   }
 
   /// Restart `clangd` after it has crashed.
@@ -257,9 +273,22 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
   func _crash() {
     self.queue.async {
       // Since `clangd` doesn't have a method to crash it, kill it.
+#if os(Windows)
+      if self.hClangd != INVALID_HANDLE_VALUE {
+        // FIXME(compnerd) this is a bad idea - we can potentially deadlock the
+        // process if a kobject is a pending state.  Unfortunately, the
+        // `OpenProcess(PROCESS_TERMINATE, ...)`, `CreateRemoteThread`,
+        // `ExitProcess` dance, while safer, can also indefinitely hang as
+        // `CreateRemoteThread` may not be serviced depending on the state of
+        // the process.  This just attempts to terminate the process, risking a
+        // deadlock and resource leaks.
+        _ = TerminateProcess(self.hClangd, 0)
+      }
+#else
       if let pid = self.clangdPid {
         kill(pid, SIGKILL)
       }
+#endif
     }
   }
   
