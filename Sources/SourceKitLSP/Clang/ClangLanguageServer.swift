@@ -75,6 +75,9 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
   /// A callback with which `ClangLanguageServer` can request its owner to reopen all documents in case it has crashed.
   private let reopenDocuments: (ToolchainLanguageServer) -> Void
 
+  /// While `clangd` is running, its PID.
+  private var clangdPid: Int32?
+
   /// Creates a language server for the given client referencing the clang binary at the given path.
   public init(
     client: Connection,
@@ -138,12 +141,12 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
     process.terminationHandler = { [weak self] process in
       log("clangd exited: \(process.terminationReason) \(process.terminationStatus)")
       connectionToClangd.close()
-      if process.terminationStatus != 0 {
-        if let self = self {
-          self.queue.async {
-            self.state = .connectionInterrupted
-            self.restartClangd()
-          }
+      guard let self = self else { return }
+      self.queue.async {
+        self.clangdPid = nil
+        if process.terminationStatus != 0 {
+          self.state = .connectionInterrupted
+          self.restartClangd()
         }
       }
     }
@@ -153,6 +156,7 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
     } else {
       process.launch()
     }
+    self.clangdPid = process.processIdentifier
   }
 
   /// Restart `clangd` after it has crashed.
@@ -247,6 +251,15 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
   private func forwardNotificationToClangdOnQueue<Notification>(_ notification: Notification) where Notification: NotificationType {
     queue.async {
       self.clangd.send(notification)
+    }
+  }
+
+  func _crash() {
+    self.queue.async {
+      // Since `clangd` doesn't have a method to crash it, kill it.
+      if let pid = self.clangdPid {
+        kill(pid, SIGKILL)
+      }
     }
   }
   
