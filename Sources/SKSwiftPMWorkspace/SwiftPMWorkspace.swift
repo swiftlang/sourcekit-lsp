@@ -44,7 +44,7 @@ public final class SwiftPMWorkspace {
   }
 
   /// Delegate to handle any build system events.
-  public weak var delegate: BuildSystemDelegate? = nil
+  public weak var delegate: SKCore.BuildSystemDelegate? = nil
 
   let workspacePath: AbsolutePath
   let packageRoot: AbsolutePath
