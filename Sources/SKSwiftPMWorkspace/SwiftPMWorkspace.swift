@@ -90,14 +90,13 @@ public final class SwiftPMWorkspace {
     let workspaceConfiguration = try Workspace.Configuration(path: packageRoot.appending(components: ".swiftpm", "config"), fs: fileSystem)
 
     self.workspace = Workspace(
-      dataPath: buildPath,
-      editablesPath: packageRoot.appending(component: "Packages"),
-      pinsFile: packageRoot.appending(component: "Package.resolved"),
-      manifestLoader: ManifestLoader(manifestResources: toolchain.manifestResources, cacheDir: buildPath),
-      delegate: BuildSettingProviderWorkspaceDelegate(),
+        dataPath: buildPath,
+        editablesPath: packageRoot.appending(component: "Packages"),
+        pinsFile: packageRoot.appending(component: "Package.resolved"),
+        manifestLoader: ManifestLoader(manifestResources: toolchain.manifestResources, cacheDir: buildPath),
         config: workspaceConfiguration,
-      fileSystem: fileSystem,
-      skipUpdate: true)
+        fileSystem: fileSystem,
+        skipUpdate: true)
 
     let triple = toolchain.triple
 
@@ -444,24 +443,6 @@ private func findPackageDirectory(
     path = path.parentDirectory
   }
   return path
-}
-
-public final class BuildSettingProviderWorkspaceDelegate: WorkspaceDelegate {
-  public func packageGraphWillLoad(
-    currentGraph: PackageGraph,
-    dependencies: AnySequence<ManagedDependency>,
-    missingURLs: Set<String>)
-  {}
-
-  public func fetchingWillBegin(repository: String) {}
-
-  public func fetchingDidFinish(repository: String, diagnostic: TSCBasic.Diagnostic?) {}
-
-  public func cloning(repository: String) {}
-
-  public func removing(repository: String) {}
-
-  public func managedDependenciesDidUpdate(_ dependencies: AnySequence<ManagedDependency>) {}
 }
 
 extension TSCBasic.Diagnostic.Behavior {
