@@ -178,7 +178,7 @@ final class CodingTests: XCTestCase {
     {"jsonrpc":"2.0","method":"$/cancelRequest"}
     """)
 
-    checkMessageDecodingError(MessageDecodingError.invalidParams("type mismatch at params : Expected to decode Dictionary<String, Any> but found a number instead.", messageKind: .notification), json: """
+    checkMessageDecodingError(MessageDecodingError.invalidParams("type mismatch at params :", messageKind: .notification), json: """
     {"jsonrpc":"2.0","method":"$/cancelRequest","params":2}
     """)
 
@@ -284,7 +284,10 @@ private func checkMessageDecodingError(_ expected: MessageDecodingError, json: S
     _ = try decoder.decode(JSONRPCMessage.self, from: data)
     XCTFail("expected error not seen", file: file, line: line)
   } catch let error as MessageDecodingError {
-    XCTAssertEqual(expected, error, file: file, line: line)
+    XCTAssertEqual(expected.code, error.code, file: file, line: line)
+    XCTAssertEqual(expected.id, error.id, file: file, line: line)
+    XCTAssertTrue(error.message.hasPrefix(expected.message),
+      "message expected to start with \(expected.message); got \(error.message)", file: file, line: line)
   } catch {
     XCTFail("incorrect error seen \(error)", file: file, line: line)
   }
