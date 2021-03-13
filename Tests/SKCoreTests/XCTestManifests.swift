@@ -57,6 +57,7 @@ extension CompilationDatabaseTests {
         ("testCompilationDatabaseBuildSystemIndexStoreSwift4", testCompilationDatabaseBuildSystemIndexStoreSwift4),
         ("testDecodeCompDBCommand", testDecodeCompDBCommand),
         ("testEncodeCompDBCommand", testEncodeCompDBCommand),
+        ("testFixedCompilationDatabase", testFixedCompilationDatabase),
         ("testJSONCompilationDatabaseCoding", testJSONCompilationDatabaseCoding),
         ("testJSONCompilationDatabaseFromDirectory", testJSONCompilationDatabaseFromDirectory),
         ("testJSONCompilationDatabaseLookup", testJSONCompilationDatabaseLookup),
