@@ -87,9 +87,10 @@ public struct FixedCompilationDatabase: CompilationDatabase, Equatable {
   public var allCommands: AnySequence<Command> { AnySequence([]) }
   
   private let fixedArgs: [String]
+  private let directory: String
 
   public subscript(path: URL) -> [Command] {
-    [Command(directory: "", filename: path.path, commandLine: fixedArgs + [path.path])]
+    [Command(directory: directory, filename: path.path, commandLine: fixedArgs + [path.path])]
   }
 }
 
@@ -100,6 +101,7 @@ extension FixedCompilationDatabase {
   }
 
   public init(file: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+    self.directory = file.dirname
     let bytes = try fileSystem.readFileContents(file)
 
     var fixedArgs: [String] = ["clang"]
