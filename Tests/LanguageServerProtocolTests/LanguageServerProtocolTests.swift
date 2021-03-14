@@ -14,6 +14,11 @@ import LanguageServerProtocol
 
 import XCTest
 
+fileprivate func AssertDataIsString(_ data: Data, expected: String) {
+  let got = String(decoding: data, as: UTF8.self)
+  XCTAssertEqual(got, expected)
+}
+
 final class LanguageServerProtocolTests: XCTestCase {
 
   func testLanguageXFlag() {
@@ -32,5 +37,13 @@ final class LanguageServerProtocolTests: XCTestCase {
     let encodedURI = DocumentURI(string: "file:///folder/image%403x.png")
     XCTAssertEqual(encodedURI, fileURI)
     XCTAssertEqual(encodedURI.hashValue, fileURI.hashValue)
+  }
+
+  func testFileChangeTypeEncoding() throws {
+    let encoder = JSONEncoder()
+    try AssertDataIsString(encoder.encode(FileChangeType.created), expected: "1")
+    try AssertDataIsString(encoder.encode(FileChangeType.changed), expected: "2")
+    try AssertDataIsString(encoder.encode(FileChangeType.deleted), expected: "3")
+    try AssertDataIsString(encoder.encode(FileChangeType(rawValue: 5)), expected: "5")
   }
 }
