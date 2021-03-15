@@ -35,7 +35,7 @@ public struct WatchKind: OptionSet, Codable, Hashable {
     self.rawValue = rawValue
   }
 
-  public static let create: FileChangeType = FileChangeType(rawValue: 1)
-  public static let change: FileChangeType = FileChangeType(rawValue: 2)
-  public static let delete: FileChangeType = FileChangeType(rawValue: 4)
+  public static let create: WatchKind = WatchKind(rawValue: 1)
+  public static let change: WatchKind = WatchKind(rawValue: 2)
+  public static let delete: WatchKind = WatchKind(rawValue: 4)
 }
