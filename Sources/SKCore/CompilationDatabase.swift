@@ -68,9 +68,56 @@ public func tryLoadCompilationDatabase(
   directory: AbsolutePath,
   _ fileSystem: FileSystem = localFileSystem
 ) -> CompilationDatabase? {
-  // TODO: Support fixed compilation database (compile_flags.txt).
-  return try? JSONCompilationDatabase(directory: directory, fileSystem)
+  return
+    (try? JSONCompilationDatabase(directory: directory, fileSystem))
+    ?? (try? FixedCompilationDatabase(directory: directory, fileSystem))
 }
+
+/// Fixed clang-compatible compilation database (compile_flags.txt).
+///
+/// Each line in the file becomes a command line argument. Example:
+/// ```
+/// -xc++
+/// -I
+/// libwidget/include/
+/// ```
+///
+/// See https://clang.llvm.org/docs/JSONCompilationDatabase.html under Alternatives
+public struct FixedCompilationDatabase: CompilationDatabase, Equatable {
+  public var allCommands: AnySequence<Command> { AnySequence([]) }
+  
+  private let fixedArgs: [String]
+  private let directory: String
+
+  public subscript(path: URL) -> [Command] {
+    [Command(directory: directory, filename: path.path, commandLine: fixedArgs + [path.path])]
+  }
+}
+
+extension FixedCompilationDatabase {
+  public init(directory: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+    let path = directory.appending(component: "compile_flags.txt")
+    try self.init(file: path, fileSystem)
+  }
+
+  public init(file: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+    self.directory = file.dirname
+    let bytes = try fileSystem.readFileContents(file)
+
+    var fixedArgs: [String] = ["clang"]
+    try bytes.withUnsafeData { data in
+      guard let fileContents = String(data: data, encoding: .utf8) else {
+        throw CompilationDatabaseDecodingError.fixedDatabaseDecordingError
+      }
+      
+      fileContents.enumerateLines { line, _ in
+        fixedArgs.append(line.trimmingCharacters(in: .whitespacesAndNewlines))
+      }
+    }
+    self.fixedArgs = fixedArgs
+  }
+}
+
 
 /// The JSON clang-compatible compilation database.
 ///
@@ -150,6 +197,7 @@ extension JSONCompilationDatabase {
 
 enum CompilationDatabaseDecodingError: Error {
   case missingCommandOrArguments
+  case fixedDatabaseDecordingError
 }
 
 extension CompilationDatabase.Command: Codable {

@@ -187,6 +187,25 @@ final class CompilationDatabaseTests: XCTestCase {
     XCTAssertNotNil(tryLoadCompilationDatabase(directory: AbsolutePath("/a"), fs))
   }
 
+  func testFixedCompilationDatabase() {
+    let fs = InMemoryFileSystem()
+    try! fs.createDirectory(AbsolutePath("/a"))
+    XCTAssertNil(tryLoadCompilationDatabase(directory: AbsolutePath("/a"), fs))
+
+    try! fs.writeFileContents(AbsolutePath("/a/compile_flags.txt"), bytes: """
+      -xc++
+      -I
+      libwidget/include/
+      """)
+
+    let db = tryLoadCompilationDatabase(directory: AbsolutePath("/a"), fs)
+    XCTAssertNotNil(db)
+
+    XCTAssertEqual(db![URL(fileURLWithPath: "/a/b")], [
+      CompilationDatabase.Command(directory: "/a", filename: "/a/b", commandLine: ["clang", "-xc++", "-I", "libwidget/include/", "/a/b"], output: nil)
+    ])
+  }
+
   func testCompilationDatabaseBuildSystem() {
     checkCompilationDatabaseBuildSystem("""
     [
