@@ -283,27 +283,3 @@ extension WorkspaceEdit: LSPAnyCodable {
     ])
   }
 }
-
-extension Array: LSPAnyCodable where Element: LSPAnyCodable {
-  public init?(fromLSPArray array: LSPAny) {
-    guard case .array(let array) = array else {
-      return nil
-    }
-    var result = [Element]()
-    for case .dictionary(let editDict) in array {
-      guard let element = Element.init(fromLSPDictionary: editDict) else {
-        return nil
-      }
-      result.append(element)
-    }
-    self = result
-  }
-
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
-    return nil
-  }
-
-  public func encodeToLSPAny() -> LSPAny {
-    return .array(map { $0.encodeToLSPAny() })
-  }
-}

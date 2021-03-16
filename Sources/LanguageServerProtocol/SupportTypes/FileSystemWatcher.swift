@@ -25,6 +25,33 @@ public struct FileSystemWatcher: Codable, Hashable {
   }
 }
 
+extension FileSystemWatcher: LSPAnyCodable {
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    guard let globPatternAny = dictionary[CodingKeys.globPattern.stringValue] else { return nil }
+    guard case .string(let globPattern) = globPatternAny else { return nil }
+    self.globPattern = globPattern
+
+    guard let kindValue = dictionary[CodingKeys.kind.stringValue] else {
+      self.kind = nil
+      return
+    }
+
+    switch kindValue {
+    case .null: self.kind = nil
+    case .int(let value): self.kind = WatchKind(rawValue: value)
+    default: return nil
+    }
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    var encoded = [CodingKeys.globPattern.stringValue: LSPAny.string(globPattern)]
+    if let kind = kind {
+      encoded[CodingKeys.kind.stringValue] = LSPAny.int(kind.rawValue)
+    }
+    return .dictionary(encoded)
+  }
+}
+
 /// The type of file event a watcher is interested in.
 ///
 /// In LSP, this is an integer, so we don't use a closed set.
