@@ -53,3 +53,17 @@ public struct SymbolKind: RawRepresentable, Codable, Hashable {
   public static let `operator`: SymbolKind = SymbolKind(rawValue: 25)
   public static let typeParameter: SymbolKind = SymbolKind(rawValue: 26)
 }
+
+/// Symbol tags are extra annotations that tweak the rendering of a symbol.
+///
+/// In LSP, this is an integer, so we don't use a closed set.
+public struct SymbolTag: RawRepresentable, Codable, Hashable {
+  public var rawValue: Int
+
+  public init(rawValue: Int) {
+    self.rawValue = rawValue
+  }
+
+  /// Render a symbol as obsolete, usually using a strike-out.
+  public static let deprecated: SymbolTag = SymbolTag(rawValue: 1)
+}

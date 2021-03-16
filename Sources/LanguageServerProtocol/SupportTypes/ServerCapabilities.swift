@@ -81,6 +81,10 @@ public struct ServerCapabilities: Codable, Hashable {
 
   public var workspace: WorkspaceServerCapabilities?
 
+  /// Whether the server provides `textDocument/prepareCallHierarchy` and related
+  /// call hierarchy requests.
+  public var callHierarchyProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>?
+
   public var experimental: LSPAny?
 
   public init(
@@ -107,6 +111,7 @@ public struct ServerCapabilities: Codable, Hashable {
     declarationProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     executeCommandProvider: ExecuteCommandOptions? = nil,
     workspace: WorkspaceServerCapabilities? = nil,
+    callHierarchyProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     experimental: LSPAny? = nil
   )
   {
@@ -133,6 +138,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.declarationProvider = declarationProvider
     self.executeCommandProvider = executeCommandProvider
     self.workspace = workspace
+    self.callHierarchyProvider = callHierarchyProvider
     self.experimental = experimental
   }
 }
