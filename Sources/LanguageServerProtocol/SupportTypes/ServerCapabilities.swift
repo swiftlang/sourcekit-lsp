@@ -290,6 +290,42 @@ public struct DocumentFilter: Codable, Hashable {
   }
 }
 
+extension DocumentFilter: LSPAnyCodable {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    if let languageValue = dictionary[CodingKeys.language.stringValue] {
+      guard case .string(let language) = languageValue else { return nil }
+      self.language = language
+    } else {
+      self.language = nil
+    }
+    if let schemeValue = dictionary[CodingKeys.scheme.stringValue] {
+      guard case .string(let scheme) = schemeValue else { return nil }
+      self.scheme = scheme
+    } else {
+      self.scheme = nil
+    }
+    if let patternValue = dictionary[CodingKeys.pattern.stringValue] {
+      guard case .string(let pattern) = patternValue else { return nil }
+      self.pattern = pattern
+    } else {
+      self.pattern = nil
+    }
+  }
+  public func encodeToLSPAny() -> LSPAny {
+    var dict = [String: LSPAny]()
+    if let language = language {
+      dict[CodingKeys.language.stringValue] = .string(language)
+    }
+    if let scheme = scheme {
+      dict[CodingKeys.scheme.stringValue] = .string(scheme)
+    }
+    if let pattern = pattern {
+      dict[CodingKeys.pattern.stringValue] = .string(pattern)
+    }
+    return .dictionary(dict)
+  }
+}
+
 public typealias DocumentSelector = [DocumentFilter]
 
 public struct TextDocumentAndStaticRegistrationOptions: Codable, Hashable {

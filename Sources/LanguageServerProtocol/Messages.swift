@@ -53,6 +53,7 @@ public let builtinNotifications: [NotificationType.Type] = [
   CancelRequestNotification.self,
   LogMessageNotification.self,
   DidChangeConfigurationNotification.self,
+  DidChangeWatchedFilesNotification.self,
   DidChangeWorkspaceFoldersNotification.self,
   DidOpenTextDocumentNotification.self,
   DidCloseTextDocumentNotification.self,

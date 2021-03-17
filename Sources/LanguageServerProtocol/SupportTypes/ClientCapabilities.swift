@@ -89,6 +89,8 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
 
   public var didChangeConfiguration: DynamicRegistrationCapability? = nil
 
+  /// Whether the clients supports file watching - note that the protocol currently doesn't
+  /// support static registration for file changes.
   public var didChangeWatchedFiles: DynamicRegistrationCapability? = nil
 
   public var symbol: Symbol? = nil

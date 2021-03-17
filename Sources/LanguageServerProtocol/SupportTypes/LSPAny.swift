@@ -121,3 +121,52 @@ public protocol LSPAnyCodable {
   init?(fromLSPDictionary dictionary: [String: LSPAny])
   func encodeToLSPAny() -> LSPAny
 }
+
+extension Optional: LSPAnyCodable where Wrapped: LSPAnyCodable {
+  public init?(fromLSPAny value: LSPAny) {
+    if case .null = value {
+      self = .none
+      return
+    }
+    guard case .dictionary(let dict) = value else {
+      return nil
+    }
+    guard let wrapped = Wrapped.init(fromLSPDictionary: dict) else {
+      return nil
+    }
+    self = .some(wrapped)
+  }
+
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    return nil
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    guard let wrapped = self else { return .null }
+    return wrapped.encodeToLSPAny()
+  }
+}
+
+extension Array: LSPAnyCodable where Element: LSPAnyCodable {
+  public init?(fromLSPArray array: LSPAny) {
+    guard case .array(let array) = array else {
+      return nil
+    }
+    var result = [Element]()
+    for case .dictionary(let editDict) in array {
+      guard let element = Element.init(fromLSPDictionary: editDict) else {
+        return nil
+      }
+      result.append(element)
+    }
+    self = result
+  }
+
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    return nil
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    return .array(map { $0.encodeToLSPAny() })
+  }
+}
