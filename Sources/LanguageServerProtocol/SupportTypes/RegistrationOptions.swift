@@ -39,6 +39,7 @@ public struct TextDocumentRegistrationOptions: RegistrationOptions {
   }
 
   public func encodeToLSPAny() -> LSPAny {
+    guard let documentSelector = documentSelector else { return .dictionary([:]) }
     return .dictionary([CodingKeys.documentSelector.stringValue: documentSelector.encodeToLSPAny()])
   }
 }
