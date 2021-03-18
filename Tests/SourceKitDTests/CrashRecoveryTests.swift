@@ -41,7 +41,8 @@ fileprivate extension HoverResponse {
 
 final class CrashRecoveryTests: XCTestCase {
   func testSourcekitdCrashRecovery() throws {
-    try XCTSkipUnless(longTestsEnabled && isDarwinHost)
+    try XCTSkipUnless(isDarwinHost, "Linux and Windows use in-process sourcekitd")
+    try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "sourcekitdCrashRecovery")!
     let loc = ws.testLoc("loc")
@@ -151,6 +152,7 @@ final class CrashRecoveryTests: XCTestCase {
   }
 
   func testClangdCrashRecovery() throws {
+    try XCTSkipUnless(isDarwinHost, "rdar://75580936 failing on Linux in CI sometimes")
     try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
@@ -188,6 +190,7 @@ final class CrashRecoveryTests: XCTestCase {
   }
     
   func testClangdCrashRecoveryReopensWithCorrectBuildSettings() throws {
+    try XCTSkipUnless(isDarwinHost, "rdar://75580936 failing on Linux in CI sometimes")
     try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings")!
@@ -221,6 +224,7 @@ final class CrashRecoveryTests: XCTestCase {
   }
   
   func testPreventClangdCrashLoop() throws {
+    try XCTSkipUnless(isDarwinHost, "rdar://75580936 failing on Linux in CI sometimes")
     try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
