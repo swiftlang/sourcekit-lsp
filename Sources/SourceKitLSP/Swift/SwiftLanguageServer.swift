@@ -238,7 +238,7 @@ extension SwiftLanguageServer {
       hoverProvider: true,
       completionProvider: CompletionOptions(
         resolveProvider: false,
-        triggerCharacters: ["."]),
+        triggerCharacters: [".", "("]),
       definitionProvider: nil,
       implementationProvider: .bool(true),
       referencesProvider: nil,

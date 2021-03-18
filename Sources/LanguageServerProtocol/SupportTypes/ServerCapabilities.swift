@@ -243,16 +243,23 @@ public enum TextDocumentSyncKind: Int, Codable, Hashable {
 }
 
 public struct CompletionOptions: Codable, Hashable {
-
   /// Whether to use `textDocument/resolveCompletion`
   public var resolveProvider: Bool?
 
   /// The characters that should trigger automatic completion.
-  public var triggerCharacters: [String]
+  public var triggerCharacters: [String]?
 
-  public init(resolveProvider: Bool? = false, triggerCharacters: [String]) {
+  /// The list of all possible characters that commit a completion.
+  public var allCommitCharacters: [String]?
+
+  public init(
+    resolveProvider: Bool? = false,
+    triggerCharacters: [String]? = nil,
+    allCommitCharacters: [String]? = nil
+  ) {
     self.resolveProvider = resolveProvider
     self.triggerCharacters = triggerCharacters
+    self.allCommitCharacters = allCommitCharacters
   }
 }
 

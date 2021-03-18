@@ -69,7 +69,7 @@ public final class SKTibsTestWorkspace {
 
     testServer.server!.workspace = Workspace(
       rootUri: DocumentURI(sources.rootDirectory),
-      clientCapabilities: clientCapabilities,
+      capabilityRegistry: CapabilityRegistry(clientCapabilities: clientCapabilities),
       toolchainRegistry: ToolchainRegistry.shared,
       buildSetup: BuildSetup(configuration: .debug, path: buildPath, flags: BuildFlags()),
       underlyingBuildSystem: buildSystem,

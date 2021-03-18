@@ -6,6 +6,7 @@ if(CMAKE_VERSION VERSION_LESS 3.16)
 endif()
 
 add_library(SourceKitLSP
+  CapabilityRegistry.swift
   DocumentManager.swift
   IndexStoreDB+MainFilesProvider.swift
   SourceKitIndexDelegate.swift
