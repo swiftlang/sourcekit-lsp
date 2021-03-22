@@ -152,7 +152,6 @@ final class CrashRecoveryTests: XCTestCase {
   }
 
   func testClangdCrashRecovery() throws {
-    try XCTSkipUnless(isDarwinHost, "rdar://75580936 failing on Linux in CI sometimes")
     try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
@@ -190,7 +189,6 @@ final class CrashRecoveryTests: XCTestCase {
   }
     
   func testClangdCrashRecoveryReopensWithCorrectBuildSettings() throws {
-    try XCTSkipUnless(isDarwinHost, "rdar://75580936 failing on Linux in CI sometimes")
     try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings")!
@@ -224,7 +222,6 @@ final class CrashRecoveryTests: XCTestCase {
   }
   
   func testPreventClangdCrashLoop() throws {
-    try XCTSkipUnless(isDarwinHost, "rdar://75580936 failing on Linux in CI sometimes")
     try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!

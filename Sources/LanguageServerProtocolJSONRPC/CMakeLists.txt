@@ -1,4 +1,5 @@
 add_library(LanguageServerProtocolJSONRPC
+  DisableSigpipe.swift
   JSONRPCConnection.swift
   MessageCoding.swift
   MessageSplitting.swift)
