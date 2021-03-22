@@ -22,6 +22,9 @@ add_library(LanguageServerProtocol
   Notifications/TextSynchronizationNotifications.swift
 
   Requests/ApplyEditRequest.swift
+  Requests/CallHierarchyIncomingCallsRequest.swift
+  Requests/CallHierarchyOutgoingCallsRequest.swift
+  Requests/CallHierarchyPrepareRequest.swift
   Requests/CodeActionRequest.swift
   Requests/ColorPresentationRequest.swift
   Requests/CompletionRequest.swift
@@ -45,6 +48,7 @@ add_library(LanguageServerProtocol
   Requests/WorkspaceFoldersRequest.swift
   Requests/WorkspaceSymbolsRequest.swift
 
+  SupportTypes/CallHierarchyItem.swift
   SupportTypes/ClientCapabilities.swift
   SupportTypes/CodeActionKind.swift
   SupportTypes/Command.swift
