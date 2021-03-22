@@ -48,6 +48,18 @@ After building, the server will be located at `.build/debug/sourcekit-lsp`, or a
 
 SourceKit-LSP is designed to build against the latest SwiftPM, so if you run into any issue make sure you have the most up-to-date dependencies by running `swift package update`.
 
+### Docker
+
+SourceKit-LSP should run out of the box using the [Swift official Docker images](https://swift.org/download/#docker).  However, developers who wish to build `sourcekit-lsp` from source and to run its test suite will require additional packages to be installed.
+
+* libsqlite3-dev, libncurses5-dev, python, ninja-build
+
+These can be added to a custom Dockerfile that uses a Swift Docker tag for its base image.
+
+Note that you still need to follow the steps listed in the *Linux* section. In the official docker images, the toolchain is located at `/`.
+
+If you are seeing slow compile times, you will most likely need to increase the memory available to the Docker container.
+
 ## Toolchains
 
 SourceKit-LSP depends on tools such as `sourcekitd` and `clangd`, which it loads at runtime from an installed toolchain.
