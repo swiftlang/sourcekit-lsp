@@ -438,6 +438,7 @@ extension SourceKitServer {
   // MARK: - General
 
   func initialize(_ req: Request<InitializeRequest>) {
+
     var indexOptions = self.options.indexOptions
     if case .dictionary(let options) = req.params.initializationOptions {
       if case .bool(let listenToUnitEvents) = options["listenToUnitEvents"] {

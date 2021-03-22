@@ -53,19 +53,14 @@ public struct PositionRangeArray: CustomCodableWrapper {
     self.wrappedValue = wrappedValue
   }
 
-  fileprivate enum CodingKeys: String, CodingKey {
-    case lowerBound = "start"
-    case upperBound = "end"
-  }
-
   public init(from decoder: Decoder) throws {
     var values: [Range<Position>] = []
     var arrayContainer = try decoder.unkeyedContainer()
+    values.reserveCapacity(arrayContainer.count ?? 1)
+
     while !arrayContainer.isAtEnd {
-      let container = try arrayContainer.nestedContainer(keyedBy: CodingKeys.self)
-      let lhs = try container.decode(Position.self, forKey: .lowerBound)
-      let rhs = try container.decode(Position.self, forKey: .upperBound)
-      values.append(lhs..<rhs)
+      let range = try arrayContainer.decode(PositionRange.self)
+      values.append(range.wrappedValue)
     }
     self.wrappedValue = values
   }
@@ -73,9 +68,7 @@ public struct PositionRangeArray: CustomCodableWrapper {
   public func encode(to encoder: Encoder) throws {
     var arrayContainer = encoder.unkeyedContainer()
     for rangeValue in wrappedValue {
-      var container = arrayContainer.nestedContainer(keyedBy: CodingKeys.self)
-      try container.encode(rangeValue.lowerBound, forKey: .lowerBound)
-      try container.encode(rangeValue.upperBound, forKey: .upperBound)
+      try arrayContainer.encode(PositionRange(wrappedValue: rangeValue))
     }
   }
 }
