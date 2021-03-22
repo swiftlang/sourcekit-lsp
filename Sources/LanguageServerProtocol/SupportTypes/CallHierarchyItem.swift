@@ -26,10 +26,12 @@ public struct CallHierarchyItem: ResponseType, Hashable {
 
   /// The range enclosing this symbol, excluding leading/trailing whitespace
   /// but including everything else, e.g. comments and code.
+  @CustomCodable<PositionRange>
   public var range: Range<Position>
 
   /// The range that should be selected and revealed when this symbol is being
   /// picked, e.g. the name of a function. Must be contained by the `range`.
+  @CustomCodable<PositionRange>
   public var selectionRange: Range<Position>
 
   /// A data entry field that is preserved between a call hierarchy prepare and

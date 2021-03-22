@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 /// The call hierarchy request is sent from the client to the server to return a call hierarchy for the
 /// language element of the given text document positions.
 ///

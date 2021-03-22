@@ -394,16 +394,6 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     }
   }
 
-  /// Capabilities specific to `textDocument/prepareCallHierarchy` and the related requests.
-  public struct CallHierarchy: Equatable, Hashable, Codable {
-    /// Whether the client supports dynamic registration of this request.
-    public var dynamicRegistration: Bool? = nil
-
-    public init(dynamicRegistration: Bool? = nil) {
-      self.dynamicRegistration = dynamicRegistration
-    }
-  }
-
   // MARK: Properties
 
   public var synchronization: Synchronization? = nil
@@ -448,7 +438,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
   public var foldingRange: FoldingRange? = nil
 
-  public var callHierarchy: CallHierarchy? = nil
+  public var callHierarchy: DynamicRegistrationCapability? = nil
 
   public init(synchronization: Synchronization? = nil,
               completion: Completion? = nil,
@@ -471,7 +461,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
               rename: DynamicRegistrationCapability? = nil,
               publishDiagnostics: PublishDiagnostics? = nil,
               foldingRange: FoldingRange? = nil,
-              callHierarchy: CallHierarchy? = nil) {
+              callHierarchy: DynamicRegistrationCapability? = nil) {
     self.synchronization = synchronization
     self.completion = completion
     self.hover = hover

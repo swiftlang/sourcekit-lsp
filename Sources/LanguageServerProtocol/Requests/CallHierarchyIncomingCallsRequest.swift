@@ -10,8 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// The request is sent from the client to the server to resolve incoming calls for a given call hierarchy item.
-/// It is only issued if a server registers for the `textDocument/prepareCallHierarchy` request.
+/// The request is sent from the client to the server to resolve the callers for
+/// a given call hierarchy item. It is only issued if a server registers for the
+/// `textDocument/prepareCallHierarchy` request.
 public struct CallHierarchyIncomingCallsRequest: RequestType {
   public static let method: String = "callHierarchy/incomingCalls"
   public typealias Response = [CallHierarchyIncomingCall]?
@@ -28,8 +29,8 @@ public struct CallHierarchyIncomingCall: ResponseType, Hashable {
   /// The item that makes the call.
   public var from: CallHierarchyItem
 
-  /// The ranges at which the calls appear. This is relative to the caller
-  /// denoted by `from`.
+  /// The range(s) of calls inside the caller (the item denoted by `from`).
+  @CustomCodable<PositionRangeArray>
   public var fromRanges: [Range<Position>]
 
   public init(from: CallHierarchyItem, fromRanges: [Range<Position>]) {

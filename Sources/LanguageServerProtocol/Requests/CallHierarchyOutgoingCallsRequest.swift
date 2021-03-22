@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// The request is sent from the client to the server to resolve outgoing calls for a given call hierarchy item.
+/// The request is sent from the client to the server to resolve callees for a given call hierarchy item.
 /// It is only issued if a server registers for the `textDocument/prepareCallHierarchy` request.
 public struct CallHierarchyOutgoingCallsRequest: RequestType {
   public static let method: String = "callHierarchy/outgoingCalls"
@@ -28,8 +28,9 @@ public struct CallHierarchyOutgoingCall: ResponseType, Hashable {
   /// The item that is called.
   public var to: CallHierarchyItem
 
-  /// The ranges at which this item is called. This is relative to the caller,
-  /// e.g the item passed to `callHierarchy/outgoingCalls` request.
+  /// The range(s) at which this item is called by the caller (the item inside
+  /// the `callHierarchy/outgoingCalls` request).
+  @CustomCodable<PositionRangeArray>
   public var fromRanges: [Range<Position>]
 
   public init(to: CallHierarchyItem, fromRanges: [Range<Position>]) {

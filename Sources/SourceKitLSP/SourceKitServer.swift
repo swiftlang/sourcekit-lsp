@@ -82,8 +82,6 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceRequest(SourceKitServer.workspaceSymbols)
     registerWorkspaceRequest(SourceKitServer.pollIndex)
     registerWorkspaceRequest(SourceKitServer.executeCommand)
-    registerWorkspaceRequest(SourceKitServer.callHierarchyIncomingCalls)
-    registerWorkspaceRequest(SourceKitServer.callHierarchyOutgoingCalls)
 
     registerToolchainTextDocumentRequest(SourceKitServer.completion,
                                          CompletionList(isIncomplete: false, items: []))
@@ -98,7 +96,6 @@ public final class SourceKitServer: LanguageServer {
     registerToolchainTextDocumentRequest(SourceKitServer.documentColor, [])
     registerToolchainTextDocumentRequest(SourceKitServer.colorPresentation, [])
     registerToolchainTextDocumentRequest(SourceKitServer.codeAction, nil)
-    registerToolchainTextDocumentRequest(SourceKitServer.callHierarchyPrepare, nil)
   }
 
   /// Register a `TextDocumentRequest` that requires a valid `Workspace`, `ToolchainLanguageServer`,
@@ -1027,28 +1024,6 @@ extension SourceKitServer {
     let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
                           cancellation: req.cancellationToken, reply: callback)
     languageService.symbolInfo(request)
-  }
-
-  func callHierarchyPrepare(
-    _ req: Request<CallHierarchyPrepareRequest>,
-    workspace: Workspace,
-    languageService: ToolchainLanguageServer
-  ) {
-    req.reply([])
-  }
-
-  func callHierarchyIncomingCalls(
-    _ req: Request<CallHierarchyIncomingCallsRequest>,
-    workspace: Workspace
-  ) {
-    req.reply([])
-  }
-
-  func callHierarchyOutgoingCalls(
-    _ req: Request<CallHierarchyOutgoingCallsRequest>,
-    workspace: Workspace
-  ) {
-    req.reply([])
   }
 
   func pollIndex(_ req: Request<PollIndexRequest>, workspace: Workspace) {

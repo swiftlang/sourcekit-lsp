@@ -45,6 +45,41 @@ public struct PositionRange: CustomCodableWrapper {
   }
 }
 
+/// An LSP-compatible encoding for `Array<Range<Position>>`, for use with `CustomCodable`.
+public struct PositionRangeArray: CustomCodableWrapper {
+  public var wrappedValue: [Range<Position>]
+
+  public init(wrappedValue: [Range<Position>]) {
+    self.wrappedValue = wrappedValue
+  }
+
+  fileprivate enum CodingKeys: String, CodingKey {
+    case lowerBound = "start"
+    case upperBound = "end"
+  }
+
+  public init(from decoder: Decoder) throws {
+    var values: [Range<Position>] = []
+    var arrayContainer = try decoder.unkeyedContainer()
+    while !arrayContainer.isAtEnd {
+      let container = try arrayContainer.nestedContainer(keyedBy: CodingKeys.self)
+      let lhs = try container.decode(Position.self, forKey: .lowerBound)
+      let rhs = try container.decode(Position.self, forKey: .upperBound)
+      values.append(lhs..<rhs)
+    }
+    self.wrappedValue = values
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    var arrayContainer = encoder.unkeyedContainer()
+    for rangeValue in wrappedValue {
+      var container = arrayContainer.nestedContainer(keyedBy: CodingKeys.self)
+      try container.encode(rangeValue.lowerBound, forKey: .lowerBound)
+      try container.encode(rangeValue.upperBound, forKey: .upperBound)
+    }
+  }
+}
+
 extension Range: LSPAnyCodable where Bound == Position {
   public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
     guard case .dictionary(let start)? = dictionary[PositionRange.CodingKeys.lowerBound.stringValue],
