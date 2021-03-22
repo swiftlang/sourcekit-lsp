@@ -451,6 +451,124 @@ final class CodingTests: XCTestCase {
       """)
   }
 
+  func testPositionRangeArray() {
+    struct WithPosRangeArray: Codable, Equatable {
+      @CustomCodable<PositionRangeArray>
+      var ranges: [Range<Position>]
+    }
+    let ranges = [
+      Position(line: 1, utf16index: 0) ..< Position(line: 1, utf16index: 10),
+      Position(line: 2, utf16index: 2) ..< Position(line: 3, utf16index: 0),
+      Position(line: 70, utf16index: 8) ..< Position(line: 70, utf16index: 11)
+    ]
+
+    checkCoding(WithPosRangeArray(ranges: ranges), json: """
+      {
+        "ranges" : [
+          {
+            "end" : {
+              "character" : 10,
+              "line" : 1
+            },
+            "start" : {
+              "character" : 0,
+              "line" : 1
+            }
+          },
+          {
+            "end" : {
+              "character" : 0,
+              "line" : 3
+            },
+            "start" : {
+              "character" : 2,
+              "line" : 2
+            }
+          },
+          {
+            "end" : {
+              "character" : 11,
+              "line" : 70
+            },
+            "start" : {
+              "character" : 8,
+              "line" : 70
+            }
+          }
+        ]
+      }
+      """)
+  }
+
+  func testCallHierarchyIncomingCallRanges() {
+    let url = URL(fileURLWithPath: "/foo.swift")
+    let uri = DocumentURI(url)
+
+    let item = CallHierarchyItem(
+      name: "test",
+      kind: SymbolKind.method,
+      tags: nil,
+      uri: uri,
+      range: Position(line: 1, utf16index: 0) ..< Position(line: 2, utf16index: 5),
+      selectionRange: Position(line: 1, utf16index: 0) ..< Position(line: 1, utf16index: 7)
+    )
+    let call = CallHierarchyIncomingCall(from: item, fromRanges: [
+      Position(line: 2, utf16index: 0) ..< Position(line: 2, utf16index: 5),
+      Position(line: 7, utf16index: 10) ..< Position(line: 8, utf16index: 10),
+    ])
+    checkCoding(call, json: """
+      {
+        "from" : {
+          "kind" : 6,
+          "name" : "test",
+          "range" : {
+            "end" : {
+              "character" : 5,
+              "line" : 2
+            },
+            "start" : {
+              "character" : 0,
+              "line" : 1
+            }
+          },
+          "selectionRange" : {
+            "end" : {
+              "character" : 7,
+              "line" : 1
+            },
+            "start" : {
+              "character" : 0,
+              "line" : 1
+            }
+          },
+          "uri" : "file:\\/\\/\\/foo.swift"
+        },
+        "fromRanges" : [
+          {
+            "end" : {
+              "character" : 5,
+              "line" : 2
+            },
+            "start" : {
+              "character" : 0,
+              "line" : 2
+            }
+          },
+          {
+            "end" : {
+              "character" : 10,
+              "line" : 8
+            },
+            "start" : {
+              "character" : 10,
+              "line" : 7
+            }
+          }
+        ]
+      }
+      """)
+  }
+
   func testCustomCodableOptional() {
     struct WithPosRange: Codable, Equatable {
       @CustomCodable<PositionRange?>
