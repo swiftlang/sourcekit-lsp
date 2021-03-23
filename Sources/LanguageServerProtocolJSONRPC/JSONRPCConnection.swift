@@ -63,6 +63,12 @@ public final class JSONRPCConnection {
     outFD: FileHandle,
     syncRequests: Bool = false)
   {
+#if os(Linux) || os(Android)
+    // We receive a `SIGPIPE` if we write to a pipe that points to a crashed process. This in particular happens if the target of a `JSONRPCConnection` has crashed and we try to send it a message.
+    // On Darwin, `DispatchIO` ignores `SIGPIPE` for the pipes handled by it, but that features is not available on Linux.
+    // Instead, globally ignore `SIGPIPE` on Linux to prevent us from crashing if the `JSONRPCConnection`'s target crashes.
+    globallyDisableSigpipe()
+#endif
     state = .created
     self.messageRegistry = messageRegistry
     self.syncRequests = syncRequests
