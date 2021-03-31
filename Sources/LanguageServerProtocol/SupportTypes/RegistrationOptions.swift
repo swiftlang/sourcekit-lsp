@@ -28,7 +28,7 @@ fileprivate func encode(strings: [String]) -> LSPAny {
 }
 
 /// General text document registration options.
-public class TextDocumentRegistrationOptions: RegistrationOptions, Hashable {
+public struct TextDocumentRegistrationOptions: RegistrationOptions, Hashable {
   /// A document selector to identify the scope of the registration. If not set,
   /// the document selector provided on the client side will be used.
   public var documentSelector: DocumentSelector?
@@ -51,17 +51,25 @@ public class TextDocumentRegistrationOptions: RegistrationOptions, Hashable {
   }
 }
 
+/// Protocol for a type which structurally represents`TextDocumentRegistrationOptions`.
+public protocol TextDocumentRegistrationOptionsProtocol {
+  var textDocumentRegistrationOptions: TextDocumentRegistrationOptions {get}
+}
+
 /// Code completiion registration options.
-public class CompletionRegistrationOptions: TextDocumentRegistrationOptions {
+public struct CompletionRegistrationOptions: RegistrationOptions, TextDocumentRegistrationOptionsProtocol, Hashable {
+  public var textDocumentRegistrationOptions: TextDocumentRegistrationOptions
   public var completionOptions: CompletionOptions
 
   public init(documentSelector: DocumentSelector? = nil, completionOptions: CompletionOptions) {
+    self.textDocumentRegistrationOptions =
+        TextDocumentRegistrationOptions(documentSelector: documentSelector)
     self.completionOptions = completionOptions
-    super.init(documentSelector: documentSelector)
   }
 
-  public override func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
-    super.encodeIntoLSPAny(dict: &dict)
+  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
+    textDocumentRegistrationOptions.encodeIntoLSPAny(dict: &dict)
+
     if let resolveProvider = completionOptions.resolveProvider {
       dict["resolveProvider"] = .bool(resolveProvider)
     }
@@ -74,11 +82,11 @@ public class CompletionRegistrationOptions: TextDocumentRegistrationOptions {
   }
 
   public static func == (lhs: CompletionRegistrationOptions, rhs: CompletionRegistrationOptions) -> Bool {
-    return lhs.documentSelector == rhs.documentSelector && lhs.completionOptions == rhs.completionOptions
+    return lhs.textDocumentRegistrationOptions == rhs.textDocumentRegistrationOptions && lhs.completionOptions == rhs.completionOptions
   }
 
-  public override func hash(into hasher: inout Hasher) {
-    super.hash(into: &hasher)
+  public func hash(into hasher: inout Hasher) {
+    textDocumentRegistrationOptions.hash(into: &hasher)
     completionOptions.hash(into: &hasher)
   }
 }

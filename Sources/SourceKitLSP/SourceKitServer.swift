@@ -511,16 +511,14 @@ extension SourceKitServer {
     registry: CapabilityRegistry
   ) -> ServerCapabilities {
     let completionOptions: CompletionOptions?
-    if client.textDocument?.completion?.dynamicRegistration == true {
+    if registry.clientHasDynamicCompletionRegistration {
       // We'll initialize this dynamically instead of statically.
       completionOptions = nil
-      registry.completionSupported = true
     } else {
       completionOptions = LanguageServerProtocol.CompletionOptions(
         resolveProvider: false,
         triggerCharacters: ["."]
       )
-      registry.completionSupported = false
     }
     return ServerCapabilities(
       textDocumentSync: TextDocumentSyncOptions(
@@ -556,13 +554,21 @@ extension SourceKitServer {
     languages: [Language],
     registry: CapabilityRegistry
   ) {
-    guard let completionOptions = server.completionProvider else { return }
-    guard registry.completionSupported && !registry.hasCompletionRegistrations(for: languages) else { return }
-    let registration = registry.registerCompletion(options: completionOptions, for: languages)
+    if let completionOptions = server.completionProvider {
+      registry.registerCompletionIfNeeded(options: completionOptions, for: languages) {
+        self.dynamicallyRegisterCapability($0, registry)
+      }
+    }
+  }
+
+  private func dynamicallyRegisterCapability(
+    _ registration: CapabilityRegistration,
+    _ registry: CapabilityRegistry
+  ) {
     let req = RegisterCapabilityRequest(registrations: [registration])
     let _ = client.send(req, queue: queue) { result in
       if let error = result.failure {
-        log("Failed to completionOptions: \(error)", level: .error)
+        log("Failed to dynamically register for \(registration.method): \(error)", level: .error)
         registry.remove(registration: registration)
       }
     }

@@ -12,46 +12,58 @@
 
 import LanguageServerProtocol
 
+/// Handler responsible for registering a capability with the client.
+public typealias RegistrationHandler = (_ registration: CapabilityRegistration) -> Void
+
 /// A class which tracks the client's capabilities as well as our dynamic
 /// capability registrations in order to avoid registering conflicting
 /// capabilities.
 public final class CapabilityRegistry {
   /// Registered completion options.
-  private var completion: [Registration: CompletionRegistrationOptions] = [:]
+  private var completion: [CapabilityRegistration: CompletionRegistrationOptions] = [:]
 
-  /// Whether dynamic registration is supported for completion.
-  public var completionSupported: Bool = false
-
-  private(set) var clientCapabilities: ClientCapabilities
+  public let clientCapabilities: ClientCapabilities
 
   public init(clientCapabilities: ClientCapabilities) {
     self.clientCapabilities = clientCapabilities
   }
 
-  public func registerCompletion(
+  public var clientHasDynamicCompletionRegistration: Bool {
+    clientCapabilities.textDocument?.completion?.dynamicRegistration == true
+  }
+
+  /// Dynamically register completion capabilities if the client supports it and
+  /// we haven't yet registered any completion capabilities for the given
+  /// languages.
+  public func registerCompletionIfNeeded(
     options: CompletionOptions,
-    for languages: [Language]
-  ) -> Registration {
+    for languages: [Language],
+    handler: RegistrationHandler
+  ) {
+    guard clientHasDynamicCompletionRegistration && !hasCompletionRegistrations(for: languages) else {
+      return
+    }
     let registrationOptions = CompletionRegistrationOptions(
       documentSelector: self.documentSelector(for: languages),
       completionOptions: options)
-    let registration = Registration(
+    let registration = CapabilityRegistration(
         method: CompletionRequest.method,
       registerOptions: self.encode(registrationOptions))
 
     self.completion[registration] = registrationOptions
 
-    return registration
+    handler(registration)
   }
 
-  /// Unregister a previously registered registration.
-  public func remove(registration: Registration) {
+  /// Unregister a previously registered registration, e.g. if no longer needed
+  /// or if registration fails.
+  public func remove(registration: CapabilityRegistration) {
     if registration.method == CompletionRequest.method {
       completion.removeValue(forKey: registration)
     }
   }
 
-  public func hasCompletionRegistrations(for languages: [Language]) -> Bool {
+  private func hasCompletionRegistrations(for languages: [Language]) -> Bool {
     return self.hasAnyRegistrations(for: languages, in: self.completion)
   }
 
@@ -69,7 +81,7 @@ public final class CapabilityRegistry {
   /// one or more of the given `languages`.
   private func hasAnyRegistrations(
     for languages: [Language],
-    in registrations: [Registration: TextDocumentRegistrationOptions]
+    in registrations: [CapabilityRegistration: TextDocumentRegistrationOptionsProtocol]
   ) -> Bool {
     var languageIds: Set<String> = []
     for language in languages {
@@ -77,7 +89,8 @@ public final class CapabilityRegistry {
     }
 
     for registration in registrations {
-      guard let filters = registration.value.documentSelector else { continue }
+      let options = registration.value.textDocumentRegistrationOptions
+      guard let filters = options.documentSelector else { continue }
       for filter in filters {
         guard let filterLanguage = filter.language else { continue }
         if languageIds.contains(filterLanguage) {
