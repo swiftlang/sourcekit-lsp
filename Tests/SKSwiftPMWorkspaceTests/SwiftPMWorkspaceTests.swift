@@ -118,7 +118,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       check("-target", arguments: arguments) // Only one!
   #if os(macOS)
-      check("-target", hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
+      check("-target", hostTriple.tripleString(forPlatformVersion: "10.11"), arguments: arguments)
       check("-sdk", arguments: arguments)
       check("-F", arguments: arguments)
   #else
@@ -359,7 +359,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         check("-target", arguments: arguments) // Only one!
     #if os(macOS)
         check("-target",
-          hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
+          hostTriple.tripleString(forPlatformVersion: "10.11"), arguments: arguments)
         check("-isysroot", arguments: arguments)
         check("-F", arguments: arguments)
     #else
