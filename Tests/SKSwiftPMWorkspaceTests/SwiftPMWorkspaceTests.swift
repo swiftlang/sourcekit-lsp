@@ -82,7 +82,9 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     }
   }
 
-  func testBasicSwiftArgs() {
+  func testBasicSwiftArgs() throws {
+    throw XCTSkip("rdar://76191577");
+
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try! withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
@@ -320,7 +322,9 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     }
   }
 
-  func testBasicCXXArgs() {
+  func testBasicCXXArgs() throws {
+    throw XCTSkip("rdar://76191577");
+
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try! withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
