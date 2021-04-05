@@ -271,7 +271,9 @@ class ConnectionTests: XCTestCase {
 #endif
       conn.close()
 
-      waitForExpectations(timeout: 10)
+      withExtendedLifetime(conn) {
+        waitForExpectations(timeout: 10)
+      }
     }
   }
 }

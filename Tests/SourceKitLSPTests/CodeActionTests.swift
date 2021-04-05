@@ -182,9 +182,10 @@ final class CodeActionTests: XCTestCase {
     let textDocument = TextDocumentIdentifier(loc.url)
     let start = Position(line: 2, utf16index: 0)
     let request = CodeActionRequest(range: start..<start, context: .init(), textDocument: textDocument)
-    let result = try ws.sk.sendSync(request)
-
-    XCTAssertEqual(result, .codeActions([]))
+    try withExtendedLifetime(ws) {
+      let result = try ws.sk.sendSync(request)
+      XCTAssertEqual(result, .codeActions([]))
+    }
   }
 
   func testSemanticRefactorLocalRenameResult() throws {
@@ -194,8 +195,10 @@ final class CodeActionTests: XCTestCase {
 
     let textDocument = TextDocumentIdentifier(loc.url)
     let request = CodeActionRequest(range: loc.position..<loc.position, context: .init(), textDocument: textDocument)
-    let result = try ws.sk.sendSync(request)
-    XCTAssertEqual(result, .codeActions([]))
+    try withExtendedLifetime(ws) {
+      let result = try ws.sk.sendSync(request)
+      XCTAssertEqual(result, .codeActions([]))
+    }
   }
 
   func testSemanticRefactorLocationCodeActionResult() throws {
@@ -205,7 +208,7 @@ final class CodeActionTests: XCTestCase {
 
     let textDocument = TextDocumentIdentifier(loc.url)
     let request = CodeActionRequest(range: loc.position..<loc.position, context: .init(), textDocument: textDocument)
-    let result = try ws.sk.sendSync(request)
+    let result = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
 
     let expectedCommandArgs: LSPAny = ["actionString": "source.refactoring.kind.localize.string", "positionRange": ["start": ["character": 43, "line": 1], "end": ["character": 43, "line": 1]], "title": "Localize String", "textDocument": ["uri": .string(loc.url.absoluteString)]]
 
@@ -230,7 +233,7 @@ final class CodeActionTests: XCTestCase {
 
     let textDocument = TextDocumentIdentifier(rangeStartLoc.url)
     let request = CodeActionRequest(range: rangeStartLoc.position..<rangeEndLoc.position, context: .init(), textDocument: textDocument)
-    let result = try ws.sk.sendSync(request)
+    let result = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
 
     let expectedCommandArgs: LSPAny = ["actionString": "source.refactoring.kind.extract.function", "positionRange": ["start": ["character": 21, "line": 1], "end": ["character": 27, "line": 2]], "title": "Extract Method", "textDocument": ["uri": .string(rangeStartLoc.url.absoluteString)]]
     let metadataArguments: LSPAny = ["sourcekitlsp_textDocument": ["uri": .string(rangeStartLoc.url.absoluteString)]]

@@ -65,7 +65,7 @@ final class ExecuteCommandTests: XCTestCase {
       req.reply(ApplyEditResponse(applied: true, failureReason: nil))
     }
 
-    let result = try ws.sk.sendSync(request)
+    let result = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
 
     guard case .dictionary(let resultDict) = result else {
       XCTFail("Result is not a dictionary.")
@@ -108,7 +108,7 @@ final class ExecuteCommandTests: XCTestCase {
       req.reply(ApplyEditResponse(applied: true, failureReason: nil))
     }
 
-    let result = try ws.sk.sendSync(request)
+    let result = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
 
     guard case .dictionary(let resultDict) = result else {
       XCTFail("Result is not a dictionary.")

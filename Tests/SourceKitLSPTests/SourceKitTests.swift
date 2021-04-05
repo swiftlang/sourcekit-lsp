@@ -21,6 +21,7 @@ final class SKTests: XCTestCase {
 
     func testInitLocal() {
       let c = TestSourceKitServer()
+      defer { withExtendedLifetime(c) {} } // Keep connection alive for callbacks.
 
       let sk = c.client
 
@@ -39,6 +40,7 @@ final class SKTests: XCTestCase {
 
     func testInitJSON() {
       let c = TestSourceKitServer(connectionKind: .jsonrpc)
+      defer { withExtendedLifetime(c) {} } // Keep connection alive for callbacks.
 
       let sk = c.client
 
@@ -58,6 +60,7 @@ final class SKTests: XCTestCase {
   func testIndexSwiftModules() throws {
     guard let ws = try staticSourceKitTibsWorkspace(name: "SwiftModules") else { return }
     try ws.buildAndIndex()
+    defer { withExtendedLifetime(ws) {} } // Keep workspace alive for callbacks.
 
     let locDef = ws.testLoc("aaa:def")
     let locRef = ws.testLoc("aaa:call:c")
@@ -137,7 +140,9 @@ final class SKTests: XCTestCase {
       XCTAssertEqual(versionContentsBefore.count, 1)
       XCTAssert(versionContentsBefore.first?.lastPathComponent.starts(with: "p") ?? false)
 
-      _ = try ws.sk.sendSync(ShutdownRequest())
+      try withExtendedLifetime(ws) {
+        _ = try ws.sk.sendSync(ShutdownRequest())
+      }
       return versionedPath
     }
 
@@ -157,8 +162,9 @@ final class SKTests: XCTestCase {
     let loc = ws.testLoc("cc:A")
     try ws.openDocument(loc.url, language: .swift)
 
-    let results = try ws.sk.sendSync(
+    let results = try withExtendedLifetime(ws) { try ws.sk.sendSync(
       CompletionRequest(textDocument: loc.docIdentifier, position: loc.position))
+    }
 
     XCTAssertEqual(results.items, [
       CompletionItem(
@@ -186,6 +192,7 @@ final class SKTests: XCTestCase {
 
   func testDependenciesUpdatedSwiftTibs() throws {
     guard let ws = try mutableSourceKitTibsTestWorkspace(name: "SwiftModules") else { return }
+    defer { withExtendedLifetime(ws) {} } // Keep workspace alive for callbacks.
     guard let server = ws.testServer.server else {
       XCTFail("Unable to fetch SourceKitServer to notify for build system events.")
       return
@@ -243,6 +250,7 @@ final class SKTests: XCTestCase {
 #if false
 
     guard let ws = try mutableSourceKitTibsTestWorkspace(name: "GeneratedHeader") else { return }
+    defer { withExtendedLifetime(ws) {} } // Keep workspace alive for callbacks.
     guard let server = ws.testServer.server else {
       XCTFail("Unable to fetch SourceKitServer to notify for build system events.")
       return
@@ -303,7 +311,7 @@ final class SKTests: XCTestCase {
 
     let goToInclude = DefinitionRequest(
       textDocument: mainLoc.docIdentifier, position: includePosition)
-    let resp = try! ws.sk.sendSync(goToInclude)
+    let resp = try withExtendedLifetime(ws) { try ws.sk.sendSync(goToInclude) }
 
     guard let locationsOrLinks = resp else {
       XCTFail("No response for go-to-#include")
@@ -335,7 +343,7 @@ final class SKTests: XCTestCase {
 
     let goToDefinition = DefinitionRequest(
       textDocument: refLoc.docIdentifier, position: refPos)
-    let resp = try! ws.sk.sendSync(goToDefinition)
+    let resp = try withExtendedLifetime(ws) { try ws.sk.sendSync(goToDefinition) }
 
     guard let locationsOrLinks = resp else {
       XCTFail("No response for go-to-definition")

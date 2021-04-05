@@ -561,7 +561,11 @@ extension SourceKitServer {
     // pipe failure.
 
     // Close the index, which will flush to disk.
+    self.workspace?.buildSystemManager.mainFilesProvider = nil
     self.workspace?.index = nil
+
+    // Break retain cycle with the BSM.
+    self.workspace?.buildSystemManager.delegate = nil
   }
 
 

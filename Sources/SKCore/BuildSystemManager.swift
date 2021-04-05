@@ -109,10 +109,10 @@ public final class BuildSystemManager {
   let fallbackBuildSystem: FallbackBuildSystem?
 
   /// Provider of file to main file mappings.
-  weak var mainFilesProvider: MainFilesProvider?
+  var _mainFilesProvider: MainFilesProvider?
 
   /// Build system delegate that will receive notifications about setting changes, etc.
-  weak var _delegate: BuildSystemDelegate?
+  var _delegate: BuildSystemDelegate?
 
   /// Create a BuildSystemManager that wraps the given build system. The new
   /// manager will modify the delegate of the underlying build system.
@@ -121,7 +121,7 @@ public final class BuildSystemManager {
     precondition(buildSystem?.delegate == nil)
     self.buildSystem = buildSystem
     self.fallbackBuildSystem = fallbackBuildSystem
-    self.mainFilesProvider = mainFilesProvider
+    self._mainFilesProvider = mainFilesProvider
     self.fallbackSettingsTimeout = fallbackSettingsTimeout
     self.buildSystem?.delegate = self
   }
@@ -138,6 +138,11 @@ extension BuildSystemManager: BuildSystem {
     set { queue.sync { _delegate = newValue } }
   }
 
+  public var mainFilesProvider: MainFilesProvider? {
+    get { queue.sync { _mainFilesProvider} }
+    set { queue.sync { _mainFilesProvider = newValue } }
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     return queue.async {
       log("registerForChangeNotifications(\(uri.pseudoPath))")
@@ -146,7 +151,7 @@ extension BuildSystemManager: BuildSystem {
       if let watchedFile = self.watchedFiles[uri] {
         mainFile = watchedFile.mainFile
       } else {
-        let mainFiles = self.mainFilesProvider?.mainFilesContainingFile(uri)
+        let mainFiles = self._mainFilesProvider?.mainFilesContainingFile(uri)
         mainFile = chooseMainFile(for: uri, from: mainFiles ?? [])
         self.watchedFiles[uri] = (mainFile, language)
       }
@@ -396,7 +401,7 @@ extension BuildSystemManager: MainFilesDelegate {
       var buildSettingsChanges = [DocumentURI: FileBuildSettingsChange]()
 
       for (uri, state) in origWatched {
-        let mainFiles = self.mainFilesProvider?.mainFilesContainingFile(uri) ?? []
+        let mainFiles = self._mainFilesProvider?.mainFilesContainingFile(uri) ?? []
         let newMainFile = chooseMainFile(for: uri, previous: state.mainFile, from: mainFiles)
         let language = state.language
 
