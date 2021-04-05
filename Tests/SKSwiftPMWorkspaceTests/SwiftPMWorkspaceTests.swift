@@ -15,6 +15,7 @@ import SPMBuildCore
 #endif
 import Build
 import LanguageServerProtocol
+import PackageModel
 import SKCore
 import SKSwiftPMWorkspace
 import SKTestSupport
@@ -83,8 +84,6 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   }
 
   func testBasicSwiftArgs() throws {
-    throw XCTSkip("rdar://76191577");
-
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try! withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
@@ -120,7 +119,8 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       check("-target", arguments: arguments) // Only one!
   #if os(macOS)
-      check("-target", hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
+      let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
+      check("-target", hostTriple.tripleString(forPlatformVersion: versionString), arguments: arguments)
       check("-sdk", arguments: arguments)
       check("-F", arguments: arguments)
   #else
@@ -323,8 +323,6 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   }
 
   func testBasicCXXArgs() throws {
-    throw XCTSkip("rdar://76191577");
-
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try! withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
@@ -362,8 +360,9 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         checkNot("-arch", arguments: arguments)
         check("-target", arguments: arguments) // Only one!
     #if os(macOS)
+        let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
         check("-target",
-          hostTriple.tripleString(forPlatformVersion: "10.10"), arguments: arguments)
+          hostTriple.tripleString(forPlatformVersion: versionString), arguments: arguments)
         check("-isysroot", arguments: arguments)
         check("-F", arguments: arguments)
     #else
