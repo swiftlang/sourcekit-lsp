@@ -13,7 +13,7 @@
 import LanguageServerProtocol
 
 /// Handler responsible for registering a capability with the client.
-public typealias RegistrationHandler = (_ registration: CapabilityRegistration) -> Void
+public typealias ClientRegistrationHandler = (CapabilityRegistration) -> Void
 
 /// A class which tracks the client's capabilities as well as our dynamic
 /// capability registrations in order to avoid registering conflicting
@@ -38,7 +38,7 @@ public final class CapabilityRegistry {
   public func registerCompletionIfNeeded(
     options: CompletionOptions,
     for languages: [Language],
-    handler: RegistrationHandler
+    registerOnClient: ClientRegistrationHandler
   ) {
     guard clientHasDynamicCompletionRegistration && !hasCompletionRegistrations(for: languages) else {
       return
@@ -52,7 +52,7 @@ public final class CapabilityRegistry {
 
     self.completion[registration] = registrationOptions
 
-    handler(registration)
+    registerOnClient(registration)
   }
 
   /// Unregister a previously registered registration, e.g. if no longer needed

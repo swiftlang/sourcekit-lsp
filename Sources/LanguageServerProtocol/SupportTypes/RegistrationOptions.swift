@@ -80,15 +80,6 @@ public struct CompletionRegistrationOptions: RegistrationOptions, TextDocumentRe
       dict["allCommitCharacters"] = encode(strings: allCommitCharacters)
     }
   }
-
-  public static func == (lhs: CompletionRegistrationOptions, rhs: CompletionRegistrationOptions) -> Bool {
-    return lhs.textDocumentRegistrationOptions == rhs.textDocumentRegistrationOptions && lhs.completionOptions == rhs.completionOptions
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    textDocumentRegistrationOptions.hash(into: &hasher)
-    completionOptions.hash(into: &hasher)
-  }
 }
 
 /// Describe options to be used when registering for file system change events.
