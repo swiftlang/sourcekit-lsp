@@ -92,7 +92,7 @@ final class BuildSystemTests: XCTestCase {
     let server = testServer.server!
     self.workspace = Workspace(
       rootUri: nil,
-      clientCapabilities: ClientCapabilities(),
+      capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
       toolchainRegistry: ToolchainRegistry.shared,
       buildSetup: TestSourceKitServer.serverOptions.buildSetup,
       underlyingBuildSystem: buildSystem,

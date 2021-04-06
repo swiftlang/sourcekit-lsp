@@ -31,7 +31,8 @@ public final class Workspace {
   /// The root directory of the workspace.
   public let rootUri: DocumentURI?
 
-  public let clientCapabilities: ClientCapabilities
+  /// Tracks dynamically registered server capabilities as well as the client's capabilities.
+  public let capabilityRegistry: CapabilityRegistry
 
   /// The build system manager to use for documents in this workspace.
   public let buildSystemManager: BuildSystemManager
@@ -50,7 +51,7 @@ public final class Workspace {
 
   public init(
     rootUri: DocumentURI?,
-    clientCapabilities: ClientCapabilities,
+    capabilityRegistry: CapabilityRegistry,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
     underlyingBuildSystem: BuildSystem?,
@@ -59,7 +60,7 @@ public final class Workspace {
   {
     self.buildSetup = buildSetup
     self.rootUri = rootUri
-    self.clientCapabilities = clientCapabilities
+    self.capabilityRegistry = capabilityRegistry
     self.index = index
     let bsm = BuildSystemManager(
       buildSystem: underlyingBuildSystem,
@@ -77,7 +78,7 @@ public final class Workspace {
   ///   - toolchainRegistry: The toolchain registry.
   convenience public init(
     rootUri: DocumentURI,
-    clientCapabilities: ClientCapabilities,
+    capabilityRegistry: CapabilityRegistry,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
     indexOptions: IndexOptions = IndexOptions()
@@ -123,7 +124,7 @@ public final class Workspace {
 
     self.init(
       rootUri: rootUri,
-      clientCapabilities: clientCapabilities,
+      capabilityRegistry: capabilityRegistry,
       toolchainRegistry: toolchainRegistry,
       buildSetup: buildSetup,
       underlyingBuildSystem: buildSystem,

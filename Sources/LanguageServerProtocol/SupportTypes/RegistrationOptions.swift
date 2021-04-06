@@ -12,12 +12,23 @@
 
 import Foundation
 
-/// An event describing a file change.
-public protocol RegistrationOptions: Codable, LSPAnyCodable, Hashable {
+/// Protocol for capability registration options, which must be encodable to
+/// `LSPAny` so they can be included in a `Registration`.
+public protocol RegistrationOptions: Hashable {
+  func encodeIntoLSPAny(dict: inout [String: LSPAny])
+}
+
+fileprivate func encode(strings: [String]) -> LSPAny {
+  var values = [LSPAny]()
+  values.reserveCapacity(strings.count)
+  for str in strings {
+    values.append(.string(str))
+  }
+  return .array(values)
 }
 
 /// General text document registration options.
-public struct TextDocumentRegistrationOptions: RegistrationOptions {
+public struct TextDocumentRegistrationOptions: RegistrationOptions, Hashable {
   /// A document selector to identify the scope of the registration. If not set,
   /// the document selector provided on the client side will be used.
   public var documentSelector: DocumentSelector?
@@ -26,21 +37,40 @@ public struct TextDocumentRegistrationOptions: RegistrationOptions {
     self.documentSelector = documentSelector
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
-    guard let selectorValue = dictionary[CodingKeys.documentSelector.stringValue] else {
-      self.documentSelector = nil
-      return
-    }
-    guard case .dictionary(let selectorDictionary) = selectorValue else { return nil }
-    guard let documentSelector = DocumentSelector(fromLSPDictionary: selectorDictionary) else {
-      return nil
-    }
-    self.documentSelector = documentSelector
+  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
+    guard let documentSelector = documentSelector else { return }
+    dict["documentSelector"] = documentSelector.encodeToLSPAny()
+  }
+}
+
+/// Protocol for a type which structurally represents`TextDocumentRegistrationOptions`.
+public protocol TextDocumentRegistrationOptionsProtocol {
+  var textDocumentRegistrationOptions: TextDocumentRegistrationOptions {get}
+}
+
+/// Code completiion registration options.
+public struct CompletionRegistrationOptions: RegistrationOptions, TextDocumentRegistrationOptionsProtocol, Hashable {
+  public var textDocumentRegistrationOptions: TextDocumentRegistrationOptions
+  public var completionOptions: CompletionOptions
+
+  public init(documentSelector: DocumentSelector? = nil, completionOptions: CompletionOptions) {
+    self.textDocumentRegistrationOptions =
+        TextDocumentRegistrationOptions(documentSelector: documentSelector)
+    self.completionOptions = completionOptions
   }
 
-  public func encodeToLSPAny() -> LSPAny {
-    guard let documentSelector = documentSelector else { return .dictionary([:]) }
-    return .dictionary([CodingKeys.documentSelector.stringValue: documentSelector.encodeToLSPAny()])
+  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
+    textDocumentRegistrationOptions.encodeIntoLSPAny(dict: &dict)
+
+    if let resolveProvider = completionOptions.resolveProvider {
+      dict["resolveProvider"] = .bool(resolveProvider)
+    }
+    if let triggerCharacters = completionOptions.triggerCharacters {
+      dict["triggerCharacters"] = encode(strings: triggerCharacters)
+    }
+    if let allCommitCharacters = completionOptions.allCommitCharacters {
+      dict["allCommitCharacters"] = encode(strings: allCommitCharacters)
+    }
   }
 }
 
@@ -53,14 +83,8 @@ public struct DidChangeWatchedFilesRegistrationOptions: RegistrationOptions {
     self.watchers = watchers
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
-    guard let watchersLSPAny = dictionary[CodingKeys.watchers.stringValue] else { return nil }
-    guard let watchers = [FileSystemWatcher].init(fromLSPArray: watchersLSPAny) else { return nil }
-    self.watchers = watchers
-  }
-
-  public func encodeToLSPAny() -> LSPAny {
-    return .dictionary([CodingKeys.watchers.stringValue: watchers.encodeToLSPAny()])
+  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
+    dict["watchers"] = watchers.encodeToLSPAny()
   }
 }
 
@@ -73,25 +97,7 @@ public struct ExecuteCommandRegistrationOptions: RegistrationOptions {
     self.commands = commands
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
-    guard case .array(let commandsArray) = dictionary[CodingKeys.commands.stringValue] else {
-      return nil
-    }
-    var values = [String]()
-    values.reserveCapacity(commandsArray.count)
-    for lspAny in commandsArray {
-      guard case .string(let value) = lspAny else { return nil }
-      values.append(value)
-    }
-    self.commands = values
-  }
-
-  public func encodeToLSPAny() -> LSPAny {
-    var values = [LSPAny]()
-    values.reserveCapacity(commands.count)
-    for command in commands {
-      values.append(.string(command))
-    }
-    return .dictionary([CodingKeys.commands.stringValue: .array(values)])
+  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
+    dict["commands"] = encode(strings: commands)
   }
 }

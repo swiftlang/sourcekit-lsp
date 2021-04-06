@@ -298,9 +298,12 @@ public final class SourceKitServer: LanguageServer {
         rootPath: nil,
         rootURI: workspace.rootUri,
         initializationOptions: nil,
-        capabilities: workspace.clientCapabilities,
+        capabilities: workspace.capabilityRegistry.clientCapabilities,
         trace: .off,
         workspaceFolders: nil))
+      let languages = languageClass(for: language)
+      self.registerCapabilities(
+        for: resp.capabilities, languages: languages, registry: workspace.capabilityRegistry)
 
       // FIXME: store the server capabilities.
       let syncKind = resp.capabilities.textDocumentSync?.change ?? .incremental
@@ -438,7 +441,6 @@ extension SourceKitServer {
   // MARK: - General
 
   func initialize(_ req: Request<InitializeRequest>) {
-
     var indexOptions = self.options.indexOptions
     if case .dictionary(let options) = req.params.initializationOptions {
       if case .bool(let listenToUnitEvents) = options["listenToUnitEvents"] {
@@ -461,6 +463,8 @@ extension SourceKitServer {
       }
     }
 
+    let capabilityRegistry = CapabilityRegistry(clientCapabilities: req.params.capabilities)
+
     // Any messages sent before initialize returns are expected to fail, so this will run before
     // the first "supported" request. Run asynchronously to hide the latency of setting up the
     // build system and index.
@@ -468,14 +472,14 @@ extension SourceKitServer {
       if let uri = req.params.rootURI {
         self.workspace = try? Workspace(
           rootUri: uri,
-          clientCapabilities: req.params.capabilities,
+          capabilityRegistry: capabilityRegistry,
           toolchainRegistry: self.toolchainRegistry,
           buildSetup: self.options.buildSetup,
           indexOptions: indexOptions)
       } else if let path = req.params.rootPath {
         self.workspace = try? Workspace(
           rootUri: DocumentURI(URL(fileURLWithPath: path)),
-          clientCapabilities: req.params.capabilities,
+          capabilityRegistry: capabilityRegistry,
           toolchainRegistry: self.toolchainRegistry,
           buildSetup: self.options.buildSetup,
           indexOptions: indexOptions)
@@ -486,7 +490,7 @@ extension SourceKitServer {
 
         self.workspace = Workspace(
           rootUri: req.params.rootURI,
-          clientCapabilities: req.params.capabilities,
+          capabilityRegistry: capabilityRegistry,
           toolchainRegistry: self.toolchainRegistry,
           buildSetup: self.options.buildSetup,
           underlyingBuildSystem: nil,
@@ -498,7 +502,25 @@ extension SourceKitServer {
       self.workspace?.buildSystemManager.delegate = self
     }
 
-    req.reply(InitializeResult(capabilities: ServerCapabilities(
+    req.reply(InitializeResult(capabilities:
+      self.serverCapabilities(for: req.params.capabilities, registry: capabilityRegistry)))
+  }
+
+  func serverCapabilities(
+    for client: ClientCapabilities,
+    registry: CapabilityRegistry
+  ) -> ServerCapabilities {
+    let completionOptions: CompletionOptions?
+    if registry.clientHasDynamicCompletionRegistration {
+      // We'll initialize this dynamically instead of statically.
+      completionOptions = nil
+    } else {
+      completionOptions = LanguageServerProtocol.CompletionOptions(
+        resolveProvider: false,
+        triggerCharacters: ["."]
+      )
+    }
+    return ServerCapabilities(
       textDocumentSync: TextDocumentSyncOptions(
         openClose: true,
         change: .incremental,
@@ -507,10 +529,7 @@ extension SourceKitServer {
         save: .value(TextDocumentSyncOptions.SaveOptions(includeText: false))
       ),
       hoverProvider: true,
-      completionProvider: LanguageServerProtocol.CompletionOptions(
-        resolveProvider: false,
-        triggerCharacters: ["."]
-      ),
+      completionProvider: completionOptions,
       definitionProvider: true,
       implementationProvider: .bool(true),
       referencesProvider: true,
@@ -518,7 +537,7 @@ extension SourceKitServer {
       documentSymbolProvider: true,
       workspaceSymbolProvider: true,
       codeActionProvider: .value(CodeActionServerCapabilities(
-        clientCapabilities: req.params.capabilities.textDocument?.codeAction,
+        clientCapabilities: client.textDocument?.codeAction,
         codeActionOptions: CodeActionOptions(codeActionKinds: nil),
         supportsCodeActions: true
       )),
@@ -527,7 +546,32 @@ extension SourceKitServer {
       executeCommandProvider: ExecuteCommandOptions(
         commands: builtinSwiftCommands // FIXME: Clangd commands?
       )
-    )))
+    )
+  }
+
+  func registerCapabilities(
+    for server: ServerCapabilities,
+    languages: [Language],
+    registry: CapabilityRegistry
+  ) {
+    if let completionOptions = server.completionProvider {
+      registry.registerCompletionIfNeeded(options: completionOptions, for: languages) {
+        self.dynamicallyRegisterCapability($0, registry)
+      }
+    }
+  }
+
+  private func dynamicallyRegisterCapability(
+    _ registration: CapabilityRegistration,
+    _ registry: CapabilityRegistry
+  ) {
+    let req = RegisterCapabilityRequest(registrations: [registration])
+    let _ = client.send(req, queue: queue) { result in
+      if let error = result.failure {
+        log("Failed to dynamically register for \(registration.method): \(error)", level: .error)
+        registry.remove(registration: registration)
+      }
+    }
   }
 
   func clientInitialized(_: Notification<InitializedNotification>) {
@@ -1072,12 +1116,23 @@ public func languageService(
     return try makeLocalSwiftServer(
       client: client,
       sourcekitd: sourcekitd,
-      clientCapabilities: workspace.clientCapabilities,
+      clientCapabilities: workspace.capabilityRegistry.clientCapabilities,
       options: options,
       reopenDocuments: reopenDocuments)
 
   default:
     return nil
+  }
+}
+
+private func languageClass(for language: Language) -> [Language] {
+  switch language {
+  case .c, .cpp, .objective_c, .objective_cpp:
+    return [.c, .cpp, .objective_c, .objective_cpp]
+  case .swift:
+    return [.swift]
+  default:
+    return [language]
   }
 }
 

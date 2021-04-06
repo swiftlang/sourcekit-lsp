@@ -27,15 +27,15 @@ public struct RegisterCapabilityRequest: RequestType, Hashable {
   public typealias Response = VoidResponse
 
   /// Capability registrations.
-  public var registrations: [Registration]
+  public var registrations: [CapabilityRegistration]
 
-  public init(registrations: [Registration]) {
+  public init(registrations: [CapabilityRegistration]) {
     self.registrations = registrations
   }
 }
 
 /// General parameters to register a capability.
-public struct Registration: Codable, Hashable {
+public struct CapabilityRegistration: Codable, Hashable {
   /// The id used to register the capability which may be used to unregister support.
   public var id: String
 
@@ -51,8 +51,8 @@ public struct Registration: Codable, Hashable {
     self.registerOptions = registerOptions
   }
 
-  /// Create a new `Registration` with a randomly generated id. Save the generated
-  /// id if you wish to unregister the given registration.
+  /// Create a new `CapabilityRegistration` with a randomly generated id. Save
+  /// the generated id if you wish to unregister the given registration.
   public init(method: String, registerOptions: LSPAny?) {
     self.id = UUID().uuidString
     self.method = method
