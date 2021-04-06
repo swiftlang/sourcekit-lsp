@@ -180,6 +180,8 @@ final class LocalClangTests: XCTestCase {
 
     try! ws.openDocument(loc.url, language: .objective_c)
 
-    waitForExpectations(timeout: 15)
+    withExtendedLifetime(ws) {
+      waitForExpectations(timeout: 15)
+    }
   }
 }

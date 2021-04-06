@@ -36,7 +36,7 @@ final class FoldingRangeTests: XCTestCase {
     guard let (ws, uri) = try initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else { return }
 
     let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri))
-    let ranges = try ws.sk.sendSync(request)
+    let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
 
     XCTAssertEqual(ranges, [
       FoldingRange(startLine: 0, startUTF16Index: 0, endLine: 2, endUTF16Index: 0, kind: .comment),
@@ -62,7 +62,7 @@ final class FoldingRangeTests: XCTestCase {
     guard let (ws, uri) = try initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else { return }
 
     let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri))
-    let ranges = try ws.sk.sendSync(request)
+    let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
 
     XCTAssertEqual(ranges, [
       FoldingRange(startLine: 0, endLine: 1, kind: .comment),
@@ -83,7 +83,7 @@ final class FoldingRangeTests: XCTestCase {
       capabilities.rangeLimit = limit
       guard let (ws, url) = try initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else { return }
       let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
-      let ranges = try ws.sk.sendSync(request)
+      let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
       XCTAssertEqual(ranges?.count, expectedRanges, "Failed rangeLimit test at line \(line)")
     }
 
@@ -100,7 +100,7 @@ final class FoldingRangeTests: XCTestCase {
     guard let (ws, url) = try initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:empty") else { return }
 
     let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
-    let ranges = try ws.sk.sendSync(request)
+    let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
 
     XCTAssertEqual(ranges?.count, 0)
   }

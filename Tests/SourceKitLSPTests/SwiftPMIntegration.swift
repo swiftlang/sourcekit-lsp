@@ -29,7 +29,9 @@ final class SwiftPMIntegrationTests: XCTestCase {
       Location(def),
     ])
 
-    let completions = try ws.sk.sendSync(CompletionRequest(textDocument: call.docIdentifier, position: call.position))
+    let completions = try withExtendedLifetime(ws) {
+        try ws.sk.sendSync(CompletionRequest(textDocument: call.docIdentifier, position: call.position))
+    }
 
     XCTAssertEqual(completions.items, [
       CompletionItem(
