@@ -41,14 +41,6 @@ public struct TextDocumentRegistrationOptions: RegistrationOptions, Hashable {
     guard let documentSelector = documentSelector else { return }
     dict["documentSelector"] = documentSelector.encodeToLSPAny()
   }
-
-  public static func == (lhs: TextDocumentRegistrationOptions, rhs: TextDocumentRegistrationOptions) -> Bool {
-    return lhs.documentSelector == rhs.documentSelector
-  }
-
-  public func hash(into hasher: inout Hasher) {
-    documentSelector?.hash(into: &hasher)
-  }
 }
 
 /// Protocol for a type which structurally represents`TextDocumentRegistrationOptions`.
