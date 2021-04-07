@@ -682,6 +682,21 @@ extension SwiftLanguageServer {
     }
   }
 
+  public func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) {
+    // FIXME: implement semantic tokens support.
+    req.reply(nil)
+  }
+
+  public func documentSemanticTokensDelta(_ req: Request<DocumentSemanticTokensDeltaRequest>) {
+    // FIXME: implement semantic tokens support.
+    req.reply(nil)
+  }
+
+  public func documentSemanticTokensRange(_ req: Request<DocumentSemanticTokensRangeRequest>) {
+    // FIXME: implement semantic tokens support.
+    req.reply(nil)
+  }
+
   public func colorPresentation(_ req: Request<ColorPresentationRequest>) {
     let color = req.params.color
     // Empty string as a label breaks VSCode color picker

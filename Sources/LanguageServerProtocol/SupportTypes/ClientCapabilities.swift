@@ -394,6 +394,67 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     }
   }
 
+  public struct SemanticTokensRangeClientCapabilities: Equatable, Hashable, Codable {
+    // Empty in the LSP 3.16 spec.
+  }
+
+  public struct SemanticTokensFullClientCapabilities: Equatable, Hashable, Codable {
+    /// The client will also send the `textDocument/semanticTokens/full/delta`
+    /// request if the server provides a corresponding handler.
+    public var delta: Bool?
+  }
+
+  public struct SemanticTokensRequestsClientCapabilities: Equatable, Hashable, Codable {
+    /// The client will send the `textDocument/semanticTokens/range` request
+    /// if the server provides a corresponding handler.
+    public var range: ValueOrBool<SemanticTokensRangeClientCapabilities>?
+
+    /// The client will send the `textDocument/semanticTokens/full` request
+    /// if the server provides a corresponding handler.
+    public var full: ValueOrBool<SemanticTokensFullClientCapabilities>?
+  }
+
+  /// Capabilities specific to `textDocument/semanticTokens`.
+  public struct SemanticTokens: Equatable, Hashable, Codable {
+
+    /// Whether the client supports dynamic registration of this request.
+    public var dynamicRegistration: Bool? = nil
+
+    public var requests: SemanticTokensRequestsClientCapabilities
+
+    /// The token types that the client supports.
+    public var tokenTypes: [String]
+
+    /// The token modifiers that the client supports.
+    public var tokenModifiers: [String]
+
+    /// The formats the clients supports.
+    public var formats: [TokenFormat]
+
+    /// Whether the client supports tokens that can overlap each other.
+    public var overlappingTokenSupport: Bool? = nil
+
+    /// Whether the client supports tokens that can span multiple lines.
+    public var multilineTokenSupport: Bool? = nil
+
+    public init(
+      dynamicRegistration: Bool? = nil,
+      requests: SemanticTokensRequestsClientCapabilities,
+      tokenTypes: [String],
+      tokenModifiers: [String],
+      formats: [TokenFormat],
+      overlappingTokenSupport: Bool? = nil,
+      multilineTokenSupport: Bool? = nil) {
+      self.dynamicRegistration = dynamicRegistration
+      self.requests = requests
+      self.tokenTypes = tokenTypes
+      self.tokenModifiers = tokenModifiers
+      self.formats = formats
+      self.overlappingTokenSupport = overlappingTokenSupport
+      self.multilineTokenSupport = multilineTokenSupport
+    }
+  }
+
   // MARK: Properties
 
   public var synchronization: Synchronization? = nil
@@ -440,6 +501,8 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
   public var callHierarchy: DynamicRegistrationCapability? = nil
 
+  public var semanticTokens: SemanticTokens? = nil
+
   public init(synchronization: Synchronization? = nil,
               completion: Completion? = nil,
               hover: Hover? = nil,
@@ -461,7 +524,8 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
               rename: DynamicRegistrationCapability? = nil,
               publishDiagnostics: PublishDiagnostics? = nil,
               foldingRange: FoldingRange? = nil,
-              callHierarchy: DynamicRegistrationCapability? = nil) {
+              callHierarchy: DynamicRegistrationCapability? = nil,
+              semanticTokens: SemanticTokens? = nil) {
     self.synchronization = synchronization
     self.completion = completion
     self.hover = hover
@@ -484,5 +548,6 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     self.publishDiagnostics = publishDiagnostics
     self.foldingRange = foldingRange
     self.callHierarchy = callHierarchy
+    self.semanticTokens = semanticTokens
   }
 }

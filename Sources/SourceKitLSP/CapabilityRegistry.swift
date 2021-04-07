@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LSPLogging
 
 /// Handler responsible for registering a capability with the client.
 public typealias ClientRegistrationHandler = (CapabilityRegistration) -> Void
@@ -19,8 +20,11 @@ public typealias ClientRegistrationHandler = (CapabilityRegistration) -> Void
 /// capability registrations in order to avoid registering conflicting
 /// capabilities.
 public final class CapabilityRegistry {
-  /// Registered completion options.
+  /// Dynamically registered completion options.
   private var completion: [CapabilityRegistration: CompletionRegistrationOptions] = [:]
+
+  /// Dynamically registered semantic tokens options.
+  private var semanticTokens: [CapabilityRegistration: SemanticTokensRegistrationOptions] = [:]
 
   public let clientCapabilities: ClientCapabilities
 
@@ -32,6 +36,10 @@ public final class CapabilityRegistry {
     clientCapabilities.textDocument?.completion?.dynamicRegistration == true
   }
 
+  public var clientHasDynamicSemanticTokensRegistration: Bool {
+    clientCapabilities.textDocument?.semanticTokens?.dynamicRegistration == true
+  }
+
   /// Dynamically register completion capabilities if the client supports it and
   /// we haven't yet registered any completion capabilities for the given
   /// languages.
@@ -40,17 +48,50 @@ public final class CapabilityRegistry {
     for languages: [Language],
     registerOnClient: ClientRegistrationHandler
   ) {
-    guard clientHasDynamicCompletionRegistration && !hasCompletionRegistrations(for: languages) else {
+    guard clientHasDynamicCompletionRegistration else { return }
+    if let registration = registration(for: languages, in: completion) {
+      if options != registration.completionOptions {
+        log("Unable to register new completion options \(options) for " +
+            "\(languages) due to pre-existing options \(registration.completionOptions)", level: .warning)
+      }
       return
     }
     let registrationOptions = CompletionRegistrationOptions(
       documentSelector: self.documentSelector(for: languages),
       completionOptions: options)
     let registration = CapabilityRegistration(
-        method: CompletionRequest.method,
+      method: CompletionRequest.method,
       registerOptions: self.encode(registrationOptions))
 
     self.completion[registration] = registrationOptions
+
+    registerOnClient(registration)
+  }
+
+  /// Dynamically register semantic tokens capabilities if the client supports
+  /// it and we haven't yet registered any semantic tokens capabilities for the
+  /// given languages.
+  public func registerSemanticTokensIfNeeded(
+    options: SemanticTokensOptions,
+    for languages: [Language],
+    registerOnClient: ClientRegistrationHandler
+  ) {
+    guard clientHasDynamicSemanticTokensRegistration else { return }
+    if let registration = registration(for: languages, in: semanticTokens) {
+      if options != registration.semanticTokenOptions {
+        log("Unable to register new semantic tokens options \(options) for " +
+            "\(languages) due to pre-existing options \(registration.semanticTokenOptions)", level: .warning)
+      }
+      return
+    }
+    let registrationOptions = SemanticTokensRegistrationOptions(
+      documentSelector: self.documentSelector(for: languages),
+      semanticTokenOptions: options)
+    let registration = CapabilityRegistration(
+      method: SemanticTokensRegistrationOptions.method,
+      registerOptions: self.encode(registrationOptions))
+
+    self.semanticTokens[registration] = registrationOptions
 
     registerOnClient(registration)
   }
@@ -61,10 +102,9 @@ public final class CapabilityRegistry {
     if registration.method == CompletionRequest.method {
       completion.removeValue(forKey: registration)
     }
-  }
-
-  private func hasCompletionRegistrations(for languages: [Language]) -> Bool {
-    return self.hasAnyRegistrations(for: languages, in: self.completion)
+    if registration.method == SemanticTokensRegistrationOptions.method {
+      semanticTokens.removeValue(forKey: registration)
+    }
   }
 
   private func documentSelector(for langauges: [Language]) -> DocumentSelector {
@@ -77,12 +117,12 @@ public final class CapabilityRegistry {
     return .dictionary(dict)
   }
 
-  /// Check if we have any text document registration in `registrations` scoped to
-  /// one or more of the given `languages`.
-  private func hasAnyRegistrations(
+  /// Return a registration in `registrations` for one or more of the given
+  /// `languages`.
+  private func registration<T: TextDocumentRegistrationOptionsProtocol>(
     for languages: [Language],
-    in registrations: [CapabilityRegistration: TextDocumentRegistrationOptionsProtocol]
-  ) -> Bool {
+    in registrations: [CapabilityRegistration: T]
+  ) -> T? {
     var languageIds: Set<String> = []
     for language in languages {
       languageIds.insert(language.rawValue)
@@ -94,10 +134,10 @@ public final class CapabilityRegistry {
       for filter in filters {
         guard let filterLanguage = filter.language else { continue }
         if languageIds.contains(filterLanguage) {
-          return true
+          return registration.value
         }
       }
     }
-    return false
+    return nil
   }
 }
