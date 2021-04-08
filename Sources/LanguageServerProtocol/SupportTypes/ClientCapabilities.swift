@@ -80,6 +80,23 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
     }
   }
 
+  /// Capabilities specific to the `workspace/semanticTokens/refresh` request.
+  public struct SemanticTokensWorkspace: Hashable, Codable {
+
+    /// Whether the client implementation supports a refresh request sent from
+    /// the server to the client.
+    ///
+    /// Note that this event is global and will force the client to refresh all
+    /// semantic tokens currently shown. It should be used with absolute care
+    /// and is useful for situation where a server, for example, detects a project
+    /// wide change that requires such a calculation.
+    public var refreshSupport: Bool?
+
+    public init(refreshSupport: Bool? = nil) {
+      self.refreshSupport = refreshSupport
+    }
+  }
+
   // MARK: Properties
 
   /// Whether the client can apply text edits via the `workspace/applyEdit` request.
@@ -103,7 +120,19 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
   /// Whether the client supports the `workspace/configuration` request.
   public var configuration: Bool? = nil
 
-  public init(applyEdit: Bool? = nil, workspaceEdit: WorkspaceEdit? = nil, didChangeConfiguration: DynamicRegistrationCapability? = nil, didChangeWatchedFiles: DynamicRegistrationCapability? = nil, symbol: Symbol? = nil, executeCommand: DynamicRegistrationCapability? = nil, workspaceFolders: Bool? = nil, configuration: Bool? = nil) {
+  public var semanticTokens: SemanticTokensWorkspace? = nil
+
+  public init(
+    applyEdit: Bool? = nil,
+    workspaceEdit: WorkspaceEdit? = nil,
+    didChangeConfiguration: DynamicRegistrationCapability? = nil,
+    didChangeWatchedFiles: DynamicRegistrationCapability? = nil,
+    symbol: Symbol? = nil,
+    executeCommand: DynamicRegistrationCapability? = nil,
+    workspaceFolders: Bool? = nil,
+    configuration: Bool? = nil,
+    semanticTokens: SemanticTokensWorkspace? = nil
+  ) {
     self.applyEdit = applyEdit
     self.workspaceEdit = workspaceEdit
     self.didChangeConfiguration = didChangeConfiguration
@@ -112,6 +141,7 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
     self.executeCommand = executeCommand
     self.workspaceFolders = workspaceFolders
     self.configuration = configuration
+    self.semanticTokens = semanticTokens
   }
 }
 

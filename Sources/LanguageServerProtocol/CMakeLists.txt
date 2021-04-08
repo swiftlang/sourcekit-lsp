@@ -49,6 +49,7 @@ add_library(LanguageServerProtocol
   Requests/SymbolInfoRequest.swift
   Requests/UnregisterCapabilityRequest.swift
   Requests/WorkspaceFoldersRequest.swift
+  Requests/WorkspaceSemanticTokensRefreshRequest.swift
   Requests/WorkspaceSymbolsRequest.swift
 
   SupportTypes/CallHierarchyItem.swift

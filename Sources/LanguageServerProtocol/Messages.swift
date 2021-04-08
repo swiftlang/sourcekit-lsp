@@ -21,6 +21,7 @@ public let builtinRequests: [_RequestType.Type] = [
   WorkspaceFoldersRequest.self,
   CompletionRequest.self,
   HoverRequest.self,
+  WorkspaceSemanticTokensRefreshRequest.self,
   WorkspaceSymbolsRequest.self,
   CallHierarchyIncomingCallsRequest.self,
   CallHierarchyOutgoingCallsRequest.self,
