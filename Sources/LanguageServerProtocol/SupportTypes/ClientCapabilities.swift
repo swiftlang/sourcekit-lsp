@@ -426,12 +426,17 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
   public struct SemanticTokensRangeClientCapabilities: Equatable, Hashable, Codable {
     // Empty in the LSP 3.16 spec.
+    public init() {}
   }
 
   public struct SemanticTokensFullClientCapabilities: Equatable, Hashable, Codable {
     /// The client will also send the `textDocument/semanticTokens/full/delta`
     /// request if the server provides a corresponding handler.
     public var delta: Bool?
+
+    public init(delta: Bool? = nil) {
+      self.delta = delta
+    }
   }
 
   public struct SemanticTokensRequestsClientCapabilities: Equatable, Hashable, Codable {
@@ -442,6 +447,14 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     /// The client will send the `textDocument/semanticTokens/full` request
     /// if the server provides a corresponding handler.
     public var full: ValueOrBool<SemanticTokensFullClientCapabilities>?
+
+    public init(
+      range: ValueOrBool<SemanticTokensRangeClientCapabilities>?,
+      full: ValueOrBool<SemanticTokensFullClientCapabilities>?
+    ) {
+      self.range = range
+      self.full = full
+    }
   }
 
   /// Capabilities specific to `textDocument/semanticTokens`.
