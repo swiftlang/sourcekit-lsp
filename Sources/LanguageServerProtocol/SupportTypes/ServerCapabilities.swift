@@ -464,20 +464,21 @@ public struct DocumentLinkOptions: Codable, Hashable {
   }
 }
 
-public struct SemanticTokensRangeOptions: Equatable, Hashable, Codable {
-  // Empty in the LSP 3.16 spec.
-}
-
-public struct SemanticTokensFullOptions: Equatable, Hashable, Codable {
-  /// The server supports deltas for full documents.
-  public var delta: Bool?
-
-  public init(delta: Bool? = nil) {
-    self.delta = delta
-  }
-}
-
 public struct SemanticTokensOptions: Codable, Hashable {
+
+  public struct SemanticTokensRangeOptions: Equatable, Hashable, Codable {
+    // Empty in the LSP 3.16 spec.
+  }
+
+  public struct SemanticTokensFullOptions: Equatable, Hashable, Codable {
+    /// The server supports deltas for full documents.
+    public var delta: Bool?
+
+    public init(delta: Bool? = nil) {
+      self.delta = delta
+    }
+  }
+
   /// The legend used by the server.
   public var legend: SemanticTokensLegend
 

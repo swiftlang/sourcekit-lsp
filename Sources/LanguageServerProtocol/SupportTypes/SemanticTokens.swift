@@ -26,6 +26,11 @@ public struct SemanticTokensLegend: Codable, Hashable {
   /// means `[tokenModifiers[0], tokenModifiers[1]]` because
   /// bits 0 and 1 are set.
   public var tokenModifiers: [String]
+
+  public init(tokenTypes: [String], tokenModifiers: [String]) {
+    self.tokenTypes = tokenTypes
+    self.tokenModifiers = tokenModifiers
+  }
 }
 
 

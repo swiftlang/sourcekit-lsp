@@ -28,9 +28,9 @@ public struct DocumentSemanticTokensResponse: ResponseType, Hashable {
   public var resultId: String?
 
   /// Raw tokens data.
-  public var data: [UInt]
+  public var data: [UInt32]
 
-  public init(resultId: String? = nil, data: [UInt]) {
+  public init(resultId: String? = nil, data: [UInt32]) {
     self.resultId = resultId
     self.data = data
   }

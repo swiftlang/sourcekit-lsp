@@ -487,7 +487,8 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
       tokenModifiers: [String],
       formats: [TokenFormat],
       overlappingTokenSupport: Bool? = nil,
-      multilineTokenSupport: Bool? = nil) {
+      multilineTokenSupport: Bool? = nil
+    ) {
       self.dynamicRegistration = dynamicRegistration
       self.requests = requests
       self.tokenTypes = tokenTypes

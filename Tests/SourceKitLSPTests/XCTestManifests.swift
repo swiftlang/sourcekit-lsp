@@ -97,6 +97,7 @@ extension LocalClangTests {
         ("testClangModules", testClangModules),
         ("testClangStdHeaderCanary", testClangStdHeaderCanary),
         ("testFoldingRange", testFoldingRange),
+        ("testSemanticHighlighting", testSemanticHighlighting),
         ("testSymbolInfo", testSymbolInfo),
     ]
 }

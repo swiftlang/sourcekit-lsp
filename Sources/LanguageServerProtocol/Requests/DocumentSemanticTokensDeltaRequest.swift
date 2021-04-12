@@ -71,15 +71,15 @@ public struct SemanticTokensDelta: Codable, Hashable {
 
 public struct SemanticTokensEdit: Codable, Hashable {
   /// Start offset of the edit.
-  public var start: UInt
+  public var start: Int
 
   /// The number of elements to remove.
-  public var deleteCount: UInt
+  public var deleteCount: Int
 
   /// The elements to insert.
-  public var data: [UInt]?
+  public var data: [UInt32]?
 
-  public init(start: UInt, deleteCount: UInt, data: [UInt]? = nil) {
+  public init(start: Int, deleteCount: Int, data: [UInt32]? = nil) {
     self.start = start
     self.deleteCount = deleteCount
     self.data = data
