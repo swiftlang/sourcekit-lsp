@@ -73,6 +73,9 @@ public protocol ToolchainLanguageServer: AnyObject {
   func foldingRange(_ req: Request<FoldingRangeRequest>)
   func documentSymbol(_ req: Request<DocumentSymbolRequest>)
   func documentColor(_ req: Request<DocumentColorRequest>)
+  func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>)
+  func documentSemanticTokensDelta(_ req: Request<DocumentSemanticTokensDeltaRequest>)
+  func documentSemanticTokensRange(_ req: Request<DocumentSemanticTokensRangeRequest>)
   func colorPresentation(_ req: Request<ColorPresentationRequest>)
   func codeAction(_ req: Request<CodeActionRequest>)
 

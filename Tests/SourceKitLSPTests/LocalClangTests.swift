@@ -184,4 +184,33 @@ final class LocalClangTests: XCTestCase {
       waitForExpectations(timeout: 15)
     }
   }
+
+  func testSemanticHighlighting() throws {
+    guard haveClangd else { return }
+    guard let ws = try staticSourceKitTibsWorkspace(name: "BasicCXX") else {
+      return
+    }
+    let mainLoc = ws.testLoc("Object:include:main")
+
+    let diagnostics = self.expectation(description: "diagnostics")
+    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      diagnostics.fulfill()
+      XCTAssertEqual(note.params.diagnostics.count, 0)
+    }
+
+    try ws.openDocument(mainLoc.url, language: .c)
+    waitForExpectations(timeout: 15)
+
+    let request = DocumentSemanticTokensRequest(textDocument: mainLoc.docIdentifier)
+    do {
+      let reply = try ws.sk.sendSync(request)
+      XCTAssertNotNil(reply)
+    } catch let e {
+      if let error = e as? ResponseError {
+        try XCTSkipIf(error.code == ErrorCode.methodNotFound,
+                  "clangd does not support semantic tokens")
+      }
+      throw e
+    }
+  }
 }

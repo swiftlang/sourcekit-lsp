@@ -31,6 +31,9 @@ add_library(LanguageServerProtocol
   Requests/DefinitionRequest.swift
   Requests/DocumentColorRequest.swift
   Requests/DocumentHighlightRequest.swift
+  Requests/DocumentSemanticTokensDeltaRequest.swift
+  Requests/DocumentSemanticTokensRangeRequest.swift
+  Requests/DocumentSemanticTokensRequest.swift
   Requests/DocumentSymbolRequest.swift
   Requests/ExecuteCommandRequest.swift
   Requests/FoldingRangeRequest.swift
@@ -46,6 +49,7 @@ add_library(LanguageServerProtocol
   Requests/SymbolInfoRequest.swift
   Requests/UnregisterCapabilityRequest.swift
   Requests/WorkspaceFoldersRequest.swift
+  Requests/WorkspaceSemanticTokensRefreshRequest.swift
   Requests/WorkspaceSymbolsRequest.swift
 
   SupportTypes/CallHierarchyItem.swift
@@ -67,6 +71,7 @@ add_library(LanguageServerProtocol
   SupportTypes/MarkupContent.swift
   SupportTypes/Position.swift
   SupportTypes/RegistrationOptions.swift
+  SupportTypes/SemanticTokens.swift
   SupportTypes/ServerCapabilities.swift
   SupportTypes/SKCompletionOptions.swift
   SupportTypes/SymbolKind.swift

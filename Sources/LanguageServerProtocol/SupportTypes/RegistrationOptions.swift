@@ -74,6 +74,51 @@ public struct CompletionRegistrationOptions: RegistrationOptions, TextDocumentRe
   }
 }
 
+public struct SemanticTokensRegistrationOptions: RegistrationOptions, TextDocumentRegistrationOptionsProtocol, Hashable {
+  /// Method for registration, which defers from the actual requests' methods
+  /// since this registration handles multiple requests.
+  public static let method: String = "textDocument/semanticTokens"
+
+  public var textDocumentRegistrationOptions: TextDocumentRegistrationOptions
+  public var semanticTokenOptions: SemanticTokensOptions
+
+  public init(documentSelector: DocumentSelector? = nil, semanticTokenOptions: SemanticTokensOptions) {
+    self.textDocumentRegistrationOptions =
+        TextDocumentRegistrationOptions(documentSelector: documentSelector)
+    self.semanticTokenOptions = semanticTokenOptions
+  }
+
+  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
+    textDocumentRegistrationOptions.encodeIntoLSPAny(dict: &dict)
+    let legend = semanticTokenOptions.legend
+    dict["legend"] = .dictionary([
+      "tokenTypes": encode(strings: legend.tokenTypes),
+      "tokenModifiers": encode(strings: legend.tokenModifiers)
+    ])
+    if let range = semanticTokenOptions.range {
+      let encodedRange: LSPAny
+      switch range {
+      case .bool(let value): encodedRange = .bool(value)
+      case .value(_): encodedRange = .dictionary([:])
+      }
+      dict["range"] = encodedRange
+    }
+    if let full = semanticTokenOptions.full {
+      let encodedFull: LSPAny
+      switch full {
+      case .bool(let value): encodedFull = .bool(value)
+      case .value(let fullOptions):
+        var encodedOptions: [String: LSPAny] = [:]
+        if let delta = fullOptions.delta {
+          encodedOptions["delta"] = .bool(delta)
+        }
+        encodedFull = .dictionary(encodedOptions)
+      }
+      dict["full"] = encodedFull
+    }
+  }
+}
+
 /// Describe options to be used when registering for file system change events.
 public struct DidChangeWatchedFilesRegistrationOptions: RegistrationOptions {
   /// The watchers to register.

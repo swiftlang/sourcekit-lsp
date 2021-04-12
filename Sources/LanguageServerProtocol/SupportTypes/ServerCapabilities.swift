@@ -85,6 +85,10 @@ public struct ServerCapabilities: Codable, Hashable {
   /// call hierarchy requests.
   public var callHierarchyProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>?
 
+  /// Whether the server supports the `textDocument/semanticTokens` family of
+  /// requests.
+  public var semanticTokensProvider: SemanticTokensOptions?
+
   public var experimental: LSPAny?
 
   public init(
@@ -112,6 +116,7 @@ public struct ServerCapabilities: Codable, Hashable {
     executeCommandProvider: ExecuteCommandOptions? = nil,
     workspace: WorkspaceServerCapabilities? = nil,
     callHierarchyProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
+    semanticTokensProvider: SemanticTokensOptions? = nil,
     experimental: LSPAny? = nil
   )
   {
@@ -139,6 +144,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.executeCommandProvider = executeCommandProvider
     self.workspace = workspace
     self.callHierarchyProvider = callHierarchyProvider
+    self.semanticTokensProvider = semanticTokensProvider
     self.experimental = experimental
   }
 }
@@ -455,6 +461,42 @@ public struct DocumentLinkOptions: Codable, Hashable {
 
   public init(resolveProvider: Bool? = nil) {
     self.resolveProvider = resolveProvider
+  }
+}
+
+public struct SemanticTokensOptions: Codable, Hashable {
+
+  public struct SemanticTokensRangeOptions: Equatable, Hashable, Codable {
+    // Empty in the LSP 3.16 spec.
+  }
+
+  public struct SemanticTokensFullOptions: Equatable, Hashable, Codable {
+    /// The server supports deltas for full documents.
+    public var delta: Bool?
+
+    public init(delta: Bool? = nil) {
+      self.delta = delta
+    }
+  }
+
+  /// The legend used by the server.
+  public var legend: SemanticTokensLegend
+
+  /// Server supports providing semantic tokens for a specific range
+  /// of a document.
+  public var range: ValueOrBool<SemanticTokensRangeOptions>?
+
+  /// Server supports providing semantic tokens for a full document.
+  public var full: ValueOrBool<SemanticTokensFullOptions>?
+
+  public init(
+    legend: SemanticTokensLegend,
+    range: ValueOrBool<SemanticTokensRangeOptions>? = nil,
+    full: ValueOrBool<SemanticTokensFullOptions>? = nil
+  ) {
+    self.legend = legend
+    self.range = range
+    self.full = full
   }
 }
 

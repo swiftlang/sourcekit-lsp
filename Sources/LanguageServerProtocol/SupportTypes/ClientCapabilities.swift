@@ -80,6 +80,23 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
     }
   }
 
+  /// Capabilities specific to the `workspace/semanticTokens/refresh` request.
+  public struct SemanticTokensWorkspace: Hashable, Codable {
+
+    /// Whether the client implementation supports a refresh request sent from
+    /// the server to the client.
+    ///
+    /// Note that this event is global and will force the client to refresh all
+    /// semantic tokens currently shown. It should be used with absolute care
+    /// and is useful for situation where a server, for example, detects a project
+    /// wide change that requires such a calculation.
+    public var refreshSupport: Bool?
+
+    public init(refreshSupport: Bool? = nil) {
+      self.refreshSupport = refreshSupport
+    }
+  }
+
   // MARK: Properties
 
   /// Whether the client can apply text edits via the `workspace/applyEdit` request.
@@ -103,7 +120,19 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
   /// Whether the client supports the `workspace/configuration` request.
   public var configuration: Bool? = nil
 
-  public init(applyEdit: Bool? = nil, workspaceEdit: WorkspaceEdit? = nil, didChangeConfiguration: DynamicRegistrationCapability? = nil, didChangeWatchedFiles: DynamicRegistrationCapability? = nil, symbol: Symbol? = nil, executeCommand: DynamicRegistrationCapability? = nil, workspaceFolders: Bool? = nil, configuration: Bool? = nil) {
+  public var semanticTokens: SemanticTokensWorkspace? = nil
+
+  public init(
+    applyEdit: Bool? = nil,
+    workspaceEdit: WorkspaceEdit? = nil,
+    didChangeConfiguration: DynamicRegistrationCapability? = nil,
+    didChangeWatchedFiles: DynamicRegistrationCapability? = nil,
+    symbol: Symbol? = nil,
+    executeCommand: DynamicRegistrationCapability? = nil,
+    workspaceFolders: Bool? = nil,
+    configuration: Bool? = nil,
+    semanticTokens: SemanticTokensWorkspace? = nil
+  ) {
     self.applyEdit = applyEdit
     self.workspaceEdit = workspaceEdit
     self.didChangeConfiguration = didChangeConfiguration
@@ -112,6 +141,7 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
     self.executeCommand = executeCommand
     self.workspaceFolders = workspaceFolders
     self.configuration = configuration
+    self.semanticTokens = semanticTokens
   }
 }
 
@@ -394,6 +424,81 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     }
   }
 
+  public struct SemanticTokensRangeClientCapabilities: Equatable, Hashable, Codable {
+    // Empty in the LSP 3.16 spec.
+    public init() {}
+  }
+
+  public struct SemanticTokensFullClientCapabilities: Equatable, Hashable, Codable {
+    /// The client will also send the `textDocument/semanticTokens/full/delta`
+    /// request if the server provides a corresponding handler.
+    public var delta: Bool?
+
+    public init(delta: Bool? = nil) {
+      self.delta = delta
+    }
+  }
+
+  public struct SemanticTokensRequestsClientCapabilities: Equatable, Hashable, Codable {
+    /// The client will send the `textDocument/semanticTokens/range` request
+    /// if the server provides a corresponding handler.
+    public var range: ValueOrBool<SemanticTokensRangeClientCapabilities>?
+
+    /// The client will send the `textDocument/semanticTokens/full` request
+    /// if the server provides a corresponding handler.
+    public var full: ValueOrBool<SemanticTokensFullClientCapabilities>?
+
+    public init(
+      range: ValueOrBool<SemanticTokensRangeClientCapabilities>?,
+      full: ValueOrBool<SemanticTokensFullClientCapabilities>?
+    ) {
+      self.range = range
+      self.full = full
+    }
+  }
+
+  /// Capabilities specific to `textDocument/semanticTokens`.
+  public struct SemanticTokens: Equatable, Hashable, Codable {
+
+    /// Whether the client supports dynamic registration of this request.
+    public var dynamicRegistration: Bool? = nil
+
+    public var requests: SemanticTokensRequestsClientCapabilities
+
+    /// The token types that the client supports.
+    public var tokenTypes: [String]
+
+    /// The token modifiers that the client supports.
+    public var tokenModifiers: [String]
+
+    /// The formats the clients supports.
+    public var formats: [TokenFormat]
+
+    /// Whether the client supports tokens that can overlap each other.
+    public var overlappingTokenSupport: Bool? = nil
+
+    /// Whether the client supports tokens that can span multiple lines.
+    public var multilineTokenSupport: Bool? = nil
+
+    public init(
+      dynamicRegistration: Bool? = nil,
+      requests: SemanticTokensRequestsClientCapabilities,
+      tokenTypes: [String],
+      tokenModifiers: [String],
+      formats: [TokenFormat],
+      overlappingTokenSupport: Bool? = nil,
+      multilineTokenSupport: Bool? = nil
+    ) {
+      self.dynamicRegistration = dynamicRegistration
+      self.requests = requests
+      self.tokenTypes = tokenTypes
+      self.tokenModifiers = tokenModifiers
+      self.formats = formats
+      self.overlappingTokenSupport = overlappingTokenSupport
+      self.multilineTokenSupport = multilineTokenSupport
+    }
+  }
+
   // MARK: Properties
 
   public var synchronization: Synchronization? = nil
@@ -440,6 +545,8 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
   public var callHierarchy: DynamicRegistrationCapability? = nil
 
+  public var semanticTokens: SemanticTokens? = nil
+
   public init(synchronization: Synchronization? = nil,
               completion: Completion? = nil,
               hover: Hover? = nil,
@@ -461,7 +568,8 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
               rename: DynamicRegistrationCapability? = nil,
               publishDiagnostics: PublishDiagnostics? = nil,
               foldingRange: FoldingRange? = nil,
-              callHierarchy: DynamicRegistrationCapability? = nil) {
+              callHierarchy: DynamicRegistrationCapability? = nil,
+              semanticTokens: SemanticTokens? = nil) {
     self.synchronization = synchronization
     self.completion = completion
     self.hover = hover
@@ -484,5 +592,6 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     self.publishDiagnostics = publishDiagnostics
     self.foldingRange = foldingRange
     self.callHierarchy = callHierarchy
+    self.semanticTokens = semanticTokens
   }
 }

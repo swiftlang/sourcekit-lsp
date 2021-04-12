@@ -464,6 +464,18 @@ extension ClangLanguageServerShim {
     }
   }
 
+  func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) {
+    forwardRequestToClangdOnQueue(req)
+  }
+
+  func documentSemanticTokensDelta(_ req: Request<DocumentSemanticTokensDeltaRequest>) {
+    forwardRequestToClangdOnQueue(req)
+  }
+
+  func documentSemanticTokensRange(_ req: Request<DocumentSemanticTokensRangeRequest>) {
+    forwardRequestToClangdOnQueue(req)
+  }
+
   func colorPresentation(_ req: Request<ColorPresentationRequest>) {
     queue.async {
       if self.capabilities?.colorProvider?.isSupported == true {

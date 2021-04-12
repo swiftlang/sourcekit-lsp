@@ -94,6 +94,9 @@ public final class SourceKitServer: LanguageServer {
     registerToolchainTextDocumentRequest(SourceKitServer.foldingRange, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.documentSymbol, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.documentColor, [])
+    registerToolchainTextDocumentRequest(SourceKitServer.documentSemanticTokens, nil)
+    registerToolchainTextDocumentRequest(SourceKitServer.documentSemanticTokensDelta, nil)
+    registerToolchainTextDocumentRequest(SourceKitServer.documentSemanticTokensRange, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.colorPresentation, [])
     registerToolchainTextDocumentRequest(SourceKitServer.codeAction, nil)
   }
@@ -559,6 +562,11 @@ extension SourceKitServer {
         self.dynamicallyRegisterCapability($0, registry)
       }
     }
+    if let semanticTokensOptions = server.semanticTokensProvider {
+      registry.registerSemanticTokensIfNeeded(options: semanticTokensOptions, for: languages) {
+        self.dynamicallyRegisterCapability($0, registry)
+      }
+    }
   }
 
   private func dynamicallyRegisterCapability(
@@ -839,6 +847,30 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) {
     languageService.documentColor(req)
+  }
+
+  func documentSemanticTokens(
+    _ req: Request<DocumentSemanticTokensRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
+    languageService.documentSemanticTokens(req)
+  }
+
+  func documentSemanticTokensDelta(
+    _ req: Request<DocumentSemanticTokensDeltaRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
+    languageService.documentSemanticTokensDelta(req)
+  }
+
+  func documentSemanticTokensRange(
+    _ req: Request<DocumentSemanticTokensRangeRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
+    languageService.documentSemanticTokensRange(req)
   }
 
   func colorPresentation(
