@@ -176,6 +176,14 @@ extension Diagnostic {
       }
     }
 
+    var tags: [DiagnosticTag] = []
+    if message.contains("never used") || message.contains("unused") {
+      tags.append(.unnecessary)
+    }
+    if message.contains("deprecated") {
+      tags.append(.deprecated)
+    }
+
     self.init(
       range: Range(position!),
       severity: severity,
@@ -183,6 +191,7 @@ extension Diagnostic {
       codeDescription: codeDescription,
       source: "sourcekitd",
       message: message,
+      tags: tags,
       relatedInformation: notes,
       codeActions: actions)
   }

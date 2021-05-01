@@ -650,6 +650,7 @@ final class LocalSwiftTests: XCTestCase {
           code: nil,
           source: "sourcekitd",
           message: "initialization of immutable value \'a\' was never used; consider replacing with assignment to \'_\' or removing it",
+          tags: [.unnecessary],
           relatedInformation: [],
           codeActions: nil)],
       edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
