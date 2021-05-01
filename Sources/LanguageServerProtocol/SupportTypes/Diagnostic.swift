@@ -61,6 +61,9 @@ public struct Diagnostic: Codable, Hashable {
   /// Related diagnostic notes.
   public var relatedInformation: [DiagnosticRelatedInformation]?
 
+  /// Additional metadata about the diagnostic.
+  public var tags: [DiagnosticTag]?
+
   /// All the code actions that address this diagnostic.
   /// **LSP Extension from clangd**.
   public var codeActions: [CodeAction]?
@@ -72,6 +75,7 @@ public struct Diagnostic: Codable, Hashable {
     codeDescription: CodeDescription? = nil,
     source: String?,
     message: String,
+    tags: [DiagnosticTag]? = nil,
     relatedInformation: [DiagnosticRelatedInformation]? = nil,
     codeActions: [CodeAction]? = nil)
   {
@@ -81,9 +85,17 @@ public struct Diagnostic: Codable, Hashable {
     self.codeDescription = codeDescription
     self.source = source
     self.message = message
+    self.tags = tags
     self.relatedInformation = relatedInformation
     self.codeActions = codeActions
   }
+}
+
+/// A small piece of metadata about a diagnostic that lets editors e.g. style the diagnostic
+/// in a special way.
+public enum DiagnosticTag: Int, Codable, Hashable {
+  case unnecessary = 1
+  case deprecated = 2
 }
 
 /// A 'note' diagnostic attached to a primary diagonstic that provides additional information.
