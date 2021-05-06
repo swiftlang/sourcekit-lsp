@@ -93,9 +93,15 @@ public struct Diagnostic: Codable, Hashable {
 
 /// A small piece of metadata about a diagnostic that lets editors e.g. style the diagnostic
 /// in a special way.
-public enum DiagnosticTag: Int, Codable, Hashable {
-  case unnecessary = 1
-  case deprecated = 2
+public struct DiagnosticTag: RawRepresentable, Codable, Hashable {
+  public var rawValue: Int
+
+  public init(rawValue: Int) {
+    self.rawValue = rawValue
+  }
+
+  public static let unnecessary: DiagnosticTag = DiagnosticTag(rawValue: 1)
+  public static let deprecated: DiagnosticTag = DiagnosticTag(rawValue: 2)
 }
 
 /// A 'note' diagnostic attached to a primary diagonstic that provides additional information.
