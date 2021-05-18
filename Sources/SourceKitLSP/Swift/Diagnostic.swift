@@ -177,11 +177,18 @@ extension Diagnostic {
     }
 
     var tags: [DiagnosticTag] = []
-    if message.contains("never used") || message.contains("unused") {
-      tags.append(.unnecessary)
-    }
-    if message.contains("deprecated") {
-      tags.append(.deprecated)
+    if let categories: SKDResponseArray = diag[keys.categories] {
+      categories.forEachUID { (_, category) in
+        switch category {
+        case values.diag_category_deprecation:
+          tags.append(.deprecated)
+        case values.diag_category_no_usage:
+          tags.append(.unnecessary)
+        default:
+          break
+        }
+        return true
+      }
     }
 
     self.init(
