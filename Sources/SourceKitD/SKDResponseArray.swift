@@ -39,6 +39,17 @@ public final class SKDResponseArray {
     return true
   }
 
+  /// If the `applier` returns `false`, iteration terminates.
+  @discardableResult
+  public func forEachUID(_ applier: (Int, sourcekitd_uid_t) -> Bool) -> Bool {
+    for i in 0..<count {
+      if let uid = sourcekitd.api.variant_array_get_uid(array, i), !applier(i, uid) {
+        return false
+      }
+    }
+    return true
+  }
+
   /// Attempt to access the item at `index` as a string.
   public subscript(index: Int) -> String? {
     if let cstr = sourcekitd.api.variant_array_get_string(array, index) {
