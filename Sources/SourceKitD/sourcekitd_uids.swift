@@ -19,6 +19,7 @@ public struct sourcekitd_keys {
   public let associated_usrs: sourcekitd_uid_t
   public let bodylength: sourcekitd_uid_t
   public let bodyoffset: sourcekitd_uid_t
+  public let categories: sourcekitd_uid_t
   public let categorizededits: sourcekitd_uid_t
   public let column: sourcekitd_uid_t
   public let compilerargs: sourcekitd_uid_t
@@ -34,6 +35,7 @@ public struct sourcekitd_keys {
   public let endline: sourcekitd_uid_t
   public let filepath: sourcekitd_uid_t
   public let fixits: sourcekitd_uid_t
+  public let id: sourcekitd_uid_t
   public let kind: sourcekitd_uid_t
   public let length: sourcekitd_uid_t
   public let line: sourcekitd_uid_t
@@ -78,6 +80,7 @@ public struct sourcekitd_keys {
     associated_usrs = api.uid_get_from_cstr("key.associated_usrs")!
     bodylength = api.uid_get_from_cstr("key.bodylength")!
     bodyoffset = api.uid_get_from_cstr("key.bodyoffset")!
+    categories = api.uid_get_from_cstr("key.categories")!
     categorizededits = api.uid_get_from_cstr("key.categorizededits")!
     column = api.uid_get_from_cstr("key.column")!
     compilerargs = api.uid_get_from_cstr("key.compilerargs")!
@@ -93,6 +96,7 @@ public struct sourcekitd_keys {
     endline = api.uid_get_from_cstr("key.endline")!
     filepath = api.uid_get_from_cstr("key.filepath")!
     fixits = api.uid_get_from_cstr("key.fixits")!
+    id = api.uid_get_from_cstr("key.id")!
     kind = api.uid_get_from_cstr("key.kind")!
     length = api.uid_get_from_cstr("key.length")!
     line = api.uid_get_from_cstr("key.line")!
@@ -166,6 +170,8 @@ public struct sourcekitd_values {
   public let diag_error: sourcekitd_uid_t
   public let diag_warning: sourcekitd_uid_t
   public let diag_note: sourcekitd_uid_t
+  public let diag_category_deprecation: sourcekitd_uid_t
+  public let diag_category_no_usage: sourcekitd_uid_t
   public let diag_stage_parse: sourcekitd_uid_t
   public let diag_stage_sema: sourcekitd_uid_t
 
@@ -259,6 +265,8 @@ public struct sourcekitd_values {
     diag_error = api.uid_get_from_cstr("source.diagnostic.severity.error")!
     diag_warning = api.uid_get_from_cstr("source.diagnostic.severity.warning")!
     diag_note = api.uid_get_from_cstr("source.diagnostic.severity.note")!
+    diag_category_deprecation = api.uid_get_from_cstr("source.diagnostic.category.deprecation")!
+    diag_category_no_usage = api.uid_get_from_cstr("source.diagnostic.category.no_usage")!
     diag_stage_parse = api.uid_get_from_cstr("source.diagnostic.stage.swift.parse")!
     diag_stage_sema = api.uid_get_from_cstr("source.diagnostic.stage.swift.sema")!
 
