@@ -176,6 +176,21 @@ extension Diagnostic {
       }
     }
 
+    var tags: [DiagnosticTag] = []
+    if let categories: SKDResponseArray = diag[keys.categories] {
+      categories.forEachUID { (_, category) in
+        switch category {
+        case values.diag_category_deprecation:
+          tags.append(.deprecated)
+        case values.diag_category_no_usage:
+          tags.append(.unnecessary)
+        default:
+          break
+        }
+        return true
+      }
+    }
+
     self.init(
       range: Range(position!),
       severity: severity,
@@ -183,6 +198,7 @@ extension Diagnostic {
       codeDescription: codeDescription,
       source: "sourcekitd",
       message: message,
+      tags: tags,
       relatedInformation: notes,
       codeActions: actions)
   }

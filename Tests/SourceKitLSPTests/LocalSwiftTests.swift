@@ -638,20 +638,16 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(quickFixes.count, 1)
     let fixit = quickFixes.first!
 
+    // Diagnostic returned by code actions cannot be recursive
+    var expectedDiagnostic = diagnostic!
+    expectedDiagnostic.codeActions = nil
+
     // Expected Fix-it: Replace `let a` with `_` because it's never used
     let expectedTextEdit = TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 7), newText: "_")
     XCTAssertEqual(fixit, CodeAction(
       title: "Replace 'let a' with '_'",
       kind: .quickFix,
-      diagnostics: [
-        Diagnostic(
-          range: Position(line: 1, utf16index: 6)..<Position(line: 1, utf16index: 6),
-          severity: .warning,
-          code: nil,
-          source: "sourcekitd",
-          message: "initialization of immutable value \'a\' was never used; consider replacing with assignment to \'_\' or removing it",
-          relatedInformation: [],
-          codeActions: nil)],
+      diagnostics: [expectedDiagnostic],
       edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
       command: nil))
   }
