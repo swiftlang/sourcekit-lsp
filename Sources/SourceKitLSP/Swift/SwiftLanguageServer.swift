@@ -18,6 +18,9 @@ import SKCore
 import SKSupport
 import SourceKitD
 import TSCBasic
+#if os(Windows)
+import WinSDK
+#endif
 
 fileprivate extension Range {
   /// Checks if this range overlaps with the other range, counting an overlap with an empty range as a valid overlap.
@@ -1130,7 +1133,24 @@ extension SwiftLanguageServer: SKDNotificationHandler {
 
       self.queue.async {
         let uri: DocumentURI
-        if name.starts(with: "/") {
+
+        // Paths are expected to be absolute; on Windows, this means that the
+        // path is either drive letter prefixed (and thus `PathGetDriveNumberW`
+        // will provide the driver number OR it is a UNC path and `PathIsUNCW`
+        // will return `true`.  On Unix platforms, the path will start with `/`
+        // which takes care of both a regular absolute path and a POSIX
+        // alternate root path.
+
+        // TODO: this is not completely portable, e.g. MacOS 9 HFS paths are
+        // unhandled.
+#if os(Windows)
+        let isPath: Bool = !name.withCString(encodedAs: UTF16.self) {
+          PathIsUNCW($0) || (0...25) ~= PathGetDriveNumberW($0)
+        }
+#else
+        let isPath: Bool = name.starts(with: "/")
+#endif
+        if isPath {
           // If sourcekitd returns us a path, translate it back into a URL
           uri = DocumentURI(URL(fileURLWithPath: name))
         } else {
