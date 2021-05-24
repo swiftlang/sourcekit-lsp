@@ -197,7 +197,7 @@ public final class Logger {
 
     if !self.disableNSLog && !usedOSLog {
       // Fallback to NSLog if os_log isn't available.
-      NSLog(message)
+      NSLog("%@", message)
     } else {
       self.logToStderr(message, level: level)
     }
