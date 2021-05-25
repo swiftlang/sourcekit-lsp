@@ -530,6 +530,41 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       check(resolveSymlinks(ah).pathString, arguments: argsH ?? [])
     }
   }
+
+  func testSwiftDerivedSources() throws {
+    // FIXME: should be possible to use InMemoryFileSystem.
+    let fs = localFileSystem
+    try! withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+      try! fs.createFiles(root: tempDir, files: [
+        "pkg/Sources/lib/a.swift": "",
+        "pkg/Sources/lib/a.txt": "",
+        "pkg/Package.swift": """
+            // swift-tools-version:5.3
+            import PackageDescription
+            let package = Package(name: "a", products: [], dependencies: [],
+              targets: [
+                .target(
+                  name: "lib",
+                  dependencies: [],
+                  resources: [.copy("a.txt")])])
+            """
+      ])
+      let packageRoot = resolveSymlinks(tempDir.appending(component: "pkg"))
+      let tr = ToolchainRegistry.shared
+      let ws = try! SwiftPMWorkspace(
+        workspacePath: packageRoot,
+        toolchainRegistry: tr,
+        fileSystem: fs,
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+
+      let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
+      let arguments = ws.settings(for: aswift.asURI, .swift)!.compilerArguments
+      check(aswift.pathString, arguments: arguments)
+      XCTAssertNotNil(arguments.firstIndex(where: {
+          $0.hasSuffix(".swift") && $0.contains("DerivedSources")
+        }), "missing resource_bundle_accessor.swift from \(arguments)")
+    }
+  }
 }
 
 private func checkNot(
