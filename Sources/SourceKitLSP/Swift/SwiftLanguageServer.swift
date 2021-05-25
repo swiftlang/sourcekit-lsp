@@ -1144,7 +1144,7 @@ extension SwiftLanguageServer: SKDNotificationHandler {
         // TODO: this is not completely portable, e.g. MacOS 9 HFS paths are
         // unhandled.
 #if os(Windows)
-        let isPath: Bool = !name.withCString(encodedAs: UTF16.self) {
+        let isPath: Bool = name.withCString(encodedAs: UTF16.self) {
           PathIsUNCW($0) || (0...25) ~= PathGetDriveNumberW($0)
         }
 #else
