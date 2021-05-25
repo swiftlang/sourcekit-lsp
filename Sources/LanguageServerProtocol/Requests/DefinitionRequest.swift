@@ -15,7 +15,7 @@
 /// Looks up the symbol at the given position and returns a list of all definition of that symbol
 /// across the whole workspace.
 ///
-/// Servers that provide document highlights should set the`definitionProvider` server capability.
+/// Servers that provide document highlights should set the `definitionProvider` server capability.
 ///
 /// - Parameters:
 ///   - textDocument: The document in which to lookup the symbol location.
