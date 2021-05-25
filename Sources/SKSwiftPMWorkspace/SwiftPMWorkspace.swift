@@ -355,7 +355,7 @@ extension SwiftPMWorkspace {
       args += ["-parse-as-library"]
     }
     args += ["-c"]
-    args += td.target.sources.paths.map { $0.pathString }
+    args += td.sources.map { $0.pathString }
     args += ["-I", buildPath.pathString]
     args += td.compileArguments()
 
