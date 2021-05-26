@@ -44,6 +44,8 @@ $ swift package update
 $ swift build -Xcxx -I<path_to_swift_toolchain>/usr/lib/swift -Xcxx -I<path_to_swift_toolchain>/usr/lib/swift/Block
 ```
 
+Setting `PATH` as described above is important even if `<path_to_swift_toolchain>/usr/bin` is already in your `PATH` because `/usr/bin` must be the **first** path to search.
+
 After building, the server will be located at `.build/debug/sourcekit-lsp`, or a similar path, if you passed any custom options to `swift build`. Editors will generally need to be provided with this path in order to run the newly built server - see [Editors](../Editors) for more information about configuration.
 
 SourceKit-LSP is designed to build against the latest SwiftPM, so if you run into any issue make sure you have the most up-to-date dependencies by running `swift package update`.
