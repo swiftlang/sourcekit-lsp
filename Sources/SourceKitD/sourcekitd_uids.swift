@@ -33,6 +33,10 @@ public struct sourcekitd_keys {
   public let educational_note_paths: sourcekitd_uid_t
   public let endcolumn: sourcekitd_uid_t
   public let endline: sourcekitd_uid_t
+  public let expression_length: sourcekitd_uid_t
+  public let expression_offset: sourcekitd_uid_t
+  public let expression_type: sourcekitd_uid_t
+  public let expression_type_list: sourcekitd_uid_t
   public let filepath: sourcekitd_uid_t
   public let fixits: sourcekitd_uid_t
   public let id: sourcekitd_uid_t
@@ -94,6 +98,10 @@ public struct sourcekitd_keys {
     educational_note_paths = api.uid_get_from_cstr("key.educational_note_paths")!
     endcolumn = api.uid_get_from_cstr("key.endcolumn")!
     endline = api.uid_get_from_cstr("key.endline")!
+    expression_length = api.uid_get_from_cstr("key.expression_length")!
+    expression_offset = api.uid_get_from_cstr("key.expression_offset")!
+    expression_type = api.uid_get_from_cstr("key.expression_type")!
+    expression_type_list = api.uid_get_from_cstr("key.expression_type_list")!
     filepath = api.uid_get_from_cstr("key.filepath")!
     fixits = api.uid_get_from_cstr("key.fixits")!
     id = api.uid_get_from_cstr("key.id")!
@@ -146,6 +154,7 @@ public struct sourcekitd_requests {
   public let codecomplete_update: sourcekitd_uid_t
   public let codecomplete_close: sourcekitd_uid_t
   public let cursorinfo: sourcekitd_uid_t
+  public let expression_type: sourcekitd_uid_t
   public let relatedidents: sourcekitd_uid_t
   public let semantic_refactoring: sourcekitd_uid_t
 
@@ -159,6 +168,7 @@ public struct sourcekitd_requests {
     codecomplete_update = api.uid_get_from_cstr("source.request.codecomplete.update")!
     codecomplete_close = api.uid_get_from_cstr("source.request.codecomplete.close")!
     cursorinfo = api.uid_get_from_cstr("source.request.cursorinfo")!
+    expression_type = api.uid_get_from_cstr("source.request.expression.type")!
     relatedidents = api.uid_get_from_cstr("source.request.relatedidents")!
     semantic_refactoring = api.uid_get_from_cstr("source.request.semantic.refactoring")!
   }

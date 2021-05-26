@@ -507,86 +507,105 @@ extension SwiftLanguageServer {
     }
   }
 
-  public func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
-    let keys = self.keys
+  // Must be called on self.queue
+  private func _documentSymbols(
+    _ uri: DocumentURI,
+    _ completion: @escaping (Result<[DocumentSymbol], ResponseError>) -> Void
+  ) {
+    if #available(macOS 10.12, *) {
+      dispatchPrecondition(condition: .onQueue(queue))
+    }
 
+    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
+      let msg = "failed to find snapshot for url \(uri)"
+      log(msg)
+      return completion(.failure(.unknown(msg)))
+    }
+
+    let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+    skreq[keys.request] = self.requests.editor_open
+    skreq[keys.name] = "DocumentSymbols:" + snapshot.document.uri.pseudoPath
+    skreq[keys.sourcetext] = snapshot.text
+    skreq[keys.syntactic_only] = 1
+
+    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
+      guard let self = self else { return }
+      guard let dict = result.success else {
+        return completion(.failure(ResponseError(result.failure!)))
+      }
+      guard let results: SKDResponseArray = dict[self.keys.substructure] else {
+        return completion(.success([]))
+      }
+
+      func documentSymbol(value: SKDResponseDictionary) -> DocumentSymbol? {
+        guard let name: String = value[self.keys.name],
+              let uid: sourcekitd_uid_t = value[self.keys.kind],
+              let kind: SymbolKind = uid.asSymbolKind(self.values),
+              let offset: Int = value[self.keys.offset],
+              let start: Position = snapshot.positionOf(utf8Offset: offset),
+              let length: Int = value[self.keys.length],
+              let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
+          return nil
+        }
+
+        let range = start..<end
+        let selectionRange: Range<Position>
+        if let nameOffset: Int = value[self.keys.nameoffset],
+            let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
+            let nameLength: Int = value[self.keys.namelength],
+            let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
+          selectionRange = nameStart..<nameEnd
+        } else {
+          selectionRange = range
+        }
+
+        let children: [DocumentSymbol]?
+        if let substructure: SKDResponseArray = value[self.keys.substructure] {
+          children = documentSymbols(array: substructure)
+        } else {
+          children = nil
+        }
+        return DocumentSymbol(name: name,
+                              detail: nil,
+                              kind: kind,
+                              deprecated: nil,
+                              range: range,
+                              selectionRange: selectionRange,
+                              children: children)
+      }
+
+      func documentSymbols(array: SKDResponseArray) -> [DocumentSymbol] {
+        var result: [DocumentSymbol] = []
+        array.forEach { (i: Int, value: SKDResponseDictionary) in
+          if let documentSymbol = documentSymbol(value: value) {
+            result.append(documentSymbol)
+          } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
+            result += documentSymbols(array: substructure)
+          }
+          return true
+        }
+        return result
+      }
+
+      completion(.success(documentSymbols(array: results)))
+    }
+
+    // FIXME: cancellation
+    _ = handle
+  }
+
+  public func documentSymbols(
+    _ uri: DocumentURI,
+    _ completion: @escaping (Result<[DocumentSymbol], ResponseError>) -> Void
+  ) {
     queue.async {
-      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
-        log("failed to find snapshot for url \(req.params.textDocument.uri)")
-        req.reply(nil)
-        return
-      }
+      self._documentSymbols(uri, completion)
+    }
+  }
 
-      let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-      skreq[keys.request] = self.requests.editor_open
-      skreq[keys.name] = "DocumentSymbols:" + snapshot.document.uri.pseudoPath
-      skreq[keys.sourcetext] = snapshot.text
-      skreq[keys.syntactic_only] = 1
-
-      let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
-        guard let self = self else { return }
-        guard let dict = result.success else {
-          req.reply(.failure(ResponseError(result.failure!)))
-          return
-        }
-        guard let results: SKDResponseArray = dict[self.keys.substructure] else {
-          return req.reply(.documentSymbols([]))
-        }
-
-        func documentSymbol(value: SKDResponseDictionary) -> DocumentSymbol? {
-          guard let name: String = value[self.keys.name],
-                let uid: sourcekitd_uid_t = value[self.keys.kind],
-                let kind: SymbolKind = uid.asSymbolKind(self.values),
-                let offset: Int = value[self.keys.offset],
-                let start: Position = snapshot.positionOf(utf8Offset: offset),
-                let length: Int = value[self.keys.length],
-                let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
-            return nil
-          }
-
-          let range = start..<end
-          let selectionRange: Range<Position>
-          if let nameOffset: Int = value[self.keys.nameoffset],
-             let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
-             let nameLength: Int = value[self.keys.namelength],
-             let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
-            selectionRange = nameStart..<nameEnd
-          } else {
-            selectionRange = range
-          }
-
-          let children: [DocumentSymbol]?
-          if let substructure: SKDResponseArray = value[self.keys.substructure] {
-            children = documentSymbols(array: substructure)
-          } else {
-            children = nil
-          }
-          return DocumentSymbol(name: name,
-                                detail: nil,
-                                kind: kind,
-                                deprecated: nil,
-                                range: range,
-                                selectionRange: selectionRange,
-                                children: children)
-        }
-
-        func documentSymbols(array: SKDResponseArray) -> [DocumentSymbol] {
-          var result: [DocumentSymbol] = []
-          array.forEach { (i: Int, value: SKDResponseDictionary) in
-            if let documentSymbol = documentSymbol(value: value) {
-              result.append(documentSymbol)
-            } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
-              result += documentSymbols(array: substructure)
-            }
-            return true
-          }
-          return result
-        }
-
-        req.reply(.documentSymbols(documentSymbols(array: results)))
-      }
-      // FIXME: cancellation
-      _ = handle
+  public func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
+    documentSymbols(req.params.textDocument.uri) { result in
+      req.reply(result.map { .documentSymbols($0) })
     }
   }
 
@@ -1035,6 +1054,84 @@ extension SwiftLanguageServer {
     }
 
     completion(.success(codeActions))
+  }
+
+  public func inlayHints(_ req: Request<InlayHintsRequest>) {
+    // TODO: Introduce a new SourceKit request for inlay hints
+    // instead of computing them from document symbols here.
+
+    guard req.params.only?.contains(.type) ?? true else {
+      req.reply([])
+      return
+    }
+
+    let uri = req.params.textDocument.uri
+    documentSymbols(uri) { symbolsResult in
+      do {
+        /// Filters all the document symbols for which inlay type hints
+        /// should be displayed, i.e. variable bindings, fields and properties.
+        func bindings(_ symbols: [DocumentSymbol]) -> [DocumentSymbol] {
+          symbols
+            .flatMap { bindings($0.children ?? []) + ([.variable, .field, .property].contains($0.kind) ? [$0] : []) }
+        }
+
+        let symbols = try symbolsResult.get()
+        let bindingPositions = Set(bindings(symbols).map { $0.range.upperBound })
+
+        self.expressionTypeInfos(uri) { infosResult in
+          do {
+            let infos = try infosResult.get()
+
+            // The unfiltered infos may contain multiple infos for a single position
+            // as the ending position does not necessarily identify an expression uniquely.
+            // Consider the following example:
+            //
+            //    var x = "abc" + "def"
+            //
+            // Both `"abc" + "def"` and `"def"` are matching expressions. Since we are only
+            // interested in the first expression, i.e. the one that corresponds to the
+            // bound expression, we have to do some pre-processing here. Note that this
+            // mechanism currently relies on the outermost expression being reported first.
+
+            var visitedPositions: Set<Position> = []
+            var processedInfos: [ExpressionTypeInfo] = []
+
+            // TODO: Compute inlay hints only for the requested range/categories
+            // instead of filtering them afterwards.
+
+            for info in infos {
+              let pos = info.range.upperBound
+              if (req.params.range?.contains(pos) ?? true)
+                && bindingPositions.contains(pos)
+                && !visitedPositions.contains(pos) {
+                processedInfos.append(info)
+                visitedPositions.insert(pos)
+              }
+            }
+
+            let hints = processedInfos
+              .lazy
+              .map { info in
+                InlayHint(
+                  position: info.range.upperBound,
+                  category: .type,
+                  label: info.printedType
+                )
+              }
+
+            req.reply(.success(Array(hints)))
+          } catch {
+            let message = "expression types for inlay hints failed for \(uri): \(error)"
+            log(message, level: .warning)
+            req.reply(.failure(.unknown(message)))
+          }
+        }
+      } catch {
+        let message = "document symbols for inlay hints failed for \(uri): \(error)"
+        log(message, level: .warning)
+        req.reply(.failure(.unknown(message)))
+      }
+    }
   }
 
   public func executeCommand(_ req: Request<ExecuteCommandRequest>) {

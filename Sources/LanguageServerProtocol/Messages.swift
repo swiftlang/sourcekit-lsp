@@ -47,6 +47,7 @@ public let builtinRequests: [_RequestType.Type] = [
 
   SymbolInfoRequest.self,
   PollIndexRequest.self,
+  InlayHintsRequest.self,
 ]
 
 /// The set of known notifications.
