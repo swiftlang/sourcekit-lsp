@@ -58,6 +58,11 @@
                     "default": "",
                     "description": "(optional) The path of the swift toolchain. By default, sourcekit-lsp uses the toolchain it is installed in."
                 },
+                "sourcekit-lsp.inlayHints.enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Render inlay type annotations in the editor."
+                },
                 "sourcekit-lsp.trace.server": {
                     "type": "string",
                     "default": "off",
