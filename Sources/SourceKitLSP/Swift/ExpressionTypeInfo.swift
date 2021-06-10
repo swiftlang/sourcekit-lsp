@@ -54,9 +54,7 @@ extension SwiftLanguageServer {
     _ uri: DocumentURI,
     _ completion: @escaping (Swift.Result<[ExpressionTypeInfo], ExpressionTypeInfoError>) -> Void
   ) {
-    if #available(macOS 10.12, *) {
-      dispatchPrecondition(condition: .onQueue(queue))
-    }
+    dispatchPrecondition(condition: .onQueue(queue))
 
     guard let snapshot = documentManager.latestSnapshot(uri) else {
       return completion(.failure(.unknownDocument(uri)))
@@ -87,7 +85,7 @@ extension SwiftLanguageServer {
 
       skExpressionTypeInfos.forEach { (_, skExpressionTypeInfo) -> Bool in
         guard let info = ExpressionTypeInfo(skExpressionTypeInfo, in: snapshot) else {
-          assert(false, "ExpressionTypeInfo failed to deserialize")
+          assertionFailure("ExpressionTypeInfo failed to deserialize")
           return true
         }
         expressionTypeInfos.append(info)

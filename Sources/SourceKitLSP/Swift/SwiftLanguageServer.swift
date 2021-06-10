@@ -512,9 +512,7 @@ extension SwiftLanguageServer {
     _ uri: DocumentURI,
     _ completion: @escaping (Result<[DocumentSymbol], ResponseError>) -> Void
   ) {
-    if #available(macOS 10.12, *) {
-      dispatchPrecondition(condition: .onQueue(queue))
-    }
+    dispatchPrecondition(condition: .onQueue(queue))
 
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
       let msg = "failed to find snapshot for url \(uri)"
