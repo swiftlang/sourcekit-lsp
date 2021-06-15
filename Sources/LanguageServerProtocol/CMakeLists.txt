@@ -41,6 +41,7 @@ add_library(LanguageServerProtocol
   Requests/HoverRequest.swift
   Requests/ImplementationRequest.swift
   Requests/InitializeRequest.swift
+  Requests/InlayHintsRequest.swift
   Requests/PollIndexRequest.swift
   Requests/ReferencesRequest.swift
   Requests/RegisterCapabilityRequest.swift
@@ -63,6 +64,7 @@ add_library(LanguageServerProtocol
   SupportTypes/FileEvent.swift
   SupportTypes/FileSystemWatcher.swift
   SupportTypes/FoldingRangeKind.swift
+  SupportTypes/InlayHint.swift
   SupportTypes/Language.swift
   SupportTypes/Location.swift
   SupportTypes/LocationLink.swift

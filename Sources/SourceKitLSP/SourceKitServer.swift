@@ -99,6 +99,7 @@ public final class SourceKitServer: LanguageServer {
     registerToolchainTextDocumentRequest(SourceKitServer.documentSemanticTokensRange, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.colorPresentation, [])
     registerToolchainTextDocumentRequest(SourceKitServer.codeAction, nil)
+    registerToolchainTextDocumentRequest(SourceKitServer.inlayHints, [])
   }
 
   /// Register a `TextDocumentRequest` that requires a valid `Workspace`, `ToolchainLanguageServer`,
@@ -940,6 +941,14 @@ extension SourceKitServer {
     let request = Request(codeAction, id: req.id, clientID: ObjectIdentifier(self),
                           cancellation: req.cancellationToken, reply: callback)
     languageService.codeAction(request)
+  }
+
+  func inlayHints(
+    _ req: Request<InlayHintsRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
+    languageService.inlayHints(req)
   }
 
   func definition(
