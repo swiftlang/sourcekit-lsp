@@ -64,6 +64,10 @@ public struct sourcekitd_keys {
   public let text: sourcekitd_uid_t
   public let typename: sourcekitd_uid_t
   public let usr: sourcekitd_uid_t
+  public let variable_offset: sourcekitd_uid_t
+  public let variable_length: sourcekitd_uid_t
+  public let variable_type: sourcekitd_uid_t
+  public let variable_type_explicit: sourcekitd_uid_t
 
   // Code Completion options.
   public let codecomplete_options: sourcekitd_uid_t
@@ -129,6 +133,10 @@ public struct sourcekitd_keys {
     text = api.uid_get_from_cstr("key.text")!
     typename = api.uid_get_from_cstr("key.typename")!
     usr = api.uid_get_from_cstr("key.usr")!
+    variable_offset = api.uid_get_from_cstr("key.variable_offset")!
+    variable_length = api.uid_get_from_cstr("key.variable_length")!
+    variable_type = api.uid_get_from_cstr("key.variable_type")!
+    variable_type_explicit = api.uid_get_from_cstr("key.variable_type_explicit")!
 
     // Code Completion options
     codecomplete_options = api.uid_get_from_cstr("key.codecomplete.options")!
@@ -155,6 +163,7 @@ public struct sourcekitd_requests {
   public let codecomplete_close: sourcekitd_uid_t
   public let cursorinfo: sourcekitd_uid_t
   public let expression_type: sourcekitd_uid_t
+  public let variable_type: sourcekitd_uid_t
   public let relatedidents: sourcekitd_uid_t
   public let semantic_refactoring: sourcekitd_uid_t
 
@@ -169,6 +178,7 @@ public struct sourcekitd_requests {
     codecomplete_close = api.uid_get_from_cstr("source.request.codecomplete.close")!
     cursorinfo = api.uid_get_from_cstr("source.request.cursorinfo")!
     expression_type = api.uid_get_from_cstr("source.request.expression.type")!
+    variable_type = api.uid_get_from_cstr("source.request.variable.type")!
     relatedidents = api.uid_get_from_cstr("source.request.relatedidents")!
     semantic_refactoring = api.uid_get_from_cstr("source.request.semantic.refactoring")!
   }
