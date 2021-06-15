@@ -1055,77 +1055,33 @@ extension SwiftLanguageServer {
   }
 
   public func inlayHints(_ req: Request<InlayHintsRequest>) {
-    // TODO: Introduce a new SourceKit request for inlay hints
-    // instead of computing them from document symbols here.
-
     guard req.params.only?.contains(.type) ?? true else {
       req.reply([])
       return
     }
 
     let uri = req.params.textDocument.uri
-    documentSymbols(uri) { symbolsResult in
+    variableTypeInfos(uri) { infosResult in
       do {
-        /// Filters all the document symbols for which inlay type hints
-        /// should be displayed, i.e. variable bindings, fields and properties.
-        func bindings(_ symbols: [DocumentSymbol]) -> [DocumentSymbol] {
-          symbols
-            .flatMap { bindings($0.children ?? []) + ([.variable, .field, .property].contains($0.kind) ? [$0] : []) }
-        }
-
-        let symbols = try symbolsResult.get()
-        let bindingPositions = Set(bindings(symbols).map { $0.range.upperBound })
-
-        self.expressionTypeInfos(uri) { infosResult in
-          do {
-            let infos = try infosResult.get()
-
-            // The unfiltered infos may contain multiple infos for a single position
-            // as the ending position does not necessarily identify an expression uniquely.
-            // Consider the following example:
-            //
-            //    var x = "abc" + "def"
-            //
-            // Both `"abc" + "def"` and `"def"` are matching expressions. Since we are only
-            // interested in the first expression, i.e. the one that corresponds to the
-            // bound expression, we have to do some pre-processing here. Note that this
-            // mechanism currently relies on the outermost expression being reported first.
-
-            var visitedPositions: Set<Position> = []
-            var processedInfos: [ExpressionTypeInfo] = []
-
-            // TODO: Compute inlay hints only for the requested range/categories
-            // instead of filtering them afterwards.
-
-            for info in infos {
-              let pos = info.range.upperBound
-              if (req.params.range?.contains(pos) ?? true)
-                && bindingPositions.contains(pos)
-                && !visitedPositions.contains(pos) {
-                processedInfos.append(info)
-                visitedPositions.insert(pos)
-              }
-            }
-
-            let hints = processedInfos
-              .lazy
-              .map { info in
-                InlayHint(
-                  position: info.range.upperBound,
-                  category: .type,
-                  label: info.printedType
-                )
-              }
-
-            req.reply(.success(Array(hints)))
-          } catch {
-            let message = "expression types for inlay hints failed for \(uri): \(error)"
-            log(message, level: .warning)
-            req.reply(.failure(.unknown(message)))
+        let infos = try infosResult.get()
+        let hints = infos
+          .lazy
+          .filter { info in
+            // TODO: Include range in CollectVariableType request directly
+            (req.params.range?.contains(info.range.upperBound) ?? true)
+            && !info.hasExplicitType
           }
-        }
+          .map { info in
+            InlayHint(
+              position: info.range.upperBound,
+              category: .type,
+              label: info.printedType
+            )
+          }
+
+        req.reply(.success(Array(hints)))
       } catch {
-        let message = "document symbols for inlay hints failed for \(uri): \(error)"
+        let message = "variable types for inlay hints failed for \(uri): \(error)"
         log(message, level: .warning)
         req.reply(.failure(.unknown(message)))
       }

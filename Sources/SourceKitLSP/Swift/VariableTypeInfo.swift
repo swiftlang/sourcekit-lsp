@@ -20,6 +20,8 @@ struct VariableTypeInfo {
   var range: Range<Position>
   /// The printed type of the variable.
   var printedType: String
+  /// Whether the variable has an explicit type annotation in the source file.
+  var hasExplicitType: Bool
 
   init?(_ dict: SKDResponseDictionary, in snapshot: DocumentSnapshot) {
     let keys = dict.sourcekitd.keys
@@ -28,12 +30,14 @@ struct VariableTypeInfo {
           let length: Int = dict[keys.variable_length],
           let startIndex = snapshot.positionOf(utf8Offset: offset),
           let endIndex = snapshot.positionOf(utf8Offset: offset + length),
-          let printedType: String = dict[keys.variable_type] else {
+          let printedType: String = dict[keys.variable_type],
+          let hasExplicitType: Bool = dict[keys.variable_type_explicit] else {
       return nil
     }
 
     self.range = startIndex..<endIndex
     self.printedType = printedType
+    self.hasExplicitType = hasExplicitType
   }
 }
 

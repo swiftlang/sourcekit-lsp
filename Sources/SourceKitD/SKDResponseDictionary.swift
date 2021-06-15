@@ -32,6 +32,9 @@ public final class SKDResponseDictionary {
   public subscript(key: sourcekitd_uid_t?) -> Int? {
     return Int(sourcekitd.api.variant_dictionary_get_int64(dict, key))
   }
+  public subscript(key: sourcekitd_uid_t?) -> Bool? {
+    return sourcekitd.api.variant_dictionary_get_bool(dict, key)
+  }
   public subscript(key: sourcekitd_uid_t?) -> sourcekitd_uid_t? {
     return sourcekitd.api.variant_dictionary_get_uid(dict, key)
   }
