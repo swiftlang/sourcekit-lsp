@@ -68,6 +68,7 @@ public struct sourcekitd_keys {
   public let variable_length: sourcekitd_uid_t
   public let variable_type: sourcekitd_uid_t
   public let variable_type_explicit: sourcekitd_uid_t
+  public let variable_type_list: sourcekitd_uid_t
 
   // Code Completion options.
   public let codecomplete_options: sourcekitd_uid_t
@@ -137,6 +138,7 @@ public struct sourcekitd_keys {
     variable_length = api.uid_get_from_cstr("key.variable_length")!
     variable_type = api.uid_get_from_cstr("key.variable_type")!
     variable_type_explicit = api.uid_get_from_cstr("key.variable_type_explicit")!
+    variable_type_list = api.uid_get_from_cstr("key.variable_type_list")!
 
     // Code Completion options
     codecomplete_options = api.uid_get_from_cstr("key.codecomplete.options")!

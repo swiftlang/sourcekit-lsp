@@ -36,3 +36,77 @@ struct VariableTypeInfo {
     self.printedType = printedType
   }
 }
+
+enum VariableTypeInfoError: Error, Equatable {
+  /// The given URL is not a known document.
+  case unknownDocument(DocumentURI)
+
+  /// The underlying sourcekitd request failed with the given error.
+  case responseError(ResponseError)
+}
+
+extension SwiftLanguageServer {
+  /// Must be called on self.queue.
+  private func _variableTypeInfos(
+    _ uri: DocumentURI,
+    _ completion: @escaping (Swift.Result<[VariableTypeInfo], VariableTypeInfoError>) -> Void
+  ) {
+    dispatchPrecondition(condition: .onQueue(queue))
+
+    guard let snapshot = documentManager.latestSnapshot(uri) else {
+      return completion(.failure(.unknownDocument(uri)))
+    }
+
+    let keys = self.keys
+
+    let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
+    skreq[keys.request] = requests.variable_type
+    skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
+
+    // FIXME: SourceKit should probably cache this for us
+    if let compileCommand = self.commandsByFile[uri] {
+      skreq[keys.compilerargs] = compileCommand.compilerArgs
+    }
+
+    let handle = self.sourcekitd.send(skreq, self.queue) { result in
+      guard let dict = result.success else {
+        return completion(.failure(.responseError(ResponseError(result.failure!))))
+      }
+
+      guard let skVariableTypeInfos: SKDResponseArray = dict[keys.variable_type_list] else {
+        return completion(.success([]))
+      }
+
+      var variableTypeInfos: [VariableTypeInfo] = []
+      variableTypeInfos.reserveCapacity(skVariableTypeInfos.count)
+
+      skVariableTypeInfos.forEach { (_, skVariableTypeInfo) -> Bool in
+        guard let info = VariableTypeInfo(skVariableTypeInfo, in: snapshot) else {
+          assertionFailure("VariableTypeInfo failed to deserialize")
+          return true
+        }
+        variableTypeInfos.append(info)
+        return true
+      }
+
+      completion(.success(variableTypeInfos))
+    }
+
+    // FIXME: cancellation
+    _ = handle
+  }
+
+  /// Provides typed variable declarations in a document.
+  ///
+  /// - Parameters:
+  ///   - url: Document URL in which to perform the request. Must be an open document.
+  ///   - completion: Completion block to asynchronously receive the VariableTypeInfos, or error.
+  func variableTypeInfos(
+    _ uri: DocumentURI,
+    _ completion: @escaping (Swift.Result<[VariableTypeInfo], VariableTypeInfoError>) -> Void
+  ) {
+    queue.async {
+      self._variableTypeInfos(uri, completion)
+    }
+  }
+}
