@@ -67,18 +67,15 @@ final class InlayHintsTests: XCTestCase {
     let x = 4
     var y = "test" + "123"
     """
-    // FIXME: These type hints should ideally be displayed after the variable name
-    // rather than after the expression. Once the implementation is updated (e.g.
-    // by using a new SourceKit request), these tests should be updated too.
     let hints = performInlayHintsRequest(text: text)
     XCTAssertEqual(hints, [
       InlayHint(
-        position: Position(line: 0, utf16index: 9),
+        position: Position(line: 0, utf16index: 5),
         category: .type,
         label: "Int"
       ),
       InlayHint(
-        position: Position(line: 1, utf16index: 22),
+        position: Position(line: 1, utf16index: 5),
         category: .type,
         label: "String"
       ),
@@ -102,12 +99,12 @@ final class InlayHintsTests: XCTestCase {
     let hints = performInlayHintsRequest(text: text, range: range)
     XCTAssertEqual(hints, [
       InlayHint(
-        position: Position(line: 6, utf16index: 23),
+        position: Position(line: 6, utf16index: 10),
         category: .type,
         label: "Bool"
       ),
       InlayHint(
-        position: Position(line: 7, utf16index: 43),
+        position: Position(line: 7, utf16index: 12),
         category: .type,
         label: "Int"
       )
@@ -133,27 +130,27 @@ final class InlayHintsTests: XCTestCase {
     let hints = performInlayHintsRequest(text: text)
     XCTAssertEqual(hints, [
       InlayHint(
-        position: Position(line: 1, utf16index: 24),
+        position: Position(line: 1, utf16index: 20),
         category: .type,
         label: "Int"
       ),
       InlayHint(
-        position: Position(line: 2, utf16index: 33),
+        position: Position(line: 2, utf16index: 25),
         category: .type,
         label: "String"
       ),
       InlayHint(
-        position: Position(line: 6, utf16index: 36),
+        position: Position(line: 6, utf16index: 20),
         category: .type,
         label: "String"
       ),
       InlayHint(
-        position: Position(line: 7, utf16index: 33),
+        position: Position(line: 7, utf16index: 25),
         category: .type,
         label: "Int"
       ),
       InlayHint(
-        position: Position(line: 11, utf16index: 31),
+        position: Position(line: 11, utf16index: 25),
         category: .type,
         label: "Double"
       ),
@@ -169,20 +166,8 @@ final class InlayHintsTests: XCTestCase {
     }
     """
     let hints = performInlayHintsRequest(text: text)
-    // FIXME: Explicitly type-annotated variable bindings shouldn't have
-    // an inlay hint. Once we move to the new SourceKit request (as detailed
-    // in the other comment above), we should receive the empty array here.
-    XCTAssertEqual(hints, [
-      InlayHint(
-        position: Position(line: 0, utf16index: 21),
-        category: .type,
-        label: "String"
-      ),
-      InlayHint(
-        position: Position(line: 3, utf16index: 17),
-        category: .type,
-        label: "Int"
-      )
-    ])
+    XCTAssertEqual(hints, [])
   }
+
+  // TODO: Add test for closure parameters
 }
