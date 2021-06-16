@@ -169,5 +169,33 @@ final class InlayHintsTests: XCTestCase {
     XCTAssertEqual(hints, [])
   }
 
-  // TODO: Add test for closure parameters
+  func testClosureParams() {
+    let text = """
+    func f(x: Int) {}
+
+    let g = { (x: Int) in }
+    let h: (String) -> String = { x in x }
+    let i: (Double, Double) -> Double = { (x, y) in
+      x + y
+    }
+    """
+    let hints = performInlayHintsRequest(text: text)
+    XCTAssertEqual(hints, [
+      InlayHint(
+        position: Position(line: 3, utf16index: 31),
+        category: .type,
+        label: "String"
+      ),
+      InlayHint(
+        position: Position(line: 4, utf16index: 40),
+        category: .type,
+        label: "Double"
+      ),
+      InlayHint(
+        position: Position(line: 4, utf16index: 43),
+        category: .type,
+        label: "Double"
+      )
+    ])
+  }
 }
