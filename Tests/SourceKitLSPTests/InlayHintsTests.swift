@@ -182,6 +182,11 @@ final class InlayHintsTests: XCTestCase {
     let hints = performInlayHintsRequest(text: text)
     XCTAssertEqual(hints, [
       InlayHint(
+        position: Position(line: 2, utf16index: 5),
+        category: .type,
+        label: "(Int) -> ()"
+      ),
+      InlayHint(
         position: Position(line: 3, utf16index: 31),
         category: .type,
         label: "String"
