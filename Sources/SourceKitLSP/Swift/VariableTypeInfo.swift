@@ -53,6 +53,7 @@ extension SwiftLanguageServer {
   /// Must be called on self.queue.
   private func _variableTypeInfos(
     _ uri: DocumentURI,
+    _ range: Range<Position>? = nil,
     _ completion: @escaping (Swift.Result<[VariableTypeInfo], VariableTypeInfoError>) -> Void
   ) {
     dispatchPrecondition(condition: .onQueue(queue))
@@ -66,6 +67,13 @@ extension SwiftLanguageServer {
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.variable_type
     skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
+
+    if let range = range,
+       let start = snapshot.utf8Offset(of: range.lowerBound),
+       let end = snapshot.utf8Offset(of: range.upperBound) {
+      skreq[keys.offset] = start
+      skreq[keys.length] = end - start
+    }
 
     // FIXME: SourceKit should probably cache this for us
     if let compileCommand = self.commandsByFile[uri] {
@@ -107,10 +115,11 @@ extension SwiftLanguageServer {
   ///   - completion: Completion block to asynchronously receive the VariableTypeInfos, or error.
   func variableTypeInfos(
     _ uri: DocumentURI,
+    _ range: Range<Position>? = nil,
     _ completion: @escaping (Swift.Result<[VariableTypeInfo], VariableTypeInfoError>) -> Void
   ) {
     queue.async {
-      self._variableTypeInfos(uri, completion)
+      self._variableTypeInfos(uri, range, completion)
     }
   }
 }

@@ -1061,16 +1061,12 @@ extension SwiftLanguageServer {
     }
 
     let uri = req.params.textDocument.uri
-    variableTypeInfos(uri) { infosResult in
+    variableTypeInfos(uri, req.params.range) { infosResult in
       do {
         let infos = try infosResult.get()
         let hints = infos
           .lazy
-          .filter { info in
-            // TODO: Include range in CollectVariableType request directly
-            (req.params.range?.contains(info.range.upperBound) ?? true)
-            && !info.hasExplicitType
-          }
+          .filter { !$0.hasExplicitType }
           .map { info in
             InlayHint(
               position: info.range.upperBound,
