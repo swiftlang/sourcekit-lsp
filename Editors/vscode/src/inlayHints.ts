@@ -13,12 +13,12 @@ export async function activateInlayHints(
     context: vscode.ExtensionContext,
     client: langclient.LanguageClient
 ): Promise<void> {
-    const config = vscode.workspace.getConfiguration('sourcekit-lsp');
     let updater: HintsUpdater | null = null;
 
     const onConfigChange = async () => {
+        const config = vscode.workspace.getConfiguration('sourcekit-lsp');
         const wasEnabled = updater !== null;
-        const isEnabled = config.get<boolean>('inlayHints.enabled', true);
+        const isEnabled = config.get<boolean>('inlayHints.enabled', false);
 
         if (wasEnabled !== isEnabled) {
             updater?.dispose();
@@ -195,6 +195,8 @@ class HintsUpdater implements vscode.Disposable {
     }
 
     dispose(): void {
+        this.sourceFiles.forEach(file => file.inFlightInlayHints?.cancel());
+        this.visibleSourceKitLSPEditors.forEach(editor => this.renderDecorations(editor, []));
         this.disposables.forEach(d => d.dispose());
     }
 }
