@@ -1,9 +1,9 @@
 'use strict';
 import * as vscode from 'vscode';
 import * as langclient from 'vscode-languageclient/node';
+import { activateInlayHints } from './inlayHints';
 
-export function activate(context: vscode.ExtensionContext) {
-
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
     const config = vscode.workspace.getConfiguration('sourcekit-lsp');
 
     const sourcekit: langclient.Executable = {
@@ -35,6 +35,9 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(client.start());
 
     console.log('SourceKit-LSP is now active!');
+
+    await client.onReady();
+    activateInlayHints(context, client);
 }
 
 export function deactivate() {
