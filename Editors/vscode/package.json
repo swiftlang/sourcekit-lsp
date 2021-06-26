@@ -19,11 +19,14 @@
         "onLanguage:objective-c",
         "onLanguage:objective-cpp"
     ],
-    "main": "./out/extension",
+    "main": "./out/main",
     "scripts": {
-        "vscode:prepublish": "npm run compile",
-        "compile": "tsc -p ./",
-        "watch": "tsc -watch -p ./",
+        "vscode:prepublish": "npm run -S esbuild-base -- --minify",
+        "esbuild-base": "esbuild ./src/extension.ts --bundle --outfile=out/main.js --external:vscode --format=cjs --platform=node",
+        "esbuild": "npm run -S esbuild-base -- --sourcemap",
+        "esbuild-watch": "npm run -S esbuild-base -- --sourcemap --watch",
+        "package": "vsce package",
+        "dev-package": "vsce package -o sourcekit-lsp-development.vsix",
         "createDevPackage": "npm install && ./node_modules/.bin/vsce package -o ./out/sourcekit-lsp-vscode-dev.vsix"
     },
     "dependencies": {
