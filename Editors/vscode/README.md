@@ -26,7 +26,7 @@ $ npm run dev-package
 You can install the package from the command-line using the `code` command if available (see [Launching from the command line](https://code.visualstudio.com/docs/setup/mac#_launching-from-the-command-line)).
 
 ```
-code --install-extension out/sourcekit-lsp-vscode-dev.vsix
+code --install-extension sourcekit-lsp-development.vsix
 ```
 
 Or you can install from within the application using the `Extensions > Install from VSIX...` command from the command palette.

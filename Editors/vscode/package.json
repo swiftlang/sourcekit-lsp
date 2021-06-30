@@ -26,7 +26,7 @@
         "esbuild": "npm run -S esbuild-base -- --sourcemap",
         "esbuild-watch": "npm run -S esbuild-base -- --sourcemap --watch",
         "package": "vsce package",
-        "dev-package": "vsce package -o sourcekit-lsp-development.vsix",
+        "dev-package": "vsce package -o sourcekit-lsp-development.vsix"
     },
     "dependencies": {
         "vscode-languageclient": "^7.0.0"
