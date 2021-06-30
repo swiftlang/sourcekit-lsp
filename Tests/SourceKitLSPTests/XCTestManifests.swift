@@ -95,6 +95,7 @@ extension InlayHintsTests {
     // to regenerate.
     static let __allTests__InlayHintsTests = [
         ("testBindings", testBindings),
+        ("testClosureParams", testClosureParams),
         ("testEmpty", testEmpty),
         ("testExplicitTypeAnnotation", testExplicitTypeAnnotation),
         ("testFields", testFields),

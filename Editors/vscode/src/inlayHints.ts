@@ -53,9 +53,9 @@ const hintStyle: InlayHintStyle = {
 
     makeDecoration: (hint, converter) => ({
         range: converter.asRange({
-            start: hint.position,
-            end: { ...hint.position, character: hint.position.character + 1 } }
-        ),
+            start: { ...hint.position, character: hint.position.character - 1 },
+            end: hint.position
+        }),
         renderOptions: {
             after: {
                 // U+200C is a zero-width non-joiner to prevent the editor from
