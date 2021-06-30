@@ -19,7 +19,8 @@ The following commands build the extension and creates a `.vsix` package in the 
 
 ```
 $ cd Editors/vscode
-$ npm run createDevPackage
+$ npm install
+$ npm run dev-package
 ```
 
 You can install the package from the command-line using the `code` command if available (see [Launching from the command line](https://code.visualstudio.com/docs/setup/mac#_launching-from-the-command-line)).

@@ -2,4 +2,5 @@
 **/tsconfig.json
 .gitignore
 .vscode/
+.vscode-test/
 node_modules/
