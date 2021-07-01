@@ -23,6 +23,9 @@ public final class CapabilityRegistry {
   /// Dynamically registered completion options.
   private var completion: [CapabilityRegistration: CompletionRegistrationOptions] = [:]
 
+  /// Dynamically registered folding range options.
+  private var foldingRange: [CapabilityRegistration: FoldingRangeRegistrationOptions] = [:]
+
   /// Dynamically registered semantic tokens options.
   private var semanticTokens: [CapabilityRegistration: SemanticTokensRegistrationOptions] = [:]
 
@@ -34,6 +37,10 @@ public final class CapabilityRegistry {
 
   public var clientHasDynamicCompletionRegistration: Bool {
     clientCapabilities.textDocument?.completion?.dynamicRegistration == true
+  }
+
+  public var clientHasDynamicFoldingRangeRegistration: Bool {
+    clientCapabilities.textDocument?.foldingRange?.dynamicRegistration == true
   }
 
   public var clientHasDynamicSemanticTokensRegistration: Bool {
@@ -64,6 +71,34 @@ public final class CapabilityRegistry {
       registerOptions: self.encode(registrationOptions))
 
     self.completion[registration] = registrationOptions
+
+    registerOnClient(registration)
+  }
+
+  /// Dynamically register folding range capabilities if the client supports it and
+  /// we haven't yet registered any folding range capabilities for the given
+  /// languages.
+  public func registerFoldingRangeIfNeeded(
+    options: FoldingRangeOptions,
+    for languages: [Language],
+    registerOnClient: ClientRegistrationHandler
+  ) {
+    guard clientHasDynamicFoldingRangeRegistration else { return }
+    if let registration = registration(for: languages, in: foldingRange) {
+      if options != registration.foldingRangeOptions {
+        log("Unable to register new folding range options \(options) for " +
+            "\(languages) due to pre-existing options \(registration.foldingRangeOptions)", level: .warning)
+      }
+      return
+    }
+    let registrationOptions = FoldingRangeRegistrationOptions(
+      documentSelector: self.documentSelector(for: languages),
+      foldingRangeOptions: options)
+    let registration = CapabilityRegistration(
+      method: FoldingRangeRequest.method,
+      registerOptions: self.encode(registrationOptions))
+
+    self.foldingRange[registration] = registrationOptions
 
     registerOnClient(registration)
   }

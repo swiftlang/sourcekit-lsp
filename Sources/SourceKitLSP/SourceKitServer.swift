@@ -546,7 +546,7 @@ extension SourceKitServer {
         supportsCodeActions: true
       )),
       colorProvider: .bool(true),
-      foldingRangeProvider: .bool(true),
+      foldingRangeProvider: .bool(!registry.clientHasDynamicFoldingRangeRegistration),
       executeCommandProvider: ExecuteCommandOptions(
         commands: builtinSwiftCommands // FIXME: Clangd commands?
       )
@@ -560,6 +560,11 @@ extension SourceKitServer {
   ) {
     if let completionOptions = server.completionProvider {
       registry.registerCompletionIfNeeded(options: completionOptions, for: languages) {
+        self.dynamicallyRegisterCapability($0, registry)
+      }
+    }
+    if server.foldingRangeProvider?.isSupported == true {
+      registry.registerFoldingRangeIfNeeded(options: FoldingRangeOptions(), for: languages) {
         self.dynamicallyRegisterCapability($0, registry)
       }
     }
