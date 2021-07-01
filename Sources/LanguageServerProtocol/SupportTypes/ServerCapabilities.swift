@@ -275,6 +275,11 @@ public struct CompletionOptions: Codable, Hashable {
   }
 }
 
+public struct FoldingRangeOptions: Codable, Hashable {
+  /// Currently empty in the spec.
+  public init() {}
+}
+
 public struct SignatureHelpOptions: Codable, Hashable {
   /// The characters that trigger signature help automatically.
   public var triggerCharacters: [String]?

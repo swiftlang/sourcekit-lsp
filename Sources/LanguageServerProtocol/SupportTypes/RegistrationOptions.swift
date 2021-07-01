@@ -74,6 +74,23 @@ public struct CompletionRegistrationOptions: RegistrationOptions, TextDocumentRe
   }
 }
 
+/// Folding range registration options.
+public struct FoldingRangeRegistrationOptions: RegistrationOptions, TextDocumentRegistrationOptionsProtocol, Hashable {
+  public var textDocumentRegistrationOptions: TextDocumentRegistrationOptions
+  public var foldingRangeOptions: FoldingRangeOptions
+
+  public init(documentSelector: DocumentSelector? = nil, foldingRangeOptions: FoldingRangeOptions) {
+    self.textDocumentRegistrationOptions =
+        TextDocumentRegistrationOptions(documentSelector: documentSelector)
+    self.foldingRangeOptions = foldingRangeOptions
+  }
+
+  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
+    textDocumentRegistrationOptions.encodeIntoLSPAny(dict: &dict)
+    // foldingRangeOptions is currently empty.
+  }
+}
+
 public struct SemanticTokensRegistrationOptions: RegistrationOptions, TextDocumentRegistrationOptionsProtocol, Hashable {
   /// Method for registration, which defers from the actual requests' methods
   /// since this registration handles multiple requests.
