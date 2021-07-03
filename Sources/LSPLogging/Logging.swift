@@ -62,6 +62,23 @@ public func orLog<R>(
   }
 }
 
+/// Logs the time that the given block takes to execute in milliseconds.
+public func logExecutionTime<R>(
+  _ prefix: String = #function,
+  level: LogLevel = .default,
+  logger: Logger = Logger.shared,
+  _ block: () throws -> R
+) rethrows -> R {
+  let start = Date()
+  let result = try block()
+  let deltaMs = -start.timeIntervalSinceNow * 1000
+  logger.log(
+    "\(prefix)\(prefix.isEmpty ? "" : " ")took \(String(format: "%.2f", deltaMs)) ms to execute",
+    level: level
+  )
+  return result
+}
+
 public protocol LogHandler: AnyObject {
   func handle(_ message: String, level: LogLevel)
 }
