@@ -238,7 +238,7 @@ if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
     .package(name: "IndexStoreDB", url: "https://github.com/apple/indexstore-db.git", .branch("release/5.5")),
     .package(name: "SwiftPM", url: "https://github.com/apple/swift-package-manager.git", .branch("release/5.5")),
     .package(url: "https://github.com/apple/swift-tools-support-core.git", .branch("release/5.5")),
-    .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMinor(from: "0.3.0")),
+    .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMinor(from: "0.4.1")),
   ]
 } else {
   package.dependencies += [
