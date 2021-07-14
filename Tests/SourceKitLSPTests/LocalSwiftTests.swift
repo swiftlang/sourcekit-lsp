@@ -1176,7 +1176,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(content.kind, .markdown)
         XCTAssertEqual(content.value, """
           S
-          ```
+          ```swift
           struct S
           ```
 
@@ -1228,7 +1228,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(content.kind, .markdown)
         XCTAssertEqual(content.value, ##"""
           test(\_:\_:)
-          ```
+          ```swift
           func test(_ a: Int, _ b: Int)
           ```
 
@@ -1253,7 +1253,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(content.kind, .markdown)
         XCTAssertEqual(content.value, ##"""
           \*%\*(\_:\_:)
-          ```
+          ```swift
           func *%* (lhs: String, rhs: String)
           ```
 
