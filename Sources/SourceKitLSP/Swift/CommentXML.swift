@@ -75,7 +75,7 @@ private struct XMLToMarkdown {
     switch node.name {
     case "Declaration":
       newlineIfNeeded(count: 2)
-      out += "```\n"
+      out += "```swift\n"
       toMarkdown(node.children)
       out += "\n```\n\n---\n"
       
@@ -125,7 +125,7 @@ private struct XMLToMarkdown {
     case "CodeListing":
       lineNumber = 0
       newlineIfNeeded(count: 2)
-      out += "```\n"
+      out += "```\(node.attributes?.first(where: { $0.name == "language" })?.stringValue ?? "")\n"
       toMarkdown(node.children, separator: "\n")
       out += "```"
 
