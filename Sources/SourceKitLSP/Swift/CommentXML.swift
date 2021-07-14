@@ -157,6 +157,16 @@ private struct XMLToMarkdown {
       toMarkdown(node.children)
       out += "\n\n"
 
+    case "Link":
+      if let href = node.attributes?.first(where: { $0.name == "href" })?.stringValue {
+        out += "[" 
+        toMarkdown(node.children)
+        out += "](\(href))"
+      } else {
+        // Not a valid link.
+        toMarkdown(node.children)
+      }
+
     default:
       toMarkdown(node.children)
     }
