@@ -802,7 +802,7 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Declaration>func foo(_ bar: <Type usr="fake">Baz</Type>)</Declaration>
       """), """
-      ```
+      ```swift
       func foo(_ bar: Baz)
       ```
 
@@ -812,7 +812,7 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Declaration>func foo() -&gt; <Type>Bar</Type></Declaration>
       """), """
-      ```
+      ```swift
       func foo() -> Bar
       ```
 
@@ -822,7 +822,7 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Declaration>func replacingOccurrences&lt;Target, Replacement&gt;(of target: Target, with replacement: Replacement, options: <Type usr="s:SS">String</Type>.<Type usr="s:SS10FoundationE14CompareOptionsa">CompareOptions</Type> = default, range searchRange: <Type usr="s:Sn">Range</Type>&lt;<Type usr="s:SS">String</Type>.<Type usr="s:SS5IndexV">Index</Type>&gt;? = default) -&gt; <Type usr="s:SS">String</Type> where Target : <Type usr="s:Sy">StringProtocol</Type>, Replacement : <Type usr="s:Sy">StringProtocol</Type></Declaration>
       """), """
-      ```
+      ```swift
       func replacingOccurrences<Target, Replacement>(of target: Target, with replacement: Replacement, options: String.CompareOptions = default, range searchRange: Range<String.Index>? = default) -> String where Target : StringProtocol, Replacement : StringProtocol
       ```
 
@@ -835,7 +835,7 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Class><Declaration>var foo</Declaration></Class>
       """), """
-      ```
+      ```swift
       var foo
       ```
 
@@ -846,7 +846,7 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Class><Name>foo</Name><Declaration>var foo</Declaration></Class>
       """), """
-      ```
+      ```swift
       var foo
       ```
 
@@ -856,7 +856,7 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Class><USR>asdf</USR><Declaration>var foo</Declaration><Name>foo</Name></Class>
       """), """
-      ```
+      ```swift
       var foo
       ```
 
@@ -874,7 +874,7 @@ final class LocalSwiftTests: XCTestCase {
       """), """
       FOO
 
-      ```
+      ```swift
       var foo
       ```
 
@@ -1005,7 +1005,7 @@ final class LocalSwiftTests: XCTestCase {
         "</CommentParts>" +
       "</Class>"
       ), """
-      ```
+      ```swift
       struct String
       ```
 
@@ -1018,14 +1018,14 @@ final class LocalSwiftTests: XCTestCase {
 
       You can create new strings A *string literal* i
 
-      ```
+      ```swift
       1.\tlet greeting = "Welcome!"
       2.\t
       ```
 
       ...
 
-      ```
+      ```swift
       1.\tlet greeting = "Welcome!"
       2.\t
       ```
