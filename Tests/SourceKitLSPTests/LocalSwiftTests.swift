@@ -819,6 +819,16 @@ final class LocalSwiftTests: XCTestCase {
       ---
 
       """)
+	  XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+      <Link href="https://example.com">My Link</Link>
+      """), """
+      [My Link](https://example.com)
+      """)
+    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+      <Link>My Invalid Link</Link>
+      """), """
+      My Invalid Link
+      """)
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Declaration>func replacingOccurrences&lt;Target, Replacement&gt;(of target: Target, with replacement: Replacement, options: <Type usr="s:SS">String</Type>.<Type usr="s:SS10FoundationE14CompareOptionsa">CompareOptions</Type> = default, range searchRange: <Type usr="s:Sn">Range</Type>&lt;<Type usr="s:SS">String</Type>.<Type usr="s:SS5IndexV">Index</Type>&gt;? = default) -&gt; <Type usr="s:SS">String</Type> where Target : <Type usr="s:Sy">StringProtocol</Type>, Replacement : <Type usr="s:Sy">StringProtocol</Type></Declaration>
       """), """
