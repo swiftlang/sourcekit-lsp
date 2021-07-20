@@ -129,6 +129,7 @@ def handle_invocation(swift_exec, args):
     swiftpm('test', swift_exec, test_args, env)
   elif args.action == 'install':
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
+    swiftpm_args += ['-Xswiftc', '-no-toolchain-stdlib-rpath']
     swiftpm('build', swift_exec, swiftpm_args, env)
     install(bin_path, args.toolchain)
   else:
