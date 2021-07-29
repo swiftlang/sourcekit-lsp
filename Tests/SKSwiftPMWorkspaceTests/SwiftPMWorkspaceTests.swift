@@ -152,7 +152,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let config = BuildSetup(
           configuration: .release,
           path: packageRoot.appending(component: "non_default_build_path"),
-          flags: BuildFlags(xcc: ["-m32"], xcxx: [], xswiftc: ["-typecheck"], xlinker: []))
+          flags: BuildFlags(xcc: ["-m32"], xcxx: [], xswiftc: ["-Xcc", "-m32", "-typecheck"], xlinker: []))
 
       let ws = try! SwiftPMWorkspace(
         workspacePath: packageRoot,
