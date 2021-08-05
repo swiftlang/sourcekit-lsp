@@ -23,6 +23,7 @@ final class SwiftCompletionTests: XCTestCase {
   /// Base document text to use for completion tests.
   let text: String = """
     struct S {
+      /// Documentation for `abc`.
       var abc: Int
 
       func test(a: Int) {
@@ -103,7 +104,7 @@ final class SwiftCompletionTests: XCTestCase {
 
     let selfDot = try! sk.sendSync(CompletionRequest(
       textDocument: TextDocumentIdentifier(url),
-      position: Position(line: 4, utf16index: 9)))
+      position: Position(line: 5, utf16index: 9)))
 
     XCTAssertEqual(selfDot.isIncomplete, options.serverSideFiltering)
     XCTAssertGreaterThanOrEqual(selfDot.items.count, 2)
@@ -112,8 +113,9 @@ final class SwiftCompletionTests: XCTestCase {
     if let abc = abc {
       XCTAssertEqual(abc.kind, .property)
       XCTAssertEqual(abc.detail, "Int")
+      XCTAssertEqual(abc.documentation, .markupContent(MarkupContent(kind: .markdown, value: "Documentation for abc.")))
       XCTAssertEqual(abc.filterText, "abc")
-      XCTAssertEqual(abc.textEdit, TextEdit(range: Position(line: 4, utf16index: 9)..<Position(line: 4, utf16index: 9), newText: "abc"))
+      XCTAssertEqual(abc.textEdit, TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: 9), newText: "abc"))
       XCTAssertEqual(abc.insertText, "abc")
       XCTAssertEqual(abc.insertTextFormat, .plain)
     }
@@ -121,7 +123,7 @@ final class SwiftCompletionTests: XCTestCase {
     for col in 10...12 {
       let inIdent = try! sk.sendSync(CompletionRequest(
         textDocument: TextDocumentIdentifier(url),
-        position: Position(line: 4, utf16index: col)))
+        position: Position(line: 5, utf16index: col)))
       guard let abc = inIdent.items.first(where: { $0.label == "abc" }) else {
         XCTFail("No completion item with label 'abc'")
         return
@@ -130,15 +132,16 @@ final class SwiftCompletionTests: XCTestCase {
       // If we switch to server-side filtering this will change.
       XCTAssertEqual(abc.kind, .property)
       XCTAssertEqual(abc.detail, "Int")
+      XCTAssertEqual(abc.documentation, .markupContent(MarkupContent(kind: .markdown, value: "Documentation for abc.")))
       XCTAssertEqual(abc.filterText, "abc")
-      XCTAssertEqual(abc.textEdit, TextEdit(range: Position(line: 4, utf16index: 9)..<Position(line: 4, utf16index: col), newText: "abc"))
+      XCTAssertEqual(abc.textEdit, TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: col), newText: "abc"))
       XCTAssertEqual(abc.insertText, "abc")
       XCTAssertEqual(abc.insertTextFormat, .plain)
     }
 
     let after = try! sk.sendSync(CompletionRequest(
       textDocument: TextDocumentIdentifier(url),
-      position: Position(line: 5, utf16index: 0)))
+      position: Position(line: 6, utf16index: 0)))
     XCTAssertNotEqual(after, selfDot)
   }
 
@@ -158,11 +161,11 @@ final class SwiftCompletionTests: XCTestCase {
     }
 
     func getTestMethodACompletion() -> CompletionItem? {
-      return getTestMethodCompletion(Position(line: 4, utf16index: 9), label: "test(a: Int)")
+      return getTestMethodCompletion(Position(line: 5, utf16index: 9), label: "test(a: Int)")
     }
 
     func getTestMethodBCompletion() -> CompletionItem? {
-      return getTestMethodCompletion(Position(line: 8, utf16index: 9), label: "test(b: Int)")
+      return getTestMethodCompletion(Position(line: 9, utf16index: 9), label: "test(b: Int)")
     }
 
     var test = getTestMethodACompletion()
@@ -171,7 +174,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.kind, .method)
       XCTAssertEqual(test.detail, "Void")
       XCTAssertEqual(test.filterText, "test(a:)")
-        XCTAssertEqual(test.textEdit, TextEdit(range: Position(line: 4, utf16index: 9)..<Position(line: 4, utf16index: 9), newText: "test(a: ${1:Int})"))
+        XCTAssertEqual(test.textEdit, TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: 9), newText: "test(a: ${1:Int})"))
       XCTAssertEqual(test.insertText, "test(a: ${1:Int})")
       XCTAssertEqual(test.insertTextFormat, .snippet)
     }
@@ -182,7 +185,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.kind, .method)
       XCTAssertEqual(test.detail, "Void")
       XCTAssertEqual(test.filterText, "test(:)")
-      XCTAssertEqual(test.textEdit, TextEdit(range: Position(line: 8, utf16index: 9)..<Position(line: 8, utf16index: 9), newText: "test(${1:b: Int})"))
+      XCTAssertEqual(test.textEdit, TextEdit(range: Position(line: 9, utf16index: 9)..<Position(line: 9, utf16index: 9), newText: "test(${1:b: Int})"))
       XCTAssertEqual(test.insertText, "test(${1:b: Int})")
       XCTAssertEqual(test.insertTextFormat, .snippet)
     }
@@ -198,7 +201,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.kind, .method)
       XCTAssertEqual(test.detail, "Void")
       XCTAssertEqual(test.filterText, "test(a:)")
-      XCTAssertEqual(test.textEdit, TextEdit(range: Position(line: 4, utf16index: 9)..<Position(line: 4, utf16index: 9), newText: "test(a: )"))
+      XCTAssertEqual(test.textEdit, TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: 9), newText: "test(a: )"))
       XCTAssertEqual(test.insertText, "test(a: )")
       XCTAssertEqual(test.insertTextFormat, .plain)
     }
@@ -210,7 +213,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.detail, "Void")
       XCTAssertEqual(test.filterText, "test(:)")
       // FIXME:
-        XCTAssertEqual(test.textEdit, TextEdit(range: Position(line: 8, utf16index: 9)..<Position(line: 8, utf16index: 9), newText: "test()"))
+        XCTAssertEqual(test.textEdit, TextEdit(range: Position(line: 9, utf16index: 9)..<Position(line: 9, utf16index: 9), newText: "test()"))
       XCTAssertEqual(test.insertText, "test()")
       XCTAssertEqual(test.insertTextFormat, .plain)
     }

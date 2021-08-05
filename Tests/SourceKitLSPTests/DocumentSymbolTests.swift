@@ -422,7 +422,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
       ),
       DocumentSymbol(
         name: "computedVariable",
-        detail: nil,
+        detail: "Int",
         kind: .variable,
         deprecated: nil,
         range: range(from: (10, 0), to: (10, 38)),
@@ -540,7 +540,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
           ),
           DocumentSymbol(
             name: "computedProperty",
-            detail: nil,
+            detail: "Int",
             kind: .property,
             deprecated: nil,
             range: range(from: (21, 2), to: (21, 40)),
@@ -576,7 +576,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
           ),
           DocumentSymbol(
             name: "staticComputedProperty",
-            detail: nil,
+            detail: "Int",
             kind: .property,
             deprecated: nil,
             range: range(from: (25, 2), to: (25, 53)),
@@ -585,7 +585,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
           ),
           DocumentSymbol(
             name: "classProperty",
-            detail: nil,
+            detail: "Int",
             kind: .property,
             deprecated: nil,
             range: range(from: (26, 2), to: (26, 43)),
@@ -620,7 +620,7 @@ func initialize(capabilities: DocumentSymbolCapabilities) {
               ),
               DocumentSymbol(
                 name: "localComputedVariable",
-                detail: nil,
+                detail: "Int",
                 kind: .variable,
                 deprecated: nil,
                 range: range(from: (30, 4), to: (30, 47)),
