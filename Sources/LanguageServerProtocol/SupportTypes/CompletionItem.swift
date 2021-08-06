@@ -63,6 +63,7 @@ public struct CompletionItem: Codable, Hashable {
   {
     self.label = label
     self.detail = detail
+    self.documentation = documentation
     self.sortText = sortText
     self.filterText = filterText
     self.textEdit = textEdit

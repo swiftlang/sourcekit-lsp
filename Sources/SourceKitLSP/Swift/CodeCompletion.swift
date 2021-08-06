@@ -137,6 +137,7 @@ extension SwiftLanguageServer {
       var filterName: String? = value[self.keys.name]
       let insertText: String? = value[self.keys.sourcetext]
       let typeName: String? = value[self.keys.typename]
+      let docBrief: String? = value[self.keys.doc_brief]
 
       let clientCompletionCapabilities = self.clientCapabilities.textDocument?.completion
       let clientSupportsSnippets = clientCompletionCapabilities?.completionItem?.snippetSupport == true
@@ -173,6 +174,7 @@ extension SwiftLanguageServer {
         label: name,
         kind: kind?.asCompletionItemKind(self.values) ?? .value,
         detail: typeName,
+        documentation: docBrief != nil ? .markupContent(MarkupContent(kind: .markdown, value: docBrief!)) : nil,
         sortText: nil,
         filterText: filterName,
         textEdit: textEdit,

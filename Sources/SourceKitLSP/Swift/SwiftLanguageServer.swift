@@ -564,7 +564,7 @@ extension SwiftLanguageServer {
           children = nil
         }
         return DocumentSymbol(name: name,
-                              detail: nil,
+                              detail: value[self.keys.typename] as String?,
                               kind: kind,
                               deprecated: nil,
                               range: range,
