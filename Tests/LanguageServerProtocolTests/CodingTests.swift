@@ -333,6 +333,9 @@ final class CodingTests: XCTestCase {
     checkCoding(DocumentSymbolResponse.documentSymbols([DocumentSymbol(name: "mySymbol", kind: .function, range: range, selectionRange: range)]), json: """
       [
         {
+          "children" : [
+
+          ],
           "kind" : 12,
           "name" : "mySymbol",
           "range" : \(rangejson.indented(4, skipFirstLine: true)),
