@@ -16,7 +16,7 @@ import SKTestSupport
 import SourceKitLSP
 import XCTest
 
-final class DocumentSymbolTest: XCTestCase {
+final class DocumentSymbolTests: XCTestCase {
   typealias DocumentSymbolCapabilities = TextDocumentClientCapabilities.DocumentSymbol
 
   /// Connection and lifetime management for the service.
@@ -25,12 +25,12 @@ final class DocumentSymbolTest: XCTestCase {
   /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
 
-override func tearDown() {
-  sk = nil
-  connection = nil
-}
+  override func tearDown() {
+    sk = nil
+    connection = nil
+  }
 
-func initialize(capabilities: DocumentSymbolCapabilities) {
+  func initialize(capabilities: DocumentSymbolCapabilities) {
     connection = TestSourceKitServer()
     sk = connection.client
     var documentCapabilities = TextDocumentClientCapabilities()

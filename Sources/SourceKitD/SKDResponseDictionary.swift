@@ -30,16 +30,31 @@ public final class SKDResponseDictionary {
     return sourcekitd.api.variant_dictionary_get_string(dict, key).map(String.init(cString:))
   }
   public subscript(key: sourcekitd_uid_t?) -> Int? {
-    return Int(sourcekitd.api.variant_dictionary_get_int64(dict, key))
+    let value = sourcekitd.api.variant_dictionary_get_value(dict, key)
+    if sourcekitd.api.variant_get_type(value) == SOURCEKITD_VARIANT_TYPE_INT64 {
+      return Int(sourcekitd.api.variant_int64_get_value(value))
+    } else {
+      return nil
+    }
   }
   public subscript(key: sourcekitd_uid_t?) -> Bool? {
-    return sourcekitd.api.variant_dictionary_get_bool(dict, key)
+    let value = sourcekitd.api.variant_dictionary_get_value(dict, key)
+    if sourcekitd.api.variant_get_type(value) == SOURCEKITD_VARIANT_TYPE_BOOL {
+      return sourcekitd.api.variant_bool_get_value(value)
+    } else {
+      return nil
+    }
   }
   public subscript(key: sourcekitd_uid_t?) -> sourcekitd_uid_t? {
     return sourcekitd.api.variant_dictionary_get_uid(dict, key)
   }
   public subscript(key: sourcekitd_uid_t?) -> SKDResponseArray? {
-    return SKDResponseArray(sourcekitd.api.variant_dictionary_get_value(dict, key), response: resp)
+    let value = sourcekitd.api.variant_dictionary_get_value(dict, key)
+    if sourcekitd.api.variant_get_type(value) == SOURCEKITD_VARIANT_TYPE_ARRAY {
+      return SKDResponseArray(value, response: resp)
+    } else {
+      return nil
+    }
   }
 }
 
