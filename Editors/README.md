@@ -178,6 +178,13 @@ This image is based on the nightly published version.
 
 theia-swift-docker source [theia-apps](https://github.com/theia-ide/theia-apps)
 
+## BBEdit
+
+Support for LSP is built in to BBEdit 14.0 and later.
+
+If `sourcekit-lsp` is in your `$PATH` or is discoverable by using `xcrun --find sourcekit-lsp`, BBEdit will use it automatically. Otherwise you can manually configure BBEdit to use a suitable `sourcekit-lsp` as needed.
+
+You can read more about BBEdit's LSP support and configuration hints [here](https://www.barebones.com/support/bbedit/lsp-notes.html).
 
 ## Other Editors
 
