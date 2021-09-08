@@ -31,8 +31,6 @@ public struct FileBuildSettings: Equatable {
   }
 }
 
-fileprivate let headerExtensions = ["h", "hh", "hpp"]
-
 fileprivate let cExtensions = ["c"]
 fileprivate let cppExtensions = ["cpp", "cc"]
 fileprivate let objcExtensions = ["m"]
@@ -48,14 +46,11 @@ private extension String {
 }
 
 public extension FileBuildSettings {
-  /// Return arguments suitable for use by `newFile`, which must be a header file.
+  /// Return arguments suitable for use by `newFile`.
   ///
   /// This patches the arguments by searching for the argument corresponding to
   /// `originalFile` and replacing it.
   func patching(newFile: String, originalFile: String) -> FileBuildSettings {
-    guard headerExtensions.contains(newFile.pathExtension) else {
-      return self
-    }
     var arguments = self.compilerArguments
     let basename = originalFile.pathBasename
     let fileExtension = originalFile.pathExtension
@@ -70,13 +65,13 @@ public extension FileBuildSettings {
       // argument in order for Clang to respect it. If there is a pre-existing `-x`
       // flag though, Clang will honor that one instead since it comes after.
       if cExtensions.contains(fileExtension) {
-        arguments.insert("-xc-header", at: 0)
+        arguments.insert("-xc", at: 0)
       } else if cppExtensions.contains(fileExtension) {
-        arguments.insert("-xc++-header", at: 0)
+        arguments.insert("-xc++", at: 0)
       } else if objcExtensions.contains(fileExtension) {
-        arguments.insert("-xobjective-c-header", at: 0)
+        arguments.insert("-xobjective-c", at: 0)
       } else if (objcppExtensions.contains(fileExtension)) {
-        arguments.insert("-xobjective-c++-header", at: 0)
+        arguments.insert("-xobjective-c++", at: 0)
       }
     }
     return FileBuildSettings(compilerArguments: arguments, workingDirectory: self.workingDirectory)
