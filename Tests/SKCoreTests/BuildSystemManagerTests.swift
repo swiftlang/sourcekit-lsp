@@ -330,8 +330,8 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let initial1 = expectation(description: "initial settings h1 via cpp")
     let initial2 = expectation(description: "initial settings h2 via cpp")
-    let expectedArgsH1 = FileBuildSettings(compilerArguments: ["-xc++-header", cppArg, h1.pseudoPath])
-    let expectedArgsH2 = FileBuildSettings(compilerArguments: ["-xc++-header", cppArg, h2.pseudoPath])
+    let expectedArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h1.pseudoPath])
+    let expectedArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h2.pseudoPath])
     del.expected = [
       (h1, expectedArgsH1, initial1, #file, #line),
       (h2, expectedArgsH2, initial2, #file, #line),
@@ -348,8 +348,8 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[cpp] = FileBuildSettings(compilerArguments: [newCppArg, cpp.pseudoPath])
     let changed1 = expectation(description: "initial settings h1 via cpp")
     let changed2 = expectation(description: "initial settings h2 via cpp")
-    let newArgsH1 = FileBuildSettings(compilerArguments: ["-xc++-header", newCppArg, h1.pseudoPath])
-    let newArgsH2 = FileBuildSettings(compilerArguments: ["-xc++-header", newCppArg, h2.pseudoPath])
+    let newArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", newCppArg, h1.pseudoPath])
+    let newArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", newCppArg, h2.pseudoPath])
     del.expected = [
       (h1, newArgsH1, changed1, #file, #line),
       (h2, newArgsH2, changed2, #file, #line),
