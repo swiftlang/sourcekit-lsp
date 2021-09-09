@@ -55,8 +55,8 @@ public extension FileBuildSettings {
     let basename = originalFile.pathBasename
     let fileExtension = originalFile.pathExtension
     if let index = arguments.lastIndex(where: {
-      // It's possible the arguments use relative paths while the `oldFile` given is
-      // an absolute/real path value. We guess based on suffixes instead of hitting
+      // It's possible the arguments use relative paths while the `originalFile` given
+      // is an absolute/real path value. We guess based on suffixes instead of hitting
       // the file system.
       $0.hasSuffix(basename) && originalFile.hasSuffix($0)
     }) {
