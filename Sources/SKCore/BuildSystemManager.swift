@@ -156,14 +156,33 @@ extension BuildSystemManager: BuildSystem {
         self.watchedFiles[uri] = (mainFile, language)
       }
 
-      let newStatus = self.cachedStatusOrRegisterForSettings( for: mainFile, language: language)
+      let newStatus = self.cachedStatusOrRegisterForSettings(for: mainFile, language: language)
 
-      if let change = newStatus.buildSettingsChange,
+      if let mainChange = newStatus.buildSettingsChange,
          let delegate = self._delegate {
+        let change = self.convert(change: mainChange, ofMainFile: mainFile, to: uri)
         self.notifyQueue.async {
           delegate.fileBuildSettingsChanged([uri: change])
         }
       }
+    }
+  }
+
+  /// Return settings for `file` based on  the `change` settings for `mainFile`.
+  ///
+  /// This is used when inferring arguments for header files (e.g. main file is a `.m`  while file is  a` .h`).
+  func convert(
+    change: FileBuildSettingsChange,
+    ofMainFile mainFile: DocumentURI,
+    to file: DocumentURI
+  ) -> FileBuildSettingsChange {
+    guard mainFile != file else { return change }
+    switch change {
+    case .removedOrUnavailable: return .removedOrUnavailable
+    case .fallback(let settings):
+      return .fallback(settings.patching(newFile: file.pseudoPath, originalFile: mainFile.pseudoPath))
+    case .modified(let settings):
+      return .modified(settings.patching(newFile: file.pseudoPath, originalFile: mainFile.pseudoPath))
     }
   }
 
@@ -233,7 +252,9 @@ extension BuildSystemManager: BuildSystem {
       }
       if let change = status.buildSettingsChange {
         for watch in watches {
-          changedWatchedFiles[watch.key] = change
+          let newChange =
+            self.convert(change: change, ofMainFile: mainFile, to: watch.key)
+          changedWatchedFiles[watch.key] = newChange
         }
       }
     }
@@ -413,7 +434,10 @@ extension BuildSystemManager: MainFilesDelegate {
 
           let newStatus = self.cachedStatusOrRegisterForSettings(
               for: newMainFile, language: language)
-          buildSettingsChanges[uri] = newStatus.buildSettingsChange
+          if let change = newStatus.buildSettingsChange {
+            let newChange = self.convert(change: change, ofMainFile: newMainFile, to: uri)
+            buildSettingsChanges[uri] = newChange
+          }
         }
       }
 

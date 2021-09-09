@@ -325,13 +325,16 @@ final class BuildSystemManagerTests: XCTestCase {
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
     let del = BSMDelegate(bsm)
 
-    bs.map[cpp] = FileBuildSettings(compilerArguments: ["C++ Main File"])
+    let cppArg = "C++ Main File"
+    bs.map[cpp] = FileBuildSettings(compilerArguments: [cppArg, cpp.pseudoPath])
 
     let initial1 = expectation(description: "initial settings h1 via cpp")
     let initial2 = expectation(description: "initial settings h2 via cpp")
+    let expectedArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h1.pseudoPath])
+    let expectedArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h2.pseudoPath])
     del.expected = [
-      (h1, bs.map[cpp]!, initial1, #file, #line),
-      (h2, bs.map[cpp]!, initial2, #file, #line),
+      (h1, expectedArgsH1, initial1, #file, #line),
+      (h2, expectedArgsH2, initial2, #file, #line),
     ]
 
     bsm.registerForChangeNotifications(for: h1, language: .c)
@@ -341,12 +344,15 @@ final class BuildSystemManagerTests: XCTestCase {
     // since they are backed by the same underlying cpp file.
     wait(for: [initial1, initial2], timeout: 10, enforceOrder: false)
 
-    bs.map[cpp] = FileBuildSettings(compilerArguments: ["New C++ Main File"])
+    let newCppArg = "New C++ Main File"
+    bs.map[cpp] = FileBuildSettings(compilerArguments: [newCppArg, cpp.pseudoPath])
     let changed1 = expectation(description: "initial settings h1 via cpp")
     let changed2 = expectation(description: "initial settings h2 via cpp")
+    let newArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", newCppArg, h1.pseudoPath])
+    let newArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", newCppArg, h2.pseudoPath])
     del.expected = [
-      (h1, bs.map[cpp]!, changed1, #file, #line),
-      (h2, bs.map[cpp]!, changed2, #file, #line),
+      (h1, newArgsH1, changed1, #file, #line),
+      (h2, newArgsH2, changed2, #file, #line),
     ]
     bsm.fileBuildSettingsChanged([cpp: .modified(bs.map[cpp]!)])
 
