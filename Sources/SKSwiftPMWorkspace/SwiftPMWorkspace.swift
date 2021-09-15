@@ -91,9 +91,17 @@ public final class SwiftPMWorkspace {
         location.workingDirectory = customWorkingDirectory
     }
 
+      // since we are customizing the workspace location, we need to explicitly pass the mirrors configuration
+    let mirrorsConfiguration = try Workspace.Configuration.Mirrors(
+        forRootPackage: packageRoot,
+        sharedMirrorFile: location.sharedMirrorsConfigurationFile,
+        fileSystem: fileSystem
+    )
+
     self.workspace = try Workspace(
         fileSystem: fileSystem,
         location: location,
+        mirrors: mirrorsConfiguration.mirrors,
         customManifestLoader: ManifestLoader(toolchain: toolchain.configuration, cacheDir: location.workingDirectory),
         resolverUpdateEnabled: false
     )
