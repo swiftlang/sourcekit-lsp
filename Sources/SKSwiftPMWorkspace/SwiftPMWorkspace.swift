@@ -23,6 +23,7 @@ import PackageModel
 import SourceControl
 import SKCore
 import SKSupport
+import TSCBasic
 import Workspace
 import Dispatch
 import struct Foundation.URL
@@ -87,16 +88,25 @@ public final class SwiftPMWorkspace {
 
     let buildPath: AbsolutePath = buildSetup.path ?? packageRoot.appending(component: ".build")
 
-    let workspaceConfiguration = try Workspace.Configuration(path: packageRoot.appending(components: ".swiftpm", "config"), fs: fileSystem)
+    let mirrorsConfiguration = try Workspace.Configuration.Mirrors.init(
+        localMirrorFile: packageRoot.appending(components: ".swiftpm", "config"),
+        sharedMirrorFile: .none,
+        fileSystem: fileSystem
+    )
 
-    self.workspace = Workspace(
-        dataPath: buildPath,
-        editablesPath: packageRoot.appending(component: "Packages"),
-        pinsFile: packageRoot.appending(component: "Package.resolved"),
-        manifestLoader: ManifestLoader(manifestResources: toolchain.manifestResources, cacheDir: buildPath),
-        config: workspaceConfiguration,
+    self.workspace = try Workspace(
         fileSystem: fileSystem,
-        skipUpdate: true)
+        location: .init(
+            workingDirectory: buildPath,
+            editsDirectory: packageRoot.appending(component: "Packages"),
+            resolvedVersionsFile: packageRoot.appending(component: "Package.resolved"),
+            sharedCacheDirectory: .none,
+            sharedConfigurationDirectory: .none
+        ),
+        mirrors: mirrorsConfiguration.mirrors,
+        customManifestLoader: ManifestLoader(toolchain: toolchain.configuration, cacheDir: buildPath),
+        resolverUpdateEnabled: false
+    )
 
     let triple = toolchain.triple
 
