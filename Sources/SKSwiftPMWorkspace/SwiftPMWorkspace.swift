@@ -86,25 +86,15 @@ public final class SwiftPMWorkspace {
     let destination = try Destination.hostDestination(destinationToolchainBinDir)
     let toolchain = try UserToolchain(destination: destination)
 
-    let buildPath: AbsolutePath = buildSetup.path ?? packageRoot.appending(component: ".build")
-
-    let mirrorsConfiguration = try Workspace.Configuration.Mirrors.init(
-        localMirrorFile: packageRoot.appending(components: ".swiftpm", "config"),
-        sharedMirrorFile: .none,
-        fileSystem: fileSystem
-    )
+    var location = Workspace.Location(forRootPackage: packageRoot, fileSystem: fileSystem)
+    if let customWorkingDirectory = buildSetup.path {
+        location.workingDirectory = customWorkingDirectory
+    }
 
     self.workspace = try Workspace(
         fileSystem: fileSystem,
-        location: .init(
-            workingDirectory: buildPath,
-            editsDirectory: packageRoot.appending(component: "Packages"),
-            resolvedVersionsFile: packageRoot.appending(component: "Package.resolved"),
-            sharedCacheDirectory: .none,
-            sharedConfigurationDirectory: .none
-        ),
-        mirrors: mirrorsConfiguration.mirrors,
-        customManifestLoader: ManifestLoader(toolchain: toolchain.configuration, cacheDir: buildPath),
+        location: location,
+        customManifestLoader: ManifestLoader(toolchain: toolchain.configuration, cacheDir: location.workingDirectory),
         resolverUpdateEnabled: false
     )
 
@@ -119,10 +109,11 @@ public final class SwiftPMWorkspace {
     }
 
     self.buildParameters = BuildParameters(
-      dataPath: buildPath.appending(component: triple.tripleString),
-      configuration: buildConfiguration,
-      toolchain: toolchain,
-      flags: buildSetup.flags)
+        dataPath: location.workingDirectory.appending(component: triple.tripleString),
+        configuration: buildConfiguration,
+        toolchain: toolchain,
+        flags: buildSetup.flags
+    )
 
     self.packageGraph = try PackageGraph(rootPackages: [], dependencies: [])
 
