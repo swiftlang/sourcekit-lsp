@@ -23,6 +23,7 @@ import PackageModel
 import SourceControl
 import SKCore
 import SKSupport
+import TSCBasic
 import Workspace
 import Dispatch
 import struct Foundation.URL
@@ -85,18 +86,25 @@ public final class SwiftPMWorkspace {
     let destination = try Destination.hostDestination(destinationToolchainBinDir)
     let toolchain = try UserToolchain(destination: destination)
 
-    let buildPath: AbsolutePath = buildSetup.path ?? packageRoot.appending(component: ".build")
+    var location = Workspace.Location(forRootPackage: packageRoot, fileSystem: fileSystem)
+    if let customWorkingDirectory = buildSetup.path {
+        location.workingDirectory = customWorkingDirectory
+    }
 
-    let workspaceConfiguration = try Workspace.Configuration(path: packageRoot.appending(components: ".swiftpm", "config"), fs: fileSystem)
+      // since we are customizing the workspace location, we need to explicitly pass the mirrors configuration
+    let mirrorsConfiguration = try Workspace.Configuration.Mirrors(
+        forRootPackage: packageRoot,
+        sharedMirrorFile: location.sharedMirrorsConfigurationFile,
+        fileSystem: fileSystem
+    )
 
-    self.workspace = Workspace(
-        dataPath: buildPath,
-        editablesPath: packageRoot.appending(component: "Packages"),
-        pinsFile: packageRoot.appending(component: "Package.resolved"),
-        manifestLoader: ManifestLoader(manifestResources: toolchain.manifestResources, cacheDir: buildPath),
-        config: workspaceConfiguration,
+    self.workspace = try Workspace(
         fileSystem: fileSystem,
-        skipUpdate: true)
+        location: location,
+        mirrors: mirrorsConfiguration.mirrors,
+        customManifestLoader: ManifestLoader(toolchain: toolchain.configuration, cacheDir: location.workingDirectory),
+        resolverUpdateEnabled: false
+    )
 
     let triple = toolchain.triple
 
@@ -109,10 +117,11 @@ public final class SwiftPMWorkspace {
     }
 
     self.buildParameters = BuildParameters(
-      dataPath: buildPath.appending(component: triple.tripleString),
-      configuration: buildConfiguration,
-      toolchain: toolchain,
-      flags: buildSetup.flags)
+        dataPath: location.workingDirectory.appending(component: triple.tripleString),
+        configuration: buildConfiguration,
+        toolchain: toolchain,
+        flags: buildSetup.flags
+    )
 
     self.packageGraph = try PackageGraph(rootPackages: [], dependencies: [])
 
