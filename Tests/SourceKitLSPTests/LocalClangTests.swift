@@ -38,12 +38,18 @@ final class LocalClangTests: XCTestCase {
 
     connection = TestSourceKitServer()
     sk = connection.client
+    let documentSymbol = TextDocumentClientCapabilities.DocumentSymbol(
+      dynamicRegistration: nil,
+      symbolKind: nil,
+      hierarchicalDocumentSymbolSupport: true
+    )
+    let textDocument = TextDocumentClientCapabilities(documentSymbol: documentSymbol)
     _ = try! sk.sendSync(InitializeRequest(
         processId: nil,
         rootPath: nil,
         rootURI: nil,
         initializationOptions: nil,
-        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
+        capabilities: ClientCapabilities(workspace: nil, textDocument: textDocument),
         trace: .off,
         workspaceFolders: nil))
   }
@@ -137,6 +143,35 @@ final class LocalClangTests: XCTestCase {
 
     let resp = try! sk.sendSync(FoldingRangeRequest(textDocument: TextDocumentIdentifier(url)))
     XCTAssertNil(resp)
+  }
+
+  func testDocumentSymbols() throws {
+    guard haveClangd else { return }
+    let url = URL(fileURLWithPath: "/a.cpp")
+
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: DocumentURI(url),
+      language: .cpp,
+      version: 1,
+      text: """
+      struct S {
+        void foo() {
+          int local = 1;
+        }
+      };
+      """)))
+
+    guard let resp = try! sk.sendSync(DocumentSymbolRequest(textDocument: TextDocumentIdentifier(url))) else {
+      XCTFail("Invalid document symbol response")
+      return
+    }
+    guard case let .documentSymbols(syms) = resp else {
+      XCTFail("Expected a [DocumentSymbol] but got \(resp)")
+      return
+    }
+    XCTAssertEqual(syms.count, 1)
+    XCTAssertEqual(syms.first?.name, "S")
+    XCTAssertEqual(syms.first?.children?.first?.name, "foo")
   }
 
   func testClangStdHeaderCanary() throws {

@@ -91,7 +91,7 @@ public struct DocumentSymbol: Hashable, Codable {
   public var selectionRange: Range<Position>
 
   /// Children of this symbol, e.g. properties of a class.
-  public var children: [DocumentSymbol]
+  public var children: [DocumentSymbol]?
 
   public init(
     name: String,
@@ -100,7 +100,7 @@ public struct DocumentSymbol: Hashable, Codable {
     deprecated: Bool? = nil,
     range: Range<Position>,
     selectionRange: Range<Position>,
-    children: [DocumentSymbol] = [])
+    children: [DocumentSymbol]? = nil)
   {
     self.name = name
     self.detail = detail
