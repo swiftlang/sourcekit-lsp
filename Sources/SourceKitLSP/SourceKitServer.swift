@@ -524,6 +524,12 @@ extension SourceKitServer {
         triggerCharacters: ["."]
       )
     }
+    let executeCommandOptions: ExecuteCommandOptions?
+    if registry.clientHasDynamicExecuteCommandRegistration {
+      executeCommandOptions = nil
+    } else {
+      executeCommandOptions = ExecuteCommandOptions(commands: builtinSwiftCommands)
+    }
     return ServerCapabilities(
       textDocumentSync: TextDocumentSyncOptions(
         openClose: true,
@@ -547,9 +553,7 @@ extension SourceKitServer {
       )),
       colorProvider: .bool(true),
       foldingRangeProvider: .bool(!registry.clientHasDynamicFoldingRangeRegistration),
-      executeCommandProvider: ExecuteCommandOptions(
-        commands: builtinSwiftCommands // FIXME: Clangd commands?
-      )
+      executeCommandProvider: executeCommandOptions
     )
   }
 
@@ -570,6 +574,11 @@ extension SourceKitServer {
     }
     if let semanticTokensOptions = server.semanticTokensProvider {
       registry.registerSemanticTokensIfNeeded(options: semanticTokensOptions, for: languages) {
+        self.dynamicallyRegisterCapability($0, registry)
+      }
+    }
+    if let commandOptions = server.executeCommandProvider {
+      registry.registerExecuteCommandIfNeeded(commands: commandOptions.commands) {
         self.dynamicallyRegisterCapability($0, registry)
       }
     }

@@ -29,6 +29,9 @@ public final class CapabilityRegistry {
   /// Dynamically registered semantic tokens options.
   private var semanticTokens: [CapabilityRegistration: SemanticTokensRegistrationOptions] = [:]
 
+  /// Dynamically registered command IDs.
+  private var commandIds: Set<String> = []
+
   public let clientCapabilities: ClientCapabilities
 
   public init(clientCapabilities: ClientCapabilities) {
@@ -45,6 +48,10 @@ public final class CapabilityRegistry {
 
   public var clientHasDynamicSemanticTokensRegistration: Bool {
     clientCapabilities.textDocument?.semanticTokens?.dynamicRegistration == true
+  }
+
+  public var clientHasDynamicExecuteCommandRegistration: Bool {
+    clientCapabilities.workspace?.executeCommand?.dynamicRegistration == true
   }
 
   /// Dynamically register completion capabilities if the client supports it and
@@ -127,6 +134,30 @@ public final class CapabilityRegistry {
       registerOptions: self.encode(registrationOptions))
 
     self.semanticTokens[registration] = registrationOptions
+
+    registerOnClient(registration)
+  }
+
+  /// Dynamically register executeCommand with the given IDs if the client supports
+  /// it and we haven't yet registered the given command IDs yet.
+  public func registerExecuteCommandIfNeeded(
+    commands: [String],
+    registerOnClient: ClientRegistrationHandler
+  ) {
+    guard clientHasDynamicExecuteCommandRegistration else { return }
+    var newCommands = Set(commands)
+    newCommands.subtract(self.commandIds)
+
+    // We only want to send the registration with unregistered command IDs since
+    // clients such as VS Code only allow a command to be registered once. We could
+    // unregister all our commandIds first but this is simpler.
+    guard !newCommands.isEmpty else { return }
+    self.commandIds.formUnion(newCommands)
+
+    let registrationOptions = ExecuteCommandRegistrationOptions(commands: Array(newCommands))
+    let registration = CapabilityRegistration(
+      method: ExecuteCommandRequest.method,
+      registerOptions: self.encode(registrationOptions))
 
     registerOnClient(registration)
   }
