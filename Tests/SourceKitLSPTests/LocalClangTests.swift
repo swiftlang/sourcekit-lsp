@@ -184,6 +184,7 @@ final class LocalClangTests: XCTestCase {
     let expectation = XCTestExpectation(description: "diagnostics")
 
     ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(note.params.diagnostics, [])
       XCTAssertEqual(note.params.diagnostics.count, 0)
       expectation.fulfill()
     }
