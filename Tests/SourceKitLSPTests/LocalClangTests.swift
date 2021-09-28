@@ -184,8 +184,12 @@ final class LocalClangTests: XCTestCase {
     let expectation = XCTestExpectation(description: "diagnostics")
 
     ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
-      XCTAssertEqual(note.params.diagnostics, [])
-      XCTAssertEqual(note.params.diagnostics.count, 0)
+      let diagnostics = note.params.diagnostics
+      // It seems we either get no diagnostics or a `-Wswitch` warning. Either is fine
+      // as long as our code action works properly.
+      XCTAssert(diagnostics.isEmpty ||
+                  (diagnostics.count == 1 && diagnostics.first?.code == .string("-Wswitch")),
+                "Unexpected diagnostics \(diagnostics)")
       expectation.fulfill()
     }
 
