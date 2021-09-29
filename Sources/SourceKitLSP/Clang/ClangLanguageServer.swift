@@ -510,8 +510,7 @@ extension ClangLanguageServerShim {
   // MARK: - Other
 
   func executeCommand(_ req: Request<ExecuteCommandRequest>) {
-    //TODO: Implement commands.
-    return req.reply(nil)
+    forwardRequestToClangdOnQueue(req)
   }
 }
 

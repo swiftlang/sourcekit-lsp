@@ -174,6 +174,68 @@ final class LocalClangTests: XCTestCase {
     XCTAssertEqual(syms.first?.children?.first?.name, "foo")
   }
 
+  func testCodeAction() throws {
+    guard let ws = try staticSourceKitTibsWorkspace(name: "CodeActionCxx") else { return }
+    if ToolchainRegistry.shared.default?.clangd == nil { return }
+
+    let loc = ws.testLoc("SwitchColor")
+    let endLoc = ws.testLoc("SwitchColor:end")
+
+    let expectation = XCTestExpectation(description: "diagnostics")
+
+    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      let diagnostics = note.params.diagnostics
+      // It seems we either get no diagnostics or a `-Wswitch` warning. Either is fine
+      // as long as our code action works properly.
+      XCTAssert(diagnostics.isEmpty ||
+                  (diagnostics.count == 1 && diagnostics.first?.code == .string("-Wswitch")),
+                "Unexpected diagnostics \(diagnostics)")
+      expectation.fulfill()
+    }
+
+    try ws.openDocument(loc.url, language: .cpp)
+
+    let result = XCTWaiter.wait(for: [expectation], timeout: 15)
+    if result != .completed {
+      fatalError("error \(result) waiting for diagnostics notification")
+    }
+
+    let codeAction = CodeActionRequest(
+      range: Position(loc)..<Position(endLoc),
+      context: CodeActionContext(),
+      textDocument: loc.docIdentifier
+    )
+    guard let reply = try ws.sk.sendSync(codeAction) else {
+      XCTFail("CodeActionRequest had nil reply")
+      return
+    }
+    guard case let .commands(commands) = reply else {
+      XCTFail("Expected [Command] but got \(reply)")
+      return
+    }
+    guard let command = commands.first else {
+      XCTFail("Expected a non-empty [Command]")
+      return
+    }
+    XCTAssertEqual(command.command, "clangd.applyTweak")
+
+    let applyEdit = XCTestExpectation(description: "applyEdit")
+    ws.sk.handleNextRequest { (request: Request<ApplyEditRequest>) in
+      XCTAssertNotNil(request.params.edit.changes)
+      request.reply(ApplyEditResponse(applied: true, failureReason: nil))
+      applyEdit.fulfill()
+    }
+
+    let executeCommand = ExecuteCommandRequest(
+      command: command.command, arguments: command.arguments)
+    _ = try ws.sk.sendSync(executeCommand)
+
+    let editResult = XCTWaiter.wait(for: [applyEdit], timeout: 15)
+    if editResult != .completed {
+      fatalError("error \(editResult) waiting for applyEdit request")
+    }
+  }
+
   func testClangStdHeaderCanary() throws {
     guard let ws = try staticSourceKitTibsWorkspace(name: "ClangStdHeaderCanary") else { return }
     if ToolchainRegistry.shared.default?.clangd == nil { return }
