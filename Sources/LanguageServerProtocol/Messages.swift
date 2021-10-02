@@ -43,6 +43,8 @@ public let builtinRequests: [_RequestType.Type] = [
   CodeActionRequest.self,
   ExecuteCommandRequest.self,
   ApplyEditRequest.self,
+  PrepareRenameRequest.self,
+  RenameRequest.self,
   RegisterCapabilityRequest.self,
   UnregisterCapabilityRequest.self,
 
