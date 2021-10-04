@@ -15,7 +15,7 @@
 /// Looks up the symbol at the given position and returns the range of the symbol the user is renaming,
 /// or null if there is no symbol to be renamed at the given position
 ///
-/// Servers that provide rename preparation should set`prepareProvider` to true in the `renameProvider` server capability.
+/// Servers that provide rename preparation should set `prepareProvider` to true in the `renameProvider` server capability.
 ///
 /// - Parameters:
 ///   - textDocument: The document in which to lookup the symbol location.
