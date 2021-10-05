@@ -437,6 +437,10 @@ extension ClangLanguageServerShim {
   func completion(_ req: Request<CompletionRequest>) {
     forwardRequestToClangdOnQueue(req)
   }
+  
+  func completionResolve(_ req: Request<CompletionItem>) {
+    forwardRequestToClangdOnQueue(req)
+  }
 
   func hover(_ req: Request<HoverRequest>) {
     forwardRequestToClangdOnQueue(req)

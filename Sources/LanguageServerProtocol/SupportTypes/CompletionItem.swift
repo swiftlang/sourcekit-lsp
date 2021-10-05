@@ -11,7 +11,23 @@
 //===----------------------------------------------------------------------===//
 
 /// A single completion result.
-public struct CompletionItem: Codable, Hashable {
+public struct CompletionItem: TextDocumentRequest, RequestType, ResponseType, Codable, Hashable {
+  public typealias Response = CompletionItem
+    
+  public var textDocument: TextDocumentIdentifier {
+    if 
+      let data = self.data,
+      case let .dictionary(dict) = data,
+      case let .string(textDocURI) = dict["textDocURI"]
+    {
+      return TextDocumentIdentifier(DocumentURI(string: textDocURI))
+    } else {
+      fatalError("Missing textDocURI in CompletionItem.data: \(data ?? "(CompletionItem.data is nil)")")
+    }
+  }
+  
+  public static var method: String = "completionItem/resolve"
+
 
   /// The display name of the completion.
   public var label: String
@@ -48,6 +64,9 @@ public struct CompletionItem: Codable, Hashable {
 
   /// Whether the completion is for a deprecated symbol.
   public var deprecated: Bool?
+  
+  /// A data entry field that is preserved on a `CompletionItem` between a completion and a completion resolve request.
+  public var data: LSPAny?
 
   public init(
     label: String,
@@ -59,7 +78,8 @@ public struct CompletionItem: Codable, Hashable {
     textEdit: TextEdit? = nil,
     insertText: String? = nil,
     insertTextFormat: InsertTextFormat? = nil,
-    deprecated: Bool? = nil)
+    deprecated: Bool? = nil,
+    data: LSPAny? = nil)
   {
     self.label = label
     self.detail = detail
@@ -71,6 +91,21 @@ public struct CompletionItem: Codable, Hashable {
     self.insertTextFormat = insertTextFormat
     self.kind = kind
     self.deprecated = deprecated
+    self.data = data
+  }
+  
+  enum CodingKeys: String, CodingKey {
+    case label,
+    detail,
+    documentation,
+    sortText,
+    filterText,
+    textEdit,
+    insertText,
+    insertTextFormat,
+    kind,
+    deprecated,
+    data
   }
 }
 

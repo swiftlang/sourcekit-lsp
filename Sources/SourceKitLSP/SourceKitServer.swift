@@ -85,6 +85,7 @@ public final class SourceKitServer: LanguageServer {
 
     registerToolchainTextDocumentRequest(SourceKitServer.completion,
                                          CompletionList(isIncomplete: false, items: []))
+    registerToolchainTextDocumentRequest(SourceKitServer.completionResolve, CompletionItem(label: "", kind: .class))
     registerToolchainTextDocumentRequest(SourceKitServer.hover, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.definition, .locations([]))
     registerToolchainTextDocumentRequest(SourceKitServer.references, [])
@@ -756,6 +757,14 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) {
     languageService.completion(req)
+  }
+  
+  func completionResolve(
+    _ req: Request<CompletionItem>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
+    languageService.completionResolve(req)
   }
 
   func hover(
