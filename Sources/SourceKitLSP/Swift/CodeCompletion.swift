@@ -170,19 +170,9 @@ extension SwiftLanguageServer {
       let notRecommended = (value[self.keys.not_recommended] as Int?).map({ $0 != 0 })
 
       let kind = (value[self.keys.kind] as sourcekitd_uid_t?)?.asCompletionItemKind(self.values) ?? .value
-      var usr: String? = nil
-      
-      switch kind {
-        // Don't fill in `usr` for things other than Swift symbols.
-        case .class, .struct, .constant, .variable, .enum, .enumMember, .constructor,
-             .field, .function, .interface, .method, .module, .operator, .property, .typeParameter:
-          usr = value[self.keys.associated_usrs]
-        default: break
-      }
-    
       var data: [String: LSPAny] = ["textDocURI": .string(snapshot.document.uri.stringValue)]
 
-      if usr != nil { data["usr"] = .string(usr!) }
+      if let usr: String = value[self.keys.associated_usrs] { data["usr"] = .string(usr) }
       
       result.items.append(CompletionItem(
         label: name,
@@ -301,6 +291,8 @@ extension SwiftLanguageServer {
   
     /// Must be called on `queue`.
   func _completionResolve(_ req: Request<CompletionItem>) {
+    dispatchPrecondition(condition: .onQueue(queue))
+    
     if 
       let data = req.params.data,
       case let .dictionary(dict) = data,

@@ -10,8 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// A single completion result.
-public struct CompletionItem: TextDocumentRequest, RequestType, ResponseType, Codable, Hashable {
+/// `CompletionItem` is a request for the `completionItem/resolve` method and a response type to the `textDocument/completion` request.
+public struct CompletionItem: TextDocumentRequest, ResponseType, Codable, Hashable {
+  public static var method: String = "completionItem/resolve"
   public typealias Response = CompletionItem
     
   public var textDocument: TextDocumentIdentifier {
@@ -25,9 +26,6 @@ public struct CompletionItem: TextDocumentRequest, RequestType, ResponseType, Co
       fatalError("Missing textDocURI in CompletionItem.data: \(data ?? "(CompletionItem.data is nil)")")
     }
   }
-  
-  public static var method: String = "completionItem/resolve"
-
 
   /// The display name of the completion.
   public var label: String
@@ -56,7 +54,7 @@ public struct CompletionItem: TextDocumentRequest, RequestType, ResponseType, Co
 
   /// **Deprecated**: use `textEdit`
   ///
-  /// The string to insert into the document. If `nil`, use `label.
+  /// The string to insert into the document. If `nil`, use `label`.
   public var insertText: String?
 
   /// The format of the `textEdit.nextText` or `insertText` value.
@@ -92,20 +90,6 @@ public struct CompletionItem: TextDocumentRequest, RequestType, ResponseType, Co
     self.kind = kind
     self.deprecated = deprecated
     self.data = data
-  }
-  
-  enum CodingKeys: String, CodingKey {
-    case label,
-    detail,
-    documentation,
-    sortText,
-    filterText,
-    textEdit,
-    insertText,
-    insertTextFormat,
-    kind,
-    deprecated,
-    data
   }
 }
 
