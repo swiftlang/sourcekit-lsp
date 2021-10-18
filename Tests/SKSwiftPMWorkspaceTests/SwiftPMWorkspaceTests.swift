@@ -605,5 +605,5 @@ private func buildPath(
   triple: Triple) -> AbsolutePath
 {
   let buildPath = config.path ?? root.appending(component: ".build")
-  return buildPath.appending(components: triple.tripleString, "\(config.configuration)")
+  return buildPath.appending(components: triple.platformBuildPathComponent(), "\(config.configuration)")
 }
