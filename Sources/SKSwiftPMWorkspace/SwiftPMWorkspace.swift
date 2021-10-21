@@ -216,7 +216,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
 
   public func settings(
     for uri: DocumentURI,
-    _ language: Language) -> FileBuildSettings?
+    _ language: Language) throws -> FileBuildSettings?
   {
     guard let url = uri.fileURL else {
       // We can't determine build settings for non-file URIs.
@@ -227,7 +227,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     }
 
     if let td = targetDescription(for: path) {
-      return settings(for: path, language, td)
+      return try settings(for: path, language, td)
     }
 
     if path.basename == "Package.swift" {
@@ -235,7 +235,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     }
 
     if path.extension == "h" {
-      return settings(forHeader: path, language)
+      return try settings(forHeader: path, language)
     }
 
     return nil
@@ -245,7 +245,13 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     guard let delegate = self.delegate else { return }
 
     // TODO: Support for change detection (via file watching)
-    let settings = self.settings(for: uri, language)
+    let settings: FileBuildSettings?
+    do {
+        settings = try self.settings(for: uri, language)
+    } catch {
+        log("error computing settings")
+        return
+    }
     DispatchQueue.global().async {
       delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
     }
@@ -294,15 +300,15 @@ extension SwiftPMWorkspace {
   public func settings(
     for path: AbsolutePath,
     _ language: Language,
-    _ td: TargetBuildDescription) -> FileBuildSettings?
+    _ td: TargetBuildDescription) throws -> FileBuildSettings?
   {
     switch (td, language) {
     case (.swift(let td), .swift):
-      return settings(forSwiftFile: path, td)
+      return try settings(forSwiftFile: path, td)
     case (.clang, .swift):
       return nil
     case (.clang(let td), _):
-      return settings(forClangFile: path, language, td)
+      return try settings(forClangFile: path, language, td)
     default:
       return nil
     }
@@ -327,30 +333,30 @@ extension SwiftPMWorkspace {
   }
 
   /// Retrieve settings for a given header file.
-  public func settings(forHeader path: AbsolutePath, _ language: Language) -> FileBuildSettings? {
-    func impl(_ path: AbsolutePath) -> FileBuildSettings? {
+  public func settings(forHeader path: AbsolutePath, _ language: Language) throws -> FileBuildSettings? {
+    func impl(_ path: AbsolutePath) throws -> FileBuildSettings? {
       var dir = path.parentDirectory
       while !dir.isRoot {
         if let td = sourceDirToTarget[dir] {
-          return settings(for: path, language, td)
+          return try settings(for: path, language, td)
         }
         dir = dir.parentDirectory
       }
       return nil
     }
 
-    if let result = impl(path) {
+    if let result = try impl(path) {
       return result
     }
 
     let canonicalPath = resolveSymlinks(path)
-    return canonicalPath == path ? nil : impl(canonicalPath)
+    return try canonicalPath == path ? nil : impl(canonicalPath)
   }
 
   /// Retrieve settings for the given swift file, which is part of a known target build description.
   public func settings(
     forSwiftFile path: AbsolutePath,
-    _ td: SwiftTargetBuildDescription) -> FileBuildSettings?
+    _ td: SwiftTargetBuildDescription) throws -> FileBuildSettings?
   {
     // FIXME: this is re-implementing llbuild's constructCommandLineArgs.
     var args: [String] = [
@@ -369,7 +375,7 @@ extension SwiftPMWorkspace {
     args += ["-c"]
     args += td.sources.map { $0.pathString }
     args += ["-I", buildPath.pathString]
-    args += try! td.compileArguments()
+    args += try td.compileArguments()
 
     return FileBuildSettings(
       compilerArguments: args,
@@ -383,11 +389,11 @@ extension SwiftPMWorkspace {
   public func settings(
     forClangFile path: AbsolutePath,
     _ language: Language,
-    _ td: ClangTargetBuildDescription) -> FileBuildSettings?
+    _ td: ClangTargetBuildDescription) throws -> FileBuildSettings?
   {
     // FIXME: this is re-implementing things from swiftpm's createClangCompileTarget
 
-    var args = try! td.basicArguments()
+    var args = try td.basicArguments()
 
     let nativePath: AbsolutePath =
         URL(fileURLWithPath: path.pathString).withUnsafeFileSystemRepresentation {
