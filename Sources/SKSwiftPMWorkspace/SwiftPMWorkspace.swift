@@ -13,6 +13,7 @@
 #if canImport(SPMBuildCore)
 import SPMBuildCore
 #endif
+import Basics
 import Build
 import BuildServerProtocol
 import LanguageServerProtocol
@@ -157,19 +158,21 @@ extension SwiftPMWorkspace {
   /// dependencies.
   func reloadPackage() throws {
 
-    let diags = DiagnosticsEngine(handlers: [{ diag in
-      log(diag.localizedDescription, level: diag.behavior.asLogLevel)
-    }])
+    let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
+        log(diagnostic.description, level: diagnostic.severity.asLogLevel)
+    })
 
     self.packageGraph = try self.workspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [packageRoot]),
-      diagnostics: diags)
+      observabilityScope: observabilitySystem.topScope
+    )
 
     let plan = try BuildPlan(
       buildParameters: buildParameters,
       graph: packageGraph,
-      diagnostics: diags,
-      fileSystem: fileSystem)
+      fileSystem: fileSystem,
+      observabilityScope: observabilitySystem.topScope
+    )
 
     self.fileToTarget = [AbsolutePath: TargetBuildDescription](
       packageGraph.allTargets.flatMap { target in
@@ -314,8 +317,8 @@ extension SwiftPMWorkspace {
       }
       return nil
     }
-    
-    if let result = impl(path) { 
+
+    if let result = impl(path) {
       return result
     }
 
@@ -335,8 +338,8 @@ extension SwiftPMWorkspace {
       }
       return nil
     }
-    
-    if let result = impl(path) { 
+
+    if let result = impl(path) {
       return result
     }
 
@@ -366,7 +369,7 @@ extension SwiftPMWorkspace {
     args += ["-c"]
     args += td.sources.map { $0.pathString }
     args += ["-I", buildPath.pathString]
-    args += td.compileArguments()
+    args += try! td.compileArguments()
 
     return FileBuildSettings(
       compilerArguments: args,
@@ -384,7 +387,7 @@ extension SwiftPMWorkspace {
   {
     // FIXME: this is re-implementing things from swiftpm's createClangCompileTarget
 
-    var args = td.basicArguments()
+    var args = try! td.basicArguments()
 
     let nativePath: AbsolutePath =
         URL(fileURLWithPath: path.pathString).withUnsafeFileSystemRepresentation {
@@ -454,12 +457,13 @@ private func findPackageDirectory(
   return path
 }
 
-extension TSCBasic.Diagnostic.Behavior {
+extension Basics.Diagnostic.Severity {
   var asLogLevel: LogLevel {
     switch self {
     case .error: return .error
     case .warning: return .warning
-    default: return .info
+    case .debug: return .debug
+    case .info: return .info
     }
   }
 }
