@@ -245,15 +245,18 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     guard let delegate = self.delegate else { return }
 
     // TODO: Support for change detection (via file watching)
-    let settings: FileBuildSettings?
+    var settings: FileBuildSettings? = nil
     do {
         settings = try self.settings(for: uri, language)
     } catch {
-        log("error computing settings")
-        return
+        log("error computing settings: \(error)")
     }
     DispatchQueue.global().async {
-      delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+      if let settings = settings {
+        delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+      } else {
+        delegate.fileBuildSettingsChanged([uri: .removedOrUnavailable])
+      }
     }
   }
 
