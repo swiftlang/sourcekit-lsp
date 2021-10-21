@@ -247,9 +247,9 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     // TODO: Support for change detection (via file watching)
     var settings: FileBuildSettings? = nil
     do {
-        settings = try self.settings(for: uri, language)
+      settings = try self.settings(for: uri, language)
     } catch {
-        log("error computing settings: \(error)")
+      log("error computing settings: \(error)")
     }
     DispatchQueue.global().async {
       if let settings = settings {
