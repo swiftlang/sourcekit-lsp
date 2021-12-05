@@ -184,7 +184,11 @@ public final class Logger {
 #if canImport(os)
     if !disableOSLog {
       // If os_log is available, we call it unconditionally since it has its own log-level handling that we respect.
-      os_log("%@", type: level.osLogType, message)
+      if #available(macOS 11.0, *) {
+        os.Logger.shared.log(level: level.osLogType, "\(message)")
+      } else {
+        os_log("%@", type: level.osLogType, message)
+      }
       usedOSLog = true
     }
 #endif
@@ -240,3 +244,10 @@ public class AnyLogHandler: LogHandler {
     handler(message, level)
   }
 }
+
+#if canImport(os)
+@available(macOS 11.0, *)
+extension os.Logger {
+  fileprivate static let shared = os.Logger()
+}
+#endif
