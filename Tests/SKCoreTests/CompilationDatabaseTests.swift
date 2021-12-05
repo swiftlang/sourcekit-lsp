@@ -60,21 +60,19 @@ final class CompilationDatabaseTests: XCTestCase {
 
   func testEncodeCompDBCommand() {
     // Requires JSONEncoder.OutputFormatting.sortedKeys
-    if #available(macOS 10.13, *) {
-      func check(_ cmd: CompilationDatabase.Command, _ expected: String, file: StaticString = #filePath, line: UInt = #line) {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting.insert(.sortedKeys)
-        let encodedString = try! String(data: encoder.encode(cmd), encoding: .utf8)
-        XCTAssertEqual(encodedString, expected, file: file, line: line)
-      }
-
-      check(.init(directory: "a", filename: "b", commandLine: [], output: "c"), """
-        {"arguments":[],"directory":"a","file":"b","output":"c"}
-        """)
-      check(.init(directory: "a", filename: "b", commandLine: ["c", "d"], output: nil), """
-        {"arguments":["c","d"],"directory":"a","file":"b"}
-        """)
+    func check(_ cmd: CompilationDatabase.Command, _ expected: String, file: StaticString = #filePath, line: UInt = #line) {
+      let encoder = JSONEncoder()
+      encoder.outputFormatting.insert(.sortedKeys)
+      let encodedString = try! String(data: encoder.encode(cmd), encoding: .utf8)
+      XCTAssertEqual(encodedString, expected, file: file, line: line)
     }
+
+    check(.init(directory: "a", filename: "b", commandLine: [], output: "c"), """
+      {"arguments":[],"directory":"a","file":"b","output":"c"}
+      """)
+    check(.init(directory: "a", filename: "b", commandLine: ["c", "d"], output: nil), """
+      {"arguments":["c","d"],"directory":"a","file":"b"}
+      """)
   }
 
   func testDecodeCompDBCommand() {

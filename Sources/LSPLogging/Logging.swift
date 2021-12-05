@@ -182,7 +182,7 @@ public final class Logger {
 
     var usedOSLog = false
 #if canImport(os)
-    if !disableOSLog, #available(OSX 10.12, *) {
+    if !disableOSLog {
       // If os_log is available, we call it unconditionally since it has its own log-level handling that we respect.
       os_log("%@", type: level.osLogType, message)
       usedOSLog = true
