@@ -52,10 +52,8 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
   /// Changing the property automatically notified the state change handlers.
   private var state: LanguageServerState {
     didSet {
-      if #available(OSX 10.12, *) {
-        // `state` must only be set from `queue`.
-        dispatchPrecondition(condition: .onQueue(queue))
-      }
+      // `state` must only be set from `queue`.
+      dispatchPrecondition(condition: .onQueue(queue))
       for handler in stateChangeHandlers {
         handler(oldValue, state)
       }
@@ -131,13 +129,7 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
     }
 
     let process = Foundation.Process()
-
-    if #available(OSX 10.13, *) {
-      process.executableURL = clangdPath.asURL
-    } else {
-      process.launchPath = clangdPath.pathString
-    }
-
+    process.executableURL = clangdPath.asURL
     process.arguments = [
       "-compile_args_from=lsp",   // Provide compiler args programmatically.
       "-background-index=false",  // Disable clangd indexing, we use the build
@@ -162,12 +154,7 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
         }
       }
     }
-
-    if #available(OSX 10.13, *) {
-      try process.run()
-    } else {
-      process.launch()
-    }
+    try process.run()
 #if os(Windows)
     self.hClangd = process.processHandle
 #else
