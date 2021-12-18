@@ -260,13 +260,7 @@ private func makeJSONRPCBuildServer(client: MessageHandler, serverPath: Absolute
     withExtendedLifetime((clientToServer, serverToClient)) {}
   }
   let process = Foundation.Process()
-
-  if #available(OSX 10.13, *) {
-    process.executableURL = serverPath.asURL
-  } else {
-    process.launchPath = serverPath.pathString
-  }
-
+  process.executableURL = serverPath.asURL
   process.arguments = serverFlags
   process.standardOutput = serverToClient
   process.standardInput = clientToServer
@@ -274,12 +268,6 @@ private func makeJSONRPCBuildServer(client: MessageHandler, serverPath: Absolute
     log("build server exited: \(process.terminationReason) \(process.terminationStatus)")
     connection.close()
   }
-
-  if #available(OSX 10.13, *) {
-    try process.run()
-  } else {
-    process.launch()
-  }
-
+  try process.run()
   return connection
 }

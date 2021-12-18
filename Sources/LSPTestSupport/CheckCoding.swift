@@ -20,9 +20,8 @@ import XCTest
 public func checkCoding<T>(_ value: T, json: String, file: StaticString = #filePath, line: UInt = #line) where T: Codable & Equatable {
   let encoder = JSONEncoder()
   encoder.outputFormatting.insert(.prettyPrinted)
-  if #available(macOS 10.13, *) {
-   encoder.outputFormatting.insert(.sortedKeys)
-  }
+  encoder.outputFormatting.insert(.sortedKeys)
+  
   let data = try! encoder.encode(WrapFragment(value: value))
   let wrappedStr = String(data: data, encoding: .utf8)!
 
@@ -36,11 +35,7 @@ public func checkCoding<T>(_ value: T, json: String, file: StaticString = #fileP
     .replacingOccurrences(of: "\n  ", with: "\n")
     // Remove trailing whitespace to normalize between corelibs and Apple Foundation.
     .trimmingTrailingWhitespace()
-
-  // Requires sortedKeys. Silently drop the check if it's not available.
-  if #available(macOS 10.13, *) {
-    XCTAssertEqual(json, str, file: file, line: line)
-  }
+  XCTAssertEqual(json, str, file: file, line: line)
 
   let decoder = JSONDecoder()
   let decodedValue = try! decoder.decode(WrapFragment<T>.self, from: data).value
@@ -70,19 +65,13 @@ public func checkDecoding<T>(json: String, expected value: T, file: StaticString
 public func checkCoding<T>(_ value: T, json: String, userInfo: [CodingUserInfoKey: Any] = [:], file: StaticString = #filePath, line: UInt = #line, body: (T) -> Void) where T: Codable {
   let encoder = JSONEncoder()
   encoder.outputFormatting.insert(.prettyPrinted)
-  if #available(macOS 10.13, *) {
-   encoder.outputFormatting.insert(.sortedKeys)
-  }
+  encoder.outputFormatting.insert(.sortedKeys)
   let data = try! encoder.encode(value)
   let str = String(data: data, encoding: .utf8)!
     // Remove trailing whitespace to normalize between corelibs and Apple Foundation.
     .trimmingTrailingWhitespace()
-
-  // Requires sortedKeys. Silently drop the check if it's not available.
-  if #available(macOS 10.13, *) {
-    XCTAssertEqual(json, str, file: file, line: line)
-  }
-
+  XCTAssertEqual(json, str, file: file, line: line)
+  
   let decoder = JSONDecoder()
   decoder.userInfo = userInfo
   let decodedValue = try! decoder.decode(T.self, from: data)

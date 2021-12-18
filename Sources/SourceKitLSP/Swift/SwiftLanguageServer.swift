@@ -120,10 +120,8 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   
   private var state: LanguageServerState {
     didSet {
-      if #available(OSX 10.12, *) {
-        // `state` must only be set from `queue`.
-        dispatchPrecondition(condition: .onQueue(queue))
-      }
+      // `state` must only be set from `queue`.
+      dispatchPrecondition(condition: .onQueue(queue))
       for handler in stateChangeHandlers {
         handler(oldValue, state)
       }
