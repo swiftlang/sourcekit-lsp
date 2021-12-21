@@ -303,6 +303,15 @@ final class CodingTests: XCTestCase {
     checkCoding(CompletionItemDocumentation.string("Some documentation"), json: """
       "Some documentation"
       """)
+    
+    checkCoding(PrepareRenameResponse(range: range), json: rangejson)
+    
+    checkCoding(PrepareRenameResponse(range: range, placeholder: "somePlaceholder"), json: """
+      {
+        "placeholder" : "somePlaceholder",
+        "range" : \(rangejson.indented(2, skipFirstLine: true))
+      }
+      """)
 
     checkCoding(LocationsOrLocationLinksResponse.locations([Location(uri: uri, range: range)]), json: """
       [

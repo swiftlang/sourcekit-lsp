@@ -43,8 +43,10 @@ add_library(LanguageServerProtocol
   Requests/InitializeRequest.swift
   Requests/InlayHintsRequest.swift
   Requests/PollIndexRequest.swift
+  Requests/PrepareRenameRequest.swift
   Requests/ReferencesRequest.swift
   Requests/RegisterCapabilityRequest.swift
+  Requests/RenameRequest.swift
   Requests/ShowMessageRequest.swift
   Requests/ShutdownRequest.swift
   Requests/SymbolInfoRequest.swift
