@@ -953,7 +953,10 @@ extension SwiftLanguageServer {
           return req.reply([])
         }
 
-        var ranges: [FoldingRange] = []
+        /// Some ranges might occur multiple times.
+        /// E.g. for `print("hi")`, `"hi"` is both the range of all call arguments and the range the first argument in the call.
+        /// It doesn't make sense to report them multiple times, so use a `Set` here.
+        var ranges: Set<FoldingRange> = []
 
         var hasReachedLimit: Bool {
           let capabilities = self.clientCapabilities.textDocument?.foldingRange
@@ -983,7 +986,7 @@ extension SwiftLanguageServer {
               return true
             }
             if let comment = currentComment {
-              self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toArray: &ranges)
+              self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toSet: &ranges)
             }
             currentComment = (offset: offset, length: length)
           }
@@ -992,7 +995,7 @@ extension SwiftLanguageServer {
 
         // Add the last stored comment.
         if let comment = currentComment, hasReachedLimit == false {
-          self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toArray: &ranges)
+          self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toSet: &ranges)
           currentComment = nil
         }
 
@@ -1003,7 +1006,7 @@ extension SwiftLanguageServer {
                let length: Int = value[self.keys.bodylength],
                length > 0
             {
-              self.addFoldingRange(offset: offset, length: length, in: snapshot, toArray: &ranges)
+              self.addFoldingRange(offset: offset, length: length, in: snapshot, toSet: &ranges)
               if hasReachedLimit {
                 return false
               }
@@ -1015,8 +1018,7 @@ extension SwiftLanguageServer {
           }
         }
 
-        ranges.sort()
-        req.reply(ranges)
+        req.reply(ranges.sorted())
       }
 
       // FIXME: cancellation
@@ -1024,7 +1026,7 @@ extension SwiftLanguageServer {
     }
   }
 
-  func addFoldingRange(offset: Int, length: Int, kind: FoldingRangeKind? = nil, in snapshot: DocumentSnapshot, toArray ranges: inout [FoldingRange]) {
+  func addFoldingRange(offset: Int, length: Int, kind: FoldingRangeKind? = nil, in snapshot: DocumentSnapshot, toSet ranges: inout Set<FoldingRange>) {
     guard let start: Position = snapshot.positionOf(utf8Offset: offset),
           let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
       log("folding range failed to retrieve position of \(snapshot.document.uri): \(offset)-\(offset + length)", level: .warning)
@@ -1051,7 +1053,7 @@ extension SwiftLanguageServer {
                            endUTF16Index: end.utf16index,
                            kind: kind)
     }
-    ranges.append(range)
+    ranges.insert(range)
   }
 
   public func codeAction(_ req: Request<CodeActionRequest>) {

@@ -104,4 +104,22 @@ final class FoldingRangeTests: XCTestCase {
 
     XCTAssertEqual(ranges?.count, 0)
   }
+
+  func testDontReportDuplicateRangesRanges() throws {
+    // In this file the range of the call to `print` and the range of the argument "/*fr:duplicateRanges*/" are the same.
+    // Test that we only report the folding range once.
+    let capabilities = FoldingRangeCapabilities()
+
+    guard let (ws, url) = try initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:duplicateRanges") else { return }
+
+    let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
+    let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
+
+    let expected = [
+      FoldingRange(startLine: 0, startUTF16Index: 12, endLine: 2, endUTF16Index: 0, kind: nil),
+      FoldingRange(startLine: 1, startUTF16Index: 10, endLine: 1, endUTF16Index: 34, kind: nil),
+    ]
+
+    XCTAssertEqual(ranges, expected)
+  }
 }
