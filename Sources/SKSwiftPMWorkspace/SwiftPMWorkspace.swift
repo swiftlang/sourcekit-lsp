@@ -58,6 +58,13 @@ public final class SwiftPMWorkspace {
   var fileToTarget: [AbsolutePath: TargetBuildDescription] = [:]
   var sourceDirToTarget: [AbsolutePath: TargetBuildDescription] = [:]
 
+  /// The URIs for which the delegate has registered for change notifications,
+  /// mapped to the language the delegate specified when registering for change notifications.
+  var watchedFiles: [DocumentURI: Language] = [:]
+
+  /// Queue guarding access to `watchedFiles` and `delegate`.
+  let queue: DispatchQueue = .init(label: "SwiftPMWorkspace.queue", qos: .background)
+
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
   /// - Parameters:
@@ -202,6 +209,21 @@ extension SwiftPMWorkspace {
         // FIXME: is there  a preferred target?
         return td
     })
+
+    queue.async {
+      guard let delegate = self.delegate else { return }
+      var changedFiles: [DocumentURI: FileBuildSettingsChange] = [:]
+      for (uri, language) in self.watchedFiles {
+        orLog {
+          if let settings = try self.settings(for: uri, language) {
+            changedFiles[uri] = FileBuildSettingsChange(settings)
+          } else {
+            changedFiles[uri] = .removedOrUnavailable
+          }
+        }
+      }
+      delegate.fileBuildSettingsChanged(changedFiles)
+    }
   }
 }
 
@@ -247,16 +269,17 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
-    guard let delegate = self.delegate else { return }
+    queue.async {
+      assert(self.watchedFiles[uri] == nil, "Registered twice for change notifications of the same URI")
+      guard let delegate = self.delegate else { return }
+      self.watchedFiles[uri] = language
 
-    // TODO: Support for change detection (via file watching)
-    var settings: FileBuildSettings? = nil
-    do {
-      settings = try self.settings(for: uri, language)
-    } catch {
-      log("error computing settings: \(error)")
-    }
-    DispatchQueue.global().async {
+      var settings: FileBuildSettings? = nil
+      do {
+        settings = try self.settings(for: uri, language)
+      } catch {
+        log("error computing settings: \(error)")
+      }
       if let settings = settings {
         delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
       } else {
@@ -268,7 +291,9 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
   /// Unregister the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
   public func unregisterForChangeNotifications(for uri: DocumentURI) {
-    // TODO: Support for change detection (via file watching)
+    queue.async {
+      self.watchedFiles[uri] = nil
+    }
   }
 
   public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
