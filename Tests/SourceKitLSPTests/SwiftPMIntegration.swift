@@ -75,10 +75,12 @@ final class SwiftPMIntegrationTests: XCTestCase {
       builder.write(otherFileContents, to: otherFile)
     }
 
+    let oldFile = ws.testLoc("Lib.topLevelFunction:body")
     let newFile = ws.testLoc("newFile:call")
 
     // Check that we don't get cross-file code completion before we send a `DidChangeWatchedFilesNotification` to make sure we didn't include the file in the initial retrieval of build settings.
     try ws.openDocument(newFile.url, language: .swift)
+    try ws.openDocument(oldFile.url, language: .swift)
 
     let completionsBeforeDidChangeNotification = try withExtendedLifetime(ws) {
       try ws.sk.sendSync(CompletionRequest(textDocument: newFile.docIdentifier, position: newFile.position))
@@ -118,5 +120,24 @@ final class SwiftPMIntegrationTests: XCTestCase {
         insertTextFormat: .plain,
         deprecated: false),
     ])
+
+    // Check that we get code completion for `baz` (defined in the new file) in the old file.
+    // I.e. check that the existing file's build settings have been updated to include the new file.
+
+    let oldFileCompletions = try withExtendedLifetime(ws) {
+      try ws.sk.sendSync(CompletionRequest(textDocument: oldFile.docIdentifier, position: oldFile.position))
+    }
+    XCTAssert(oldFileCompletions.items.contains(CompletionItem(
+      label: "baz(l: Lib)",
+      kind: .function,
+      detail: "Void",
+      documentation: nil,
+      sortText: nil,
+      filterText: "baz(l:)",
+      textEdit: TextEdit(range: Position(line: 7, utf16index: 31)..<Position(line: 7, utf16index: 31), newText: "baz(l: )"),
+      insertText: "baz(l: )",
+      insertTextFormat: .plain,
+      deprecated: false))
+    )
   }
 }
