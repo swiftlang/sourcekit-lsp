@@ -324,10 +324,25 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     return nil
   }
 
+  /// An event is relevant if it modifies a file that matches one of the file rules used by the SwiftPM workspace.
+  private func fileEventShouldTriggerPackageReload(event: FileEvent) -> Bool {
+    guard let fileURL = event.uri.fileURL else {
+      return false
+    }
+    switch event.type {
+    case .created, .deleted:
+      return self.workspace.fileAffectsSwiftOrClangBuildSettings(filePath: AbsolutePath(fileURL.path), packageGraph: self.packageGraph)
+    case .changed:
+      return false
+    default: // Unknown file change type
+      return false
+    }
+  }
+
   public func filesDidChange(_ events: [FileEvent]) {
-    if events.contains(where: { $0.type == .created }) {
-      // TODO: It should not be necessary to reload the entire package just to get build settings for one file.
+    if events.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
       orLog {
+        // TODO: It should not be necessary to reload the entire package just to get build settings for one file.
         try self.reloadPackage()
       }
     }
