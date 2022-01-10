@@ -21,6 +21,7 @@ import SKSupport
 import TSCBasic
 import TSCLibc
 import TSCUtility
+import PackageLoading
 
 public typealias URL = Foundation.URL
 
@@ -583,11 +584,11 @@ extension SourceKitServer {
         self.dynamicallyRegisterCapability($0, registry)
       }
     }
-    /// Request the client to send us DidChangeWatchedFileNotifications for all new files.
-    /// Currently, these notifications are only handled by SwiftPMWorkspace, which will reload the package when a new file is added.
-    let watchers = [
-      FileSystemWatcher(globPattern: "**", kind: [.create, .delete])
-    ]
+
+    /// This must be a superset of the files that return true for SwiftPM's `Workspace.fileAffectsSwiftOrClangBuildSettings`.
+    let watchers = FileRuleDescription.builtinRules.flatMap({ $0.fileTypes }).map { fileExtension in
+      return FileSystemWatcher(globPattern: "**.\(fileExtension)", kind: [.create, .delete])
+    }
     registry.registerDidChangeWatchedFiles(watchers: watchers) {
       self.dynamicallyRegisterCapability($0, registry)
     }
