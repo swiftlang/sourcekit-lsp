@@ -18,16 +18,7 @@ In general, you will need to know where to find the `sourcekit-lsp` server exect
 
 ## Visual Studio Code
 
-To use SourceKit-LSP with Visual Studio Code, you will need the [SourceKit-LSP
-Visual Studio Code extension](vscode). Documentation for [Building and Installing](vscode/README.md#building-and-installing-the-extension) is in the extension's README. There is also information about [Configuration](vscode/README.md#configuration). The most common settings are listed below.
-
-After installing the extension, settings for SourceKit-LSP can be found in `Preferences > Settings` under
-`Extensions > SourceKit-LSP` or by searching for the setting prefix
-`sourcekit-lsp.`.
-
-* `sourcekit-lsp.serverPath`: The path to sourcekit-lsp executable
-* `sourcekit-lsp.toolchainPath`: (optional) The path of the swift toolchain (sets `SOURCEKIT_TOOLCHAIN_PATH`). By default, sourcekit-lsp uses the toolchain it is installed in.
-* `sourcekit-lsp.tracing.server`: Traces the communication between VS Code and the SourceKit-LSP language server
+The [Swift for Visual Studio Code extension](https://marketplace.visualstudio.com/items?itemName=sswg.swift-lang) uses SourceKit-LSP for code completion, jump to definition and error annotations. Install the extension from the marketplace to add it to your VSCode environment.
 
 ## Atom
 
