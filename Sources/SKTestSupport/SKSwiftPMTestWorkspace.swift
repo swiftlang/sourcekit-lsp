@@ -133,6 +133,10 @@ extension SKSwiftPMTestWorkspace {
       version: 1,
       text: try sources.sourceCache.get(url))))
   }
+
+  public func closeDocument(_ url: URL) {
+    sk.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(DocumentURI(url))))
+  }
 }
 
 extension XCTestCase {

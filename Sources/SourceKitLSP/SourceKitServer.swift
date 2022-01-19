@@ -75,6 +75,7 @@ public final class SourceKitServer: LanguageServer {
     registerWorkspaceNotfication(SourceKitServer.openDocument)
     registerWorkspaceNotfication(SourceKitServer.closeDocument)
     registerWorkspaceNotfication(SourceKitServer.changeDocument)
+    registerWorkspaceNotfication(SourceKitServer.didChangeWatchedFiles)
 
     registerToolchainTextDocumentNotification(SourceKitServer.willSaveDocument)
     registerToolchainTextDocumentNotification(SourceKitServer.didSaveDocument)
@@ -582,6 +583,14 @@ extension SourceKitServer {
         self.dynamicallyRegisterCapability($0, registry)
       }
     }
+    /// Request the client to send us DidChangeWatchedFileNotifications for all new files.
+    /// Currently, these notifications are only handled by SwiftPMWorkspace, which will reload the package when a new file is added.
+    let watchers = [
+      FileSystemWatcher(globPattern: "**", kind: [.create, .delete])
+    ]
+    registry.registerDidChangeWatchedFiles(watchers: watchers) {
+      self.dynamicallyRegisterCapability($0, registry)
+    }
   }
 
   private func dynamicallyRegisterCapability(
@@ -662,7 +671,7 @@ extension SourceKitServer {
   func openDocument(_ note: Notification<DidOpenTextDocumentNotification>, workspace: Workspace) {
     openDocument(note.params, workspace: workspace)
   }
-  
+
   private func openDocument(_ note: DidOpenTextDocumentNotification, workspace: Workspace) {
     // Immediately open the document even if the build system isn't ready. This is important since
     // we check that the document is open when we receive messages from the build system.
@@ -746,6 +755,10 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) {
     languageService.didSaveDocument(note.params)
+  }
+
+  func didChangeWatchedFiles(_ note: Notification<DidChangeWatchedFilesNotification>, workspace: Workspace) {
+    workspace.buildSystemManager.filesDidChange(note.params.changes)
   }
 
   // MARK: - Language features

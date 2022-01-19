@@ -98,4 +98,6 @@ public final class FallbackBuildSystem: BuildSystem {
     args.append(file)
     return FileBuildSettings(compilerArguments: args)
   }
+
+  public func filesDidChange(_ events: [FileEvent]) {}
 }

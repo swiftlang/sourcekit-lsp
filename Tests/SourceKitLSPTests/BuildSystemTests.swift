@@ -65,6 +65,8 @@ final class TestBuildSystem: BuildSystem {
   func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
     reply(.failure(buildTargetsNotSupported))
   }
+
+  func filesDidChange(_ events: [FileEvent]) {}
 }
 
 final class BuildSystemTests: XCTestCase {
