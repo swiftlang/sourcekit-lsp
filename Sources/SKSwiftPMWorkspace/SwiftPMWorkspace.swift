@@ -162,7 +162,7 @@ extension SwiftPMWorkspace {
         log(diagnostic.description, level: diagnostic.severity.asLogLevel)
     })
 
-    self.packageGraph = try self.workspace.loadPackageGraph(
+    let packageGraph = try self.workspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [packageRoot]),
       observabilityScope: observabilitySystem.topScope
     )
@@ -173,6 +173,11 @@ extension SwiftPMWorkspace {
       fileSystem: fileSystem,
       observabilityScope: observabilitySystem.topScope
     )
+
+    /// Make sure to execute any throwing statements before setting any
+    /// properties because otherwise we might end up in an inconsistent state
+    /// with only some properties modified.
+    self.packageGraph = packageGraph
 
     self.fileToTarget = [AbsolutePath: TargetBuildDescription](
       packageGraph.allTargets.flatMap { target in
@@ -292,6 +297,15 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     }
 
     return nil
+  }
+
+  public func filesDidChange(_ events: [FileEvent]) {
+    if events.contains(where: { $0.type == .created }) {
+      // TODO: It should not be necessary to reload the entire package just to get build settings for one file.
+      orLog {
+        try self.reloadPackage()
+      }
+    }
   }
 }
 
