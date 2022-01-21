@@ -302,6 +302,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   /// Should be called on self.queue.
   func handleDocumentUpdate(uri: DocumentURI) {
+    dispatchPrecondition(condition: .onQueue(queue))
     guard let snapshot = documentManager.latestSnapshot(uri) else {
       return
     }
@@ -318,8 +319,11 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
     if let dict = try? self.sourcekitd.sendSync(req) {
       publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
-      updateSemanticTokens(response: dict, for: snapshot)
-      requestTokensRefresh()
+      if dict[keys.diagnostic_stage] as sourcekitd_uid_t? == sourcekitd.values.diag_stage_sema {
+        // Only update semantic tokens if the 0,0 replacetext request returned semantic information.
+        updateSemanticTokens(response: dict, for: snapshot)
+        requestTokensRefresh()
+      }
     }
   }
 }
