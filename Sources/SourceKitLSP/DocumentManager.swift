@@ -149,31 +149,18 @@ public final class DocumentManager {
             with: edit.text)
           
           // Remove all tokens in the updated range and shift later ones.
-
-          let replacedLineCount = 1 + range.upperBound.line - range.lowerBound.line
-          let newLines = edit.text.split(separator: "\n", omittingEmptySubsequences: false)
-          let upperUtf16IndexAfterEdit = (
-            newLines.count == 1 ? range.lowerBound.utf16index : 0
-          ) + newLines.last!.utf16.count
-          let lastLineCharDelta = upperUtf16IndexAfterEdit - range.upperBound.utf16index
-          let lineDelta = newLines.count - replacedLineCount // may be negative
+          let rangeAdjuster = RangeAdjuster(edit: edit)!
 
           document.latestTokens.withMutableTokensOfEachKind { tokens in
             tokens = Array(tokens.lazy
-              .filter {
-                // Only keep tokens that don't overlap with the edit range
-                !$0.range.overlaps(range)
-              }
-              .map {
-                // Shift tokens after the edit range
+              .compactMap {
                 var token = $0
-                if token.start.line == range.upperBound.line
-                  && token.start.utf16index >= range.upperBound.utf16index {
-                  token.move(lineDelta: lineDelta, utf16indexDelta: lastLineCharDelta)
-                } else if token.start.line > range.upperBound.line {
-                  token.move(lineDelta: lineDelta)
+                if let adjustedRange = rangeAdjuster.adjust(token.range) {
+                  token.range = adjustedRange
+                  return token
+                } else {
+                  return nil
                 }
-                return token
               })
           }
         } else {

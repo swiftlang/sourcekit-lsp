@@ -47,20 +47,6 @@ public struct SyntaxHighlightingToken: Hashable {
     self.init(range: range, kind: kind, modifiers: modifiers)
   }
 
-  /// Shifts the token to start at the given position while preserving its length.
-  public mutating func move(to newStart: Position) {
-    let length = utf16length
-    range = newStart..<Position(line: newStart.line, utf16index: newStart.utf16index + length)
-  }
-
-  /// Shifts the token by a certain number of lines/characters.
-  public mutating func move(lineDelta: Int = 0, utf16indexDelta: Int = 0) {
-    var newStart = start
-    newStart.line += lineDelta
-    newStart.utf16index += utf16indexDelta
-    move(to: newStart)
-  }
-
   /// The token type.
   ///
   /// Represented using an int to make the conversion to
