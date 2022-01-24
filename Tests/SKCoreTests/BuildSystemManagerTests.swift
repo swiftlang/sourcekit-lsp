@@ -503,6 +503,8 @@ class ManualBuildSystem: BuildSystem {
     reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
     fatalError()
   }
+
+  func filesDidChange(_ events: [FileEvent]) {}
 }
 
 /// A `BuildSystemDelegate` setup for testing.

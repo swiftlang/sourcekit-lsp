@@ -219,6 +219,8 @@ extension BuildServerBuildSystem: BuildSystem {
       }
     }
   }
+
+  public func filesDidChange(_ events: [FileEvent]) {}
 }
 
 private func loadBuildServerConfig(path: AbsolutePath, fileSystem: FileSystem) throws -> BuildServerConfig {
