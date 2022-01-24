@@ -117,17 +117,32 @@ extension Diagnostic {
 
     guard let message: String = diag[keys.description] else { return nil }
 
-    var position: Position? = nil
+    var range: Range<Position>? = nil
     if let line: Int = diag[keys.line],
        let utf8Column: Int = diag[keys.column],
        line > 0, utf8Column > 0
     {
-      position = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: utf8Column - 1)
+      range = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: utf8Column - 1).map(Range.init)
     } else if let utf8Offset: Int = diag[keys.offset] {
-      position = snapshot.positionOf(utf8Offset: utf8Offset)
+      range = snapshot.positionOf(utf8Offset: utf8Offset).map(Range.init)
     }
 
-    if position == nil {
+    // If the diagnostic has a range associated with it that starts at the same location as the diagnostics position, use it to retrieve a proper range for the diagnostic, instead of just reporting a zero-length range.
+    (diag[keys.ranges] as SKDResponseArray?)?.forEach { index, skRange in
+      if let utf8Offset: Int = skRange[keys.offset],
+         let start = snapshot.positionOf(utf8Offset: utf8Offset),
+         start == range?.lowerBound,
+         let length: Int = skRange[keys.length],
+         let end = snapshot.positionOf(utf8Offset: utf8Offset + length)
+      {
+        range = start..<end
+        return false
+      } else {
+        return true
+      }
+    }
+
+    guard let range = range else {
       return nil
     }
 
@@ -192,7 +207,7 @@ extension Diagnostic {
     }
 
     self.init(
-      range: Range(position!),
+      range: range,
       severity: severity,
       code: code,
       codeDescription: codeDescription,
