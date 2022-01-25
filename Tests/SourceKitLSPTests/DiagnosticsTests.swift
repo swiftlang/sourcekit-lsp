@@ -22,7 +22,13 @@ final class DiagnosticsTests: XCTestCase {
   /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
 
+  private var uri: DocumentURI!
+  private var textDocument: TextDocumentIdentifier { TextDocumentIdentifier(uri) }
+  private var version: Int!
+
   override func setUp() {
+    version = 0
+    uri = DocumentURI(URL(fileURLWithPath: "/DiagnosticsTests/\(UUID()).swift"))
     connection = TestSourceKitServer()
     sk = connection.client
     let documentCapabilities = TextDocumentClientCapabilities()
@@ -43,11 +49,22 @@ final class DiagnosticsTests: XCTestCase {
   
   private func openDocument(text: String) {
     sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: DocumentURI(URL(fileURLWithPath: "/DiagnosticsTests/\(UUID()).swift")),
+      uri: uri,
       language: .swift,
-      version: 0,
+      version: version,
       text: text
     )))
+    version += 1
+  }
+
+  private func editDocument(changes: [TextDocumentContentChangeEvent]) {
+    sk.send(DidChangeTextDocumentNotification(
+      textDocument: VersionedTextDocumentIdentifier(
+        uri,
+        version: version
+      ),
+      contentChanges: changes
+    ))
   }
 
   func testUnknownIdentifierDiagnostic() {
@@ -73,5 +90,100 @@ final class DiagnosticsTests: XCTestCase {
     """)
 
     self.wait(for: [syntacticDiagnosticsReceived, semanticDiagnosticsReceived], timeout: 5)
+  }
+
+  func testRangeShiftAfterNewlineAdded() {
+    let initialSyntacticDiagnosticsReceived = self.expectation(description: "Syntactic diagnotistics after open received")
+    let initialSemanticDiagnosticsReceived = self.expectation(description: "Semantic diagnotistics after open received")
+
+    sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+      // Unresolved identifier is not a syntactic diagnostic.
+      XCTAssertEqual(note.params.diagnostics, [])
+      initialSyntacticDiagnosticsReceived.fulfill()
+    }
+
+    sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(note.params.diagnostics.first?.range, Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9))
+      initialSemanticDiagnosticsReceived.fulfill()
+    }
+
+    openDocument(text: """
+    func foo() {
+      invalid
+    }
+    """)
+
+    self.wait(for: [initialSyntacticDiagnosticsReceived, initialSemanticDiagnosticsReceived], timeout: 5)
+
+    let editedSyntacticDiagnosticsReceived = self.expectation(description: "Syntactic diagnotistics after edit received")
+    let editedSemanticDiagnosticsReceived = self.expectation(description: "Semantic diagnotistics after edit received")
+
+    sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+      // We should report the semantic diagnostic reported by the edit range-shifted
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(note.params.diagnostics.first?.range, Position(line: 2, utf16index: 2)..<Position(line: 2, utf16index: 9))
+      editedSyntacticDiagnosticsReceived.fulfill()
+    }
+
+    sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(note.params.diagnostics.first?.range, Position(line: 2, utf16index: 2)..<Position(line: 2, utf16index: 9))
+      editedSemanticDiagnosticsReceived.fulfill()
+    }
+
+    editDocument(changes: [
+      TextDocumentContentChangeEvent(range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0), rangeLength: 0, text: "\n")
+    ])
+
+    self.wait(for: [editedSyntacticDiagnosticsReceived, editedSemanticDiagnosticsReceived], timeout: 5)
+  }
+
+  func testRangeShiftAfterNewlineRemoved() {
+    let initialSyntacticDiagnosticsReceived = self.expectation(description: "Syntactic diagnotistics after open received")
+    let initialSemanticDiagnosticsReceived = self.expectation(description: "Semantic diagnotistics after open received")
+
+    sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+      // Unresolved identifier is not a syntactic diagnostic.
+      XCTAssertEqual(note.params.diagnostics, [])
+      initialSyntacticDiagnosticsReceived.fulfill()
+    }
+
+    sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(note.params.diagnostics.first?.range, Position(line: 2, utf16index: 2)..<Position(line: 2, utf16index: 9))
+      initialSemanticDiagnosticsReceived.fulfill()
+    }
+
+    openDocument(text: """
+
+    func foo() {
+      invalid
+    }
+    """)
+
+    self.wait(for: [initialSyntacticDiagnosticsReceived, initialSemanticDiagnosticsReceived], timeout: 5)
+
+    let editedSyntacticDiagnosticsReceived = self.expectation(description: "Syntactic diagnotistics after edit received")
+    let editedSemanticDiagnosticsReceived = self.expectation(description: "Semantic diagnotistics after edit received")
+
+    sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+      // We should report the semantic diagnostic reported by the edit range-shifted
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(note.params.diagnostics.first?.range, Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9))
+      editedSyntacticDiagnosticsReceived.fulfill()
+    }
+
+    sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(note.params.diagnostics.first?.range, Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9))
+      editedSemanticDiagnosticsReceived.fulfill()
+    }
+
+    editDocument(changes: [
+      TextDocumentContentChangeEvent(range: Position(line: 0, utf16index: 0)..<Position(line: 1, utf16index: 0), rangeLength: 1, text: "")
+    ])
+
+    self.wait(for: [editedSyntacticDiagnosticsReceived, editedSemanticDiagnosticsReceived], timeout: 5)
   }
 }

@@ -254,9 +254,24 @@ extension DiagnosticRelatedInformation {
   }
 }
 
+extension Diagnostic {
+  func withRange(_ newRange: Range<Position>) -> Diagnostic {
+    var updated = self
+    updated.range = newRange
+    return updated
+  }
+}
+
 struct CachedDiagnostic {
   var diagnostic: Diagnostic
   var stage: DiagnosticStage
+
+  func withRange(_ newRange: Range<Position>) -> CachedDiagnostic {
+    return CachedDiagnostic(
+      diagnostic: self.diagnostic.withRange(newRange),
+      stage: self.stage
+    )
+  }
 }
 
 extension CachedDiagnostic {

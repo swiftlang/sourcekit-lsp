@@ -561,19 +561,27 @@ final class SemanticTokensTests: XCTestCase {
     """
     openDocument(text: text)
 
+    let expectedBefore = [
+      SyntaxHighlightingToken(line: 0, utf16index: 0, length: 3, kind: .keyword),
+      SyntaxHighlightingToken(line: 0, utf16index: 4, length: 1, kind: .identifier),
+      SyntaxHighlightingToken(line: 0, utf16index: 7, length: 6, kind: .struct, modifiers: [.defaultLibrary]),
+      SyntaxHighlightingToken(line: 0, utf16index: 16, length: 6, kind: .string)
+    ]
     let before = performSemanticTokensRequest()
+    XCTAssertEqual(before, expectedBefore)
 
     let pos = Position(line: 0, utf16index: 0)
     let editText = " "
     editDocument(range: pos..<pos, text: editText, expectRefresh: false)
 
     let after = performSemanticTokensRequest()
-    let expected: [Token] = before.map {
-      var token = $0
-      token.move(utf16indexDelta: editText.utf16.count)
-      return token
-    }
-    XCTAssertEqual(after, expected)
+    let expectedAfter = [
+      SyntaxHighlightingToken(line: 0, utf16index: 1, length: 3, kind: .keyword),
+      SyntaxHighlightingToken(line: 0, utf16index: 5, length: 1, kind: .identifier),
+      SyntaxHighlightingToken(line: 0, utf16index: 8, length: 6, kind: .struct, modifiers: [.defaultLibrary]),
+      SyntaxHighlightingToken(line: 0, utf16index: 17, length: 6, kind: .string)
+    ]
+    XCTAssertEqual(after, expectedAfter)
   }
 
   func testInsertSpaceAfterToken() {
@@ -598,18 +606,22 @@ final class SemanticTokensTests: XCTestCase {
     """
     openDocument(text: text)
 
+    let expectedBefore = [
+      SyntaxHighlightingToken(line: 0, utf16index: 0, length: 10, kind: .function, modifiers: [.defaultLibrary]),
+      SyntaxHighlightingToken(line: 0, utf16index: 11, length: 5, kind: .string)
+    ]
     let before = performSemanticTokensRequest()
+    XCTAssertEqual(before, expectedBefore)
 
     let pos = Position(line: 0, utf16index: 0)
     editDocument(range: pos..<pos, text: "\n", expectRefresh: false)
 
     let after = performSemanticTokensRequest()
-    let expected: [Token] = before.map {
-      var token = $0
-      token.move(lineDelta: 1)
-      return token
-    }
-    XCTAssertEqual(after, expected)
+    let expectedAfter = [
+      SyntaxHighlightingToken(line: 1, utf16index: 0, length: 10, kind: .function, modifiers: [.defaultLibrary]),
+      SyntaxHighlightingToken(line: 1, utf16index: 11, length: 5, kind: .string)
+    ]
+    XCTAssertEqual(after, expectedAfter)
   }
 
   func testRemoveNewline() {
@@ -632,11 +644,11 @@ final class SemanticTokensTests: XCTestCase {
     editDocument(range: start..<end, text: "", expectRefresh: false)
 
     let after = performSemanticTokensRequest()
-    let expectedAfter: [Token] = expectedBefore.map {
-      var token = $0
-      token.move(to: Position(line: 0, utf16index: token.start.utf16index))
-      return token
-    }
+    let expectedAfter = [
+      Token(line: 0, utf16index: 0, length: 3, kind: .keyword),
+      Token(line: 0, utf16index: 4, length: 1, kind: .identifier),
+      Token(line: 0, utf16index: 8, length: 5, kind: .string),
+    ]
     XCTAssertEqual(after, expectedAfter)
   }
 

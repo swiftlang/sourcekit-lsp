@@ -257,6 +257,20 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     }
   }
 
+  /// Shift the ranges of all current diagnostics in the document with the given `uri` to account for `edit`.
+  private func adjustDiagnosticRanges(of uri: DocumentURI, for edit: TextDocumentContentChangeEvent) {
+    guard let rangeAdjuster = RangeAdjuster(edit: edit) else {
+      return
+    }
+    currentDiagnostics[uri] = currentDiagnostics[uri]?.compactMap({ cachedDiag in
+      if let adjustedRange = rangeAdjuster.adjust(cachedDiag.diagnostic.range) {
+        return cachedDiag.withRange(adjustedRange)
+      } else {
+        return nil
+      }
+    })
+  }
+
   /// Publish diagnostics for the given `snapshot`. We withhold semantic diagnostics if we are using
   /// fallback arguments.
   ///
@@ -531,6 +545,8 @@ extension SwiftLanguageServer {
 
         req[keys.sourcetext] = edit.text
         lastResponse = try? self.sourcekitd.sendSync(req)
+
+        self.adjustDiagnosticRanges(of: note.textDocument.uri, for: edit)
       } updateDocumentTokens: { (after: DocumentSnapshot) in
         if let dict = lastResponse {
           return self.updatedLexicalTokens(response: dict, for: after)
