@@ -10,6 +10,7 @@ add_library(SourceKitLSP
   DocumentManager.swift
   DocumentTokens.swift
   IndexStoreDB+MainFilesProvider.swift
+  RangeAdjuster.swift
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
   SourceKitServer+Options.swift
