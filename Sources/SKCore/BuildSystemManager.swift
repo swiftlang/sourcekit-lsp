@@ -125,6 +125,13 @@ public final class BuildSystemManager {
     self.fallbackSettingsTimeout = fallbackSettingsTimeout
     self.buildSystem?.delegate = self
   }
+
+  public func filesDidChange(_ events: [FileEvent]) {
+    queue.async {
+      self.buildSystem?.filesDidChange(events)
+      self.fallbackBuildSystem?.filesDidChange(events)
+    }
+  }
 }
 
 extension BuildSystemManager: BuildSystem {

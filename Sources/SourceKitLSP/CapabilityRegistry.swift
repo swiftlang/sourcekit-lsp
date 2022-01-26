@@ -29,6 +29,9 @@ public final class CapabilityRegistry {
   /// Dynamically registered semantic tokens options.
   private var semanticTokens: [CapabilityRegistration: SemanticTokensRegistrationOptions] = [:]
 
+  /// Dynamically registered file watchers.
+  private var didChangeWatchedFiles: DidChangeWatchedFilesRegistrationOptions?
+
   /// Dynamically registered command IDs.
   private var commandIds: Set<String> = []
 
@@ -52,6 +55,10 @@ public final class CapabilityRegistry {
 
   public var clientHasDynamicExecuteCommandRegistration: Bool {
     clientCapabilities.workspace?.executeCommand?.dynamicRegistration == true
+  }
+
+  public var clientHasDynamicDidChangeWatchedFilesRegistration: Bool {
+    clientCapabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration == true
   }
 
   /// Dynamically register completion capabilities if the client supports it and
@@ -78,6 +85,28 @@ public final class CapabilityRegistry {
       registerOptions: self.encode(registrationOptions))
 
     self.completion[registration] = registrationOptions
+
+    registerOnClient(registration)
+  }
+
+  public func registerDidChangeWatchedFiles(
+    watchers: [FileSystemWatcher],
+    registerOnClient: ClientRegistrationHandler
+  ) {
+    guard clientHasDynamicDidChangeWatchedFilesRegistration else { return }
+    if let registration = didChangeWatchedFiles {
+      if watchers != registration.watchers {
+        log("Unable to register new file system watchers \(watchers) due to pre-existing options \(registration.watchers)", level: .warning)
+      }
+      return
+    }
+    let registrationOptions = DidChangeWatchedFilesRegistrationOptions(
+      watchers: watchers)
+    let registration = CapabilityRegistration(
+      method: DidChangeWatchedFilesNotification.method,
+      registerOptions: self.encode(registrationOptions))
+
+    self.didChangeWatchedFiles = registrationOptions
 
     registerOnClient(registration)
   }

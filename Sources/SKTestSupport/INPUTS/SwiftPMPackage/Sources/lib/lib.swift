@@ -3,3 +3,7 @@ public struct Lib {
 
   public init() {}
 }
+
+func topLevelFunction() {
+  /*Lib.topLevelFunction:body*/
+}

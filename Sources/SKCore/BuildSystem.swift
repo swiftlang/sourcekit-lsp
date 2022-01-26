@@ -59,6 +59,9 @@ public protocol BuildSystem: AnyObject {
   /// Returns the output paths for the requested build targets
   func buildTargetOutputPaths(targets: [BuildTargetIdentifier],
                               reply: @escaping (LSPResult<[OutputsItem]>) -> Void)
+
+  /// Called when files in the project change.
+  func filesDidChange(_ events: [FileEvent])
 }
 
 public let buildTargetsNotSupported =

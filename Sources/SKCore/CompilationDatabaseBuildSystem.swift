@@ -109,6 +109,8 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
 
     return compdb
   }
+
+  public func filesDidChange(_ events: [FileEvent]) {}
 }
 
 extension CompilationDatabaseBuildSystem {
