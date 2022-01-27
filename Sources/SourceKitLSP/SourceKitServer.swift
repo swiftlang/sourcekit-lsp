@@ -587,7 +587,7 @@ extension SourceKitServer {
 
     /// This must be a superset of the files that return true for SwiftPM's `Workspace.fileAffectsSwiftOrClangBuildSettings`.
     let watchers = FileRuleDescription.builtinRules.flatMap({ $0.fileTypes }).map { fileExtension in
-      return FileSystemWatcher(globPattern: "**.\(fileExtension)", kind: [.create, .delete])
+      return FileSystemWatcher(globPattern: "**/*.\(fileExtension)", kind: [.create, .delete])
     }
     registry.registerDidChangeWatchedFiles(watchers: watchers) {
       self.dynamicallyRegisterCapability($0, registry)
