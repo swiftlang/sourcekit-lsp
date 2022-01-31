@@ -10,7 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-import TSCLibc
+#if os(Windows)
+import CRT
+import WinSDK
+#elseif os(iOS) || os(macOS) || os(tvOS) || os(watchOS)
+import Darwin
+#else
+import Glibc
+#endif
 
 public final class DLHandle {
   #if os(Windows)
@@ -82,7 +89,7 @@ public func dlopen(_ path: String?, mode: DLOpenFlags) throws -> DLHandle {
       throw DLError.open("LoadLibraryW failed: \(GetLastError())")
     }
   #else
-    guard let handle = TSCLibc.dlopen(path, mode.rawValue) else {
+    guard let handle = dlopen(path, mode.rawValue) else {
       throw DLError.open(dlerror() ?? "unknown error")
     }
   #endif
