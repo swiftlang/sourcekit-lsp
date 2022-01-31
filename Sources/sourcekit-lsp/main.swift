@@ -21,7 +21,6 @@ import SKCore
 import SKSupport
 import SourceKitLSP
 import TSCBasic
-import TSCLibc
 
 extension AbsolutePath: ExpressibleByArgument {
   public init?(argument: String) {
