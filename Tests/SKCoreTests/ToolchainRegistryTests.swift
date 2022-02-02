@@ -12,8 +12,9 @@
 
 import SKCore
 import TSCBasic
-import TSCUtility
 import XCTest
+
+import enum TSCUtility.Platform
 
 final class ToolchainRegistryTests: XCTestCase {
   func testDefaultBasic() {

@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import TSCUtility
+import enum TSCUtility.Platform
 
 /// Returns true if running on darwin (macOS).
 public var isDarwinHost: Bool {

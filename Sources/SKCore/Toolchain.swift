@@ -14,7 +14,8 @@ import LanguageServerProtocol
 import LSPLogging
 import SKSupport
 import TSCBasic
-import TSCUtility
+
+import enum TSCUtility.Platform
 
 /// A Toolchain is a collection of related compilers and libraries meant to be used together to
 /// build and edit source code.

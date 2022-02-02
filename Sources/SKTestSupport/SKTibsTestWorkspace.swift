@@ -17,10 +17,12 @@ import IndexStoreDB
 import ISDBTibs
 import ISDBTestSupport
 import TSCBasic
-import TSCUtility
 import XCTest
 import Foundation
 import LSPTestSupport
+
+import enum TSCUtility.Platform
+import struct TSCUtility.BuildFlags
 
 public typealias URL = Foundation.URL
 

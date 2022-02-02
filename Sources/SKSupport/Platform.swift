@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import TSCUtility
+import enum TSCUtility.Platform
 
 extension Platform {
 

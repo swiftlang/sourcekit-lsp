@@ -18,10 +18,11 @@ import IndexStoreDB
 import ISDBTibs
 import ISDBTestSupport
 import TSCBasic
-import TSCUtility
 import XCTest
 import Foundation
 import LSPTestSupport
+
+import struct TSCUtility.BuildFlags
 
 public final class SKSwiftPMTestWorkspace {
 

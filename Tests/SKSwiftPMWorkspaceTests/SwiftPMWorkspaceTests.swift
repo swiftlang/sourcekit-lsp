@@ -20,8 +20,10 @@ import SKCore
 import SKSwiftPMWorkspace
 import SKTestSupport
 import TSCBasic
-import TSCUtility
 import XCTest
+
+import struct TSCUtility.BuildFlags
+import struct TSCUtility.Triple
 
 final class SwiftPMWorkspaceTests: XCTestCase {
 
