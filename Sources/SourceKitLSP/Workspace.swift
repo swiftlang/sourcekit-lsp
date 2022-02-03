@@ -17,7 +17,6 @@ import SKCore
 import SKSupport
 import SKSwiftPMWorkspace
 import TSCBasic
-import TSCUtility
 
 /// Represents the configuration and state of a project or combination of projects being worked on
 /// together.

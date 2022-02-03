@@ -11,8 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import TSCBasic
-import TSCUtility
 import SKSupport
+
+import struct TSCUtility.BuildFlags
 
 /// Build configuration
 public struct BuildSetup {

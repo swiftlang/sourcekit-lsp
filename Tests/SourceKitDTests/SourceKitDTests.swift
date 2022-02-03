@@ -13,10 +13,11 @@
 import SourceKitD
 import SKCore
 import TSCBasic
-import TSCUtility
 import ISDBTibs
 import ISDBTestSupport
 import XCTest
+
+import enum TSCUtility.Platform
 
 final class SourceKitDTests: XCTestCase {
   static var sourcekitdPath: AbsolutePath! = nil

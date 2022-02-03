@@ -20,7 +20,6 @@ import SKCore
 import SKSupport
 import TSCBasic
 
-import TSCUtility
 import PackageLoading
 
 public typealias URL = Foundation.URL
