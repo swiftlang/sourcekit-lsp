@@ -10,4 +10,6 @@
 # Owner of anything in SourceKit-LSP not owned by anyone else.
 # N: Ben Langmuir
 # E: blangmuir@apple.com
-* @benlangmuir
+# N: Alex Hoppen
+# E: ahoppen@apple.com
+* @benlangmuir @ahoppen
