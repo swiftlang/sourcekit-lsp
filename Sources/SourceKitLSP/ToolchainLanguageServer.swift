@@ -31,7 +31,8 @@ public protocol ToolchainLanguageServer: AnyObject {
 
   func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult
   func clientInitialized(_ initialized: InitializedNotification)
-  func shutdown()
+  /// `callback` will be called when the server has finished shutting down.
+  func shutdown(callback: @escaping () -> Void)
 
   /// Add a handler that is called whenever the state of the language server changes.
   func addStateChangeHandler(handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void)
