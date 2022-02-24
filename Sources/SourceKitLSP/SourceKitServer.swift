@@ -647,11 +647,21 @@ extension SourceKitServer {
 
   func shutdown(_ request: Request<ShutdownRequest>) {
     _prepareForExit()
+    let shutdownGroup = DispatchGroup()
     for service in languageService.values {
-      service.shutdown()
+      shutdownGroup.enter()
+      service.shutdown() {
+        shutdownGroup.leave()
+      }
     }
     languageService = [:]
-    request.reply(VoidResponse())
+    // Wait for all services to shut down before sending the shutdown response.
+    // Otherwise we might terminate sourcekit-lsp while it still has open
+    // connections to the toolchain servers, which could send messages to
+    // sourcekit-lsp while it is being deallocated, causing crashes.
+    shutdownGroup.notify(queue: self.queue) {
+      request.reply(VoidResponse())
+    }
   }
 
   func exit(_ notification: Notification<ExitNotification>) {

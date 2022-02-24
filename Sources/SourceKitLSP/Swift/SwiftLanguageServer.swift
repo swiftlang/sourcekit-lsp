@@ -384,7 +384,7 @@ extension SwiftLanguageServer {
     // Nothing to do.
   }
 
-  public func shutdown() {
+  public func shutdown(callback: @escaping () -> Void) {
     queue.async {
       if let session = self.currentCompletionSession {
         session.close()
@@ -392,6 +392,7 @@ extension SwiftLanguageServer {
       }
       self.sourcekitd.removeNotificationHandler(self)
       self.client.close()
+      callback()
     }
   }
 
