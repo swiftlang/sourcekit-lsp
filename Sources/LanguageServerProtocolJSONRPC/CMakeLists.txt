@@ -8,6 +8,9 @@ set_target_properties(LanguageServerProtocolJSONRPC PROPERTIES
 target_link_libraries(LanguageServerProtocolJSONRPC PRIVATE
   LanguageServerProtocol
   LSPLogging)
+target_link_libraries(LanguageServerProtocolJSONRPC PRIVATE
+  $<$<NOT:$<PLATFORM_ID:Darwin>>:swiftDispatch>
+  $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)
 
 if(BUILD_SHARED_LIBS)
   get_swift_host_arch(swift_arch)
