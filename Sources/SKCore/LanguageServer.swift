@@ -39,9 +39,9 @@ open class LanguageServerEndpoint {
   /// All incoming requests start on this queue, but should reply or move to another queue as soon as possible to avoid blocking.
   public let queue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
 
-  private var requestHandlers: [ObjectIdentifier: Any] = [:]
+  internal var requestHandlers: [ObjectIdentifier: Any] = [:]
 
-  private var notificationHandlers: [ObjectIdentifier: Any] = [:]
+  internal var notificationHandlers: [ObjectIdentifier: Any] = [:]
 
   public struct RequestCancelKey: Hashable {
     public var client: ObjectIdentifier
