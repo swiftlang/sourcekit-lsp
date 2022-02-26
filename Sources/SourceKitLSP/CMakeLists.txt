@@ -1,5 +1,5 @@
 
-add_library(SourceKitLSP
+add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
   DocumentManager.swift
   DocumentTokens.swift
@@ -44,15 +44,3 @@ target_link_libraries(SourceKitLSP PUBLIC
   TSCUtility)
 target_link_libraries(SourceKitLSP PRIVATE
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
-
-if(BUILD_SHARED_LIBS)
-  get_swift_host_arch(swift_arch)
-  install(TARGETS SourceKitLSP
-    ARCHIVE DESTINATION lib/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>
-    LIBRARY DESTINATION lib/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>
-    RUNTIME DESTINATION bin)
-  install(FILES
-    $<TARGET_PROPERTY:SourceKitLSP,Swift_MODULE_DIRECTORY>/SourceKitLSP.swiftdoc
-    $<TARGET_PROPERTY:SourceKitLSP,Swift_MODULE_DIRECTORY>/SourceKitLSP.swiftmodule
-    DESTINATION lib/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>)
-endif()

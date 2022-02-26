@@ -1,4 +1,4 @@
-add_library(LanguageServerProtocolJSONRPC
+add_library(LanguageServerProtocolJSONRPC STATIC
   DisableSigpipe.swift
   JSONRPCConnection.swift
   MessageCoding.swift
@@ -11,15 +11,3 @@ target_link_libraries(LanguageServerProtocolJSONRPC PRIVATE
 target_link_libraries(LanguageServerProtocolJSONRPC PRIVATE
   $<$<NOT:$<PLATFORM_ID:Darwin>>:swiftDispatch>
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)
-
-if(BUILD_SHARED_LIBS)
-  get_swift_host_arch(swift_arch)
-  install(TARGETS LanguageServerProtocolJSONRPC
-    ARCHIVE DESTINATION lib/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>
-    LIBRARY DESTINATION lib/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>
-    RUNTIME DESTINATION bin)
-  install(FILES
-    $<TARGET_PROPERTY:LanguageServerProtocolJSONRPC,Swift_MODULE_DIRECTORY>/LanguageServerProtocolJSONRPC.swiftdoc
-    $<TARGET_PROPERTY:LanguageServerProtocolJSONRPC,Swift_MODULE_DIRECTORY>/LanguageServerProtocolJSONRPC.swiftmodule
-    DESTINATION lib/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>/${swift_arch})
-endif()
