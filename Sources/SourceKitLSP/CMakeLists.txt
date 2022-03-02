@@ -42,12 +42,8 @@ target_link_libraries(SourceKitLSP PUBLIC
   SKSwiftPMWorkspace
   SourceKitD
   TSCUtility)
-if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
-  if(Foundation_FOUND)
-    target_link_libraries(SourceKitLSP PRIVATE
-      FoundationXML)
-  endif()
-endif()
+target_link_libraries(SourceKitLSP PRIVATE
+  $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 
 if(BUILD_SHARED_LIBS)
   get_swift_host_arch(swift_arch)

@@ -3,12 +3,8 @@ add_library(LSPLogging
   Logging.swift)
 set_target_properties(LSPLogging PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
-if(NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
-  if(Foundation_FOUND)
-    target_link_libraries(LSPLogging PRIVATE
-      Foundation)
-  endif()
-endif()
+target_link_libraries(LSPLogging PRIVATE
+  $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)
 
 if(BUILD_SHARED_LIBS)
   get_swift_host_arch(swift_arch)
