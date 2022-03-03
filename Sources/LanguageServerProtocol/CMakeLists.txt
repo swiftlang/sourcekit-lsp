@@ -1,4 +1,4 @@
-add_library(LanguageServerProtocol
+add_library(LanguageServerProtocol STATIC
   Cancellation.swift
   Connection.swift
   CustomCodable.swift
@@ -95,15 +95,3 @@ set_target_properties(LanguageServerProtocol PROPERTIES
 target_link_libraries(LanguageServerProtocol PUBLIC
   $<$<NOT:$<PLATFORM_ID:Darwin>>:swiftDispatch>
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)
-
-if(BUILD_SHARED_LIBS)
-  get_swift_host_arch(swift_arch)
-  install(TARGETS LanguageServerProtocol
-    ARCHIVE DESTINATION lib/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>
-    LIBRARY DESTINATION lib/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>
-    RUNTIME DESTINATION bin)
-  install(FILES
-    $<TARGET_PROPERTY:LanguageServerProtocol,Swift_MODULE_DIRECTORY>/LanguageServerProtocol.swiftdoc
-    $<TARGET_PROPERTY:LanguageServerProtocol,Swift_MODULE_DIRECTORY>/LanguageServerProtocol.swiftmodule
-    DESTINATION lib/swift$<$<NOT:$<BOOL:${BUILD_SHARED_LIBS}>>:_static>/$<LOWER_CASE:${CMAKE_SYSTEM_NAME}>/${swift_arch})
-endif()
