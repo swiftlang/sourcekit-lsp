@@ -136,6 +136,26 @@ public struct SemanticTokensRegistrationOptions: RegistrationOptions, TextDocume
   }
 }
 
+public struct InlayHintRegistrationOptions: RegistrationOptions, TextDocumentRegistrationOptionsProtocol, Hashable {
+  public var textDocumentRegistrationOptions: TextDocumentRegistrationOptions
+  public var inlayHintOptions: InlayHintOptions
+
+  public init(
+    documentSelector: DocumentSelector? = nil,
+    inlayHintOptions: InlayHintOptions
+  ) {
+    textDocumentRegistrationOptions = TextDocumentRegistrationOptions(documentSelector: documentSelector)
+    self.inlayHintOptions = inlayHintOptions
+  }
+
+  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
+    textDocumentRegistrationOptions.encodeIntoLSPAny(dict: &dict)
+    if let resolveProvider = inlayHintOptions.resolveProvider {
+      dict["resolveProvider"] = .bool(resolveProvider)
+    }
+  }
+}
+
 /// Describe options to be used when registering for file system change events.
 public struct DidChangeWatchedFilesRegistrationOptions: RegistrationOptions {
   /// The watchers to register.

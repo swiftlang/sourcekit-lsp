@@ -10,17 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// Request for inline annotations to be displayed in the editor **(LSP Extension)**.
+/// Request for inline annotations to be displayed in the editor.
 /// 
-/// This implements the proposed `textDocument/inlayHints` API from
+/// This implements the proposed `textDocument/inlayHint` API from
 /// https://github.com/microsoft/language-server-protocol/pull/1249 (commit: `d55733d`)
 ///
 /// - Parameters:
 ///   - textDocument: The document for which to provide the inlay hints.
 ///
 /// - Returns: InlayHints for the entire document
-public struct InlayHintsRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "sourcekit-lsp/inlayHints"
+public struct InlayHintRequest: TextDocumentRequest, Hashable {
+  public static let method: String = "textDocument/inlayHint"
   public typealias Response = [InlayHint]
 
   /// The document for which to provide the inlay hints.
@@ -33,12 +33,12 @@ public struct InlayHintsRequest: TextDocumentRequest, Hashable {
 
   /// The categories of hints that are interesting to the client
   /// and should be filtered.
-  public var only: [InlayHintCategory]?
+  public var only: [InlayHintKind]?
 
   public init(
     textDocument: TextDocumentIdentifier,
     range: Range<Position>? = nil,
-    only: [InlayHintCategory]? = nil
+    only: [InlayHintKind]? = nil
   ) {
     self.textDocument = textDocument
     self._range = CustomCodable(wrappedValue: range)
