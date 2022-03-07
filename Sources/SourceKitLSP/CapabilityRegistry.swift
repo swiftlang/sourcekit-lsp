@@ -29,6 +29,9 @@ public final class CapabilityRegistry {
   /// Dynamically registered semantic tokens options.
   private var semanticTokens: [CapabilityRegistration: SemanticTokensRegistrationOptions] = [:]
 
+  /// Dynamically registered inlay hint options.
+  private var inlayHint: [CapabilityRegistration: InlayHintRegistrationOptions] = [:]
+
   /// Dynamically registered file watchers.
   private var didChangeWatchedFiles: DidChangeWatchedFilesRegistrationOptions?
 
@@ -51,6 +54,10 @@ public final class CapabilityRegistry {
 
   public var clientHasDynamicSemanticTokensRegistration: Bool {
     clientCapabilities.textDocument?.semanticTokens?.dynamicRegistration == true
+  }
+
+  public var clientHasDynamicInlayHintRegistration: Bool {
+    clientCapabilities.textDocument?.inlayHint?.dynamicRegistration == true
   }
 
   public var clientHasDynamicExecuteCommandRegistration: Bool {
@@ -163,6 +170,34 @@ public final class CapabilityRegistry {
       registerOptions: self.encode(registrationOptions))
 
     self.semanticTokens[registration] = registrationOptions
+
+    registerOnClient(registration)
+  }
+
+  /// Dynamically register inlay hint capabilities if the client supports
+  /// it and we haven't yet registered any inlay hint capabilities for the
+  /// given languages.
+  public func registerInlayHintIfNeeded(
+    options: InlayHintOptions,
+    for languages: [Language],
+    registerOnClient: ClientRegistrationHandler
+  ) {
+    guard clientHasDynamicInlayHintRegistration else { return }
+    if let registration = registration(for: languages, in: inlayHint) {
+      if options != registration.inlayHintOptions {
+        log("Unable to register new inlay hint options \(options) for " +
+            "\(languages) due to pre-existing options \(registration.inlayHintOptions)", level: .warning)
+      }
+      return
+    }
+    let registrationOptions = InlayHintRegistrationOptions(
+      documentSelector: self.documentSelector(for: languages),
+      inlayHintOptions: options)
+    let registration = CapabilityRegistration(
+      method: InlayHintRequest.method,
+      registerOptions: self.encode(registrationOptions))
+    
+    self.inlayHint[registration] = registrationOptions
 
     registerOnClient(registration)
   }
