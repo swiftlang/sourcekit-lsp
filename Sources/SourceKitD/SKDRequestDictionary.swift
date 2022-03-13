@@ -13,6 +13,8 @@
 import Csourcekitd
 #if canImport(Glibc)
 import Glibc
+#elseif canImport(CRT)
+import CRT
 #endif
 
 public final class SKDRequestDictionary {
