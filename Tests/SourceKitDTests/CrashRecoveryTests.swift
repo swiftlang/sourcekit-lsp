@@ -43,6 +43,7 @@ final class CrashRecoveryTests: XCTestCase {
   func testSourcekitdCrashRecovery() throws {
     try XCTSkipUnless(isDarwinHost, "Linux and Windows use in-process sourcekitd")
     try XCTSkipUnless(longTestsEnabled)
+    try XCTSkipIf(true, "Causing memory corruption issues on Linux - rdar://90238939")
 
     let ws = try! staticSourceKitTibsWorkspace(name: "sourcekitdCrashRecovery")!
     let loc = ws.testLoc("loc")
@@ -153,6 +154,7 @@ final class CrashRecoveryTests: XCTestCase {
 
   func testClangdCrashRecovery() throws {
     try XCTSkipUnless(longTestsEnabled)
+    try XCTSkipIf(true, "Causing memory corruption issues on Linux - rdar://90238939")
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
     let loc = ws.testLoc("loc")
@@ -190,6 +192,7 @@ final class CrashRecoveryTests: XCTestCase {
     
   func testClangdCrashRecoveryReopensWithCorrectBuildSettings() throws {
     try XCTSkipUnless(longTestsEnabled)
+    try XCTSkipIf(true, "Causing memory corruption issues on Linux - rdar://90238939")
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings")!
     let loc = ws.testLoc("loc")
@@ -223,6 +226,7 @@ final class CrashRecoveryTests: XCTestCase {
   
   func testPreventClangdCrashLoop() throws {
     try XCTSkipUnless(longTestsEnabled)
+    try XCTSkipIf(true, "Causing memory corruption issues on Linux - rdar://90238939")
 
     let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
     let loc = ws.testLoc("loc")
