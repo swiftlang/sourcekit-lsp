@@ -82,13 +82,6 @@ def install_binary(exe, source_dir, install_dir, toolchain):
   if platform.system() == 'Darwin':
     result_path = os.path.join(install_dir, exe)
     stdlib_rpath = os.path.join(toolchain, 'lib', 'swift', 'macosx')
-    delete_rpath(stdlib_rpath, result_path)
-
-def delete_rpath(rpath, binary):
-  cmd = ["install_name_tool", "-delete_rpath", rpath, binary]
-  print(' '.join(cmd))
-  subprocess.check_call(cmd)
-
 
 def handle_invocation(swift_exec, args):
   swiftpm_args = get_swiftpm_options(args)
