@@ -140,6 +140,8 @@ extension BuildSystemManager: BuildSystem {
 
   public var indexDatabasePath: AbsolutePath? { queue.sync { buildSystem?.indexDatabasePath } }
 
+  public var indexPrefixMappings: [String] { queue.sync { buildSystem?.indexPrefixMappings ?? [] } }
+
   public var delegate: BuildSystemDelegate? {
     get { queue.sync { _delegate } }
     set { queue.sync { _delegate = newValue } }

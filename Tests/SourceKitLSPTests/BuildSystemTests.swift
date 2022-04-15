@@ -27,6 +27,7 @@ typealias LSPNotification = LanguageServerProtocol.Notification
 final class TestBuildSystem: BuildSystem {
   var indexStorePath: AbsolutePath? = nil
   var indexDatabasePath: AbsolutePath? = nil
+  var indexPrefixMappings: [String] = []
 
   weak var delegate: BuildSystemDelegate?
 

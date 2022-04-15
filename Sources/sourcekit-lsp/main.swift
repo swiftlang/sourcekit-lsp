@@ -114,6 +114,14 @@ struct Main: ParsableCommand {
   var indexDatabasePath: AbsolutePath?
 
   @Option(
+    name: .customLong("index-prefix-map", withSingleDash: true),
+    parsing: .unconditionalSingleValue,
+    help: "Override the prefix map from the build system, values of form 'remote=local'"
+  )
+  var indexPrefixMappings = [String]()
+
+
+  @Option(
     help: "Whether to enable server-side filtering in code-completion"
   )
   var completionServerSideFiltering = true
@@ -135,6 +143,7 @@ struct Main: ParsableCommand {
     serverOptions.clangdOptions = clangdOptions
     serverOptions.indexOptions.indexStorePath = indexStorePath
     serverOptions.indexOptions.indexDatabasePath = indexDatabasePath
+    serverOptions.indexOptions.indexPrefixMappings = indexPrefixMappings
     serverOptions.completionOptions.serverSideFiltering = completionServerSideFiltering
     serverOptions.completionOptions.maxResults = completionMaxResults
 

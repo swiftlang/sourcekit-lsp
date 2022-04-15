@@ -43,6 +43,9 @@ public protocol BuildSystem: AnyObject {
   /// The path to put the index database, if any.
   var indexDatabasePath: AbsolutePath? { get }
 
+  /// Path remappings (of form 'remote=local') for remapping index data for local use.
+  var indexPrefixMappings: [String] { get }
+
   /// Delegate to handle any build system events such as file build settings
   /// initial reports as well as changes.
   var delegate: BuildSystemDelegate? { get set }
