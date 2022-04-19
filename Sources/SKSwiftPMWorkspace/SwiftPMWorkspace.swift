@@ -345,7 +345,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     case .created, .deleted:
       return self.workspace.fileAffectsSwiftOrClangBuildSettings(filePath: AbsolutePath(fileURL.path), packageGraph: self.packageGraph)
     case .changed:
-      return false
+      return fileURL.lastPathComponent == "Package.swift"
     default: // Unknown file change type
       return false
     }
