@@ -589,6 +589,7 @@ extension SourceKitServer {
       return FileSystemWatcher(globPattern: "**/*.\(fileExtension)", kind: [.create, .delete])
     }
     watchers.append(FileSystemWatcher(globPattern: "**/Package.swift", kind: [.change]))
+    watchers.append(FileSystemWatcher(globPattern: "**/workspace-state.json", kind: [.change]))
     registry.registerDidChangeWatchedFiles(watchers: watchers) {
       self.dynamicallyRegisterCapability($0, registry)
     }

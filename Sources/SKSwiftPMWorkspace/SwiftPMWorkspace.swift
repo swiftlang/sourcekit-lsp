@@ -353,6 +353,9 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
 
   public func filesDidChange(_ events: [FileEvent]) {
     queue.async {
+      if events.contains(where: { $0.uri.fileURL?.lastPathComponent == "workspace-state.json" }) {
+        self.workspace.reloadWorkspaceState(warningHandler: { _ in })
+      }
       if events.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
         orLog {
           // TODO: It should not be necessary to reload the entire package just to get build settings for one file.
