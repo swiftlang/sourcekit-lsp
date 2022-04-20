@@ -13,5 +13,6 @@ let package = Package(
     .target(
       name: "lib",
       dependencies: []),
+    /*Package.swift:targets*/
   ]
 )
