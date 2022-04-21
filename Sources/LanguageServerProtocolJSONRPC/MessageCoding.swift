@@ -77,7 +77,15 @@ extension JSONRPCMessage: Codable {
           throw MessageDecodingError.methodNotFound(method)
         }
 
-        let params = try messageType.init(from: container.superDecoder(forKey: .params))
+        let params: _RequestType
+        do {
+          params = try messageType.init(from: container.superDecoder(forKey: .params))
+        } catch DecodingError.keyNotFound(CodingKeys.params, _) where messageType == ShutdownRequest.self {
+          // Workaround for SR-16097 to avoid hitting SR-16095: VSCode will send shutdown requests without a 'params' key.
+          // On macOS getting the superDecoder for a non-existent container returns an empty decoder, on Linux it throws `DecodingError.keyNotFound`, causing a crash.
+          // Perform a targeted fix: If we don't have 'params' and the request is a ShutdownRequest, manually create a `ShutdownRequest` without any parameters.
+          params = ShutdownRequest()
+        }
 
         self = .request(params, id: id)
 
