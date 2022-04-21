@@ -212,6 +212,29 @@ final class CodingTests: XCTestCase {
     {"jsonrpc":"2.0","id":2,"result":{}}
     """, userInfo: info)
   }
+
+  // SR-16095
+  func testDecodeShutdownWithoutParams() {
+    let json = """
+      {
+        "id" : 1,
+        "jsonrpc" : "2.0",
+        "method" : "shutdown"
+      }
+      """
+
+    let decoder = JSONDecoder()
+    decoder.userInfo = defaultCodingInfo
+    let decodedValue = try! decoder.decode(JSONRPCMessage.self, from: json.data(using: .utf8)!)
+
+    guard case JSONRPCMessage.request(let decodedValueOpaque, let decodedID) = decodedValue, let decodedRequest = decodedValueOpaque as? ShutdownRequest else {
+      XCTFail("decodedValue \(decodedValue) is not a ShutdownRequest")
+      return
+    }
+
+    XCTAssertEqual(.number(1), decodedID, "expected request ID 1")
+    XCTAssertEqual(ShutdownRequest(), decodedRequest)
+  }
 }
 
 let defaultCodingInfo: [CodingUserInfoKey: Any] = [CodingUserInfoKey.messageRegistryKey:MessageRegistry.lspProtocol]
