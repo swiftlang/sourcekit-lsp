@@ -217,7 +217,7 @@ final class SKTests: XCTestCase {
     }
 
     try ws.openDocument(moduleRef.url, language: .swift)
-    let started = XCTWaiter.wait(for: [startExpectation], timeout: 30)
+    let started = XCTWaiter.wait(for: [startExpectation], timeout: 60)
     if started != .completed {
       fatalError("error \(started) waiting for initial diagnostics notification")
     }
