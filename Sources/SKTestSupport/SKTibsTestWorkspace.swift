@@ -70,6 +70,7 @@ public final class SKTibsTestWorkspace {
     tibsWorkspace.delegate = indexDelegate
 
     testServer.server!.workspace = Workspace(
+      documentManager: DocumentManager(),
       rootUri: DocumentURI(sources.rootDirectory),
       capabilityRegistry: CapabilityRegistry(clientCapabilities: clientCapabilities),
       toolchainRegistry: ToolchainRegistry.shared,

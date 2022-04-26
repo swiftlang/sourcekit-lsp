@@ -90,6 +90,7 @@ public final class SKSwiftPMTestWorkspace {
 
     let server = testServer.server!
     server.workspace = Workspace(
+      documentManager: DocumentManager(),
       rootUri: DocumentURI(sources.rootDirectory),
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
       toolchainRegistry: ToolchainRegistry.shared,
