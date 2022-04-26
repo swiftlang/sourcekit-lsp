@@ -74,6 +74,10 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
   /// Stored so we can replay the initialization when clangd crashes.
   private var initializeRequest: InitializeRequest?
 
+  /// The workspace this `ClangLanguageServer` was opened for.
+  /// `clangd` doesn't have support for multi-root workspaces, so we need to start a separate `clangd` instance for every workspace root.
+  private weak var workspace: Workspace?
+
   /// A callback with which `ClangLanguageServer` can request its owner to reopen all documents in case it has crashed.
   private let reopenDocuments: (ToolchainLanguageServer) -> Void
 
@@ -91,6 +95,7 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
     toolchain: Toolchain,
     clientCapabilities: ClientCapabilities?,
     options: SourceKitServer.Options,
+    workspace: Workspace,
     reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
   ) throws {
     guard let clangdPath = toolchain.clangd else {
@@ -99,10 +104,16 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
     self.clangPath = toolchain.clang
     self.clangdPath = clangdPath
     self.clangdOptions = options.clangdOptions
+    self.workspace = workspace
     self.reopenDocuments = reopenDocuments
     self.state = .connected
     super.init(client: client)
     try startClangdProcesss()
+  }
+
+  func canHandle(workspace: Workspace) -> Bool {
+    // We launch different clangd instance for each workspace because clangd doesn't have multi-root workspace support.
+    return workspace === self.workspace
   }
 
   func addStateChangeHandler(handler: @escaping (LanguageServerState, LanguageServerState) -> Void) {

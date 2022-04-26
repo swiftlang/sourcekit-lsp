@@ -34,8 +34,13 @@ public protocol ToolchainLanguageServer: AnyObject {
     toolchain: Toolchain,
     clientCapabilities: ClientCapabilities?,
     options: SourceKitServer.Options,
+    workspace: Workspace,
     reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
   ) throws
+
+  /// Returns `true` if this instance of the language server can handle opening documents in `workspace`.
+  /// If this returns `false`, a new language server will be started for `workspace`.
+  func canHandle(workspace: Workspace) -> Bool
 
   // MARK: - Lifetime
 
