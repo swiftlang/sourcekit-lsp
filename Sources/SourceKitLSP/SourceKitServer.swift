@@ -48,6 +48,13 @@ public final class SourceKitServer: LanguageServer {
 
   private var documentToPendingQueue: [DocumentURI: DocumentNotificationRequestQueue] = [:]
 
+  private let documentManager = DocumentManager()
+
+  /// **Public for testing**
+  public var _documentManager: DocumentManager {
+    return documentManager
+  }
+
   public var workspace: Workspace?
 
   let fs: FileSystem
@@ -230,8 +237,8 @@ public final class SourceKitServer: LanguageServer {
         return
       }
       
-      for documentUri in workspace.documentManager.openDocuments where workspace.documentService[documentUri] === languageService {
-        guard let snapshot = workspace.documentManager.latestSnapshot(documentUri) else {
+      for documentUri in self.documentManager.openDocuments where workspace.documentService[documentUri] === languageService {
+        guard let snapshot = self.documentManager.latestSnapshot(documentUri) else {
           // The document has been closed since we retrieved its URI. We don't care about it anymore.
           continue
         }
@@ -346,8 +353,7 @@ extension SourceKitServer: BuildSystemDelegate {
       guard let workspace = self.workspace else {
         return
       }
-      let documentManager = workspace.documentManager
-      let openDocuments = documentManager.openDocuments
+      let openDocuments = self.documentManager.openDocuments
       for (uri, change) in changedFiles {
         // Non-ready documents should be considered open even though we haven't
         // opened it with the language service yet.
@@ -395,7 +401,7 @@ extension SourceKitServer: BuildSystemDelegate {
       guard let workspace = self.workspace else {
         return
       }
-      for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, workspace.documentManager) {
+      for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, self.documentManager) {
         // Make sure the document is ready - otherwise the language service won't
         // know about the document yet.
         guard self.documentsReady.contains(uri) else {
@@ -447,6 +453,7 @@ extension SourceKitServer {
     queue.async {
       if let uri = req.params.rootURI {
         self.workspace = try? Workspace(
+          documentManager: self.documentManager,
           rootUri: uri,
           capabilityRegistry: capabilityRegistry,
           toolchainRegistry: self.toolchainRegistry,
@@ -454,6 +461,7 @@ extension SourceKitServer {
           indexOptions: indexOptions)
       } else if let path = req.params.rootPath {
         self.workspace = try? Workspace(
+          documentManager: self.documentManager,
           rootUri: DocumentURI(URL(fileURLWithPath: path)),
           capabilityRegistry: capabilityRegistry,
           toolchainRegistry: self.toolchainRegistry,
@@ -465,6 +473,7 @@ extension SourceKitServer {
         log("no workspace found", level: .warning)
 
         self.workspace = Workspace(
+          documentManager: self.documentManager,
           rootUri: req.params.rootURI,
           capabilityRegistry: capabilityRegistry,
           toolchainRegistry: self.toolchainRegistry,
@@ -664,7 +673,7 @@ extension SourceKitServer {
   private func openDocument(_ note: DidOpenTextDocumentNotification, workspace: Workspace) {
     // Immediately open the document even if the build system isn't ready. This is important since
     // we check that the document is open when we receive messages from the build system.
-    workspace.documentManager.open(note)
+    documentManager.open(note)
 
     let textDocument = note.textDocument
     let uri = textDocument.uri
@@ -701,7 +710,7 @@ extension SourceKitServer {
   func closeDocument(_ note: DidCloseTextDocumentNotification, workspace: Workspace) {
     // Immediately close the document. We need to be sure to clear our pending work queue in case
     // the build system still isn't ready.
-    workspace.documentManager.close(note)
+    documentManager.close(note)
 
     let uri = note.textDocument.uri
 
@@ -730,14 +739,14 @@ extension SourceKitServer {
 
     // If the document is ready, we can handle the change right now.
     guard !documentsReady.contains(uri) else {
-      workspace.documentManager.edit(note.params)
+      documentManager.edit(note.params)
       workspace.documentService[uri]?.changeDocument(note.params)
       return
     }
 
     // Need to queue the change call so we can handle it when ready.
     self.documentToPendingQueue[uri, default: DocumentNotificationRequestQueue()].add(operation: {
-      workspace.documentManager.edit(note.params)
+      self.documentManager.edit(note.params)
       workspace.documentService[uri]?.changeDocument(note.params)
     })
   }
