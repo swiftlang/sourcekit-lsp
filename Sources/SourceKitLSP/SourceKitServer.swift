@@ -30,17 +30,11 @@ public typealias URL = Foundation.URL
 /// and cross-language support. Requests may be dispatched to language-specific services or handled
 /// centrally, but this is transparent to the client.
 public final class SourceKitServer: LanguageServer {
-
-  struct LanguageServiceKey: Hashable {
-    var toolchain: String
-    var language: Language
-  }
-
   var options: Options
 
   let toolchainRegistry: ToolchainRegistry
 
-  var languageService: [LanguageServiceKey: ToolchainLanguageServer] = [:]
+  var languageServices: [ToolchainLanguageServer] = []
 
   /// Documents that are ready for requests and notifications.
   /// This generally means that the `BuildSystem` has notified of us of build settings.
@@ -282,9 +276,11 @@ public final class SourceKitServer: LanguageServer {
     _ language: Language,
     in workspace: Workspace
   ) -> ToolchainLanguageServer? {
-    let key = LanguageServiceKey(toolchain: toolchain.identifier, language: language)
-    if let service = languageService[key] {
-      return service
+    // Pick the first language service that can handle this workspace.
+    for languageService in languageServices {
+      if languageService.canHandle(workspace: workspace) {
+        return languageService
+      }
     }
 
     // Start a new service.
@@ -316,7 +312,7 @@ public final class SourceKitServer: LanguageServer {
 
       service.clientInitialized(InitializedNotification())
 
-      languageService[key] = service
+      languageServices.append(service)
       return service
     }
   }
@@ -666,13 +662,13 @@ extension SourceKitServer {
   func shutdown(_ request: Request<ShutdownRequest>) {
     _prepareForExit()
     let shutdownGroup = DispatchGroup()
-    for service in languageService.values {
+    for service in languageServices {
       shutdownGroup.enter()
       service.shutdown() {
         shutdownGroup.leave()
       }
     }
-    languageService = [:]
+    languageServices = []
     // Wait for all services to shut down before sending the shutdown response.
     // Otherwise we might terminate sourcekit-lsp while it still has open
     // connections to the toolchain servers, which could send messages to
@@ -1250,6 +1246,7 @@ public func languageService(
       toolchain: toolchain,
       clientCapabilities: workspace.capabilityRegistry.clientCapabilities,
       options: options,
+      workspace: workspace,
       reopenDocuments: reopenDocuments
     )
     connectionToClient.start(handler: client)

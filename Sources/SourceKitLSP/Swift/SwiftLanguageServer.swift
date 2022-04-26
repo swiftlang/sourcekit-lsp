@@ -141,6 +141,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     toolchain: Toolchain,
     clientCapabilities: ClientCapabilities?,
     options: SourceKitServer.Options,
+    workspace: Workspace,
     reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
   ) throws {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
@@ -151,6 +152,11 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     self.documentManager = DocumentManager()
     self.state = .connected
     self.reopenDocuments = reopenDocuments
+  }
+
+  public func canHandle(workspace: Workspace) -> Bool {
+    // We have a single sourcekitd instance for all workspaces.
+    return true
   }
 
   public func addStateChangeHandler(handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void) {
