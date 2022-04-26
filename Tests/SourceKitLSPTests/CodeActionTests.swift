@@ -28,6 +28,7 @@ final class CodeActionTests: XCTestCase {
     let codeActionLiteralSupport = CodeActionLiteralSupport(codeActionKind: codeActionKinds)
     codeActionCapabilities.codeActionLiteralSupport = codeActionLiteralSupport
     documentCapabilities.codeAction = codeActionCapabilities
+    documentCapabilities.completion = .init(completionItem: .init(snippetSupport: true))
     return ClientCapabilities(workspace: nil, textDocument: documentCapabilities)
   }
 
@@ -245,5 +246,89 @@ final class CodeActionTests: XCTestCase {
                                         command: expectedCommand)
 
     XCTAssertEqual(result, .codeActions([expectedCodeAction]))
+  }
+
+  func testCodeActionsUseLSPSnippets() throws {
+    let capabilities = clientCapabilitiesWithCodeActionSupport()
+    let ws = try staticSourceKitTibsWorkspace(name: "Fixit", clientCapabilities: capabilities)!
+
+    let def = ws.testLoc("MyStruct:def")
+
+    try ws.openDocument(def.url, language: .swift)
+
+    let syntacticDiagnosticsReceived = self.expectation(description: "Syntactic diagnotistics received")
+    let semanticDiagnosticsReceived = self.expectation(description: "Semantic diagnotistics received")
+
+    ws.sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+      // syntactic diagnostics
+      XCTAssertEqual(note.params.uri, def.docUri)
+      XCTAssertEqual(note.params.diagnostics, [])
+      syntacticDiagnosticsReceived.fulfill()
+    }
+
+    var diags: [Diagnostic]! = nil
+    ws.sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+      // semantic diagnostics
+      XCTAssertEqual(note.params.uri, def.docUri)
+      XCTAssertEqual(note.params.diagnostics.count, 1)
+      diags = note.params.diagnostics
+      semanticDiagnosticsReceived.fulfill()
+    }
+
+    self.wait(for: [syntacticDiagnosticsReceived, semanticDiagnosticsReceived], timeout: 30)
+
+    let textDocument = TextDocumentIdentifier(def.url)
+    let actionsRequest = CodeActionRequest(range: def.position..<def.position, context: .init(diagnostics: diags), textDocument: textDocument)
+    let actionResult = try ws.sk.sendSync(actionsRequest)
+
+    guard case .codeActions(let codeActions) = actionResult else {
+      return XCTFail("Expected code actions, not commands as a response")
+    }
+
+    // Check that the Fix-It action contains snippets
+
+    guard let quickFixAction = codeActions.filter({ $0.kind == .quickFix }).spm_only else {
+      return XCTFail("Expected exactly one quick fix action")
+    }
+    guard let change = quickFixAction.edit?.changes?[def.docUri]?.spm_only else {
+      return XCTFail("Expected exactly one change")
+    }
+    XCTAssertEqual(change.newText, """
+
+        func foo() {
+            ${1:code}
+        }
+
+    """)
+
+    // Check that the refactor action contains snippets
+    guard let refactorAction = codeActions.filter({ $0.kind == .refactor }).spm_only else {
+      return XCTFail("Expected exactly one refactor action")
+    }
+    guard let command = refactorAction.command else {
+      return XCTFail("Expected the refactor action to have a command")
+    }
+
+    let editReceived = self.expectation(description: "Received ApplyEdit request")
+
+    ws.sk.appendOneShotRequestHandler { (request: Request<ApplyEditRequest>) in
+      defer {
+        editReceived.fulfill()
+      }
+      guard let change = request.params.edit.changes?[def.docUri]?.spm_only else {
+        return XCTFail("Expected exactly one edit")
+      }
+      XCTAssertEqual(change.newText, """
+
+          func foo() {
+              ${1:code}
+          }
+
+      """)
+      request.reply(ApplyEditResponse(applied: true, failureReason: nil))
+    }
+    _ = try ws.sk.sendSync(ExecuteCommandRequest(command: command.command, arguments: command.arguments))
+
+    self.wait(for: [editReceived], timeout: 5)
   }
 }

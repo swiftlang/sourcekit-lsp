@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPLogging
+
 public enum EditorPlaceholder: Hashable {
   case basic(String)
   case typed(displayName: String, type: String, typeForExpansion: String)
@@ -51,4 +53,24 @@ public enum EditorPlaceholder: Hashable {
       return displayName
     }
   }
+}
+
+func rewriteSourceKitPlaceholders(inString string: String, clientSupportsSnippets: Bool) -> String {
+  var result = string
+  var index = 1
+  while let start = result.range(of: EditorPlaceholder.placeholderPrefix) {
+    guard let end = result[start.upperBound...].range(of: EditorPlaceholder.placeholderSuffix) else {
+      log("invalid placeholder in \(string)", level: .debug)
+      return string
+    }
+    let rawPlaceholder = String(result[start.lowerBound..<end.upperBound])
+    guard let displayName = EditorPlaceholder(rawPlaceholder)?.displayName else {
+      log("failed to decode placeholder \(rawPlaceholder) in \(string)", level: .debug)
+      return string
+    }
+    let placeholder = clientSupportsSnippets ? "${\(index):\(displayName)}" : ""
+    result.replaceSubrange(start.lowerBound..<end.upperBound, with: placeholder)
+    index += 1
+  }
+  return result
 }

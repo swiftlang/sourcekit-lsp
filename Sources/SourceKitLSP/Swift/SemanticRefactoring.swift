@@ -36,7 +36,7 @@ struct SemanticRefactoring {
   ///   - dict: Response dictionary to extract information from.
   ///   - url: The client URL that triggered the `semantic_refactoring` request.
   ///   - keys: The sourcekitd key set to use for looking up into `dict`.
-  init?(_ title: String, _ dict: SKDResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_keys) {
+  init?(_ title: String, _ dict: SKDResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_keys, clientSupportsSnippets: Bool) {
     guard let categorizedEdits: SKDResponseArray = dict[keys.categorizededits] else {
       return nil
     }
@@ -59,7 +59,8 @@ struct SemanticRefactoring {
                                                  utf8Column: endColumn - 1),
            let text: String = value[keys.text]
         {
-          let edit = TextEdit(range: startPosition..<endPosition, newText: text)
+          let textWithSnippets = rewriteSourceKitPlaceholders(inString: text, clientSupportsSnippets: clientSupportsSnippets)
+          let edit = TextEdit(range: startPosition..<endPosition, newText: textWithSnippets)
           textEdits.append(edit)
         }
         return true
@@ -164,7 +165,8 @@ extension SwiftLanguageServer {
         guard let dict = result.success else {
           return completion(.failure(.responseError(ResponseError(result.failure!))))
         }
-        guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {
+        let supportsSnippets = (self.clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport == true)
+        guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys, clientSupportsSnippets: supportsSnippets) else {
           return completion(.failure(.noEditsNeeded(uri)))
         }
         completion(.success(refactor))
