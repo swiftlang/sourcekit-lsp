@@ -133,21 +133,21 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   /// A callback with which `SwiftLanguageServer` can request its owner to reopen all documents in case it has crashed.
   private let reopenDocuments: (ToolchainLanguageServer) -> Void
 
-  /// Creates a language server for the given client using the sourcekitd dylib at the specified
-  /// path.
-  /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the
-  /// `SwiftLanguageServer` asks its parent server to reopen all of its documents.
-  public init(
+  /// Creates a language server for the given client using the sourcekitd dylib specified in `toolchain`.
+  /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageServer` asks its parent server to reopen all of its documents.
+  /// Returns `nil` if `sourcektid` couldn't be found.
+  public init?(
     client: LocalConnection,
-    sourcekitd: AbsolutePath,
-    clientCapabilities: ClientCapabilities,
-    serverOptions: SourceKitServer.Options,
+    toolchain: Toolchain,
+    clientCapabilities: ClientCapabilities?,
+    options: SourceKitServer.Options,
     reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
   ) throws {
+    guard let sourcekitd = toolchain.sourcekitd else { return nil }
     self.client = client
     self.sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitd)
-    self.clientCapabilities = clientCapabilities
-    self.serverOptions = serverOptions
+    self.clientCapabilities = clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil)
+    self.serverOptions = options
     self.documentManager = DocumentManager()
     self.state = .connected
     self.reopenDocuments = reopenDocuments
@@ -1399,25 +1399,6 @@ extension DocumentSnapshot {
   func indexOf(utf8Offset: Int) -> String.Index? {
     return text.utf8.index(text.startIndex, offsetBy: utf8Offset, limitedBy: text.endIndex)
   }
-}
-
-func makeLocalSwiftServer(
-  client: MessageHandler,
-  sourcekitd: AbsolutePath,
-  clientCapabilities: ClientCapabilities?,
-  options: SourceKitServer.Options,
-  reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
-) throws -> ToolchainLanguageServer {
-  let connectionToClient = LocalConnection()
-
-  let server = try SwiftLanguageServer(
-    client: connectionToClient,
-    sourcekitd: sourcekitd,
-    clientCapabilities: clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil),
-    serverOptions: options,
-    reopenDocuments: reopenDocuments)
-  connectionToClient.start(handler: client)
-  return server
 }
 
 extension sourcekitd_uid_t {
