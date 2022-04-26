@@ -55,7 +55,21 @@ public final class SourceKitServer: LanguageServer {
     return documentManager
   }
 
-  public var workspace: Workspace?
+  private var workspaces: [Workspace] = [] {
+    didSet {
+      assert(workspaces.count <= 1, "Multiple workspaces aren't supported yet")
+    }
+  }
+
+  // **Public for testing**
+  public var _workspaces: [Workspace] {
+    get {
+      return self.workspaces
+    }
+    set {
+      self.workspaces = newValue
+    }
+  }
 
   let fs: FileSystem
 
@@ -70,6 +84,10 @@ public final class SourceKitServer: LanguageServer {
     self.onExit = onExit
 
     super.init(client: client)
+  }
+
+  public func workspaceForDocument(uri: DocumentURI) -> Workspace? {
+    return workspaces.first
   }
 
   public override func _registerBuiltinHandlers() {
@@ -118,10 +136,10 @@ public final class SourceKitServer: LanguageServer {
     _ fallback: PositionRequest.Response
   ) {
     _register { [unowned self] (req: Request<PositionRequest>) in
-      guard let workspace = self.workspace else {
-        return req.reply(.failure(.serverNotInitialized))
-      }
       let doc = req.params.textDocument.uri
+      guard let workspace = self.workspaceForDocument(uri: doc) else {
+        return req.reply(.failure(.workspaceNotOpen(doc)))
+      }
 
       // This should be created as soon as we receive an open call, even if the document
       // isn't yet ready.
@@ -154,10 +172,10 @@ public final class SourceKitServer: LanguageServer {
         (Notification<TextNotification>, ToolchainLanguageServer) -> Void
   ) {
     _register { [unowned self] (note: Notification<TextNotification>) in
-      guard let workspace = self.workspace else {
+      let doc = note.params.textDocument.uri
+      guard let workspace = self.workspaceForDocument(uri: doc) else {
         return
       }
-      let doc = note.params.textDocument.uri
 
       // This should be created as soon as we receive an open call, even if the document
       // isn't yet ready.
@@ -233,11 +251,13 @@ public final class SourceKitServer: LanguageServer {
   /// After the language service has crashed, send `DidOpenTextDocumentNotification`s to a newly instantiated language service for previously open documents.
   func reopenDocuments(for languageService: ToolchainLanguageServer) {
     queue.async {
-      guard let workspace = self.workspace else {
-        return
-      }
-      
-      for documentUri in self.documentManager.openDocuments where workspace.documentService[documentUri] === languageService {
+      for documentUri in self.documentManager.openDocuments {
+        guard let workspace = self.workspaceForDocument(uri: documentUri) else {
+          continue
+        }
+        guard workspace.documentService[documentUri] === languageService else {
+          continue
+        }
         guard let snapshot = self.documentManager.latestSnapshot(documentUri) else {
           // The document has been closed since we retrieved its URI. We don't care about it anymore.
           continue
@@ -350,14 +370,14 @@ extension SourceKitServer: BuildSystemDelegate {
     _ changedFiles: [DocumentURI: FileBuildSettingsChange]
   ) {
     queue.async {
-      guard let workspace = self.workspace else {
-        return
-      }
-      let openDocuments = self.documentManager.openDocuments
       for (uri, change) in changedFiles {
         // Non-ready documents should be considered open even though we haven't
         // opened it with the language service yet.
-        guard openDocuments.contains(uri) else { continue }
+        guard self.documentManager.openDocuments.contains(uri) else { continue }
+
+        guard let workspace = self.workspaceForDocument(uri: uri) else {
+          continue
+        }
         guard self.documentsReady.contains(uri) else {
           // Case 1: initial settings for a given file. Now we can process our backlog.
           log("Initial build settings received for opened file \(uri)")
@@ -398,18 +418,26 @@ extension SourceKitServer: BuildSystemDelegate {
   /// (not queued for opening).
   public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
     queue.async {
-      guard let workspace = self.workspace else {
-        return
-      }
-      for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, self.documentManager) {
-        // Make sure the document is ready - otherwise the language service won't
-        // know about the document yet.
-        guard self.documentsReady.contains(uri) else {
+      // Split the changedFiles into the workspaces they belong to.
+      // Then invoke affectedOpenDocumentsForChangeSet for each workspace with its affected files.
+      let changedFilesAndWorkspace = changedFiles.map({
+        return ($0, self.workspaceForDocument(uri: $0))
+      })
+      for workspace in self.workspaces {
+        let changedFilesForWorkspace = Set(changedFilesAndWorkspace.filter({ $0.1 === workspace }).map(\.0))
+        if changedFilesForWorkspace.isEmpty {
           continue
         }
-        log("Dependencies updated for opened file \(uri)")
-        if let service = workspace.documentService[uri] {
-          service.documentDependenciesUpdated(uri)
+        for uri in self.affectedOpenDocumentsForChangeSet(changedFilesForWorkspace, self.documentManager) {
+          // Make sure the document is ready - otherwise the language service won't
+          // know about the document yet.
+          guard self.documentsReady.contains(uri) else {
+            continue
+          }
+          log("Dependencies updated for opened file \(uri)")
+          if let service = workspace.documentService[uri] {
+            service.documentDependenciesUpdated(uri)
+          }
         }
       }
     }
@@ -452,27 +480,29 @@ extension SourceKitServer {
     // build system and index.
     queue.async {
       if let uri = req.params.rootURI {
-        self.workspace = try? Workspace(
+        let workspace = try? Workspace(
           documentManager: self.documentManager,
           rootUri: uri,
           capabilityRegistry: capabilityRegistry,
           toolchainRegistry: self.toolchainRegistry,
           buildSetup: self.options.buildSetup,
           indexOptions: indexOptions)
+        self.workspaces = [workspace].compactMap({ $0 })
       } else if let path = req.params.rootPath {
-        self.workspace = try? Workspace(
+        let workspace = try? Workspace(
           documentManager: self.documentManager,
           rootUri: DocumentURI(URL(fileURLWithPath: path)),
           capabilityRegistry: capabilityRegistry,
           toolchainRegistry: self.toolchainRegistry,
           buildSetup: self.options.buildSetup,
           indexOptions: indexOptions)
+        self.workspaces = [workspace].compactMap({ $0 })
       }
 
-      if self.workspace == nil {
+      if self.workspaces.isEmpty {
         log("no workspace found", level: .warning)
 
-        self.workspace = Workspace(
+        let workspace = Workspace(
           documentManager: self.documentManager,
           rootUri: req.params.rootURI,
           capabilityRegistry: capabilityRegistry,
@@ -481,10 +511,13 @@ extension SourceKitServer {
           underlyingBuildSystem: nil,
           index: nil,
           indexDelegate: nil)
+        self.workspaces = [workspace].compactMap({ $0 })
       }
 
-      assert(self.workspace != nil)
-      self.workspace?.buildSystemManager.delegate = self
+      assert(!self.workspaces.isEmpty)
+      for workspace in self.workspaces {
+        workspace.buildSystemManager.delegate = self
+      }
     }
 
     req.reply(InitializeResult(capabilities:
@@ -620,11 +653,13 @@ extension SourceKitServer {
     // pipe failure.
 
     // Close the index, which will flush to disk.
-    self.workspace?.buildSystemManager.mainFilesProvider = nil
-    self.workspace?.index = nil
+    for workspace in self.workspaces {
+      workspace.buildSystemManager.mainFilesProvider = nil
+      workspace.index = nil
 
-    // Break retain cycle with the BSM.
-    self.workspace?.buildSystemManager.delegate = nil
+      // Break retain cycle with the BSM.
+      workspace.buildSystemManager.delegate = nil
+    }
   }
 
 
@@ -663,8 +698,8 @@ extension SourceKitServer {
 
   func openDocument(_ note: Notification<DidOpenTextDocumentNotification>) {
     let uri = note.params.textDocument.uri
-    guard let workspace = self.workspace else {
-      log("received open notification for file '\(uri)' before workspace was opened, ignoring...", level: .error)
+    guard let workspace = workspaceForDocument(uri: uri) else {
+      log("received open notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
       return
     }
     openDocument(note.params, workspace: workspace)
@@ -700,8 +735,8 @@ extension SourceKitServer {
 
   func closeDocument(_ note: Notification<DidCloseTextDocumentNotification>) {
     let uri = note.params.textDocument.uri
-    guard let workspace = self.workspace else {
-      log("received close notification for file '\(uri)' before workspace was opened, ignoring...", level: .error)
+    guard let workspace = workspaceForDocument(uri: uri) else {
+      log("received close notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
       return
     }
     self.closeDocument(note.params, workspace: workspace)
@@ -732,8 +767,8 @@ extension SourceKitServer {
   func changeDocument(_ note: Notification<DidChangeTextDocumentNotification>) {
     let uri = note.params.textDocument.uri
 
-    guard let workspace = self.workspace else {
-      log("received change notification for file '\(uri)' before workspace was opened, ignoring...", level: .error)
+    guard let workspace = workspaceForDocument(uri: uri) else {
+      log("received change notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
       return
     }
 
@@ -766,11 +801,19 @@ extension SourceKitServer {
   }
 
   func didChangeWatchedFiles(_ note: Notification<DidChangeWatchedFilesNotification>) {
-    guard let workspace = self.workspace else {
-      log("received didChangeWatchedFiles notification before workspace was opened, ignoring...", level: .error)
-      return
+    // Split the FileEvents into the workspaces they belong to.
+    // Then invoke filesDidChange for each workspace with its affected files.
+    let fileEventsAndWorkspace = note.params.changes.map {
+      return ($0, workspaceForDocument(uri: $0.uri))
     }
-    workspace.buildSystemManager.filesDidChange(note.params.changes)
+
+    for workspace in workspaces {
+      let changesForWorkspace = fileEventsAndWorkspace.filter({ $0.1 === workspace }).map(\.0)
+      if changesForWorkspace.isEmpty {
+        continue
+      }
+      workspace.buildSystemManager.filesDidChange(changesForWorkspace)
+    }
   }
 
   // MARK: - Language features
@@ -802,23 +845,25 @@ extension SourceKitServer {
       return []
     }
     var symbolOccurenceResults: [SymbolOccurrence] = []
-    workspace?.index?.forEachCanonicalSymbolOccurrence(
-      containing: matching,
-      anchorStart: false,
-      anchorEnd: false,
-      subsequence: true,
-      ignoreCase: true
-    ) { symbol in
-      guard !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) else {
-        return true
+    for workspace in workspaces {
+      workspace.index?.forEachCanonicalSymbolOccurrence(
+        containing: matching,
+        anchorStart: false,
+        anchorEnd: false,
+        subsequence: true,
+        ignoreCase: true
+      ) { symbol in
+        guard !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) else {
+          return true
+        }
+        symbolOccurenceResults.append(symbol)
+        // FIXME: Once we have cancellation support, we should fetch all results and take the top
+        // `maxWorkspaceSymbolResults` symbols but bail if cancelled.
+        //
+        // Until then, take the first `maxWorkspaceSymbolResults` symbols to limit the impact of
+        // queries which match many symbols.
+        return symbolOccurenceResults.count < maxWorkspaceSymbolResults
       }
-      symbolOccurenceResults.append(symbol)
-      // FIXME: Once we have cancellation support, we should fetch all results and take the top
-      // `maxWorkspaceSymbolResults` symbols but bail if cancelled.
-      //
-      // Until then, take the first `maxWorkspaceSymbolResults` symbols to limit the impact of
-      // queries which match many symbols.
-      return symbolOccurenceResults.count < maxWorkspaceSymbolResults
     }
     return symbolOccurenceResults
   }
@@ -927,8 +972,8 @@ extension SourceKitServer {
       req.reply(nil)
       return
     }
-    guard let workspace = workspace else {
-      req.reply(.failure(.serverNotInitialized))
+    guard let workspace = workspaceForDocument(uri: uri) else {
+      req.reply(.failure(.workspaceNotOpen(uri)))
       return
     }
     guard let languageService = workspace.documentService[uri] else {
@@ -1000,7 +1045,7 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = self.workspace?.index
+    let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
     // If we're unable to handle the definition request using our index, see if the
     // language service can handle it (e.g. clangd can provide AST based definitions).
     let resultHandler: ([Location], ResponseError?) -> Void = { (locs, error) in
@@ -1066,7 +1111,7 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = self.workspace?.index
+    let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
     let callback = callbackOnQueue(self.queue) { (result: Result<SymbolInfoRequest.Response, ResponseError>) in
       guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
         if let error = result.failure {
@@ -1160,7 +1205,9 @@ extension SourceKitServer {
   }
 
   func pollIndex(_ req: Request<PollIndexRequest>) {
-    workspace?.index?.pollForUnitChangesAndWait()
+    for workspace in workspaces {
+      workspace.index?.pollForUnitChangesAndWait()
+    }
     req.reply(VoidResponse())
   }
 }

@@ -107,7 +107,7 @@ final class BuildSystemTests: XCTestCase {
       index: nil,
       indexDelegate: nil)
 
-    server.workspace = workspace
+    server._workspaces = [workspace]
     workspace.buildSystemManager.delegate = server
 
     sk = testServer.client

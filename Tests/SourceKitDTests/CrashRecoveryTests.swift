@@ -84,7 +84,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Crash sourcekitd
 
-    let sourcekitdServer = ws.testServer.server!._languageService(for: loc.docUri, .swift, in: ws.testServer.server!.workspace!) as! SwiftLanguageServer
+    let sourcekitdServer = ws.testServer.server!._languageService(for: loc.docUri, .swift, in: ws.testServer.server!.workspaceForDocument(uri: loc.docUri)!) as! SwiftLanguageServer
 
     let sourcekitdCrashed = expectation(description: "sourcekitd has crashed")
     let sourcekitdRestarted = expectation(description: "sourcekitd has been restarted (syntactic only)")
@@ -129,7 +129,7 @@ final class CrashRecoveryTests: XCTestCase {
   ///   - ws: The workspace for which the clangd server shall be crashed
   ///   - document: The URI of a C/C++/... document in the workspace
   private func crashClangd(for ws: SKTibsTestWorkspace, document docUri: DocumentURI) {
-    let clangdServer = ws.testServer.server!._languageService(for: docUri, .cpp, in: ws.testServer.server!.workspace!)!
+    let clangdServer = ws.testServer.server!._languageService(for: docUri, .cpp, in: ws.testServer.server!.workspaceForDocument(uri: docUri)!)!
     
     let clangdCrashed = self.expectation(description: "clangd crashed")
     let clangdRestarted = self.expectation(description: "clangd restarted")
@@ -236,7 +236,7 @@ final class CrashRecoveryTests: XCTestCase {
     
     // Keep track of clangd crashes
     
-    let clangdServer = ws.testServer.server!._languageService(for: loc.docUri, .cpp, in: ws.testServer.server!.workspace!)!
+    let clangdServer = ws.testServer.server!._languageService(for: loc.docUri, .cpp, in: ws.testServer.server!.workspaceForDocument(uri: loc.docUri)!)!
     
     let clangdCrashed = self.expectation(description: "clangd crashed")
     clangdCrashed.assertForOverFulfill = false

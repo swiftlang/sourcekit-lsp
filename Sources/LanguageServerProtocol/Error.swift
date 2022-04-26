@@ -30,7 +30,7 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable {
   public static let internalError: ErrorCode = ErrorCode(rawValue: -32603)
   public static let serverErrorStart: ErrorCode = ErrorCode(rawValue: -32099)
   public static let serverErrorEnd: ErrorCode = ErrorCode(rawValue: -32000)
-  public static let serverNotInitialized: ErrorCode = ErrorCode(rawValue: -32002)
+  public static let workspaceNotOpen: ErrorCode = ErrorCode(rawValue: -32003)
   public static let unknownErrorCode: ErrorCode = ErrorCode(rawValue: -32001)
 
   // LSP
@@ -54,7 +54,9 @@ extension ResponseError {
 
   public static var cancelled: ResponseError = ResponseError(code: .cancelled, message: "request cancelled")
 
-  public static var serverNotInitialized: ResponseError = ResponseError(code: .serverNotInitialized, message: "received other request before \"initialize\"")
+  public static func workspaceNotOpen(_ uri: DocumentURI) -> ResponseError {
+    return ResponseError(code: .workspaceNotOpen, message: "No workspace containing '\(uri)' found")
+  }
 
   public static func methodNotFound(_ method: String) -> ResponseError {
     return ResponseError(code: .methodNotFound, message: "method not found: \(method)")
