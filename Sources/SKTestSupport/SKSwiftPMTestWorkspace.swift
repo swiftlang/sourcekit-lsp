@@ -89,7 +89,7 @@ public final class SKSwiftPMTestWorkspace {
       listenToUnitEvents: false)
 
     let server = testServer.server!
-    server.workspace = Workspace(
+    let workspace = Workspace(
       documentManager: DocumentManager(),
       rootUri: DocumentURI(sources.rootDirectory),
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
@@ -98,7 +98,8 @@ public final class SKSwiftPMTestWorkspace {
       underlyingBuildSystem: swiftpm,
       index: index,
       indexDelegate: indexDelegate)
-    server.workspace!.buildSystemManager.delegate = server
+    workspace.buildSystemManager.delegate = server
+    server._workspaces = [workspace]
   }
 
   deinit {
