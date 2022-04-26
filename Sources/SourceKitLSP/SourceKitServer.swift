@@ -72,17 +72,17 @@ public final class SourceKitServer: LanguageServer {
     _register(SourceKitServer.shutdown)
     _register(SourceKitServer.exit)
 
-    registerWorkspaceNotfication(SourceKitServer.openDocument)
-    registerWorkspaceNotfication(SourceKitServer.closeDocument)
-    registerWorkspaceNotfication(SourceKitServer.changeDocument)
-    registerWorkspaceNotfication(SourceKitServer.didChangeWatchedFiles)
+    _register(SourceKitServer.openDocument)
+    _register(SourceKitServer.closeDocument)
+    _register(SourceKitServer.changeDocument)
+    _register(SourceKitServer.didChangeWatchedFiles)
 
     registerToolchainTextDocumentNotification(SourceKitServer.willSaveDocument)
     registerToolchainTextDocumentNotification(SourceKitServer.didSaveDocument)
 
-    registerWorkspaceRequest(SourceKitServer.workspaceSymbols)
-    registerWorkspaceRequest(SourceKitServer.pollIndex)
-    registerWorkspaceRequest(SourceKitServer.executeCommand)
+    _register(SourceKitServer.workspaceSymbols)
+    _register(SourceKitServer.pollIndex)
+    _register(SourceKitServer.executeCommand)
 
     registerToolchainTextDocumentRequest(SourceKitServer.completion,
                                          CompletionList(isIncomplete: false, items: []))
@@ -170,35 +170,6 @@ public final class SourceKitServer: LanguageServer {
         guard let self = self else { return }
         notificationHandler(self)(note, languageService)
       })
-    }
-  }
-
-  /// Register a request handler which requires a valid `Workspace`. If called before a valid
-  /// `Workspace` exists, this will immediately fail the request.
-  func registerWorkspaceRequest<R>(
-    _ requestHandler: @escaping (SourceKitServer) -> (Request<R>, Workspace) -> Void)
-  {
-    _register { [unowned self] (req: Request<R>) in
-      guard let workspace = self.workspace else {
-        return req.reply(.failure(.serverNotInitialized))
-      }
-
-      requestHandler(self)(req, workspace)
-    }
-  }
-
-  /// Register a notification handler which requires a valid `Workspace`. If called before a
-  /// valid `Workspace` exists, the notification is ignored and an error is logged.
-  func registerWorkspaceNotfication<N>(
-    _ noteHandler: @escaping (SourceKitServer) -> (Notification<N>, Workspace) -> Void)
-  {
-    _register { [unowned self] (note: Notification<N>) in
-      guard let workspace = self.workspace else {
-        log("received notification before \"initialize\", ignoring...", level: .error)
-        return
-      }
-
-      noteHandler(self)(note, workspace)
     }
   }
 
@@ -681,7 +652,12 @@ extension SourceKitServer {
 
   // MARK: - Text synchronization
 
-  func openDocument(_ note: Notification<DidOpenTextDocumentNotification>, workspace: Workspace) {
+  func openDocument(_ note: Notification<DidOpenTextDocumentNotification>) {
+    let uri = note.params.textDocument.uri
+    guard let workspace = self.workspace else {
+      log("received open notification for file '\(uri)' before workspace was opened, ignoring...", level: .error)
+      return
+    }
     openDocument(note.params, workspace: workspace)
   }
 
@@ -713,7 +689,12 @@ extension SourceKitServer {
     })
   }
 
-  func closeDocument(_ note: Notification<DidCloseTextDocumentNotification>, workspace: Workspace) {
+  func closeDocument(_ note: Notification<DidCloseTextDocumentNotification>) {
+    let uri = note.params.textDocument.uri
+    guard let workspace = self.workspace else {
+      log("received close notification for file '\(uri)' before workspace was opened, ignoring...", level: .error)
+      return
+    }
     self.closeDocument(note.params, workspace: workspace)
   }
 
@@ -739,8 +720,13 @@ extension SourceKitServer {
     self.documentToPendingQueue[uri] = nil
   }
 
-  func changeDocument(_ note: Notification<DidChangeTextDocumentNotification>, workspace: Workspace) {
+  func changeDocument(_ note: Notification<DidChangeTextDocumentNotification>) {
     let uri = note.params.textDocument.uri
+
+    guard let workspace = self.workspace else {
+      log("received change notification for file '\(uri)' before workspace was opened, ignoring...", level: .error)
+      return
+    }
 
     // If the document is ready, we can handle the change right now.
     guard !documentsReady.contains(uri) else {
@@ -770,7 +756,11 @@ extension SourceKitServer {
     languageService.didSaveDocument(note.params)
   }
 
-  func didChangeWatchedFiles(_ note: Notification<DidChangeWatchedFilesNotification>, workspace: Workspace) {
+  func didChangeWatchedFiles(_ note: Notification<DidChangeWatchedFilesNotification>) {
+    guard let workspace = self.workspace else {
+      log("received didChangeWatchedFiles notification before workspace was opened, ignoring...", level: .error)
+      return
+    }
     workspace.buildSystemManager.filesDidChange(note.params.changes)
   }
 
@@ -826,7 +816,7 @@ extension SourceKitServer {
 
   /// Handle a workspace/symbol request, returning the SymbolInformation.
   /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
-  func workspaceSymbols(_ req: Request<WorkspaceSymbolsRequest>, workspace: Workspace) {
+  func workspaceSymbols(_ req: Request<WorkspaceSymbolsRequest>) {
     let symbols = findWorkspaceSymbols(
       matching: req.params.query
     ).map({symbolOccurrence -> SymbolInformation in
@@ -922,10 +912,14 @@ extension SourceKitServer {
     languageService.colorPresentation(req)
   }
 
-  func executeCommand(_ req: Request<ExecuteCommandRequest>, workspace: Workspace) {
+  func executeCommand(_ req: Request<ExecuteCommandRequest>) {
     guard let uri = req.params.textDocument?.uri else {
       log("attempted to perform executeCommand request without an url!", level: .error)
       req.reply(nil)
+      return
+    }
+    guard let workspace = workspace else {
+      req.reply(.failure(.serverNotInitialized))
       return
     }
     guard let languageService = workspace.documentService[uri] else {
@@ -1156,8 +1150,8 @@ extension SourceKitServer {
     languageService.symbolInfo(request)
   }
 
-  func pollIndex(_ req: Request<PollIndexRequest>, workspace: Workspace) {
-    workspace.index?.pollForUnitChangesAndWait()
+  func pollIndex(_ req: Request<PollIndexRequest>) {
+    workspace?.index?.pollForUnitChangesAndWait()
     req.reply(VoidResponse())
   }
 }
