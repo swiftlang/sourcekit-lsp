@@ -1186,22 +1186,30 @@ public func languageService(
   in workspace: Workspace,
   reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
 ) throws -> ToolchainLanguageServer? {
+
+  let serverType: ToolchainLanguageServer.Type?
   switch language {
-
   case .c, .cpp, .objective_c, .objective_cpp:
-    guard toolchain.clangd != nil else { return nil }
-    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, clangdOptions: options.clangdOptions, reopenDocuments: reopenDocuments)
-
+    serverType = ClangLanguageServerShim.self
   case .swift:
-    guard let sourcekitd = toolchain.sourcekitd else { return nil }
-    return try makeLocalSwiftServer(
-      client: client,
-      sourcekitd: sourcekitd,
+    serverType = SwiftLanguageServer.self
+  default:
+    serverType = nil
+  }
+
+  if let serverType = serverType {
+    let connectionToClient = LocalConnection()
+
+    let server = try serverType.init(
+      client: connectionToClient,
+      toolchain: toolchain,
       clientCapabilities: workspace.capabilityRegistry.clientCapabilities,
       options: options,
-      reopenDocuments: reopenDocuments)
-
-  default:
+      reopenDocuments: reopenDocuments
+    )
+    connectionToClient.start(handler: client)
+    return server
+  } else {
     return nil
   }
 }

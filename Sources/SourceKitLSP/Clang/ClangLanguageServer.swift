@@ -84,17 +84,21 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
   private var clangdPid: Int32?
 #endif
 
-  /// Creates a language server for the given client referencing the clang binary at the given path.
-  public init(
-    client: Connection,
-    clangPath: AbsolutePath?,
-    clangdPath: AbsolutePath,
-    clangdOptions: [String],
+  /// Creates a language server for the given client referencing the clang binary specified in `toolchain`.
+  /// Returns `nil` if `clangd` can't be found.
+  public init?(
+    client: LocalConnection,
+    toolchain: Toolchain,
+    clientCapabilities: ClientCapabilities?,
+    options: SourceKitServer.Options,
     reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
   ) throws {
-    self.clangPath = clangPath
+    guard let clangdPath = toolchain.clangd else {
+      return nil
+    }
+    self.clangPath = toolchain.clang
     self.clangdPath = clangdPath
-    self.clangdOptions = clangdOptions
+    self.clangdOptions = options.clangdOptions
     self.reopenDocuments = reopenDocuments
     self.state = .connected
     super.init(client: client)
@@ -500,30 +504,6 @@ extension ClangLanguageServerShim {
   func executeCommand(_ req: Request<ExecuteCommandRequest>) {
     forwardRequestToClangdOnQueue(req)
   }
-}
-
-func makeJSONRPCClangServer(
-  client: MessageHandler,
-  toolchain: Toolchain,
-  clangdOptions: [String],
-  reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
-) throws -> ToolchainLanguageServer {
-  guard let clangdPath = toolchain.clangd else {
-    preconditionFailure("missing clang from toolchain \(toolchain.identifier)")
-  }
-
-  let connectionToClient = LocalConnection()
-  connectionToClient.start(handler: client)
-  
-  let shim = try ClangLanguageServerShim(
-    client: connectionToClient,
-    clangPath: toolchain.clang,
-    clangdPath: clangdPath,
-    clangdOptions: clangdOptions,
-    reopenDocuments: reopenDocuments
-  )
-  
-  return shim
 }
 
 /// Clang build settings derived from a `FileBuildSettingsChange`.
