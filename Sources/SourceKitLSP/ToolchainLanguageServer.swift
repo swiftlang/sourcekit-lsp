@@ -27,7 +27,17 @@ public enum LanguageServerState {
 /// A `LanguageServer` that exists within the context of the current process.
 public protocol ToolchainLanguageServer: AnyObject {
 
-  // MARK: Lifetime
+  // MARK: - Creation
+
+  init?(
+    client: LocalConnection,
+    toolchain: Toolchain,
+    clientCapabilities: ClientCapabilities?,
+    options: SourceKitServer.Options,
+    reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
+  ) throws
+
+  // MARK: - Lifetime
 
   func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult
   func clientInitialized(_ initialized: InitializedNotification)
