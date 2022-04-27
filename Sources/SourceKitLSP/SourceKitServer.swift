@@ -34,6 +34,8 @@ public final class SourceKitServer: LanguageServer {
 
   let toolchainRegistry: ToolchainRegistry
 
+  var capabilityRegistry: CapabilityRegistry?
+
   var languageServices: [ToolchainLanguageServer] = []
 
   /// Documents that are ready for requests and notifications.
@@ -457,11 +459,25 @@ extension SourceKitServer {
 
   // MARK: - General
 
+  /// Creates a workspace at the given `uri`.
+  private func workspace(uri: DocumentURI) -> Workspace? {
+    guard let capabilityRegistry = capabilityRegistry else {
+      log("Cannot open workspace before server is initialized")
+      return nil
+    }
+    return try? Workspace(
+      documentManager: self.documentManager,
+      rootUri: uri,
+      capabilityRegistry: capabilityRegistry,
+      toolchainRegistry: self.toolchainRegistry,
+      buildSetup: self.options.buildSetup,
+      indexOptions: self.options.indexOptions)
+  }
+
   func initialize(_ req: Request<InitializeRequest>) {
-    var indexOptions = self.options.indexOptions
     if case .dictionary(let options) = req.params.initializationOptions {
       if case .bool(let listenToUnitEvents) = options["listenToUnitEvents"] {
-        indexOptions.listenToUnitEvents = listenToUnitEvents
+        self.options.indexOptions.listenToUnitEvents = listenToUnitEvents
       }
       if case .dictionary(let completionOptions) = options["completion"] {
         if case .bool(let serverSideFiltering) = completionOptions["serverSideFiltering"] {
@@ -480,30 +496,22 @@ extension SourceKitServer {
       }
     }
 
-    let capabilityRegistry = CapabilityRegistry(clientCapabilities: req.params.capabilities)
+    capabilityRegistry = CapabilityRegistry(clientCapabilities: req.params.capabilities)
 
     // Any messages sent before initialize returns are expected to fail, so this will run before
     // the first "supported" request. Run asynchronously to hide the latency of setting up the
     // build system and index.
     queue.async {
-      if let uri = req.params.rootURI {
-        let workspace = try? Workspace(
-          documentManager: self.documentManager,
-          rootUri: uri,
-          capabilityRegistry: capabilityRegistry,
-          toolchainRegistry: self.toolchainRegistry,
-          buildSetup: self.options.buildSetup,
-          indexOptions: indexOptions)
-        self.workspaces = [workspace].compactMap({ $0 })
+      if let workspaceFolders = req.params.workspaceFolders {
+        self.workspaces.append(contentsOf: workspaceFolders.compactMap({ self.workspace(uri: $0.uri) }))
+      } else if let uri = req.params.rootURI {
+        if let workspace = self.workspace(uri: uri) {
+          self.workspaces.append(workspace)
+        }
       } else if let path = req.params.rootPath {
-        let workspace = try? Workspace(
-          documentManager: self.documentManager,
-          rootUri: DocumentURI(URL(fileURLWithPath: path)),
-          capabilityRegistry: capabilityRegistry,
-          toolchainRegistry: self.toolchainRegistry,
-          buildSetup: self.options.buildSetup,
-          indexOptions: indexOptions)
-        self.workspaces = [workspace].compactMap({ $0 })
+        if let workspace = self.workspace(uri: DocumentURI(URL(fileURLWithPath: path))) {
+          self.workspaces.append(workspace)
+        }
       }
 
       if self.workspaces.isEmpty {
@@ -512,13 +520,13 @@ extension SourceKitServer {
         let workspace = Workspace(
           documentManager: self.documentManager,
           rootUri: req.params.rootURI,
-          capabilityRegistry: capabilityRegistry,
+          capabilityRegistry: self.capabilityRegistry!,
           toolchainRegistry: self.toolchainRegistry,
           buildSetup: self.options.buildSetup,
           underlyingBuildSystem: nil,
           index: nil,
           indexDelegate: nil)
-        self.workspaces = [workspace].compactMap({ $0 })
+        self.workspaces.append(workspace)
       }
 
       assert(!self.workspaces.isEmpty)
@@ -528,7 +536,7 @@ extension SourceKitServer {
     }
 
     req.reply(InitializeResult(capabilities:
-      self.serverCapabilities(for: req.params.capabilities, registry: capabilityRegistry)))
+      self.serverCapabilities(for: req.params.capabilities, registry: self.capabilityRegistry!)))
   }
 
   func serverCapabilities(
@@ -574,7 +582,10 @@ extension SourceKitServer {
       )),
       colorProvider: .bool(true),
       foldingRangeProvider: .bool(!registry.clientHasDynamicFoldingRangeRegistration),
-      executeCommandProvider: executeCommandOptions
+      executeCommandProvider: executeCommandOptions,
+      workspace: WorkspaceServerCapabilities(workspaceFolders: .init(
+        supported: true
+      ))
     )
   }
 

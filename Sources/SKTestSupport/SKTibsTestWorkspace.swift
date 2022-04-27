@@ -29,7 +29,7 @@ public typealias URL = Foundation.URL
 public final class SKTibsTestWorkspace {
 
   public let tibsWorkspace: TibsTestWorkspace
-  public let testServer = TestSourceKitServer(connectionKind: .local)
+  public let testServer: TestSourceKitServer
 
   public var index: IndexStoreDB { tibsWorkspace.index }
   public var builder: TibsBuilder { tibsWorkspace.builder }
@@ -42,8 +42,11 @@ public final class SKTibsTestWorkspace {
     tmpDir: URL,
     removeTmpDir: Bool,
     toolchain: Toolchain,
-    clientCapabilities: ClientCapabilities) throws
+    clientCapabilities: ClientCapabilities,
+    testServer: TestSourceKitServer? = nil
+  ) throws
   {
+    self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
     self.tibsWorkspace = try TibsTestWorkspace(
       immutableProjectDir: immutableProjectDir,
       persistentBuildDir: persistentBuildDir,
@@ -54,7 +57,15 @@ public final class SKTibsTestWorkspace {
     initWorkspace(clientCapabilities: clientCapabilities)
   }
 
-  public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain, clientCapabilities: ClientCapabilities) throws {
+  public init(
+    projectDir: URL,
+    tmpDir: URL,
+    toolchain: Toolchain,
+    clientCapabilities: ClientCapabilities,
+    testServer: TestSourceKitServer? = nil
+  ) throws {
+    self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
+
     self.tibsWorkspace = try TibsTestWorkspace(
       projectDir: projectDir,
       tmpDir: tmpDir,
@@ -117,7 +128,8 @@ extension XCTestCase {
     name: String,
     clientCapabilities: ClientCapabilities = .init(),
     tmpDir: URL? = nil,
-    removeTmpDir: Bool = true
+    removeTmpDir: Bool = true,
+    server: TestSourceKitServer? = nil
   ) throws -> SKTibsTestWorkspace? {
     let testDirName = testDirectoryName
     let workspace = try SKTibsTestWorkspace(
@@ -129,7 +141,9 @@ extension XCTestCase {
         .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),
       removeTmpDir: removeTmpDir,
       toolchain: ToolchainRegistry.shared.default!,
-      clientCapabilities: clientCapabilities)
+      clientCapabilities: clientCapabilities,
+      testServer: server
+    )
 
     if workspace.builder.targets.contains(where: { target in !target.clangTUs.isEmpty })
       && !workspace.builder.toolchain.clangHasIndexSupport {
