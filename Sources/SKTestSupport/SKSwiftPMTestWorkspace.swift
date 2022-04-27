@@ -45,11 +45,14 @@ public final class SKSwiftPMTestWorkspace {
   public let toolchain: Toolchain
 
   /// Connection to the language server.
-  public let testServer: TestSourceKitServer = TestSourceKitServer(connectionKind: .local)
+  public let testServer: TestSourceKitServer
 
   public var sk: TestClient { testServer.client }
 
-  public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain) throws {
+  /// When `testServer` is not `nil`, the workspace will be opened in that server, otherwise a new server will be created for the workspace
+  public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain, testServer: TestSourceKitServer? = nil) throws {
+    self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
+
     self.projectDir = projectDir
     self.tmpDir = tmpDir
     self.toolchain = toolchain
@@ -88,7 +91,7 @@ public final class SKSwiftPMTestWorkspace {
       delegate: indexDelegate,
       listenToUnitEvents: false)
 
-    let server = testServer.server!
+    let server = self.testServer.server!
     let workspace = Workspace(
       documentManager: DocumentManager(),
       rootUri: DocumentURI(sources.rootDirectory),
@@ -99,7 +102,7 @@ public final class SKSwiftPMTestWorkspace {
       index: index,
       indexDelegate: indexDelegate)
     workspace.buildSystemManager.delegate = server
-    server._workspaces = [workspace]
+    server._workspaces.append(workspace)
   }
 
   deinit {
@@ -144,14 +147,16 @@ extension SKSwiftPMTestWorkspace {
 
 extension XCTestCase {
 
-  public func staticSourceKitSwiftPMWorkspace(name: String) throws -> SKSwiftPMTestWorkspace? {
+  public func staticSourceKitSwiftPMWorkspace(name: String, server: TestSourceKitServer? = nil) throws -> SKSwiftPMTestWorkspace? {
     let testDirName = testDirectoryName
     let toolchain = ToolchainRegistry.shared.default!
     let workspace = try SKSwiftPMTestWorkspace(
       projectDir: XCTestCase.sklspInputsDirectory.appendingPathComponent(name, isDirectory: true),
       tmpDir: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-        .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),
-      toolchain: toolchain)
+        .appendingPathComponent("sk-test-data/\(testDirName)/\(name)", isDirectory: true),
+      toolchain: toolchain,
+      testServer: server
+    )
 
     let hasClangFile: Bool = workspace.sources.locations.contains { _, loc in
       loc.url.pathExtension != "swift"
