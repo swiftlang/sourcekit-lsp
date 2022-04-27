@@ -135,6 +135,7 @@ public final class SourceKitServer: LanguageServer {
     _register(SourceKitServer.openDocument)
     _register(SourceKitServer.closeDocument)
     _register(SourceKitServer.changeDocument)
+    _register(SourceKitServer.didChangeWorkspaceFolders)
     _register(SourceKitServer.didChangeWatchedFiles)
 
     registerToolchainTextDocumentNotification(SourceKitServer.willSaveDocument)
@@ -618,7 +619,8 @@ extension SourceKitServer {
       foldingRangeProvider: .bool(!registry.clientHasDynamicFoldingRangeRegistration),
       executeCommandProvider: executeCommandOptions,
       workspace: WorkspaceServerCapabilities(workspaceFolders: .init(
-        supported: true
+        supported: true,
+        changeNotifications: .bool(true)
       ))
     )
   }
@@ -851,6 +853,23 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) {
     languageService.didSaveDocument(note.params)
+  }
+
+  func didChangeWorkspaceFolders(_ note: Notification<DidChangeWorkspaceFoldersNotification>) {
+    if let removed = note.params.event.removed {
+      self.workspaces.removeAll { workspace in
+        return removed.contains(where: { workspaceFolder in
+          workspace.rootUri == workspaceFolder.uri
+        })
+      }
+    }
+    if let added = note.params.event.added {
+      let newWorkspaces = added.compactMap({ self.workspace(uri: $0.uri) })
+      for workspace in newWorkspaces {
+        workspace.buildSystemManager.delegate = self
+      }
+      self.workspaces.append(contentsOf: newWorkspaces)
+    }
   }
 
   func didChangeWatchedFiles(_ note: Notification<DidChangeWatchedFilesNotification>) {
