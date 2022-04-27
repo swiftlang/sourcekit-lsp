@@ -421,10 +421,10 @@ extension SourceKitServer: BuildSystemDelegate {
       // Split the changedFiles into the workspaces they belong to.
       // Then invoke affectedOpenDocumentsForChangeSet for each workspace with its affected files.
       let changedFilesAndWorkspace = changedFiles.map({
-        return ($0, self.workspaceForDocument(uri: $0))
+        return (uri: $0, workspace: self.workspaceForDocument(uri: $0))
       })
       for workspace in self.workspaces {
-        let changedFilesForWorkspace = Set(changedFilesAndWorkspace.filter({ $0.1 === workspace }).map(\.0))
+        let changedFilesForWorkspace = Set(changedFilesAndWorkspace.filter({ $0.workspace === workspace }).map(\.uri))
         if changedFilesForWorkspace.isEmpty {
           continue
         }
@@ -801,18 +801,13 @@ extension SourceKitServer {
   }
 
   func didChangeWatchedFiles(_ note: Notification<DidChangeWatchedFilesNotification>) {
-    // Split the FileEvents into the workspaces they belong to.
-    // Then invoke filesDidChange for each workspace with its affected files.
-    let fileEventsAndWorkspace = note.params.changes.map {
-      return ($0, workspaceForDocument(uri: $0.uri))
-    }
-
+    // We can't make any assumptions about which file changes a particular build
+    // system is interested in. Just because it doesn't have build settings for
+    // a file doesn't mean a file can't affect the build system's build settings
+    // (e.g. Package.swift doesn't have build settings but affects build
+    // settings). Inform the build system about all file changes.
     for workspace in workspaces {
-      let changesForWorkspace = fileEventsAndWorkspace.filter({ $0.1 === workspace }).map(\.0)
-      if changesForWorkspace.isEmpty {
-        continue
-      }
-      workspace.buildSystemManager.filesDidChange(changesForWorkspace)
+      workspace.buildSystemManager.filesDidChange(note.params.changes)
     }
   }
 
