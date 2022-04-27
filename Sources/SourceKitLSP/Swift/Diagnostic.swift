@@ -20,10 +20,10 @@ extension CodeAction {
   /// Creates a CodeAction from a list for sourcekit fixits.
   ///
   /// If this is from a note, the note's description should be passed as `fromNote`.
-  init?(fixits: SKDResponseArray, in snapshot: DocumentSnapshot, fromNote: String?) {
+  init?(fixits: SKDResponseArray, in snapshot: DocumentSnapshot, fromNote: String?, clientSupportsSnippets: Bool) {
     var edits: [TextEdit] = []
     let editsMapped = fixits.forEach { (_, skfixit) -> Bool in
-      if let edit = TextEdit(fixit: skfixit, in: snapshot) {
+      if let edit = TextEdit(fixit: skfixit, in: snapshot, clientSupportsSnippets: clientSupportsSnippets) {
         edits.append(edit)
         return true
       }
@@ -88,7 +88,7 @@ extension CodeAction {
 extension TextEdit {
 
   /// Creates a TextEdit from a sourcekitd fixit response dictionary.
-  init?(fixit: SKDResponseDictionary, in snapshot: DocumentSnapshot) {
+  init?(fixit: SKDResponseDictionary, in snapshot: DocumentSnapshot, clientSupportsSnippets: Bool) {
     let keys = fixit.sourcekitd.keys
     if let utf8Offset: Int = fixit[keys.offset],
        let length: Int = fixit[keys.length],
@@ -97,7 +97,8 @@ extension TextEdit {
        let endPosition = snapshot.positionOf(utf8Offset: utf8Offset + length),
        length > 0 || !replacement.isEmpty
     {
-      self.init(range: position..<endPosition, newText: replacement)
+      let replacementWithSnippets = rewriteSourceKitPlaceholders(inString: replacement, clientSupportsSnippets: clientSupportsSnippets)
+      self.init(range: position..<endPosition, newText: replacementWithSnippets)
     } else {
       return nil
     }
@@ -109,7 +110,8 @@ extension Diagnostic {
   /// Creates a diagnostic from a sourcekitd response dictionary.
   init?(_ diag: SKDResponseDictionary,
         in snapshot: DocumentSnapshot,
-        useEducationalNoteAsCode: Bool) {
+        useEducationalNoteAsCode: Bool,
+        clientSupportsSnippets: Bool) {
     // FIXME: this assumes that the diagnostics are all in the same file.
 
     let keys = diag.sourcekitd.keys
@@ -177,7 +179,7 @@ extension Diagnostic {
 
     var actions: [CodeAction]? = nil
     if let skfixits: SKDResponseArray = diag[keys.fixits],
-       let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: nil) {
+       let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: nil, clientSupportsSnippets: clientSupportsSnippets) {
       actions = [action]
     }
 
@@ -185,7 +187,7 @@ extension Diagnostic {
     if let sknotes: SKDResponseArray = diag[keys.diagnostics] {
       notes = []
       sknotes.forEach { (_, sknote) -> Bool in
-        guard let note = DiagnosticRelatedInformation(sknote, in: snapshot) else { return true }
+        guard let note = DiagnosticRelatedInformation(sknote, in: snapshot, clientSupportsSnippets: clientSupportsSnippets) else { return true }
         notes?.append(note)
         return true
       }
@@ -222,7 +224,7 @@ extension Diagnostic {
 extension DiagnosticRelatedInformation {
 
   /// Creates related information from a sourcekitd note response dictionary.
-  init?(_ diag: SKDResponseDictionary, in snapshot: DocumentSnapshot) {
+  init?(_ diag: SKDResponseDictionary, in snapshot: DocumentSnapshot, clientSupportsSnippets: Bool) {
     let keys = diag.sourcekitd.keys
 
     var position: Position? = nil
@@ -243,7 +245,7 @@ extension DiagnosticRelatedInformation {
 
     var actions: [CodeAction]? = nil
     if let skfixits: SKDResponseArray = diag[keys.fixits],
-       let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: message) {
+       let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: message, clientSupportsSnippets: clientSupportsSnippets) {
       actions = [action]
     }
 
@@ -277,11 +279,13 @@ struct CachedDiagnostic {
 extension CachedDiagnostic {
   init?(_ diag: SKDResponseDictionary,
         in snapshot: DocumentSnapshot,
-        useEducationalNoteAsCode: Bool) {
+        useEducationalNoteAsCode: Bool,
+        clientSupportsSnippets: Bool) {
     let sk = diag.sourcekitd
     guard let diagnostic = Diagnostic(diag,
                                       in: snapshot,
-                                      useEducationalNoteAsCode: useEducationalNoteAsCode) else {
+                                      useEducationalNoteAsCode: useEducationalNoteAsCode,
+                                      clientSupportsSnippets: clientSupportsSnippets) else {
       return nil
     }
     self.diagnostic = diagnostic
