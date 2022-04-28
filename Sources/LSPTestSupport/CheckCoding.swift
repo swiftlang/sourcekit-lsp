@@ -78,10 +78,3 @@ public func checkCoding<T>(_ value: T, json: String, userInfo: [CodingUserInfoKe
 
   body(decodedValue)
 }
-
-extension String {
-  // This is fileprivate because the implementation is really slow; to use it outside a test it should be optimized.
-  fileprivate func trimmingTrailingWhitespace() -> String {
-    return self.replacingOccurrences(of: "[ ]+\\n", with: "\n", options: .regularExpression)
-  }
-}
