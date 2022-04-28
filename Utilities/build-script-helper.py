@@ -121,10 +121,10 @@ def handle_invocation(swift_exec, args):
     print('Cleaning ' + tests)
     shutil.rmtree(tests, ignore_errors=True)
     test_args = swiftpm_args
-    # Running the tests concurrently doesn't work with glibc 2.24 because of a
-    # bug with posix_spawn called from Foundation, so it'll need to be disabled
-    # or fixed when used there, according to @benlangmuir.
-    test_args += ['--parallel']
+    # Running tests in parallel causes nondeterministic failures on Linux (rdar://92260631).
+    # Only enable parallel testing on Darwin.
+    if platform.system() == 'Darwin':
+      test_args += ['--parallel']
     swiftpm('test', swift_exec, test_args, env)
   elif args.action == 'install':
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
