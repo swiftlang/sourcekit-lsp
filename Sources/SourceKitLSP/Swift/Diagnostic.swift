@@ -20,10 +20,10 @@ extension CodeAction {
   /// Creates a CodeAction from a list for sourcekit fixits.
   ///
   /// If this is from a note, the note's description should be passed as `fromNote`.
-  init?(fixits: SKDResponseArray, in snapshot: DocumentSnapshot, fromNote: String?, clientSupportsSnippets: Bool) {
+  init?(fixits: SKDResponseArray, in snapshot: DocumentSnapshot, fromNote: String?) {
     var edits: [TextEdit] = []
     let editsMapped = fixits.forEach { (_, skfixit) -> Bool in
-      if let edit = TextEdit(fixit: skfixit, in: snapshot, clientSupportsSnippets: clientSupportsSnippets) {
+      if let edit = TextEdit(fixit: skfixit, in: snapshot) {
         edits.append(edit)
         return true
       }
@@ -88,7 +88,7 @@ extension CodeAction {
 extension TextEdit {
 
   /// Creates a TextEdit from a sourcekitd fixit response dictionary.
-  init?(fixit: SKDResponseDictionary, in snapshot: DocumentSnapshot, clientSupportsSnippets: Bool) {
+  init?(fixit: SKDResponseDictionary, in snapshot: DocumentSnapshot) {
     let keys = fixit.sourcekitd.keys
     if let utf8Offset: Int = fixit[keys.offset],
        let length: Int = fixit[keys.length],
@@ -97,8 +97,10 @@ extension TextEdit {
        let endPosition = snapshot.positionOf(utf8Offset: utf8Offset + length),
        length > 0 || !replacement.isEmpty
     {
-      let replacementWithSnippets = rewriteSourceKitPlaceholders(inString: replacement, clientSupportsSnippets: clientSupportsSnippets)
-      self.init(range: position..<endPosition, newText: replacementWithSnippets)
+      // Snippets are only suppored in code completion.
+      // Remove SourceKit placeholders from Fix-Its because they can't be represented in the editor properly.
+      let replacementWithoutPlaceholders = rewriteSourceKitPlaceholders(inString: replacement, clientSupportsSnippets: false)
+      self.init(range: position..<endPosition, newText: replacementWithoutPlaceholders)
     } else {
       return nil
     }
@@ -110,8 +112,7 @@ extension Diagnostic {
   /// Creates a diagnostic from a sourcekitd response dictionary.
   init?(_ diag: SKDResponseDictionary,
         in snapshot: DocumentSnapshot,
-        useEducationalNoteAsCode: Bool,
-        clientSupportsSnippets: Bool) {
+        useEducationalNoteAsCode: Bool) {
     // FIXME: this assumes that the diagnostics are all in the same file.
 
     let keys = diag.sourcekitd.keys
@@ -179,7 +180,7 @@ extension Diagnostic {
 
     var actions: [CodeAction]? = nil
     if let skfixits: SKDResponseArray = diag[keys.fixits],
-       let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: nil, clientSupportsSnippets: clientSupportsSnippets) {
+       let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: nil) {
       actions = [action]
     }
 
@@ -187,7 +188,7 @@ extension Diagnostic {
     if let sknotes: SKDResponseArray = diag[keys.diagnostics] {
       notes = []
       sknotes.forEach { (_, sknote) -> Bool in
-        guard let note = DiagnosticRelatedInformation(sknote, in: snapshot, clientSupportsSnippets: clientSupportsSnippets) else { return true }
+        guard let note = DiagnosticRelatedInformation(sknote, in: snapshot) else { return true }
         notes?.append(note)
         return true
       }
@@ -224,7 +225,7 @@ extension Diagnostic {
 extension DiagnosticRelatedInformation {
 
   /// Creates related information from a sourcekitd note response dictionary.
-  init?(_ diag: SKDResponseDictionary, in snapshot: DocumentSnapshot, clientSupportsSnippets: Bool) {
+  init?(_ diag: SKDResponseDictionary, in snapshot: DocumentSnapshot) {
     let keys = diag.sourcekitd.keys
 
     var position: Position? = nil
@@ -245,7 +246,7 @@ extension DiagnosticRelatedInformation {
 
     var actions: [CodeAction]? = nil
     if let skfixits: SKDResponseArray = diag[keys.fixits],
-       let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: message, clientSupportsSnippets: clientSupportsSnippets) {
+       let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: message) {
       actions = [action]
     }
 
@@ -279,13 +280,11 @@ struct CachedDiagnostic {
 extension CachedDiagnostic {
   init?(_ diag: SKDResponseDictionary,
         in snapshot: DocumentSnapshot,
-        useEducationalNoteAsCode: Bool,
-        clientSupportsSnippets: Bool) {
+        useEducationalNoteAsCode: Bool) {
     let sk = diag.sourcekitd
     guard let diagnostic = Diagnostic(diag,
                                       in: snapshot,
-                                      useEducationalNoteAsCode: useEducationalNoteAsCode,
-                                      clientSupportsSnippets: clientSupportsSnippets) else {
+                                      useEducationalNoteAsCode: useEducationalNoteAsCode) else {
       return nil
     }
     self.diagnostic = diagnostic

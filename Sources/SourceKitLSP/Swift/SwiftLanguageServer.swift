@@ -293,15 +293,13 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
     let supportsCodeDescription =
            (clientCapabilities.textDocument?.publishDiagnostics?.codeDescriptionSupport == true)
-    let supportsSnippets = (self.clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport == true)
 
     // Note: we make the notification even if there are no diagnostics to clear the current state.
     var newDiags: [CachedDiagnostic] = []
     response[keys.diagnostics]?.forEach { _, diag in
       if let diag = CachedDiagnostic(diag,
                                      in: snapshot,
-                                     useEducationalNoteAsCode: supportsCodeDescription,
-                                     clientSupportsSnippets: supportsSnippets) {
+                                     useEducationalNoteAsCode: supportsCodeDescription) {
         newDiags.append(diag)
       }
       return true

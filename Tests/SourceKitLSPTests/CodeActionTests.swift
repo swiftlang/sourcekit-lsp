@@ -248,7 +248,7 @@ final class CodeActionTests: XCTestCase {
     XCTAssertEqual(result, .codeActions([expectedCodeAction]))
   }
 
-  func testCodeActionsUseLSPSnippets() throws {
+  func testCodeActionsRemovePlaceholders() throws {
     let capabilities = clientCapabilitiesWithCodeActionSupport()
     let ws = try staticSourceKitTibsWorkspace(name: "Fixit", clientCapabilities: capabilities)!
 
@@ -293,10 +293,10 @@ final class CodeActionTests: XCTestCase {
     guard let change = quickFixAction.edit?.changes?[def.docUri]?.spm_only else {
       return XCTFail("Expected exactly one change")
     }
-    XCTAssertEqual(change.newText, """
+    XCTAssertEqual(change.newText.trimmingTrailingWhitespace(), """
 
         func foo() {
-            ${1:code}
+
         }
 
     """)
@@ -318,10 +318,10 @@ final class CodeActionTests: XCTestCase {
       guard let change = request.params.edit.changes?[def.docUri]?.spm_only else {
         return XCTFail("Expected exactly one edit")
       }
-      XCTAssertEqual(change.newText, """
+      XCTAssertEqual(change.newText.trimmingTrailingWhitespace(), """
 
           func foo() {
-              ${1:code}
+
           }
 
       """)
