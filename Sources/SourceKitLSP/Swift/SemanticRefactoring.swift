@@ -36,7 +36,7 @@ struct SemanticRefactoring {
   ///   - dict: Response dictionary to extract information from.
   ///   - url: The client URL that triggered the `semantic_refactoring` request.
   ///   - keys: The sourcekitd key set to use for looking up into `dict`.
-  init?(_ title: String, _ dict: SKDResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_keys, clientSupportsSnippets: Bool) {
+  init?(_ title: String, _ dict: SKDResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_keys) {
     guard let categorizedEdits: SKDResponseArray = dict[keys.categorizededits] else {
       return nil
     }
@@ -59,7 +59,9 @@ struct SemanticRefactoring {
                                                  utf8Column: endColumn - 1),
            let text: String = value[keys.text]
         {
-          let textWithSnippets = rewriteSourceKitPlaceholders(inString: text, clientSupportsSnippets: clientSupportsSnippets)
+          // Snippets are only suppored in code completion.
+          // Remove SourceKit placeholders in refactoring actions because they can't be represented in the editor properly.
+          let textWithSnippets = rewriteSourceKitPlaceholders(inString: text, clientSupportsSnippets: false)
           let edit = TextEdit(range: startPosition..<endPosition, newText: textWithSnippets)
           textEdits.append(edit)
         }
@@ -165,8 +167,7 @@ extension SwiftLanguageServer {
         guard let dict = result.success else {
           return completion(.failure(.responseError(ResponseError(result.failure!))))
         }
-        let supportsSnippets = (self.clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport == true)
-        guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys, clientSupportsSnippets: supportsSnippets) else {
+        guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {
           return completion(.failure(.noEditsNeeded(uri)))
         }
         completion(.success(refactor))
