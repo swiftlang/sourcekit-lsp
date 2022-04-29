@@ -348,6 +348,10 @@ extension BuildSystemManager: BuildSystem {
       }
     }
   }
+
+  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
+    return max(buildSystem?.fileHandlingCapability(for: uri) ?? .unhandled, fallbackBuildSystem?.fileHandlingCapability(for: uri) ?? .unhandled)
+  }
 }
 
 extension BuildSystemManager: BuildSystemDelegate {
