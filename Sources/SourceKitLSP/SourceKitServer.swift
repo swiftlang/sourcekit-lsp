@@ -49,11 +49,7 @@ public final class SourceKitServer: LanguageServer {
     return documentManager
   }
 
-  private var workspaces: [Workspace] = [] {
-    didSet {
-      assert(workspaces.count <= 1, "Multiple workspaces aren't supported yet")
-    }
-  }
+  private var workspaces: [Workspace] = []
 
   // **Public for testing**
   public var _workspaces: [Workspace] {
@@ -81,7 +77,22 @@ public final class SourceKitServer: LanguageServer {
   }
 
   public func workspaceForDocument(uri: DocumentURI) -> Workspace? {
-    return workspaces.first
+    if workspaces.count == 1 {
+      // Special handling: If there is only one workspace, open all files in it.
+      // This retains the behavior of SourceKit-LSP before it supported multiple workspaces.
+      return workspaces.first
+    }
+
+    // Pick the workspace with the best FileHandlingCapability for this file.
+    // If there is a tie, use the workspace that occurred first in the list.
+    var bestWorkspace: (workspace: Workspace?, fileHandlingCapability: FileHandlingCapability) = (nil, .unhandled)
+    for workspace in workspaces {
+      let fileHandlingCapability = workspace.buildSystemManager.fileHandlingCapability(for: uri)
+      if fileHandlingCapability > bestWorkspace.fileHandlingCapability {
+        bestWorkspace = (workspace, fileHandlingCapability)
+      }
+    }
+    return bestWorkspace.workspace
   }
 
   public override func _registerBuiltinHandlers() {

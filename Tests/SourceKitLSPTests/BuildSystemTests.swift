@@ -67,6 +67,14 @@ final class TestBuildSystem: BuildSystem {
   }
 
   func filesDidChange(_ events: [FileEvent]) {}
+
+  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
+    if buildSettingsByFile[uri] != nil {
+      return .handled
+    } else {
+      return .unhandled
+    }
+  }
 }
 
 final class BuildSystemTests: XCTestCase {
