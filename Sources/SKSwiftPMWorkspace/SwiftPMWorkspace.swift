@@ -361,6 +361,19 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
       }
     }
   }
+
+  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
+    guard let fileUrl = uri.fileURL else {
+      return .unhandled
+    }
+    return self.queue.sync {
+      if targetDescription(for: AbsolutePath(fileUrl.path)) != nil {
+        return .handled
+      } else {
+        return .unhandled
+      }
+    }
+  }
 }
 
 extension SwiftPMWorkspace {
