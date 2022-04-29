@@ -557,4 +557,6 @@ private final class BSMDelegate: BuildSystemDelegate {
       }
     }
   }
+  
+  func fileHandlingCapabilityChanged() {}
 }

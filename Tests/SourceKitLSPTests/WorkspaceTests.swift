@@ -11,7 +11,16 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import SourceKitLSP
 import XCTest
+
+fileprivate extension SourceKitServer {
+  func workspaceForDocumentOnQueue(uri: DocumentURI) -> Workspace? {
+    self.queue.sync {
+      return self.workspaceForDocument(uri: uri)
+    }
+  }
+}
 
 final class WorkspaceTests: XCTestCase {
 
@@ -142,7 +151,7 @@ final class WorkspaceTests: XCTestCase {
     // SwiftPMPackage that hasn't been added to Package.swift yet) will belong
     // to OtherSwiftPMPackage by default (because it provides fallback build
     // settings for it).
-    XCTAssertEqual(ws.testServer.server!.workspaceForDocument(uri: otherLib.docUri)?.rootUri, DocumentURI(otherWs.sources.rootDirectory))
+    XCTAssertEqual(ws.testServer.server!.workspaceForDocumentOnQueue(uri: otherLib.docUri)?.rootUri, DocumentURI(otherWs.sources.rootDirectory))
 
     // Add the otherlib target to Package.swift
     _ = try ws.sources.edit { builder in
@@ -173,7 +182,7 @@ final class WorkspaceTests: XCTestCase {
 
     // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
     for _ in 0..<30 {
-      if ws.testServer.server!.workspaceForDocument(uri: otherLib.docUri)?.rootUri == DocumentURI(ws.sources.rootDirectory) {
+      if ws.testServer.server!.workspaceForDocumentOnQueue(uri: otherLib.docUri)?.rootUri == DocumentURI(ws.sources.rootDirectory) {
         didReceiveCorrectWorkspaceMembership = true
         break
       }

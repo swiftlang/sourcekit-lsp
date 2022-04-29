@@ -421,6 +421,16 @@ extension BuildSystemManager: BuildSystemDelegate {
       }
     }
   }
+
+  public func fileHandlingCapabilityChanged() {
+    queue.async {
+      if let delegate = self._delegate {
+        self.notifyQueue.async {
+          delegate.fileHandlingCapabilityChanged()
+        }
+      }
+    }
+  }
 }
 
 extension BuildSystemManager: MainFilesDelegate {
