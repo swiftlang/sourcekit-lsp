@@ -59,7 +59,10 @@ struct SemanticRefactoring {
                                                  utf8Column: endColumn - 1),
            let text: String = value[keys.text]
         {
-          let edit = TextEdit(range: startPosition..<endPosition, newText: text)
+          // Snippets are only suppored in code completion.
+          // Remove SourceKit placeholders in refactoring actions because they can't be represented in the editor properly.
+          let textWithSnippets = rewriteSourceKitPlaceholders(inString: text, clientSupportsSnippets: false)
+          let edit = TextEdit(range: startPosition..<endPosition, newText: textWithSnippets)
           textEdits.append(edit)
         }
         return true

@@ -142,7 +142,7 @@ extension SwiftLanguageServer {
       let clientCompletionCapabilities = self.clientCapabilities.textDocument?.completion
       let clientSupportsSnippets = clientCompletionCapabilities?.completionItem?.snippetSupport == true
       let text = insertText.map {
-        self.rewriteSourceKitPlaceholders(inString: $0, clientSupportsSnippets: clientSupportsSnippets)
+        rewriteSourceKitPlaceholders(inString: $0, clientSupportsSnippets: clientSupportsSnippets)
       }
       let isInsertTextSnippet = clientSupportsSnippets && text != insertText
 
@@ -186,26 +186,6 @@ extension SwiftLanguageServer {
       return true
     }
 
-    return result
-  }
-
-  func rewriteSourceKitPlaceholders(inString string: String, clientSupportsSnippets: Bool) -> String {
-    var result = string
-    var index = 1
-    while let start = result.range(of: EditorPlaceholder.placeholderPrefix) {
-      guard let end = result[start.upperBound...].range(of: EditorPlaceholder.placeholderSuffix) else {
-        log("invalid placeholder in \(string)", level: .debug)
-        return string
-      }
-      let rawPlaceholder = String(result[start.lowerBound..<end.upperBound])
-      guard let displayName = EditorPlaceholder(rawPlaceholder)?.displayName else {
-        log("failed to decode placeholder \(rawPlaceholder) in \(string)", level: .debug)
-        return string
-      }
-      let placeholder = clientSupportsSnippets ? "${\(index):\(displayName)}" : ""
-      result.replaceSubrange(start.lowerBound..<end.upperBound, with: placeholder)
-      index += 1
-    }
     return result
   }
 

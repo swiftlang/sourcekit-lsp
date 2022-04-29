@@ -97,7 +97,10 @@ extension TextEdit {
        let endPosition = snapshot.positionOf(utf8Offset: utf8Offset + length),
        length > 0 || !replacement.isEmpty
     {
-      self.init(range: position..<endPosition, newText: replacement)
+      // Snippets are only suppored in code completion.
+      // Remove SourceKit placeholders from Fix-Its because they can't be represented in the editor properly.
+      let replacementWithoutPlaceholders = rewriteSourceKitPlaceholders(inString: replacement, clientSupportsSnippets: false)
+      self.init(range: position..<endPosition, newText: replacementWithoutPlaceholders)
     } else {
       return nil
     }
