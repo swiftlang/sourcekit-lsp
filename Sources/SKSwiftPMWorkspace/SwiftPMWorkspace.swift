@@ -222,6 +222,7 @@ extension SwiftPMWorkspace {
       }
     }
     delegate.fileBuildSettingsChanged(changedFiles)
+    delegate.fileHandlingCapabilityChanged()
   }
 }
 
