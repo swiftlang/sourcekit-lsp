@@ -140,4 +140,81 @@ final class SwiftPMIntegrationTests: XCTestCase {
       deprecated: false))
     )
   }
+
+  func testModifyPackageManifest() throws {
+    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
+    try ws.buildAndIndex()
+
+    let otherLib = ws.testLoc("OtherLib.topLevelFunction:libMember")
+    let packageTargets = ws.testLoc("Package.swift:targets")
+
+    // Check that we don't get cross-file code completion before we send a `DidChangeWatchedFilesNotification` to make sure we didn't include the file in the initial retrieval of build settings.
+    try ws.openDocument(otherLib.url, language: .swift)
+
+    let completionsBeforeDidChangeNotification = try withExtendedLifetime(ws) {
+      try ws.sk.sendSync(CompletionRequest(textDocument: otherLib.docIdentifier, position: otherLib.position))
+    }
+    XCTAssertEqual(completionsBeforeDidChangeNotification.items, [])
+
+    // Add the otherlib target to Package.swift
+    _ = try ws.sources.edit { builder in
+      let packageManifest = ws.sources.rootDirectory
+        .appendingPathComponent("Package.swift")
+      var packageManifestContents = try! String(contentsOf: packageManifest, encoding: .utf8)
+      let targetMarkerRange = packageManifestContents.range(of: "/*Package.swift:targets*/")!
+      packageManifestContents.replaceSubrange(targetMarkerRange, with: """
+      .target(
+         name: "otherlib",
+         dependencies: ["lib"]
+      ),
+      /*Package.swift:targets*/
+      """)
+      builder.write(packageManifestContents, to: packageManifest)
+    }
+
+    // Send a `DidChangeWatchedFilesNotification` and verify that we now get cross-file code completion.
+    ws.sk.send(DidChangeWatchedFilesNotification(changes: [
+      FileEvent(uri: packageTargets.docUri, type: .changed)
+    ]))
+
+    let expectedCompletions = [
+      CompletionItem(
+        label: "foo()",
+        kind: .method,
+        detail: "Void",
+        sortText: nil,
+        filterText: "foo()",
+        textEdit: TextEdit(range: Position(line: 3, utf16index: 47)..<Position(line: 3, utf16index: 47), newText: "foo()"),
+        insertText: "foo()",
+        insertTextFormat: .plain,
+        deprecated: false),
+      CompletionItem(
+        label: "self",
+        kind: .keyword,
+        detail: "Lib",
+        sortText: nil,
+        filterText: "self",
+        textEdit: TextEdit(range: Position(line: 3, utf16index: 47)..<Position(line: 3, utf16index: 47), newText: "self"),
+        insertText: "self",
+        insertTextFormat: .plain,
+        deprecated: false),
+    ]
+
+    var didReceiveCorrectCompletions = false
+
+    // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
+    for _ in 0..<30 {
+      let completions = try withExtendedLifetime(ws) {
+        try ws.sk.sendSync(CompletionRequest(textDocument: otherLib.docIdentifier, position: otherLib.position))
+      }
+
+      if completions.items == expectedCompletions {
+        didReceiveCorrectCompletions = true
+        break
+      }
+      sleep(1)
+    }
+
+    XCTAssert(didReceiveCorrectCompletions)
+  }
 }
