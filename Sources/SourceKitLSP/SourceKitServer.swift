@@ -24,6 +24,10 @@ import PackageLoading
 
 public typealias URL = Foundation.URL
 
+private struct WeakWorkspace {
+  weak var value: Workspace?
+}
+
 /// The SourceKit language server.
 ///
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
@@ -51,15 +55,33 @@ public final class SourceKitServer: LanguageServer {
     return documentManager
   }
 
-  private var workspaces: [Workspace] = []
+  /// Caches which workspace a document with the given URI should be opened in.
+  /// Must only be accessed from `queue`.
+  private var uriToWorkspaceCache: [DocumentURI: WeakWorkspace] = [:] {
+    didSet {
+      dispatchPrecondition(condition: .onQueue(queue))
+    }
+  }
 
-  // **Public for testing**
+  /// Must only be accessed from `queue`.
+  private var workspaces: [Workspace] = [] {
+    didSet {
+      dispatchPrecondition(condition: .onQueue(queue))
+      uriToWorkspaceCache = [:]
+    }
+  }
+
+  /// **Public for testing**
   public var _workspaces: [Workspace] {
     get {
-      return self.workspaces
+      return queue.sync {
+        return self.workspaces
+      }
     }
     set {
-      self.workspaces = newValue
+      queue.sync {
+        self.workspaces = newValue
+      }
     }
   }
 
@@ -79,10 +101,15 @@ public final class SourceKitServer: LanguageServer {
   }
 
   public func workspaceForDocument(uri: DocumentURI) -> Workspace? {
+    dispatchPrecondition(condition: .onQueue(queue))
     if workspaces.count == 1 {
       // Special handling: If there is only one workspace, open all files in it.
       // This retains the behavior of SourceKit-LSP before it supported multiple workspaces.
       return workspaces.first
+    }
+
+    if let cachedWorkspace = uriToWorkspaceCache[uri]?.value {
+      return cachedWorkspace
     }
 
     // Pick the workspace with the best FileHandlingCapability for this file.
@@ -94,6 +121,7 @@ public final class SourceKitServer: LanguageServer {
         bestWorkspace = (workspace, fileHandlingCapability)
       }
     }
+    uriToWorkspaceCache[uri] = WeakWorkspace(value: bestWorkspace.workspace)
     return bestWorkspace.workspace
   }
 
@@ -451,6 +479,12 @@ extension SourceKitServer: BuildSystemDelegate {
       }
     }
   }
+
+  public func fileHandlingCapabilityChanged() {
+    queue.async {
+      self.uriToWorkspaceCache = [:]
+    }
+  }
 }
 
 // MARK: - Request and notification handling
@@ -666,6 +700,7 @@ extension SourceKitServer {
   }
 
   func _prepareForExit() {
+    dispatchPrecondition(condition: .onQueue(queue))
     // Note: this method should be safe to call multiple times, since we want to
     // be resilient against multiple possible shutdown sequences, including
     // pipe failure.
@@ -819,6 +854,7 @@ extension SourceKitServer {
   }
 
   func didChangeWatchedFiles(_ note: Notification<DidChangeWatchedFilesNotification>) {
+    dispatchPrecondition(condition: .onQueue(queue))
     // We can't make any assumptions about which file changes a particular build
     // system is interested in. Just because it doesn't have build settings for
     // a file doesn't mean a file can't affect the build system's build settings
@@ -850,6 +886,7 @@ extension SourceKitServer {
   /// Find all symbols in the workspace that include a string in their name.
   /// - returns: An array of SymbolOccurrences that match the string.
   func findWorkspaceSymbols(matching: String) -> [SymbolOccurrence] {
+    dispatchPrecondition(condition: .onQueue(queue))
     // Ignore short queries since they are:
     // - noisy and slow, since they can match many symbols
     // - normally unintentional, triggered when the user types slowly or if the editor doesn't
