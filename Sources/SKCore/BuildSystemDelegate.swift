@@ -35,4 +35,9 @@ public protocol BuildSystemDelegate: AnyObject {
   /// The callee should refresh ASTs unless it is able to determine that a
   /// refresh is not necessary.
   func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>)
+
+  /// Notify the delegate that the file handling capability of this build system
+  /// for some file has changed. The delegate should discard any cached file
+  /// handling capability.
+  func fileHandlingCapabilityChanged()
 }

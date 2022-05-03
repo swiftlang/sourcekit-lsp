@@ -1,0 +1,194 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the Swift.org open source project
+//
+// Copyright (c) 2014 - 2022 Apple Inc. and the Swift project authors
+// Licensed under Apache License v2.0 with Runtime Library Exception
+//
+// See https://swift.org/LICENSE.txt for license information
+// See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+//
+//===----------------------------------------------------------------------===//
+
+import LanguageServerProtocol
+import SourceKitLSP
+import XCTest
+
+fileprivate extension SourceKitServer {
+  func workspaceForDocumentOnQueue(uri: DocumentURI) -> Workspace? {
+    self.queue.sync {
+      return self.workspaceForDocument(uri: uri)
+    }
+  }
+}
+
+final class WorkspaceTests: XCTestCase {
+
+  func testMultipleSwiftPMWorkspaces() throws {
+    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
+    try ws.buildAndIndex()
+
+    guard let otherWs = try staticSourceKitSwiftPMWorkspace(name: "OtherSwiftPMPackage", server: ws.testServer) else { return }
+    try otherWs.buildAndIndex()
+
+    assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
+
+    let call = ws.testLoc("Lib.foo:call")
+    let otherCall = otherWs.testLoc("FancyLib.sayHello:call")
+
+    try ws.openDocument(call.url, language: .swift)
+
+    let completions = try withExtendedLifetime(ws) {
+        try ws.sk.sendSync(CompletionRequest(textDocument: call.docIdentifier, position: call.position))
+    }
+
+    XCTAssertEqual(completions.items, [
+      CompletionItem(
+        label: "foo()",
+        kind: .method,
+        detail: "Void",
+        sortText: nil,
+        filterText: "foo()",
+        textEdit: TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "foo()"),
+        insertText: "foo()",
+        insertTextFormat: .plain,
+        deprecated: false),
+      CompletionItem(
+        label: "self",
+        kind: .keyword,
+        detail: "Lib",
+        sortText: nil,
+        filterText: "self",
+        textEdit: TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "self"),
+        insertText: "self",
+        insertTextFormat: .plain,
+        deprecated: false),
+    ])
+
+    try ws.openDocument(otherCall.url, language: .swift)
+
+    let otherCompletions = try withExtendedLifetime(ws) {
+        try ws.sk.sendSync(CompletionRequest(textDocument: otherCall.docIdentifier, position: otherCall.position))
+    }
+
+    XCTAssertEqual(otherCompletions.items, [
+      CompletionItem(
+        label: "sayHello()",
+        kind: .method,
+        detail: "Void",
+        documentation: nil,
+        sortText: nil,
+        filterText: "sayHello()",
+        textEdit: TextEdit(range: Position(line: 7, utf16index: 41)..<Position(line: 7, utf16index: 41), newText: "sayHello()"),
+        insertText: "sayHello()",
+        insertTextFormat: .plain,
+        deprecated: false
+      ),
+      CompletionItem(
+        label: "self",
+        kind: LanguageServerProtocol.CompletionItemKind(rawValue: 14),
+        detail: "FancyLib",
+        documentation: nil,
+        sortText: nil,
+        filterText: "self",
+        textEdit: TextEdit(range: Position(line: 7, utf16index: 41)..<Position(line: 7, utf16index: 41), newText: "self"),
+        insertText: "self",
+        insertTextFormat: .plain,
+        deprecated: false
+      ),
+    ])
+  }
+
+  func testMultipleClangdWorkspaces() {
+    guard let ws = try! staticSourceKitTibsWorkspace(name: "ClangModules") else { return }
+
+    let loc = ws.testLoc("main_file")
+
+    let expectation = self.expectation(description: "diagnostics")
+
+    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(note.params.diagnostics.count, 0)
+      expectation.fulfill()
+    }
+
+    try! ws.openDocument(loc.url, language: .objective_c)
+
+    waitForExpectations(timeout: 15)
+
+    let otherWs = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings", server: ws.testServer)!
+    assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
+    let otherLoc = otherWs.testLoc("loc")
+
+    try! otherWs.openDocument(otherLoc.url, language: .cpp)
+
+    // Do a sanity check and verify that we get the expected result from a hover response before crashing clangd.
+
+    let expectedHighlightResponse = [
+      DocumentHighlight(range: Position(line: 3, utf16index: 5)..<Position(line: 3, utf16index: 8), kind: .text),
+      DocumentHighlight(range: Position(line: 9, utf16index: 2)..<Position(line: 9, utf16index: 5), kind: .text)
+    ]
+
+    let highlightRequest = DocumentHighlightRequest(textDocument: otherLoc.docIdentifier, position: Position(line: 9, utf16index: 3))
+    let highlightResponse = try! otherWs.sk.sendSync(highlightRequest)
+    XCTAssertEqual(highlightResponse, expectedHighlightResponse)
+  }
+
+  func testRecomputeFileWorkspaceMembershipOnPackageSwiftChange() throws {
+    guard let otherWs = try staticSourceKitSwiftPMWorkspace(name: "OtherSwiftPMPackage") else { return }
+    try otherWs.buildAndIndex()
+
+    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage", server: otherWs.testServer) else { return }
+    try ws.buildAndIndex()
+
+    assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
+
+    let otherLib = ws.testLoc("OtherLib.topLevelFunction:libMember")
+    let packageTargets = ws.testLoc("Package.swift:targets")
+
+    try ws.openDocument(otherLib.url, language: .swift)
+
+    // We open OtherSwiftPMPackage first. Thus, otherLib (which is a folder in
+    // SwiftPMPackage that hasn't been added to Package.swift yet) will belong
+    // to OtherSwiftPMPackage by default (because it provides fallback build
+    // settings for it).
+    XCTAssertEqual(ws.testServer.server!.workspaceForDocumentOnQueue(uri: otherLib.docUri)?.rootUri, DocumentURI(otherWs.sources.rootDirectory))
+
+    // Add the otherlib target to Package.swift
+    _ = try ws.sources.edit { builder in
+      let packageManifest = ws.sources.rootDirectory
+        .appendingPathComponent("Package.swift")
+      var packageManifestContents = try! String(contentsOf: packageManifest, encoding: .utf8)
+      let targetMarkerRange = packageManifestContents.range(of: "/*Package.swift:targets*/")!
+      packageManifestContents.replaceSubrange(targetMarkerRange, with: """
+        .target(
+           name: "otherlib",
+           dependencies: ["lib"]
+        ),
+        /*Package.swift:targets*/
+        """)
+      builder.write(packageManifestContents, to: packageManifest)
+    }
+
+    ws.sk.send(DidChangeWatchedFilesNotification(changes: [
+      FileEvent(uri: packageTargets.docUri, type: .changed)
+    ]))
+
+    // After updating Package.swift in SwiftPMPackage, SwiftPMPackage can
+    // provide proper build settings for otherLib and thus workspace
+    // membership should switch to SwiftPMPackage.
+
+    // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
+    var didReceiveCorrectWorkspaceMembership = false
+
+    // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
+    for _ in 0..<30 {
+      if ws.testServer.server!.workspaceForDocumentOnQueue(uri: otherLib.docUri)?.rootUri == DocumentURI(ws.sources.rootDirectory) {
+        didReceiveCorrectWorkspaceMembership = true
+        break
+      }
+      sleep(1)
+    }
+
+    XCTAssert(didReceiveCorrectWorkspaceMembership)
+  }
+}

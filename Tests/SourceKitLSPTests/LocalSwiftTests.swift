@@ -28,9 +28,8 @@ final class LocalSwiftTests: XCTestCase {
   /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
 
-  /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
-  var workspace: Workspace! {
-    connection.server!.workspace!
+  var documentManager: DocumentManager! {
+    connection.server!._documentManager
   }
 
   override func setUp() {
@@ -75,7 +74,7 @@ final class LocalSwiftTests: XCTestCase {
       log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(uri)!.text)
+      XCTAssertEqual("func", self.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 12)
@@ -93,7 +92,7 @@ final class LocalSwiftTests: XCTestCase {
       // 0 = semantic update finished already
       XCTAssertEqual(note.params.version, 13)
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func foo() {}\n", self.workspace.documentManager.latestSnapshot(uri)!.text)
+      XCTAssertEqual("func foo() {}\n", self.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 1 - semantic")
       XCTAssertEqual(note.params.version, 13)
@@ -111,7 +110,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         bar()
-        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+        """, self.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 2 - semantic")
       XCTAssertEqual(note.params.version, 14)
@@ -132,7 +131,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         foo()
-        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+        """, self.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 3 - semantic")
       XCTAssertEqual(note.params.version, 14)
@@ -150,7 +149,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         fooTypo()
-        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+        """, self.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 4 - semantic")
       XCTAssertEqual(note.params.version, 15)
@@ -173,7 +172,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func bar() {}
         foo()
-        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+        """, self.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 5 - semantic")
       XCTAssertEqual(note.params.version, 16)
@@ -200,7 +199,7 @@ final class LocalSwiftTests: XCTestCase {
       log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(uri)!.text)
+      XCTAssertEqual("func", self.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 12)
@@ -218,7 +217,7 @@ final class LocalSwiftTests: XCTestCase {
       // 1 = remaining semantic error
       // 0 = semantic update finished already
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func foo() {}\n", self.workspace.documentManager.latestSnapshot(uri)!.text)
+      XCTAssertEqual("func foo() {}\n", self.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 1 - semantic")
       XCTAssertEqual(note.params.version, 13)
@@ -236,7 +235,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         bar()
-        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+        """, self.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 2 - semantic")
       XCTAssertEqual(note.params.version, 14)
@@ -257,7 +256,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         foo()
-        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+        """, self.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 3 - semantic")
       XCTAssertEqual(note.params.version, 14)
@@ -275,7 +274,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         fooTypo()
-        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+        """, self.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 4 - semantic")
       XCTAssertEqual(note.params.version, 15)
@@ -298,7 +297,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func bar() {}
         foo()
-        """, self.workspace.documentManager.latestSnapshot(uri)!.text)
+        """, self.documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 5 - semantic")
       XCTAssertEqual(note.params.version, 16)
