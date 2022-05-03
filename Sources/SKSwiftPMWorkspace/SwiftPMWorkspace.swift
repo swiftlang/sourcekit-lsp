@@ -222,7 +222,6 @@ extension SwiftPMWorkspace {
       }
     }
     delegate.fileBuildSettingsChanged(changedFiles)
-    delegate.fileHandlingCapabilityChanged()
   }
 }
 
@@ -359,19 +358,6 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
           // TODO: It should not be necessary to reload the entire package just to get build settings for one file.
           try self.reloadPackage()
         }
-      }
-    }
-  }
-
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    guard let fileUrl = uri.fileURL else {
-      return .unhandled
-    }
-    return self.queue.sync {
-      if targetDescription(for: AbsolutePath(fileUrl.path)) != nil {
-        return .handled
-      } else {
-        return .unhandled
       }
     }
   }

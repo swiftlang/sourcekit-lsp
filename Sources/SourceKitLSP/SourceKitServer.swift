@@ -24,23 +24,23 @@ import PackageLoading
 
 public typealias URL = Foundation.URL
 
-private struct WeakWorkspace {
-  weak var value: Workspace?
-}
-
 /// The SourceKit language server.
 ///
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
 /// and cross-language support. Requests may be dispatched to language-specific services or handled
 /// centrally, but this is transparent to the client.
 public final class SourceKitServer: LanguageServer {
+
+  struct LanguageServiceKey: Hashable {
+    var toolchain: String
+    var language: Language
+  }
+
   var options: Options
 
   let toolchainRegistry: ToolchainRegistry
 
-  var capabilityRegistry: CapabilityRegistry?
-
-  var languageServices: [ToolchainLanguageServer] = []
+  var languageService: [LanguageServiceKey: ToolchainLanguageServer] = [:]
 
   /// Documents that are ready for requests and notifications.
   /// This generally means that the `BuildSystem` has notified of us of build settings.
@@ -48,42 +48,7 @@ public final class SourceKitServer: LanguageServer {
 
   private var documentToPendingQueue: [DocumentURI: DocumentNotificationRequestQueue] = [:]
 
-  private let documentManager = DocumentManager()
-
-  /// **Public for testing**
-  public var _documentManager: DocumentManager {
-    return documentManager
-  }
-
-  /// Caches which workspace a document with the given URI should be opened in.
-  /// Must only be accessed from `queue`.
-  private var uriToWorkspaceCache: [DocumentURI: WeakWorkspace] = [:] {
-    didSet {
-      dispatchPrecondition(condition: .onQueue(queue))
-    }
-  }
-
-  /// Must only be accessed from `queue`.
-  private var workspaces: [Workspace] = [] {
-    didSet {
-      dispatchPrecondition(condition: .onQueue(queue))
-      uriToWorkspaceCache = [:]
-    }
-  }
-
-  /// **Public for testing**
-  public var _workspaces: [Workspace] {
-    get {
-      return queue.sync {
-        return self.workspaces
-      }
-    }
-    set {
-      queue.sync {
-        self.workspaces = newValue
-      }
-    }
-  }
+  public var workspace: Workspace?
 
   let fs: FileSystem
 
@@ -100,31 +65,6 @@ public final class SourceKitServer: LanguageServer {
     super.init(client: client)
   }
 
-  public func workspaceForDocument(uri: DocumentURI) -> Workspace? {
-    dispatchPrecondition(condition: .onQueue(queue))
-    if workspaces.count == 1 {
-      // Special handling: If there is only one workspace, open all files in it.
-      // This retains the behavior of SourceKit-LSP before it supported multiple workspaces.
-      return workspaces.first
-    }
-
-    if let cachedWorkspace = uriToWorkspaceCache[uri]?.value {
-      return cachedWorkspace
-    }
-
-    // Pick the workspace with the best FileHandlingCapability for this file.
-    // If there is a tie, use the workspace that occurred first in the list.
-    var bestWorkspace: (workspace: Workspace?, fileHandlingCapability: FileHandlingCapability) = (nil, .unhandled)
-    for workspace in workspaces {
-      let fileHandlingCapability = workspace.buildSystemManager.fileHandlingCapability(for: uri)
-      if fileHandlingCapability > bestWorkspace.fileHandlingCapability {
-        bestWorkspace = (workspace, fileHandlingCapability)
-      }
-    }
-    uriToWorkspaceCache[uri] = WeakWorkspace(value: bestWorkspace.workspace)
-    return bestWorkspace.workspace
-  }
-
   public override func _registerBuiltinHandlers() {
     _register(SourceKitServer.initialize)
     _register(SourceKitServer.clientInitialized)
@@ -132,18 +72,17 @@ public final class SourceKitServer: LanguageServer {
     _register(SourceKitServer.shutdown)
     _register(SourceKitServer.exit)
 
-    _register(SourceKitServer.openDocument)
-    _register(SourceKitServer.closeDocument)
-    _register(SourceKitServer.changeDocument)
-    _register(SourceKitServer.didChangeWorkspaceFolders)
-    _register(SourceKitServer.didChangeWatchedFiles)
+    registerWorkspaceNotfication(SourceKitServer.openDocument)
+    registerWorkspaceNotfication(SourceKitServer.closeDocument)
+    registerWorkspaceNotfication(SourceKitServer.changeDocument)
+    registerWorkspaceNotfication(SourceKitServer.didChangeWatchedFiles)
 
     registerToolchainTextDocumentNotification(SourceKitServer.willSaveDocument)
     registerToolchainTextDocumentNotification(SourceKitServer.didSaveDocument)
 
-    _register(SourceKitServer.workspaceSymbols)
-    _register(SourceKitServer.pollIndex)
-    _register(SourceKitServer.executeCommand)
+    registerWorkspaceRequest(SourceKitServer.workspaceSymbols)
+    registerWorkspaceRequest(SourceKitServer.pollIndex)
+    registerWorkspaceRequest(SourceKitServer.executeCommand)
 
     registerToolchainTextDocumentRequest(SourceKitServer.completion,
                                          CompletionList(isIncomplete: false, items: []))
@@ -172,10 +111,10 @@ public final class SourceKitServer: LanguageServer {
     _ fallback: PositionRequest.Response
   ) {
     _register { [unowned self] (req: Request<PositionRequest>) in
-      let doc = req.params.textDocument.uri
-      guard let workspace = self.workspaceForDocument(uri: doc) else {
-        return req.reply(.failure(.workspaceNotOpen(doc)))
+      guard let workspace = self.workspace else {
+        return req.reply(.failure(.serverNotInitialized))
       }
+      let doc = req.params.textDocument.uri
 
       // This should be created as soon as we receive an open call, even if the document
       // isn't yet ready.
@@ -208,10 +147,10 @@ public final class SourceKitServer: LanguageServer {
         (Notification<TextNotification>, ToolchainLanguageServer) -> Void
   ) {
     _register { [unowned self] (note: Notification<TextNotification>) in
-      let doc = note.params.textDocument.uri
-      guard let workspace = self.workspaceForDocument(uri: doc) else {
+      guard let workspace = self.workspace else {
         return
       }
+      let doc = note.params.textDocument.uri
 
       // This should be created as soon as we receive an open call, even if the document
       // isn't yet ready.
@@ -231,6 +170,35 @@ public final class SourceKitServer: LanguageServer {
         guard let self = self else { return }
         notificationHandler(self)(note, languageService)
       })
+    }
+  }
+
+  /// Register a request handler which requires a valid `Workspace`. If called before a valid
+  /// `Workspace` exists, this will immediately fail the request.
+  func registerWorkspaceRequest<R>(
+    _ requestHandler: @escaping (SourceKitServer) -> (Request<R>, Workspace) -> Void)
+  {
+    _register { [unowned self] (req: Request<R>) in
+      guard let workspace = self.workspace else {
+        return req.reply(.failure(.serverNotInitialized))
+      }
+
+      requestHandler(self)(req, workspace)
+    }
+  }
+
+  /// Register a notification handler which requires a valid `Workspace`. If called before a
+  /// valid `Workspace` exists, the notification is ignored and an error is logged.
+  func registerWorkspaceNotfication<N>(
+    _ noteHandler: @escaping (SourceKitServer) -> (Notification<N>, Workspace) -> Void)
+  {
+    _register { [unowned self] (note: Notification<N>) in
+      guard let workspace = self.workspace else {
+        log("received notification before \"initialize\", ignoring...", level: .error)
+        return
+      }
+
+      noteHandler(self)(note, workspace)
     }
   }
 
@@ -287,14 +255,12 @@ public final class SourceKitServer: LanguageServer {
   /// After the language service has crashed, send `DidOpenTextDocumentNotification`s to a newly instantiated language service for previously open documents.
   func reopenDocuments(for languageService: ToolchainLanguageServer) {
     queue.async {
-      for documentUri in self.documentManager.openDocuments {
-        guard let workspace = self.workspaceForDocument(uri: documentUri) else {
-          continue
-        }
-        guard workspace.documentService[documentUri] === languageService else {
-          continue
-        }
-        guard let snapshot = self.documentManager.latestSnapshot(documentUri) else {
+      guard let workspace = self.workspace else {
+        return
+      }
+      
+      for documentUri in workspace.documentManager.openDocuments where workspace.documentService[documentUri] === languageService {
+        guard let snapshot = workspace.documentManager.latestSnapshot(documentUri) else {
           // The document has been closed since we retrieved its URI. We don't care about it anymore.
           continue
         }
@@ -318,11 +284,9 @@ public final class SourceKitServer: LanguageServer {
     _ language: Language,
     in workspace: Workspace
   ) -> ToolchainLanguageServer? {
-    // Pick the first language service that can handle this workspace.
-    for languageService in languageServices {
-      if languageService.canHandle(workspace: workspace) {
-        return languageService
-      }
+    let key = LanguageServiceKey(toolchain: toolchain.identifier, language: language)
+    if let service = languageService[key] {
+      return service
     }
 
     // Start a new service.
@@ -354,7 +318,7 @@ public final class SourceKitServer: LanguageServer {
 
       service.clientInitialized(InitializedNotification())
 
-      languageServices.append(service)
+      languageService[key] = service
       return service
     }
   }
@@ -408,14 +372,15 @@ extension SourceKitServer: BuildSystemDelegate {
     _ changedFiles: [DocumentURI: FileBuildSettingsChange]
   ) {
     queue.async {
+      guard let workspace = self.workspace else {
+        return
+      }
+      let documentManager = workspace.documentManager
+      let openDocuments = documentManager.openDocuments
       for (uri, change) in changedFiles {
         // Non-ready documents should be considered open even though we haven't
         // opened it with the language service yet.
-        guard self.documentManager.openDocuments.contains(uri) else { continue }
-
-        guard let workspace = self.workspaceForDocument(uri: uri) else {
-          continue
-        }
+        guard openDocuments.contains(uri) else { continue }
         guard self.documentsReady.contains(uri) else {
           // Case 1: initial settings for a given file. Now we can process our backlog.
           log("Initial build settings received for opened file \(uri)")
@@ -456,34 +421,20 @@ extension SourceKitServer: BuildSystemDelegate {
   /// (not queued for opening).
   public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
     queue.async {
-      // Split the changedFiles into the workspaces they belong to.
-      // Then invoke affectedOpenDocumentsForChangeSet for each workspace with its affected files.
-      let changedFilesAndWorkspace = changedFiles.map({
-        return (uri: $0, workspace: self.workspaceForDocument(uri: $0))
-      })
-      for workspace in self.workspaces {
-        let changedFilesForWorkspace = Set(changedFilesAndWorkspace.filter({ $0.workspace === workspace }).map(\.uri))
-        if changedFilesForWorkspace.isEmpty {
+      guard let workspace = self.workspace else {
+        return
+      }
+      for uri in self.affectedOpenDocumentsForChangeSet(changedFiles, workspace.documentManager) {
+        // Make sure the document is ready - otherwise the language service won't
+        // know about the document yet.
+        guard self.documentsReady.contains(uri) else {
           continue
         }
-        for uri in self.affectedOpenDocumentsForChangeSet(changedFilesForWorkspace, self.documentManager) {
-          // Make sure the document is ready - otherwise the language service won't
-          // know about the document yet.
-          guard self.documentsReady.contains(uri) else {
-            continue
-          }
-          log("Dependencies updated for opened file \(uri)")
-          if let service = workspace.documentService[uri] {
-            service.documentDependenciesUpdated(uri)
-          }
+        log("Dependencies updated for opened file \(uri)")
+        if let service = workspace.documentService[uri] {
+          service.documentDependenciesUpdated(uri)
         }
       }
-    }
-  }
-
-  public func fileHandlingCapabilityChanged() {
-    queue.async {
-      self.uriToWorkspaceCache = [:]
     }
   }
 }
@@ -494,25 +445,11 @@ extension SourceKitServer {
 
   // MARK: - General
 
-  /// Creates a workspace at the given `uri`.
-  private func workspace(uri: DocumentURI) -> Workspace? {
-    guard let capabilityRegistry = capabilityRegistry else {
-      log("Cannot open workspace before server is initialized")
-      return nil
-    }
-    return try? Workspace(
-      documentManager: self.documentManager,
-      rootUri: uri,
-      capabilityRegistry: capabilityRegistry,
-      toolchainRegistry: self.toolchainRegistry,
-      buildSetup: self.options.buildSetup,
-      indexOptions: self.options.indexOptions)
-  }
-
   func initialize(_ req: Request<InitializeRequest>) {
+    var indexOptions = self.options.indexOptions
     if case .dictionary(let options) = req.params.initializationOptions {
       if case .bool(let listenToUnitEvents) = options["listenToUnitEvents"] {
-        self.options.indexOptions.listenToUnitEvents = listenToUnitEvents
+        indexOptions.listenToUnitEvents = listenToUnitEvents
       }
       if case .dictionary(let completionOptions) = options["completion"] {
         if case .bool(let serverSideFiltering) = completionOptions["serverSideFiltering"] {
@@ -531,47 +468,47 @@ extension SourceKitServer {
       }
     }
 
-    capabilityRegistry = CapabilityRegistry(clientCapabilities: req.params.capabilities)
+    let capabilityRegistry = CapabilityRegistry(clientCapabilities: req.params.capabilities)
 
     // Any messages sent before initialize returns are expected to fail, so this will run before
     // the first "supported" request. Run asynchronously to hide the latency of setting up the
     // build system and index.
     queue.async {
-      if let workspaceFolders = req.params.workspaceFolders {
-        self.workspaces.append(contentsOf: workspaceFolders.compactMap({ self.workspace(uri: $0.uri) }))
-      } else if let uri = req.params.rootURI {
-        if let workspace = self.workspace(uri: uri) {
-          self.workspaces.append(workspace)
-        }
+      if let uri = req.params.rootURI {
+        self.workspace = try? Workspace(
+          rootUri: uri,
+          capabilityRegistry: capabilityRegistry,
+          toolchainRegistry: self.toolchainRegistry,
+          buildSetup: self.options.buildSetup,
+          indexOptions: indexOptions)
       } else if let path = req.params.rootPath {
-        if let workspace = self.workspace(uri: DocumentURI(URL(fileURLWithPath: path))) {
-          self.workspaces.append(workspace)
-        }
+        self.workspace = try? Workspace(
+          rootUri: DocumentURI(URL(fileURLWithPath: path)),
+          capabilityRegistry: capabilityRegistry,
+          toolchainRegistry: self.toolchainRegistry,
+          buildSetup: self.options.buildSetup,
+          indexOptions: indexOptions)
       }
 
-      if self.workspaces.isEmpty {
+      if self.workspace == nil {
         log("no workspace found", level: .warning)
 
-        let workspace = Workspace(
-          documentManager: self.documentManager,
+        self.workspace = Workspace(
           rootUri: req.params.rootURI,
-          capabilityRegistry: self.capabilityRegistry!,
+          capabilityRegistry: capabilityRegistry,
           toolchainRegistry: self.toolchainRegistry,
           buildSetup: self.options.buildSetup,
           underlyingBuildSystem: nil,
           index: nil,
           indexDelegate: nil)
-        self.workspaces.append(workspace)
       }
 
-      assert(!self.workspaces.isEmpty)
-      for workspace in self.workspaces {
-        workspace.buildSystemManager.delegate = self
-      }
+      assert(self.workspace != nil)
+      self.workspace?.buildSystemManager.delegate = self
     }
 
     req.reply(InitializeResult(capabilities:
-      self.serverCapabilities(for: req.params.capabilities, registry: self.capabilityRegistry!)))
+      self.serverCapabilities(for: req.params.capabilities, registry: capabilityRegistry)))
   }
 
   func serverCapabilities(
@@ -617,11 +554,7 @@ extension SourceKitServer {
       )),
       colorProvider: .bool(true),
       foldingRangeProvider: .bool(!registry.clientHasDynamicFoldingRangeRegistration),
-      executeCommandProvider: executeCommandOptions,
-      workspace: WorkspaceServerCapabilities(workspaceFolders: .init(
-        supported: true,
-        changeNotifications: .bool(true)
-      ))
+      executeCommandProvider: executeCommandOptions
     )
   }
 
@@ -702,32 +635,29 @@ extension SourceKitServer {
   }
 
   func _prepareForExit() {
-    dispatchPrecondition(condition: .onQueue(queue))
     // Note: this method should be safe to call multiple times, since we want to
     // be resilient against multiple possible shutdown sequences, including
     // pipe failure.
 
     // Close the index, which will flush to disk.
-    for workspace in self.workspaces {
-      workspace.buildSystemManager.mainFilesProvider = nil
-      workspace.index = nil
+    self.workspace?.buildSystemManager.mainFilesProvider = nil
+    self.workspace?.index = nil
 
-      // Break retain cycle with the BSM.
-      workspace.buildSystemManager.delegate = nil
-    }
+    // Break retain cycle with the BSM.
+    self.workspace?.buildSystemManager.delegate = nil
   }
 
 
   func shutdown(_ request: Request<ShutdownRequest>) {
     _prepareForExit()
     let shutdownGroup = DispatchGroup()
-    for service in languageServices {
+    for service in languageService.values {
       shutdownGroup.enter()
       service.shutdown() {
         shutdownGroup.leave()
       }
     }
-    languageServices = []
+    languageService = [:]
     // Wait for all services to shut down before sending the shutdown response.
     // Otherwise we might terminate sourcekit-lsp while it still has open
     // connections to the toolchain servers, which could send messages to
@@ -751,19 +681,14 @@ extension SourceKitServer {
 
   // MARK: - Text synchronization
 
-  func openDocument(_ note: Notification<DidOpenTextDocumentNotification>) {
-    let uri = note.params.textDocument.uri
-    guard let workspace = workspaceForDocument(uri: uri) else {
-      log("received open notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
-      return
-    }
+  func openDocument(_ note: Notification<DidOpenTextDocumentNotification>, workspace: Workspace) {
     openDocument(note.params, workspace: workspace)
   }
 
   private func openDocument(_ note: DidOpenTextDocumentNotification, workspace: Workspace) {
     // Immediately open the document even if the build system isn't ready. This is important since
     // we check that the document is open when we receive messages from the build system.
-    documentManager.open(note)
+    workspace.documentManager.open(note)
 
     let textDocument = note.textDocument
     let uri = textDocument.uri
@@ -788,19 +713,14 @@ extension SourceKitServer {
     })
   }
 
-  func closeDocument(_ note: Notification<DidCloseTextDocumentNotification>) {
-    let uri = note.params.textDocument.uri
-    guard let workspace = workspaceForDocument(uri: uri) else {
-      log("received close notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
-      return
-    }
+  func closeDocument(_ note: Notification<DidCloseTextDocumentNotification>, workspace: Workspace) {
     self.closeDocument(note.params, workspace: workspace)
   }
 
   func closeDocument(_ note: DidCloseTextDocumentNotification, workspace: Workspace) {
     // Immediately close the document. We need to be sure to clear our pending work queue in case
     // the build system still isn't ready.
-    documentManager.close(note)
+    workspace.documentManager.close(note)
 
     let uri = note.textDocument.uri
 
@@ -819,24 +739,19 @@ extension SourceKitServer {
     self.documentToPendingQueue[uri] = nil
   }
 
-  func changeDocument(_ note: Notification<DidChangeTextDocumentNotification>) {
+  func changeDocument(_ note: Notification<DidChangeTextDocumentNotification>, workspace: Workspace) {
     let uri = note.params.textDocument.uri
-
-    guard let workspace = workspaceForDocument(uri: uri) else {
-      log("received change notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
-      return
-    }
 
     // If the document is ready, we can handle the change right now.
     guard !documentsReady.contains(uri) else {
-      documentManager.edit(note.params)
+      workspace.documentManager.edit(note.params)
       workspace.documentService[uri]?.changeDocument(note.params)
       return
     }
 
     // Need to queue the change call so we can handle it when ready.
     self.documentToPendingQueue[uri, default: DocumentNotificationRequestQueue()].add(operation: {
-      self.documentManager.edit(note.params)
+      workspace.documentManager.edit(note.params)
       workspace.documentService[uri]?.changeDocument(note.params)
     })
   }
@@ -855,33 +770,8 @@ extension SourceKitServer {
     languageService.didSaveDocument(note.params)
   }
 
-  func didChangeWorkspaceFolders(_ note: Notification<DidChangeWorkspaceFoldersNotification>) {
-    if let removed = note.params.event.removed {
-      self.workspaces.removeAll { workspace in
-        return removed.contains(where: { workspaceFolder in
-          workspace.rootUri == workspaceFolder.uri
-        })
-      }
-    }
-    if let added = note.params.event.added {
-      let newWorkspaces = added.compactMap({ self.workspace(uri: $0.uri) })
-      for workspace in newWorkspaces {
-        workspace.buildSystemManager.delegate = self
-      }
-      self.workspaces.append(contentsOf: newWorkspaces)
-    }
-  }
-
-  func didChangeWatchedFiles(_ note: Notification<DidChangeWatchedFilesNotification>) {
-    dispatchPrecondition(condition: .onQueue(queue))
-    // We can't make any assumptions about which file changes a particular build
-    // system is interested in. Just because it doesn't have build settings for
-    // a file doesn't mean a file can't affect the build system's build settings
-    // (e.g. Package.swift doesn't have build settings but affects build
-    // settings). Inform the build system about all file changes.
-    for workspace in workspaces {
-      workspace.buildSystemManager.filesDidChange(note.params.changes)
-    }
+  func didChangeWatchedFiles(_ note: Notification<DidChangeWatchedFilesNotification>, workspace: Workspace) {
+    workspace.buildSystemManager.filesDidChange(note.params.changes)
   }
 
   // MARK: - Language features
@@ -905,7 +795,6 @@ extension SourceKitServer {
   /// Find all symbols in the workspace that include a string in their name.
   /// - returns: An array of SymbolOccurrences that match the string.
   func findWorkspaceSymbols(matching: String) -> [SymbolOccurrence] {
-    dispatchPrecondition(condition: .onQueue(queue))
     // Ignore short queries since they are:
     // - noisy and slow, since they can match many symbols
     // - normally unintentional, triggered when the user types slowly or if the editor doesn't
@@ -914,32 +803,30 @@ extension SourceKitServer {
       return []
     }
     var symbolOccurenceResults: [SymbolOccurrence] = []
-    for workspace in workspaces {
-      workspace.index?.forEachCanonicalSymbolOccurrence(
-        containing: matching,
-        anchorStart: false,
-        anchorEnd: false,
-        subsequence: true,
-        ignoreCase: true
-      ) { symbol in
-        guard !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) else {
-          return true
-        }
-        symbolOccurenceResults.append(symbol)
-        // FIXME: Once we have cancellation support, we should fetch all results and take the top
-        // `maxWorkspaceSymbolResults` symbols but bail if cancelled.
-        //
-        // Until then, take the first `maxWorkspaceSymbolResults` symbols to limit the impact of
-        // queries which match many symbols.
-        return symbolOccurenceResults.count < maxWorkspaceSymbolResults
+    workspace?.index?.forEachCanonicalSymbolOccurrence(
+      containing: matching,
+      anchorStart: false,
+      anchorEnd: false,
+      subsequence: true,
+      ignoreCase: true
+    ) { symbol in
+      guard !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) else {
+        return true
       }
+      symbolOccurenceResults.append(symbol)
+      // FIXME: Once we have cancellation support, we should fetch all results and take the top
+      // `maxWorkspaceSymbolResults` symbols but bail if cancelled.
+      //
+      // Until then, take the first `maxWorkspaceSymbolResults` symbols to limit the impact of
+      // queries which match many symbols.
+      return symbolOccurenceResults.count < maxWorkspaceSymbolResults
     }
     return symbolOccurenceResults
   }
 
   /// Handle a workspace/symbol request, returning the SymbolInformation.
   /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
-  func workspaceSymbols(_ req: Request<WorkspaceSymbolsRequest>) {
+  func workspaceSymbols(_ req: Request<WorkspaceSymbolsRequest>, workspace: Workspace) {
     let symbols = findWorkspaceSymbols(
       matching: req.params.query
     ).map({symbolOccurrence -> SymbolInformation in
@@ -1035,14 +922,10 @@ extension SourceKitServer {
     languageService.colorPresentation(req)
   }
 
-  func executeCommand(_ req: Request<ExecuteCommandRequest>) {
+  func executeCommand(_ req: Request<ExecuteCommandRequest>, workspace: Workspace) {
     guard let uri = req.params.textDocument?.uri else {
       log("attempted to perform executeCommand request without an url!", level: .error)
       req.reply(nil)
-      return
-    }
-    guard let workspace = workspaceForDocument(uri: uri) else {
-      req.reply(.failure(.workspaceNotOpen(uri)))
       return
     }
     guard let languageService = workspace.documentService[uri] else {
@@ -1114,7 +997,7 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
+    let index = self.workspace?.index
     // If we're unable to handle the definition request using our index, see if the
     // language service can handle it (e.g. clangd can provide AST based definitions).
     let resultHandler: ([Location], ResponseError?) -> Void = { (locs, error) in
@@ -1180,7 +1063,7 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
+    let index = self.workspace?.index
     let callback = callbackOnQueue(self.queue) { (result: Result<SymbolInfoRequest.Response, ResponseError>) in
       guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
         if let error = result.failure {
@@ -1273,10 +1156,8 @@ extension SourceKitServer {
     languageService.symbolInfo(request)
   }
 
-  func pollIndex(_ req: Request<PollIndexRequest>) {
-    for workspace in workspaces {
-      workspace.index?.pollForUnitChangesAndWait()
-    }
+  func pollIndex(_ req: Request<PollIndexRequest>, workspace: Workspace) {
+    workspace.index?.pollForUnitChangesAndWait()
     req.reply(VoidResponse())
   }
 }
@@ -1305,31 +1186,22 @@ public func languageService(
   in workspace: Workspace,
   reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
 ) throws -> ToolchainLanguageServer? {
-
-  let serverType: ToolchainLanguageServer.Type?
   switch language {
+
   case .c, .cpp, .objective_c, .objective_cpp:
-    serverType = ClangLanguageServerShim.self
+    guard toolchain.clangd != nil else { return nil }
+    return try makeJSONRPCClangServer(client: client, toolchain: toolchain, clangdOptions: options.clangdOptions, reopenDocuments: reopenDocuments)
+
   case .swift:
-    serverType = SwiftLanguageServer.self
-  default:
-    serverType = nil
-  }
-
-  if let serverType = serverType {
-    let connectionToClient = LocalConnection()
-
-    let server = try serverType.init(
-      client: connectionToClient,
-      toolchain: toolchain,
+    guard let sourcekitd = toolchain.sourcekitd else { return nil }
+    return try makeLocalSwiftServer(
+      client: client,
+      sourcekitd: sourcekitd,
       clientCapabilities: workspace.capabilityRegistry.clientCapabilities,
       options: options,
-      workspace: workspace,
-      reopenDocuments: reopenDocuments
-    )
-    connectionToClient.start(handler: client)
-    return server
-  } else {
+      reopenDocuments: reopenDocuments)
+
+  default:
     return nil
   }
 }

@@ -27,22 +27,7 @@ public enum LanguageServerState {
 /// A `LanguageServer` that exists within the context of the current process.
 public protocol ToolchainLanguageServer: AnyObject {
 
-  // MARK: - Creation
-
-  init?(
-    client: LocalConnection,
-    toolchain: Toolchain,
-    clientCapabilities: ClientCapabilities?,
-    options: SourceKitServer.Options,
-    workspace: Workspace,
-    reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
-  ) throws
-
-  /// Returns `true` if this instance of the language server can handle opening documents in `workspace`.
-  /// If this returns `false`, a new language server will be started for `workspace`.
-  func canHandle(workspace: Workspace) -> Bool
-
-  // MARK: - Lifetime
+  // MARK: Lifetime
 
   func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult
   func clientInitialized(_ initialized: InitializedNotification)

@@ -80,8 +80,6 @@ public final class DocumentManager {
 
   var documents: [DocumentURI: Document] = [:]
 
-  public init() {}
-
   /// All currently opened documents.
   public var openDocuments: Set<DocumentURI> {
     return queue.sync {

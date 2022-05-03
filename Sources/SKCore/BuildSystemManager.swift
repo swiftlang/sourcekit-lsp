@@ -348,10 +348,6 @@ extension BuildSystemManager: BuildSystem {
       }
     }
   }
-
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    return max(buildSystem?.fileHandlingCapability(for: uri) ?? .unhandled, fallbackBuildSystem?.fileHandlingCapability(for: uri) ?? .unhandled)
-  }
 }
 
 extension BuildSystemManager: BuildSystemDelegate {
@@ -417,16 +413,6 @@ extension BuildSystemManager: BuildSystemDelegate {
       if let delegate = self._delegate {
         self.notifyQueue.async {
           delegate.buildTargetsChanged(changes)
-        }
-      }
-    }
-  }
-
-  public func fileHandlingCapabilityChanged() {
-    queue.async {
-      if let delegate = self._delegate {
-        self.notifyQueue.async {
-          delegate.fileHandlingCapabilityChanged()
         }
       }
     }
