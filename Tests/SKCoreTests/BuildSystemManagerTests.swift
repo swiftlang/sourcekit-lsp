@@ -505,14 +505,6 @@ class ManualBuildSystem: BuildSystem {
   }
 
   func filesDidChange(_ events: [FileEvent]) {}
-
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    if map[uri] != nil {
-      return .handled
-    } else {
-      return .unhandled
-    }
-  }
 }
 
 /// A `BuildSystemDelegate` setup for testing.
@@ -557,6 +549,4 @@ private final class BSMDelegate: BuildSystemDelegate {
       }
     }
   }
-  
-  func fileHandlingCapabilityChanged() {}
 }

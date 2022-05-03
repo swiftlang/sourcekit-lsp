@@ -100,8 +100,4 @@ public final class FallbackBuildSystem: BuildSystem {
   }
 
   public func filesDidChange(_ events: [FileEvent]) {}
-
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    return .fallback
-  }
 }

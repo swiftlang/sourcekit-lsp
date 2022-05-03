@@ -45,14 +45,11 @@ public final class SKSwiftPMTestWorkspace {
   public let toolchain: Toolchain
 
   /// Connection to the language server.
-  public let testServer: TestSourceKitServer
+  public let testServer: TestSourceKitServer = TestSourceKitServer(connectionKind: .local)
 
   public var sk: TestClient { testServer.client }
 
-  /// When `testServer` is not `nil`, the workspace will be opened in that server, otherwise a new server will be created for the workspace
-  public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain, testServer: TestSourceKitServer? = nil) throws {
-    self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
-
+  public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain) throws {
     self.projectDir = projectDir
     self.tmpDir = tmpDir
     self.toolchain = toolchain
@@ -91,9 +88,8 @@ public final class SKSwiftPMTestWorkspace {
       delegate: indexDelegate,
       listenToUnitEvents: false)
 
-    let server = self.testServer.server!
-    let workspace = Workspace(
-      documentManager: DocumentManager(),
+    let server = testServer.server!
+    server.workspace = Workspace(
       rootUri: DocumentURI(sources.rootDirectory),
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
       toolchainRegistry: ToolchainRegistry.shared,
@@ -101,8 +97,7 @@ public final class SKSwiftPMTestWorkspace {
       underlyingBuildSystem: swiftpm,
       index: index,
       indexDelegate: indexDelegate)
-    workspace.buildSystemManager.delegate = server
-    server._workspaces.append(workspace)
+    server.workspace!.buildSystemManager.delegate = server
   }
 
   deinit {
@@ -147,16 +142,14 @@ extension SKSwiftPMTestWorkspace {
 
 extension XCTestCase {
 
-  public func staticSourceKitSwiftPMWorkspace(name: String, server: TestSourceKitServer? = nil) throws -> SKSwiftPMTestWorkspace? {
+  public func staticSourceKitSwiftPMWorkspace(name: String) throws -> SKSwiftPMTestWorkspace? {
     let testDirName = testDirectoryName
     let toolchain = ToolchainRegistry.shared.default!
     let workspace = try SKSwiftPMTestWorkspace(
       projectDir: XCTestCase.sklspInputsDirectory.appendingPathComponent(name, isDirectory: true),
       tmpDir: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-        .appendingPathComponent("sk-test-data/\(testDirName)/\(name)", isDirectory: true),
-      toolchain: toolchain,
-      testServer: server
-    )
+        .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),
+      toolchain: toolchain)
 
     let hasClangFile: Bool = workspace.sources.locations.contains { _, loc in
       loc.url.pathExtension != "swift"

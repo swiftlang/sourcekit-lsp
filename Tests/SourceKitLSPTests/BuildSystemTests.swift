@@ -67,14 +67,6 @@ final class TestBuildSystem: BuildSystem {
   }
 
   func filesDidChange(_ events: [FileEvent]) {}
-
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    if buildSettingsByFile[uri] != nil {
-      return .handled
-    } else {
-      return .unhandled
-    }
-  }
 }
 
 final class BuildSystemTests: XCTestCase {
@@ -84,9 +76,6 @@ final class BuildSystemTests: XCTestCase {
 
   /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
-
-  /// The document manager of the server
-  var documentManager: DocumentManager!
 
   /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
   var workspace: Workspace! = nil
@@ -103,10 +92,7 @@ final class BuildSystemTests: XCTestCase {
     buildSystem = TestBuildSystem()
 
     let server = testServer.server!
-    documentManager = server._documentManager
-
     self.workspace = Workspace(
-      documentManager: DocumentManager(),
       rootUri: nil,
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
       toolchainRegistry: ToolchainRegistry.shared,
@@ -115,7 +101,7 @@ final class BuildSystemTests: XCTestCase {
       index: nil,
       indexDelegate: nil)
 
-    server._workspaces = [workspace]
+    server.workspace = workspace
     workspace.buildSystemManager.delegate = server
 
     sk = testServer.client
@@ -164,7 +150,7 @@ final class BuildSystemTests: XCTestCase {
       text: text
     )), { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual(text, self.documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(doc)!.text)
     })
 
     // Modify the build settings and inform the delegate.
@@ -175,7 +161,7 @@ final class BuildSystemTests: XCTestCase {
     let expectation = XCTestExpectation(description: "refresh")
     sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 0)
-      XCTAssertEqual(text, self.documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(doc)!.text)
       expectation.fulfill()
     }
 
@@ -212,7 +198,7 @@ final class BuildSystemTests: XCTestCase {
     )), { (note: Notification<PublishDiagnosticsNotification>) in
       // Syntactic analysis - no expected errors here.
       XCTAssertEqual(note.params.diagnostics.count, 0)
-      XCTAssertEqual(text, self.documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(doc)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       // Semantic analysis - expect one error here.
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -270,7 +256,7 @@ final class BuildSystemTests: XCTestCase {
     )), { (note: Notification<PublishDiagnosticsNotification>) in
       // Expect diagnostics to be withheld.
       XCTAssertEqual(note.params.diagnostics.count, 0)
-      XCTAssertEqual(text, self.documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(doc)!.text)
     })
 
     // Modify the build settings and inform the delegate.
@@ -281,7 +267,7 @@ final class BuildSystemTests: XCTestCase {
     let expectation = XCTestExpectation(description: "refresh due to fallback --> primary")
     sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual(text, self.documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(doc)!.text)
       expectation.fulfill()
     }
 
@@ -320,7 +306,7 @@ final class BuildSystemTests: XCTestCase {
     )), { (note: Notification<PublishDiagnosticsNotification>) in
       // Syntactic analysis - one expected errors here (for `func`).
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual(text, self.documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual(text, self.workspace.documentManager.latestSnapshot(doc)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       // Should be the same syntactic analysis since we are using fallback arguments
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -363,7 +349,7 @@ final class BuildSystemTests: XCTestCase {
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", self.documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(doc)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       // Using fallback system, so we will receive the same syntactic diagnostics from before.
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -377,7 +363,7 @@ final class BuildSystemTests: XCTestCase {
     expectation.isInverted = true
     sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", self.documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual("func", self.workspace.documentManager.latestSnapshot(doc)!.text)
       expectation.fulfill()
     }
 

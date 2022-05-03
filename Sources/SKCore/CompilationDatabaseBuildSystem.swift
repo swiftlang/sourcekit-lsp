@@ -187,19 +187,6 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
       }
     }
   }
-
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    guard let fileUrl = uri.fileURL else {
-      return .unhandled
-    }
-    return queue.sync {
-      if database(for: fileUrl) != nil {
-        return .handled
-      } else {
-        return .unhandled
-      }
-    }
-  }
 }
 
 extension CompilationDatabaseBuildSystem {

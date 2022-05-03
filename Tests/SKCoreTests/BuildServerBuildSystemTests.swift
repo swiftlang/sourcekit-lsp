@@ -207,6 +207,4 @@ final class TestDelegate: BuildSystemDelegate {
       dependenciesUpdatedExpectations[uri]?.fulfill()
     }
   }
-
-  func fileHandlingCapabilityChanged() {}
 }

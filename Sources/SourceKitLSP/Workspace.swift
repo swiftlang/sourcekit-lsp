@@ -42,14 +42,13 @@ public final class Workspace {
   /// The source code index, if available.
   public var index: IndexStoreDB? = nil
 
-  /// Documents open in the SourceKitServer. This may include open documents from other workspaces.
-  private let documentManager: DocumentManager
+  /// Open documents.
+  public let documentManager: DocumentManager = DocumentManager()
 
   /// Language service for an open document, if available.
   var documentService: [DocumentURI: ToolchainLanguageServer] = [:]
 
   public init(
-    documentManager: DocumentManager,
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
     toolchainRegistry: ToolchainRegistry,
@@ -58,7 +57,6 @@ public final class Workspace {
     index: IndexStoreDB?,
     indexDelegate: SourceKitIndexDelegate?)
   {
-    self.documentManager = documentManager
     self.buildSetup = buildSetup
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
@@ -78,7 +76,6 @@ public final class Workspace {
   ///   - clientCapabilities: The client capabilities provided during server initialization.
   ///   - toolchainRegistry: The toolchain registry.
   convenience public init(
-    documentManager: DocumentManager,
     rootUri: DocumentURI,
     capabilityRegistry: CapabilityRegistry,
     toolchainRegistry: ToolchainRegistry,
@@ -125,7 +122,6 @@ public final class Workspace {
     }
 
     self.init(
-      documentManager: documentManager,
       rootUri: rootUri,
       capabilityRegistry: capabilityRegistry,
       toolchainRegistry: toolchainRegistry,
