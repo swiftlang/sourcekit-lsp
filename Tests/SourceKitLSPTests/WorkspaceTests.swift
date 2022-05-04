@@ -191,4 +191,29 @@ final class WorkspaceTests: XCTestCase {
 
     XCTAssert(didReceiveCorrectWorkspaceMembership)
   }
+
+  func testMixedPackage() throws {
+    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "MixedPackage") else { return }
+    try ws.buildAndIndex()
+
+    let cLoc = ws.testLoc("clib_func:body")
+    let swiftLoc = ws.testLoc("lib.swift:toplevel")
+
+    try ws.openDocument(swiftLoc.url, language: .swift)
+    try ws.openDocument(cLoc.url, language: .c)
+
+    let receivedResponse = self.expectation(description: "Received completion response")
+
+    _ = ws.sk.send(CompletionRequest(textDocument: cLoc.docIdentifier, position: cLoc.position)) { result in
+      defer {
+        receivedResponse.fulfill()
+      }
+      guard case .success(_) = result else  {
+        XCTFail("Expected a successful response")
+        return
+      }
+    }
+
+    self.wait(for: [receivedResponse], timeout: 30)
+  }
 }

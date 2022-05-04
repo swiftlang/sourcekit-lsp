@@ -28,6 +28,33 @@ private struct WeakWorkspace {
   weak var value: Workspace?
 }
 
+/// Exhaustive enumeration of all toolchain language servers known to SourceKit-LSP.
+enum LanguageServerType: Hashable {
+  case clangd
+  case swift
+
+  init?(language: Language) {
+    switch language {
+    case .c, .cpp, .objective_c, .objective_cpp:
+      self = .clangd
+    case .swift:
+      self = .swift
+    default:
+      return nil
+    }
+  }
+
+  /// The `ToolchainLanguageServer` class used to provide functionality for this language class.
+  var serverType: ToolchainLanguageServer.Type {
+    switch self {
+    case .clangd:
+      return ClangLanguageServerShim.self
+    case .swift:
+      return SwiftLanguageServer.self
+    }
+  }
+}
+
 /// The SourceKit language server.
 ///
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
@@ -40,7 +67,7 @@ public final class SourceKitServer: LanguageServer {
 
   var capabilityRegistry: CapabilityRegistry?
 
-  var languageServices: [ToolchainLanguageServer] = []
+  var languageServices: [LanguageServerType: [ToolchainLanguageServer]] = [:]
 
   /// Documents that are ready for requests and notifications.
   /// This generally means that the `BuildSystem` has notified of us of build settings.
@@ -318,8 +345,11 @@ public final class SourceKitServer: LanguageServer {
     _ language: Language,
     in workspace: Workspace
   ) -> ToolchainLanguageServer? {
+    guard let serverType = LanguageServerType(language: language) else {
+      return nil
+    }
     // Pick the first language service that can handle this workspace.
-    for languageService in languageServices {
+    for languageService in languageServices[serverType, default: []] {
       if languageService.canHandle(workspace: workspace) {
         return languageService
       }
@@ -328,7 +358,7 @@ public final class SourceKitServer: LanguageServer {
     // Start a new service.
     return orLog("failed to start language service", level: .error) {
       guard let service = try SourceKitLSP.languageService(
-        for: toolchain, language, options: options, client: self, in: workspace, reopenDocuments: { [weak self] in self?.reopenDocuments(for: $0) })
+        for: toolchain, serverType, options: options, client: self, in: workspace, reopenDocuments: { [weak self] in self?.reopenDocuments(for: $0) })
       else {
         return nil
       }
@@ -354,7 +384,7 @@ public final class SourceKitServer: LanguageServer {
 
       service.clientInitialized(InitializedNotification())
 
-      languageServices.append(service)
+      languageServices[serverType, default: []].append(service)
       return service
     }
   }
@@ -721,13 +751,13 @@ extension SourceKitServer {
   func shutdown(_ request: Request<ShutdownRequest>) {
     _prepareForExit()
     let shutdownGroup = DispatchGroup()
-    for service in languageServices {
+    for service in languageServices.values.flatMap({ $0 }) {
       shutdownGroup.enter()
       service.shutdown() {
         shutdownGroup.leave()
       }
     }
-    languageServices = []
+    languageServices = [:]
     // Wait for all services to shut down before sending the shutdown response.
     // Otherwise we might terminate sourcekit-lsp while it still has open
     // connections to the toolchain servers, which could send messages to
@@ -1297,41 +1327,26 @@ private func callbackOnQueue<R: ResponseType>(
 ///
 /// - returns: The connection, if a suitable language service is available; otherwise nil.
 /// - throws: If there is a suitable service but it fails to launch, throws an error.
-public func languageService(
+func languageService(
   for toolchain: Toolchain,
-  _ language: Language,
+  _ languageServerType: LanguageServerType,
   options: SourceKitServer.Options,
   client: MessageHandler,
   in workspace: Workspace,
   reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
 ) throws -> ToolchainLanguageServer? {
+  let connectionToClient = LocalConnection()
 
-  let serverType: ToolchainLanguageServer.Type?
-  switch language {
-  case .c, .cpp, .objective_c, .objective_cpp:
-    serverType = ClangLanguageServerShim.self
-  case .swift:
-    serverType = SwiftLanguageServer.self
-  default:
-    serverType = nil
-  }
-
-  if let serverType = serverType {
-    let connectionToClient = LocalConnection()
-
-    let server = try serverType.init(
-      client: connectionToClient,
-      toolchain: toolchain,
-      clientCapabilities: workspace.capabilityRegistry.clientCapabilities,
-      options: options,
-      workspace: workspace,
-      reopenDocuments: reopenDocuments
-    )
-    connectionToClient.start(handler: client)
-    return server
-  } else {
-    return nil
-  }
+  let server = try languageServerType.serverType.init(
+    client: connectionToClient,
+    toolchain: toolchain,
+    clientCapabilities: workspace.capabilityRegistry.clientCapabilities,
+    options: options,
+    workspace: workspace,
+    reopenDocuments: reopenDocuments
+  )
+  connectionToClient.start(handler: client)
+  return server
 }
 
 private func languageClass(for language: Language) -> [Language] {
