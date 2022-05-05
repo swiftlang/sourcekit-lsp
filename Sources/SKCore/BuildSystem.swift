@@ -14,6 +14,18 @@ import BuildServerProtocol
 import LanguageServerProtocol
 import TSCBasic
 
+/// Defines how well a `BuildSystem` can handle a file with a given URI.
+public enum FileHandlingCapability: Comparable {
+  /// The build system can't handle the file at all
+  case unhandled
+
+  /// The build system has fallback build settings for the file
+  case fallback
+
+  /// The build system knows how to handle the file
+  case handled
+}
+
 /// Provider of FileBuildSettings and other build-related information.
 ///
 /// The primary role of the build system is to answer queries for
@@ -62,6 +74,8 @@ public protocol BuildSystem: AnyObject {
 
   /// Called when files in the project change.
   func filesDidChange(_ events: [FileEvent])
+
+  func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability
 }
 
 public let buildTargetsNotSupported =

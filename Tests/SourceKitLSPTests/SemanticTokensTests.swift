@@ -202,7 +202,7 @@ final class SemanticTokensTests: XCTestCase {
     """
     openDocument(text: text)
 
-    guard let snapshot = connection.server?.workspace?.documentManager.latestSnapshot(uri) else {
+    guard let snapshot = connection.server?._documentManager.latestSnapshot(uri) else {
       fatalError("Could not fetch document snapshot for \(#function)")
     }
 
