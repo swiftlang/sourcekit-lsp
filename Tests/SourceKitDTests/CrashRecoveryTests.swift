@@ -39,6 +39,14 @@ fileprivate extension HoverResponse {
   }
 }
 
+fileprivate extension SourceKitServer {
+  func workspaceForDocumentOnQueue(uri: DocumentURI) -> Workspace? {
+    self.queue.sync {
+      return self.workspaceForDocument(uri: uri)
+    }
+  }
+}
+
 final class CrashRecoveryTests: XCTestCase {
   func testSourcekitdCrashRecovery() throws {
     try XCTSkipUnless(isDarwinHost, "Linux and Windows use in-process sourcekitd")
@@ -85,7 +93,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Crash sourcekitd
 
-    let sourcekitdServer = ws.testServer.server!._languageService(for: loc.docUri, .swift, in: ws.testServer.server!.workspace!) as! SwiftLanguageServer
+    let sourcekitdServer = ws.testServer.server!._languageService(for: loc.docUri, .swift, in: ws.testServer.server!.workspaceForDocumentOnQueue(uri: loc.docUri)!) as! SwiftLanguageServer
 
     let sourcekitdCrashed = expectation(description: "sourcekitd has crashed")
     let sourcekitdRestarted = expectation(description: "sourcekitd has been restarted (syntactic only)")
@@ -130,7 +138,7 @@ final class CrashRecoveryTests: XCTestCase {
   ///   - ws: The workspace for which the clangd server shall be crashed
   ///   - document: The URI of a C/C++/... document in the workspace
   private func crashClangd(for ws: SKTibsTestWorkspace, document docUri: DocumentURI) {
-    let clangdServer = ws.testServer.server!._languageService(for: docUri, .cpp, in: ws.testServer.server!.workspace!)!
+    let clangdServer = ws.testServer.server!._languageService(for: docUri, .cpp, in: ws.testServer.server!.workspaceForDocumentOnQueue(uri: docUri)!)!
     
     let clangdCrashed = self.expectation(description: "clangd crashed")
     let clangdRestarted = self.expectation(description: "clangd restarted")
@@ -240,7 +248,7 @@ final class CrashRecoveryTests: XCTestCase {
     
     // Keep track of clangd crashes
     
-    let clangdServer = ws.testServer.server!._languageService(for: loc.docUri, .cpp, in: ws.testServer.server!.workspace!)!
+    let clangdServer = ws.testServer.server!._languageService(for: loc.docUri, .cpp, in: ws.testServer.server!.workspaceForDocumentOnQueue(uri: loc.docUri)!)!
     
     let clangdCrashed = self.expectation(description: "clangd crashed")
     clangdCrashed.assertForOverFulfill = false
