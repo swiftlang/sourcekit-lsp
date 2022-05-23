@@ -122,7 +122,7 @@ def handle_invocation(swift_exec, args):
     print('Cleaning ' + tests)
     shutil.rmtree(tests, ignore_errors=True)
     test_args = swiftpm_args
-    test_args += ['--parallel']
+    test_args += ['--parallel', '--disable-testable-imports']
     swiftpm('test', swift_exec, test_args, env)
   elif args.action == 'install':
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
