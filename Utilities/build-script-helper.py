@@ -106,8 +106,9 @@ def handle_invocation(swift_exec, args):
   if args.sanitize and 'thread' in args.sanitize:
     env['TSAN_OPTIONS'] = 'halt_on_error=true'
 
-  print('Cleaning ' + args.build_path)
-  shutil.rmtree(args.build_path, ignore_errors=True)
+  if not args.no_clean:
+    print('Cleaning ' + args.build_path)
+    shutil.rmtree(args.build_path, ignore_errors=True)
 
   env['SWIFT_EXEC'] = '%sc' % (swift_exec)
 
@@ -121,7 +122,7 @@ def handle_invocation(swift_exec, args):
     print('Cleaning ' + tests)
     shutil.rmtree(tests, ignore_errors=True)
     test_args = swiftpm_args
-    test_args += ['--parallel']
+    test_args += ['--parallel', '--disable-testable-imports']
     swiftpm('test', swift_exec, test_args, env)
   elif args.action == 'install':
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
@@ -146,6 +147,7 @@ def main():
     parser.add_argument('--no-local-deps', action='store_true', help='use normal remote dependencies when building')
     parser.add_argument('--sanitize', action='append', help='build using the given sanitizer(s) (address|thread|undefined)')
     parser.add_argument('--sanitize-all', action='store_true', help='build using every available sanitizer in sub-directories of build path')
+    parser.add_argument('--no-clean', action='store_true', help='Don\'t clean the build directory prior to performing the action')
     parser.add_argument('--verbose', '-v', action='store_true', help='enable verbose output')
     parser.add_argument('--cross-compile-host', help='cross-compile for another host instead')
     parser.add_argument('--cross-compile-config', help='an SPM JSON destination file containing Swift cross-compilation flags')
