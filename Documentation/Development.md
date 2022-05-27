@@ -40,7 +40,7 @@ $ swift build
 
 Install the following dependencies of SourceKit-LSP:
 
-* libsqlite3-dev, libncurses5-dev, python, ninja-build
+* libsqlite3-dev libncurses5-dev python3 ninja-build
 
 ```sh
 $ export PATH="<path_to_swift_toolchain>/usr/bin:${PATH}"
