@@ -7,6 +7,29 @@ import re
 import shutil
 import subprocess
 import sys
+import json
+
+def error(message):
+  print("--- %s: error: %s" % (os.path.basename(sys.argv[0]), message), file=sys.stderr)
+  sys.stderr.flush()
+  raise SystemExit(1)
+
+def get_build_target(swift_exec, args):
+  """Returns the target-triple of the current machine or for cross-compilation."""
+  try:
+    command = [swift_exec, '-print-target-info']
+    target_info_json = subprocess.check_output(command,
+                         stderr=subprocess.PIPE, universal_newlines=True).strip()
+    args.target_info = json.loads(target_info_json)
+    if platform.system() == 'Darwin':
+      return args.target_info["target"]["unversionedTriple"]
+    return args.target_info["target"]["triple"]
+  except Exception as e:
+    # Temporary fallback for Darwin.
+    if platform.system() == 'Darwin':
+      return 'x86_64-apple-macosx'
+    else:
+      error(str(e))
 
 def swiftpm(action, swift_exec, swiftpm_args, env=None):
   cmd = [swift_exec, action] + swiftpm_args
@@ -19,7 +42,7 @@ def swiftpm_bin_path(swift_exec, swiftpm_args, env=None):
   print(' '.join(cmd))
   return subprocess.check_output(cmd, env=env, universal_newlines=True).strip()
 
-def get_swiftpm_options(args):
+def get_swiftpm_options(swift_exec, args):
   swiftpm_args = [
     '--package-path', args.package_path,
     '--build-path', args.build_path,
@@ -63,8 +86,15 @@ def get_swiftpm_options(args):
       '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/linux',
     ]
 
+  build_target = get_build_target(swift_exec, args)
   if args.cross_compile_host:
-    swiftpm_args += ['--destination', args.cross_compile_config]
+    if build_target == 'x86_64-apple-macosx' and args.cross_compile_host == "macosx-arm64":
+      swiftpm_args += ["--arch", "x86_64", "--arch", "arm64"]
+    elif re.match('android-', args.cross_compile_host):
+      print('Cross-compiling for %s' % args.cross_compile_host)
+      swiftpm_args += ['--destination', args.cross_compile_config]
+    else:
+      error("cannot cross-compile for %s" % args.cross_compile_host)
 
   return swiftpm_args
 
@@ -82,7 +112,7 @@ def install_binary(exe, source_dir, install_dir, toolchain):
     stdlib_rpath = os.path.join(toolchain, 'lib', 'swift', 'macosx')
 
 def handle_invocation(swift_exec, args):
-  swiftpm_args = get_swiftpm_options(args)
+  swiftpm_args = get_swiftpm_options(swift_exec, args)
 
   env = os.environ
   # Set the toolchain used in tests at runtime
@@ -180,11 +210,6 @@ def main():
     swift_exec = os.path.join(args.toolchain, 'bin', 'swift')
   else:
     swift_exec = 'swift'
-
-  if args.cross_compile_host and re.match('android-', args.cross_compile_host):
-    print('Cross-compiling for %s' % args.cross_compile_host)
-  elif args.cross_compile_host:
-    error("cannot cross-compile for %s" % args.cross_compile_host)
 
   handle_invocation(swift_exec, args)
   if args.sanitize_all:
