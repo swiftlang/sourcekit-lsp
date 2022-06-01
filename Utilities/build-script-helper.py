@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-
-from __future__ import print_function
+#!/usr/bin/env python3
 
 import argparse
 import os
@@ -152,7 +150,11 @@ def main():
     parser.add_argument('--cross-compile-host', help='cross-compile for another host instead')
     parser.add_argument('--cross-compile-config', help='an SPM JSON destination file containing Swift cross-compilation flags')
 
-  subparsers = parser.add_subparsers(title='subcommands', dest='action', metavar='action')
+  if sys.version_info >= (3,7,0):
+    subparsers = parser.add_subparsers(title='subcommands', dest='action', required=True, metavar='action')
+  else:
+    subparsers = parser.add_subparsers(title='subcommands', dest='action', metavar='action')
+  
   build_parser = subparsers.add_parser('build', help='build the package')
   add_common_args(build_parser)
 
