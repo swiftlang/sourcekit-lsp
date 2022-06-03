@@ -119,7 +119,7 @@ public final class Workspace {
           library: lib,
           delegate: indexDelegate,
           listenToUnitEvents: indexOptions.listenToUnitEvents,
-          prefixMappings: prefixMappings)
+          prefixMappings: prefixMappings.map { PathMapping(original: $0.original, replacement: $0.replacement) })
         log("opened IndexStoreDB at \(dbPath) with store path \(storePath)")
       } catch {
         log("failed to open IndexStoreDB: \(error.localizedDescription)", level: .error)
@@ -147,7 +147,7 @@ public struct IndexOptions {
   public var indexDatabasePath: AbsolutePath?
 
   /// Override the index prefix mappings provided by the build system.
-  public var indexPrefixMappings: [String]?
+  public var indexPrefixMappings: [PathPrefixMapping]?
 
   /// *For Testing* Whether the index should listen to unit events, or wait for
   /// explicit calls to pollForUnitChangesAndWait().
@@ -156,7 +156,7 @@ public struct IndexOptions {
   public init(
     indexStorePath: AbsolutePath? = nil,
     indexDatabasePath: AbsolutePath? = nil,
-    indexPrefixMappings: [String]? = nil,
+    indexPrefixMappings: [PathPrefixMapping]? = nil,
     listenToUnitEvents: Bool = true
   ) {
     self.indexStorePath = indexStorePath

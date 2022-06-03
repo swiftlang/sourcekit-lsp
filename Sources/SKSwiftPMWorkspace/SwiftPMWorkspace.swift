@@ -240,7 +240,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     return buildPath.appending(components: "index", "db")
   }
 
-  public var indexPrefixMappings: [String] { return [] }
+  public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
   /// **Public for testing only**
   public func _settings(

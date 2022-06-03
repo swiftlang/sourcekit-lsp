@@ -40,7 +40,7 @@ public final class FallbackBuildSystem: BuildSystem {
 
   public var indexDatabasePath: AbsolutePath? { return nil }
 
-  public var indexPrefixMappings: [String] { return [] }
+  public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
   public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
     switch language {

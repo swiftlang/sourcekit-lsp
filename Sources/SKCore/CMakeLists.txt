@@ -12,6 +12,7 @@ add_library(SKCore STATIC
   FileBuildSettingsChange.swift
   LanguageServer.swift
   MainFilesProvider.swift
+  PathPrefixMapping.swift
   Toolchain.swift
   ToolchainRegistry.swift
   XCToolchainPlist.swift)

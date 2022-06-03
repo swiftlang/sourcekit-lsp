@@ -36,7 +36,7 @@ public final class BuildServerBuildSystem {
   public private(set) var indexStorePath: AbsolutePath?
 
   // FIXME: Add support for prefix mappings to the Build Server protocol.
-  public var indexPrefixMappings: [String] { return [] }
+  public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate? {
