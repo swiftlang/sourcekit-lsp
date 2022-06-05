@@ -44,7 +44,7 @@ SourceKit-LSP is still in early development, so you may run into rough edges wit
 | Find References | ✅ | |
 | Background Indexing | ❌ | Build project to update the index using [Indexing While Building](#indexing-while-building) |
 | Workspace Symbols | ✅ | |
-| Global Rename | ❌ | |
+| Rename | ❌ | |
 | Local Refactoring | ✅ | |
 | Formatting | ❌ | |
 | Folding | ✅ | |
