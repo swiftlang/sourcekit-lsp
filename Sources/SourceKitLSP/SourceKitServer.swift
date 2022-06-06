@@ -19,6 +19,7 @@ import LSPLogging
 import SKCore
 import SKSupport
 import TSCBasic
+import struct TSCUtility.BuildFlags
 
 import PackageLoading
 
@@ -72,6 +73,9 @@ public final class SourceKitServer: LanguageServer {
   /// Documents that are ready for requests and notifications.
   /// This generally means that the `BuildSystem` has notified of us of build settings.
   var documentsReady: Set<DocumentURI> = []
+
+  /// Custom per-workspace BuildFlags
+  private var workspaceBuildFlags: [String: BuildFlags] = [:]
 
   private var documentToPendingQueue: [DocumentURI: DocumentNotificationRequestQueue] = [:]
 
@@ -530,12 +534,19 @@ extension SourceKitServer {
       log("Cannot open workspace before server is initialized")
       return nil
     }
+
+    var buildSetup = self.options.buildSetup
+    if case .some(let buildFlags) = workspaceBuildFlags[uri.pseudoPath] {
+      log("\"\(uri.pseudoPath)\" matched to custom build flags \(buildFlags)", level: .info)
+      buildSetup.flags = buildFlags
+    }
+
     return try? Workspace(
       documentManager: self.documentManager,
       rootUri: uri,
       capabilityRegistry: capabilityRegistry,
       toolchainRegistry: self.toolchainRegistry,
-      buildSetup: self.options.buildSetup,
+      buildSetup: buildSetup,
       indexOptions: self.options.indexOptions)
   }
 
@@ -557,6 +568,67 @@ extension SourceKitServer {
           self.options.completionOptions.maxResults = maxResults
         case .some(let invalid):
           log("expected null or int for 'maxResults'; got \(invalid)", level: .warning)
+        }
+      }
+
+      let workspacesOptionKey = "workspaces"
+      if let workspacesConfig = options[workspacesOptionKey] {
+        if case .dictionary(let workspacesConfig) = workspacesConfig {
+          for (workspacePath, workspaceConfig) in workspacesConfig {
+            if case .dictionary(let workspaceConfig) = workspaceConfig {
+              var buildFlags = BuildFlags()
+
+              enum BuildFlagsKeys: String, CaseIterable {
+                case cxxCompilerFlags = "cxxCompilerFlags"
+                case cCompilerFlags = "cCompilerFlags"
+                case linkerFlags = "linkerFlags"
+                case swiftCompilerFlags = "swiftCompilerFlags"
+              }
+              for flagsKey in BuildFlagsKeys.allCases {
+                guard let configFlags = workspaceConfig[flagsKey.rawValue] else {
+                  continue
+                }
+
+                var flagsValidationFailed = false
+                var flags = [String]()
+                if case .array(let configFlags) = configFlags {
+                  for configFlag in configFlags {
+                    if case .string(let flag) = configFlag {
+                      flags.append(flag)
+                    } else {
+                      flagsValidationFailed = true
+                      log("expected string for \(workspacesOptionKey)[\"\(workspacePath)\"][\(flagsKey)][*]; got \(configFlag)", level: .warning)
+                      break
+                    }
+                  }
+                } else {
+                  flagsValidationFailed = true
+                  log("expected array for \(workspacesOptionKey)[\"\(workspacePath)\"][\(flagsKey)]; got \(configFlags)", level: .warning)
+                }
+
+                if (flagsValidationFailed) {
+                  log("not assigning invalid flags \(configFlags) to \(flagsKey) of workspace \"\(workspacePath)\" due to validation errors", level: .warning)
+                } else {
+                  switch flagsKey {
+                    case .cxxCompilerFlags:
+                      buildFlags.cxxCompilerFlags = flags
+                    case .cCompilerFlags:
+                      buildFlags.cCompilerFlags = flags
+                    case .linkerFlags:
+                      buildFlags.linkerFlags = flags
+                    case .swiftCompilerFlags:
+                      buildFlags.swiftCompilerFlags = flags
+                  }
+                }
+              }
+
+              workspaceBuildFlags[workspacePath] = buildFlags
+            } else {
+              log("expected dictionary for \(workspacesOptionKey)[\"\(workspacePath)\"]; got \(workspaceConfig)", level: .warning)
+            }
+          }
+        } else {
+          log("expected dictionary for \(workspacesOptionKey); got \(workspacesConfig)", level: .warning)
         }
       }
     }
