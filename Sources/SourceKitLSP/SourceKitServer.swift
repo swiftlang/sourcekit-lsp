@@ -574,7 +574,9 @@ extension SourceKitServer {
       let workspacesOptionKey = "workspaces"
       if let workspacesConfig = options[workspacesOptionKey] {
         if case .dictionary(let workspacesConfig) = workspacesConfig {
-          for (workspacePath, workspaceConfig) in workspacesConfig {
+          for (rawWorkspacePath, workspaceConfig) in workspacesConfig {
+            let workspacePath = AbsolutePath(expandingTilde: rawWorkspacePath).pathString
+
             if case .dictionary(let workspaceConfig) = workspaceConfig {
               var buildFlags = BuildFlags()
 
