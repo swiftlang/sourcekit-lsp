@@ -659,14 +659,23 @@ extension SwiftLanguageServer {
       return completion(.failure(.unknown(msg)))
     }
 
+    let helperDocumentName = "DocumentSymbols:" + snapshot.document.uri.pseudoPath
     let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     skreq[keys.request] = self.requests.editor_open
-    skreq[keys.name] = "DocumentSymbols:" + snapshot.document.uri.pseudoPath
+    skreq[keys.name] = helperDocumentName
     skreq[keys.sourcetext] = snapshot.text
     skreq[keys.syntactic_only] = 1
 
     let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
       guard let self = self else { return }
+
+      defer {
+        let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+        closeHelperReq[self.keys.request] = self.requests.editor_close
+        closeHelperReq[self.keys.name] = helperDocumentName
+        _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
+      }
+
       guard let dict = result.success else {
         return completion(.failure(ResponseError(result.failure!)))
       }
@@ -756,14 +765,23 @@ extension SwiftLanguageServer {
         return
       }
 
+      let helperDocumentName = "DocumentColor:" + snapshot.document.uri.pseudoPath
       let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       skreq[keys.request] = self.requests.editor_open
-      skreq[keys.name] = "DocumentColor:" + snapshot.document.uri.pseudoPath
+      skreq[keys.name] = helperDocumentName
       skreq[keys.sourcetext] = snapshot.text
       skreq[keys.syntactic_only] = 1
 
       let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
         guard let self = self else { return }
+
+        defer {
+          let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+          closeHelperReq[keys.request] = self.requests.editor_close
+          closeHelperReq[keys.name] = helperDocumentName
+          _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
+        }
+
         guard let dict = result.success else {
           req.reply(.failure(ResponseError(result.failure!)))
           return
@@ -962,14 +980,23 @@ extension SwiftLanguageServer {
         return
       }
 
+      let helperDocumentName = "FoldingRanges:" + snapshot.document.uri.pseudoPath
       let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       skreq[keys.request] = self.requests.editor_open
-      skreq[keys.name] = "FoldingRanges:" + snapshot.document.uri.pseudoPath
+      skreq[keys.name] = helperDocumentName
       skreq[keys.sourcetext] = snapshot.text
       skreq[keys.syntactic_only] = 1
 
       let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
         guard let self = self else { return }
+
+        defer {
+          let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+          closeHelperReq[keys.request] = self.requests.editor_close
+          closeHelperReq[keys.name] = helperDocumentName
+          _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
+        }
+
         guard let dict = result.success else {
           req.reply(.failure(ResponseError(result.failure!)))
           return
