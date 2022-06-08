@@ -3,7 +3,7 @@
 Here are some critical hints that may help developers of editors or language plugins in adopting SourceKit-LSP: 
 
 * Remember that SourceKit-LSP is at an early stage:
-    * It is [not yet]((https://forums.swift.org/t/what-does-sourcekit-lsp-support/54424)) a complete or neccessarily accurate reflection of the LSP.
+    * It is [not yet](https://forums.swift.org/t/what-does-sourcekit-lsp-support/54424) a complete or necessarily accurate reflection of the LSP.
     * Logs from `stdErr` may be insufficient for debugging your interaction with `sourcekit-lsp`.
     * [Currently](https://github.com/apple/sourcekit-lsp/issues/529), you have to [open a document](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_didOpen) before sending document-based requests.
 * You can use `sourcekit-lsp` with Swift packages but [not (yet) with Xcode projects](https://forums.swift.org/t/xcode-project-support/20927). 
