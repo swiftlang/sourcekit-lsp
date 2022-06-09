@@ -41,6 +41,14 @@ extension AbsolutePath: ExpressibleByArgument {
   }
 }
 
+extension PathPrefixMapping: ExpressibleByArgument {
+  public init?(argument: String) {
+    guard let eqIndex = argument.firstIndex(of: "=") else { return nil }
+    self.init(original: String(argument[..<eqIndex]),
+              replacement: String(argument[argument.index(after: eqIndex)...]))
+  }
+}
+
 extension LogLevel: ExpressibleByArgument {}
 extension BuildConfiguration: ExpressibleByArgument {}
 
@@ -114,6 +122,14 @@ struct Main: ParsableCommand {
   var indexDatabasePath: AbsolutePath?
 
   @Option(
+    name: .customLong("index-prefix-map", withSingleDash: true),
+    parsing: .unconditionalSingleValue,
+    help: "Override the prefix map from the build system, values of form 'remote=local'"
+  )
+  var indexPrefixMappings = [PathPrefixMapping]()
+
+
+  @Option(
     help: "Whether to enable server-side filtering in code-completion"
   )
   var completionServerSideFiltering = true
@@ -135,6 +151,7 @@ struct Main: ParsableCommand {
     serverOptions.clangdOptions = clangdOptions
     serverOptions.indexOptions.indexStorePath = indexStorePath
     serverOptions.indexOptions.indexDatabasePath = indexDatabasePath
+    serverOptions.indexOptions.indexPrefixMappings = indexPrefixMappings
     serverOptions.completionOptions.serverSideFiltering = completionServerSideFiltering
     serverOptions.completionOptions.maxResults = completionMaxResults
 
