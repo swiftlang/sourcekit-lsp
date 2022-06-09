@@ -88,6 +88,8 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }
 
+  public var indexPrefixMappings: [PathPrefixMapping] { return [] }
+
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     queue.async {
       self.watchedFiles[uri] = language
