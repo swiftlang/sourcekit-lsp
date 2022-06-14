@@ -382,7 +382,9 @@ extension SwiftLanguageServer {
           tokenTypes: SyntaxHighlightingToken.Kind.allCases.map(\.lspName),
           tokenModifiers: SyntaxHighlightingToken.Modifiers.allModifiers.map { $0.lspName! }),
         range: .bool(true),
-        full: .bool(true))
+        full: .bool(true)),
+      inlayHintProvider: InlayHintOptions(
+        resolveProvider: false)
     ))
   }
 
@@ -1247,7 +1249,7 @@ extension SwiftLanguageServer {
     completion(.success(codeActions))
   }
 
-  public func inlayHints(_ req: Request<InlayHintsRequest>) {
+  public func inlayHint(_ req: Request<InlayHintRequest>) {
     guard req.params.only?.contains(.type) ?? true else {
       req.reply([])
       return
@@ -1260,11 +1262,16 @@ extension SwiftLanguageServer {
         let hints = infos
           .lazy
           .filter { !$0.hasExplicitType }
-          .map { info in
-            InlayHint(
-              position: info.range.upperBound,
-              category: .type,
-              label: info.printedType
+          .map { info -> InlayHint in
+            let position = info.range.upperBound
+            let label = ": \(info.printedType)"
+            return InlayHint(
+              position: position,
+              kind: .type,
+              label: .string(label),
+              textEdits: [
+                TextEdit(range: position..<position, newText: label)
+              ]
             )
           }
 

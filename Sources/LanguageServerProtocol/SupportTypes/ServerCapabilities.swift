@@ -89,6 +89,9 @@ public struct ServerCapabilities: Codable, Hashable {
   /// requests.
   public var semanticTokensProvider: SemanticTokensOptions?
 
+  /// Whether the server supports the `textDocument/inlayHint` family of requests.
+  public var inlayHintProvider: InlayHintOptions?
+
   public var experimental: LSPAny?
 
   public init(
@@ -117,6 +120,7 @@ public struct ServerCapabilities: Codable, Hashable {
     workspace: WorkspaceServerCapabilities? = nil,
     callHierarchyProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     semanticTokensProvider: SemanticTokensOptions? = nil,
+    inlayHintProvider: InlayHintOptions? = nil,
     experimental: LSPAny? = nil
   )
   {
@@ -145,6 +149,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.workspace = workspace
     self.callHierarchyProvider = callHierarchyProvider
     self.semanticTokensProvider = semanticTokensProvider
+    self.inlayHintProvider = inlayHintProvider
     self.experimental = experimental
   }
 }
@@ -502,6 +507,16 @@ public struct SemanticTokensOptions: Codable, Hashable {
     self.legend = legend
     self.range = range
     self.full = full
+  }
+}
+
+public struct InlayHintOptions: Codable, Hashable {
+  /// The server provides support to resolve additional information
+  /// for an inlay hint item.
+  public var resolveProvider: Bool?
+
+  public init(resolveProvider: Bool? = nil) {
+    self.resolveProvider = resolveProvider
   }
 }
 

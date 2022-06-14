@@ -41,7 +41,7 @@ add_library(LanguageServerProtocol STATIC
   Requests/HoverRequest.swift
   Requests/ImplementationRequest.swift
   Requests/InitializeRequest.swift
-  Requests/InlayHintsRequest.swift
+  Requests/InlayHintRequest.swift
   Requests/PollIndexRequest.swift
   Requests/PrepareRenameRequest.swift
   Requests/ReferencesRequest.swift

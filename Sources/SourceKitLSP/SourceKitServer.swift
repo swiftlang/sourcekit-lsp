@@ -188,7 +188,7 @@ public final class SourceKitServer: LanguageServer {
     registerToolchainTextDocumentRequest(SourceKitServer.documentSemanticTokensRange, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.colorPresentation, [])
     registerToolchainTextDocumentRequest(SourceKitServer.codeAction, nil)
-    registerToolchainTextDocumentRequest(SourceKitServer.inlayHints, [])
+    registerToolchainTextDocumentRequest(SourceKitServer.inlayHint, [])
   }
 
   /// Register a `TextDocumentRequest` that requires a valid `Workspace`, `ToolchainLanguageServer`,
@@ -672,6 +672,11 @@ extension SourceKitServer {
     }
     if let semanticTokensOptions = server.semanticTokensProvider {
       registry.registerSemanticTokensIfNeeded(options: semanticTokensOptions, for: languages) {
+        self.dynamicallyRegisterCapability($0, registry)
+      }
+    }
+    if let inlayHintOptions = server.inlayHintProvider {
+      registry.registerInlayHintIfNeeded(options: inlayHintOptions, for: languages) {
         self.dynamicallyRegisterCapability($0, registry)
       }
     }
@@ -1159,12 +1164,12 @@ extension SourceKitServer {
     languageService.codeAction(request)
   }
 
-  func inlayHints(
-    _ req: Request<InlayHintsRequest>,
+  func inlayHint(
+    _ req: Request<InlayHintRequest>,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
   ) {
-    languageService.inlayHints(req)
+    languageService.inlayHint(req)
   }
 
   func definition(

@@ -493,11 +493,8 @@ extension ClangLanguageServerShim {
     forwardRequestToClangdOnQueue(req)
   }
 
-  func inlayHints(_ req: Request<InlayHintsRequest>) {
-    // FIXME: Currently a Swift-specific, non-standard request.
-    // Once inlay hints have been upstreamed to LSP, forward
-    // them to clangd.
-    req.reply(.success([]))
+  func inlayHint(_ req: Request<InlayHintRequest>) {
+    forwardRequestToClangdOnQueue(req)
   }
 
   func foldingRange(_ req: Request<FoldingRangeRequest>) {

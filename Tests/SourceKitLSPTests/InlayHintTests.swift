@@ -16,7 +16,7 @@ import SKTestSupport
 import SourceKitLSP
 import XCTest
 
-final class InlayHintsTests: XCTestCase {
+final class InlayHintTests: XCTestCase {
   /// Connection and lifetime management for the service.
   var connection: TestSourceKitServer! = nil
 
@@ -42,7 +42,7 @@ final class InlayHintsTests: XCTestCase {
     ))
   }
 
-  func performInlayHintsRequest(text: String, range: Range<Position>? = nil) throws -> [InlayHint] {
+  func performInlayHintRequest(text: String, range: Range<Position>? = nil) throws -> [InlayHint] {
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     
     sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
@@ -52,7 +52,7 @@ final class InlayHintsTests: XCTestCase {
       text: text
     )))
 
-    let request = InlayHintsRequest(textDocument: TextDocumentIdentifier(url), range: range)
+    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(url), range: range)
 
     do {
       return try sk.sendSync(request)
@@ -61,9 +61,20 @@ final class InlayHintsTests: XCTestCase {
     }
   }
 
+  private func makeInlayHint(position: Position, kind: InlayHintKind, label: String) -> InlayHint {
+    InlayHint(
+      position: position,
+      kind: kind,
+      label: .string(label),
+      textEdits: [
+        TextEdit(range: position..<position, newText: label)
+      ]
+    )
+  }
+
   func testEmpty() throws {
     let text = ""
-    let hints = try performInlayHintsRequest(text: text)
+    let hints = try performInlayHintRequest(text: text)
     XCTAssertEqual(hints, [])
   }
 
@@ -72,17 +83,17 @@ final class InlayHintsTests: XCTestCase {
     let x = 4
     var y = "test" + "123"
     """
-    let hints = try performInlayHintsRequest(text: text)
+    let hints = try performInlayHintRequest(text: text)
     XCTAssertEqual(hints, [
-      InlayHint(
+      makeInlayHint(
         position: Position(line: 0, utf16index: 5),
-        category: .type,
-        label: "Int"
+        kind: .type,
+        label: ": Int"
       ),
-      InlayHint(
+      makeInlayHint(
         position: Position(line: 1, utf16index: 5),
-        category: .type,
-        label: "String"
+        kind: .type,
+        label: ": String"
       ),
     ])
   }
@@ -101,17 +112,17 @@ final class InlayHintsTests: XCTestCase {
     }
     """
     let range = Position(line: 6, utf16index: 0)..<Position(line: 9, utf16index: 0)
-    let hints = try performInlayHintsRequest(text: text, range: range)
+    let hints = try performInlayHintRequest(text: text, range: range)
     XCTAssertEqual(hints, [
-      InlayHint(
+      makeInlayHint(
         position: Position(line: 6, utf16index: 10),
-        category: .type,
-        label: "Bool"
+        kind: .type,
+        label: ": Bool"
       ),
-      InlayHint(
+      makeInlayHint(
         position: Position(line: 7, utf16index: 12),
-        category: .type,
-        label: "Int"
+        kind: .type,
+        label: ": Int"
       )
     ])
   }
@@ -132,32 +143,32 @@ final class InlayHintsTests: XCTestCase {
       static let staticMember = 3.0
     }
     """
-    let hints = try performInlayHintsRequest(text: text)
+    let hints = try performInlayHintRequest(text: text)
     XCTAssertEqual(hints, [
-      InlayHint(
+      makeInlayHint(
         position: Position(line: 1, utf16index: 20),
-        category: .type,
-        label: "Int"
+        kind: .type,
+        label: ": Int"
       ),
-      InlayHint(
+      makeInlayHint(
         position: Position(line: 2, utf16index: 25),
-        category: .type,
-        label: "String"
+        kind: .type,
+        label: ": String"
       ),
-      InlayHint(
+      makeInlayHint(
         position: Position(line: 6, utf16index: 20),
-        category: .type,
-        label: "String"
+        kind: .type,
+        label: ": String"
       ),
-      InlayHint(
+      makeInlayHint(
         position: Position(line: 7, utf16index: 25),
-        category: .type,
-        label: "Int"
+        kind: .type,
+        label: ": Int"
       ),
-      InlayHint(
+      makeInlayHint(
         position: Position(line: 11, utf16index: 25),
-        category: .type,
-        label: "Double"
+        kind: .type,
+        label: ": Double"
       ),
     ])
   }
@@ -170,7 +181,7 @@ final class InlayHintsTests: XCTestCase {
       var y: Int = 34
     }
     """
-    let hints = try performInlayHintsRequest(text: text)
+    let hints = try performInlayHintRequest(text: text)
     XCTAssertEqual(hints, [])
   }
 
@@ -184,27 +195,27 @@ final class InlayHintsTests: XCTestCase {
       x + y
     }
     """
-    let hints = try performInlayHintsRequest(text: text)
+    let hints = try performInlayHintRequest(text: text)
     XCTAssertEqual(hints, [
-      InlayHint(
+      makeInlayHint(
         position: Position(line: 2, utf16index: 5),
-        category: .type,
-        label: "(Int) -> ()"
+        kind: .type,
+        label: ": (Int) -> ()"
       ),
-      InlayHint(
+      makeInlayHint(
         position: Position(line: 3, utf16index: 31),
-        category: .type,
-        label: "String"
+        kind: .type,
+        label: ": String"
       ),
-      InlayHint(
+      makeInlayHint(
         position: Position(line: 4, utf16index: 40),
-        category: .type,
-        label: "Double"
+        kind: .type,
+        label: ": Double"
       ),
-      InlayHint(
+      makeInlayHint(
         position: Position(line: 4, utf16index: 43),
-        category: .type,
-        label: "Double"
+        kind: .type,
+        label: ": Double"
       )
     ])
   }
