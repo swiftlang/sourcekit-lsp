@@ -89,7 +89,7 @@ final class DiagnosticsTests: XCTestCase {
     }
     """)
 
-    self.wait(for: [syntacticDiagnosticsReceived, semanticDiagnosticsReceived], timeout: 5)
+    self.wait(for: [syntacticDiagnosticsReceived, semanticDiagnosticsReceived], timeout: defaultTimeout)
   }
 
   func testRangeShiftAfterNewlineAdded() {
@@ -114,7 +114,7 @@ final class DiagnosticsTests: XCTestCase {
     }
     """)
 
-    self.wait(for: [initialSyntacticDiagnosticsReceived, initialSemanticDiagnosticsReceived], timeout: 5)
+    self.wait(for: [initialSyntacticDiagnosticsReceived, initialSemanticDiagnosticsReceived], timeout: defaultTimeout)
 
     let editedSyntacticDiagnosticsReceived = self.expectation(description: "Syntactic diagnotistics after edit received")
     let editedSemanticDiagnosticsReceived = self.expectation(description: "Semantic diagnotistics after edit received")
@@ -136,7 +136,7 @@ final class DiagnosticsTests: XCTestCase {
       TextDocumentContentChangeEvent(range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0), rangeLength: 0, text: "\n")
     ])
 
-    self.wait(for: [editedSyntacticDiagnosticsReceived, editedSemanticDiagnosticsReceived], timeout: 5)
+    self.wait(for: [editedSyntacticDiagnosticsReceived, editedSemanticDiagnosticsReceived], timeout: defaultTimeout)
   }
 
   func testRangeShiftAfterNewlineRemoved() {
@@ -162,7 +162,7 @@ final class DiagnosticsTests: XCTestCase {
     }
     """)
 
-    self.wait(for: [initialSyntacticDiagnosticsReceived, initialSemanticDiagnosticsReceived], timeout: 5)
+    self.wait(for: [initialSyntacticDiagnosticsReceived, initialSemanticDiagnosticsReceived], timeout: defaultTimeout)
 
     let editedSyntacticDiagnosticsReceived = self.expectation(description: "Syntactic diagnotistics after edit received")
     let editedSemanticDiagnosticsReceived = self.expectation(description: "Semantic diagnotistics after edit received")
@@ -184,6 +184,6 @@ final class DiagnosticsTests: XCTestCase {
       TextDocumentContentChangeEvent(range: Position(line: 0, utf16index: 0)..<Position(line: 1, utf16index: 0), rangeLength: 1, text: "")
     ])
 
-    self.wait(for: [editedSyntacticDiagnosticsReceived, editedSemanticDiagnosticsReceived], timeout: 5)
+    self.wait(for: [editedSyntacticDiagnosticsReceived, editedSemanticDiagnosticsReceived], timeout: defaultTimeout)
   }
 }

@@ -36,7 +36,7 @@ class ConnectionPerfTests: PerfTestCase {
         expectation.fulfill()
       }
 
-      waitForExpectations(timeout: 10)
+      waitForExpectations(timeout: defaultTimeout)
     }
   }
 
@@ -48,7 +48,7 @@ class ConnectionPerfTests: PerfTestCase {
         _ = client.send(EchoRequest(string: "hello!")) { _ in
           sema.signal()
         }
-        XCTAssertEqual(sema.wait(timeout: .now() + .seconds(10)), .success)
+        XCTAssertEqual(sema.wait(timeout: .now() + .seconds(Int(defaultTimeout))), .success)
       }
     }
   }
@@ -63,7 +63,7 @@ class ConnectionPerfTests: PerfTestCase {
         }
       })
       for _ in 1...100 {
-        XCTAssertEqual(sema.wait(timeout: .now() + .seconds(10)), .success)
+        XCTAssertEqual(sema.wait(timeout: .now() + .seconds(Int(defaultTimeout))), .success)
       }
     }
   }

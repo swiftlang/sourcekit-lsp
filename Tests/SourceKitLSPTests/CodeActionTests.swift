@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LSPTestSupport
 import SKTestSupport
 import SourceKitLSP
 import XCTest
@@ -275,7 +276,7 @@ final class CodeActionTests: XCTestCase {
       semanticDiagnosticsReceived.fulfill()
     }
 
-    self.wait(for: [syntacticDiagnosticsReceived, semanticDiagnosticsReceived], timeout: 30)
+    self.wait(for: [syntacticDiagnosticsReceived, semanticDiagnosticsReceived], timeout: defaultTimeout)
 
     let textDocument = TextDocumentIdentifier(def.url)
     let actionsRequest = CodeActionRequest(range: def.position..<def.position, context: .init(diagnostics: diags), textDocument: textDocument)
@@ -329,6 +330,6 @@ final class CodeActionTests: XCTestCase {
     }
     _ = try ws.sk.sendSync(ExecuteCommandRequest(command: command.command, arguments: command.arguments))
 
-    self.wait(for: [editReceived], timeout: 5)
+    self.wait(for: [editReceived], timeout: defaultTimeout)
   }
 }

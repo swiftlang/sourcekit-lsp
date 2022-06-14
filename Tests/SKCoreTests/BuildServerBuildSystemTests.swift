@@ -13,6 +13,7 @@
 import BuildServerProtocol
 import Foundation
 import LanguageServerProtocol
+import LSPTestSupport
 import SKCore
 import SKTestSupport
 import TSCBasic
@@ -61,7 +62,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
     buildSystem.delegate = buildSystemDelegate
     buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl), language: .swift)
 
-    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
+    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: defaultTimeout), .completed)
   }
 
   func testBuildTargets() throws {
@@ -93,7 +94,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
         XCTFail(error.message)
       }
     })
-    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
+    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: defaultTimeout), .completed)
   }
 
   func testBuildTargetSources() throws {
@@ -123,7 +124,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
         XCTFail(error.message)
       }
     })
-    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
+    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: defaultTimeout), .completed)
   }
 
   func testBuildTargetOutputs() throws {
@@ -147,7 +148,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
         XCTFail(error.message)
       }
     })
-    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 15), .completed)
+    XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: defaultTimeout), .completed)
   }
 
   func testBuildTargetsChanged() throws {
@@ -168,7 +169,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
     buildSystem.delegate = buildSystemDelegate
     buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl), language: .swift)
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: 15)
+    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
     if result != .completed {
       fatalError("error \(result) waiting for targets changed notification")
     }

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LSPTestSupport
 import SourceKitLSP
 import SKCore
 import SKTestSupport
@@ -116,7 +117,7 @@ final class WorkspaceTests: XCTestCase {
 
     try! ws.openDocument(loc.url, language: .objective_c)
 
-    waitForExpectations(timeout: 15)
+    waitForExpectations(timeout: defaultTimeout)
 
     let otherWs = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings", server: ws.testServer)!
     assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
@@ -217,7 +218,7 @@ final class WorkspaceTests: XCTestCase {
       }
     }
 
-    self.wait(for: [receivedResponse], timeout: 30)
+    self.wait(for: [receivedResponse], timeout: defaultTimeout)
   }
 
   func testChangeWorkspaceFolders() throws {

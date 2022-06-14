@@ -39,7 +39,7 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: defaultTimeout)
   }
 
   func testEchoError() {
@@ -57,7 +57,7 @@ class ConnectionTests: XCTestCase {
       expectation2.fulfill()
     }
 
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: defaultTimeout)
   }
 
   func testEchoNote() {
@@ -71,6 +71,6 @@ class ConnectionTests: XCTestCase {
 
     client.send(EchoNotification(string: "hello!"))
 
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: defaultTimeout)
   }
 }

@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPTestSupport
 import SourceKitD
 import SKCore
 import TSCBasic
@@ -88,7 +89,7 @@ final class SourceKitDTests: XCTestCase {
 
     _ = try! sourcekitd.sendSync(req)
 
-    waitForExpectations(timeout: 15)
+    waitForExpectations(timeout: defaultTimeout)
 
     let close = SKDRequestDictionary(sourcekitd: sourcekitd)
     close[keys.request] = sourcekitd.requests.editor_close

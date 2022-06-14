@@ -50,7 +50,7 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: defaultTimeout)
   }
 
   func testMessageBuffer() {
@@ -75,7 +75,7 @@ class ConnectionTests: XCTestCase {
 
     clientConnection.send(_rawData: [note1Str.utf8.last!, note2Str.utf8.first!].withUnsafeBytes { DispatchData(bytes: $0) })
 
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: defaultTimeout)
 
     let expectation2 = self.expectation(description: "note received")
 
@@ -88,7 +88,7 @@ class ConnectionTests: XCTestCase {
       clientConnection.send(_rawData: [b].withUnsafeBytes { DispatchData(bytes: $0) })
     }
 
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: defaultTimeout)
 
     // Close the connection before accessing _requestBuffer, which ensures we don't race.
     connection.serverConnection.close()
@@ -110,7 +110,7 @@ class ConnectionTests: XCTestCase {
       expectation2.fulfill()
     }
 
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: defaultTimeout)
   }
 
   func testEchoNote() {
@@ -124,7 +124,7 @@ class ConnectionTests: XCTestCase {
 
     client.send(EchoNotification(string: "hello!"))
 
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: defaultTimeout)
   }
 
   func testUnknownRequest() {
@@ -141,7 +141,7 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: defaultTimeout)
   }
 
   func testUnknownNotification() {
@@ -161,7 +161,7 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: defaultTimeout)
   }
 
   func testUnexpectedResponse() {
@@ -178,7 +178,7 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: defaultTimeout)
   }
 
   func testSendAfterClose() {
@@ -198,7 +198,7 @@ class ConnectionTests: XCTestCase {
     connection.clientConnection.close()
     connection.clientConnection.close()
 
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: defaultTimeout)
   }
 
   func testSendBeforeClose() {
@@ -213,7 +213,7 @@ class ConnectionTests: XCTestCase {
     server.client.send(EchoNotification(string: "about to close!"))
     connection.serverConnection.close()
 
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: defaultTimeout)
   }
   
   func testSendSynchronouslyBeforeClose() {
@@ -227,7 +227,7 @@ class ConnectionTests: XCTestCase {
     connection.serverConnection._send(.notification(notification), async: false)
     connection.serverConnection.close()
 
-    waitForExpectations(timeout: 10)
+    waitForExpectations(timeout: defaultTimeout)
   }
 
   /// We can explicitly close a connection, but the connection also
@@ -272,7 +272,7 @@ class ConnectionTests: XCTestCase {
       conn.close()
 
       withExtendedLifetime(conn) {
-        waitForExpectations(timeout: 10)
+        waitForExpectations(timeout: defaultTimeout)
       }
     }
   }

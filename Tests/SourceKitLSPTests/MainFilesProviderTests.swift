@@ -14,6 +14,7 @@ import SourceKitLSP
 import SKCore
 import SKTestSupport
 import LanguageServerProtocol
+import LSPTestSupport
 import IndexStoreDB
 import XCTest
 
@@ -61,7 +62,7 @@ final class MainFilesProviderTests: XCTestCase {
     XCTAssertEqual(ws.index.mainFilesContainingFile(shared_h), [c, d])
     XCTAssertEqual(ws.index.mainFilesContainingFile(bridging), [c])
 
-    wait(for: [mainFilesDelegate.expectation], timeout: 15)
+    wait(for: [mainFilesDelegate.expectation], timeout: defaultTimeout)
 
     try! ws.edit { changes, _ in
       changes.write("""
@@ -82,7 +83,7 @@ final class MainFilesProviderTests: XCTestCase {
     XCTAssertEqual(ws.index.mainFilesContainingFile(shared_h), [])
     XCTAssertEqual(ws.index.mainFilesContainingFile(bridging), [d])
 
-    wait(for: [mainFilesDelegate.expectation], timeout: 15)
+    wait(for: [mainFilesDelegate.expectation], timeout: defaultTimeout)
 
     XCTAssertEqual(ws.index.mainFilesContainingFile(DocumentURI(string: "not:file")), [])
   }

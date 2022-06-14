@@ -181,7 +181,7 @@ final class BuildSystemTests: XCTestCase {
 
     buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: 5)
+    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
     if result != .completed {
       fatalError("error \(result) waiting for diagnostics notification")
     }
@@ -237,7 +237,7 @@ final class BuildSystemTests: XCTestCase {
     }
     buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: 5)
+    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
     if result != .completed {
       fatalError("error \(result) waiting for diagnostics notification")
     }
@@ -287,7 +287,7 @@ final class BuildSystemTests: XCTestCase {
 
     buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: 5)
+    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
     if result != .completed {
       fatalError("error \(result) waiting for diagnostics notification")
     }
@@ -342,7 +342,7 @@ final class BuildSystemTests: XCTestCase {
     }
     buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(primarySettings)])
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: 5)
+    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
     if result != .completed {
       fatalError("error \(result) waiting for diagnostics notification")
     }
@@ -401,7 +401,7 @@ final class BuildSystemTests: XCTestCase {
     }
 
     try! ws.openDocument(unique_h.fileURL!, language: .cpp)
-    wait(for: [expectation], timeout: 15)
+    wait(for: [expectation], timeout: defaultTimeout)
 
     let use_d = self.expectation(description: "update settings to d.cpp")
     ws.testServer.client.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
@@ -414,7 +414,7 @@ final class BuildSystemTests: XCTestCase {
     }
 
     try! ws.buildAndIndex()
-    wait(for: [use_d], timeout: 15)
+    wait(for: [use_d], timeout: defaultTimeout)
 
     let use_c = self.expectation(description: "update settings to c.cpp")
     ws.testServer.client.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
@@ -435,7 +435,7 @@ final class BuildSystemTests: XCTestCase {
         """, to: ws.testLoc("c_func").url)
     }
 
-    wait(for: [use_c], timeout: 15)
+    wait(for: [use_c], timeout: defaultTimeout)
   }
 
   private func clangBuildSettings(for uri: DocumentURI) -> FileBuildSettings {
