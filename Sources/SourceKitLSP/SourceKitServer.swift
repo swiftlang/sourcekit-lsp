@@ -891,6 +891,10 @@ extension SourceKitServer {
   }
 
   func didChangeWorkspaceFolders(_ note: Notification<DidChangeWorkspaceFoldersNotification>) {
+    var preChangeWorkspaces: [DocumentURI: Workspace] = [:]
+    for docUri in self.documentManager.openDocuments {
+      preChangeWorkspaces[docUri] = self.workspaceForDocument(uri: docUri)
+    }
     if let removed = note.params.event.removed {
       self.workspaces.removeAll { workspace in
         return removed.contains(where: { workspaceFolder in
@@ -904,6 +908,31 @@ extension SourceKitServer {
         workspace.buildSystemManager.delegate = self
       }
       self.workspaces.append(contentsOf: newWorkspaces)
+    }
+
+    // For each document that has moved to a different workspace, close it in
+    // the old workspace and open it in the new workspace.
+    for docUri in self.documentManager.openDocuments {
+      let oldWorkspace = preChangeWorkspaces[docUri]
+      let newWorkspace = self.workspaceForDocument(uri: docUri)
+      if newWorkspace !== oldWorkspace {
+        guard let snapshot = documentManager.latestSnapshot(docUri) else {
+          continue
+        }
+        if let oldWorkspace = oldWorkspace {
+          self.closeDocument(DidCloseTextDocumentNotification(
+            textDocument: TextDocumentIdentifier(docUri)
+          ), workspace: oldWorkspace)
+        }
+        if let newWorkspace = newWorkspace {
+          self.openDocument(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+            uri: docUri,
+            language: snapshot.document.language,
+            version: snapshot.version,
+            text: snapshot.text
+          )), workspace: newWorkspace)
+        }
+      }
     }
   }
 

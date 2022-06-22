@@ -12,6 +12,9 @@
 
 import LanguageServerProtocol
 import SourceKitLSP
+import SKCore
+import SKTestSupport
+import TSCBasic
 import XCTest
 
 fileprivate extension SourceKitServer {
@@ -215,5 +218,88 @@ final class WorkspaceTests: XCTestCase {
     }
 
     self.wait(for: [receivedResponse], timeout: 30)
+  }
+
+  func testChangeWorkspaceFolders() throws {
+    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "ChangeWorkspaceFolders") else { return }
+    // Build the package. We can't use ws.buildAndIndex() because that doesn't put the build products in .build where SourceKit-LSP expects them.
+    try TSCBasic.Process.checkNonZeroExit(arguments: [
+      String(ToolchainRegistry.shared.default!.swiftc!.pathString.dropLast()),
+      "build",
+      "--package-path", ws.sources.rootDirectory.path,
+      "-Xswiftc", "-index-ignore-system-modules",
+      "-Xcc", "-index-ignore-system-symbols",
+    ])
+
+    let otherPackLoc = ws.testLoc("otherPackage:call")
+
+    let testServer = TestSourceKitServer(connectionKind: .local)
+    let sk = testServer.client
+    _ = try sk.sendSync(InitializeRequest(
+      rootURI: nil,
+      capabilities: ClientCapabilities(workspace: .init(workspaceFolders: true)),
+      workspaceFolders: [
+        WorkspaceFolder(uri: DocumentURI(ws.sources.rootDirectory.deletingLastPathComponent()))
+      ]
+    ))
+
+    let docString = try String(data: Data(contentsOf: otherPackLoc.url), encoding: .utf8)!
+
+    sk.send(DidOpenTextDocumentNotification(
+      textDocument: TextDocumentItem(
+      uri: otherPackLoc.docUri,
+      language: .swift,
+      version: 1,
+      text: docString)
+    ))
+
+    let preChangeWorkspaceResponse = try sk.sendSync(CompletionRequest(
+      textDocument: TextDocumentIdentifier(otherPackLoc.docUri),
+      position: otherPackLoc.position
+    ))
+
+    XCTAssertEqual(preChangeWorkspaceResponse.items, [], "Did not expect to receive cross-module code completion results if we opened the parent directory of the package")
+
+    sk.send(DidChangeWorkspaceFoldersNotification(event: WorkspaceFoldersChangeEvent(added: [
+      WorkspaceFolder(uri: DocumentURI(ws.sources.rootDirectory))
+    ])))
+
+    let postChangeWorkspaceResponse = try sk.sendSync(CompletionRequest(
+      textDocument: TextDocumentIdentifier(otherPackLoc.docUri),
+      position: otherPackLoc.position
+    ))
+
+    XCTAssertEqual(postChangeWorkspaceResponse.items, [
+      CompletionItem(
+        label: "helloWorld()",
+        kind: .method,
+        detail: "Void",
+        documentation: nil,
+        sortText: nil,
+        filterText: "helloWorld()",
+        textEdit: TextEdit(
+          range: otherPackLoc.position..<otherPackLoc.position,
+          newText: "helloWorld()"
+        ),
+        insertText: "helloWorld()",
+        insertTextFormat: .plain,
+        deprecated: false
+      ),
+      CompletionItem(
+        label: "self",
+        kind: .keyword,
+        detail: "Package",
+        documentation: nil,
+        sortText: nil,
+        filterText: "self",
+        textEdit: TextEdit(
+          range: otherPackLoc.position..<otherPackLoc.position,
+          newText: "self"
+        ),
+        insertText: "self",
+        insertTextFormat: .plain,
+        deprecated: false
+      )
+    ])
   }
 }
