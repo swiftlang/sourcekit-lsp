@@ -499,6 +499,33 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     }
   }
 
+  /// Capabilities specific to 'textDocument/inlayHint'.
+  public struct InlayHint: Hashable, Codable {
+    /// Properties a client can resolve lazily.
+    public struct ResolveSupport: Hashable, Codable {
+      /// The properties that a client can resolve lazily.
+      public var properties: [String]
+
+      public init(properties: [String] = []) {
+        self.properties = properties
+      }
+    }
+
+    /// Whether inlay hints support dynamic registration.
+    public var dynamicRegistration: Bool?
+
+    /// Indicates which properties a client can resolve lazily on an inlay hint.
+    public var resolveSupport: ResolveSupport?
+
+    public init(
+      dynamicRegistration: Bool? = nil,
+      resolveSupport: ResolveSupport? = nil
+    ) {
+      self.dynamicRegistration = dynamicRegistration
+      self.resolveSupport = resolveSupport
+    }
+  }
+
   // MARK: Properties
 
   public var synchronization: Synchronization? = nil
@@ -547,6 +574,8 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
   public var semanticTokens: SemanticTokens? = nil
 
+  public var inlayHint: InlayHint? = nil
+
   public init(synchronization: Synchronization? = nil,
               completion: Completion? = nil,
               hover: Hover? = nil,
@@ -569,7 +598,8 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
               publishDiagnostics: PublishDiagnostics? = nil,
               foldingRange: FoldingRange? = nil,
               callHierarchy: DynamicRegistrationCapability? = nil,
-              semanticTokens: SemanticTokens? = nil) {
+              semanticTokens: SemanticTokens? = nil,
+              inlayHint: InlayHint? = nil) {
     self.synchronization = synchronization
     self.completion = completion
     self.hover = hover
@@ -593,5 +623,6 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     self.foldingRange = foldingRange
     self.callHierarchy = callHierarchy
     self.semanticTokens = semanticTokens
+    self.inlayHint = inlayHint
   }
 }

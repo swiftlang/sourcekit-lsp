@@ -94,7 +94,7 @@ public protocol ToolchainLanguageServer: AnyObject {
   func documentSemanticTokensRange(_ req: Request<DocumentSemanticTokensRangeRequest>)
   func colorPresentation(_ req: Request<ColorPresentationRequest>)
   func codeAction(_ req: Request<CodeActionRequest>)
-  func inlayHints(_ req: Request<InlayHintsRequest>)
+  func inlayHint(_ req: Request<InlayHintRequest>)
 
   // MARK: - Other
 
