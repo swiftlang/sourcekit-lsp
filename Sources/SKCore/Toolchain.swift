@@ -148,7 +148,13 @@ extension Toolchain {
     }
 
     // If 'currentPlatform' is nil it's most likely an unknown linux flavor.
-    let dylibExt = Platform.currentPlatform?.dynamicLibraryExtension ?? ".so"
+    let dylibExt: String
+    if let dynamicLibraryExtension = Platform.currentPlatform?.dynamicLibraryExtension {
+      dylibExt = dynamicLibraryExtension
+    } else {
+      log("Could not determine host OS. Falling back to using '.so' as dynamic library extension", level: .error)
+      dylibExt = ".so"
+    }
 
     let sourcekitdPath = libPath.appending(components: "sourcekitd.framework", "sourcekitd")
     if fs.isFile(sourcekitdPath) {
