@@ -12,6 +12,7 @@
 
 import ISDBTestSupport
 import LanguageServerProtocol
+import LSPTestSupport
 import LSPLogging
 import SourceKitLSP
 import SourceKitD
@@ -68,7 +69,7 @@ final class CrashRecoveryTests: XCTestCase {
       documentOpened.fulfill()
     })
     try! ws.openDocument(loc.url, language: .swift)
-    self.wait(for: [documentOpened], timeout: 10)
+    self.wait(for: [documentOpened], timeout: defaultTimeout)
 
     // Make a change to the file that's not saved to disk. This way we can check that we re-open the correct in-memory state.
 

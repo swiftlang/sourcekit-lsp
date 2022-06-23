@@ -602,7 +602,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(1, list.items.count)
     }
 
-    wait(for: [forSomeExpectation, printExpectation], timeout: 10)
+    wait(for: [forSomeExpectation, printExpectation], timeout: defaultTimeout)
 
     // Try code completion for "self.forSome" again to verify that it still works.
     let result = try sk.sendSync(forSomeComplete)

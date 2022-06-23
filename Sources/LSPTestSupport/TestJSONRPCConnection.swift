@@ -177,7 +177,7 @@ extension TestClient: Connection {
 
     send(notification)
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: 15)
+    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
     if result != .completed {
       fatalError("error \(result) waiting for notification in response to \(notification)")
     }
@@ -205,7 +205,7 @@ extension TestClient: Connection {
 
     send(notification)
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: 15)
+    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
     if result != .completed {
       fatalError("error \(result) waiting for notification in response to \(notification)")
     }

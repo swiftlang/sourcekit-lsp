@@ -195,7 +195,7 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .cpp)
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: 15)
+    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
     if result != .completed {
       fatalError("error \(result) waiting for diagnostics notification")
     }
@@ -230,7 +230,7 @@ final class LocalClangTests: XCTestCase {
       command: command.command, arguments: command.arguments)
     _ = try ws.sk.sendSync(executeCommand)
 
-    let editResult = XCTWaiter.wait(for: [applyEdit], timeout: 15)
+    let editResult = XCTWaiter.wait(for: [applyEdit], timeout: defaultTimeout)
     if editResult != .completed {
       fatalError("error \(editResult) waiting for applyEdit request")
     }
@@ -256,7 +256,7 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .cpp)
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: 15)
+    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
     if result != .completed {
       fatalError("error \(result) waiting for diagnostics notification")
     }
@@ -278,7 +278,7 @@ final class LocalClangTests: XCTestCase {
     try! ws.openDocument(loc.url, language: .objective_c)
 
     withExtendedLifetime(ws) {
-      waitForExpectations(timeout: 15)
+      waitForExpectations(timeout: defaultTimeout)
     }
   }
 
@@ -296,7 +296,7 @@ final class LocalClangTests: XCTestCase {
     }
 
     try ws.openDocument(mainLoc.url, language: .c)
-    waitForExpectations(timeout: 15)
+    waitForExpectations(timeout: defaultTimeout)
 
     let request = DocumentSemanticTokensRequest(textDocument: mainLoc.docIdentifier)
     do {

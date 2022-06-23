@@ -105,13 +105,13 @@ final class BuildSystemManagerTests: XCTestCase {
     let initial = expectation(description: "initial settings")
     del.expected = [(a, bs.map[a]!, initial, #file, #line)]
     bsm.registerForChangeNotifications(for: a, language: .swift)
-    wait(for: [initial], timeout: 10, enforceOrder: true)
+    wait(for: [initial], timeout: defaultTimeout, enforceOrder: true)
 
     bs.map[a] = nil
     let changed = expectation(description: "changed settings")
     del.expected = [(a, nil, changed, #file, #line)]
     bsm.fileBuildSettingsChanged([a: .removedOrUnavailable])
-    wait(for: [changed], timeout: 10, enforceOrder: true)
+    wait(for: [changed], timeout: defaultTimeout, enforceOrder: true)
   }
 
   func testSettingsMainFileInitialNil() {
@@ -128,13 +128,13 @@ final class BuildSystemManagerTests: XCTestCase {
     let initial = expectation(description: "initial settings")
     del.expected = [(a, nil, initial, #file, #line)]
     bsm.registerForChangeNotifications(for: a, language: .swift)
-    wait(for: [initial], timeout: 10, enforceOrder: true)
+    wait(for: [initial], timeout: defaultTimeout, enforceOrder: true)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
     let changed = expectation(description: "changed settings")
     del.expected = [(a, bs.map[a]!, changed, #file, #line)]
     bsm.fileBuildSettingsChanged([a: .modified(bs.map[a]!)])
-    wait(for: [changed], timeout: 10, enforceOrder: true)
+    wait(for: [changed], timeout: defaultTimeout, enforceOrder: true)
   }
 
   func testSettingsMainFileWithFallback() {
@@ -153,19 +153,19 @@ final class BuildSystemManagerTests: XCTestCase {
     let initial = expectation(description: "initial fallback settings")
     del.expected = [(a, fallbackSettings, initial, #file, #line)]
     bsm.registerForChangeNotifications(for: a, language: .swift)
-    wait(for: [initial], timeout: 10, enforceOrder: true)
+    wait(for: [initial], timeout: defaultTimeout, enforceOrder: true)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["non-fallback", "args"])
     let changed = expectation(description: "changed settings")
     del.expected = [(a, bs.map[a]!, changed, #file, #line)]
     bsm.fileBuildSettingsChanged([a: .modified(bs.map[a]!)])
-    wait(for: [changed], timeout: 10, enforceOrder: true)
+    wait(for: [changed], timeout: defaultTimeout, enforceOrder: true)
 
     bs.map[a] = nil
     let revert = expectation(description: "revert to fallback settings")
     del.expected = [(a, fallbackSettings, revert, #file, #line)]
     bsm.fileBuildSettingsChanged([a: .removedOrUnavailable])
-    wait(for: [revert], timeout: 10, enforceOrder: true)
+    wait(for: [revert], timeout: defaultTimeout, enforceOrder: true)
   }
 
   func testSettingsMainFileInitialIntersect() {
@@ -186,18 +186,18 @@ final class BuildSystemManagerTests: XCTestCase {
     let initial = expectation(description: "initial settings")
     del.expected = [(a, bs.map[a]!, initial, #file, #line)]
     bsm.registerForChangeNotifications(for: a, language: .swift)
-    wait(for: [initial], timeout: 10, enforceOrder: true)
+    wait(for: [initial], timeout: defaultTimeout, enforceOrder: true)
     let initialB = expectation(description: "initial settings")
     del.expected = [(b, bs.map[b]!, initialB, #file, #line)]
     bsm.registerForChangeNotifications(for: b, language: .swift)
-    wait(for: [initialB], timeout: 10, enforceOrder: true)
+    wait(for: [initialB], timeout: defaultTimeout, enforceOrder: true)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["xx"])
     bs.map[b] = FileBuildSettings(compilerArguments: ["yy"])
     let changed = expectation(description: "changed settings")
     del.expected = [(a, bs.map[a]!, changed, #file, #line)]
     bsm.fileBuildSettingsChanged([a: .modified(bs.map[a]!)])
-    wait(for: [changed], timeout: 10, enforceOrder: true)
+    wait(for: [changed], timeout: defaultTimeout, enforceOrder: true)
 
     // Test multiple changes.
     bs.map[a] = FileBuildSettings(compilerArguments: ["xxx"])
@@ -212,7 +212,7 @@ final class BuildSystemManagerTests: XCTestCase {
       a:. modified(bs.map[a]!),
       b: .modified(bs.map[b]!)
     ])
-    wait(for: [changedBothA, changedBothB], timeout: 10, enforceOrder: false)
+    wait(for: [changedBothA, changedBothB], timeout: defaultTimeout, enforceOrder: false)
   }
 
   func testSettingsMainFileUnchanged() {
@@ -234,12 +234,12 @@ final class BuildSystemManagerTests: XCTestCase {
     let initialA = expectation(description: "initial settings a")
     del.expected = [(a, bs.map[a]!, initialA, #file, #line)]
     bsm.registerForChangeNotifications(for: a, language: .swift)
-    wait(for: [initialA], timeout: 10, enforceOrder: true)
+    wait(for: [initialA], timeout: defaultTimeout, enforceOrder: true)
 
     let initialB = expectation(description: "initial settings b")
     del.expected = [(b, bs.map[b]!, initialB, #file, #line)]
     bsm.registerForChangeNotifications(for: b, language: .swift)
-    wait(for: [initialB], timeout: 10, enforceOrder: true)
+    wait(for: [initialB], timeout: defaultTimeout, enforceOrder: true)
 
     bs.map[a] = nil
     bs.map[b] = nil
@@ -248,7 +248,7 @@ final class BuildSystemManagerTests: XCTestCase {
     bsm.fileBuildSettingsChanged([
       b: .removedOrUnavailable
     ])
-    wait(for: [changed], timeout: 10, enforceOrder: true)
+    wait(for: [changed], timeout: defaultTimeout, enforceOrder: true)
   }
 
   func testSettingsHeaderChangeMainFile() {
@@ -276,14 +276,14 @@ final class BuildSystemManagerTests: XCTestCase {
     let initial = expectation(description: "initial settings via cpp1")
     del.expected = [(h, bs.map[cpp1]!, initial, #file, #line)]
     bsm.registerForChangeNotifications(for: h, language: .c)
-    wait(for: [initial], timeout: 10, enforceOrder: true)
+    wait(for: [initial], timeout: defaultTimeout, enforceOrder: true)
 
     mainFiles.mainFiles[h] = Set([cpp2])
 
     let changed = expectation(description: "changed settings to cpp2")
     del.expected = [(h, bs.map[cpp2]!, changed, #file, #line)]
     bsm.mainFilesChanged()
-    wait(for: [changed], timeout: 10, enforceOrder: true)
+    wait(for: [changed], timeout: defaultTimeout, enforceOrder: true)
 
     let changed2 = expectation(description: "still cpp2, no update")
     changed2.isInverted = true
@@ -304,7 +304,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let changed4 = expectation(description: "changed settings to []")
     del.expected = [(h, nil, changed4, #file, #line)]
     bsm.mainFilesChanged()
-    wait(for: [changed4], timeout: 10, enforceOrder: true)
+    wait(for: [changed4], timeout: defaultTimeout, enforceOrder: true)
   }
 
   func testSettingsOneMainTwoHeader() {
@@ -342,7 +342,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     // Since the registration is async, it's possible that they get grouped together
     // since they are backed by the same underlying cpp file.
-    wait(for: [initial1, initial2], timeout: 10, enforceOrder: false)
+    wait(for: [initial1, initial2], timeout: defaultTimeout, enforceOrder: false)
 
     let newCppArg = "New C++ Main File"
     bs.map[cpp] = FileBuildSettings(compilerArguments: [newCppArg, cpp.pseudoPath])
@@ -356,7 +356,7 @@ final class BuildSystemManagerTests: XCTestCase {
     ]
     bsm.fileBuildSettingsChanged([cpp: .modified(bs.map[cpp]!)])
 
-    wait(for: [changed1, changed2], timeout: 10, enforceOrder: false)
+    wait(for: [changed1, changed2], timeout: defaultTimeout, enforceOrder: false)
   }
 
   func testSettingsChangedAfterUnregister() {
@@ -388,7 +388,7 @@ final class BuildSystemManagerTests: XCTestCase {
     bsm.registerForChangeNotifications(for: a, language: .swift)
     bsm.registerForChangeNotifications(for: b, language: .swift)
     bsm.registerForChangeNotifications(for: c, language: .swift)
-    wait(for: [initialA, initialB, initialC], timeout: 10, enforceOrder: false)
+    wait(for: [initialA, initialB, initialC], timeout: defaultTimeout, enforceOrder: false)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["new-a"])
     bs.map[b] = FileBuildSettings(compilerArguments: ["new-b"])
@@ -409,7 +409,7 @@ final class BuildSystemManagerTests: XCTestCase {
       c: .modified(bs.map[c]!)
     ])
 
-    wait(for: [changedB], timeout: 10, enforceOrder: false)
+    wait(for: [changedB], timeout: defaultTimeout, enforceOrder: false)
   }
 
   func testDependenciesUpdated() {
@@ -440,13 +440,13 @@ final class BuildSystemManagerTests: XCTestCase {
     del.expectedDependenciesUpdate = [(a, depUpdate1, #file, #line)]
 
     bsm.registerForChangeNotifications(for: a, language: .swift)
-    wait(for: [initial, depUpdate1], timeout: 10, enforceOrder: false)
+    wait(for: [initial, depUpdate1], timeout: defaultTimeout, enforceOrder: false)
 
     let depUpdate2 = expectation(description: "dependencies update 2")
     del.expectedDependenciesUpdate = [(a, depUpdate2, #file, #line)]
 
     bsm.filesDependenciesUpdated([a])
-    wait(for: [depUpdate2], timeout: 10, enforceOrder: false)
+    wait(for: [depUpdate2], timeout: defaultTimeout, enforceOrder: false)
   }
 }
 
