@@ -112,12 +112,14 @@ public final class Workspace {
       do {
         let lib = try IndexStoreLibrary(dylibPath: libPath.pathString)
         indexDelegate = SourceKitIndexDelegate()
+        let prefixMappings = indexOptions.indexPrefixMappings ?? buildSystem?.indexPrefixMappings ?? []
         index = try IndexStoreDB(
           storePath: storePath.pathString,
           databasePath: dbPath.pathString,
           library: lib,
           delegate: indexDelegate,
-          listenToUnitEvents: indexOptions.listenToUnitEvents)
+          listenToUnitEvents: indexOptions.listenToUnitEvents,
+          prefixMappings: prefixMappings.map { PathMapping(original: $0.original, replacement: $0.replacement) })
         log("opened IndexStoreDB at \(dbPath) with store path \(storePath)")
       } catch {
         log("failed to open IndexStoreDB: \(error.localizedDescription)", level: .error)
@@ -144,11 +146,22 @@ public struct IndexOptions {
   /// Override the index-database-path provided by the build system.
   public var indexDatabasePath: AbsolutePath?
 
+  /// Override the index prefix mappings provided by the build system.
+  public var indexPrefixMappings: [PathPrefixMapping]?
+
   /// *For Testing* Whether the index should listen to unit events, or wait for
   /// explicit calls to pollForUnitChangesAndWait().
   public var listenToUnitEvents: Bool
 
-  public init(indexStorePath: AbsolutePath? = nil, indexDatabasePath: AbsolutePath? = nil, listenToUnitEvents: Bool = true) {
+  public init(
+    indexStorePath: AbsolutePath? = nil,
+    indexDatabasePath: AbsolutePath? = nil,
+    indexPrefixMappings: [PathPrefixMapping]? = nil,
+    listenToUnitEvents: Bool = true
+  ) {
+    self.indexStorePath = indexStorePath
+    self.indexDatabasePath = indexDatabasePath
+    self.indexPrefixMappings = indexPrefixMappings
     self.listenToUnitEvents = listenToUnitEvents
   }
 }

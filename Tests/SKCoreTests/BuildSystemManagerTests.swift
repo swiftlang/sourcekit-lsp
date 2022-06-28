@@ -489,6 +489,7 @@ class ManualBuildSystem: BuildSystem {
 
   var indexStorePath: AbsolutePath? { nil }
   var indexDatabasePath: AbsolutePath? { nil }
+  var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
   func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
     fatalError()
