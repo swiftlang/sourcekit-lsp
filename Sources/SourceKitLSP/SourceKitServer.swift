@@ -1172,6 +1172,22 @@ extension SourceKitServer {
     languageService.inlayHint(req)
   }
 
+  /// Converts a location from the symbol index to an LSP location.
+  /// 
+  /// - Parameter location: The symbol index location
+  /// - Returns: The LSP location
+  private func indexToLSPLocation(_ location: SymbolLocation) -> Location? {
+    guard !location.path.isEmpty else { return nil }
+    return Location(
+      uri: DocumentURI(URL(fileURLWithPath: location.path)),
+      range: Range(Position(
+        line: location.line - 1, // 1-based -> 0-based
+        // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+        utf16index: location.utf8Column - 1
+      ))
+    )
+  }
+
   /// Extracts the locations of an indexed symbol's occurrences,
   /// e.g. for definition or reference lookups.
   /// 
@@ -1205,18 +1221,10 @@ extension SourceKitServer {
     }
 
     let occurs = extractOccurrences(usr, index)
-    let resolved = occurs.compactMap { occur -> (occurrence: SymbolOccurrence?, location: Location)? in
-      if occur.location.path.isEmpty {
-        return nil
+    let resolved = occurs.compactMap { occur in
+      indexToLSPLocation(occur.location).map {
+        (occurrence: occur, location: $0)
       }
-      return (occurrence: occur, location: Location(
-        uri: DocumentURI(URL(fileURLWithPath: occur.location.path)),
-        range: Range(Position(
-          line: occur.location.line - 1, // 1-based -> 0-based
-          // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
-          utf16index: occur.location.utf8Column - 1
-          ))
-      ))
     }
 
     return .success(resolved.isEmpty ? fallback : resolved)
