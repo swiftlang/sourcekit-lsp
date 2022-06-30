@@ -1172,6 +1172,55 @@ extension SourceKitServer {
     languageService.inlayHint(req)
   }
 
+  /// Extracts the locations of an indexed symbol's occurrences,
+  /// e.g. for definition or reference lookups.
+  /// 
+  /// - Parameters:
+  ///   - result: The symbol to look up
+  ///   - index: The index in which the occurrences will be looked up
+  ///   - useLocalFallback: Whether to consider the best known local declaration if no other locations are found
+  ///   - extractOccurrences: A function fetching the occurrences by the desired roles given a usr from the index
+  /// - Returns: The resolved symbol locations
+  private func extractIndexedOccurrences(
+    result: LSPResult<SymbolInfoRequest.Response>,
+    index: IndexStoreDB?,
+    useLocalFallback: Bool = false,
+    extractOccurrences: (String, IndexStoreDB) -> [SymbolOccurrence]
+  ) -> LSPResult<[Location]> {
+    guard case .success(let symbols) = result else {
+      return .failure(result.failure!)
+    }
+
+    guard let symbol = symbols.first else {
+      return .success([])
+    }
+
+    let fallbackLocation = useLocalFallback
+      ? [symbol.bestLocalDeclaration].compactMap { $0 }
+      : []
+
+    guard let usr = symbol.usr, let index = index else {
+      return .success(fallbackLocation)
+    }
+
+    let occurs = extractOccurrences(usr, index)
+    let locations = occurs.compactMap { occur -> Location? in
+      if occur.location.path.isEmpty {
+        return nil
+      }
+      return Location(
+        uri: DocumentURI(URL(fileURLWithPath: occur.location.path)),
+        range: Range(Position(
+          line: occur.location.line - 1, // 1-based -> 0-based
+          // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+          utf16index: occur.location.utf8Column - 1
+          ))
+      )
+    }
+
+    return .success(locations.isEmpty ? fallbackLocation : locations)
+  }
+
   func definition(
     _ req: Request<DefinitionRequest>,
     workspace: Workspace,
@@ -1179,65 +1228,36 @@ extension SourceKitServer {
   ) {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
     let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
-    // If we're unable to handle the definition request using our index, see if the
-    // language service can handle it (e.g. clangd can provide AST based definitions).
-    let resultHandler: ([Location], ResponseError?) -> Void = { (locs, error) in
-      guard locs.isEmpty else {
-        req.reply(.locations(locs))
-        return
-      }
-      let handled = languageService.definition(req)
-      guard !handled else { return }
-      if let error = error {
-        req.reply(.failure(error))
-      } else {
-        req.reply(.locations([]))
-      }
-    }
-    let callback = callbackOnQueue(self.queue) { (result: Result<SymbolInfoRequest.Response, ResponseError>) in
-      guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
-        resultHandler([], result.failure)
-        return
-      }
-
-      let fallbackLocation = [symbol.bestLocalDeclaration].compactMap { $0 }
-
-      guard let usr = symbol.usr, let index = index else {
-        resultHandler(fallbackLocation, nil)
-        return
-      }
-
-      log("performing indexed jump-to-def with usr \(usr)")
-
-      var occurs = index.occurrences(ofUSR: usr, roles: [.definition])
-      if occurs.isEmpty {
-        occurs = index.occurrences(ofUSR: usr, roles: [.declaration])
-      }
-
-      // FIXME: overrided method logic
-
-      let locations = occurs.compactMap { occur -> Location? in
-        if occur.location.path.isEmpty {
-          return nil
+    let callback = callbackOnQueue(self.queue) { (result: LSPResult<SymbolInfoRequest.Response>) in
+      let extractedResult = self.extractIndexedOccurrences(result: result, index: index, useLocalFallback: true) { (usr, index) in
+        log("performing indexed jump-to-def with usr \(usr)")
+        var occurs = index.occurrences(ofUSR: usr, roles: [.definition])
+        if occurs.isEmpty {
+          occurs = index.occurrences(ofUSR: usr, roles: [.declaration])
         }
-        return Location(
-          uri: DocumentURI(URL(fileURLWithPath: occur.location.path)),
-          range: Range(Position(
-            line: occur.location.line - 1, // 1-based -> 0-based
-            // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
-            utf16index: occur.location.utf8Column - 1
-            ))
-        )
+        return occurs
       }
 
-      resultHandler(locations.isEmpty ? fallbackLocation : locations, nil)
+      switch extractedResult {
+      case .success(let locs):
+        // If we're unable to handle the definition request using our index, see if the
+        // language service can handle it (e.g. clangd can provide AST based definitions).
+        guard locs.isEmpty else {
+          req.reply(.locations(locs))
+          return
+        }
+        let handled = languageService.definition(req)
+        guard !handled else { return }
+        req.reply(.locations([]))
+      case .failure(let error):
+        req.reply(.failure(error))
+      }
     }
     let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
                           cancellation: req.cancellationToken, reply: callback)
     languageService.symbolInfo(request)
   }
 
-  // FIXME: a lot of duplication with definition request
   func implementation(
     _ req: Request<ImplementationRequest>,
     workspace: Workspace,
@@ -1245,92 +1265,40 @@ extension SourceKitServer {
   ) {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
     let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
-    let callback = callbackOnQueue(self.queue) { (result: Result<SymbolInfoRequest.Response, ResponseError>) in
-      guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
-        if let error = result.failure {
-          req.reply(.failure(error))
-        } else {
-          req.reply(.locations([]))
+    let callback = callbackOnQueue(self.queue) { (result: LSPResult<SymbolInfoRequest.Response>) in
+      let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
+        var occurs = index.occurrences(ofUSR: usr, roles: .baseOf)
+        if occurs.isEmpty {
+          occurs = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
         }
-        return
+        return occurs
       }
 
-      guard let usr = symbol.usr, let index = index else {
-        return req.reply(.locations([]))
-      }
-
-      var occurs = index.occurrences(ofUSR: usr, roles: .baseOf)
-      if occurs.isEmpty {
-        occurs = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
-      }
-
-      let locations = occurs.compactMap { occur -> Location? in
-        if occur.location.path.isEmpty {
-          return nil
-        }
-        return Location(
-          uri: DocumentURI(URL(fileURLWithPath: occur.location.path)),
-          range: Range(Position(
-            line: occur.location.line - 1, // 1-based -> 0-based
-            // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
-            utf16index: occur.location.utf8Column - 1
-            ))
-        )
-      }
-
-      req.reply(.locations(locations))
+      req.reply(extractedResult.map { .locations($0) })
     }
     let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
                           cancellation: req.cancellationToken, reply: callback)
     languageService.symbolInfo(request)
   }
 
-  // FIXME: a lot of duplication with definition request
   func references(
     _ req: Request<ReferencesRequest>,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
   ) {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let callback = callbackOnQueue(self.queue) { (result: Result<SymbolInfoRequest.Response, ResponseError>) in
-      guard let symbols: [SymbolDetails] = result.success ?? nil, let symbol = symbols.first else {
-        if let error = result.failure {
-          req.reply(.failure(error))
-        } else {
-          req.reply([])
+    let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
+    let callback = callbackOnQueue(self.queue) { (result: LSPResult<SymbolInfoRequest.Response>) in
+      let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
+        log("performing indexed jump-to-def with usr \(usr)")
+        var roles: SymbolRole = [.reference]
+        if req.params.context.includeDeclaration {
+          roles.formUnion([.declaration, .definition])
         }
-        return
+        return index.occurrences(ofUSR: usr, roles: roles)
       }
 
-      guard let usr = symbol.usr, let index = workspace.index else {
-        req.reply([])
-        return
-      }
-
-      log("performing indexed jump-to-def with usr \(usr)")
-
-      var roles: SymbolRole = [.reference]
-      if req.params.context.includeDeclaration {
-        roles.formUnion([.declaration, .definition])
-      }
-
-      let occurs = index.occurrences(ofUSR: usr, roles: roles)
-
-      let locations = occurs.compactMap { occur -> Location? in
-        if occur.location.path.isEmpty {
-          return nil
-        }
-        return Location(
-          uri: DocumentURI(URL(fileURLWithPath: occur.location.path)),
-          range: Range(Position(
-            line: occur.location.line - 1, // 1-based -> 0-based
-            // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
-            utf16index: occur.location.utf8Column - 1
-            ))
-        )
-      }
-
-      req.reply(locations)
+      req.reply(extractedResult)
     }
     let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
                           cancellation: req.cancellationToken, reply: callback)
