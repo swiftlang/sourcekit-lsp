@@ -1172,6 +1172,15 @@ extension SourceKitServer {
     languageService.inlayHint(req)
   }
 
+  /// Extracts the locations of an indexed symbol's occurrences,
+  /// e.g. for definition or reference lookups.
+  /// 
+  /// - Parameters:
+  ///   - result: The symbol to look up
+  ///   - index: The index in which the occurrences will be looked up
+  ///   - useLocalFallback: Whether to consider the best known local declaration if no other locations are found
+  ///   - extractOccurrences: A function fetching the occurrences by the desired roles given a usr from the index
+  /// - Returns: The resolved symbol locations
   private func extractIndexedOccurrences(
     result: LSPResult<SymbolInfoRequest.Response>,
     index: IndexStoreDB?,
