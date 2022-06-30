@@ -1186,7 +1186,7 @@ extension SourceKitServer {
     index: IndexStoreDB?,
     useLocalFallback: Bool = false,
     extractOccurrences: (String, IndexStoreDB) -> [SymbolOccurrence]
-  ) -> LSPResult<[Location]> {
+  ) -> LSPResult<[(occurrence: SymbolOccurrence?, location: Location)]> {
     guard case .success(let symbols) = result else {
       return .failure(result.failure!)
     }
@@ -1195,30 +1195,31 @@ extension SourceKitServer {
       return .success([])
     }
 
-    let fallbackLocation = useLocalFallback
-      ? [symbol.bestLocalDeclaration].compactMap { $0 }
-      : []
+    let fallback: [(occurrence: SymbolOccurrence?, location: Location)] =
+      useLocalFallback
+        ? (symbol.bestLocalDeclaration.map { [(occurrence: nil, location: $0)] } ?? [])
+        : []
 
     guard let usr = symbol.usr, let index = index else {
-      return .success(fallbackLocation)
+      return .success(fallback)
     }
 
     let occurs = extractOccurrences(usr, index)
-    let locations = occurs.compactMap { occur -> Location? in
+    let resolved = occurs.compactMap { occur -> (occurrence: SymbolOccurrence?, location: Location)? in
       if occur.location.path.isEmpty {
         return nil
       }
-      return Location(
+      return (occurrence: occur, location: Location(
         uri: DocumentURI(URL(fileURLWithPath: occur.location.path)),
         range: Range(Position(
           line: occur.location.line - 1, // 1-based -> 0-based
           // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
           utf16index: occur.location.utf8Column - 1
           ))
-      )
+      ))
     }
 
-    return .success(locations.isEmpty ? fallbackLocation : locations)
+    return .success(resolved.isEmpty ? fallback : resolved)
   }
 
   func definition(
@@ -1239,7 +1240,8 @@ extension SourceKitServer {
       }
 
       switch extractedResult {
-      case .success(let locs):
+      case .success(let resolved):
+        let locs = resolved.map(\.location)
         // If we're unable to handle the definition request using our index, see if the
         // language service can handle it (e.g. clangd can provide AST based definitions).
         guard locs.isEmpty else {
@@ -1274,7 +1276,7 @@ extension SourceKitServer {
         return occurs
       }
 
-      req.reply(extractedResult.map { .locations($0) })
+      req.reply(extractedResult.map { .locations($0.map(\.location)) })
     }
     let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
                           cancellation: req.cancellationToken, reply: callback)
@@ -1298,7 +1300,7 @@ extension SourceKitServer {
         return index.occurrences(ofUSR: usr, roles: roles)
       }
 
-      req.reply(extractedResult)
+      req.reply(extractedResult.map { $0.map(\.location) })
     }
     let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
                           cancellation: req.cancellationToken, reply: callback)
