@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import LanguageServerProtocol
 import XCTest
 
@@ -212,7 +213,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
         didReceiveCorrectCompletions = true
         break
       }
-      sleep(1)
+      Thread.sleep(forTimeInterval: 1)
     }
 
     XCTAssert(didReceiveCorrectCompletions)

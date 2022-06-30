@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import LanguageServerProtocol
 import XCTest
 import SKCore
@@ -70,7 +71,7 @@ final class CompilationDatabaseTests: XCTestCase {
         didReceiveCorrectHighlight = true
         break
       }
-      sleep(1)
+      Thread.sleep(forTimeInterval: 1)
     }
 
     XCTAssert(didReceiveCorrectHighlight)
