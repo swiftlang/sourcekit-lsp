@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import LanguageServerProtocol
 import LSPTestSupport
 import SourceKitLSP
@@ -190,7 +191,7 @@ final class WorkspaceTests: XCTestCase {
         didReceiveCorrectWorkspaceMembership = true
         break
       }
-      sleep(1)
+      Thread.sleep(forTimeInterval: 1)
     }
 
     XCTAssert(didReceiveCorrectWorkspaceMembership)
