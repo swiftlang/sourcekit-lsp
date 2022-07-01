@@ -225,7 +225,7 @@ extension ToolchainRegistry {
   /// * installPath <-- will override default toolchain
   /// * (Darwin) The currently selected Xcode
   /// * (Darwin) [~]/Library/Developer/Toolchains
-  /// * env SOURCEKIT_PATH, PATH
+  /// * env SOURCEKIT_PATH, PATH (or Path)
   public func scanForToolchains(
     installPath: AbsolutePath? = nil,
     environmentVariables: [String] = ["SOURCEKIT_TOOLCHAIN_PATH"],
@@ -234,7 +234,7 @@ extension ToolchainRegistry {
       AbsolutePath(expandingTilde: "~/Library/Developer/Toolchains"),
       AbsolutePath("/Library/Developer/Toolchains"),
     ],
-    pathVariables: [String] = ["SOURCEKIT_PATH", "PATH"],
+    pathVariables: [String] = ["SOURCEKIT_PATH", "PATH", "Path"],
     _ fileSystem: FileSystem)
   {
     queue.sync {
