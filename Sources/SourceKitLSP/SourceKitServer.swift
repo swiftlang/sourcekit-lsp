@@ -1218,10 +1218,12 @@ extension SourceKitServer {
       return .success([])
     }
 
-    let fallback: [(occurrence: SymbolOccurrence?, location: Location)] =
-      useLocalFallback
-        ? (symbol.bestLocalDeclaration.map { [(occurrence: nil, location: $0)] } ?? [])
-        : []
+    let fallback: [(occurrence: SymbolOccurrence?, location: Location)]
+    if useLocalFallback, let bestLocalDeclaration = symbol.bestLocalDeclaration {
+      fallback = [(occurrence: nil, location: bestLocalDeclaration)]
+    } else {
+      fallback = []
+    }
 
     guard let usr = symbol.usr, let index = index else {
       return .success(fallback)
