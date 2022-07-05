@@ -50,6 +50,9 @@ add_library(LanguageServerProtocol STATIC
   Requests/ShowMessageRequest.swift
   Requests/ShutdownRequest.swift
   Requests/SymbolInfoRequest.swift
+  Requests/TypeHierarchyPrepareRequest.swift
+  Requests/TypeHierarchySupertypesRequest.swift
+  Requests/TypeHierarchySubtypesRequest.swift
   Requests/UnregisterCapabilityRequest.swift
   Requests/WorkspaceFoldersRequest.swift
   Requests/WorkspaceSemanticTokensRefreshRequest.swift
@@ -85,6 +88,7 @@ add_library(LanguageServerProtocol STATIC
   SupportTypes/TextDocumentItem.swift
   SupportTypes/TextDocumentSaveReason.swift
   SupportTypes/TextEdit.swift
+  SupportTypes/TypeHierarchyItem.swift
   SupportTypes/VersionedTextDocumentIdentifier.swift
   SupportTypes/WindowMessageType.swift
   SupportTypes/WorkspaceEdit.swift
