@@ -172,12 +172,16 @@ public final class SourceKitServer: LanguageServer {
     _register(SourceKitServer.pollIndex)
     _register(SourceKitServer.executeCommand)
 
+    _register(SourceKitServer.incomingCalls)
+    _register(SourceKitServer.outgoingCalls)
+
     registerToolchainTextDocumentRequest(SourceKitServer.completion,
                                          CompletionList(isIncomplete: false, items: []))
     registerToolchainTextDocumentRequest(SourceKitServer.hover, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.definition, .locations([]))
     registerToolchainTextDocumentRequest(SourceKitServer.references, [])
     registerToolchainTextDocumentRequest(SourceKitServer.implementation, .locations([]))
+    registerToolchainTextDocumentRequest(SourceKitServer.prepareCallHierarchy, [])
     registerToolchainTextDocumentRequest(SourceKitServer.symbolInfo, [])
     registerToolchainTextDocumentRequest(SourceKitServer.documentSymbolHighlight, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.foldingRange, nil)
@@ -651,7 +655,8 @@ extension SourceKitServer {
       workspace: WorkspaceServerCapabilities(workspaceFolders: .init(
         supported: true,
         changeNotifications: .bool(true)
-      ))
+      )),
+      callHierarchyProvider: .bool(true)
     )
   }
 
@@ -1172,6 +1177,24 @@ extension SourceKitServer {
     languageService.inlayHint(req)
   }
 
+  /// Converts a location from the symbol index to an LSP location.
+  /// 
+  /// - Parameter location: The symbol index location
+  /// - Returns: The LSP location
+  private func indexToLSPLocation(_ location: SymbolLocation) -> Location? {
+    guard !location.path.isEmpty else { return nil }
+    return Location(
+      uri: DocumentURI(URL(fileURLWithPath: location.path)),
+      range: Range(Position(
+        // 1-based -> 0-based
+        // Note that we still use max(0, ...) as a fallback if the location is zero.
+        line: max(0, location.line - 1),
+        // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+        utf16index: max(0, location.utf8Column - 1)
+      ))
+    )
+  }
+
   /// Extracts the locations of an indexed symbol's occurrences,
   /// e.g. for definition or reference lookups.
   /// 
@@ -1186,7 +1209,7 @@ extension SourceKitServer {
     index: IndexStoreDB?,
     useLocalFallback: Bool = false,
     extractOccurrences: (String, IndexStoreDB) -> [SymbolOccurrence]
-  ) -> LSPResult<[Location]> {
+  ) -> LSPResult<[(occurrence: SymbolOccurrence?, location: Location)]> {
     guard case .success(let symbols) = result else {
       return .failure(result.failure!)
     }
@@ -1195,30 +1218,25 @@ extension SourceKitServer {
       return .success([])
     }
 
-    let fallbackLocation = useLocalFallback
-      ? [symbol.bestLocalDeclaration].compactMap { $0 }
-      : []
+    let fallback: [(occurrence: SymbolOccurrence?, location: Location)]
+    if useLocalFallback, let bestLocalDeclaration = symbol.bestLocalDeclaration {
+      fallback = [(occurrence: nil, location: bestLocalDeclaration)]
+    } else {
+      fallback = []
+    }
 
     guard let usr = symbol.usr, let index = index else {
-      return .success(fallbackLocation)
+      return .success(fallback)
     }
 
     let occurs = extractOccurrences(usr, index)
-    let locations = occurs.compactMap { occur -> Location? in
-      if occur.location.path.isEmpty {
-        return nil
+    let resolved = occurs.compactMap { occur in
+      indexToLSPLocation(occur.location).map {
+        (occurrence: occur, location: $0)
       }
-      return Location(
-        uri: DocumentURI(URL(fileURLWithPath: occur.location.path)),
-        range: Range(Position(
-          line: occur.location.line - 1, // 1-based -> 0-based
-          // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
-          utf16index: occur.location.utf8Column - 1
-          ))
-      )
     }
 
-    return .success(locations.isEmpty ? fallbackLocation : locations)
+    return .success(resolved.isEmpty ? fallback : resolved)
   }
 
   func definition(
@@ -1239,7 +1257,8 @@ extension SourceKitServer {
       }
 
       switch extractedResult {
-      case .success(let locs):
+      case .success(let resolved):
+        let locs = resolved.map(\.location)
         // If we're unable to handle the definition request using our index, see if the
         // language service can handle it (e.g. clangd can provide AST based definitions).
         guard locs.isEmpty else {
@@ -1274,7 +1293,7 @@ extension SourceKitServer {
         return occurs
       }
 
-      req.reply(extractedResult.map { .locations($0) })
+      req.reply(extractedResult.map { .locations($0.map(\.location)) })
     }
     let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
                           cancellation: req.cancellationToken, reply: callback)
@@ -1298,11 +1317,130 @@ extension SourceKitServer {
         return index.occurrences(ofUSR: usr, roles: roles)
       }
 
-      req.reply(extractedResult)
+      req.reply(extractedResult.map { $0.map(\.location) })
     }
     let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
                           cancellation: req.cancellationToken, reply: callback)
     languageService.symbolInfo(request)
+  }
+
+  private func indexToLSPCallHierarchyItem(symbol: Symbol, location: Location) -> CallHierarchyItem {
+    CallHierarchyItem(
+      name: symbol.name,
+      kind: symbol.kind.asLspSymbolKind(),
+      tags: nil,
+      uri: location.uri,
+      range: location.range,
+      selectionRange: location.range,
+      // We encode usr and uri for incoming/outgoing call lookups in the implementation-specific data field
+      data: .dictionary([
+        "usr": .string(symbol.usr),
+        "uri": .string(location.uri.stringValue),
+      ])
+    )
+  }
+
+  func prepareCallHierarchy(
+    _ req: Request<CallHierarchyPrepareRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
+    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
+    let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
+    let callback = callbackOnQueue(self.queue) { (result: LSPResult<SymbolInfoRequest.Response>) in
+      // For call hierarchy preparation we only locate the definition
+      let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
+        index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
+      }
+      let items = extractedResult.map { resolved -> [CallHierarchyItem]? in
+        resolved.compactMap { info -> CallHierarchyItem? in
+          guard let occurrence = info.occurrence else {
+            return nil
+          }
+          let symbol = occurrence.symbol
+          return self.indexToLSPCallHierarchyItem(
+            symbol: symbol,
+            location: info.location
+          )
+        }
+      }
+      req.reply(items)
+    }
+    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
+                          cancellation: req.cancellationToken, reply: callback)
+    languageService.symbolInfo(request)
+  }
+
+  /// Extracts our implementation-specific data about a call hierarchy
+  /// item as encoded in `indexToLSPCallHierarchyItem`.
+  /// 
+  /// - Parameter data: The opaque data structure to extract
+  /// - Returns: The extracted data if successful or nil otherwise
+  private func extractCallHierarchyItemData(_ rawData: LSPAny?) -> (uri: DocumentURI, usr: String)? {
+    guard case let .dictionary(data) = rawData,
+          case let .string(uriString) = data["uri"],
+          case let .string(usr) = data["usr"] else {
+      return nil
+    }
+    return (
+      uri: DocumentURI(string: uriString),
+      usr: usr
+    )
+  }
+
+  func incomingCalls(_ req: Request<CallHierarchyIncomingCallsRequest>) {
+    guard let data = extractCallHierarchyItemData(req.params.item.data),
+          let index = self.workspaceForDocument(uri: data.uri)?.index else {
+      req.reply([])
+      return
+    }
+    let occurs = index.occurrences(ofUSR: data.usr, roles: .calledBy)
+    let calls = occurs.compactMap { occurrence -> CallHierarchyIncomingCall? in
+      guard let location = indexToLSPLocation(occurrence.location),
+            let related = occurrence.relations.first else {
+        return nil
+      }
+
+      // Resolve the caller's definition to find its location
+      let definition = index.occurrences(ofUSR: related.symbol.usr, roles: [.definition, .declaration]).first
+      let definitionLocation = definition.map(\.location).flatMap(indexToLSPLocation)
+
+      return CallHierarchyIncomingCall(
+        from: indexToLSPCallHierarchyItem(
+          symbol: related.symbol,
+          location: definitionLocation ?? location // Use occurrence location as fallback
+        ),
+        fromRanges: [location.range]
+      )
+    }
+    req.reply(calls)
+  }
+
+  func outgoingCalls(_ req: Request<CallHierarchyOutgoingCallsRequest>) {
+    guard let data = extractCallHierarchyItemData(req.params.item.data),
+          let index = self.workspaceForDocument(uri: data.uri)?.index else {
+      req.reply([])
+      return
+    }
+    let occurs = index.occurrences(relatedToUSR: data.usr, roles: .calledBy)
+    let calls = occurs.compactMap { occurrence -> CallHierarchyOutgoingCall? in
+      guard let location = indexToLSPLocation(occurrence.location) else {
+        return nil
+      }
+
+      // Resolve the callee's definition to find its location
+      let definition = index.occurrences(ofUSR: occurrence.symbol.usr, roles: [.definition, .declaration]).first
+      let definitionLocation = definition.map(\.location).flatMap(indexToLSPLocation)
+
+      return CallHierarchyOutgoingCall(
+        to: indexToLSPCallHierarchyItem(
+          symbol: occurrence.symbol,
+          location: definitionLocation ?? location // Use occurrence location as fallback
+        ),
+        fromRanges: [location.range]
+      )
+    }
+    req.reply(calls)
   }
 
   func pollIndex(_ req: Request<PollIndexRequest>) {

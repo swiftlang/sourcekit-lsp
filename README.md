@@ -50,6 +50,7 @@ SourceKit-LSP is still in early development, so you may run into rough edges wit
 | Folding | ✅ | |
 | Syntax Highlighting | ✅ | Both syntactic and semantic tokens |
 | Document Symbols | ✅ |  |
+| Call Hierarchy | ✅ |  |
 
 
 ### Caveats
