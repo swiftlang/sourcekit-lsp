@@ -54,6 +54,23 @@ After building, the server will be located at `.build/debug/sourcekit-lsp`, or a
 
 SourceKit-LSP is designed to build against the latest SwiftPM, so if you run into any issue make sure you have the most up-to-date dependencies by running `swift package update`.
 
+### Windows
+
+The user must provide the following dependencies for SourceKit-LSP:
+- SQLite3
+- ninja
+
+```cmd
+> swift build -Xcc -I<absolute path to SQLite header search path> -Xlinker -L<absolute path to SQLite library search path> -Xcc -I%SDKROOT%\usr\include -Xcc -I%SDKROOT%\usr\include\Block
+```
+
+The header and library search paths must be passed to the build by absolute
+path.  This allows the clang importer and linker to find the dependencies.
+
+Additionally, as SourceKit-LSP depends on libdispatch and the Blocks runtime,
+which are part of the SDK, but not in the default search path, need to be
+explicitly added.
+
 ### Docker
 
 SourceKit-LSP should run out of the box using the [Swift official Docker images](https://swift.org/download/#docker). To build `sourcekit-lsp` from source and run its test suite, follow the steps in the *Linux* section. In the official docker images, the toolchain is located at `/`.
