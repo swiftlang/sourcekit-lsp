@@ -49,6 +49,7 @@ public let builtinRequests: [_RequestType.Type] = [
   PrepareRenameRequest.self,
   RenameRequest.self,
   RegisterCapabilityRequest.self,
+  TypeDefinitionRequest.self,
   UnregisterCapabilityRequest.self,
   InlayHintRequest.self,
 
