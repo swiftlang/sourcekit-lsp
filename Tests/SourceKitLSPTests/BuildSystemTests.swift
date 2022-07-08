@@ -183,8 +183,9 @@ final class BuildSystemTests: XCTestCase {
     buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
     let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    if result != .completed {
-      fatalError("error \(result) waiting for diagnostics notification")
+    guard result == .completed else {
+      XCTFail("wait for diagnostics failed with \(result)")
+      return
     }
   }
 
@@ -239,8 +240,9 @@ final class BuildSystemTests: XCTestCase {
     buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
     let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    if result != .completed {
-      fatalError("error \(result) waiting for diagnostics notification")
+    guard result == .completed else {
+      XCTFail("wait for diagnostics failed with \(result)")
+      return
     }
   }
 
@@ -289,8 +291,9 @@ final class BuildSystemTests: XCTestCase {
     buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
     let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    if result != .completed {
-      fatalError("error \(result) waiting for diagnostics notification")
+    guard result == .completed else {
+      XCTFail("wait for diagnostics failed with \(result)")
+      return
     }
   }
 
@@ -344,8 +347,9 @@ final class BuildSystemTests: XCTestCase {
     buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(primarySettings)])
 
     let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    if result != .completed {
-      fatalError("error \(result) waiting for diagnostics notification")
+    guard result == .completed else {
+      XCTFail("wait for diagnostics failed with \(result)")
+      return
     }
   }
 
@@ -383,8 +387,9 @@ final class BuildSystemTests: XCTestCase {
     }
 
     let result = XCTWaiter.wait(for: [expectation], timeout: 1)
-    if result != .completed {
-      fatalError("error \(result) unexpected diagnostics notification")
+    guard result == .completed else {
+      XCTFail("wait for diagnostics failed with \(result)")
+      return
     }
   }
 

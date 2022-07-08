@@ -270,8 +270,9 @@ final class SKTests: XCTestCase {
     try "".write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
     try ws.openDocument(moduleRef.url, language: .c)
     let started = XCTWaiter.wait(for: [startExpectation], timeout: defaultTimeout)
-    if started != .completed {
-      fatalError("error \(started) waiting for initial diagnostics notification")
+    guard started == .completed else {
+      XCTFail("error \(started) waiting for initial diagnostics notification")
+      return
     }
 
     // Update the header file to have the proper contents for our code to build.
@@ -289,8 +290,9 @@ final class SKTests: XCTestCase {
     server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
 
     let finished = XCTWaiter.wait(for: [finishExpectation], timeout: defaultTimeout)
-    if finished != .completed {
-      fatalError("error \(finished) waiting for post-build diagnostics notification")
+    guard finished == .completed else {
+      XCTFail("error \(finished) waiting for post-build diagnostics notification")
+      return
     }
   }
 

@@ -170,8 +170,9 @@ final class BuildServerBuildSystemTests: XCTestCase {
     buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl), language: .swift)
 
     let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    if result != .completed {
-      fatalError("error \(result) waiting for targets changed notification")
+    guard result == .completed else {
+      XCTFail("error \(result) waiting for targets changed notification")
+      return
     }
   }
 }
