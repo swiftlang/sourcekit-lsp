@@ -1460,10 +1460,11 @@ extension SourceKitServer {
     switch symbol.kind {
     case .extension:
       // Query the conformance added by this extension
-      if let conformance = index.occurrences(relatedToUSR: symbol.usr, roles: .baseOf).first {
-        name = "\(symbol.name): \(conformance.symbol.name)"
-      } else {
+      let conformances = index.occurrences(relatedToUSR: symbol.usr, roles: .baseOf)
+      if conformances.isEmpty {
         name = symbol.name
+      } else {
+        name = "\(symbol.name): \(conformances.map(\.symbol.name).joined(separator: ", "))"
       }
       // Add the file name and line to the detail string
       if let fileName = location.uri.pseudoPath.split(separator: "/").last {

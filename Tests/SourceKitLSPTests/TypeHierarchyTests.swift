@@ -143,12 +143,21 @@ final class TypeHierarchyTests: XCTestCase {
       item("S", .struct, at: "S"),
       item("E", .enum, at: "E"),
     ])
+    assertEqualIgnoringData(try subtypes(at: testLoc("E")), [
+      item("E: Y, Z", .null, detail: "Extension at a.swift:19", at: "extE:Y,Z"),
+    ])
     assertEqualIgnoringData(try subtypes(at: testLoc("S")), [
-      item("S: X", .null, detail: "Extension at a.swift:13", at: "extS:X"),
-      item("S", .null, detail: "Extension at a.swift:14", at: "extS"),
+      item("S: X", .null, detail: "Extension at a.swift:15", at: "extS:X"),
+      item("S", .null, detail: "Extension at a.swift:16", at: "extS"),
     ])
     assertEqualIgnoringData(try subtypes(at: testLoc("X")), [
-      item("S: X", .null, detail: "Extension at a.swift:13", at: "extS:X"),
+      item("S: X", .null, detail: "Extension at a.swift:15", at: "extS:X"),
+    ])
+    assertEqualIgnoringData(try subtypes(at: testLoc("Y")), [
+      item("E: Y, Z", .null, detail: "Extension at a.swift:19", at: "extE:Y,Z"),
+    ])
+    assertEqualIgnoringData(try subtypes(at: testLoc("Z")), [
+      item("E: Y, Z", .null, detail: "Extension at a.swift:19", at: "extE:Y,Z"),
     ])
 
     // Ensure that type hierarchies can be fetched from uses too
