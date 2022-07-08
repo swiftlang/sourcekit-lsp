@@ -1554,7 +1554,21 @@ extension SourceKitServer {
       req.reply([])
       return
     }
-    let occurs = index.occurrences(relatedToUSR: data.usr, roles: .baseOf)
+
+    // Resolve base types
+    let baseOccurs = index.occurrences(relatedToUSR: data.usr, roles: .baseOf)
+
+    // Resolve retroactive conformances via the extensions
+    let extensions = index.occurrences(ofUSR: data.usr, roles: .extendedBy)
+    let retroactiveConformanceOccurs = extensions.flatMap { occurrence -> [SymbolOccurrence] in
+      guard let related = occurrence.relations.first else {
+        return []
+      }
+      return index.occurrences(relatedToUSR: related.symbol.usr, roles: .baseOf)
+    }
+
+    // Convert occurrences to type hierarchy items
+    let occurs = baseOccurs + retroactiveConformanceOccurs
     let types = occurs.compactMap { occurrence -> TypeHierarchyItem? in
       guard let location = indexToLSPLocation(occurrence.location) else {
         return nil
@@ -1581,7 +1595,11 @@ extension SourceKitServer {
       req.reply([])
       return
     }
+
+    // Resolve child types and extensions
     let occurs = index.occurrences(ofUSR: data.usr, roles: [.baseOf, .extendedBy])
+
+    // Convert occurrences to type hierarchy items
     let types = occurs.compactMap { occurrence -> TypeHierarchyItem? in
       guard let location = indexToLSPLocation(occurrence.location),
             let related = occurrence.relations.first else {

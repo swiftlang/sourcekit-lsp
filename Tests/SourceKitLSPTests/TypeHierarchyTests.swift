@@ -124,9 +124,12 @@ final class TypeHierarchyTests: XCTestCase {
     ])
     assertEqualIgnoringData(try supertypes(at: testLoc("S")), [
       item("P", .interface, at: "P"),
+      item("X", .interface, at: "X"), // Retroactive conformance
     ])
     assertEqualIgnoringData(try supertypes(at: testLoc("E")), [
       item("P", .interface, at: "P"),
+      item("Y", .interface, at: "Y"), // Retroactive conformance
+      item("Z", .interface, at: "Z"), // Retroactive conformance
     ])
 
     // Test subtype hierarchy (includes extensions)
