@@ -175,6 +175,9 @@ public final class SourceKitServer: LanguageServer {
     _register(SourceKitServer.incomingCalls)
     _register(SourceKitServer.outgoingCalls)
 
+    _register(SourceKitServer.supertypes)
+    _register(SourceKitServer.subtypes)
+
     registerToolchainTextDocumentRequest(SourceKitServer.completion,
                                          CompletionList(isIncomplete: false, items: []))
     registerToolchainTextDocumentRequest(SourceKitServer.hover, nil)
@@ -182,6 +185,7 @@ public final class SourceKitServer: LanguageServer {
     registerToolchainTextDocumentRequest(SourceKitServer.references, [])
     registerToolchainTextDocumentRequest(SourceKitServer.implementation, .locations([]))
     registerToolchainTextDocumentRequest(SourceKitServer.prepareCallHierarchy, [])
+    registerToolchainTextDocumentRequest(SourceKitServer.prepareTypeHierarchy, [])
     registerToolchainTextDocumentRequest(SourceKitServer.symbolInfo, [])
     registerToolchainTextDocumentRequest(SourceKitServer.documentSymbolHighlight, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.foldingRange, nil)
@@ -656,7 +660,8 @@ extension SourceKitServer {
         supported: true,
         changeNotifications: .bool(true)
       )),
-      callHierarchyProvider: .bool(true)
+      callHierarchyProvider: .bool(true),
+      typeHierarchyProvider: .bool(true)
     )
   }
 
@@ -1403,7 +1408,7 @@ extension SourceKitServer {
 
       // Resolve the caller's definition to find its location
       let definition = index.occurrences(ofUSR: related.symbol.usr, roles: [.definition, .declaration]).first
-      let definitionLocation = definition.map(\.location).flatMap(indexToLSPLocation)
+      let definitionLocation = (definition?.location).flatMap(indexToLSPLocation)
 
       return CallHierarchyIncomingCall(
         from: indexToLSPCallHierarchyItem(
@@ -1430,7 +1435,7 @@ extension SourceKitServer {
 
       // Resolve the callee's definition to find its location
       let definition = index.occurrences(ofUSR: occurrence.symbol.usr, roles: [.definition, .declaration]).first
-      let definitionLocation = definition.map(\.location).flatMap(indexToLSPLocation)
+      let definitionLocation = (definition?.location).flatMap(indexToLSPLocation)
 
       return CallHierarchyOutgoingCall(
         to: indexToLSPCallHierarchyItem(
@@ -1441,6 +1446,179 @@ extension SourceKitServer {
       )
     }
     req.reply(calls)
+  }
+
+  private func indexToLSPTypeHierarchyItem(
+    symbol: Symbol,
+    moduleName: String?,
+    location: Location,
+    index: IndexStoreDB
+  ) -> TypeHierarchyItem {
+    let name: String
+    let detail: String?
+
+    switch symbol.kind {
+    case .extension:
+      // Query the conformance added by this extension
+      let conformances = index.occurrences(relatedToUSR: symbol.usr, roles: .baseOf)
+      if conformances.isEmpty {
+        name = symbol.name
+      } else {
+        name = "\(symbol.name): \(conformances.map(\.symbol.name).joined(separator: ", "))"
+      }
+      // Add the file name and line to the detail string
+      if let fileName = location.uri.pseudoPath.split(separator: "/").last {
+        detail = "Extension at \(fileName):\(location.range.lowerBound.line + 1)"
+      } else if let moduleName = moduleName {
+        detail = "Extension in \(moduleName)"
+      } else {
+        detail = "Extension"
+      }
+    default:
+      name = symbol.name
+      detail = moduleName
+    }
+
+    return TypeHierarchyItem(
+      name: name,
+      kind: symbol.kind.asLspSymbolKind(),
+      tags: nil,
+      detail: detail,
+      uri: location.uri,
+      range: location.range,
+      selectionRange: location.range,
+      // We encode usr and uri for incoming/outgoing type lookups in the implementation-specific data field
+      data: .dictionary([
+        "usr": .string(symbol.usr),
+        "uri": .string(location.uri.stringValue),
+      ])
+    )
+  }
+
+  func prepareTypeHierarchy(
+    _ req: Request<TypeHierarchyPrepareRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
+    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
+    guard let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index else {
+      req.reply([])
+      return
+    }
+    let callback = callbackOnQueue(self.queue) { (result: LSPResult<SymbolInfoRequest.Response>) in
+      // For type hierarchy preparation we only locate the definition
+      let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
+        index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
+      }
+      let items = extractedResult.map { resolved -> [TypeHierarchyItem]? in
+        resolved.compactMap { info -> TypeHierarchyItem? in
+          guard let occurrence = info.occurrence else {
+            return nil
+          }
+          let symbol = occurrence.symbol
+          return self.indexToLSPTypeHierarchyItem(
+            symbol: symbol,
+            moduleName: occurrence.location.moduleName,
+            location: info.location,
+            index: index
+          )
+        }
+      }
+      req.reply(items)
+    }
+    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
+                          cancellation: req.cancellationToken, reply: callback)
+    languageService.symbolInfo(request)
+  }
+
+  /// Extracts our implementation-specific data about a type hierarchy
+  /// item as encoded in `indexToLSPTypeHierarchyItem`.
+  /// 
+  /// - Parameter data: The opaque data structure to extract
+  /// - Returns: The extracted data if successful or nil otherwise
+  private func extractTypeHierarchyItemData(_ rawData: LSPAny?) -> (uri: DocumentURI, usr: String)? {
+    guard case let .dictionary(data) = rawData,
+          case let .string(uriString) = data["uri"],
+          case let .string(usr) = data["usr"] else {
+      return nil
+    }
+    return (
+      uri: DocumentURI(string: uriString),
+      usr: usr
+    )
+  }
+
+  func supertypes(_ req: Request<TypeHierarchySupertypesRequest>) {
+    guard let data = extractTypeHierarchyItemData(req.params.item.data),
+          let index = self.workspaceForDocument(uri: data.uri)?.index else {
+      req.reply([])
+      return
+    }
+
+    // Resolve base types
+    let baseOccurs = index.occurrences(relatedToUSR: data.usr, roles: .baseOf)
+
+    // Resolve retroactive conformances via the extensions
+    let extensions = index.occurrences(ofUSR: data.usr, roles: .extendedBy)
+    let retroactiveConformanceOccurs = extensions.flatMap { occurrence -> [SymbolOccurrence] in
+      guard let related = occurrence.relations.first else {
+        return []
+      }
+      return index.occurrences(relatedToUSR: related.symbol.usr, roles: .baseOf)
+    }
+
+    // Convert occurrences to type hierarchy items
+    let occurs = baseOccurs + retroactiveConformanceOccurs
+    let types = occurs.compactMap { occurrence -> TypeHierarchyItem? in
+      guard let location = indexToLSPLocation(occurrence.location) else {
+        return nil
+      }
+
+      // Resolve the supertype's definition to find its location
+      let definition = index.occurrences(ofUSR: occurrence.symbol.usr, roles: [.definition, .declaration]).first
+      let definitionSymbolLocation = definition?.location
+      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
+
+      return indexToLSPTypeHierarchyItem(
+        symbol: occurrence.symbol,
+        moduleName: definitionSymbolLocation?.moduleName,
+        location: definitionLocation ?? location, // Use occurrence location as fallback
+        index: index
+      )
+    }
+    req.reply(types)
+  }
+
+  func subtypes(_ req: Request<TypeHierarchySubtypesRequest>) {
+    guard let data = extractTypeHierarchyItemData(req.params.item.data),
+          let index = self.workspaceForDocument(uri: data.uri)?.index else {
+      req.reply([])
+      return
+    }
+
+    // Resolve child types and extensions
+    let occurs = index.occurrences(ofUSR: data.usr, roles: [.baseOf, .extendedBy])
+
+    // Convert occurrences to type hierarchy items
+    let types = occurs.compactMap { occurrence -> TypeHierarchyItem? in
+      guard let location = indexToLSPLocation(occurrence.location),
+            let related = occurrence.relations.first else {
+        return nil
+      }
+
+      // Resolve the subtype's definition to find its location
+      let definition = index.occurrences(ofUSR: related.symbol.usr, roles: [.definition, .declaration]).first
+      let definitionSymbolLocation = definition.map(\.location)
+      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
+
+      return indexToLSPTypeHierarchyItem(
+        symbol: related.symbol,
+        moduleName: definitionSymbolLocation?.moduleName,
+        location: definitionLocation ?? location, // Use occurrence location as fallback
+        index: index
+      )
+    }
+    req.reply(types)
   }
 
   func pollIndex(_ req: Request<PollIndexRequest>) {

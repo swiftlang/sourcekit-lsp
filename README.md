@@ -51,6 +51,7 @@ SourceKit-LSP is still in early development, so you may run into rough edges wit
 | Syntax Highlighting | ✅ | Both syntactic and semantic tokens |
 | Document Symbols | ✅ |  |
 | Call Hierarchy | ✅ |  |
+| Type Hierarchy | ✅ |  |
 
 
 ### Caveats
