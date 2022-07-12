@@ -50,6 +50,8 @@ public final class SwiftPMWorkspace {
 
   let workspacePath: AbsolutePath
   let packageRoot: AbsolutePath
+  /// *Public for testing*
+  public var _packageRoot: AbsolutePath { packageRoot }
   var packageGraph: PackageGraph
   let workspace: Workspace
   public let buildParameters: BuildParameters
@@ -545,7 +547,15 @@ private func findPackageDirectory(
   containing path: AbsolutePath,
   _ fileSystem: FileSystem) -> AbsolutePath? {
   var path = path
-  while !fileSystem.isFile(path.appending(component: "Package.swift")) {
+  while true {
+    let packagePath = path.appending(component: "Package.swift")
+    if fileSystem.isFile(packagePath) {
+      let contents = try? fileSystem.readFileContents(packagePath)
+      if contents?.cString.contains("PackageDescription") == true {
+        return path
+      }
+    }
+
     if path.isRoot {
       return nil
     }

@@ -567,6 +567,30 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         }), "missing resource_bundle_accessor.swift from \(arguments)")
     }
   }
+
+  func testNestedInvalidPackageSwift() throws {
+    let fs = InMemoryFileSystem()
+    try! withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+      try! fs.createFiles(root: tempDir, files: [
+        "pkg/Sources/lib/Package.swift": "// not a valid package",
+        "pkg/Package.swift": """
+        // swift-tools-version:4.2
+        import PackageDescription
+        let package = Package(name: "a", products: [], dependencies: [],
+        targets: [.target(name: "lib", dependencies: [])])
+        """
+      ])
+      let packageRoot = resolveSymlinks(tempDir.appending(components: "pkg", "Sources", "lib"))
+      let tr = ToolchainRegistry.shared
+      let ws = try! SwiftPMWorkspace(
+        workspacePath: packageRoot,
+        toolchainRegistry: tr,
+        fileSystem: fs,
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+
+      XCTAssertEqual(ws._packageRoot, resolveSymlinks(tempDir.appending(component: "pkg")))
+    }
+  }
 }
 
 private func checkNot(
