@@ -69,12 +69,13 @@ final class CallHierarchyTests: XCTestCase {
       Location(badUTF16: ws.testLoc(name))
     }
 
-    func item(_ name: String, _ kind: SymbolKind, usr: String, at locName: String) -> CallHierarchyItem {
+    func item(_ name: String, _ kind: SymbolKind, detail: String = "main", usr: String, at locName: String) -> CallHierarchyItem {
       let location = loc(locName)
       return CallHierarchyItem(
         name: name,
         kind: kind,
         tags: nil,
+        detail: detail,
         uri: location.uri,
         range: location.range,
         selectionRange: location.range,

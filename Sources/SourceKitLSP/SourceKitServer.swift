@@ -1329,11 +1329,16 @@ extension SourceKitServer {
     languageService.symbolInfo(request)
   }
 
-  private func indexToLSPCallHierarchyItem(symbol: Symbol, location: Location) -> CallHierarchyItem {
+  private func indexToLSPCallHierarchyItem(
+    symbol: Symbol,
+    moduleName: String?,
+    location: Location
+  ) -> CallHierarchyItem {
     CallHierarchyItem(
       name: symbol.name,
       kind: symbol.kind.asLspSymbolKind(),
       tags: nil,
+      detail: moduleName,
       uri: location.uri,
       range: location.range,
       selectionRange: location.range,
@@ -1365,6 +1370,7 @@ extension SourceKitServer {
           let symbol = occurrence.symbol
           return self.indexToLSPCallHierarchyItem(
             symbol: symbol,
+            moduleName: occurrence.location.moduleName,
             location: info.location
           )
         }
@@ -1408,11 +1414,13 @@ extension SourceKitServer {
 
       // Resolve the caller's definition to find its location
       let definition = index.occurrences(ofUSR: related.symbol.usr, roles: [.definition, .declaration]).first
-      let definitionLocation = (definition?.location).flatMap(indexToLSPLocation)
+      let definitionSymbolLocation = definition?.location
+      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
 
       return CallHierarchyIncomingCall(
         from: indexToLSPCallHierarchyItem(
           symbol: related.symbol,
+          moduleName: definitionSymbolLocation?.moduleName,
           location: definitionLocation ?? location // Use occurrence location as fallback
         ),
         fromRanges: [location.range]
@@ -1435,11 +1443,13 @@ extension SourceKitServer {
 
       // Resolve the callee's definition to find its location
       let definition = index.occurrences(ofUSR: occurrence.symbol.usr, roles: [.definition, .declaration]).first
-      let definitionLocation = (definition?.location).flatMap(indexToLSPLocation)
+      let definitionSymbolLocation = definition?.location
+      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
 
       return CallHierarchyOutgoingCall(
         to: indexToLSPCallHierarchyItem(
           symbol: occurrence.symbol,
+          moduleName: definitionSymbolLocation?.moduleName,
           location: definitionLocation ?? location // Use occurrence location as fallback
         ),
         fromRanges: [location.range]
