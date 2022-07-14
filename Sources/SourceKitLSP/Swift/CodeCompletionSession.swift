@@ -104,7 +104,10 @@ class CodeCompletionSession {
     completion: @escaping  (LSPResult<CompletionList>) -> Void)
   {
     log("\(Self.self) Open: \(self) filter=\(filterText)")
-    assert(snapshot.version == self.snapshot.version, "open must use the original snapshot")
+    guard snapshot.version == self.snapshot.version else {
+        completion(.failure(ResponseError(code: .invalidRequest, message: "open must use the original snapshot")))
+        return
+    }
 
     let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
     let keys = server.sourcekitd.keys
