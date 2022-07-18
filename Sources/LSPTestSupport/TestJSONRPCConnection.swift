@@ -113,7 +113,10 @@ public final class TestClient: MessageHandler {
   }
 
   public func handleNextNotification<N>(_ handler: @escaping (Notification<N>) -> Void) {
-    precondition(oneShotNotificationHandlers.isEmpty)
+    guard oneShotNotificationHandlers.isEmpty else {
+      XCTFail("unexpected one shot notification handler registered")
+      return
+    }
     appendOneShotNotificationHandler(handler)
   }
 
@@ -178,8 +181,9 @@ extension TestClient: Connection {
     send(notification)
 
     let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    if result != .completed {
-      fatalError("error \(result) waiting for notification in response to \(notification)")
+    guard result == .completed else {
+      XCTFail("error \(result) waiting for notification in response to \(notification)")
+      return
     }
   }
 
@@ -206,8 +210,9 @@ extension TestClient: Connection {
     send(notification)
 
     let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    if result != .completed {
-      fatalError("error \(result) waiting for notification in response to \(notification)")
+    guard result == .completed else {
+      XCTFail("wait for notification in response to \(notification) failed with \(result)")
+      return
     }
   }
 }

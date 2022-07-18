@@ -32,7 +32,8 @@ final class TypeHierarchyTests: XCTestCase {
 
     func supertypes(at testLoc: TestLocation) throws -> [TypeHierarchyItem] {
       guard let item = try typeHierarchy(at: testLoc).first else {
-        fatalError("Type hierarchy at \(testLoc) was empty")
+        XCTFail("Type hierarchy at \(testLoc) was empty")
+        return []
       }
       let request = TypeHierarchySupertypesRequest(item: item)
       let types = try ws.sk.sendSync(request)
@@ -41,7 +42,8 @@ final class TypeHierarchyTests: XCTestCase {
 
     func subtypes(at testLoc: TestLocation) throws -> [TypeHierarchyItem] {
       guard let item = try typeHierarchy(at: testLoc).first else {
-        fatalError("Type hierarchy at \(testLoc) was empty")
+        XCTFail("Type hierarchy at \(testLoc) was empty")
+        return []
       }
       let request = TypeHierarchySubtypesRequest(item: item)
       let types = try ws.sk.sendSync(request)

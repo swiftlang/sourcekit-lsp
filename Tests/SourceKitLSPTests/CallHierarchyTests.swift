@@ -32,7 +32,8 @@ final class CallHierarchyTests: XCTestCase {
 
     func incomingCalls(at testLoc: TestLocation) throws -> [CallHierarchyIncomingCall] {
       guard let item = try callHierarchy(at: testLoc).first else {
-        fatalError("Call hierarchy at \(testLoc) was empty")
+        XCTFail("call hierarchy at \(testLoc) was empty")
+        return []
       }
       let request = CallHierarchyIncomingCallsRequest(item: item)
       let calls = try ws.sk.sendSync(request)
@@ -41,7 +42,8 @@ final class CallHierarchyTests: XCTestCase {
 
     func outgoingCalls(at testLoc: TestLocation) throws -> [CallHierarchyOutgoingCall] {
       guard let item = try callHierarchy(at: testLoc).first else {
-        fatalError("Call hierarchy at \(testLoc) was empty")
+        XCTFail("call hierarchy at \(testLoc) was empty")
+        return []
       }
       let request = CallHierarchyOutgoingCallsRequest(item: item)
       let calls = try ws.sk.sendSync(request)
@@ -50,11 +52,13 @@ final class CallHierarchyTests: XCTestCase {
 
     func usr(at testLoc: TestLocation) throws -> String {
       guard let item = try callHierarchy(at: testLoc).first else {
-        fatalError("Call hierarchy at \(testLoc) was empty")
+        XCTFail("call hierarchy at \(testLoc) was empty")
+        return ""
       }
       guard case let .dictionary(data) = item.data,
             case let .string(usr) = data["usr"] else {
-        fatalError("Could not find usr in call hierarchy item data dict")
+        XCTFail("unable to find usr in call hierarchy in item data dictionary")
+        return ""
       }
       return usr
     }
