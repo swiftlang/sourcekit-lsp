@@ -50,6 +50,7 @@ add_library(LanguageServerProtocol STATIC
   Requests/ShowMessageRequest.swift
   Requests/ShutdownRequest.swift
   Requests/SymbolInfoRequest.swift
+  Requests/TypeDefinitionRequest.swift
   Requests/TypeHierarchyPrepareRequest.swift
   Requests/TypeHierarchySupertypesRequest.swift
   Requests/TypeHierarchySubtypesRequest.swift
