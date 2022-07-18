@@ -18,6 +18,20 @@ import LSPLogging
 import SKSupport
 import TSCBasic
 
+enum BuildServerTestError: Error {
+    case executableNotFound(String)
+}
+
+func executable(_ name: String) -> String {
+#if os(Windows)
+  guard !name.hasSuffix(".exe") else { return name }
+  return "\(name).exe"
+#else
+  return name
+#endif
+}
+
+
 /// A `BuildSystem` based on communicating with a build server
 ///
 /// Provides build settings from a build server launched based on a
@@ -31,6 +45,8 @@ public final class BuildServerBuildSystem {
 
   var handler: BuildServerHandler?
   var buildServer: JSONRPCConnection?
+
+  let searchPaths: [AbsolutePath]
 
   public private(set) var indexDatabasePath: AbsolutePath?
   public private(set) var indexStorePath: AbsolutePath?
@@ -47,6 +63,15 @@ public final class BuildServerBuildSystem {
   public init(projectRoot: AbsolutePath, buildFolder: AbsolutePath?, fileSystem: FileSystem = localFileSystem) throws {
     let configPath = projectRoot.appending(component: "buildServer.json")
     let config = try loadBuildServerConfig(path: configPath, fileSystem: fileSystem)
+#if os(Windows)
+    self.searchPaths =
+        getEnvSearchPaths(pathString: ProcessInfo.processInfo.environment["Path"],
+                          currentWorkingDirectory: fileSystem.currentWorkingDirectory)
+#else
+    self.searchPaths =
+        getEnvSearchPaths(pathString: ProcessInfo.processInfo.environment["PATH"],
+                          currentWorkingDirectory: fileSystem.currentWorkingDirectory)
+#endif
     self.buildFolder = buildFolder
     self.projectRoot = projectRoot
     self.requestQueue = DispatchQueue(label: "build_server_request_queue")
@@ -85,8 +110,14 @@ public final class BuildServerBuildSystem {
   }
 
   private func initializeBuildServer() throws {
-    let serverPath = AbsolutePath(serverConfig.argv[0], relativeTo: projectRoot)
-    let flags = Array(serverConfig.argv[1...])
+    guard let interpreter =
+        lookupExecutablePath(filename: executable("python3"),
+                             searchPaths: searchPaths) ??
+        lookupExecutablePath(filename: executable("python"),
+                             searchPaths: searchPaths) else {
+      throw BuildServerTestError.executableNotFound("python3")
+    }
+    let flags = [AbsolutePath(serverConfig.argv[0], relativeTo: projectRoot).pathString] + Array(serverConfig.argv[1...])
     let languages = [
       Language.c,
       Language.cpp,
@@ -103,7 +134,7 @@ public final class BuildServerBuildSystem {
       capabilities: BuildClientCapabilities(languageIds: languages))
 
     let handler = BuildServerHandler()
-    let buildServer = try makeJSONRPCBuildServer(client: handler, serverPath: serverPath, serverFlags: flags)
+    let buildServer = try makeJSONRPCBuildServer(client: handler, interpreter: interpreter, serverFlags: flags)
     let response = try buildServer.sendSync(initializeRequest)
     buildServer.send(InitializedBuildNotification())
     log("initialized build server \(response.displayName)")
@@ -269,7 +300,7 @@ struct BuildServerConfig: Codable {
   let argv: [String]
 }
 
-private func makeJSONRPCBuildServer(client: MessageHandler, serverPath: AbsolutePath, serverFlags: [String]?) throws -> JSONRPCConnection {
+private func makeJSONRPCBuildServer(client: MessageHandler, interpreter: AbsolutePath, serverFlags: [String]?) throws -> JSONRPCConnection {
   let clientToServer = Pipe()
   let serverToClient = Pipe()
 
@@ -285,7 +316,7 @@ private func makeJSONRPCBuildServer(client: MessageHandler, serverPath: Absolute
     withExtendedLifetime((clientToServer, serverToClient)) {}
   }
   let process = Foundation.Process()
-  process.executableURL = serverPath.asURL
+  process.executableURL = interpreter.asURL
   process.arguments = serverFlags
   process.standardOutput = serverToClient
   process.standardInput = clientToServer

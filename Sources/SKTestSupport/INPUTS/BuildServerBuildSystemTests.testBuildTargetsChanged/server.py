@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import json
 import os
 import sys
@@ -8,7 +6,7 @@ import sys
 def send(data):
     dataStr = json.dumps(data)
     try:
-        sys.stdout.write("Content-Length: {}\r\n\r\n{}".format(len(dataStr), dataStr))
+        sys.stdout.buffer.write(f"Content-Length: {len(dataStr)}\r\n\r\n{dataStr}".encode('utf-8'))
         sys.stdout.flush()
     except IOError:
         # stdout closed, time to quit
