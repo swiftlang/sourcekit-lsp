@@ -65,7 +65,7 @@ public final class Workspace {
     self.index = index
     let bsm = BuildSystemManager(
       buildSystem: underlyingBuildSystem,
-      fallbackBuildSystem: FallbackBuildSystem(),
+      fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
       mainFilesProvider: index)
     indexDelegate?.registerMainFileChanged(bsm)
     self.buildSystemManager = bsm

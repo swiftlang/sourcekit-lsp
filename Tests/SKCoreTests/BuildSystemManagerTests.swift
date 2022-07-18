@@ -34,7 +34,7 @@ final class BuildSystemManagerTests: XCTestCase {
     ]
 
     let bsm = BuildSystemManager(
-      buildSystem: FallbackBuildSystem(),
+      buildSystem: FallbackBuildSystem(buildSetup: .default),
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
@@ -142,7 +142,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a])]
     let bs = ManualBuildSystem()
-    let fallback = FallbackBuildSystem()
+    let fallback = FallbackBuildSystem(buildSetup: .default)
     let bsm = BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: fallback,
