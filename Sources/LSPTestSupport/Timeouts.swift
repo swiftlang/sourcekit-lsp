@@ -14,4 +14,4 @@ import Foundation
 
 /// The default duration how long tests should wait for responses from
 /// SourceKit-LSP / sourcekitd / clangd. 
-public let defaultTimeout: TimeInterval = 15
+public let defaultTimeout: TimeInterval = 60
