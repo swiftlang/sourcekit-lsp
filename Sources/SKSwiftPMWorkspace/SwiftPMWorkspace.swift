@@ -447,7 +447,7 @@ extension SwiftPMWorkspace {
   /// Retrieve settings for the given swift file, which is part of a known target build description.
   public func settings(
     forSwiftFile path: AbsolutePath,
-    _ td: SwiftTargetBuildDescription) throws -> FileBuildSettings?
+    _ td: SwiftTargetBuildDescription) throws -> FileBuildSettings
   {
     // FIXME: this is re-implementing llbuild's constructCommandLineArgs.
     var args: [String] = [
@@ -480,7 +480,7 @@ extension SwiftPMWorkspace {
   public func settings(
     forClangFile path: AbsolutePath,
     _ language: Language,
-    _ td: ClangTargetBuildDescription) throws -> FileBuildSettings?
+    _ td: ClangTargetBuildDescription) throws -> FileBuildSettings
   {
     // FIXME: this is re-implementing things from swiftpm's createClangCompileTarget
 
