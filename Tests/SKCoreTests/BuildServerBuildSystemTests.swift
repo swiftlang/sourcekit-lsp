@@ -35,6 +35,9 @@ final class BuildServerBuildSystemTests: XCTestCase {
   }
 
   func testSettings() throws {
+#if os(Windows)
+    try XCTSkipIf(true, "hang")
+#endif
     let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     // test settings with a response
