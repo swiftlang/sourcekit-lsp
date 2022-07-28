@@ -19,7 +19,11 @@ import Dispatch
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
 public final class FallbackBuildSystem: BuildSystem {
 
-  public init() {}
+  let buildSetup: BuildSetup
+
+  public init(buildSetup: BuildSetup) {
+    self.buildSetup = buildSetup
+  }
 
   /// The path to the SDK.
   public lazy var sdkpath: AbsolutePath? = {
@@ -79,7 +83,8 @@ public final class FallbackBuildSystem: BuildSystem {
 
   func settingsSwift(_ file: String) -> FileBuildSettings {
     var args: [String] = []
-    if let sdkpath = sdkpath {
+    args.append(contentsOf: self.buildSetup.flags.swiftCompilerFlags)
+    if let sdkpath = sdkpath, !args.contains("-sdk") {
       args += [
         "-sdk",
         sdkpath.pathString,
@@ -91,7 +96,15 @@ public final class FallbackBuildSystem: BuildSystem {
 
   func settingsClang(_ file: String, _ language: Language) -> FileBuildSettings {
     var args: [String] = []
-    if let sdkpath = sdkpath {
+    switch language {
+    case .c:
+      args.append(contentsOf: self.buildSetup.flags.cCompilerFlags)
+    case .cpp:
+      args.append(contentsOf: self.buildSetup.flags.cxxCompilerFlags)
+    default:
+      break
+    }
+    if let sdkpath = sdkpath, !args.contains("-isysroot") {
       args += [
         "-isysroot",
         sdkpath.pathString,
