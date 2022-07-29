@@ -100,18 +100,14 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace) -> List[str]:
 
   return swiftpm_args
 
-def install(swiftpm_bin_path: str, prefixes: List[str], toolchain: str) -> None:
+def install(swiftpm_bin_path: str, prefixes: List[str]) -> None:
   for prefix in prefixes:
-    install_binary('sourcekit-lsp', swiftpm_bin_path, os.path.join(prefix, 'bin'), toolchain)
+    install_binary('sourcekit-lsp', swiftpm_bin_path, os.path.join(prefix, 'bin'))
 
-def install_binary(exe: str, source_dir: str, install_dir: str, toolchain: str) -> None:
+def install_binary(exe: str, source_dir: str, install_dir: str) -> None:
   cmd = ['rsync', '-a', os.path.join(source_dir, exe), install_dir]
   print(' '.join(cmd))
   subprocess.check_call(cmd)
-
-  if platform.system() == 'Darwin':
-    result_path = os.path.join(install_dir, exe)
-    stdlib_rpath = os.path.join(toolchain, 'lib', 'swift', 'macosx')
 
 def handle_invocation(swift_exec: str, args: argparse.Namespace) -> None:
   swiftpm_args = get_swiftpm_options(swift_exec, args)
@@ -161,7 +157,7 @@ def handle_invocation(swift_exec: str, args: argparse.Namespace) -> None:
 
     if not args.install_prefixes:
       args.install_prefixes = [args.toolchain]
-    install(bin_path, args.install_prefixes, args.toolchain)
+    install(bin_path, args.install_prefixes)
   else:
     assert False, 'unknown action \'{}\''.format(args.action)
 
