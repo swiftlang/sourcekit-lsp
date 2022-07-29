@@ -8,13 +8,14 @@ import shutil
 import subprocess
 import sys
 import json
+from typing import List, Optional, Dict
 
-def error(message):
+def error(message: str) -> None:
   print("--- %s: error: %s" % (os.path.basename(sys.argv[0]), message), file=sys.stderr)
   sys.stderr.flush()
   raise SystemExit(1)
 
-def get_build_target(swift_exec, args):
+def get_build_target(swift_exec: str, args: argparse.Namespace) -> str:
   """Returns the target-triple of the current machine or for cross-compilation."""
   try:
     command = [swift_exec, '-print-target-info']
@@ -30,19 +31,20 @@ def get_build_target(swift_exec, args):
       return 'x86_64-apple-macosx'
     else:
       error(str(e))
+      return ''
 
-def swiftpm(action, swift_exec, swiftpm_args, env=None):
+def swiftpm(action: str, swift_exec: str, swiftpm_args: List[str], env: Optional[Dict[str, str]]=None) -> None:
   cmd = [swift_exec, action] + swiftpm_args
   print(' '.join(cmd))
   subprocess.check_call(cmd, env=env)
 
-def swiftpm_bin_path(swift_exec, swiftpm_args, env=None):
+def swiftpm_bin_path(swift_exec: str, swiftpm_args: List[str], env: Optional[Dict[str, str]] = None) -> str:
   swiftpm_args = list(filter(lambda arg: arg != '-v' and arg != '--verbose', swiftpm_args))
   cmd = [swift_exec, 'build', '--show-bin-path'] + swiftpm_args
   print(' '.join(cmd))
   return subprocess.check_output(cmd, env=env, universal_newlines=True).strip()
 
-def get_swiftpm_options(swift_exec, args):
+def get_swiftpm_options(swift_exec: str, args: argparse.Namespace) -> List[str]:
   swiftpm_args = [
     '--package-path', args.package_path,
     '--build-path', args.build_path,
@@ -98,11 +100,11 @@ def get_swiftpm_options(swift_exec, args):
 
   return swiftpm_args
 
-def install(swiftpm_bin_path, prefixes, toolchain):
+def install(swiftpm_bin_path: str, prefixes: List[str], toolchain: str) -> None:
   for prefix in prefixes:
     install_binary('sourcekit-lsp', swiftpm_bin_path, os.path.join(prefix, 'bin'), toolchain)
 
-def install_binary(exe, source_dir, install_dir, toolchain):
+def install_binary(exe: str, source_dir: str, install_dir: str, toolchain: str) -> None:
   cmd = ['rsync', '-a', os.path.join(source_dir, exe), install_dir]
   print(' '.join(cmd))
   subprocess.check_call(cmd)
@@ -111,10 +113,10 @@ def install_binary(exe, source_dir, install_dir, toolchain):
     result_path = os.path.join(install_dir, exe)
     stdlib_rpath = os.path.join(toolchain, 'lib', 'swift', 'macosx')
 
-def handle_invocation(swift_exec, args):
+def handle_invocation(swift_exec: str, args: argparse.Namespace) -> None:
   swiftpm_args = get_swiftpm_options(swift_exec, args)
 
-  env = os.environ
+  env = dict(os.environ)
   # Set the toolchain used in tests at runtime
   env['SOURCEKIT_TOOLCHAIN_PATH'] = args.toolchain
   env['INDEXSTOREDB_TOOLCHAIN_BIN_PATH'] = args.toolchain
@@ -164,9 +166,9 @@ def handle_invocation(swift_exec, args):
     assert False, 'unknown action \'{}\''.format(args.action)
 
 
-def main():
+def main() -> None:
   parser = argparse.ArgumentParser(description='Build along with the Swift build-script.')
-  def add_common_args(parser):
+  def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('--package-path', metavar='PATH', help='directory of the package to build', default='.')
     parser.add_argument('--toolchain', required=True, metavar='PATH', help='build using the toolchain at PATH')
     parser.add_argument('--ninja-bin', metavar='PATH', help='ninja binary to use for testing')
