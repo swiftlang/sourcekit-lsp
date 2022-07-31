@@ -215,18 +215,12 @@ def install_binary(exe: str, source_dir: str, install_dir: str, verbose: bool) -
 
 
 def install(swift_exec: str, args: argparse.Namespace) -> None:
+    build_single_product('sourcekit-lsp', swift_exec, args)
+
     swiftpm_args = get_swiftpm_options(swift_exec, args)
     additional_env = get_swiftpm_environment_variables(swift_exec, args)
-
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args=swiftpm_args, additional_env=additional_env)
-    swiftpm_args += ['-Xswiftc', '-no-toolchain-stdlib-rpath']
-    check_call([
-        swift_exec, 'build'
-    ] + swiftpm_args, additional_env=additional_env)
-
-    if not args.install_prefixes:
-        args.install_prefixes = [args.toolchain]
-
+    
     for prefix in args.install_prefixes:
         install_binary('sourcekit-lsp', bin_path, os.path.join(prefix, 'bin'), verbose=args.verbose)
 
@@ -295,6 +289,10 @@ def parse_args() -> argparse.Namespace:
     args.package_path = os.path.abspath(args.package_path)
     args.build_path = os.path.abspath(args.build_path)
     args.toolchain = os.path.abspath(args.toolchain)
+
+    if args.action == 'install':
+        if not args.install_prefixes:
+            args.install_prefixes = [args.toolchain]
 
     return args
 
