@@ -20,7 +20,7 @@ The SourceKit-LSP server is included with the Swift toolchain. Depending on how 
 
 ## Development
 
-For more information about developing SourceKit-LSP itself, see [Development](Documentation/Development.md).
+For more information about developing SourceKit-LSP itself, see [Development](Documentation/Development.md). For information about developing SourceKit-LSP clients (like editors or their language plugins), see [Client Development](Documentation/Client_Development.md).
 
 ## Indexing While Building
 
