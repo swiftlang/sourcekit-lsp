@@ -47,10 +47,14 @@ def check_call(cmd: List[str], additional_env: Dict[str, str] = {}, verbose: boo
     subprocess.check_call(cmd, env=env_with_additional_env(additional_env), stderr=subprocess.STDOUT)
 
 
-def check_output(cmd: List[str], additional_env: Dict[str, str] = {}, verbose: bool = False) -> str:
+def check_output(cmd: List[str], additional_env: Dict[str, str] = {}, capture_stderr: bool = True, verbose: bool = False) -> str:
     if verbose:
         print_cmd(cmd=cmd, additional_env=additional_env)
-    return subprocess.check_output(cmd, env=env_with_additional_env(additional_env), stderr=subprocess.STDOUT, encoding='utf-8')
+    if capture_stderr:
+        stderr = subprocess.STDOUT
+    else:
+        stderr = subprocess.DEVNULL
+    return subprocess.check_output(cmd, env=env_with_additional_env(additional_env), stderr=stderr, encoding='utf-8')
 
 # -----------------------------------------------------------------------------
 # SwiftPM wrappers
@@ -61,7 +65,7 @@ def swiftpm_bin_path(swift_exec: str, swiftpm_args: List[str], additional_env: D
     Return the path of the directory that contains the binaries produced by this package.
     """
     cmd = [swift_exec, 'build', '--show-bin-path'] + swiftpm_args
-    return check_output(cmd, additional_env=additional_env, verbose=verbose).strip()
+    return check_output(cmd, additional_env=additional_env, capture_stderr=False, verbose=verbose).strip()
 
 
 def get_build_target(swift_exec: str, args: argparse.Namespace) -> str:
