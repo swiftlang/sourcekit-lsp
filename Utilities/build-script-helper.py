@@ -157,13 +157,13 @@ def get_swiftpm_environment_variables(swift_exec: str, args: argparse.Namespace)
     return env
 
 
-def build(swift_exec: str, args: argparse.Namespace) -> None:
+def build_single_product(product: str, swift_exec: str, args: argparse.Namespace) -> None:
     """
     Build one product in the package
     """
     swiftpm_args = get_swiftpm_options(swift_exec, args)
     env = get_swiftpm_environment_variables(swift_exec, args)
-    cmd = [swift_exec, 'build'] + swiftpm_args
+    cmd = [swift_exec, 'build', '--product', product] + swiftpm_args
     check_call(cmd, env=env, verbose=args.verbose)
 
 
@@ -215,7 +215,11 @@ def handle_invocation(swift_exec: str, args: argparse.Namespace) -> None:
     Depending on the action in 'args', build the package, installs the package or run tests.
     """
     if args.action == 'build':
-        build(swift_exec, args)
+        # Build SourceKitLSPPackageTests to build all source code in sourcekit-lsp.
+        # Build _SourceKitLSP and sourcekit-lsp because they are products (dylib, executable) that can be used from the build.
+        products = ["SourceKitLSPPackageTests", "_SourceKitLSP", "sourcekit-lsp"]
+        for product in products:
+            build_single_product(product, swift_exec, args)
     elif args.action == 'test':
         run_tests(swift_exec, args)
     elif args.action == 'install':
