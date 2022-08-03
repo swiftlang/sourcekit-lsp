@@ -8,7 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 
 # -----------------------------------------------------------------------------
@@ -27,23 +27,45 @@ def escapeCmdArg(arg: str) -> str:
         return arg
 
 
-def check_call(cmd: List[str], env: Optional[Dict[str, str]], cwd: Optional[str] = None, verbose: bool = False):
+def print_cmd(cmd: List[str], additional_env: Dict[str, str]) -> None:
+    env_str = " ".join([f"{key}={escapeCmdArg(str(value))}" for (key, value) in additional_env.items()])
+    command_str = " ".join([escapeCmdArg(str(arg)) for arg in cmd])
+    print(f"{env_str} {command_str}")
+
+
+def env_with_additional_env(additional_env: Dict[str, str]) -> Dict[str, str]:
+    env = dict(os.environ)
+    for (key, value) in additional_env.items():
+        env[key] = str(value)
+    return env
+
+
+def check_call(cmd: List[str], additional_env: Dict[str, str] = {}, verbose: bool = False) -> None:
     if verbose:
-        print(" ".join([escapeCmdArg(arg) for arg in cmd]))
-    return subprocess.check_call(cmd, cwd=cwd, env=env, stderr=subprocess.STDOUT)
+        print_cmd(cmd=cmd, additional_env=additional_env)
+
+    subprocess.check_call(cmd, env=env_with_additional_env(additional_env), stderr=subprocess.STDOUT)
+
+
+def check_output(cmd: List[str], additional_env: Dict[str, str] = {}, capture_stderr: bool = True, verbose: bool = False) -> str:
+    if verbose:
+        print_cmd(cmd=cmd, additional_env=additional_env)
+    if capture_stderr:
+        stderr = subprocess.STDOUT
+    else:
+        stderr = subprocess.DEVNULL
+    return subprocess.check_output(cmd, env=env_with_additional_env(additional_env), stderr=stderr, encoding='utf-8')
 
 # -----------------------------------------------------------------------------
 # SwiftPM wrappers
 
 
-def swiftpm_bin_path(swift_exec: str, swiftpm_args: List[str], env: Optional[Dict[str, str]], verbose: bool = False) -> str:
+def swiftpm_bin_path(swift_exec: str, swiftpm_args: List[str], additional_env: Dict[str, str], verbose: bool = False) -> str:
     """
     Return the path of the directory that contains the binaries produced by this package.
     """
     cmd = [swift_exec, 'build', '--show-bin-path'] + swiftpm_args
-    if verbose:
-        print(" ".join([escapeCmdArg(arg) for arg in cmd]))
-    return subprocess.check_output(cmd, env=env, universal_newlines=True).strip()
+    return check_output(cmd, additional_env=additional_env, capture_stderr=False, verbose=verbose).strip()
 
 
 def get_build_target(swift_exec: str, args: argparse.Namespace) -> str:
@@ -69,9 +91,12 @@ def get_build_target(swift_exec: str, args: argparse.Namespace) -> str:
 def get_swiftpm_options(swift_exec: str, args: argparse.Namespace) -> List[str]:
     swiftpm_args = [
         '--package-path', args.package_path,
-        '--build-path', args.build_path,
+        '--scratch-path', args.build_path,
         '--configuration', args.configuration,
     ]
+
+    if args.multiroot_data_file:
+        swiftpm_args += ['--multiroot-data-file', args.multiroot_data_file]
 
     if args.verbose:
         swiftpm_args += ['--verbose']
@@ -129,10 +154,12 @@ def get_swiftpm_environment_variables(swift_exec: str, args: argparse.Namespace)
     'swift test' invocation.
     """
 
-    env = dict(os.environ)
-    # Set the toolchain used in tests at runtime
-    env['SOURCEKIT_TOOLCHAIN_PATH'] = args.toolchain
-    env['INDEXSTOREDB_TOOLCHAIN_BIN_PATH'] = args.toolchain
+    env = {
+        # Set the toolchain used in tests at runtime
+        'SOURCEKIT_TOOLCHAIN_PATH': args.toolchain,
+        'INDEXSTOREDB_TOOLCHAIN_BIN_PATH': args.toolchain,
+        'SWIFT_EXEC': f'{swift_exec}c'
+    }
     # Use local dependencies (i.e. checked out next sourcekit-lsp).
     if not args.no_local_deps:
         env['SWIFTCI_USE_LOCAL_DEPS'] = "1"
@@ -152,19 +179,17 @@ def get_swiftpm_environment_variables(swift_exec: str, args: argparse.Namespace)
     if args.action == 'test' and not args.skip_long_tests:
         env['SOURCEKIT_LSP_ENABLE_LONG_TESTS'] = '1'
 
-    env['SWIFT_EXEC'] = '%sc' % (swift_exec)
-
     return env
 
 
-def build(swift_exec: str, args: argparse.Namespace) -> None:
+def build_single_product(product: str, swift_exec: str, args: argparse.Namespace) -> None:
     """
     Build one product in the package
     """
     swiftpm_args = get_swiftpm_options(swift_exec, args)
-    env = get_swiftpm_environment_variables(swift_exec, args)
-    cmd = [swift_exec, 'build'] + swiftpm_args
-    check_call(cmd, env=env, verbose=args.verbose)
+    additional_env = get_swiftpm_environment_variables(swift_exec, args)
+    cmd = [swift_exec, 'build', '--product', product] + swiftpm_args
+    check_call(cmd, additional_env=additional_env, verbose=args.verbose)
 
 
 def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
@@ -172,9 +197,9 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
     Run all tests in the package
     """
     swiftpm_args = get_swiftpm_options(swift_exec, args)
-    env = get_swiftpm_environment_variables(swift_exec, args)
+    additional_env = get_swiftpm_environment_variables(swift_exec, args)
 
-    bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
+    bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, additional_env=additional_env)
     tests = os.path.join(bin_path, 'sk-tests')
     print('Cleaning ' + tests)
     shutil.rmtree(tests, ignore_errors=True)
@@ -185,27 +210,21 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
         '--disable-testable-imports',
         '--test-product', 'SourceKitLSPPackageTests'
     ] + swiftpm_args
-    check_call(cmd, env=env, verbose=args.verbose)
+    check_call(cmd, additional_env=additional_env, verbose=args.verbose)
 
 
 def install_binary(exe: str, source_dir: str, install_dir: str, verbose: bool) -> None:
     cmd = ['rsync', '-a', os.path.join(source_dir, exe), install_dir]
-    check_call(cmd, env=None, verbose=verbose)
+    check_call(cmd, verbose=verbose)
 
 
 def install(swift_exec: str, args: argparse.Namespace) -> None:
+    build_single_product('sourcekit-lsp', swift_exec, args)
+
     swiftpm_args = get_swiftpm_options(swift_exec, args)
-    env = get_swiftpm_environment_variables(swift_exec, args)
-
-    bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, env)
-    swiftpm_args += ['-Xswiftc', '-no-toolchain-stdlib-rpath']
-    check_call([
-        swift_exec, 'build'
-    ] + swiftpm_args, env=env)
-
-    if not args.install_prefixes:
-        args.install_prefixes = [args.toolchain]
-
+    additional_env = get_swiftpm_environment_variables(swift_exec, args)
+    bin_path = swiftpm_bin_path(swift_exec, swiftpm_args=swiftpm_args, additional_env=additional_env)
+    
     for prefix in args.install_prefixes:
         install_binary('sourcekit-lsp', bin_path, os.path.join(prefix, 'bin'), verbose=args.verbose)
 
@@ -214,12 +233,12 @@ def handle_invocation(swift_exec: str, args: argparse.Namespace) -> None:
     """
     Depending on the action in 'args', build the package, installs the package or run tests.
     """
-    if not args.no_clean:
-        print('Cleaning ' + args.build_path)
-        shutil.rmtree(args.build_path, ignore_errors=True)
-
     if args.action == 'build':
-        build(swift_exec, args)
+        # Build SourceKitLSPPackageTests to build all source code in sourcekit-lsp.
+        # Build _SourceKitLSP and sourcekit-lsp because they are products (dylib, executable) that can be used from the build.
+        products = ["SourceKitLSPPackageTests", "_SourceKitLSP", "sourcekit-lsp"]
+        for product in products:
+            build_single_product(product, swift_exec, args)
     elif args.action == 'test':
         run_tests(swift_exec, args)
     elif args.action == 'install':
@@ -247,6 +266,7 @@ def parse_args() -> argparse.Namespace:
         parser.add_argument('--verbose', '-v', action='store_true', help='enable verbose output')
         parser.add_argument('--cross-compile-host', help='cross-compile for another host instead')
         parser.add_argument('--cross-compile-config', help='an SPM JSON destination file containing Swift cross-compilation flags')
+        parser.add_argument('--multiroot-data-file', help='path to an Xcode workspace to create a unified build of all of Swift\'s SwiftPM projects')
 
     if sys.version_info >= (3, 7, 0):
         subparsers = parser.add_subparsers(title='subcommands', dest='action', required=True, metavar='action')
@@ -273,6 +293,10 @@ def parse_args() -> argparse.Namespace:
     args.package_path = os.path.abspath(args.package_path)
     args.build_path = os.path.abspath(args.build_path)
     args.toolchain = os.path.abspath(args.toolchain)
+
+    if args.action == 'install':
+        if not args.install_prefixes:
+            args.install_prefixes = [args.toolchain]
 
     return args
 
