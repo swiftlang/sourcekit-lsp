@@ -20,7 +20,7 @@ import XCTest
 
 final class MainFilesProviderTests: XCTestCase {
 
-  func testMainFilesChanged() {
+  func testMainFilesChanged() throws {
     let ws = try! mutableSourceKitTibsTestWorkspace(name: "MainFiles")!
     let indexDelegate = SourceKitIndexDelegate()
     ws.tibsWorkspace.delegate = indexDelegate
@@ -52,7 +52,7 @@ final class MainFilesProviderTests: XCTestCase {
     XCTAssertEqual(ws.index.mainFilesContainingFile(shared_h), [])
     XCTAssertEqual(ws.index.mainFilesContainingFile(bridging), [])
 
-    try! ws.buildAndIndex()
+    try ws.buildAndIndex()
 
     XCTAssertEqual(ws.index.mainFilesContainingFile(a), [a])
     XCTAssertEqual(ws.index.mainFilesContainingFile(b), [b])
@@ -64,7 +64,7 @@ final class MainFilesProviderTests: XCTestCase {
 
     wait(for: [mainFilesDelegate.expectation], timeout: defaultTimeout)
 
-    try! ws.edit { changes, _ in
+    try ws.edit { changes, _ in
       changes.write("""
         #include "bridging.h"
         void d_new(void) { bridging(); }
@@ -77,7 +77,7 @@ final class MainFilesProviderTests: XCTestCase {
     }
 
     mainFilesDelegate.expectation = expectation(description: "main files changed after edit")
-    try! ws.buildAndIndex()
+    try ws.buildAndIndex()
 
     XCTAssertEqual(ws.index.mainFilesContainingFile(unique_h), [c])
     XCTAssertEqual(ws.index.mainFilesContainingFile(shared_h), [])

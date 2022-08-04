@@ -601,7 +601,7 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual("Remove 'foo ='", CodeAction.fixitTitle(replace: "foo =", with: ""))
   }
 
-  func testFixitsAreReturnedFromCodeActions() {
+  func testFixitsAreReturnedFromCodeActions() throws {
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     let uri = DocumentURI(url)
 
@@ -626,7 +626,7 @@ final class LocalSwiftTests: XCTestCase {
       context: CodeActionContext(diagnostics: [diagnostic], only: nil),
       textDocument: TextDocumentIdentifier(uri)
     )
-    let response = try! sk.sendSync(request)
+    let response = try sk.sendSync(request)
 
     XCTAssertNotNil(response)
     guard case .codeActions(let codeActions) = response else {
@@ -651,7 +651,7 @@ final class LocalSwiftTests: XCTestCase {
       command: nil))
   }
 
-  func testFixitsAreReturnedFromCodeActionsNotes() {
+  func testFixitsAreReturnedFromCodeActionsNotes() throws {
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     let uri = DocumentURI(url)
 
@@ -676,7 +676,7 @@ final class LocalSwiftTests: XCTestCase {
       context: CodeActionContext(diagnostics: [diagnostic], only: nil),
       textDocument: TextDocumentIdentifier(uri)
     )
-    let response = try! sk.sendSync(request)
+    let response = try sk.sendSync(request)
 
     XCTAssertNotNil(response)
     guard case .codeActions(let codeActions) = response else {
@@ -706,7 +706,7 @@ final class LocalSwiftTests: XCTestCase {
     }
   }
 
-  func testMuliEditFixitCodeActionPrimary() {
+  func testMuliEditFixitCodeActionPrimary() throws {
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     let uri = DocumentURI(url)
 
@@ -730,7 +730,7 @@ final class LocalSwiftTests: XCTestCase {
       context: CodeActionContext(diagnostics: [diagnostic], only: nil),
       textDocument: TextDocumentIdentifier(uri)
     )
-    let response = try! sk.sendSync(request)
+    let response = try sk.sendSync(request)
 
     XCTAssertNotNil(response)
     guard case .codeActions(let codeActions) = response else {
@@ -749,7 +749,7 @@ final class LocalSwiftTests: XCTestCase {
     ])
   }
 
-  func testMuliEditFixitCodeActionNote() {
+  func testMuliEditFixitCodeActionNote() throws {
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     let uri = DocumentURI(url)
 
@@ -776,7 +776,7 @@ final class LocalSwiftTests: XCTestCase {
       context: CodeActionContext(diagnostics: [diagnostic], only: nil),
       textDocument: TextDocumentIdentifier(uri)
     )
-    let response = try! sk.sendSync(request)
+    let response = try sk.sendSync(request)
 
     XCTAssertNotNil(response)
     guard case .codeActions(let codeActions) = response else {
@@ -1273,7 +1273,7 @@ final class LocalSwiftTests: XCTestCase {
     }
   }
 
-  func testDocumentSymbolHighlight() {
+  func testDocumentSymbolHighlight() throws {
     let url = URL(fileURLWithPath: "/\(#function)/a.swift")
     let uri = DocumentURI(url)
 
@@ -1292,14 +1292,14 @@ final class LocalSwiftTests: XCTestCase {
       """)))
 
     do {
-      let resp = try! sk.sendSync(DocumentHighlightRequest(
+      let resp = try sk.sendSync(DocumentHighlightRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 0, utf16index: 0)))
       XCTAssertEqual(resp?.count, 0)
     }
 
     do {
-      let resp = try! sk.sendSync(DocumentHighlightRequest(
+      let resp = try sk.sendSync(DocumentHighlightRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 1, utf16index: 6)))
       XCTAssertEqual(resp?.count, 1)
@@ -1312,7 +1312,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try! sk.sendSync(DocumentHighlightRequest(
+      let resp = try sk.sendSync(DocumentHighlightRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 2, utf16index: 6)))
       XCTAssertEqual(resp?.count, 2)
@@ -1331,7 +1331,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try! sk.sendSync(DocumentHighlightRequest(
+      let resp = try sk.sendSync(DocumentHighlightRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 3, utf16index: 6)))
       XCTAssertEqual(resp?.count, 3)
