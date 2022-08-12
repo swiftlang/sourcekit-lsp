@@ -127,6 +127,8 @@ struct SyntaxHighlightingTokenParser {
          values.ref_function_destructor,
          values.ref_function_subscript:
       return (.method, [])
+    case values.syntaxtype_operator:
+      return (.operator, [])
     case values.decl_function_operator_prefix,
          values.decl_function_operator_postfix,
          values.decl_function_operator_infix:
