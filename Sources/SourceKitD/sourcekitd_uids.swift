@@ -285,6 +285,7 @@ public struct sourcekitd_values {
   public let syntaxtype_doccomment: sourcekitd_uid_t
   public let syntaxtype_doccomment_field: sourcekitd_uid_t
   public let syntaxtype_keyword: sourcekitd_uid_t
+  public let syntaxtype_operator: sourcekitd_uid_t
   public let syntaxtype_number: sourcekitd_uid_t
   public let syntaxtype_string: sourcekitd_uid_t
   public let syntaxtype_string_interpolation_anchor: sourcekitd_uid_t
@@ -388,6 +389,7 @@ public struct sourcekitd_values {
     syntaxtype_doccomment = api.uid_get_from_cstr("source.lang.swift.syntaxtype.doccomment")!
     syntaxtype_doccomment_field = api.uid_get_from_cstr("source.lang.swift.syntaxtype.doccomment.field")!
     syntaxtype_keyword = api.uid_get_from_cstr("source.lang.swift.syntaxtype.keyword")!
+    syntaxtype_operator = api.uid_get_from_cstr("source.lang.swift.syntaxtype.operator")!
     syntaxtype_number = api.uid_get_from_cstr("source.lang.swift.syntaxtype.number")!
     syntaxtype_string = api.uid_get_from_cstr("source.lang.swift.syntaxtype.string")!
     syntaxtype_string_interpolation_anchor = api.uid_get_from_cstr("source.lang.swift.syntaxtype.string_interpolation_anchor")!

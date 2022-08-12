@@ -348,6 +348,7 @@ final class SemanticTokensTests: XCTestCase {
       Token(line: 3, utf16index: 0, length: 3, kind: .keyword),
       Token(line: 3, utf16index: 4, length: 1, kind: .identifier),
       Token(line: 3, utf16index: 8, length: 1, kind: .variable),
+      Token(line: 3, utf16index: 10, length: 1, kind: .operator),
       Token(line: 3, utf16index: 12, length: 1, kind: .variable),
       // func a() {}
       Token(line: 5, utf16index: 0, length: 4, kind: .keyword),
@@ -485,6 +486,20 @@ final class SemanticTokensTests: XCTestCase {
       Token(line: 6, utf16index: 7, length: 5, kind: .enum),
       Token(line: 6, utf16index: 16, length: 4, kind: .enumMember),
       Token(line: 6, utf16index: 21, length: 2, kind: .number),
+    ])
+  }
+
+
+  func testOperatorDeclaration() {
+    let text = """
+    infix operator ?= :ComparisonPrecedence
+    """
+    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    XCTAssertEqual(tokens, [
+      Token(line: 0, utf16index: 0, length: 5, kind: .modifier),
+      Token(line: 0, utf16index: 6, length: 8, kind: .keyword),
+      Token(line: 0, utf16index: 15, length: 2, kind: .operator),
+      Token(line: 0, utf16index: 19, length: 20, kind: .identifier),
     ])
   }
 
