@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import LanguageServerProtocol
 import TSCBasic
 
