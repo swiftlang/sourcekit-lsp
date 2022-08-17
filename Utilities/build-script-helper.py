@@ -107,9 +107,9 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace) -> List[str]:
 
     if platform.system() == 'Darwin':
         swiftpm_args += [
-            # Relative library rpath for swift; will only be used when /usr/lib/swift
-            # is not available.
+            '-Xlinker', '-rpath', '-Xlinker', '/usr/lib/swift',
             '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../lib/swift/macosx',
+            '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../lib/swift-5.5/macosx',
         ]
     else:
         swiftpm_args += [
