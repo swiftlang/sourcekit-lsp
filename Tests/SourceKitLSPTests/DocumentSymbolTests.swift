@@ -46,7 +46,7 @@ final class DocumentSymbolTests: XCTestCase {
   }
 
   func performDocumentSymbolRequest(text: String) -> DocumentSymbolResponse {
-    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
 
     sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),

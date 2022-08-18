@@ -43,7 +43,7 @@ final class InlayHintTests: XCTestCase {
   }
 
   func performInlayHintRequest(text: String, range: Range<Position>? = nil) throws -> [InlayHint] {
-    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     
     sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),

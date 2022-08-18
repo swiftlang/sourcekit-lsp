@@ -140,7 +140,7 @@ final class BuildSystemTests: XCTestCase {
   func testClangdDocumentUpdatedBuildSettings() {
     guard haveClangd else { return }
 
-    let url = URL(fileURLWithPath: "/\(#function)/file.m")
+    let url = URL(fileURLWithPath: "/\(UUID())/file.m")
     let doc = DocumentURI(url)
     let args = [url.path, "-DDEBUG"]
     let text = """
@@ -190,7 +190,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testSwiftDocumentUpdatedBuildSettings() {
-    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let doc = DocumentURI(url)
     let args = FallbackBuildSystem(buildSetup: .default).settings(for: doc, .swift)!.compilerArguments
 
@@ -249,7 +249,7 @@ final class BuildSystemTests: XCTestCase {
   func testClangdDocumentFallbackWithholdsDiagnostics() {
     guard haveClangd else { return }
 
-    let url = URL(fileURLWithPath: "/\(#function)/file.m")
+    let url = URL(fileURLWithPath: "/\(UUID())/file.m")
     let doc = DocumentURI(url)
     let args = [url.path, "-DDEBUG"]
     let text = """
@@ -298,7 +298,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testSwiftDocumentFallbackWithholdsSemanticDiagnostics() {
-    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let doc = DocumentURI(url)
 
     // Primary settings must be different than the fallback settings.
@@ -354,7 +354,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testSwiftDocumentBuildSettingsChangedFalseAlarm() {
-    let url = URL(fileURLWithPath: "/\(#function)/a.swift")
+    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let doc = DocumentURI(url)
 
     sk.allowUnexpectedNotification = false
