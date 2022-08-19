@@ -1392,7 +1392,7 @@ extension SwiftLanguageServer: SKDNotificationHandler {
         // unhandled.
 #if os(Windows)
         let isPath: Bool = name.withCString(encodedAs: UTF16.self) {
-          PathIsUNCW($0) || (0...25) ~= PathGetDriveNumberW($0)
+          !PathIsURLW($0)
         }
 #else
         let isPath: Bool = name.starts(with: "/")
