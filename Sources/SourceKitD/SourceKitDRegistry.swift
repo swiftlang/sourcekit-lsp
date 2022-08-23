@@ -10,7 +10,17 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import TSCBasic
+
+extension NSLock {
+  /// NOTE: Keep in sync with SwiftPM's 'Sources/Basics/NSLock+Extensions.swift'
+  internal func withLock<T>(_ body: () throws -> T) rethrows -> T {
+    lock()
+    defer { unlock() }
+    return try body()
+  }
+}
 
 /// The set of known SourceKitD instances, uniqued by path.
 ///
@@ -24,7 +34,7 @@ import TSCBasic
 public final class SourceKitDRegistry {
 
   /// Mutex protecting mutable state in the registry.
-  let lock: Lock = Lock()
+  let lock: NSLock = NSLock()
 
   /// Mapping from path to active SourceKitD instance.
   var active: [AbsolutePath: SourceKitD] = [:]

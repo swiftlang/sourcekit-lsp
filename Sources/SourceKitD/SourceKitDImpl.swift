@@ -40,7 +40,7 @@ public final class SourceKitDImpl: SourceKitD {
   public let values: sourcekitd_values
 
   /// Lock protecting private state.
-  let lock: Lock = Lock()
+  let lock: NSLock = NSLock()
 
   /// List of notification handlers that will be called for each notification.
   private var _notificationHandlers: [WeakSKDNotificationHandler] = []
