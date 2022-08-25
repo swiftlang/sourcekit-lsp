@@ -198,7 +198,13 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! ProcessEnv.setVar("SOURCEKIT_PATH", value: "/bogus:\(binPath):/bogus2")
+#if os(Windows)
+    let separator: String = ";"
+#else
+    let separator: String = ":"
+#endif
+
+    try! ProcessEnv.setVar("SOURCEKIT_PATH", value: "/bogus\(separator)\(binPath)\(separator)/bogus2")
     defer { try! ProcessEnv.setVar("SOURCEKIT_PATH", value: "") }
 
     tr.scanForToolchains(fs)
@@ -217,7 +223,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tc.libIndexStore)
 
     let binPath2 = AbsolutePath("/other/my_toolchain/bin")
-    try! ProcessEnv.setVar("SOME_TEST_ENV_PATH", value: "/bogus:\(binPath2):/bogus2")
+    try! ProcessEnv.setVar("SOME_TEST_ENV_PATH", value: "/bogus\(separator)\(binPath2)\(separator)/bogus2")
     makeToolchain(binPath: binPath2, fs, sourcekitd: true)
     tr.scanForToolchains(pathVariables: ["NOPE", "SOME_TEST_ENV_PATH", "MORE_NOPE"], fs)
 
