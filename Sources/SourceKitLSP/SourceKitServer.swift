@@ -1480,8 +1480,8 @@ extension SourceKitServer {
         name = "\(symbol.name): \(conformances.map(\.symbol.name).joined(separator: ", "))"
       }
       // Add the file name and line to the detail string
-      if let fileName = location.uri.pseudoPath.split(separator: "/").last {
-        detail = "Extension at \(fileName):\(location.range.lowerBound.line + 1)"
+      if let url = location.uri.fileURL {
+        detail = "Extension at \(AbsolutePath(url.path).basename):\(location.range.lowerBound.line + 1)"
       } else if let moduleName = moduleName {
         detail = "Extension in \(moduleName)"
       } else {
