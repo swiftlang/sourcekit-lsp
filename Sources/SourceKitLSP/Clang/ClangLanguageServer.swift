@@ -420,7 +420,7 @@ extension ClangLanguageServerShim {
     if let compileCommand = clangBuildSettings?.compileCommand {
       let note = DidChangeConfigurationNotification(settings: .clangd(
         ClangWorkspaceSettings(
-          compilationDatabaseChanges: [url.path: compileCommand])))
+          compilationDatabaseChanges: [AbsolutePath(url.path).pathString: compileCommand])))
       forwardNotificationToClangdOnQueue(note)
     }
   }
