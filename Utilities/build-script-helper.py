@@ -137,7 +137,7 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace) -> List[str]:
 
     build_target = get_build_target(swift_exec, args)
     if args.cross_compile_host:
-        if build_target == 'x86_64-apple-macosx' and args.cross_compile_host == "macosx-arm64":
+        if re.match('macosx-', args.cross_compile_host):
             swiftpm_args += ["--arch", "x86_64", "--arch", "arm64"]
         elif re.match('android-', args.cross_compile_host):
             print('Cross-compiling for %s' % args.cross_compile_host)
