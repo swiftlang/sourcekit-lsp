@@ -53,8 +53,8 @@ public final class SKSwiftPMTestWorkspace {
   public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain, testServer: TestSourceKitServer? = nil) throws {
     self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
 
-    self.projectDir = projectDir
-    self.tmpDir = tmpDir
+    self.projectDir = URL(fileURLWithPath: resolveSymlinks(AbsolutePath(projectDir.path)).pathString)
+    self.tmpDir = URL(fileURLWithPath: resolveSymlinks(AbsolutePath(tmpDir.path)).pathString)
     self.toolchain = toolchain
 
     let fm = FileManager.default
