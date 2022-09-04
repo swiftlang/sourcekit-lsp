@@ -12,6 +12,7 @@
 
 import ISDBTestSupport
 import LanguageServerProtocol
+import TSCBasic
 import XCTest
 
 final class CallHierarchyTests: XCTestCase {
@@ -80,12 +81,12 @@ final class CallHierarchyTests: XCTestCase {
         kind: kind,
         tags: nil,
         detail: detail,
-        uri: location.uri,
+        uri: location.uri.nativeURI,
         range: location.range,
         selectionRange: location.range,
         data: .dictionary([
           "usr": .string(usr),
-          "uri": .string(location.uri.stringValue)
+          "uri": .string(location.uri.nativeURI.stringValue)
         ])
       )
     }

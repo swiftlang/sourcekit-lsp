@@ -12,6 +12,7 @@
 
 import ISDBTestSupport
 import LanguageServerProtocol
+import TSCBasic
 import XCTest
 
 final class ImplementationTests: XCTestCase {
@@ -36,7 +37,8 @@ final class ImplementationTests: XCTestCase {
       ws.testLoc(name)
     }  
     func loc(_ name: String) -> Location {
-      Location(badUTF16: ws.testLoc(name))
+      let location: TestLocation = ws.testLoc(name)
+      return Location(badUTF16: TestLocation(url: location.docUri.nativeURI.fileURL!, line: location.line, utf8Column: location.utf8Column, utf16Column: location.utf16Column))
     }
     
     try XCTAssertEqual(impls(at: testLoc("Protocol")), [loc("StructConformance")])

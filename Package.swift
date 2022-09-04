@@ -185,7 +185,9 @@ let package = Package(
       // LanguageServerProtocol: The core LSP types, suitable for any LSP implementation.
       .target(
         name: "LanguageServerProtocol",
-        dependencies: [],
+        dependencies: [
+          .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+        ],
         exclude: ["CMakeLists.txt"]),
 
       .testTarget(

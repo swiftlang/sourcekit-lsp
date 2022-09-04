@@ -10,10 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+import ISDBTestSupport
 import LanguageServerProtocol
 import LSPTestSupport
 import SKCore
 import SKTestSupport
+import TSCBasic
 import XCTest
 
 public typealias URL = Foundation.URL
@@ -80,7 +82,7 @@ final class SKTests: XCTestCase {
     }
 
     XCTAssertEqual(jump.count, 1)
-    XCTAssertEqual(jump.first?.uri, DocumentURI(locDef.url))
+    XCTAssertEqual(jump.first?.uri, locDef.docUri.nativeURI)
     XCTAssertEqual(jump.first?.range.lowerBound, locDef.position)
 
     // MARK: Find references
@@ -90,10 +92,11 @@ final class SKTests: XCTestCase {
       position: locDef.position,
       context: ReferencesContext(includeDeclaration: true)))
 
+    let call = ws.testLoc("aaa:call")
     XCTAssertEqual(Set(refs), [
-      Location(locDef),
-      Location(locRef),
-      Location(ws.testLoc("aaa:call")),
+      Location(TestLocation(url: URL(fileURLWithPath: resolveSymlinks(AbsolutePath(locDef.url.path)).pathString), line: locDef.line, utf8Column: locDef.utf8Column, utf16Column: locDef.utf16Column)),
+      Location(TestLocation(url: URL(fileURLWithPath: resolveSymlinks(AbsolutePath(locRef.url.path)).pathString), line: locRef.line, utf8Column: locRef.utf8Column, utf16Column: locRef.utf16Column)),
+      Location(TestLocation(url: URL(fileURLWithPath: resolveSymlinks(AbsolutePath(call.url.path)).pathString), line: call.line, utf8Column: call.utf8Column, utf16Column: call.utf16Column)),
     ])
   }
 
@@ -128,7 +131,7 @@ final class SKTests: XCTestCase {
         return nil
       }
       XCTAssertEqual(jump.count, 1)
-      XCTAssertEqual(jump.first?.uri, DocumentURI(locDef.url))
+      XCTAssertEqual(jump.first?.uri, locDef.docUri.nativeURI)
       XCTAssertEqual(jump.first?.range.lowerBound, locDef.position)
 
       let tmpContents = try listdir(tmpDir)
@@ -148,7 +151,7 @@ final class SKTests: XCTestCase {
     }
 
     guard let versionedPath = try checkRunningIndex(build: true) else { return }
-    
+
     let versionContentsAfter = try listdir(versionedPath)
     XCTAssertEqual(versionContentsAfter.count, 1)
     XCTAssertEqual(versionContentsAfter.first?.lastPathComponent, "saved")
@@ -334,7 +337,7 @@ final class SKTests: XCTestCase {
     guard ToolchainRegistry.shared.default?.clangd != nil else { return }
 
     let refLoc = ws.testLoc("Object:ref:main")
-    let expectedDoc = ws.testLoc("Object").docIdentifier.uri
+    let expectedDoc = ws.testLoc("Object").docIdentifier.uri.nativeURI
     let refPos = Position(line: refLoc.position.line, utf16index: refLoc.utf16Column + 2)
 
     try ws.openDocument(refLoc.url, language: .c)
