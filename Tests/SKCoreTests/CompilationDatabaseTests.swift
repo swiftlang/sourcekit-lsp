@@ -200,7 +200,10 @@ final class CompilationDatabaseTests: XCTestCase {
     XCTAssertNotNil(db)
 
     XCTAssertEqual(db![URL(fileURLWithPath: "/a/b")], [
-      CompilationDatabase.Command(directory: "/a", filename: "/a/b", commandLine: ["clang", "-xc++", "-I", "libwidget/include/", "/a/b"], output: nil)
+      CompilationDatabase.Command(directory: AbsolutePath("/a").pathString,
+                                  filename: "/a/b",
+                                  commandLine: ["clang", "-xc++", "-I", "libwidget/include/", "/a/b"],
+                                  output: nil)
     ])
   }
 
