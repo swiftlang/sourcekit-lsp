@@ -43,6 +43,9 @@ public final class Toolchain {
   /// The path to the Clang compiler if available.
   public var clang: AbsolutePath?
 
+  /// The path to the Swift driver if available.
+  public var swift: AbsolutePath?
+
   /// The path to the Swift compiler if available.
   public var swiftc: AbsolutePath?
 
@@ -60,6 +63,7 @@ public final class Toolchain {
     displayName: String,
     path: AbsolutePath? = nil,
     clang: AbsolutePath? = nil,
+    swift: AbsolutePath? = nil,
     swiftc: AbsolutePath? = nil,
     clangd: AbsolutePath? = nil,
     sourcekitd: AbsolutePath? = nil,
@@ -69,6 +73,7 @@ public final class Toolchain {
     self.displayName = displayName
     self.path = path
     self.clang = clang
+    self.swift = swift
     self.swiftc = swiftc
     self.clangd = clangd
     self.sourcekitd = sourcekitd
@@ -138,6 +143,12 @@ extension Toolchain {
     let clangdPath = binPath.appending(component: "clangd\(execExt)")
     if fs.isExecutableFile(clangdPath) {
       self.clangd = clangdPath
+      foundAny = true
+    }
+
+    let swiftPath = binPath.appending(component: "swift\(execExt)")
+    if fs.isExecutableFile(swiftPath) {
+      self.swift = swiftPath
       foundAny = true
     }
 
