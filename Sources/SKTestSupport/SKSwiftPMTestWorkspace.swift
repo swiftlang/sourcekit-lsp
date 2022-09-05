@@ -121,7 +121,7 @@ extension SKSwiftPMTestWorkspace {
 
   func build() throws {
     try TSCBasic.Process.checkNonZeroExit(arguments: [
-      String(toolchain.swiftc!.pathString.dropLast()),
+      toolchain.swift!.pathString,
       "build",
       "--package-path", sources.rootDirectory.path,
       "--build-path", buildDir.path,
