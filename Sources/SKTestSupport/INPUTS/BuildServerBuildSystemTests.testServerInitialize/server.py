@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import json
 import sys
 
@@ -55,7 +53,7 @@ while True:
     if response:
         responseStr = json.dumps(response)
         try:
-            sys.stdout.write("Content-Length: {}\r\n\r\n{}".format(len(responseStr), responseStr))
+            sys.stdout.buffer.write(f"Content-Length: {len(responseStr)}\r\n\r\n{responseStr}".encode('utf-8'))
             sys.stdout.flush()
         except IOError:
             # stdout closed, time to quit
