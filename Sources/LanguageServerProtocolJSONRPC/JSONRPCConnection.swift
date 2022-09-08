@@ -132,9 +132,11 @@ public final class JSONRPCConnection {
 
     receiveIO.read(offset: 0, length: Int.max, queue: queue) { done, data, errorCode in
       guard errorCode == 0 else {
+#if !os(Windows)
         if errorCode != POSIXError.ECANCELED.rawValue {
           log("IO error reading \(errorCode)", level: .error)
         }
+#endif
         if done { self._close() }
         return
       }
