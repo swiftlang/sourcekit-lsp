@@ -605,7 +605,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    var diagnostic: Diagnostic! = nil
+    var diagnostic: Diagnostic? = nil
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uri, language: .swift, version: 12,
       text: """
@@ -618,12 +618,12 @@ final class LocalSwiftTests: XCTestCase {
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      diagnostic = note.params.diagnostics.first!
+      diagnostic = note.params.diagnostics.first
     })
 
     let request = CodeActionRequest(
       range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 11),
-      context: CodeActionContext(diagnostics: [diagnostic], only: nil),
+      context: CodeActionContext(diagnostics: [try XCTUnwrap(diagnostic, "expected diagnostic to be available")], only: nil),
       textDocument: TextDocumentIdentifier(uri)
     )
     let response = try sk.sendSync(request)
@@ -638,7 +638,7 @@ final class LocalSwiftTests: XCTestCase {
     let fixit = quickFixes.first!
 
     // Diagnostic returned by code actions cannot be recursive
-    var expectedDiagnostic = diagnostic!
+    var expectedDiagnostic = try XCTUnwrap(diagnostic, "expected diagnostic to be available")
     expectedDiagnostic.codeActions = nil
 
     // Expected Fix-it: Replace `let a` with `_` because it's never used
@@ -655,7 +655,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    var diagnostic: Diagnostic! = nil
+    var diagnostic: Diagnostic?
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uri, language: .swift, version: 12,
       text: """
@@ -668,12 +668,12 @@ final class LocalSwiftTests: XCTestCase {
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      diagnostic = note.params.diagnostics.first!
+      diagnostic = note.params.diagnostics.first
     })
 
     let request = CodeActionRequest(
       range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 11),
-      context: CodeActionContext(diagnostics: [diagnostic], only: nil),
+      context: CodeActionContext(diagnostics: [try XCTUnwrap(diagnostic, "expected diagnostic to be available")], only: nil),
       textDocument: TextDocumentIdentifier(uri)
     )
     let response = try sk.sendSync(request)
@@ -710,7 +710,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    var diagnostic: Diagnostic! = nil
+    var diagnostic: Diagnostic?
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uri, language: .swift, version: 12,
       text: """
@@ -722,12 +722,12 @@ final class LocalSwiftTests: XCTestCase {
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      diagnostic = note.params.diagnostics.first!
+      diagnostic = note.params.diagnostics.first
     })
 
     let request = CodeActionRequest(
       range: Position(line: 0, utf16index: 1)..<Position(line: 0, utf16index: 10),
-      context: CodeActionContext(diagnostics: [diagnostic], only: nil),
+      context: CodeActionContext(diagnostics: [try XCTUnwrap(diagnostic, "expected diagnostic to be available")], only: nil),
       textDocument: TextDocumentIdentifier(uri)
     )
     let response = try sk.sendSync(request)
@@ -753,7 +753,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    var diagnostic: Diagnostic! = nil
+    var diagnostic: Diagnostic?
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uri, language: .swift, version: 12,
       text: """
@@ -773,7 +773,7 @@ final class LocalSwiftTests: XCTestCase {
 
     let request = CodeActionRequest(
       range: Position(line: 3, utf16index: 2)..<Position(line: 3, utf16index: 2),
-      context: CodeActionContext(diagnostics: [diagnostic], only: nil),
+      context: CodeActionContext(diagnostics: [try XCTUnwrap(diagnostic, "expected diagnostic to be available")], only: nil),
       textDocument: TextDocumentIdentifier(uri)
     )
     let response = try sk.sendSync(request)
