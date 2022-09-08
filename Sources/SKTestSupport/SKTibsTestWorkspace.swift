@@ -16,11 +16,11 @@ import SKCore
 import IndexStoreDB
 import ISDBTibs
 import ISDBTestSupport
-import TSCBasic
 import XCTest
 import Foundation
 import LSPTestSupport
 
+import struct TSCBasic.AbsolutePath
 import enum TSCUtility.Platform
 import struct TSCUtility.BuildFlags
 

@@ -11,7 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import TSCBasic
+
+import struct TSCBasic.AbsolutePath
 
 extension NSLock {
   /// NOTE: Keep in sync with SwiftPM's 'Sources/Basics/NSLock+Extensions.swift'

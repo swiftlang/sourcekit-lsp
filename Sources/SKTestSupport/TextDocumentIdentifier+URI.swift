@@ -12,7 +12,8 @@
 
 import Foundation
 import LanguageServerProtocol
-import TSCBasic
+
+import struct TSCBasic.AbsolutePath
 
 public extension TextDocumentIdentifier {
   init(_ url: URL) {

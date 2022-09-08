@@ -10,8 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import TSCBasic
 import Foundation
+
+import struct TSCBasic.ByteString
 
 extension ByteString {
 

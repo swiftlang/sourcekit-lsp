@@ -16,7 +16,8 @@ import LSPLogging
 import SKCore
 import SKSupport
 import SKSwiftPMWorkspace
-import TSCBasic
+
+import struct TSCBasic.AbsolutePath
 
 /// Represents the configuration and state of a project or combination of projects being worked on
 /// together.

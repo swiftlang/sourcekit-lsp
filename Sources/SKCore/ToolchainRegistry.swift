@@ -11,9 +11,15 @@
 //===----------------------------------------------------------------------===//
 
 import SKSupport
-import TSCBasic
 import Dispatch
 import Foundation
+
+import func TSCBasic.getEnvSearchPaths
+import class TSCBasic.Process
+import enum TSCBasic.ProcessEnv
+import protocol TSCBasic.FileSystem
+import struct TSCBasic.AbsolutePath
+import var TSCBasic.localFileSystem
 
 /// Set of known toolchains.
 ///
