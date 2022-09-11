@@ -226,7 +226,7 @@ final class WorkspaceTests: XCTestCase {
     guard let ws = try staticSourceKitSwiftPMWorkspace(name: "ChangeWorkspaceFolders") else { return }
     // Build the package. We can't use ws.buildAndIndex() because that doesn't put the build products in .build where SourceKit-LSP expects them.
     try TSCBasic.Process.checkNonZeroExit(arguments: [
-      String(ToolchainRegistry.shared.default!.swiftc!.pathString.dropLast()),
+      ToolchainRegistry.shared.default!.swift!.pathString,
       "build",
       "--package-path", ws.sources.rootDirectory.path,
       "-Xswiftc", "-index-ignore-system-modules",
