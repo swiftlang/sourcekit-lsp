@@ -24,10 +24,14 @@ import PackageModel
 import SourceControl
 import SKCore
 import SKSupport
-import TSCBasic
 import Workspace
 import Dispatch
 import struct Foundation.URL
+
+import func TSCBasic.resolveSymlinks
+import protocol TSCBasic.FileSystem
+import struct TSCBasic.AbsolutePath
+import var TSCBasic.localFileSystem
 
 /// Swift Package Manager build system and workspace support.
 ///

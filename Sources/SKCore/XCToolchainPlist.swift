@@ -10,8 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-import TSCBasic
 import Foundation
+
+import protocol TSCBasic.FileSystem
+import struct TSCBasic.AbsolutePath
+import var TSCBasic.localFileSystem
+#if os(macOS)
+import struct TSCBasic.RelativePath
+import struct TSCBasic.FileSystemError
+#endif
 
 /// A helper type for decoding the Info.plist or ToolchainInfo.plist file from an .xctoolchain.
 public struct XCToolchainPlist {

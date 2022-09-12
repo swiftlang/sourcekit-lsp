@@ -12,7 +12,8 @@
 
 import BuildServerProtocol
 import LanguageServerProtocol
-import TSCBasic
+
+import struct TSCBasic.AbsolutePath
 
 /// Defines how well a `BuildSystem` can handle a file with a given URI.
 public enum FileHandlingCapability: Comparable {

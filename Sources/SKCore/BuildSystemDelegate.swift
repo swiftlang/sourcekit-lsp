@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 import BuildServerProtocol
 import LanguageServerProtocol
-import TSCBasic
 
 /// Handles  build system events, such as file build settings changes.
 public protocol BuildSystemDelegate: AnyObject {

@@ -16,7 +16,8 @@ import LanguageServerProtocolJSONRPC
 import LSPLogging
 import SKCore
 import SKSupport
-import TSCBasic
+
+import struct TSCBasic.AbsolutePath
 
 #if os(Windows)
 import WinSDK

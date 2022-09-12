@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import TSCBasic
 import SKSupport
 
+import struct TSCBasic.AbsolutePath
 import struct TSCUtility.BuildFlags
 
 /// Build configuration

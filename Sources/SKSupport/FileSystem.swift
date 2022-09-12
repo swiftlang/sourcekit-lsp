@@ -10,8 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import TSCBasic
 import Foundation
+
+import struct TSCBasic.AbsolutePath
 
 /// The home directory of the current user (same as returned by Foundation's `NSHomeDirectory` method).
 public var homeDirectoryForCurrentUser: AbsolutePath {

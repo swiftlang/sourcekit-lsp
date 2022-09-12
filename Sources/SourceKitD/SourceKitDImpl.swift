@@ -11,8 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import SKSupport
-import TSCBasic
 import Foundation
+
+import struct TSCBasic.AbsolutePath
 
 /// Wrapper for sourcekitd, taking care of initialization, shutdown, and notification handler
 /// multiplexing.

@@ -11,8 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 import SKSupport
-import TSCBasic
 import Foundation
+
+import protocol TSCBasic.FileSystem
+import struct TSCBasic.AbsolutePath
+import var TSCBasic.localFileSystem
+import func TSCBasic.resolveSymlinks
 
 /// A single compilation database command.
 ///

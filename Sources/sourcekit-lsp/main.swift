@@ -20,7 +20,9 @@ import LSPLogging
 import SKCore
 import SKSupport
 import SourceKitLSP
-import TSCBasic
+
+import struct TSCBasic.AbsolutePath
+import var TSCBasic.localFileSystem
 
 extension AbsolutePath: ExpressibleByArgument {
   public init?(argument: String) {

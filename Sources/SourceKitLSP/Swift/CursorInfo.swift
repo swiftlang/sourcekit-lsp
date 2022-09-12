@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import TSCBasic
 import SourceKitD
 
 /// Detailed information about a symbol under the cursor.

@@ -18,9 +18,12 @@ import LanguageServerProtocol
 import LSPLogging
 import SKCore
 import SKSupport
-import TSCBasic
 
 import PackageLoading
+
+import protocol TSCBasic.FileSystem
+import struct TSCBasic.AbsolutePath
+import var TSCBasic.localFileSystem
 
 public typealias URL = Foundation.URL
 

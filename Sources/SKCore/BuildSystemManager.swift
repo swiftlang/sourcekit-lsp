@@ -13,8 +13,9 @@
 import LanguageServerProtocol
 import BuildServerProtocol
 import LSPLogging
-import TSCBasic
 import Dispatch
+
+import struct TSCBasic.AbsolutePath
 
 /// Status for a given main file.
 enum MainFileStatus: Equatable {

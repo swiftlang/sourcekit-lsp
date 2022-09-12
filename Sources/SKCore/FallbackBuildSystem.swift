@@ -12,9 +12,11 @@
 
 import BuildServerProtocol
 import LanguageServerProtocol
-import TSCBasic
-import enum TSCUtility.Platform
 import Dispatch
+
+import class TSCBasic.Process
+import struct TSCBasic.AbsolutePath
+import enum TSCUtility.Platform
 
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
 public final class FallbackBuildSystem: BuildSystem {

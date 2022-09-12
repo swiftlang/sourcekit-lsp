@@ -17,7 +17,7 @@ import LSPLogging
 import SKCore
 import SKSupport
 import SourceKitD
-import TSCBasic
+
 #if os(Windows)
 import WinSDK
 #endif

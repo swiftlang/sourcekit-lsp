@@ -16,7 +16,14 @@ import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import LSPLogging
 import SKSupport
-import TSCBasic
+
+import func TSCBasic.getEnvSearchPaths
+import func TSCBasic.lookupExecutablePath
+import func TSCBasic.resolveSymlinks
+import protocol TSCBasic.FileSystem
+import struct TSCBasic.AbsolutePath
+import struct TSCBasic.FileSystemError
+import var TSCBasic.localFileSystem
 
 enum BuildServerTestError: Error {
     case executableNotFound(String)

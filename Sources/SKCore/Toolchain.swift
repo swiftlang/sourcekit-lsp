@@ -13,8 +13,10 @@
 import LanguageServerProtocol
 import LSPLogging
 import SKSupport
-import TSCBasic
 
+import struct TSCBasic.AbsolutePath
+import protocol TSCBasic.FileSystem
+import var TSCBasic.localFileSystem
 import enum TSCUtility.Platform
 
 /// A Toolchain is a collection of related compilers and libraries meant to be used together to

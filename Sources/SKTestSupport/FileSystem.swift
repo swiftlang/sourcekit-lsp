@@ -10,7 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import TSCBasic
+import protocol TSCBasic.FileSystem
+import struct TSCBasic.AbsolutePath
+import struct TSCBasic.ByteString
 
 extension FileSystem {
 

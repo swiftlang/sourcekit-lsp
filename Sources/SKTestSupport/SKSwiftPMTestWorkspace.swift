@@ -17,11 +17,13 @@ import SKCore
 import IndexStoreDB
 import ISDBTibs
 import ISDBTestSupport
-import TSCBasic
 import XCTest
 import Foundation
 import LSPTestSupport
 
+import class TSCBasic.Process
+import func TSCBasic.resolveSymlinks
+import struct TSCBasic.AbsolutePath
 import struct TSCUtility.BuildFlags
 
 public final class SKSwiftPMTestWorkspace {

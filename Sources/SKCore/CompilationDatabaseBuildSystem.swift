@@ -14,9 +14,12 @@ import BuildServerProtocol
 import LanguageServerProtocol
 import LSPLogging
 import SKSupport
-import TSCBasic
 import Dispatch
 import struct Foundation.URL
+
+import protocol TSCBasic.FileSystem
+import struct TSCBasic.AbsolutePath
+import var TSCBasic.localFileSystem
 
 /// A `BuildSystem` based on loading clang-compatible compilation database(s).
 ///
