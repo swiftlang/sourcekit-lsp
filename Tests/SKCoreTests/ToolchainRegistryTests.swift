@@ -560,16 +560,25 @@ private func makeToolchain(
     makeExec(binPath.appending(component: "swiftc\(execExt)"))
   }
 
-  let dylibExt = Platform.currentPlatform?.dynamicLibraryExtension ?? ".so"
+  let dylibSuffix = Platform.currentPlatform?.dynamicLibraryExtension ?? ".so"
 
   if sourcekitd {
     try! fs.createDirectory(libPath.appending(component: "sourcekitd.framework"))
     try! fs.writeFileContents(libPath.appending(components: "sourcekitd.framework", "sourcekitd") , bytes: "")
   }
   if sourcekitdInProc {
-    try! fs.writeFileContents(libPath.appending(component: "libsourcekitdInProc\(dylibExt)") , bytes: "")
+#if os(Windows)
+    try! fs.writeFileContents(binPath.appending(component: "sourcekitdInProc\(dylibSuffix)") , bytes: "")
+#else
+    try! fs.writeFileContents(libPath.appending(component: "libsourcekitdInProc\(dylibSuffix)") , bytes: "")
+#endif
   }
   if libIndexStore {
-    try! fs.writeFileContents(libPath.appending(component: "libIndexStore\(dylibExt)") , bytes: "")
+#if os(Windows)
+    // Windows has a prefix of `lib` on this particular library ...
+    try! fs.writeFileContents(binPath.appending(component: "libIndexStore\(dylibSuffix)") , bytes: "")
+#else
+    try! fs.writeFileContents(libPath.appending(component: "libIndexStore\(dylibSuffix)") , bytes: "")
+#endif
   }
 }
