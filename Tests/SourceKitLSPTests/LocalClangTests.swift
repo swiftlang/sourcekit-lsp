@@ -63,7 +63,11 @@ final class LocalClangTests: XCTestCase {
 
   func testSymbolInfo() {
     guard haveClangd else { return }
+#if os(Windows)
+    let url = URL(fileURLWithPath: "C:/a.cpp")
+#else
     let url = URL(fileURLWithPath: "/a.cpp")
+#endif
 
     sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),
@@ -127,7 +131,11 @@ final class LocalClangTests: XCTestCase {
 
   func testFoldingRange() {
     guard haveClangd else { return }
+#if os(Windows)
+    let url = URL(fileURLWithPath: "C:/a.cpp")
+#else
     let url = URL(fileURLWithPath: "/a.cpp")
+#endif
 
     sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),
@@ -147,7 +155,11 @@ final class LocalClangTests: XCTestCase {
 
   func testDocumentSymbols() throws {
     guard haveClangd else { return }
+#if os(Windows)
+    let url = URL(fileURLWithPath: "C:/a.cpp")
+#else
     let url = URL(fileURLWithPath: "/a.cpp")
+#endif
 
     sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: DocumentURI(url),

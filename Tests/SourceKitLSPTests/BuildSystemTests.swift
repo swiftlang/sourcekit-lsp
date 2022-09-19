@@ -140,7 +140,11 @@ final class BuildSystemTests: XCTestCase {
   func testClangdDocumentUpdatedBuildSettings() {
     guard haveClangd else { return }
 
+#if os(Windows)
+    let url = URL(fileURLWithPath: "C:/\(UUID())/file.m")
+#else
     let url = URL(fileURLWithPath: "/\(UUID())/file.m")
+#endif
     let doc = DocumentURI(url)
     let args = [url.path, "-DDEBUG"]
     let text = """
@@ -249,7 +253,11 @@ final class BuildSystemTests: XCTestCase {
   func testClangdDocumentFallbackWithholdsDiagnostics() {
     guard haveClangd else { return }
 
+#if os(Windows)
+    let url = URL(fileURLWithPath: "C:/\(UUID())/file.m")
+#else
     let url = URL(fileURLWithPath: "/\(UUID())/file.m")
+#endif
     let doc = DocumentURI(url)
     let args = [url.path, "-DDEBUG"]
     let text = """
