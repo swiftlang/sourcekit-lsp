@@ -398,7 +398,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let headerArgs = try ws._settings(for: header.asURI, .cpp)!.compilerArguments
       checkArgsCommon(headerArgs)
 
-      check("-c", "-x", "c++-header", URL(fileURLWithPath: header.pathString).path,
+      check("-c", "-x", "c++-header", AbsolutePath(URL(fileURLWithPath: header.pathString).path).pathString,
             arguments: headerArgs)
     }
   }
