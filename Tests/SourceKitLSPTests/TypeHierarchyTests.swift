@@ -12,6 +12,7 @@
 
 import ISDBTestSupport
 import LanguageServerProtocol
+import TSCBasic
 import XCTest
 
 final class TypeHierarchyTests: XCTestCase {
@@ -90,7 +91,7 @@ final class TypeHierarchyTests: XCTestCase {
         kind: kind,
         tags: nil,
         detail: detail,
-        uri: location.uri,
+        uri: location.uri.nativeURI,
         range: location.range,
         selectionRange: location.range
       )
