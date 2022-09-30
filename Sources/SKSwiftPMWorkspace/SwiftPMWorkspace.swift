@@ -107,7 +107,7 @@ public final class SwiftPMWorkspace {
 
     var location = Workspace.Location(forRootPackage: packageRoot, fileSystem: fileSystem)
     if let customWorkingDirectory = buildSetup.path {
-        location.workingDirectory = customWorkingDirectory
+        location.scratchDirectory = customWorkingDirectory
     }
 
     var configuration = WorkspaceConfiguration.default
@@ -130,7 +130,7 @@ public final class SwiftPMWorkspace {
     }
 
     self.buildParameters = BuildParameters(
-        dataPath: location.workingDirectory.appending(component: triple.platformBuildPathComponent()),
+        dataPath: location.scratchDirectory.appending(component: triple.platformBuildPathComponent()),
         configuration: buildConfiguration,
         toolchain: toolchain,
         flags: buildSetup.flags
