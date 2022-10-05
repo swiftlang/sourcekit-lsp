@@ -106,8 +106,8 @@ public final class SwiftPMWorkspace {
     let toolchain = try UserToolchain(destination: destination)
 
     var location = Workspace.Location(forRootPackage: packageRoot, fileSystem: fileSystem)
-    if let customWorkingDirectory = buildSetup.path {
-        location.workingDirectory = customWorkingDirectory
+    if let scratchDirectory = buildSetup.path {
+        location.scratchDirectory = scratchDirectory
     }
 
     var configuration = WorkspaceConfiguration.default
@@ -130,7 +130,7 @@ public final class SwiftPMWorkspace {
     }
 
     self.buildParameters = BuildParameters(
-        dataPath: location.workingDirectory.appending(component: triple.platformBuildPathComponent()),
+        dataPath: location.scratchDirectory.appending(component: triple.platformBuildPathComponent()),
         configuration: buildConfiguration,
         toolchain: toolchain,
         flags: buildSetup.flags
