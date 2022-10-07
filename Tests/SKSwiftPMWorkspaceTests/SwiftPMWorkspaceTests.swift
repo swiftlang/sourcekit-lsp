@@ -23,7 +23,6 @@ import TSCBasic
 import XCTest
 
 import struct TSCUtility.BuildFlags
-import struct TSCUtility.Triple
 
 final class SwiftPMWorkspaceTests: XCTestCase {
 
@@ -108,7 +107,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = ws.buildParameters.triple
-      let build = buildPath(root: packageRoot, triple: hostTriple)
+      let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent())
 
       XCTAssertEqual(ws.buildPath, build)
       XCTAssertNotNil(ws.indexStorePath)
@@ -164,7 +163,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = ws.buildParameters.triple
-      let build = buildPath(root: packageRoot, config: config, triple: hostTriple)
+      let build = buildPath(root: packageRoot, config: config, platform: hostTriple.platformBuildPathComponent())
 
       XCTAssertEqual(ws.buildPath, build)
       let arguments = try ws._settings(for: aswift.asURI, .swift)!.compilerArguments
@@ -351,7 +350,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
       let hostTriple = ws.buildParameters.triple
-      let build = buildPath(root: packageRoot, triple: hostTriple)
+      let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent())
 
       XCTAssertEqual(ws.buildPath, build)
       XCTAssertNotNil(ws.indexStorePath)
@@ -628,8 +627,8 @@ private func check(
 private func buildPath(
   root: AbsolutePath,
   config: BuildSetup = TestSourceKitServer.serverOptions.buildSetup,
-  triple: Triple) -> AbsolutePath
+  platform: String) -> AbsolutePath
 {
   let buildPath = config.path ?? root.appending(component: ".build")
-  return buildPath.appending(components: triple.platformBuildPathComponent(), "\(config.configuration)")
+  return buildPath.appending(components: platform, "\(config.configuration)")
 }
