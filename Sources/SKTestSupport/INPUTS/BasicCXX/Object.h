@@ -2,4 +2,4 @@ struct /*Object*/Object {
   int field;
 };
 
-struct Object * newObject();
+/*Object:decl:newObject*/struct Object * newObject();
