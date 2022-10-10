@@ -587,6 +587,11 @@ extension SwiftLanguageServer {
     return false
   }
 
+  public func declaration(_ request: Request<DeclarationRequest>) -> Bool {
+    // We don't handle it.
+    return false
+  }
+
   public func completion(_ req: Request<CompletionRequest>) {
     queue.async {
       self._completion(req)
