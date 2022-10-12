@@ -314,7 +314,10 @@ final class SKTests: XCTestCase {
       textDocument: mainLoc.docIdentifier, position: includePosition)
     let resp = try withExtendedLifetime(ws) { try ws.sk.sendSync(goToInclude) }
 
-    let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-#include")
+    guard let locationsOrLinks = resp else {
+      XCTFail("No response for go-to-#include")
+      return
+    }
     switch locationsOrLinks {
     case .locations(let locations):
       XCTAssert(!locations.isEmpty, "Found no locations for go-to-#include")
@@ -343,7 +346,10 @@ final class SKTests: XCTestCase {
       textDocument: refLoc.docIdentifier, position: refPos)
     let resp = try withExtendedLifetime(ws) { try ws.sk.sendSync(goToDefinition) }
 
-    let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-definition")
+    guard let locationsOrLinks = resp else {
+      XCTFail("No response for go-to-definition")
+      return
+    }
     switch locationsOrLinks {
     case .locations(let locations):
       XCTAssert(!locations.isEmpty, "Found no locations for go-to-definition")
@@ -352,36 +358,6 @@ final class SKTests: XCTestCase {
       }
     case .locationLinks(let locationLinks):
       XCTAssert(!locationLinks.isEmpty, "Found no location links for go-to-definition")
-      if let link = locationLinks.first {
-        XCTAssertEqual(link.targetUri, expectedDoc)
-      }
-    }
-  }
-
-  func testClangdGoToDeclaration() throws {
-    guard let ws = try staticSourceKitTibsWorkspace(name: "BasicCXX") else { return }
-    guard ToolchainRegistry.shared.default?.clangd != nil else { return }
-
-    let mainLoc = ws.testLoc("Object:ref:newObject")
-    let expectedDoc = ws.testLoc("Object:decl:newObject").docIdentifier.uri
-    let includePosition =
-        Position(line: mainLoc.position.line, utf16index: mainLoc.utf16Column + 2)
-
-    try ws.openDocument(mainLoc.url, language: .c)
-
-    let goToInclude = DeclarationRequest(
-      textDocument: mainLoc.docIdentifier, position: includePosition)
-    let resp = try! ws.sk.sendSync(goToInclude)
-
-    let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-declaration")
-    switch locationsOrLinks {
-    case .locations(let locations):
-      XCTAssert(!locations.isEmpty, "Found no locations for go-to-declaration")
-      if let loc = locations.first {
-        XCTAssertEqual(loc.uri, expectedDoc)
-      }
-    case .locationLinks(let locationLinks):
-      XCTAssert(!locationLinks.isEmpty, "Found no location links for go-to-declaration")
       if let link = locationLinks.first {
         XCTAssertEqual(link.targetUri, expectedDoc)
       }

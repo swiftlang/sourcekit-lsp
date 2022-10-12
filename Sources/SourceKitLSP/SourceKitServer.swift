@@ -184,7 +184,6 @@ public final class SourceKitServer: LanguageServer {
     registerToolchainTextDocumentRequest(SourceKitServer.completion,
                                          CompletionList(isIncomplete: false, items: []))
     registerToolchainTextDocumentRequest(SourceKitServer.hover, nil)
-    registerToolchainTextDocumentRequest(SourceKitServer.declaration, .locations([]))
     registerToolchainTextDocumentRequest(SourceKitServer.definition, .locations([]))
     registerToolchainTextDocumentRequest(SourceKitServer.references, [])
     registerToolchainTextDocumentRequest(SourceKitServer.implementation, .locations([]))
@@ -659,7 +658,6 @@ extension SourceKitServer {
       )),
       colorProvider: .bool(true),
       foldingRangeProvider: .bool(!registry.clientHasDynamicFoldingRangeRegistration),
-      declarationProvider: .bool(true),
       executeCommandProvider: executeCommandOptions,
       workspace: WorkspaceServerCapabilities(workspaceFolders: .init(
         supported: true,
@@ -1247,16 +1245,6 @@ extension SourceKitServer {
     }
 
     return .success(resolved.isEmpty ? fallback : resolved)
-  }
-
-  func declaration(
-    _ req: Request<DeclarationRequest>,
-    workspace: Workspace,
-    languageService: ToolchainLanguageServer
-  ) {
-    guard languageService.declaration(req) else {
-      return req.reply(.locations([]))
-    }
   }
 
   func definition(

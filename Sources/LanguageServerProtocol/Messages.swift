@@ -29,7 +29,6 @@ public let builtinRequests: [_RequestType.Type] = [
   TypeHierarchyPrepareRequest.self,
   TypeHierarchySupertypesRequest.self,
   TypeHierarchySubtypesRequest.self,
-  DeclarationRequest.self,
   DefinitionRequest.self,
   ImplementationRequest.self,
   ReferencesRequest.self,
