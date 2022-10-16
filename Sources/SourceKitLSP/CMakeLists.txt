@@ -41,6 +41,11 @@ target_link_libraries(SourceKitLSP PUBLIC
   SKCore
   SKSwiftPMWorkspace
   SourceKitD
+  SwiftSyntax::SwiftBasicFormat
+  SwiftSyntax::SwiftParser
+  SwiftSyntax::SwiftDiagnostics
+  SwiftSyntax::SwiftSyntax
   TSCUtility)
 target_link_libraries(SourceKitLSP PRIVATE
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
+
