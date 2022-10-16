@@ -153,17 +153,14 @@ public final class DocumentManager {
           // Remove all tokens in the updated range and shift later ones.
           let rangeAdjuster = RangeAdjuster(edit: edit)!
 
-          document.latestTokens.withMutableTokensOfEachKind { tokens in
-            tokens = Array(tokens.lazy
-              .compactMap {
-                var token = $0
-                if let adjustedRange = rangeAdjuster.adjust(token.range) {
-                  token.range = adjustedRange
-                  return token
-                } else {
-                  return nil
-                }
-              })
+          document.latestTokens.semantic = document.latestTokens.semantic.compactMap {
+            var token = $0
+            if let adjustedRange = rangeAdjuster.adjust(token.range) {
+              token.range = adjustedRange
+              return token
+            } else {
+              return nil
+            }
           }
         } else {
           // Full text replacement.

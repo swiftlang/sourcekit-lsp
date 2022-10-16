@@ -187,7 +187,7 @@ struct SyntaxHighlightingTokenParser {
 
 extension Range where Bound == Position {
   /// Splits a potentially multi-line range to multiple single-line ranges.
-  fileprivate func splitToSingleLineRanges(in snapshot: DocumentSnapshot) -> [Self] {
+  func splitToSingleLineRanges(in snapshot: DocumentSnapshot) -> [Self] {
     if isEmpty {
       return []
     }

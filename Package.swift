@@ -49,6 +49,8 @@ let package = Package(
           "SourceKitD",
           "SKSwiftPMWorkspace",
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+          .product(name: "SwiftSyntax", package: "swift-syntax"),
+          .product(name: "SwiftParser", package: "swift-syntax"),
         ],
         exclude: ["CMakeLists.txt"]),
 

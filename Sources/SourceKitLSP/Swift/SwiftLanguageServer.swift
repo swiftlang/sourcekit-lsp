@@ -17,6 +17,8 @@ import LSPLogging
 import SKCore
 import SKSupport
 import SourceKitD
+import SwiftSyntax
+import SwiftParser
 
 #if os(Windows)
 import WinSDK
@@ -167,14 +169,13 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   /// Updates the lexical tokens for the given `snapshot`.
   /// Must be called on `self.queue`.
-  private func updateLexicalTokens(
-    response: SKDResponseDictionary,
+  private func updateSyntacticTokens(
     for snapshot: DocumentSnapshot
   ) {
     dispatchPrecondition(condition: .onQueue(queue))
 
     let uri = snapshot.document.uri
-    let docTokens = updatedLexicalTokens(response: response, for: snapshot)
+    let docTokens = updateSyntaxTree(for: snapshot)
 
     do {
       try documentManager.updateTokens(uri, tokens: docTokens)
@@ -184,31 +185,13 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   }
 
   /// Returns the updated lexical tokens for the given `snapshot`.
-  private func updatedLexicalTokens(
-    response: SKDResponseDictionary,
+  private func updateSyntaxTree(
     for snapshot: DocumentSnapshot
   ) -> DocumentTokens {
     logExecutionTime(level: .debug) {
       var docTokens = snapshot.tokens
 
-      guard let offset: Int = response[keys.offset],
-            let length: Int = response[keys.length],
-            let start: Position = snapshot.positionOf(utf8Offset: offset),
-            let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
-        // This e.g. happens in the case of empty edits
-        log("did not update lexical/syntactic tokens, no range found", level: .debug)
-        return docTokens
-      }
-
-      let range = start..<end
-
-      if let syntaxMap: SKDResponseArray = response[keys.syntaxmap] {
-        let tokenParser = SyntaxHighlightingTokenParser(sourcekitd: sourcekitd)
-        var tokens: [SyntaxHighlightingToken] = []
-        tokenParser.parseTokens(syntaxMap, in: snapshot, into: &tokens)
-
-        docTokens.replaceLexical(in: range, with: tokens)
-      }
+      docTokens.syntaxTree = Parser.parse(source: snapshot.text)
 
       return docTokens
     }
@@ -438,7 +421,7 @@ extension SwiftLanguageServer {
     }
     self.publishDiagnostics(
         response: dict, for: snapshot, compileCommand: compileCmd)
-    self.updateLexicalTokens(response: dict, for: snapshot)
+    self.updateSyntacticTokens(for: snapshot)
   }
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) {
@@ -503,7 +486,7 @@ extension SwiftLanguageServer {
         return
       }
       self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
-      self.updateLexicalTokens(response: dict, for: snapshot)
+      self.updateSyntacticTokens(for: snapshot)
     }
   }
 
@@ -557,8 +540,8 @@ extension SwiftLanguageServer {
 
         self.adjustDiagnosticRanges(of: note.textDocument.uri, for: edit)
       } updateDocumentTokens: { (after: DocumentSnapshot) in
-        if let dict = lastResponse {
-          return self.updatedLexicalTokens(response: dict, for: after)
+        if lastResponse != nil {
+          return self.updateSyntaxTree(for: after)
         } else {
           return DocumentTokens()
         }
@@ -876,7 +859,7 @@ extension SwiftLanguageServer {
         return
       }
 
-      let tokens = snapshot.tokens.mergedAndSorted
+      let tokens = snapshot.mergedAndSortedTokens()
       let encodedTokens = tokens.lspEncoded
 
       req.reply(DocumentSemanticTokensResponse(data: encodedTokens))
@@ -899,7 +882,7 @@ extension SwiftLanguageServer {
         return
       }
 
-      let tokens = snapshot.tokens.mergedAndSorted.filter { $0.range.overlaps(range) }
+      let tokens = snapshot.mergedAndSortedTokens(in: range)
       let encodedTokens = tokens.lspEncoded
 
       req.reply(DocumentSemanticTokensResponse(data: encodedTokens))
