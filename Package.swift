@@ -241,12 +241,14 @@ if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
     .package(name: "SwiftPM", url: "https://github.com/apple/swift-package-manager.git", .branch("main")),
     .package(url: "https://github.com/apple/swift-tools-support-core.git", .branch("main")),
     .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMinor(from: "1.0.1")),
+    .package(url: "https://github.com/apple/swift-syntax.git", .branch("main")),
   ]
 } else {
   package.dependencies += [
     .package(name: "IndexStoreDB", path: "../indexstore-db"),
     .package(name: "SwiftPM", path: "../swiftpm"),
     .package(path: "../swift-tools-support-core"),
-    .package(path: "../swift-argument-parser")
+    .package(path: "../swift-argument-parser"),
+    .package(path: "../swift-syntax")
   ]
 }
