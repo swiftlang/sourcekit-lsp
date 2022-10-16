@@ -961,8 +961,6 @@ extension SwiftLanguageServer {
   }
 
   public func foldingRange(_ req: Request<FoldingRangeRequest>) {
-    let keys = self.keys
-
     queue.async {
       guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
         log("failed to find snapshot for url \(req.params.textDocument.uri)")
@@ -970,134 +968,193 @@ extension SwiftLanguageServer {
         return
       }
 
-      let helperDocumentName = "FoldingRanges:" + snapshot.document.uri.pseudoPath
-      let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-      skreq[keys.request] = self.requests.editor_open
-      skreq[keys.name] = helperDocumentName
-      skreq[keys.sourcetext] = snapshot.text
-      skreq[keys.syntactic_only] = 1
+      guard let sourceFile = snapshot.tokens.syntaxTree else {
+        log("no lexical structure available for url \(req.params.textDocument.uri)")
+        req.reply(nil)
+        return
+      }
 
-      let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
-        guard let self = self else { return }
-
-        defer {
-          let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-          closeHelperReq[keys.request] = self.requests.editor_close
-          closeHelperReq[keys.name] = helperDocumentName
-          _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
-        }
-
-        guard let dict = result.success else {
-          req.reply(.failure(ResponseError(result.failure!)))
-          return
-        }
-
-        guard let syntaxMap: SKDResponseArray = dict[self.keys.syntaxmap],
-              let substructure: SKDResponseArray = dict[self.keys.substructure] else {
-          return req.reply([])
-        }
-
+      final class FoldingRangeFinder: SyntaxVisitor {
+        private let snapshot: DocumentSnapshot
         /// Some ranges might occur multiple times.
         /// E.g. for `print("hi")`, `"hi"` is both the range of all call arguments and the range the first argument in the call.
         /// It doesn't make sense to report them multiple times, so use a `Set` here.
-        var ranges: Set<FoldingRange> = []
+        private var ranges: Set<FoldingRange>
+        /// The client-imposed limit on the number of folding ranges it would
+        /// prefer to recieve from the LSP server. If the value is `nil`, there
+        /// is no preset limit.
+        private var rangeLimit: Int?
+        /// If `true`, the client is only capable of folding entire lines. If
+        /// `false` the client can handle folding ranges.
+        private var lineFoldingOnly: Bool
 
-        var hasReachedLimit: Bool {
-          let capabilities = self.clientCapabilities.textDocument?.foldingRange
-          guard let rangeLimit = capabilities?.rangeLimit else {
-            return false
+        init(snapshot: DocumentSnapshot, rangeLimit: Int?, lineFoldingOnly: Bool) {
+          self.snapshot = snapshot
+          self.ranges = []
+          self.rangeLimit = rangeLimit
+          self.lineFoldingOnly = lineFoldingOnly
+          super.init(viewMode: .sourceAccurate)
+        }
+
+        override func visit(_ node: TokenSyntax) -> SyntaxVisitorContinueKind {
+          // Index comments, so we need to see at least '/*', or '//'.
+          if node.leadingTriviaLength.utf8Length > 2 {
+            self.addTrivia(from: node, node.leadingTrivia)
           }
-          return ranges.count >= rangeLimit
-        }
 
-        // If the limit is less than one, do nothing.
-        guard hasReachedLimit == false else {
-          req.reply([])
-          return
-        }
-
-        // Merge successive comments into one big comment by adding their lengths.
-        var currentComment: (offset: Int, length: Int)? = nil
-
-        syntaxMap.forEach { _, value in
-          if let kind: sourcekitd_uid_t = value[self.keys.kind],
-             kind.isCommentKind(self.values),
-             let offset: Int = value[self.keys.offset],
-             let length: Int = value[self.keys.length]
-          {
-            if let comment = currentComment, comment.offset + comment.length == offset {
-              currentComment!.length += length
-              return true
-            }
-            if let comment = currentComment {
-              self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toSet: &ranges)
-            }
-            currentComment = (offset: offset, length: length)
+          if node.trailingTriviaLength.utf8Length > 2 {
+            self.addTrivia(from: node, node.trailingTrivia)
           }
-          return hasReachedLimit == false
+
+          return .visitChildren
         }
 
-        // Add the last stored comment.
-        if let comment = currentComment, hasReachedLimit == false {
-          self.addFoldingRange(offset: comment.offset, length: comment.length, kind: .comment, in: snapshot, toSet: &ranges)
-          currentComment = nil
-        }
+        private func addTrivia(from node: TokenSyntax, _ trivia: Trivia) {
+          var start = node.position.utf8Offset
+          var lineCommentStart: Int? = nil
+          func flushLineComment(_ offset: Int = 0) {
+            if let lineCommentStart = lineCommentStart {
+              _ = self.addFoldingRange(
+                start: lineCommentStart,
+                end: start + offset,
+                kind: .comment)
+            }
+            lineCommentStart = nil
+          }
 
-        var structureStack: [SKDResponseArray] = [substructure]
-        while !hasReachedLimit, let substructure = structureStack.popLast() {
-          substructure.forEach { _, value in
-            if let offset: Int = value[self.keys.bodyoffset],
-               let length: Int = value[self.keys.bodylength],
-               length > 0
-            {
-              self.addFoldingRange(offset: offset, length: length, in: snapshot, toSet: &ranges)
-              if hasReachedLimit {
-                return false
+          for piece in node.leadingTrivia {
+            defer { start += piece.sourceLength.utf8Length }
+            switch piece {
+            case .blockComment(_):
+              flushLineComment()
+              _ = self.addFoldingRange(
+                start: start,
+                end: start + piece.sourceLength.utf8Length,
+                kind: .comment)
+            case .docBlockComment(_):
+              flushLineComment()
+              _ = self.addFoldingRange(
+                start: start,
+                end: start + piece.sourceLength.utf8Length,
+                kind: .comment)
+            case .lineComment(_), .docLineComment(_):
+              if lineCommentStart == nil {
+                lineCommentStart = start
               }
+            case .newlines(1), .carriageReturns(1), .spaces(_), .tabs(_):
+              if lineCommentStart != nil {
+                continue
+              } else {
+                flushLineComment()
+              }
+            default:
+              flushLineComment()
+              continue
             }
-            if let substructure: SKDResponseArray = value[self.keys.substructure] {
-              structureStack.append(substructure)
-            }
-            return true
           }
+
+          flushLineComment()
         }
 
-        req.reply(ranges.sorted())
+        override func visit(_ node: CodeBlockSyntax) -> SyntaxVisitorContinueKind {
+          return self.addFoldingRange(
+            start: node.statements.position.utf8Offset,
+            end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+        }
+
+        override func visit(_ node: MemberDeclBlockSyntax) -> SyntaxVisitorContinueKind {
+          return self.addFoldingRange(
+            start: node.members.position.utf8Offset,
+            end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+        }
+
+        override func visit(_ node: ClosureExprSyntax) -> SyntaxVisitorContinueKind {
+          return self.addFoldingRange(
+            start: node.statements.position.utf8Offset,
+            end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+        }
+
+        override func visit(_ node: AccessorBlockSyntax) -> SyntaxVisitorContinueKind {
+          return self.addFoldingRange(
+            start: node.accessors.position.utf8Offset,
+            end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+        }
+
+        override func visit(_ node: SwitchStmtSyntax) -> SyntaxVisitorContinueKind {
+          return self.addFoldingRange(
+            start: node.cases.position.utf8Offset,
+            end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+        }
+
+        override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
+          return self.addFoldingRange(
+            start: node.argumentList.position.utf8Offset,
+            end: node.argumentList.endPosition.utf8Offset)
+        }
+
+        override func visit(_ node: SubscriptExprSyntax) -> SyntaxVisitorContinueKind {
+          return self.addFoldingRange(
+            start: node.argumentList.position.utf8Offset,
+            end: node.argumentList.endPosition.utf8Offset)
+        }
+
+        __consuming func finalize() -> Set<FoldingRange> {
+          return self.ranges
+        }
+
+        private func addFoldingRange(start: Int, end: Int, kind: FoldingRangeKind? = nil) -> SyntaxVisitorContinueKind {
+          if let limit = self.rangeLimit, self.ranges.count >= limit {
+            return .skipChildren
+          }
+
+          guard let start: Position = snapshot.positionOf(utf8Offset: start),
+                let end: Position = snapshot.positionOf(utf8Offset: end) else {
+            log("folding range failed to retrieve position of \(snapshot.document.uri): \(start)-\(end)", level: .warning)
+            return .visitChildren
+          }
+          let range: FoldingRange
+          if lineFoldingOnly {
+            // Since the client cannot fold less than a single line, if the
+            // fold would span 1 line there's no point in reporting it.
+            guard end.line > start.line else {
+              return .visitChildren
+            }
+
+            // If the client only supports folding full lines, don't report
+            // the end of the range since there's nothing they could do with it.
+            range = FoldingRange(startLine: start.line,
+                                 startUTF16Index: nil,
+                                 endLine: end.line,
+                                 endUTF16Index: nil,
+                                 kind: kind)
+          } else {
+            range = FoldingRange(startLine: start.line,
+                                 startUTF16Index: start.utf16index,
+                                 endLine: end.line,
+                                 endUTF16Index: end.utf16index,
+                                 kind: kind)
+          }
+          ranges.insert(range)
+          return .visitChildren
+        }
       }
 
-      // FIXME: cancellation
-      _ = handle
-    }
-  }
-
-  func addFoldingRange(offset: Int, length: Int, kind: FoldingRangeKind? = nil, in snapshot: DocumentSnapshot, toSet ranges: inout Set<FoldingRange>) {
-    guard let start: Position = snapshot.positionOf(utf8Offset: offset),
-          let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
-      log("folding range failed to retrieve position of \(snapshot.document.uri): \(offset)-\(offset + length)", level: .warning)
-      return
-    }
-    let capabilities = clientCapabilities.textDocument?.foldingRange
-    let range: FoldingRange
-    // If the client only supports folding full lines, ignore the end character's line.
-    if capabilities?.lineFoldingOnly == true {
-      let lastLineToFold = end.line - 1
-      if lastLineToFold <= start.line {
+      let capabilities = self.clientCapabilities.textDocument?.foldingRange
+      // If the limit is less than one, do nothing.
+      if let limit = capabilities?.rangeLimit, limit <= 0 {
+        req.reply([])
         return
-      } else {
-        range = FoldingRange(startLine: start.line,
-                             startUTF16Index: nil,
-                             endLine: lastLineToFold,
-                             endUTF16Index: nil,
-                             kind: kind)
       }
-    } else {
-      range = FoldingRange(startLine: start.line,
-                           startUTF16Index: start.utf16index,
-                           endLine: end.line,
-                           endUTF16Index: end.utf16index,
-                           kind: kind)
+
+      let rangeFinder = FoldingRangeFinder(
+        snapshot: snapshot,
+        rangeLimit: capabilities?.rangeLimit,
+        lineFoldingOnly: capabilities?.lineFoldingOnly ?? false)
+      rangeFinder.walk(sourceFile)
+      let ranges = rangeFinder.finalize()
+
+      req.reply(ranges.sorted())
     }
-    ranges.insert(range)
   }
 
   public func codeAction(_ req: Request<CodeActionRequest>) {
