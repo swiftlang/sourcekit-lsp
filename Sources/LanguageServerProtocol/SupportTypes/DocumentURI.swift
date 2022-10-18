@@ -20,7 +20,9 @@ public struct DocumentURI: Codable, Hashable {
   private let storage: URL
 
   public var nativeURI: Self {
-    DocumentURI(URL(fileURLWithPath: resolveSymlinks(AbsolutePath(self.pseudoPath)).pathString))
+      get throws {
+          DocumentURI(URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: self.pseudoPath)).pathString))
+      }
   }
 
   public var fileURL: URL? {

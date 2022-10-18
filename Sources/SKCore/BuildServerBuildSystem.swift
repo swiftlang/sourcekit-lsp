@@ -275,8 +275,7 @@ extension BuildServerBuildSystem: BuildSystem {
       return .handled
     }
 
-    let realpath = resolveSymlinks(path)
-    if realpath != path, projectRoot.isAncestorOfOrEqual(to: realpath) {
+    if let realpath = try? resolveSymlinks(path), realpath != path, projectRoot.isAncestorOfOrEqual(to: realpath) {
       return .handled
     }
 

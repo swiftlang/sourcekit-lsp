@@ -74,19 +74,19 @@ final class CallHierarchyTests: XCTestCase {
       Location(badUTF16: ws.testLoc(name))
     }
 
-    func item(_ name: String, _ kind: SymbolKind, detail: String = "main", usr: String, at locName: String) -> CallHierarchyItem {
+    func item(_ name: String, _ kind: SymbolKind, detail: String = "main", usr: String, at locName: String) throws -> CallHierarchyItem {
       let location = loc(locName)
       return CallHierarchyItem(
         name: name,
         kind: kind,
         tags: nil,
         detail: detail,
-        uri: location.uri.nativeURI,
+        uri: try location.uri.nativeURI,
         range: location.range,
         selectionRange: location.range,
         data: .dictionary([
           "usr": .string(usr),
-          "uri": .string(location.uri.nativeURI.stringValue)
+          "uri": .string(try location.uri.nativeURI.stringValue)
         ])
       )
     }
@@ -114,27 +114,27 @@ final class CallHierarchyTests: XCTestCase {
 
     XCTAssertEqual(try outgoingCalls(at: testLoc("a")), [])
     XCTAssertEqual(try outgoingCalls(at: testLoc("b")), [
-      outCall(item("a()", .function, usr: aUsr, at: "a"), at: "b->a"),
-      outCall(item("c()", .function, usr: cUsr, at: "c"), at: "b->c"),
-      outCall(item("b(x:)", .function, usr: bUsr, at: "b"), at: "b->b"),
+      outCall(try item("a()", .function, usr: aUsr, at: "a"), at: "b->a"),
+      outCall(try item("c()", .function, usr: cUsr, at: "c"), at: "b->c"),
+      outCall(try item("b(x:)", .function, usr: bUsr, at: "b"), at: "b->b"),
     ])
     XCTAssertEqual(try outgoingCalls(at: testLoc("c")), [
-      outCall(item("a()", .function, usr: aUsr, at: "a"), at: "c->a"),
-      outCall(item("d()", .function, usr: dUsr, at: "d"), at: "c->d"),
-      outCall(item("c()", .function, usr: cUsr, at: "c"), at: "c->c"),
+      outCall(try item("a()", .function, usr: aUsr, at: "a"), at: "c->a"),
+      outCall(try item("d()", .function, usr: dUsr, at: "d"), at: "c->d"),
+      outCall(try item("c()", .function, usr: cUsr, at: "c"), at: "c->c"),
     ])
 
     // Test incoming call hierarchy
 
     XCTAssertEqual(try incomingCalls(at: testLoc("a")), [
-      inCall(item("b(x:)", .function, usr: bUsr, at: "b"), at: "b->a"),
-      inCall(item("c()", .function, usr: cUsr, at: "c"), at: "c->a"),
+      inCall(try item("b(x:)", .function, usr: bUsr, at: "b"), at: "b->a"),
+      inCall(try item("c()", .function, usr: cUsr, at: "c"), at: "c->a"),
     ])
     XCTAssertEqual(try incomingCalls(at: testLoc("b")), [
-      inCall(item("b(x:)", .function, usr: bUsr, at: "b"), at: "b->b"),
+      inCall(try item("b(x:)", .function, usr: bUsr, at: "b"), at: "b->b"),
     ])
     XCTAssertEqual(try incomingCalls(at: testLoc("d")), [
-      inCall(item("c()", .function, usr: cUsr, at: "c"), at: "c->d"),
+      inCall(try item("c()", .function, usr: cUsr, at: "c"), at: "c->d"),
     ])
   }
 }

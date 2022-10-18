@@ -97,7 +97,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
               targets: [.target(name: "lib", dependencies: [])])
             """
       ])
-      let packageRoot = resolveSymlinks(tempDir.appending(component: "pkg"))
+      let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.shared
       let ws = try! SwiftPMWorkspace(
         workspacePath: packageRoot,
@@ -195,7 +195,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         fileSystem: fs,
         buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
-      let source = resolveSymlinks(packageRoot.appending(component: "Package.swift"))
+      let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
       let arguments = try ws._settings(for: source.asURI, .swift)!.compilerArguments
 
       check("-swift-version", "4.2", arguments: arguments)
@@ -217,7 +217,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
               targets: [.target(name: "lib", dependencies: [])])
             """
       ])
-      let packageRoot = resolveSymlinks(tempDir.appending(component: "pkg"))
+      let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.shared
       let ws = try! SwiftPMWorkspace(
         workspacePath: packageRoot,
@@ -257,7 +257,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
               ])
             """
       ])
-      let packageRoot = resolveSymlinks(tempDir.appending(component: "pkg"))
+      let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.shared
       let ws = try! SwiftPMWorkspace(
         workspacePath: packageRoot,
@@ -339,7 +339,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
               cxxLanguageStandard: .cxx14)
             """
       ])
-      let packageRoot = resolveSymlinks(tempDir.appending(component: "pkg"))
+      let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.shared
       let ws = try! SwiftPMWorkspace(
         workspacePath: packageRoot,
@@ -477,13 +477,13 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       XCTAssertEqual(arguments1, arguments2)
 
       checkNot(aswift1.pathString, arguments: arguments1 ?? [])
-      check(resolveSymlinks(aswift1).pathString, arguments: arguments1 ?? [])
+      check(try resolveSymlinks(aswift1).pathString, arguments: arguments1 ?? [])
 
       let argsManifest = try ws._settings(for: manifest.asURI, .swift)?.compilerArguments
       XCTAssertNotNil(argsManifest)
 
       checkNot(manifest.pathString, arguments: argsManifest ?? [])
-      check(resolveSymlinks(manifest).pathString, arguments: argsManifest ?? [])
+      check(try resolveSymlinks(manifest).pathString, arguments: argsManifest ?? [])
     }
   }
 
@@ -523,12 +523,12 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let argsCxx = try ws._settings(for: acxx.asURI, .cpp)?.compilerArguments
       XCTAssertNotNil(argsCxx)
       check(acxx.pathString, arguments: argsCxx ?? [])
-      checkNot(resolveSymlinks(acxx).pathString, arguments: argsCxx ?? [])
+      checkNot(try resolveSymlinks(acxx).pathString, arguments: argsCxx ?? [])
 
       let argsH = try ws._settings(for: ah.asURI, .cpp)?.compilerArguments
       XCTAssertNotNil(argsH)
       checkNot(ah.pathString, arguments: argsH ?? [])
-      check(resolveSymlinks(ah).pathString, arguments: argsH ?? [])
+      check(try resolveSymlinks(ah).pathString, arguments: argsH ?? [])
     }
   }
 
@@ -550,7 +550,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
                   resources: [.copy("a.txt")])])
             """
       ])
-      let packageRoot = resolveSymlinks(tempDir.appending(component: "pkg"))
+      let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.shared
       let ws = try! SwiftPMWorkspace(
         workspacePath: packageRoot,
@@ -579,7 +579,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         targets: [.target(name: "lib", dependencies: [])])
         """
       ])
-      let packageRoot = resolveSymlinks(tempDir.appending(components: "pkg", "Sources", "lib"))
+      let packageRoot = try resolveSymlinks(tempDir.appending(components: "pkg", "Sources", "lib"))
       let tr = ToolchainRegistry.shared
       let ws = try! SwiftPMWorkspace(
         workspacePath: packageRoot,
@@ -587,7 +587,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         fileSystem: fs,
         buildSetup: TestSourceKitServer.serverOptions.buildSetup)
 
-      XCTAssertEqual(ws._packageRoot, resolveSymlinks(tempDir.appending(component: "pkg")))
+      XCTAssertEqual(ws._packageRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
     }
   }
 }

@@ -82,7 +82,7 @@ final class SKTests: XCTestCase {
     }
 
     XCTAssertEqual(jump.count, 1)
-    XCTAssertEqual(jump.first?.uri, locDef.docUri.nativeURI)
+    XCTAssertEqual(jump.first?.uri, try locDef.docUri.nativeURI)
     XCTAssertEqual(jump.first?.range.lowerBound, locDef.position)
 
     // MARK: Find references
@@ -94,9 +94,9 @@ final class SKTests: XCTestCase {
 
     let call = ws.testLoc("aaa:call")
     XCTAssertEqual(Set(refs), [
-      Location(TestLocation(url: URL(fileURLWithPath: resolveSymlinks(AbsolutePath(locDef.url.path)).pathString), line: locDef.line, utf8Column: locDef.utf8Column, utf16Column: locDef.utf16Column)),
-      Location(TestLocation(url: URL(fileURLWithPath: resolveSymlinks(AbsolutePath(locRef.url.path)).pathString), line: locRef.line, utf8Column: locRef.utf8Column, utf16Column: locRef.utf16Column)),
-      Location(TestLocation(url: URL(fileURLWithPath: resolveSymlinks(AbsolutePath(call.url.path)).pathString), line: call.line, utf8Column: call.utf8Column, utf16Column: call.utf16Column)),
+      Location(TestLocation(url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(locDef.url.path)).pathString), line: locDef.line, utf8Column: locDef.utf8Column, utf16Column: locDef.utf16Column)),
+      Location(TestLocation(url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(locRef.url.path)).pathString), line: locRef.line, utf8Column: locRef.utf8Column, utf16Column: locRef.utf16Column)),
+      Location(TestLocation(url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(call.url.path)).pathString), line: call.line, utf8Column: call.utf8Column, utf16Column: call.utf16Column)),
     ])
   }
 
@@ -131,7 +131,7 @@ final class SKTests: XCTestCase {
         return nil
       }
       XCTAssertEqual(jump.count, 1)
-      XCTAssertEqual(jump.first?.uri, locDef.docUri.nativeURI)
+      XCTAssertEqual(jump.first?.uri, try locDef.docUri.nativeURI)
       XCTAssertEqual(jump.first?.range.lowerBound, locDef.position)
 
       let tmpContents = try listdir(tmpDir)
@@ -334,7 +334,7 @@ final class SKTests: XCTestCase {
     guard ToolchainRegistry.shared.default?.clangd != nil else { return }
 
     let refLoc = ws.testLoc("Object:ref:main")
-    let expectedDoc = ws.testLoc("Object").docIdentifier.uri.nativeURI
+    let expectedDoc = try ws.testLoc("Object").docIdentifier.uri.nativeURI
     let refPos = Position(line: refLoc.position.line, utf16index: refLoc.utf16Column + 2)
 
     try ws.openDocument(refLoc.url, language: .c)
