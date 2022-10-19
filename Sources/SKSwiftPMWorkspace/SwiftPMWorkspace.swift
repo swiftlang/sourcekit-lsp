@@ -96,7 +96,7 @@ public final class SwiftPMWorkspace {
       throw Error.noManifest(workspacePath: workspacePath)
     }
 
-    self.packageRoot = resolveSymlinks(packageRoot)
+    self.packageRoot = try resolveSymlinks(packageRoot)
 
     guard let destinationToolchainBinDir = toolchainRegistry.default?.swiftc?.parentDirectory else {
         throw Error.cannotDetermineHostToolchain
@@ -105,7 +105,7 @@ public final class SwiftPMWorkspace {
     let destination = try Destination.hostDestination(destinationToolchainBinDir)
     let toolchain = try UserToolchain(destination: destination)
 
-    var location = Workspace.Location(forRootPackage: packageRoot, fileSystem: fileSystem)
+    var location = try Workspace.Location(forRootPackage: packageRoot, fileSystem: fileSystem)
     if let scratchDirectory = buildSetup.path {
         location.scratchDirectory = scratchDirectory
     }
@@ -272,12 +272,12 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
       return nil
     }
 
-    if let td = targetDescription(for: path) {
+    if let td = try targetDescription(for: path) {
       return try settings(for: path, language, td)
     }
 
     if path.basename == "Package.swift" {
-      return settings(forPackageManifest: path)
+      return try settings(forPackageManifest: path)
     }
 
     if path.extension == "h" {
@@ -330,13 +330,13 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
 
   /// Returns the resolved target description for the given file, if one is known.
   /// Must only be called on `queue`.
-  private func targetDescription(for file: AbsolutePath) -> TargetBuildDescription? {
+  private func targetDescription(for file: AbsolutePath) throws -> TargetBuildDescription? {
     dispatchPrecondition(condition: .onQueue(queue))
     if let td = fileToTarget[file] {
       return td
     }
 
-    let realpath = resolveSymlinks(file)
+    let realpath = try resolveSymlinks(file)
     if realpath != file, let td = fileToTarget[realpath] {
       fileToTarget[file] = td
       return td
@@ -376,7 +376,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
       return .unhandled
     }
     return self.queue.sync {
-      if targetDescription(for: AbsolutePath(fileUrl.path)) != nil {
+      if (try? targetDescription(for: AbsolutePath(fileUrl.path))) != nil {
         return .handled
       } else {
         return .unhandled
@@ -409,7 +409,7 @@ extension SwiftPMWorkspace {
 
   /// Retrieve settings for a package manifest (Package.swift).
   /// Must only be called on `queue`.
-  private func settings(forPackageManifest path: AbsolutePath) -> FileBuildSettings? {
+  private func settings(forPackageManifest path: AbsolutePath) throws -> FileBuildSettings? {
     dispatchPrecondition(condition: .onQueue(queue))
     func impl(_ path: AbsolutePath) -> FileBuildSettings? {
       for package in packageGraph.packages where path == package.manifest.path {
@@ -423,7 +423,7 @@ extension SwiftPMWorkspace {
       return result
     }
 
-    let canonicalPath = resolveSymlinks(path)
+    let canonicalPath = try resolveSymlinks(path)
     return canonicalPath == path ? nil : impl(canonicalPath)
   }
 
@@ -446,7 +446,7 @@ extension SwiftPMWorkspace {
       return result
     }
 
-    let canonicalPath = resolveSymlinks(path)
+    let canonicalPath = try resolveSymlinks(path)
     return try canonicalPath == path ? nil : impl(canonicalPath)
   }
 
@@ -496,7 +496,7 @@ extension SwiftPMWorkspace {
         URL(fileURLWithPath: path.pathString).withUnsafeFileSystemRepresentation {
           AbsolutePath(String(cString: $0!))
         }
-    let compilePath = td.compilePaths().first(where: { $0.source == nativePath })
+    let compilePath = try td.compilePaths().first(where: { $0.source == nativePath })
     if let compilePath = compilePath {
       args += [
         "-MD",

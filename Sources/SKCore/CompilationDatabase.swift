@@ -143,7 +143,7 @@ public struct JSONCompilationDatabase: CompilationDatabase, Equatable {
   var commands: [Command] = []
 
   public init(_ commands: [Command] = []) {
-    commands.forEach { add($0) }
+    commands.forEach { try! add($0) }
   }
 
   public subscript(_ url: URL) -> [Command] {
@@ -158,11 +158,11 @@ public struct JSONCompilationDatabase: CompilationDatabase, Equatable {
 
   public var allCommands: AnySequence<Command> { AnySequence(commands) }
 
-  public mutating func add(_ command: Command) {
+  public mutating func add(_ command: Command) throws {
     let url = command.url
     pathToCommands[url, default: []].append(commands.count)
 
-    let canonical = URL(fileURLWithPath: resolveSymlinks(AbsolutePath(url.path)).pathString)
+    let canonical = URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(url.path)).pathString)
     if canonical != url {
       pathToCommands[canonical, default: []].append(commands.count)
     }
@@ -175,7 +175,7 @@ extension JSONCompilationDatabase: Codable {
   public init(from decoder: Decoder) throws {
     var container = try decoder.unkeyedContainer()
     while !container.isAtEnd {
-      self.add(try container.decode(Command.self))
+      try self.add(try container.decode(Command.self))
     }
   }
 
