@@ -136,7 +136,7 @@ public final class SwiftPMWorkspace {
         flags: buildSetup.flags
     )
 
-    self.packageGraph = try PackageGraph(rootPackages: [], dependencies: [])
+    self.packageGraph = try PackageGraph(rootPackages: [], dependencies: [], binaryArtifacts: [:])
 
     try reloadPackage()
   }
