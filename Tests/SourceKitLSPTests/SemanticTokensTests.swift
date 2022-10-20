@@ -496,7 +496,7 @@ final class SemanticTokensTests: XCTestCase {
     """
     let tokens = openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [
-      Token(line: 0, utf16index: 0, length: 5, kind: .modifier),
+      Token(line: 0, utf16index: 0, length: 5, kind: .keyword),
       Token(line: 0, utf16index: 6, length: 8, kind: .keyword),
       Token(line: 0, utf16index: 15, length: 2, kind: .operator),
       Token(line: 0, utf16index: 19, length: 20, kind: .identifier),
