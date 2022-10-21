@@ -117,14 +117,20 @@ public final class BuildServerBuildSystem {
   }
 
   private func initializeBuildServer() throws {
-    guard let interpreter =
-        lookupExecutablePath(filename: executable("python3"),
-                             searchPaths: searchPaths) ??
-        lookupExecutablePath(filename: executable("python"),
-                             searchPaths: searchPaths) else {
-      throw BuildServerTestError.executableNotFound("python3")
+    var serverPath = AbsolutePath(serverConfig.argv[0], relativeTo: projectRoot)
+    var flags = Array(serverConfig.argv[1...])
+    if serverPath.suffix == "py" {
+      flags = [serverPath.pathString] + flags
+      guard let interpreterPath =
+          lookupExecutablePath(filename: executable("python3"),
+                               searchPaths: searchPaths) ??
+          lookupExecutablePath(filename: executable("python"),
+                               searchPaths: searchPaths) else {
+        throw BuildServerTestError.executableNotFound("python3")
+      }
+
+      serverPath = interpreterPath
     }
-    let flags = [AbsolutePath(serverConfig.argv[0], relativeTo: projectRoot).pathString] + Array(serverConfig.argv[1...])
     let languages = [
       Language.c,
       Language.cpp,
@@ -141,7 +147,7 @@ public final class BuildServerBuildSystem {
       capabilities: BuildClientCapabilities(languageIds: languages))
 
     let handler = BuildServerHandler()
-    let buildServer = try makeJSONRPCBuildServer(client: handler, interpreter: interpreter, serverFlags: flags)
+    let buildServer = try makeJSONRPCBuildServer(client: handler, serverPath: serverPath, serverFlags: flags)
     let response = try buildServer.sendSync(initializeRequest)
     buildServer.send(InitializedBuildNotification())
     log("initialized build server \(response.displayName)")
@@ -306,7 +312,7 @@ struct BuildServerConfig: Codable {
   let argv: [String]
 }
 
-private func makeJSONRPCBuildServer(client: MessageHandler, interpreter: AbsolutePath, serverFlags: [String]?) throws -> JSONRPCConnection {
+private func makeJSONRPCBuildServer(client: MessageHandler, serverPath: AbsolutePath, serverFlags: [String]?) throws -> JSONRPCConnection {
   let clientToServer = Pipe()
   let serverToClient = Pipe()
 
@@ -322,7 +328,7 @@ private func makeJSONRPCBuildServer(client: MessageHandler, interpreter: Absolut
     withExtendedLifetime((clientToServer, serverToClient)) {}
   }
   let process = Foundation.Process()
-  process.executableURL = interpreter.asURL
+  process.executableURL = serverPath.asURL
   process.arguments = serverFlags
   process.standardOutput = serverToClient
   process.standardInput = clientToServer
