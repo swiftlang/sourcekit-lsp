@@ -119,7 +119,7 @@ public final class BuildServerBuildSystem {
   private func initializeBuildServer() throws {
     var serverPath = AbsolutePath(serverConfig.argv[0], relativeTo: projectRoot)
     var flags = Array(serverConfig.argv[1...])
-    if serverPath.suffix == "py" {
+    if serverPath.suffix == ".py" {
       flags = [serverPath.pathString] + flags
       guard let interpreterPath =
           lookupExecutablePath(filename: executable("python3"),
