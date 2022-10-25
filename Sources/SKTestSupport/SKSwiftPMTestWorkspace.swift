@@ -24,7 +24,7 @@ import LSPTestSupport
 import class TSCBasic.Process
 import func TSCBasic.resolveSymlinks
 import struct TSCBasic.AbsolutePath
-import struct TSCUtility.BuildFlags
+import struct PackageModel.BuildFlags
 
 public final class SKSwiftPMTestWorkspace {
 

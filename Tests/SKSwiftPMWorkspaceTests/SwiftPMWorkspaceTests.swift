@@ -22,7 +22,7 @@ import SKTestSupport
 import TSCBasic
 import XCTest
 
-import struct TSCUtility.BuildFlags
+import struct PackageModel.BuildFlags
 
 final class SwiftPMWorkspaceTests: XCTestCase {
 
@@ -153,7 +153,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let config = BuildSetup(
           configuration: .release,
           path: packageRoot.appending(component: "non_default_build_path"),
-          flags: BuildFlags(xcc: ["-m32"], xcxx: [], xswiftc: ["-typecheck"], xlinker: []))
+          flags: BuildFlags(cCompilerFlags: ["-m32"], swiftCompilerFlags: ["-typecheck"]))
 
       let ws = try! SwiftPMWorkspace(
         workspacePath: packageRoot,

@@ -15,7 +15,7 @@ import SKCore
 import TSCBasic
 import XCTest
 
-import struct TSCUtility.BuildFlags
+import struct PackageModel.BuildFlags
 
 final class FallbackBuildSystemTests: XCTestCase {
 
@@ -50,7 +50,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let sdk =  AbsolutePath("/my/sdk")
     let source = AbsolutePath("/my/source.swift")
 
-    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(xswiftc: [
+    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(swiftCompilerFlags: [
       "-Xfrontend",
       "-debug-constraints"
     ]))
@@ -79,7 +79,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let sdk =  AbsolutePath("/my/sdk")
     let source = AbsolutePath("/my/source.swift")
 
-    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(xswiftc: [
+    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(swiftCompilerFlags: [
       "-sdk",
       "/some/custom/sdk",
       "-Xfrontend",
@@ -135,7 +135,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let sdk =  AbsolutePath("/my/sdk")
     let source = AbsolutePath("/my/source.cpp")
 
-    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(xcxx: [
+    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(cxxCompilerFlags: [
       "-v"
     ]))
     let bs = FallbackBuildSystem(buildSetup: buildSetup)
@@ -160,7 +160,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let sdk =  AbsolutePath("/my/sdk")
     let source = AbsolutePath("/my/source.cpp")
 
-    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(xcxx: [
+    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(cxxCompilerFlags: [
       "-isysroot",
       "/my/custom/sdk",
       "-v"
@@ -197,7 +197,7 @@ final class FallbackBuildSystemTests: XCTestCase {
   func testCWithCustomFlags() {
     let source = AbsolutePath("/my/source.c")
 
-    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(xcc: [
+    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(cCompilerFlags: [
       "-v"
     ]))
     let bs = FallbackBuildSystem(buildSetup: buildSetup)

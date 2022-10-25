@@ -108,6 +108,7 @@ let package = Package(
           "LanguageServerProtocol",
           "LanguageServerProtocolJSONRPC",
           "SKSupport",
+          .product(name: "SwiftPMDataModel-auto", package: "SwiftPM"),
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         ],
         exclude: ["CMakeLists.txt"]),
