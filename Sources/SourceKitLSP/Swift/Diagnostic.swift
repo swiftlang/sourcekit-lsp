@@ -100,6 +100,12 @@ extension TextEdit {
       // Snippets are only suppored in code completion.
       // Remove SourceKit placeholders from Fix-Its because they can't be represented in the editor properly.
       let replacementWithoutPlaceholders = rewriteSourceKitPlaceholders(inString: replacement, clientSupportsSnippets: false)
+
+      // If both the replacement without placeholders and the fixit are empty, no TextEdit should be created.
+      if (replacementWithoutPlaceholders.isEmpty && length == 0) {
+        return nil
+      }
+
       self.init(range: position..<endPosition, newText: replacementWithoutPlaceholders)
     } else {
       return nil
