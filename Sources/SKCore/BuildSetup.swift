@@ -13,7 +13,7 @@
 import SKSupport
 
 import struct TSCBasic.AbsolutePath
-import struct TSCUtility.BuildFlags
+import struct PackageModel.BuildFlags
 
 /// Build configuration
 public struct BuildSetup {

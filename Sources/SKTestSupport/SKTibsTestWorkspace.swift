@@ -22,7 +22,7 @@ import LSPTestSupport
 
 import struct TSCBasic.AbsolutePath
 import enum TSCUtility.Platform
-import struct TSCUtility.BuildFlags
+import struct PackageModel.BuildFlags
 
 public typealias URL = Foundation.URL
 
