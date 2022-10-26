@@ -12,6 +12,7 @@
 
 import LanguageServerProtocol
 import SwiftSyntax
+import IDEUtils
 
 /// Syntax highlighting tokens for a particular document.
 public struct DocumentTokens {
