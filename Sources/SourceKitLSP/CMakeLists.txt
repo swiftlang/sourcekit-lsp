@@ -45,6 +45,7 @@ target_link_libraries(SourceKitLSP PUBLIC
   SwiftSyntax::SwiftParser
   SwiftSyntax::SwiftDiagnostics
   SwiftSyntax::SwiftSyntax
+  SwiftSyntax::IDEUtils
   TSCUtility)
 target_link_libraries(SourceKitLSP PRIVATE
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
