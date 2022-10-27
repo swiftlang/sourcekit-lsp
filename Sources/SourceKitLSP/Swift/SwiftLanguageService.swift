@@ -700,7 +700,8 @@ extension SwiftLanguageService {
   }
 
   public func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
-    let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
+    let providersAndKinds: [(provider: CodeActionRequestProvider, kind: CodeActionKind)] = [
+      (retrieveLocalCodeActions, .refactorRewrite),
       (retrieveRefactorCodeActions, .refactor),
       (retrieveQuickFixCodeActions, .quickFix),
     ]
@@ -715,7 +716,7 @@ extension SwiftLanguageService {
     return response
   }
 
-  func retrieveCodeActions(_ req: CodeActionRequest, providers: [CodeActionProvider]) async throws -> [CodeAction] {
+  func retrieveCodeActions(_ req: CodeActionRequest, providers: [CodeActionRequestProvider]) async throws -> [CodeAction] {
     guard providers.isEmpty == false else {
       return []
     }
@@ -725,6 +726,22 @@ extension SwiftLanguageService {
       } catch {
         // Ignore any providers that failed to provide refactoring actions.
         return []
+      }
+    }.flatMap { $0 }
+  }
+
+  func retrieveLocalCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
+    let uri = params.textDocument.uri
+    let snapshot = try documentManager.latestSnapshot(uri)
+
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let scope = try CodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, parameters: params)
+    return await allCodeActions.concurrentMap { provider in
+      return provider.provideAssistance(in: scope).map {
+        let edit = WorkspaceEdit(changes: [
+          uri: $0.edits.map { $0.asEdit(in: scope) },
+        ])
+        return CodeAction(title: $0.title, kind: provider.kind, edit: edit)
       }
     }.flatMap { $0 }
   }
