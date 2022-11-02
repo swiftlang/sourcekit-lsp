@@ -257,7 +257,7 @@ def parse_args() -> argparse.Namespace:
         parser.add_argument('--package-path', metavar='PATH', help='directory of the package to build', default='.')
         parser.add_argument('--toolchain', required=True, metavar='PATH', help='build using the toolchain at PATH')
         parser.add_argument('--ninja-bin', metavar='PATH', help='ninja binary to use for testing')
-        parser.add_argument('--build-path', metavar='PATH', default='.build', help='build in the given path')
+        parser.add_argument('--scratch-path', metavar='PATH', default='.build', help='build in the given path')
         parser.add_argument('--configuration', '-c', default='debug', help='build using configuration (release|debug)')
         parser.add_argument('--no-local-deps', action='store_true', help='use normal remote dependencies when building')
         parser.add_argument('--sanitize', action='append', help='build using the given sanitizer(s) (address|thread|undefined)')
