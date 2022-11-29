@@ -58,11 +58,16 @@ public struct Diagnostic: Codable, Hashable {
   /// The diagnostic message.
   public var message: String
 
+  /// Additional metadata about the diagnostic.
+  public var tags: [DiagnosticTag]?
+
   /// Related diagnostic notes.
   public var relatedInformation: [DiagnosticRelatedInformation]?
 
-  /// Additional metadata about the diagnostic.
-  public var tags: [DiagnosticTag]?
+  /// A data entry field that is preserved between a
+  /// `textDocument/publishDiagnostics` notification and
+  /// `textDocument/codeAction` request.
+  public var data: LSPAny?
 
   /// All the code actions that address this diagnostic.
   /// **LSP Extension from clangd**.
@@ -77,6 +82,7 @@ public struct Diagnostic: Codable, Hashable {
     message: String,
     tags: [DiagnosticTag]? = nil,
     relatedInformation: [DiagnosticRelatedInformation]? = nil,
+    data: LSPAny? = nil,
     codeActions: [CodeAction]? = nil)
   {
     self._range = CustomCodable<PositionRange>(wrappedValue: range)
@@ -87,6 +93,7 @@ public struct Diagnostic: Codable, Hashable {
     self.message = message
     self.tags = tags
     self.relatedInformation = relatedInformation
+    self.data = data
     self.codeActions = codeActions
   }
 }
@@ -100,15 +107,25 @@ public struct DiagnosticTag: RawRepresentable, Codable, Hashable {
     self.rawValue = rawValue
   }
 
+  /// Unused or unnecessary code.
+  ///
+  /// Clients are allowed to render diagnostics with this tag faded out
+  /// instead of having an error squiggle.
   public static let unnecessary: DiagnosticTag = DiagnosticTag(rawValue: 1)
+
+  /// Deprecated or obsolete code.
+  ///
+  /// Clients are allowed to rendered diagnostics with this tag strike through.
   public static let deprecated: DiagnosticTag = DiagnosticTag(rawValue: 2)
 }
 
 /// A 'note' diagnostic attached to a primary diagonstic that provides additional information.
 public struct DiagnosticRelatedInformation: Codable, Hashable {
 
+  /// The location of this related diagnostic information.
   public var location: Location
 
+  /// The message of this related diagnostic information.
   public var message: String
 
   /// All the code actions that address the parent diagnostic via this note.

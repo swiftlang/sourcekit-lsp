@@ -175,12 +175,12 @@ extension SwiftLanguageServer {
         kind: kind?.asCompletionItemKind(self.values) ?? .value,
         detail: typeName,
         documentation: docBrief != nil ? .markupContent(MarkupContent(kind: .markdown, value: docBrief!)) : nil,
+        deprecated: notRecommended ?? false,
         sortText: nil,
         filterText: filterName,
-        textEdit: textEdit,
         insertText: text,
         insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
-        deprecated: notRecommended ?? false
+        textEdit: textEdit.map(CompletionItemEdit.textEdit)
       ))
 
       return true

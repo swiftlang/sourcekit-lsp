@@ -1021,7 +1021,7 @@ extension SourceKitServer {
   func workspaceSymbols(_ req: Request<WorkspaceSymbolsRequest>) {
     let symbols = findWorkspaceSymbols(
       matching: req.params.query
-    ).map({symbolOccurrence -> SymbolInformation in
+    ).map({symbolOccurrence -> WorkspaceSymbolItem in
       let symbolPosition = Position(
         line: symbolOccurrence.location.line - 1, // 1-based -> 0-based
         // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
@@ -1031,13 +1031,13 @@ extension SourceKitServer {
         uri: DocumentURI(URL(fileURLWithPath: symbolOccurrence.location.path)),
         range: Range(symbolPosition))
 
-      return SymbolInformation(
+      return .symbolInformation(SymbolInformation(
         name: symbolOccurrence.symbol.name,
         kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
         deprecated: nil,
         location: symbolLocation,
         containerName: symbolOccurrence.getContainerName()
-      )
+      ))
     })
     req.reply(symbols)
   }

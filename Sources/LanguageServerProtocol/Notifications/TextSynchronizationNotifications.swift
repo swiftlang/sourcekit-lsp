@@ -68,10 +68,24 @@ public struct DidCloseTextDocumentNotification: NotificationType, Hashable {
 public struct DidChangeTextDocumentNotification: NotificationType, Hashable {
   public static let method: String = "textDocument/didChange"
 
-  /// The document to change and its current version identifier.
+  /// The document that did change. The version number points
+  /// to the version after all provided content changes have
+  /// been applied.
   public var textDocument: VersionedTextDocumentIdentifier
 
-  /// Edits to the document.
+  /// The actual content changes. The content changes describe single state
+  /// changes to the document. So if there are two content changes c1 (at
+  /// array index 0) and c2 (at array index 1) for a document in state S then
+  /// c1 moves the document from S to S' and c2 from S' to S''. So c1 is
+  /// computed on the state S and c2 is computed on the state S'.
+  ///
+  /// To mirror the content of a document using change events use the following
+  /// approach:
+  /// - start with the same initial content
+  /// - apply the 'textDocument/didChange' notifications in the order you
+  ///   receive them.
+  /// - apply the `TextDocumentContentChangeEvent`s in a single notification
+  ///   in the order you receive them.
   public var contentChanges: [TextDocumentContentChangeEvent]
 
   /// Force the LSP to rebuild its AST for the given file. This is useful for clangd to workaround clangd's assumption that
@@ -124,4 +138,77 @@ public struct DidSaveTextDocumentNotification: TextDocumentNotification, Hashabl
   ///
   /// Only provided if the server specified `includeText == true`.
   public var text: String?
+}
+
+/// The open notification is sent from the client to the server when a notebook document is opened. It is only sent by a client if the server requested the synchronization mode `notebook` in its `notebookDocumentSync` capability.
+public struct DidOpenNotebookDocumentNotification: NotificationType, Hashable {
+  public static let method: String = "notebookDocument/didOpen"
+
+  /// The notebook document that got opened.
+  public var notebookDocument: NotebookDocument
+
+  /// The text documents that represent the content
+  /// of a notebook cell.
+  public var cellTextDocuments: [TextDocumentItem]
+
+  public init(notebookDocument: NotebookDocument, cellTextDocuments: [TextDocumentItem]) {
+    self.notebookDocument = notebookDocument
+    self.cellTextDocuments = cellTextDocuments
+  }
+}
+
+/// The change notification is sent from the client to the server when a notebook document changes. It is only sent by a client if the server requested the synchronization mode `notebook` in its `notebookDocumentSync` capability.
+public struct DidChangeNotebookDocumentNotification: NotificationType, Hashable {
+  public static var method: String = "notebookDocument/didChange"
+  
+  /// The notebook document that did change. The version number points
+  /// to the version after all provided changes have been applied.
+  public var notebookDocument: VersionedNotebookDocumentIdentifier
+
+  /// The actual changes to the notebook document.
+  ///
+  /// The change describes single state change to the notebook document.
+  /// So it moves a notebook document, its cells and its cell text document
+  /// contents from state S to S'.
+  ///
+  /// To mirror the content of a notebook using change events use the
+  /// following approach:
+  /// - start with the same initial content
+  /// - apply the 'notebookDocument/didChange' notifications in the order
+  ///   you receive them.
+  public var change: NotebookDocumentChangeEvent
+
+  public init(notebookDocument: VersionedNotebookDocumentIdentifier, change: NotebookDocumentChangeEvent) {
+    self.notebookDocument = notebookDocument
+    self.change = change
+  }
+}
+
+/// The save notification is sent from the client to the server when a notebook document is saved. It is only sent by a client if the server requested the synchronization mode `notebook` in its `notebookDocumentSync` capability.
+public struct DidSaveNotebookDocumentNotification: NotificationType {
+  public static var method: String = "notebookDocument/didSave"
+
+  /// The notebook document that got saved.
+  public var notebookDocument: NotebookDocumentIdentifier
+
+  public init(notebookDocument: NotebookDocumentIdentifier) {
+    self.notebookDocument = notebookDocument
+  }
+}
+
+/// The close notification is sent from the client to the server when a notebook document is closed. It is only sent by a client if the server requested the synchronization mode `notebook` in its `notebookDocumentSync` capability.
+public struct DidCloseNotebookDocumentNotification: NotificationType {
+  public static var method: String = "notebookDocument/didClose"
+
+  /// The notebook document that got closed.
+  public var notebookDocument: NotebookDocumentIdentifier
+
+  /// The text documents that represent the content
+  /// of a notebook cell that got closed.
+  public var cellTextDocuments: [TextDocumentIdentifier]
+
+  public init(notebookDocument: NotebookDocumentIdentifier, cellTextDocuments: [TextDocumentIdentifier]) {
+    self.notebookDocument = notebookDocument
+    self.cellTextDocuments = cellTextDocuments
+  }
 }

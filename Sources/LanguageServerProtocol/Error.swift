@@ -22,19 +22,68 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable {
     self.rawValue = rawValue
   }
 
-  // JSON RPC
+  // MARK: JSON RPC
   public static let parseError: ErrorCode = ErrorCode(rawValue: -32700)
   public static let invalidRequest: ErrorCode = ErrorCode(rawValue: -32600)
   public static let methodNotFound: ErrorCode = ErrorCode(rawValue: -32601)
   public static let invalidParams: ErrorCode = ErrorCode(rawValue: -32602)
   public static let internalError: ErrorCode = ErrorCode(rawValue: -32603)
-  public static let serverErrorStart: ErrorCode = ErrorCode(rawValue: -32099)
-  public static let serverErrorEnd: ErrorCode = ErrorCode(rawValue: -32000)
-  public static let workspaceNotOpen: ErrorCode = ErrorCode(rawValue: -32003)
-  public static let unknownErrorCode: ErrorCode = ErrorCode(rawValue: -32001)
 
-  // LSP
+
+  /// This is the start range of JSON-RPC reserved error codes.
+  /// It doesn't denote a real error code. No LSP error codes should
+  /// be defined between the start and end range. For backwards
+  /// compatibility the `ServerNotInitialized` and the `UnknownErrorCode`
+  /// are left in the range.
+  public static let jsonrpcReservedErrorRangeStart = ErrorCode(rawValue: -32099)
+  public static let serverErrorStart: ErrorCode = jsonrpcReservedErrorRangeStart
+
+  /// Error code indicating that a server received a notification or
+  /// request before the server has received the `initialize` request.
+  public static let serverNotInitialized = ErrorCode(rawValue: -32002)
+  public static let unknownErrorCode = ErrorCode(rawValue: -32001)
+
+  /// This is the end range of JSON-RPC reserved error codes.
+  /// It doesn't denote a real error code.
+  public static let jsonrpcReservedErrorRangeEnd = ErrorCode(rawValue: -32000)
+  /// Deprecated, use jsonrpcReservedErrorRangeEnd
+  public static let serverErrorEnd = jsonrpcReservedErrorRangeEnd
+
+  /// This is the start range of LSP reserved error codes.
+  /// It doesn't denote a real error code.
+  public static let lspReservedErrorRangeStart = ErrorCode(rawValue: -32899)
+
+  /// A request failed but it was syntactically correct, e.g the
+  /// method name was known and the parameters were valid. The error
+  /// message should contain human readable information about why
+  /// the request failed.
+  public static let requestFailed = ErrorCode(rawValue: -32803)
+
+  /// The server cancelled the request. This error code should
+  /// only be used for requests that explicitly support being
+  /// server cancellable.
+  public static let serverCancelled = ErrorCode(rawValue: -32802)
+
+  /// The server detected that the content of a document got
+  /// modified outside normal conditions. A server should
+  /// NOT send this error code if it detects a content change
+  /// in it unprocessed messages. The result even computed
+  /// on an older state might still be useful for the client.
+  ///
+  /// If a client decides that a result is not of any use anymore
+  /// the client should cancel the request.
+  public static let contentModified = ErrorCode(rawValue: -32801)
+
+  /// The client has canceled a request and a server as detected
+  /// the cancel.
   public static let cancelled: ErrorCode = ErrorCode(rawValue: -32800)
+
+  /// This is the end range of LSP reserved error codes.
+  /// It doesn't denote a real error code.
+  public static let lspReservedErrorRangeEnd = ErrorCode(rawValue: -32800)
+
+  // MARK: SourceKit-LSP specifiic eror codes
+  public static let workspaceNotOpen: ErrorCode = ErrorCode(rawValue: -32003)
 }
 
 /// An error response represented by a code and message.

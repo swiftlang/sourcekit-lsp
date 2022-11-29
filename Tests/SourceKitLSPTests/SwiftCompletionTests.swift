@@ -115,7 +115,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(abc.detail, "Int")
       XCTAssertEqual(abc.documentation, .markupContent(MarkupContent(kind: .markdown, value: "Documentation for abc.")))
       XCTAssertEqual(abc.filterText, "abc")
-      XCTAssertEqual(abc.textEdit, TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: 9), newText: "abc"))
+      XCTAssertEqual(abc.textEdit, .textEdit(TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: 9), newText: "abc")))
       XCTAssertEqual(abc.insertText, "abc")
       XCTAssertEqual(abc.insertTextFormat, .plain)
     }
@@ -134,7 +134,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(abc.detail, "Int")
       XCTAssertEqual(abc.documentation, .markupContent(MarkupContent(kind: .markdown, value: "Documentation for abc.")))
       XCTAssertEqual(abc.filterText, "abc")
-      XCTAssertEqual(abc.textEdit, TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: col), newText: "abc"))
+      XCTAssertEqual(abc.textEdit, .textEdit(TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: col), newText: "abc")))
       XCTAssertEqual(abc.insertText, "abc")
       XCTAssertEqual(abc.insertTextFormat, .plain)
     }
@@ -174,7 +174,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.kind, .method)
       XCTAssertEqual(test.detail, "Void")
       XCTAssertEqual(test.filterText, "test(a:)")
-        XCTAssertEqual(test.textEdit, TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: 9), newText: "test(a: ${1:Int})"))
+      XCTAssertEqual(test.textEdit, .textEdit(TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: 9), newText: "test(a: ${1:Int})")))
       XCTAssertEqual(test.insertText, "test(a: ${1:Int})")
       XCTAssertEqual(test.insertTextFormat, .snippet)
     }
@@ -185,7 +185,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.kind, .method)
       XCTAssertEqual(test.detail, "Void")
       XCTAssertEqual(test.filterText, "test(:)")
-      XCTAssertEqual(test.textEdit, TextEdit(range: Position(line: 9, utf16index: 9)..<Position(line: 9, utf16index: 9), newText: "test(${1:b: Int})"))
+      XCTAssertEqual(test.textEdit, .textEdit(TextEdit(range: Position(line: 9, utf16index: 9)..<Position(line: 9, utf16index: 9), newText: "test(${1:b: Int})")))
       XCTAssertEqual(test.insertText, "test(${1:b: Int})")
       XCTAssertEqual(test.insertTextFormat, .snippet)
     }
@@ -201,7 +201,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.kind, .method)
       XCTAssertEqual(test.detail, "Void")
       XCTAssertEqual(test.filterText, "test(a:)")
-      XCTAssertEqual(test.textEdit, TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: 9), newText: "test(a: )"))
+      XCTAssertEqual(test.textEdit, .textEdit(TextEdit(range: Position(line: 5, utf16index: 9)..<Position(line: 5, utf16index: 9), newText: "test(a: )")))
       XCTAssertEqual(test.insertText, "test(a: )")
       XCTAssertEqual(test.insertTextFormat, .plain)
     }
@@ -213,7 +213,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.detail, "Void")
       XCTAssertEqual(test.filterText, "test(:)")
       // FIXME:
-        XCTAssertEqual(test.textEdit, TextEdit(range: Position(line: 9, utf16index: 9)..<Position(line: 9, utf16index: 9), newText: "test()"))
+      XCTAssertEqual(test.textEdit, .textEdit(TextEdit(range: Position(line: 9, utf16index: 9)..<Position(line: 9, utf16index: 9), newText: "test()")))
       XCTAssertEqual(test.insertText, "test()")
       XCTAssertEqual(test.insertTextFormat, .plain)
     }
@@ -273,7 +273,7 @@ final class SwiftCompletionTests: XCTestCase {
         return
       }
       XCTAssertEqual(item.filterText, ".bar")
-      XCTAssertEqual(item.textEdit, TextEdit(range: Position(line: 4, utf16index: 1)..<Position(line: 4, utf16index: col), newText: "?.bar"))
+      XCTAssertEqual(item.textEdit, .textEdit(TextEdit(range: Position(line: 4, utf16index: 1)..<Position(line: 4, utf16index: col), newText: "?.bar")))
     }
   }
 
@@ -299,7 +299,7 @@ final class SwiftCompletionTests: XCTestCase {
     }
     // FIXME: should be "foo()"
     XCTAssertEqual(item.filterText, "func foo()")
-    XCTAssertEqual(item.textEdit, TextEdit(range: Position(line: 4, utf16index: 2)..<Position(line: 4, utf16index: 7), newText: "override func foo() {\n\n}"))
+    XCTAssertEqual(item.textEdit, .textEdit(TextEdit(range: Position(line: 4, utf16index: 2)..<Position(line: 4, utf16index: 7), newText: "override func foo() {\n\n}")))
   }
 
   func testCompletionOverrideInNewLine() throws {
@@ -325,7 +325,7 @@ final class SwiftCompletionTests: XCTestCase {
     }
     // If the edit would cross multiple lines, we are currently not replacing any text. It's not technically correct but the best we can do.
     XCTAssertEqual(item.filterText, "foo()")
-    XCTAssertEqual(item.textEdit, TextEdit(range: Position(line: 5, utf16index: 2)..<Position(line: 5, utf16index: 2), newText: "override func foo() {\n\n}"))
+    XCTAssertEqual(item.textEdit, .textEdit(TextEdit(range: Position(line: 5, utf16index: 2)..<Position(line: 5, utf16index: 2), newText: "override func foo() {\n\n}")))
   }
 
   func testMaxResults() throws {

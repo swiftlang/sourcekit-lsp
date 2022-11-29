@@ -64,8 +64,8 @@ final class InlayHintTests: XCTestCase {
   private func makeInlayHint(position: Position, kind: InlayHintKind, label: String) -> InlayHint {
     InlayHint(
       position: position,
-      kind: kind,
       label: .string(label),
+      kind: kind,
       textEdits: [
         TextEdit(range: position..<position, newText: label)
       ]

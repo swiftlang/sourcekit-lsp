@@ -12,9 +12,6 @@
 
 /// Request for inline annotations to be displayed in the editor.
 /// 
-/// This implements the proposed `textDocument/inlayHint` API from
-/// https://github.com/microsoft/language-server-protocol/pull/1249 (commit: `d55733d`)
-///
 /// - Parameters:
 ///   - textDocument: The document for which to provide the inlay hints.
 ///
@@ -31,17 +28,11 @@ public struct InlayHintRequest: TextDocumentRequest, Hashable {
   @CustomCodable<PositionRange?>
   public var range: Range<Position>?
 
-  /// The categories of hints that are interesting to the client
-  /// and should be filtered.
-  public var only: [InlayHintKind]?
-
   public init(
     textDocument: TextDocumentIdentifier,
-    range: Range<Position>? = nil,
-    only: [InlayHintKind]? = nil
+    range: Range<Position>? = nil
   ) {
     self.textDocument = textDocument
     self._range = CustomCodable(wrappedValue: range)
-    self.only = only
   }
 }

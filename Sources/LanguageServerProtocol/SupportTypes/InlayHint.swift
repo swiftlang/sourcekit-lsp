@@ -15,17 +15,17 @@ public struct InlayHint: ResponseType, Codable, Hashable {
   /// The position within the code that this hint is attached to.
   public var position: Position
 
-  /// The hint's kind, used for more flexible client-side styling.
-  public let kind: InlayHintKind?
-
   /// The hint's text, e.g. a printed type
   public let label: InlayHintLabel
+
+  /// The hint's kind, used for more flexible client-side styling.
+  public let kind: InlayHintKind?
 
   /// Optional text edits that are performed when accepting this inlay hint.
   public let textEdits: [TextEdit]?
 
   /// The tooltip text displayed when the inlay hint is hovered.
-  public let tooltip: MarkupContent?
+  public let tooltip: StringOrMarkupContent?
 
   /// Whether to render padding before the hint.
   public let paddingLeft: Bool?
@@ -39,17 +39,17 @@ public struct InlayHint: ResponseType, Codable, Hashable {
 
   public init(
     position: Position,
-    kind: InlayHintKind? = nil,
     label: InlayHintLabel,
+    kind: InlayHintKind? = nil,
     textEdits: [TextEdit]? = nil,
-    tooltip: MarkupContent? = nil,
+    tooltip: StringOrMarkupContent? = nil,
     paddingLeft: Bool? = nil,
     paddingRight: Bool? = nil,
     data: LSPAny? = nil
   ) {
     self.position = position
-    self.kind = kind
     self.label = label
+    self.kind = kind
     self.textEdits = textEdits
     self.tooltip = tooltip
     self.paddingLeft = paddingLeft
@@ -117,7 +117,7 @@ public struct InlayHintLabelPart: Codable, Hashable {
   public let value: String
 
   /// The tooltip to show when the part is hovered.
-  public let tooltip: MarkupContent?
+  public let tooltip: StringOrMarkupContent?
 
   /// An optional source code location representing this part.
   /// Used by the editor for hover and code navigation, e.g.
@@ -129,7 +129,7 @@ public struct InlayHintLabelPart: Codable, Hashable {
 
   public init(
     value: String,
-    tooltip: MarkupContent? = nil,
+    tooltip: StringOrMarkupContent? = nil,
     location: Location? = nil,
     command: Command? = nil
   ) {

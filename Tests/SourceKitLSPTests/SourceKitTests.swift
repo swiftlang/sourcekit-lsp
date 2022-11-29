@@ -175,22 +175,20 @@ final class SKTests: XCTestCase {
         label: "method(a: Int)",
         kind: .method,
         detail: "Void",
-        sortText: nil,
+        deprecated: false, sortText: nil,
         filterText: "method(a:)",
-        textEdit: TextEdit(range: Position(line: 1, utf16index: 14)..<Position(line: 1, utf16index: 14), newText: "method(a: )"),
         insertText: "method(a: )",
         insertTextFormat: .plain,
-        deprecated: false),
+        textEdit: .textEdit(TextEdit(range: Position(line: 1, utf16index: 14)..<Position(line: 1, utf16index: 14), newText: "method(a: )"))),
       CompletionItem(
         label: "self",
         kind: .keyword,
         detail: "A",
-        sortText: nil,
+        deprecated: false, sortText: nil,
         filterText: "self",
-        textEdit: TextEdit(range: Position(line: 1, utf16index: 14)..<Position(line: 1, utf16index: 14), newText: "self"),
         insertText: "self",
         insertTextFormat: .plain,
-        deprecated: false),
+        textEdit: .textEdit(TextEdit(range: Position(line: 1, utf16index: 14)..<Position(line: 1, utf16index: 14), newText: "self"))),
     ])
   }
 

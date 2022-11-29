@@ -18,10 +18,20 @@ public struct WorkspaceEdit: Hashable, ResponseType {
 
   public var documentChanges: [WorkspaceEditDocumentChange]?
 
+  /// A map of change annotations that can be referenced in
+  /// `AnnotatedTextEdit`s or create, rename and delete file / folder
+  /// operations.
+  ///
+  /// Whether clients honor this property depends on the client capability
+  /// `workspace.changeAnnotationSupport`.
+  public var changeAnnotations: [ChangeAnnotationIdentifier: ChangeAnnotation]?
+
   public init(changes: [DocumentURI: [TextEdit]]? = nil,
-              documentChanges: [WorkspaceEditDocumentChange]? = nil) {
+              documentChanges: [WorkspaceEditDocumentChange]? = nil,
+              changeAnnotation: [ChangeAnnotationIdentifier: ChangeAnnotation]? = nil) {
     self.changes = changes
     self.documentChanges = documentChanges
+    self.changeAnnotations = changeAnnotation
   }
 }
 
@@ -114,10 +124,13 @@ public struct CreateFile: Codable, Hashable {
   public var uri: DocumentURI
    /// Additional options
   public var options: CreateFileOptions?
+  /// An optional annotation identifier describing the operation.
+  public var annotationId: ChangeAnnotationIdentifier?
 
-  public init(uri: DocumentURI, options: CreateFileOptions? = nil) {
+  public init(uri: DocumentURI, options: CreateFileOptions? = nil, annotationId: ChangeAnnotationIdentifier? = nil) {
     self.uri = uri
     self.options = options
+    self.annotationId = annotationId
   }
 
   // MARK: Codable conformance
@@ -126,6 +139,7 @@ public struct CreateFile: Codable, Hashable {
     case kind
     case uri
     case options
+    case annotationId
   }
 
   public init(from decoder: Decoder) throws {
@@ -136,6 +150,7 @@ public struct CreateFile: Codable, Hashable {
     }
     self.uri = try container.decode(DocumentURI.self, forKey: .uri)
     self.options = try container.decodeIfPresent(CreateFileOptions.self, forKey: .options)
+    self.annotationId = try container.decodeIfPresent(ChangeAnnotationIdentifier.self, forKey: .annotationId)
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -143,6 +158,7 @@ public struct CreateFile: Codable, Hashable {
     try container.encode("create", forKey: .kind)
     try container.encode(self.uri, forKey: .uri)
     try container.encodeIfPresent(self.options, forKey: .options)
+    try container.encodeIfPresent(self.annotationId, forKey: .annotationId)
   }
 }
 
@@ -167,11 +183,14 @@ public struct RenameFile: Codable, Hashable {
   public var newUri: DocumentURI
    /// Rename options.
   public var options: RenameFileOptions?
+  /// An optional annotation identifier describing the operation.
+  public var annotationId: ChangeAnnotationIdentifier?
 
-  public init(oldUri: DocumentURI, newUri: DocumentURI, options: RenameFileOptions? = nil) {
+  public init(oldUri: DocumentURI, newUri: DocumentURI, options: RenameFileOptions? = nil, annotationId: ChangeAnnotationIdentifier? = nil) {
     self.oldUri = oldUri
     self.newUri = newUri
     self.options = options
+    self.annotationId = annotationId
   }
 
   // MARK: Codable conformance
@@ -181,6 +200,7 @@ public struct RenameFile: Codable, Hashable {
     case oldUri
     case newUri
     case options
+    case annotationId
   }
 
   public init(from decoder: Decoder) throws {
@@ -192,6 +212,7 @@ public struct RenameFile: Codable, Hashable {
     self.oldUri = try container.decode(DocumentURI.self, forKey: .oldUri)
     self.newUri = try container.decode(DocumentURI.self, forKey: .newUri)
     self.options = try container.decodeIfPresent(RenameFileOptions.self, forKey: .options)
+    self.annotationId = try container.decodeIfPresent(ChangeAnnotationIdentifier.self, forKey: .annotationId)
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -200,6 +221,7 @@ public struct RenameFile: Codable, Hashable {
     try container.encode(self.oldUri, forKey: .oldUri)
     try container.encode(self.newUri, forKey: .newUri)
     try container.encodeIfPresent(self.options, forKey: .options)
+    try container.encodeIfPresent(self.annotationId, forKey: .annotationId)
   }
 }
 
@@ -222,10 +244,13 @@ public struct DeleteFile: Codable, Hashable {
   public var uri: DocumentURI
    /// Delete options.
   public var options: DeleteFileOptions?
+  /// An optional annotation identifier describing the operation.
+  public var annotationId: ChangeAnnotationIdentifier?
 
-  public init(uri: DocumentURI, options: DeleteFileOptions? = nil) {
+  public init(uri: DocumentURI, options: DeleteFileOptions? = nil, annotationId: ChangeAnnotationIdentifier? = nil) {
     self.uri = uri
     self.options = options
+    self.annotationId = annotationId
   }
 
   // MARK: Codable conformance
@@ -234,6 +259,7 @@ public struct DeleteFile: Codable, Hashable {
     case kind
     case uri
     case options
+    case annotationId
   }
 
   public init(from decoder: Decoder) throws {
@@ -244,6 +270,7 @@ public struct DeleteFile: Codable, Hashable {
     }
     self.uri = try container.decode(DocumentURI.self, forKey: .uri)
     self.options = try container.decodeIfPresent(DeleteFileOptions.self, forKey: .options)
+    self.annotationId = try container.decodeIfPresent(ChangeAnnotationIdentifier.self, forKey: .annotationId)
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -251,6 +278,7 @@ public struct DeleteFile: Codable, Hashable {
     try container.encode("delete", forKey: .kind)
     try container.encode(self.uri, forKey: .uri)
     try container.encodeIfPresent(self.options, forKey: .options)
+    try container.encodeIfPresent(self.annotationId, forKey: .annotationId)
   }
 }
 

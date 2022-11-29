@@ -74,6 +74,9 @@ public struct DocumentSymbol: Hashable, Codable {
   /// The kind of this symbol.
   public var kind: SymbolKind
 
+  /// Tags for this document symbol.
+  public var tags: [SymbolTag]?
+
   /// Indicates if this symbol is deprecated.
   public var deprecated: Bool?
 
@@ -97,6 +100,7 @@ public struct DocumentSymbol: Hashable, Codable {
     name: String,
     detail: String? = nil,
     kind: SymbolKind,
+    tags: [SymbolTag]? = nil,
     deprecated: Bool? = nil,
     range: Range<Position>,
     selectionRange: Range<Position>,
@@ -105,6 +109,7 @@ public struct DocumentSymbol: Hashable, Codable {
     self.name = name
     self.detail = detail
     self.kind = kind
+    self.tags = tags
     self.deprecated = deprecated
     self._range = CustomCodable<PositionRange>(wrappedValue: range)
     self._selectionRange = CustomCodable<PositionRange>(wrappedValue: selectionRange)
