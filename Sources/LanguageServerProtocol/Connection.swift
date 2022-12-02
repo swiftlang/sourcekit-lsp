@@ -110,7 +110,7 @@ extension LocalConnection: Connection {
   public func send<Request>(_ request: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
     let id = nextRequestID()
     guard let handler = handler else {
-      queue.async { reply(.failure(.cancelled)) }
+      queue.async { reply(.failure(.serverCancelled)) }
       return id
     }
 

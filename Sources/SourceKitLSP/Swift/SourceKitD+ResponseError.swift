@@ -17,7 +17,7 @@ extension ResponseError {
   public init(_ value: SKDError) {
     switch value {
     case .requestCancelled:
-      self = .cancelled
+      self = .serverCancelled
     case .requestFailed(let desc):
       self = .unknown("sourcekitd request failed: \(desc)")
     case .requestInvalid(let desc):

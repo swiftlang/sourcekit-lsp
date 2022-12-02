@@ -110,7 +110,7 @@ final class CodingTests: XCTestCase {
     {
       "error" : {
         "code" : -32800,
-        "message" : "request cancelled"
+        "message" : "request cancelled by client"
       },
       "id" : 2,
       "jsonrpc" : "2.0"
@@ -132,7 +132,7 @@ final class CodingTests: XCTestCase {
     {
       "error" : {
         "code" : -32800,
-        "message" : "request cancelled"
+        "message" : "request cancelled by client"
       },
       "id" : null,
       "jsonrpc" : "2.0"

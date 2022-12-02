@@ -85,7 +85,7 @@ class CodeCompletionSession {
           switch self.state {
           case .closed, .opening(_):
             // Don't try again.
-            completion(.failure(.cancelled))
+            completion(.failure(.serverCancelled))
           case .open:
             self._update(filterText: filterText, position: position, in: snapshot, options: options, completion: completion)
           }
@@ -134,7 +134,7 @@ class CodeCompletionSession {
         return completion(.failure(ResponseError(result.failure!)))
       }
       if case .closed = self.state {
-        return completion(.failure(.cancelled))
+        return completion(.failure(.serverCancelled))
       }
 
       self.state = .open

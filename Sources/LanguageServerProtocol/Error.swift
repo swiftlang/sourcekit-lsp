@@ -101,7 +101,9 @@ public struct ResponseError: Error, Codable, Hashable {
 extension ResponseError {
   // MARK: Convencience properties for common errors.
 
-  public static var cancelled: ResponseError = ResponseError(code: .cancelled, message: "request cancelled")
+  public static var cancelled: ResponseError = ResponseError(code: .cancelled, message: "request cancelled by client")
+
+  public static var serverCancelled: ResponseError = ResponseError(code: .serverCancelled, message: "request cancelled by server")
 
   public static func workspaceNotOpen(_ uri: DocumentURI) -> ResponseError {
     return ResponseError(code: .workspaceNotOpen, message: "No workspace containing '\(uri)' found")
