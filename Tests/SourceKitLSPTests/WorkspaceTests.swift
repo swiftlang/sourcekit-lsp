@@ -19,14 +19,6 @@ import SKTestSupport
 import TSCBasic
 import XCTest
 
-fileprivate extension SourceKitServer {
-  func workspaceForDocumentOnQueue(uri: DocumentURI) -> Workspace? {
-    self.queue.sync {
-      return self.workspaceForDocument(uri: uri)
-    }
-  }
-}
-
 final class WorkspaceTests: XCTestCase {
 
   func testMultipleSwiftPMWorkspaces() throws {

@@ -40,14 +40,6 @@ fileprivate extension HoverResponse {
   }
 }
 
-fileprivate extension SourceKitServer {
-  func workspaceForDocumentOnQueue(uri: DocumentURI) -> Workspace? {
-    self.queue.sync {
-      return self.workspaceForDocument(uri: uri)
-    }
-  }
-}
-
 final class CrashRecoveryTests: XCTestCase {
   func testSourcekitdCrashRecovery() throws {
     try XCTSkipUnless(isDarwinHost, "Linux and Windows use in-process sourcekitd")

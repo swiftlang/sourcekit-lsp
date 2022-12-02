@@ -322,4 +322,43 @@ final class LocalClangTests: XCTestCase {
       throw e
     }
   }
+
+  func testDocumentDependenciesUpdated() throws {
+    let ws = try! mutableSourceKitTibsTestWorkspace(name: "BasicCXX")!
+
+    let cFileLoc = ws.testLoc("Object:ref:main")
+
+    // Initially the workspace should build fine.
+    let documentOpened = self.expectation(description: "documentOpened")
+    ws.sk.handleNextNotification({ (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) in
+      XCTAssert(note.params.diagnostics.isEmpty)
+      documentOpened.fulfill()
+    })
+
+    try! ws.openDocument(cFileLoc.url, language: .cpp)
+
+    self.wait(for: [documentOpened], timeout: 5)
+
+    // We rename Object to MyObject in the header.
+    _ = try ws.sources.edit { builder in
+      let headerFilePath = ws.sources.rootDirectory.appendingPathComponent("Object.h")
+      var headerFile = try! String(contentsOf: headerFilePath, encoding: .utf8)
+      let targetMarkerRange = headerFile.range(of: "/*Object*/")!
+      headerFile.replaceSubrange(targetMarkerRange, with: "My")
+      builder.write(headerFile, to: headerFilePath)
+    }
+
+    // Now we should get a diagnostic in main.c file because `Object` is no longer defined.
+    let updatedNotificationsReceived = self.expectation(description: "updatedNotificationsReceived")
+    ws.sk.handleNextNotification({ (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) in
+      XCTAssertFalse(note.params.diagnostics.isEmpty)
+      updatedNotificationsReceived.fulfill()
+    })
+
+    let clangdServer = ws.testServer.server!._languageService(for: cFileLoc.docUri, .cpp, in: ws.testServer.server!.workspaceForDocumentOnQueue(uri: cFileLoc.docUri)!)!
+
+    clangdServer.documentDependenciesUpdated(cFileLoc.docUri)
+
+    self.wait(for: [updatedNotificationsReceived], timeout: 5)
+  }
 }
