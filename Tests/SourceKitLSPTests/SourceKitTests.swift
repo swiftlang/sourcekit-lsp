@@ -37,7 +37,11 @@ final class SKTests: XCTestCase {
         trace: .off,
         workspaceFolders: nil))
 
-      XCTAssertEqual(initResult.capabilities.textDocumentSync?.openClose, true)
+      guard case .options(let syncOptions) = initResult.capabilities.textDocumentSync else {
+        XCTFail("Unexpected textDocumentSync property")
+        return
+      }
+      XCTAssertEqual(syncOptions.openClose, true)
       XCTAssertNotNil(initResult.capabilities.completionProvider)
     }
 
@@ -56,7 +60,11 @@ final class SKTests: XCTestCase {
         trace: .off,
         workspaceFolders: nil))
 
-      XCTAssertEqual(initResult.capabilities.textDocumentSync?.openClose, true)
+      guard case .options(let syncOptions) = initResult.capabilities.textDocumentSync else {
+        XCTFail("Unexpected textDocumentSync property")
+        return
+      }
+      XCTAssertEqual(syncOptions.openClose, true)
       XCTAssertNotNil(initResult.capabilities.completionProvider)
     }
 

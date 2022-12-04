@@ -71,12 +71,13 @@ final class CodingTests: XCTestCase {
     """)
 
     checkMessageCoding(InitializeResult(capabilities: ServerCapabilities(
-      textDocumentSync: TextDocumentSyncOptions(
+      textDocumentSync: .options(TextDocumentSyncOptions(
         openClose: true,
         change: .incremental,
         willSave: true,
         willSaveWaitUntil: false,
-        save: .value(TextDocumentSyncOptions.SaveOptions(includeText: false))),
+        save: .value(TextDocumentSyncOptions.SaveOptions(includeText: false))
+      )),
       completionProvider: CompletionOptions(
         resolveProvider: false,
         triggerCharacters: ["."]))), id: .number(2), json: """

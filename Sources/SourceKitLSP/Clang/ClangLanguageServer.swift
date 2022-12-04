@@ -389,9 +389,7 @@ extension ClangLanguageServerShim {
   }
 
   public func didSaveDocument(_ note: DidSaveTextDocumentNotification) {
-    if capabilities?.textDocumentSync?.save?.isSupported == true {
-      forwardNotificationToClangdOnQueue(note)
-    }
+    forwardNotificationToClangdOnQueue(note)
   }
 
   // MARK: - Build System Integration

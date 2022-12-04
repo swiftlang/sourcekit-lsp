@@ -13,12 +13,24 @@
 /// Capabilities provided by the language server.
 public struct ServerCapabilities: Codable, Hashable {
 
+  /// The position encoding the server picked from the encodings offered
+  /// by the client via the client capability `general.positionEncodings`.
+  ///
+  /// If the client didn't provide any position encodings the only valid
+  /// value that a server can return is 'utf-16'.
+  ///
+  /// If omitted it defaults to 'utf-16'.
+  public var positionEncoding: PositionEncodingKind?
+
   /// Defines how text documents are synced. Is either a detailed structure defining each notification or
   /// for backwards compatibility the TextDocumentSyncKind number. If omitted it defaults to `TextDocumentSyncKind.None`.
-  public var textDocumentSync: TextDocumentSyncOptions?
+  public var textDocumentSync: TextDocumentSync?
+
+  /// Defines how notebook documents are synced.
+  public var notebookDocumentSync: NotebookDocumentSyncAndStaticRegistrationOptions?
 
   /// Whether the server provides "textDocument/hover".
-  public var hoverProvider: Bool?
+  public var hoverProvider: ValueOrBool<HoverOptions>?
 
   /// Whether the server provides code-completion.
   public var completionProvider: CompletionOptions?
@@ -27,7 +39,7 @@ public struct ServerCapabilities: Codable, Hashable {
   public var signatureHelpProvider: SignatureHelpOptions?
 
   /// Whether the server provides "textDocument/definition".
-  public var definitionProvider: Bool?
+  public var definitionProvider: ValueOrBool<DefinitionOptions>?
 
   /// The server provides Goto Type Definition support.
   public var typeDefinitionProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>?
@@ -36,16 +48,16 @@ public struct ServerCapabilities: Codable, Hashable {
   public var implementationProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>?
 
   /// Whether the server provides "textDocument/references".
-  public var referencesProvider: Bool?
+  public var referencesProvider: ValueOrBool<ReferenceOptions>?
 
   /// Whether the server provides "textDocument/documentHighlight".
-  public var documentHighlightProvider: Bool?
+  public var documentHighlightProvider: ValueOrBool<DocumentHighlightOptions>?
 
   /// Whether the server provides "textDocument/documentSymbol"
-  public var documentSymbolProvider: Bool?
+  public var documentSymbolProvider: ValueOrBool<DocumentSymbolOptions>?
 
   /// The server provides workspace symbol support.
-  public var workspaceSymbolProvider: Bool?
+  public var workspaceSymbolProvider: ValueOrBool<WorkspaceSymbolOptions>?
 
   /// Whether the server provides "textDocument/codeAction".
   public var codeActionProvider: ValueOrBool<CodeActionServerCapabilities>?
@@ -54,10 +66,10 @@ public struct ServerCapabilities: Codable, Hashable {
   public var codeLensProvider: CodeLensOptions?
 
   /// Whether the server provides "textDocument/formatting".
-  public var documentFormattingProvider: Bool?
+  public var documentFormattingProvider: ValueOrBool<DocumentFormattingOptions>?
 
   /// Whether the server provides "textDocument/rangeFormatting".
-  public var documentRangeFormattingProvider: Bool?
+  public var documentRangeFormattingProvider: ValueOrBool<DocumentRangeFormattingOptions>?
 
   /// Whether the server provides "textDocument/onTypeFormatting".
   public var documentOnTypeFormattingProvider: DocumentOnTypeFormattingOptions?
@@ -96,24 +108,38 @@ public struct ServerCapabilities: Codable, Hashable {
   /// Whether the server supports the `textDocument/inlayHint` family of requests.
   public var inlayHintProvider: InlayHintOptions?
 
+  /// Whether the server provides selection range support.
+  public var selectionRangeProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>?
+
+  /// Whether the server provides link editing range support.
+  public var linkedEditingRangeProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>?
+
+  /// Whether server provides moniker support.
+  public var monikerProvider: ValueOrBool<MonikerOptions>?
+
+  /// The server provides inline values.
+  public var inlineValueProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>?
+
   public var experimental: LSPAny?
 
   public init(
-    textDocumentSync: TextDocumentSyncOptions? = nil,
-    hoverProvider: Bool? = nil,
+    positionEncoding: PositionEncodingKind? = nil,
+    textDocumentSync: TextDocumentSync? = nil,
+    notebookDocumentSync: NotebookDocumentSyncAndStaticRegistrationOptions? = nil,
+    hoverProvider: ValueOrBool<HoverOptions>? = nil,
     completionProvider: CompletionOptions? = nil,
     signatureHelpProvider: SignatureHelpOptions? = nil,
-    definitionProvider: Bool? = nil,
+    definitionProvider: ValueOrBool<DefinitionOptions>? = nil,
     typeDefinitionProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     implementationProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
-    referencesProvider: Bool? = nil,
-    documentHighlightProvider: Bool? = nil,
-    documentSymbolProvider: Bool? = nil,
-    workspaceSymbolProvider: Bool? = nil,
+    referencesProvider: ValueOrBool<ReferenceOptions>? = nil,
+    documentHighlightProvider: ValueOrBool<DocumentHighlightOptions>? = nil,
+    documentSymbolProvider: ValueOrBool<DocumentSymbolOptions>? = nil,
+    workspaceSymbolProvider: ValueOrBool<WorkspaceSymbolOptions>? = nil,
     codeActionProvider: ValueOrBool<CodeActionServerCapabilities>? = nil,
     codeLensProvider: CodeLensOptions? = nil,
-    documentFormattingProvider: Bool? = nil,
-    documentRangeFormattingProvider: Bool? = nil,
+    documentFormattingProvider: ValueOrBool<DocumentFormattingOptions>? = nil,
+    documentRangeFormattingProvider: ValueOrBool<DocumentRangeFormattingOptions>? = nil,
     documentOnTypeFormattingProvider: DocumentOnTypeFormattingOptions? = nil,
     renameProvider: ValueOrBool<RenameOptions>? = nil,
     documentLinkProvider: DocumentLinkOptions? = nil,
@@ -126,10 +152,16 @@ public struct ServerCapabilities: Codable, Hashable {
     typeHierarchyProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     semanticTokensProvider: SemanticTokensOptions? = nil,
     inlayHintProvider: InlayHintOptions? = nil,
+    selectionRangeProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
+    linkedEditingRangeProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
+    monikerProvider: ValueOrBool<MonikerOptions>? = nil,
+    inlineValueProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     experimental: LSPAny? = nil
   )
   {
+    self.positionEncoding = positionEncoding
     self.textDocumentSync = textDocumentSync
+    self.notebookDocumentSync = notebookDocumentSync
     self.hoverProvider = hoverProvider
     self.completionProvider = completionProvider
     self.signatureHelpProvider = signatureHelpProvider
@@ -156,7 +188,11 @@ public struct ServerCapabilities: Codable, Hashable {
     self.typeHierarchyProvider = typeHierarchyProvider
     self.semanticTokensProvider = semanticTokensProvider
     self.inlayHintProvider = inlayHintProvider
+    self.selectionRangeProvider = selectionRangeProvider
+    self.linkedEditingRangeProvider = linkedEditingRangeProvider
     self.experimental = experimental
+    self.monikerProvider = monikerProvider
+    self.inlineValueProvider = inlineValueProvider
   }
 }
 
@@ -195,13 +231,48 @@ public enum ValueOrBool<ValueType: Codable>: Codable, Hashable where ValueType: 
   }
 }
 
+public enum TextDocumentSync: Codable, Hashable {
+  case options(TextDocumentSyncOptions)
+  case kind(TextDocumentSyncKind)
+
+  public init(from decoder: Decoder) throws {
+    if let options = try? TextDocumentSyncOptions(from: decoder) {
+      self = .options(options)
+    } else if let kind = try? TextDocumentSyncKind(from: decoder) {
+      self = .kind(kind)
+    } else {
+      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected TextDocumentSyncOptions or TextDocumentSyncKind")
+      throw DecodingError.dataCorrupted(context)
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    switch self {
+    case .options(let options):
+      try options.encode(to: encoder)
+    case .kind(let kind):
+      try kind.encode(to: encoder)
+    }
+  }
+}
+
+/// The LSP spec has two definitions of `TextDocumentSyncOptions`, one
+/// with `willSave` etc. and one that only contains `openClose` and `change`.
+/// Based on the VSCode implementation, the definition that contains `willSave`
+/// appears to be the correct one, so we use that one as well.
 public struct TextDocumentSyncOptions: Codable, Hashable {
 
-  /// Whether open/close notifications should be sent to the server.
+  /// Open and close notifications are sent to the server.
+  /// If omitted open close notifications should not be sent.
   public var openClose: Bool?
 
-  /// Whether and how the client should synchronize document changes with the server.
+  /// Change notifications are sent to the server. See
+  /// TextDocumentSyncKind.None, TextDocumentSyncKind.Full and
+  /// TextDocumentSyncKind.Incremental. If omitted it defaults to
+  /// TextDocumentSyncKind.None.
   public var change: TextDocumentSyncKind?
+
+  // NOTE: The following properties are not
 
   /// Whether will-save notifications should be sent to the server.
   public var willSave: Bool?
@@ -256,16 +327,93 @@ public struct TextDocumentSyncOptions: Codable, Hashable {
 
 public enum TextDocumentSyncKind: Int, Codable, Hashable {
 
+  /// Documents should not be synced at all.
   case none = 0
 
-  /// Documents are synced by sending the full content.
+  /// Documents are synced by always sending the full content of the document.
   case full = 1
 
-  /// Documents are synced by sending incremental updates.
+  /// Documents are synced by sending the full content on open.
+  /// After that only incremental updates to the document are sent.
   case incremental = 2
 }
 
-public struct CompletionOptions: Codable, Hashable {
+public enum NotebookFilter: Codable, Hashable {
+  case string(String)
+  case documentFilter(DocumentFilter)
+
+  public init(from decoder: Decoder) throws {
+    if let string = try? String(from: decoder) {
+      self = .string(string)
+    } else if let documentFilter = try? DocumentFilter(from: decoder) {
+      self = .documentFilter(documentFilter)
+    } else {
+      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected String or DocumentFilter")
+      throw DecodingError.dataCorrupted(context)
+    }
+  }
+
+  public func encode(to encoder: Encoder) throws {
+    switch self {
+    case .string(let string):
+      try string.encode(to: encoder)
+    case .documentFilter(let documentFilter):
+      try documentFilter.encode(to: encoder)
+    }
+  }
+}
+public typealias NotebookSelector = [NotebookFilter]
+
+public struct NotebookDocumentSyncAndStaticRegistrationOptions: Codable, Hashable {
+  /// The notebooks to be synced
+  public var notebookSelector: NotebookSelector
+
+  /// Whether save notification should be forwarded to
+  /// the server. Will only be honored if mode === `notebook`.
+  public var save: Bool?
+
+  /// The id used to register the request. The id can be used to deregister the request again. See also Registration#id
+  public var id: String?
+
+  public init(
+    notebookSelector: NotebookSelector,
+    save: Bool? = nil,
+    id: String? = nil
+  ) {
+    self.notebookSelector = notebookSelector
+    self.save = save
+    self.id = id
+  }
+}
+
+public protocol WorkDoneProgressOptions {
+  var workDoneProgress: Bool?  { get }
+}
+
+public struct HoverOptions: WorkDoneProgressOptions, Codable, Hashable {
+  public var workDoneProgress: Bool?
+
+  public init(
+    workDoneProgress: Bool? = nil
+  ) {
+    self.workDoneProgress = workDoneProgress
+  }
+}
+
+public struct CompletionItemOptions: Codable, Hashable {
+  /// The server has support for completion item label
+  /// details (see also `CompletionItemLabelDetails`) when receiving
+  /// a completion item in a resolve call.
+  public var labelDetailsSupport: Bool?
+
+  public init(
+    labelDetailsSupport: Bool? = false
+  ) {
+    self.labelDetailsSupport = labelDetailsSupport
+  }
+}
+
+public struct CompletionOptions: WorkDoneProgressOptions, Codable, Hashable {
   /// Whether to use `textDocument/resolveCompletion`
   public var resolveProvider: Bool?
 
@@ -275,14 +423,83 @@ public struct CompletionOptions: Codable, Hashable {
   /// The list of all possible characters that commit a completion.
   public var allCommitCharacters: [String]?
 
+  /// The server supports the following `CompletionItem` specific capabilities.
+  public var completionItem: CompletionItemOptions?
+
+  public var workDoneProgress: Bool?
+
   public init(
     resolveProvider: Bool? = false,
     triggerCharacters: [String]? = nil,
-    allCommitCharacters: [String]? = nil
+    allCommitCharacters: [String]? = nil,
+    completionItem: CompletionItemOptions? = nil,
+    workDoneProgress: Bool? = nil
   ) {
     self.resolveProvider = resolveProvider
     self.triggerCharacters = triggerCharacters
     self.allCommitCharacters = allCommitCharacters
+    self.completionItem = completionItem
+    self.workDoneProgress = workDoneProgress
+  }
+}
+
+public struct DefinitionOptions: WorkDoneProgressOptions, Codable, Hashable {
+  public var workDoneProgress: Bool?
+
+  public init(
+    workDoneProgress: Bool? = nil
+  ) {
+    self.workDoneProgress = workDoneProgress
+  }
+}
+
+public struct ReferenceOptions: WorkDoneProgressOptions, Codable, Hashable {
+  public var workDoneProgress: Bool?
+
+  public init(
+    workDoneProgress: Bool? = nil
+  ) {
+    self.workDoneProgress = workDoneProgress
+  }
+}
+
+public struct DocumentHighlightOptions: WorkDoneProgressOptions, Codable, Hashable {
+  public var workDoneProgress: Bool?
+
+  public init(
+    workDoneProgress: Bool? = nil
+  ) {
+    self.workDoneProgress = workDoneProgress
+  }
+}
+
+public struct DocumentSymbolOptions: WorkDoneProgressOptions, Codable, Hashable {
+  public var workDoneProgress: Bool?
+
+  public init(
+    workDoneProgress: Bool? = nil
+  ) {
+    self.workDoneProgress = workDoneProgress
+  }
+}
+
+public struct DocumentFormattingOptions: WorkDoneProgressOptions, Codable, Hashable {
+  public var workDoneProgress: Bool?
+
+  public init(
+    workDoneProgress: Bool? = nil
+  ) {
+    self.workDoneProgress = workDoneProgress
+  }
+}
+
+public struct DocumentRangeFormattingOptions: WorkDoneProgressOptions, Codable, Hashable {
+  public var workDoneProgress: Bool?
+
+  public init(
+    workDoneProgress: Bool? = nil
+  ) {
+    self.workDoneProgress = workDoneProgress
   }
 }
 
@@ -291,12 +508,25 @@ public struct FoldingRangeOptions: Codable, Hashable {
   public init() {}
 }
 
-public struct SignatureHelpOptions: Codable, Hashable {
+public struct SignatureHelpOptions: WorkDoneProgressOptions, Codable, Hashable {
   /// The characters that trigger signature help automatically.
   public var triggerCharacters: [String]?
 
-  public init(triggerCharacters: [String]? = nil) {
+  /// List of characters that re-trigger signature help.
+  ///
+  /// These trigger characters are only active when signature help is already
+  /// showing. All trigger characters are also counted as re-trigger
+  /// characters.
+  public var retriggerCharacters: [String]?
+
+  public var workDoneProgress: Bool?
+
+  public init(
+    triggerCharacters: [String]? = nil,
+    retriggerCharacters: [String]? = nil
+  ) {
     self.triggerCharacters = triggerCharacters
+    self.retriggerCharacters = retriggerCharacters
   }
 }
 
@@ -363,16 +593,23 @@ extension DocumentFilter: LSPAnyCodable {
 
 public typealias DocumentSelector = [DocumentFilter]
 
-public struct TextDocumentAndStaticRegistrationOptions: Codable, Hashable {
+public struct TextDocumentAndStaticRegistrationOptions: WorkDoneProgressOptions, Codable, Hashable {
   /// A document selector to identify the scope of the registration. If set to null the document selector provided on the client side will be used.
   public var documentSelector: DocumentSelector?
 
   /// The id used to register the request. The id can be used to deregister the request again. See also Registration#id
   public var id: String?
 
-  public init(documentSelector: DocumentSelector? = nil, id: String? = nil) {
+  public var workDoneProgress: Bool?
+
+  public init(
+    documentSelector: DocumentSelector? = nil,
+    id: String? = nil,
+    workDoneProgress: Bool? = nil
+  ) {
     self.documentSelector = documentSelector
     self.id = id
+    self.workDoneProgress = workDoneProgress
   }
 }
 
@@ -433,54 +670,90 @@ public enum CodeActionServerCapabilities: Codable, Hashable {
   }
 }
 
-public struct CodeActionOptions: Codable, Hashable {
+public struct CodeActionOptions: WorkDoneProgressOptions, Codable, Hashable {
 
   /// CodeActionKinds that this server may return.
   public var codeActionKinds: [CodeActionKind]?
 
-  public init(codeActionKinds: [CodeActionKind]?) {
+  /// The server provides support to resolve additional
+  /// information for a code action.
+  public var resolveProvider: Bool?
+
+  public var workDoneProgress: Bool?
+
+  public init(
+    codeActionKinds: [CodeActionKind]?,
+    resolveProvider: Bool? = nil,
+    workDoneProgress: Bool? = nil
+  ) {
     self.codeActionKinds = codeActionKinds
+    self.resolveProvider = resolveProvider
+    self.workDoneProgress = workDoneProgress
   }
 }
 
-public struct CodeLensOptions: Codable, Hashable {
+public struct CodeLensOptions: WorkDoneProgressOptions, Codable, Hashable {
   /// Code lens has a resolve provider as well.
   public var resolveProvider: Bool?
 
-  public init(resolveProvider: Bool? = nil) {
+  public var workDoneProgress: Bool?
+
+  public init(
+    resolveProvider: Bool? = nil,
+    workDoneProgress: Bool? = nil
+  ) {
     self.resolveProvider = resolveProvider
+    self.workDoneProgress = workDoneProgress
   }
 }
 
-public struct ExecuteCommandOptions: Codable, Hashable {
+public struct ExecuteCommandOptions: WorkDoneProgressOptions, Codable, Hashable {
 
   /// The commands to be executed on this server.
   public var commands: [String]
 
-  public init(commands: [String]) {
+  public var workDoneProgress: Bool?
+
+  public init(
+    commands: [String],
+    workDoneProgress: Bool? = nil
+  ) {
     self.commands = commands
+    self.workDoneProgress = workDoneProgress
   }
 }
 
-public struct RenameOptions: Codable, Hashable {
+public struct RenameOptions: WorkDoneProgressOptions, Codable, Hashable {
   /// Renames should be checked and tested before being executed.
   public var prepareProvider: Bool?
 
-  public init(prepareProvider: Bool? = nil) {
+  public var workDoneProgress: Bool?
+
+  public init(
+    prepareProvider: Bool? = nil,
+    workDoneProgress: Bool? = nil
+  ) {
     self.prepareProvider = prepareProvider
+    self.workDoneProgress = workDoneProgress
   }
 }
 
-public struct DocumentLinkOptions: Codable, Hashable {
+public struct DocumentLinkOptions: WorkDoneProgressOptions, Codable, Hashable {
   /// Document links have a resolve provider as well.
   public var resolveProvider: Bool?
 
-  public init(resolveProvider: Bool? = nil) {
+  public var workDoneProgress: Bool?
+
+  public init(
+    resolveProvider: Bool? = nil,
+    workDoneProgress: Bool? = nil
+  ) {
     self.resolveProvider = resolveProvider
+    self.workDoneProgress = workDoneProgress
   }
 }
 
-public struct SemanticTokensOptions: Codable, Hashable {
+public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable {
 
   public struct SemanticTokensRangeOptions: Equatable, Hashable, Codable {
     // Empty in the LSP 3.16 spec.
@@ -505,24 +778,113 @@ public struct SemanticTokensOptions: Codable, Hashable {
   /// Server supports providing semantic tokens for a full document.
   public var full: ValueOrBool<SemanticTokensFullOptions>?
 
+  public var workDoneProgress: Bool?
+
   public init(
     legend: SemanticTokensLegend,
     range: ValueOrBool<SemanticTokensRangeOptions>? = nil,
-    full: ValueOrBool<SemanticTokensFullOptions>? = nil
+    full: ValueOrBool<SemanticTokensFullOptions>? = nil,
+    workDoneProgress: Bool? = nil
   ) {
     self.legend = legend
     self.range = range
     self.full = full
+    self.workDoneProgress = workDoneProgress
   }
 }
 
-public struct InlayHintOptions: Codable, Hashable {
+public struct InlayHintOptions: WorkDoneProgressOptions, Codable, Hashable {
   /// The server provides support to resolve additional information
   /// for an inlay hint item.
   public var resolveProvider: Bool?
 
-  public init(resolveProvider: Bool? = nil) {
+  /// A document selector to identify the scope of the registration. If set to null the document selector provided on the client side will be used.
+  public var documentSelector: DocumentSelector?
+
+  /// The id used to register the request. The id can be used to deregister the request again. See also Registration#id
+  public var id: String?
+
+  public var workDoneProgress: Bool?
+
+  public init(
+    resolveProvider: Bool? = nil,
+    documentSelector: DocumentSelector? = nil,
+    id: String? = nil,
+    workDoneProgress: Bool? = nil
+  ) {
     self.resolveProvider = resolveProvider
+    self.documentSelector = documentSelector
+    self.id = id
+    self.workDoneProgress = workDoneProgress
+  }
+}
+
+public struct WorkspaceSymbolOptions: WorkDoneProgressOptions, Codable, Hashable {
+  /// The server provides support to resolve additional information
+  /// for an inlay hint item.
+  public var resolveProvider: Bool?
+
+  public var workDoneProgress: Bool?
+
+  public init(
+    resolveProvider: Bool? = nil,
+    workDoneProgress: Bool? = nil
+  ) {
+    self.resolveProvider = resolveProvider
+    self.workDoneProgress = workDoneProgress
+  }
+}
+
+public struct MonikerOptions: WorkDoneProgressOptions, Codable, Hashable {
+  /// A document selector to identify the scope of the registration. If set to null the document selector provided on the client side will be used.
+  public var documentSelector: DocumentSelector?
+
+  public var workDoneProgress: Bool?
+
+  public init(
+    documentSelector: DocumentSelector? = nil,
+    workDoneProgress: Bool? = nil
+  ) {
+    self.documentSelector = documentSelector
+    self.workDoneProgress = workDoneProgress
+  }
+}
+
+public struct DiagnosticOptions: WorkDoneProgressOptions, Codable, Hashable {
+  /// An optional identifier under which the diagnostics are managed by the client.
+  public var identifier: String?
+
+  /// Whether the language has inter file dependencies meaning that
+  /// editing code in one file can result in a different diagnostic
+  /// set in another file. Inter file dependencies are common for
+  /// most programming languages and typically uncommon for linters.
+  public var interFileDependencies: Bool
+
+  /// The server provides support for workspace diagnostics as well.
+  public var workspaceDiagnostics: Bool
+
+  /// A document selector to identify the scope of the registration. If set to null the document selector provided on the client side will be used.
+  public var documentSelector: DocumentSelector?
+
+  /// The id used to register the request. The id can be used to deregister the request again. See also Registration#id
+  public var id: String?
+
+  public var workDoneProgress: Bool?
+
+  public init(
+    identifier: String? = nil,
+    interFileDependencies: Bool,
+    workspaceDiagnostics: Bool,
+    documentSelector: DocumentSelector? = nil,
+    id: String? = nil,
+    workDoneProgress: Bool? = nil
+  ) {
+    self.identifier = identifier
+    self.interFileDependencies = interFileDependencies
+    self.workspaceDiagnostics = workspaceDiagnostics
+    self.documentSelector = documentSelector
+    self.id = id
+    self.workDoneProgress = workDoneProgress
   }
 }
 
@@ -542,6 +904,101 @@ public struct WorkspaceServerCapabilities: Codable, Hashable {
     }
   }
 
+  public enum FileOperationPatternKind: String, Codable, Hashable {
+    /// The pattern matches a file only.
+    case file = "file"
+    /// The pattern matches a folder only.
+    case folder = "folder"
+  }
+
+  public struct FileOperationPatternOptions: Codable, Hashable {
+    /// The pattern should be matched ignoring casing
+    public var ignoreCase: Bool?
+
+    public init(ignoreCase: Bool? = nil) {
+      self.ignoreCase = ignoreCase
+    }
+  }
+
+  public struct FileOperationPattern: Codable, Hashable {
+    /// The glob pattern to match. Glob patterns can have the following syntax:
+    /// - `*` to match one or more characters in a path segment
+    /// - `?` to match on one character in a path segment
+    /// - `**` to match any number of path segments, including none
+    /// - `{}` to group sub patterns into an OR expression. (e.g. `**​/*.{ts,js}`
+    /// matches all TypeScript and JavaScript files)
+    /// - `[]` to declare a range of characters to match in a path segment
+    ///   (e.g., `example.[0-9]` to match on `example.0`, `example.1`, …)
+    /// - `[!...]` to negate a range of characters to match in a path segment
+    ///   (e.g., `example.[!0-9]` to match on `example.a`, `example.b`, but
+    ///   not `example.0`)
+    public var glob: String
+
+    /// Whether to match files or folders with this pattern. Matches both if undefined.
+    public var matches: FileOperationPatternKind?
+
+    /// Additional options used during matching.
+    public var options: FileOperationPatternOptions?
+
+    public init(
+      glob: String,
+      matches: FileOperationPatternKind? = nil,
+      options: FileOperationPatternOptions? = nil
+    ) {
+      self.glob = glob
+      self.matches = matches
+      self.options = options
+    }
+  }
+
+  public struct FileOperationFilter: Codable, Hashable {
+    /// A Uri like `file` or `untitled`.
+    public var scheme: String?
+
+    /// The actual file operation pattern.
+    public var pattern: FileOperationPattern
+
+    public init(
+      scheme: String? = nil,
+      pattern: FileOperationPattern
+    ) {
+      self.scheme = scheme
+      self.pattern = pattern
+    }
+  }
+
+  public struct FileOperationRegistrationOptions: Codable, Hashable {
+    /// The actual filters.
+    public var filters: [FileOperationFilter]
+
+    public init(
+      filters: [FileOperationFilter]
+    ) {
+      self.filters = filters
+    }
+  }
+
+  public struct FileOperationOptions: Codable, Hashable {
+    /// The server is interested in receiving didCreateFiles notifications.
+    public var didCreate: FileOperationRegistrationOptions?
+
+    /// The server is interested in receiving willCreateFiles notifications.
+    public var willCreate: FileOperationRegistrationOptions?
+
+    /// The server is interested in receiving didRenameFiles notifications.
+    public var didRename: FileOperationRegistrationOptions?
+
+    /// The server is interested in receiving willRenameFiles notifications.
+    public var willRename: FileOperationRegistrationOptions?
+
+    /// The server is interested in receiving didDeleteFiles notifications.
+    public var didDelete: FileOperationRegistrationOptions?
+
+    /// The server is interested in receiving willDeleteFiles notifications.
+    public var willDelete: FileOperationRegistrationOptions?
+  }
+
+  /// The server supports workspace folder.
   public var workspaceFolders: WorkspaceFolders?
 
   public init(workspaceFolders: WorkspaceFolders? = nil) {
