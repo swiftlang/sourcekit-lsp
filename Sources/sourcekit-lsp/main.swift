@@ -73,8 +73,8 @@ struct Main: ParsableCommand {
   )
   var buildConfiguration = BuildConfiguration.debug
 
-  @Option(help: "Specify build/cache directory")
-  var buildPath: AbsolutePath?
+  @Option(name: [.long, .customLong("build-path")], help: "Specify build/cache directory (--build-path option is deprecated, --scratch-path should be used instead)")
+  var scratchPath: AbsolutePath?
 
   @Option(
     name: .customLong("Xcc", withSingleDash: true),
@@ -145,7 +145,7 @@ struct Main: ParsableCommand {
     var serverOptions = SourceKitServer.Options()
 
     serverOptions.buildSetup.configuration = buildConfiguration
-    serverOptions.buildSetup.path = buildPath
+    serverOptions.buildSetup.path = scratchPath
     serverOptions.buildSetup.flags.cCompilerFlags = buildFlagsCc
     serverOptions.buildSetup.flags.cxxCompilerFlags = buildFlagsCxx
     serverOptions.buildSetup.flags.linkerFlags = buildFlagsLinker
