@@ -85,17 +85,94 @@ public struct CompletionContext: Codable, Hashable {
 /// List of completion items. If this list has been filtered already, the `isIncomplete` flag
 /// indicates that the client should re-query code-completions if the filter text changes.
 public struct CompletionList: ResponseType, Hashable {
+  public struct InsertReplaceRanges: Codable, Hashable {
+    @CustomCodable<PositionRange>
+    var insert: Range<Position>
+
+    @CustomCodable<PositionRange>
+    var replace: Range<Position>
+
+    public init(insert: Range<Position>, replace: Range<Position>) {
+      self.insert = insert
+      self.replace = replace
+    }
+  }
+
+  public enum ItemDefaultsEditRange: Codable, Hashable {
+    case range(Range<Position>)
+    case insertReplaceRanges(InsertReplaceRanges)
+
+    public init(from decoder: Decoder) throws {
+      if let range = try? PositionRange(from: decoder).wrappedValue {
+        self = .range(range)
+      } else if let insertReplaceRange = try? InsertReplaceRanges(from: decoder) {
+        self = .insertReplaceRanges(insertReplaceRange)
+      } else {
+        let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected Range or InsertReplaceRanges")
+        throw DecodingError.dataCorrupted(context)
+      }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+      switch self {
+      case .range(let range):
+        try PositionRange(wrappedValue: range).encode(to: encoder)
+      case .insertReplaceRanges(let insertReplaceRanges):
+        try insertReplaceRanges.encode(to: encoder)
+      }
+    }
+  }
+
+  public struct ItemDefaults: Codable, Hashable {
+    /// A default commit character set.
+    public var commitCharacters: [String]?
+
+    /// A default edit range
+    public var editRange: ItemDefaultsEditRange?
+
+    /// A default insert text format
+    public var insertTextFormat: InsertTextFormat?
+
+    /// A default insert text mode
+    public var insertTextMode: InsertTextMode?
+
+    /// A default data value.
+    public var data: LSPAny?
+
+    public init(commitCharacters: [String]? = nil, editRange: ItemDefaultsEditRange? = nil, insertTextFormat: InsertTextFormat? = nil, insertTextMode: InsertTextMode? = nil, data: LSPAny? = nil) {
+      self.commitCharacters = commitCharacters
+      self.editRange = editRange
+      self.insertTextFormat = insertTextFormat
+      self.insertTextMode = insertTextMode
+      self.data = data
+    }
+  }
+
 
   /// Whether the list of completions is "complete" or not.
   ///
   /// When this value is `true`, the client should re-query the server when doing further filtering.
   public var isIncomplete: Bool
 
+  /// In many cases the items of an actual completion result share the same
+  /// value for properties like `commitCharacters` or the range of a text
+  /// edit. A completion list can therefore define item defaults which will
+  /// be used if a completion item itself doesn't specify the value.
+  ///
+  /// If a completion list specifies a default value and a completion item
+  /// also specifies a corresponding value the one from the item is used.
+  ///
+  /// Servers are only allowed to return default values if the client
+  /// signals support for this via the `completionList.itemDefaults`
+  /// capability.
+  public var itemDefaults: ItemDefaults?
+
   /// The resulting completions.
   public var items: [CompletionItem]
 
-  public init(isIncomplete: Bool, items: [CompletionItem]) {
+  public init(isIncomplete: Bool, itemDefaults: ItemDefaults? = nil, items: [CompletionItem]) {
     self.isIncomplete = isIncomplete
+    self.itemDefaults = itemDefaults
     self.items = items
   }
 

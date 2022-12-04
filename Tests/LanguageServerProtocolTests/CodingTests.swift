@@ -61,7 +61,7 @@ final class CodingTests: XCTestCase {
       }
       """)
 
-    checkCoding(VersionedTextDocumentIdentifier(uri, version: nil), json: """
+    checkCoding(OptionalVersionedTextDocumentIdentifier(uri, version: nil), json: """
       {
         "uri" : "\(urljson)"
       }
@@ -74,7 +74,13 @@ final class CodingTests: XCTestCase {
       }
       """)
 
-    checkCoding(TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(uri, version: 1), edits: [TextEdit(range: range, newText: "foo")]), json: """
+    checkCoding(
+      TextDocumentEdit(
+        textDocument: OptionalVersionedTextDocumentIdentifier(uri, version: 1),
+        edits: [
+          .textEdit(TextEdit(range: range, newText: "foo"))
+        ]
+      ), json: """
       {
         "edits" : [
           {
@@ -293,14 +299,14 @@ final class CodingTests: XCTestCase {
       ]
       """, expected: CompletionList(isIncomplete: false, items: [CompletionItem(label: "abc", kind: .function)]))
 
-    checkCoding(CompletionItemDocumentation.markupContent(MarkupContent(kind: .markdown, value: "some **Markdown***")), json: """
+    checkCoding(StringOrMarkupContent.markupContent(MarkupContent(kind: .markdown, value: "some **Markdown***")), json: """
       {
         "kind" : "markdown",
         "value" : "some **Markdown***"
       }
       """)
 
-    checkCoding(CompletionItemDocumentation.string("Some documentation"), json: """
+    checkCoding(StringOrMarkupContent.string("Some documentation"), json: """
       "Some documentation"
       """)
     
@@ -380,7 +386,7 @@ final class CodingTests: XCTestCase {
       }
       """)
     
-    checkCoding(WorkspaceEdit(documentChanges: [.textDocumentEdit(TextDocumentEdit(textDocument: VersionedTextDocumentIdentifier(uri, version: 2), edits: []))]), json: """
+    checkCoding(WorkspaceEdit(documentChanges: [.textDocumentEdit(TextDocumentEdit(textDocument: OptionalVersionedTextDocumentIdentifier(uri, version: 2), edits: []))]), json: """
       {
         "documentChanges" : [
           {
@@ -605,6 +611,448 @@ final class CodingTests: XCTestCase {
 
       }
       """)
+  }
+
+  func testCompletionListItemDefaultsEditRange() {
+    checkCoding(CompletionList.ItemDefaultsEditRange.range(Position(line: 3, utf16index: 14)..<Position(line: 4, utf16index: 3)), json: """
+    {
+      "end" : {
+        "character" : 3,
+        "line" : 4
+      },
+      "start" : {
+        "character" : 14,
+        "line" : 3
+      }
+    }
+    """)
+
+    checkCoding(CompletionList.ItemDefaultsEditRange.insertReplaceRanges(.init(
+      insert: Position(line: 3, utf16index: 14)..<Position(line: 4, utf16index: 3),
+      replace: Position(line: 5, utf16index: 12)..<Position(line: 6, utf16index: 2)
+    )), json: """
+    {
+      "insert" : {
+        "end" : {
+          "character" : 3,
+          "line" : 4
+        },
+        "start" : {
+          "character" : 14,
+          "line" : 3
+        }
+      },
+      "replace" : {
+        "end" : {
+          "character" : 2,
+          "line" : 6
+        },
+        "start" : {
+          "character" : 12,
+          "line" : 5
+        }
+      }
+    }
+    """)
+  }
+
+  func testProgressToken() {
+    checkCoding(ProgressToken.integer(3), json: "3")
+    checkCoding(ProgressToken.string("foobar"), json: #""foobar""#)
+  }
+
+  func testDocumentDiagnosticReport() {
+    checkCoding(DocumentDiagnosticReport.full(RelatedFullDocumentDiagnosticReport(items: [])), json: """
+    {
+      "items" : [
+
+      ],
+      "kind" : "full"
+    }
+    """)
+
+    checkCoding(DocumentDiagnosticReport.full(RelatedFullDocumentDiagnosticReport(resultId: "myResults", items: [])), json: """
+    {
+      "items" : [
+
+      ],
+      "kind" : "full",
+      "resultId" : "myResults"
+    }
+    """)
+
+    checkCoding(DocumentDiagnosticReport.full(RelatedFullDocumentDiagnosticReport(
+      resultId: "myResults",
+      items: [],
+      relatedDocuments: [
+        DocumentURI(string: "file:///some/path"): DocumentDiagnosticReport.unchanged(RelatedUnchangedDocumentDiagnosticReport(resultId: "myOtherResults"))
+      ]
+    )), json: #"""
+    {
+      "items" : [
+
+      ],
+      "kind" : "full",
+      "relatedDocuments" : [
+        "file:\/\/\/some\/path",
+        {
+          "kind" : "unchanged",
+          "resultId" : "myOtherResults"
+        }
+      ],
+      "resultId" : "myResults"
+    }
+    """#)
+
+    checkCoding(DocumentDiagnosticReport.unchanged(RelatedUnchangedDocumentDiagnosticReport(resultId: "myResults")), json: """
+    {
+      "kind" : "unchanged",
+      "resultId" : "myResults"
+    }
+    """)
+
+    checkCoding(DocumentDiagnosticReport.unchanged(RelatedUnchangedDocumentDiagnosticReport(resultId: "myResults", relatedDocuments: [
+      DocumentURI(string: "file:///some/path"): DocumentDiagnosticReport.unchanged(RelatedUnchangedDocumentDiagnosticReport(resultId: "myOtherResults"))
+    ])), json: #"""
+    {
+      "kind" : "unchanged",
+      "relatedDocuments" : [
+        "file:\/\/\/some\/path",
+        {
+          "kind" : "unchanged",
+          "resultId" : "myOtherResults"
+        }
+      ],
+      "resultId" : "myResults"
+    }
+    """#)
+  }
+
+  func testInlineValue() {
+    checkCoding(InlineValue.text(InlineValueText(
+      range: Position(line: 3, utf16index: 14)..<Position(line: 4, utf16index: 3),
+      text: "xxx"
+    )), json: """
+    {
+      "range" : {
+        "end" : {
+          "character" : 3,
+          "line" : 4
+        },
+        "start" : {
+          "character" : 14,
+          "line" : 3
+        }
+      },
+      "text" : "xxx"
+    }
+    """)
+
+    checkCoding(InlineValue.variableLookup(InlineValueVariableLookup(
+      range: Position(line: 3, utf16index: 14)..<Position(line: 4, utf16index: 3),
+      variableName: "myVar",
+      caseSensitiveLookup: true
+    )), json: """
+    {
+      "caseSensitiveLookup" : true,
+      "range" : {
+        "end" : {
+          "character" : 3,
+          "line" : 4
+        },
+        "start" : {
+          "character" : 14,
+          "line" : 3
+        }
+      },
+      "variableName" : "myVar"
+    }
+    """)
+
+    checkCoding(InlineValue.evaluatableExpression(InlineValueEvaluatableExpression(
+      range: Position(line: 3, utf16index: 14)..<Position(line: 4, utf16index: 3),
+      expression: "myExpr"
+    )), json: """
+    {
+      "expression" : "myExpr",
+      "range" : {
+        "end" : {
+          "character" : 3,
+          "line" : 4
+        },
+        "start" : {
+          "character" : 14,
+          "line" : 3
+        }
+      }
+    }
+    """)
+  }
+
+  func testSelectionRange() {
+    checkCoding(SelectionRange(
+      range: Position(line: 3, utf16index: 14)..<Position(line: 4, utf16index: 3),
+      parent: SelectionRange(range: Position(line: 1, utf16index: 13)..<Position(line: 5, utf16index: 13))
+    ), json: """
+    {
+      "parent" : {
+        "range" : {
+          "end" : {
+            "character" : 13,
+            "line" : 5
+          },
+          "start" : {
+            "character" : 13,
+            "line" : 1
+          }
+        }
+      },
+      "range" : {
+        "end" : {
+          "character" : 3,
+          "line" : 4
+        },
+        "start" : {
+          "character" : 14,
+          "line" : 3
+        }
+      }
+    }
+    """)
+  }
+
+  func testParameterInformationLabel() {
+    checkCoding(ParameterInformation.Label.string("hello"), json: #""hello""#)
+    checkCoding(ParameterInformation.Label.offsets(start: 4, end: 8), json: """
+    [
+      4,
+      8
+    ]
+    """)
+  }
+
+  func testWorkspaceDocumentDiagnosticReport() {
+    checkCoding(WorkspaceDocumentDiagnosticReport.full(WorkspaceFullDocumentDiagnosticReport(items: [], uri: DocumentURI(string: "file:///some/path"))), json: #"""
+    {
+      "items" : [
+
+      ],
+      "kind" : "full",
+      "uri" : "file:\/\/\/some\/path"
+    }
+    """#)
+
+    checkCoding(WorkspaceDocumentDiagnosticReport.unchanged(WorkspaceUnchangedDocumentDiagnosticReport(resultId: "myResults", uri: DocumentURI(string: "file:///some/path"))), json: #"""
+    {
+      "kind" : "unchanged",
+      "resultId" : "myResults",
+      "uri" : "file:\/\/\/some\/path"
+    }
+    """#)
+  }
+
+  func testWorkspaceSymbolItem() {
+    checkCoding(WorkspaceSymbolItem.symbolInformation(SymbolInformation(
+      name: "mySym",
+      kind: .constant,
+      location: Location(
+        uri: DocumentURI(string: "file:///some/path"),
+        range: Position(line: 3, utf16index: 14)..<Position(line: 4, utf16index: 3)
+      )
+    )), json: #"""
+    {
+      "kind" : 14,
+      "location" : {
+        "range" : {
+          "end" : {
+            "character" : 3,
+            "line" : 4
+          },
+          "start" : {
+            "character" : 14,
+            "line" : 3
+          }
+        },
+        "uri" : "file:\/\/\/some\/path"
+      },
+      "name" : "mySym"
+    }
+    """#)
+
+    checkCoding(WorkspaceSymbolItem.workspaceSymbol(WorkspaceSymbol(
+      name: "mySym",
+      kind: .boolean,
+      location: WorkspaceSymbol.WorkspaceSymbolLocation.uri(.init(uri: DocumentURI(string: "file:///some/path")))
+    )), json: #"""
+    {
+      "kind" : 17,
+      "location" : {
+        "uri" : "file:\/\/\/some\/path"
+      },
+      "name" : "mySym"
+    }
+    """#)
+  }
+
+  func testWorkspapceSymbolLocation() {
+    checkCoding(WorkspaceSymbol.WorkspaceSymbolLocation.uri(.init(uri: DocumentURI(string: "file:///some/path"))), json: #"""
+    {
+      "uri" : "file:\/\/\/some\/path"
+    }
+    """#)
+
+    checkCoding(WorkspaceSymbol.WorkspaceSymbolLocation.location(Location(
+      uri: DocumentURI(string: "file:///some/path"),
+      range: Position(line: 3, utf16index: 14)..<Position(line: 4, utf16index: 3)
+    )), json: #"""
+    {
+      "range" : {
+        "end" : {
+          "character" : 3,
+          "line" : 4
+        },
+        "start" : {
+          "character" : 14,
+          "line" : 3
+        }
+      },
+      "uri" : "file:\/\/\/some\/path"
+    }
+    """#)
+  }
+
+  func testCompletionItemEdit() {
+    checkCoding(CompletionItemEdit.textEdit(TextEdit(
+      range: Position(line: 3, utf16index: 14)..<Position(line: 4, utf16index: 3),
+      newText: "some new text"
+    )), json: """
+    {
+      "newText" : "some new text",
+      "range" : {
+        "end" : {
+          "character" : 3,
+          "line" : 4
+        },
+        "start" : {
+          "character" : 14,
+          "line" : 3
+        }
+      }
+    }
+    """)
+
+    checkCoding(CompletionItemEdit.insertReplaceEdit(InsertReplaceEdit(
+      newText: "some new text",
+      insert: Position(line: 3, utf16index: 14)..<Position(line: 4, utf16index: 3),
+      replace: Position(line: 2, utf16index: 8)..<Position(line: 2, utf16index: 9)
+    )), json: """
+    {
+      "insert" : {
+        "end" : {
+          "character" : 3,
+          "line" : 4
+        },
+        "start" : {
+          "character" : 14,
+          "line" : 3
+        }
+      },
+      "newText" : "some new text",
+      "replace" : {
+        "end" : {
+          "character" : 9,
+          "line" : 2
+        },
+        "start" : {
+          "character" : 8,
+          "line" : 2
+        }
+      }
+    }
+    """)
+  }
+
+  func testNotebookCellTextDocumentFilter() {
+    checkCoding(NotebookCellTextDocumentFilter.NotebookFilter.string("abc"), json: #""abc""#)
+    checkCoding(NotebookCellTextDocumentFilter.NotebookFilter.notebookDocumentFilter(NotebookDocumentFilter(pattern: "xxx")), json: """
+    {
+      "pattern" : "xxx"
+    }
+    """)
+  }
+
+  func testStringOrMarkupContent() {
+    checkCoding(StringOrMarkupContent.string("hello"), json: #""hello""#)
+    checkCoding(StringOrMarkupContent.markupContent(MarkupContent(kind: .markdown, value: "hello")), json: """
+    {
+      "kind" : "markdown",
+      "value" : "hello"
+    }
+    """)
+  }
+
+  func testTextDocumentEdit() {
+    checkCoding(TextDocumentEdit.Edit.textEdit(TextEdit(
+      range: Position(line: 3, utf16index: 14)..<Position(line: 4, utf16index: 3),
+      newText: "some new text"
+    )), json: """
+    {
+      "newText" : "some new text",
+      "range" : {
+        "end" : {
+          "character" : 3,
+          "line" : 4
+        },
+        "start" : {
+          "character" : 14,
+          "line" : 3
+        }
+      }
+    }
+    """)
+
+    checkCoding(TextDocumentEdit.Edit.annotatedTextEdit(AnnotatedTextEdit(
+      range: Position(line: 3, utf16index: 14)..<Position(line: 4, utf16index: 3),
+      newText: "some new text",
+      annotationId: "change-34"
+    )), json: """
+    {
+      "annotationId" : "change-34",
+      "newText" : "some new text",
+      "range" : {
+        "end" : {
+          "character" : 3,
+          "line" : 4
+        },
+        "start" : {
+          "character" : 14,
+          "line" : 3
+        }
+      }
+    }
+    """)
+  }
+
+  func testWorkDoneProgress() {
+    checkCoding(WorkDoneProgress.begin(WorkDoneProgressBegin(title: "My Work")), json: """
+    {
+      "kind" : "begin",
+      "title" : "My Work"
+    }
+    """)
+
+    checkCoding(WorkDoneProgress.report(WorkDoneProgressReport(message: "Still working")), json: """
+    {
+      "kind" : "report",
+      "message" : "Still working"
+    }
+    """)
+
+    checkCoding(WorkDoneProgress.end(WorkDoneProgressEnd()), json: """
+    {
+      "kind" : "end"
+    }
+    """)
   }
 }
 

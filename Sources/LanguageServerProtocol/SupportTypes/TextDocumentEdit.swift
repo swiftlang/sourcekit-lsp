@@ -14,14 +14,38 @@
 ///
 /// For an edit where the document is implied, use `TextEdit`.
 public struct TextDocumentEdit: Hashable, Codable {
+  public enum Edit: Codable, Hashable {
+    case textEdit(TextEdit)
+    case annotatedTextEdit(AnnotatedTextEdit)
+
+    public init(from decoder: Decoder) throws {
+      if let annotated = try? AnnotatedTextEdit(from: decoder) {
+        self = .annotatedTextEdit(annotated)
+      } else if let edit = try? TextEdit(from: decoder) {
+        self = .textEdit(edit)
+      } else {
+        let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected AnnotatedTextEdit or TextEdit")
+        throw DecodingError.dataCorrupted(context)
+      }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+      switch self {
+      case .textEdit(let edit):
+        try edit.encode(to: encoder)
+      case .annotatedTextEdit(let annotated):
+        try annotated.encode(to: encoder)
+      }
+    }
+  }
 
   /// The potentially versioned document to which these edits apply.
-  public var textDocument: VersionedTextDocumentIdentifier
+  public var textDocument: OptionalVersionedTextDocumentIdentifier
 
   /// The edits to be applied, which must be non-overlapping.
-  public var edits: [TextEdit]
+  public var edits: [Edit]
 
-  public init(textDocument: VersionedTextDocumentIdentifier, edits: [TextEdit]) {
+  public init(textDocument: OptionalVersionedTextDocumentIdentifier, edits: [Edit]) {
     self.textDocument = textDocument
     self.edits = edits
   }

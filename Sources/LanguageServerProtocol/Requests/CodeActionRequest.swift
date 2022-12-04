@@ -31,15 +31,15 @@ public struct CodeActionRequest: TextDocumentRequest, Hashable {
   public static let method: String = "textDocument/codeAction"
   public typealias Response = CodeActionRequestResponse?
 
+  /// The document in which the command was invoked.
+  public var textDocument: TextDocumentIdentifier
+
   /// The range for which the command was invoked.
   @CustomCodable<PositionRange>
   public var range: Range<Position>
 
   /// Context carrying additional information.
   public var context: CodeActionContext
-
-  /// The document in which the command was invoked.
-  public var textDocument: TextDocumentIdentifier
 
   public init(range: Range<Position>, context: CodeActionContext, textDocument: TextDocumentIdentifier) {
     self._range = CustomCodable<PositionRange>(wrappedValue: range)
@@ -89,6 +89,24 @@ public enum CodeActionRequestResponse: ResponseType, Codable, Equatable {
   }
 }
 
+/// The reason why code actions were requested.
+public struct CodeActionTriggerKind: RawRepresentable, Codable, Hashable {
+  public var rawValue: Int
+
+  public init(rawValue: Int) {
+    self.rawValue = rawValue
+  }
+
+  /// Code actions were explicitly requested by the user or by an extension.
+  public static let invoked = CodeActionTriggerKind(rawValue: 1)
+
+  /// Code actions were requested automatically.
+  ///
+  /// This typically happens when current selection in a file changes, but can
+  /// also be triggered when file content changes.
+  public static let automatic = CodeActionTriggerKind(rawValue: 2)
+}
+
 public struct CodeActionContext: Codable, Hashable {
 
   /// An array of diagnostics.
@@ -99,13 +117,17 @@ public struct CodeActionContext: Codable, Hashable {
   /// so servers can omit computing them.
   public var only: [CodeActionKind]?
 
-  public init(diagnostics: [Diagnostic] = [], only: [CodeActionKind]? = nil) {
+  /// The reason why code actions were requested.
+  public var triggerKind: CodeActionTriggerKind?
+
+  public init(diagnostics: [Diagnostic] = [], only: [CodeActionKind]? = nil, triggerKind: CodeActionTriggerKind? = nil) {
     self.diagnostics = diagnostics
     self.only = only
+    self.triggerKind = triggerKind
   }
 }
 
-public struct CodeAction: Codable, Hashable {
+public struct CodeAction: ResponseType, Hashable {
 
   /// A short, human-readable, title for this code action.
   public var title: String

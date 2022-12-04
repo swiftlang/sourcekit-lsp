@@ -170,3 +170,6 @@ extension Array: LSPAnyCodable where Element: LSPAnyCodable {
     return .array(map { $0.encodeToLSPAny() })
   }
 }
+
+public typealias LSPObject = [String: LSPAny]
+public typealias LSPArray = [LSPAny]

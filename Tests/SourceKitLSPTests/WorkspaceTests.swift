@@ -19,14 +19,6 @@ import SKTestSupport
 import TSCBasic
 import XCTest
 
-fileprivate extension SourceKitServer {
-  func workspaceForDocumentOnQueue(uri: DocumentURI) -> Workspace? {
-    self.queue.sync {
-      return self.workspaceForDocument(uri: uri)
-    }
-  }
-}
-
 final class WorkspaceTests: XCTestCase {
 
   func testMultipleSwiftPMWorkspaces() throws {
@@ -52,22 +44,22 @@ final class WorkspaceTests: XCTestCase {
         label: "foo()",
         kind: .method,
         detail: "Void",
+        deprecated: false,
         sortText: nil,
         filterText: "foo()",
-        textEdit: TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "foo()"),
         insertText: "foo()",
         insertTextFormat: .plain,
-        deprecated: false),
+        textEdit: .textEdit(TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "foo()"))),
       CompletionItem(
         label: "self",
         kind: .keyword,
         detail: "Lib",
+        deprecated: false,
         sortText: nil,
         filterText: "self",
-        textEdit: TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "self"),
         insertText: "self",
         insertTextFormat: .plain,
-        deprecated: false),
+        textEdit: .textEdit(TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "self"))),
     ])
 
     try ws.openDocument(otherCall.url, language: .swift)
@@ -82,24 +74,24 @@ final class WorkspaceTests: XCTestCase {
         kind: .method,
         detail: "Void",
         documentation: nil,
+        deprecated: false,
         sortText: nil,
         filterText: "sayHello()",
-        textEdit: TextEdit(range: Position(line: 7, utf16index: 41)..<Position(line: 7, utf16index: 41), newText: "sayHello()"),
         insertText: "sayHello()",
         insertTextFormat: .plain,
-        deprecated: false
+        textEdit: .textEdit(TextEdit(range: Position(line: 7, utf16index: 41)..<Position(line: 7, utf16index: 41), newText: "sayHello()"))
       ),
       CompletionItem(
         label: "self",
         kind: LanguageServerProtocol.CompletionItemKind(rawValue: 14),
         detail: "FancyLib",
         documentation: nil,
+        deprecated: false,
         sortText: nil,
         filterText: "self",
-        textEdit: TextEdit(range: Position(line: 7, utf16index: 41)..<Position(line: 7, utf16index: 41), newText: "self"),
         insertText: "self",
         insertTextFormat: .plain,
-        deprecated: false
+        textEdit: .textEdit(TextEdit(range: Position(line: 7, utf16index: 41)..<Position(line: 7, utf16index: 41), newText: "self"))
       ),
     ])
   }
@@ -277,30 +269,28 @@ final class WorkspaceTests: XCTestCase {
         kind: .method,
         detail: "Void",
         documentation: nil,
-        sortText: nil,
+        deprecated: false, sortText: nil,
         filterText: "helloWorld()",
-        textEdit: TextEdit(
-          range: otherPackLoc.position..<otherPackLoc.position,
-          newText: "helloWorld()"
-        ),
         insertText: "helloWorld()",
         insertTextFormat: .plain,
-        deprecated: false
+        textEdit: .textEdit(TextEdit(
+          range: otherPackLoc.position..<otherPackLoc.position,
+          newText: "helloWorld()"
+        ))
       ),
       CompletionItem(
         label: "self",
         kind: .keyword,
         detail: "Package",
         documentation: nil,
-        sortText: nil,
+        deprecated: false, sortText: nil,
         filterText: "self",
-        textEdit: TextEdit(
-          range: otherPackLoc.position..<otherPackLoc.position,
-          newText: "self"
-        ),
         insertText: "self",
         insertTextFormat: .plain,
-        deprecated: false
+        textEdit: .textEdit(TextEdit(
+          range: otherPackLoc.position..<otherPackLoc.position,
+          newText: "self"
+        ))
       )
     ])
   }

@@ -82,6 +82,7 @@ public struct SyntaxHighlightingToken: Hashable {
     case number
     case regexp
     case `operator`
+    case decorator
     /// **(LSP Extension)**
     case identifier
 
@@ -110,6 +111,7 @@ public struct SyntaxHighlightingToken: Hashable {
       case .number: return "number"
       case .regexp: return "regexp"
       case .operator: return "operator"
+      case .decorator: return "decorator"
       case .identifier: return "identifier"
       }
     }

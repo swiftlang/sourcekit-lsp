@@ -39,22 +39,22 @@ final class SwiftPMIntegrationTests: XCTestCase {
         label: "foo()",
         kind: .method,
         detail: "Void",
+        deprecated: false,
         sortText: nil,
         filterText: "foo()",
-        textEdit: TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "foo()"),
         insertText: "foo()",
         insertTextFormat: .plain,
-        deprecated: false),
+        textEdit: .textEdit(TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "foo()"))),
       CompletionItem(
         label: "self",
         kind: .keyword,
         detail: "Lib",
+        deprecated: false,
         sortText: nil,
         filterText: "self",
-        textEdit: TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "self"),
         insertText: "self",
         insertTextFormat: .plain,
-        deprecated: false),
+        textEdit: .textEdit(TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "self"))),
     ])
   }
 
@@ -104,22 +104,22 @@ final class SwiftPMIntegrationTests: XCTestCase {
         label: "foo()",
         kind: .method,
         detail: "Void",
+        deprecated: false,
         sortText: nil,
         filterText: "foo()",
-        textEdit: TextEdit(range: Position(line: 1, utf16index: 22)..<Position(line: 1, utf16index: 22), newText: "foo()"),
         insertText: "foo()",
         insertTextFormat: .plain,
-        deprecated: false),
+        textEdit: .textEdit(TextEdit(range: Position(line: 1, utf16index: 22)..<Position(line: 1, utf16index: 22), newText: "foo()"))),
       CompletionItem(
         label: "self",
         kind: .keyword,
         detail: "Lib",
+        deprecated: false,
         sortText: nil,
         filterText: "self",
-        textEdit: TextEdit(range: Position(line: 1, utf16index: 22)..<Position(line: 1, utf16index: 22), newText: "self"),
         insertText: "self",
         insertTextFormat: .plain,
-        deprecated: false),
+        textEdit: .textEdit(TextEdit(range: Position(line: 1, utf16index: 22)..<Position(line: 1, utf16index: 22), newText: "self"))),
     ])
 
     // Check that we get code completion for `baz` (defined in the new file) in the old file.
@@ -133,12 +133,12 @@ final class SwiftPMIntegrationTests: XCTestCase {
       kind: .function,
       detail: "Void",
       documentation: nil,
+      deprecated: false,
       sortText: nil,
       filterText: "baz(l:)",
-      textEdit: TextEdit(range: Position(line: 7, utf16index: 31)..<Position(line: 7, utf16index: 31), newText: "baz(l: )"),
       insertText: "baz(l: )",
       insertTextFormat: .plain,
-      deprecated: false))
+      textEdit: .textEdit(TextEdit(range: Position(line: 7, utf16index: 31)..<Position(line: 7, utf16index: 31), newText: "baz(l: )"))))
     )
   }
 
@@ -183,22 +183,20 @@ final class SwiftPMIntegrationTests: XCTestCase {
         label: "foo()",
         kind: .method,
         detail: "Void",
-        sortText: nil,
+        deprecated: false, sortText: nil,
         filterText: "foo()",
-        textEdit: TextEdit(range: Position(line: 3, utf16index: 47)..<Position(line: 3, utf16index: 47), newText: "foo()"),
         insertText: "foo()",
         insertTextFormat: .plain,
-        deprecated: false),
+        textEdit: .textEdit(TextEdit(range: Position(line: 3, utf16index: 47)..<Position(line: 3, utf16index: 47), newText: "foo()"))),
       CompletionItem(
         label: "self",
         kind: .keyword,
         detail: "Lib",
-        sortText: nil,
+        deprecated: false, sortText: nil,
         filterText: "self",
-        textEdit: TextEdit(range: Position(line: 3, utf16index: 47)..<Position(line: 3, utf16index: 47), newText: "self"),
         insertText: "self",
         insertTextFormat: .plain,
-        deprecated: false),
+        textEdit: .textEdit(TextEdit(range: Position(line: 3, utf16index: 47)..<Position(line: 3, utf16index: 47), newText: "self"))),
     ]
 
     var didReceiveCorrectCompletions = false

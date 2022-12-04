@@ -28,6 +28,20 @@
 ///
 /// - Returns:
 public struct InitializeRequest: RequestType, Hashable {
+  /// Information about the client
+  public struct ClientInfo: Codable, Hashable {
+    // The name of the client as defined by the client.
+    public var name: String
+
+    /// The client's version as defined by the client.
+    public var version: String?
+
+    public init(name: String, version: String? = nil) {
+      self.name = name
+      self.version = version
+    }
+  }
+
   public static let method: String = "initialize"
   public typealias Response = InitializeResult
 
@@ -36,6 +50,17 @@ public struct InitializeRequest: RequestType, Hashable {
   ///
   /// If the client process dies, the server should exit.
   public var processId: Int? = nil
+
+  /// Information about the client
+  public var clientInfo: ClientInfo? = nil
+
+  /// The locale the client is currently showing the user interface
+  /// in. This must not necessarily be the locale of the operating
+  /// system.
+  ///
+  /// Uses IETF language tags as the value's syntax
+  /// (See https://en.wikipedia.org/wiki/IETF_language_tag)
+  public var locale: String? = nil
 
   /// The workspace path, or nil if no workspace is open.
   ///
@@ -53,12 +78,6 @@ public struct InitializeRequest: RequestType, Hashable {
   /// The capabilities provided by the client editor.
   public var capabilities: ClientCapabilities
 
-  public enum Tracing: String, Codable  {
-    case off
-    case messages
-    case verbose
-  }
-
   /// Whether to enable tracing.
   public var trace: Tracing? = .off
 
@@ -67,6 +86,8 @@ public struct InitializeRequest: RequestType, Hashable {
 
   public init(
     processId: Int? = nil,
+    clientInfo: ClientInfo? = nil,
+    locale: String? = nil,
     rootPath: String? = nil,
     rootURI: DocumentURI?,
     initializationOptions: LSPAny? = nil,
@@ -75,6 +96,8 @@ public struct InitializeRequest: RequestType, Hashable {
     workspaceFolders: [WorkspaceFolder]?)
   {
     self.processId = processId
+    self.clientInfo = clientInfo
+    self.locale = locale
     self.rootPath = rootPath
     self.rootURI = rootURI
     self.initializationOptions = initializationOptions

@@ -52,18 +52,26 @@ public struct FoldingRange: ResponseType, Hashable {
   /// is used to categorize folding ranges and used by commands like 'Fold all comments'.
   public var kind: FoldingRangeKind?
 
+  /// The text that the client should show when the specified range is
+  /// collapsed. If not defined or not supported by the client, a default
+  /// will be chosen by the client.
+  public var collapsedText: String?
+
   public init(
     startLine: Int,
     startUTF16Index: Int? = nil,
     endLine: Int,
     endUTF16Index: Int? = nil,
-    kind: FoldingRangeKind? = nil)
+    kind: FoldingRangeKind? = nil,
+    collapsedText: String? = nil
+  )
   {
     self.startLine = startLine
     self.startUTF16Index = startUTF16Index
     self.endLine = endLine
     self.endUTF16Index = endUTF16Index
     self.kind = kind
+    self.collapsedText = collapsedText
   }
 }
 

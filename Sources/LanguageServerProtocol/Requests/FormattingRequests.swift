@@ -97,4 +97,13 @@ public struct FormattingOptions: Codable, Hashable {
 
   /// Whether to use spaces instead of tabs.
   public var insertSpaces: Bool
+
+  /// Trim trailing whitespace on a line.
+  public var trimTrailingWhitespace: Bool?
+
+  /// Insert a newline character at the end of the file if one does not exist.
+  public var insertFinalNewline: Bool?
+
+  /// Trim all newlines after the final newline at the end of the file.
+  public var trimFinalNewlines: Bool?
 }

@@ -47,3 +47,50 @@ extension TextEdit: LSPAnyCodable {
     ])
   }
 }
+
+/// Additional information that describes document changes.
+public struct ChangeAnnotation: Codable, Hashable {
+  /// A human-readable string describing the actual change. The string
+  /// is rendered prominent in the user interface.
+  public var label: String
+
+  /// A flag which indicates that user confirmation is needed
+  /// before applying the change.
+  public var needsConfirmation: Bool? = nil
+
+  /// A human-readable string which is rendered less prominent in
+  /// the user interface.
+  public var description: String? = nil
+
+  public init(label: String, needsConfirmation: Bool? = nil, description: String? = nil) {
+    self.label = label
+    self.needsConfirmation = needsConfirmation
+    self.description = description
+  }
+}
+
+
+/// An identifier referring to a change annotation managed by a workspace
+/// edit.
+public typealias ChangeAnnotationIdentifier = String
+
+/// A special text edit with an additional change annotation.
+///
+/// Notionally a subtype of `TextEdit`.
+public struct AnnotatedTextEdit: ResponseType, Hashable {
+
+  /// The range of text to be replaced.
+  @CustomCodable<PositionRange>
+  public var range: Range<Position>
+
+  /// The new text.
+  public var newText: String
+
+  public var annotationId: ChangeAnnotationIdentifier
+
+  public init(range: Range<Position>, newText: String, annotationId: ChangeAnnotationIdentifier) {
+    self._range = CustomCodable<PositionRange>(wrappedValue: range)
+    self.newText = newText
+    self.annotationId = annotationId
+  }
+}

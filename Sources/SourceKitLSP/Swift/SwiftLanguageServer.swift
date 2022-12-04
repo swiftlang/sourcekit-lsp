@@ -1295,11 +1295,6 @@ extension SwiftLanguageServer {
   }
 
   public func inlayHint(_ req: Request<InlayHintRequest>) {
-    guard req.params.only?.contains(.type) ?? true else {
-      req.reply([])
-      return
-    }
-
     let uri = req.params.textDocument.uri
     variableTypeInfos(uri, req.params.range) { infosResult in
       do {
@@ -1312,8 +1307,8 @@ extension SwiftLanguageServer {
             let label = ": \(info.printedType)"
             return InlayHint(
               position: position,
-              kind: .type,
               label: .string(label),
+              kind: .type,
               textEdits: [
                 TextEdit(range: position..<position, newText: label)
               ]
