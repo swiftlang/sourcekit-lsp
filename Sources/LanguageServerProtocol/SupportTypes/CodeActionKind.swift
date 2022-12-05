@@ -21,6 +21,9 @@ public struct CodeActionKind: RawRepresentable, Codable, Hashable {
     self.rawValue = rawValue
   }
 
+  /// Empty kind.
+  public static let empty: CodeActionKind = CodeActionKind(rawValue: "")
+
   /// QuickFix action, such as FixIt.
   public static let quickFix: CodeActionKind = CodeActionKind(rawValue: "quickfix")
 

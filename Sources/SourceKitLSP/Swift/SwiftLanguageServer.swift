@@ -337,21 +337,19 @@ extension SwiftLanguageServer {
     sourcekitd.addNotificationHandler(self)
 
     return InitializeResult(capabilities: ServerCapabilities(
-      textDocumentSync: TextDocumentSyncOptions(
+      textDocumentSync: .options(TextDocumentSyncOptions(
         openClose: true,
-        change: .incremental,
-        willSave: true,
-        willSaveWaitUntil: false,
-        save: .value(TextDocumentSyncOptions.SaveOptions(includeText: false))),
-      hoverProvider: true,
+        change: .incremental
+      )),
+      hoverProvider: .bool(true),
       completionProvider: CompletionOptions(
         resolveProvider: false,
         triggerCharacters: [".", "("]),
       definitionProvider: nil,
       implementationProvider: .bool(true),
       referencesProvider: nil,
-      documentHighlightProvider: true,
-      documentSymbolProvider: true,
+      documentHighlightProvider: .bool(true),
+      documentSymbolProvider: .bool(true),
       codeActionProvider: .value(CodeActionServerCapabilities(
         clientCapabilities: initialize.capabilities.textDocument?.codeAction,
         codeActionOptions: CodeActionOptions(codeActionKinds: [.quickFix, .refactor]),
