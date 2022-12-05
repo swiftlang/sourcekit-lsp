@@ -189,7 +189,7 @@ class ConnectionTests: XCTestCase {
 
     client.send(EchoNotification(string: "hi"))
     _ = client.send(EchoRequest(string: "yo")) { result in
-      XCTAssertEqual(result, .failure(ResponseError.cancelled))
+      XCTAssertEqual(result, .failure(ResponseError.serverCancelled))
       expectation.fulfill()
     }
 

@@ -404,7 +404,7 @@ extension JSONRPCConnection: Connection {
       let id = nextRequestID()
 
       guard readyToSend() else {
-        reply(.failure(.cancelled))
+        reply(.failure(.serverCancelled))
         return id
       }
 
