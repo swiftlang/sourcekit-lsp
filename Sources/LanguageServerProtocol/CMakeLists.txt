@@ -11,27 +11,42 @@ add_library(LanguageServerProtocol STATIC
   RequestID.swift
 
   Notifications/CancelRequestNotification.swift
+  Notifications/CancelWorkDoneProgressNotification.swift
   Notifications/ConfigurationNotification.swift
+  Notifications/DidChangeFileNotifications.swift
   Notifications/DidChangeWatchedFilesNotification.swift
   Notifications/DidChangeWorkspaceFoldersNotification.swift
   Notifications/ExitNotification.swift
   Notifications/InitializedNotification.swift
   Notifications/LogMessageNotification.swift
+  Notifications/LogTraceNotification.swift
   Notifications/PublishDiagnosticsNotification.swift
+  Notifications/SetTraceNotification.swift
   Notifications/ShowMessageNotification.swift
   Notifications/TextSynchronizationNotifications.swift
+  Notifications/WorkDoneProgress.swift
 
   Requests/ApplyEditRequest.swift
   Requests/CallHierarchyIncomingCallsRequest.swift
   Requests/CallHierarchyOutgoingCallsRequest.swift
   Requests/CallHierarchyPrepareRequest.swift
   Requests/CodeActionRequest.swift
+  Requests/CodeActionResolveRequest.swift
+  Requests/CodeLensRefreshRequest.swift
+  Requests/CodeLensRequest.swift
+  Requests/CodeLensResolveRequest.swift
   Requests/ColorPresentationRequest.swift
+  Requests/CompletionItemResolveRequest.swift
   Requests/CompletionRequest.swift
+  Requests/CreateWorkDoneProgressRequest.swift
   Requests/DeclarationRequest.swift
   Requests/DefinitionRequest.swift
+  Requests/DiagnosticsRefreshRequest.swift
   Requests/DocumentColorRequest.swift
+  Requests/DocumentDiagnosticsRequest.swift
   Requests/DocumentHighlightRequest.swift
+  Requests/DocumentLinkRequest.swift
+  Requests/DocumentLinkResolveRequest.swift
   Requests/DocumentSemanticTokensDeltaRequest.swift
   Requests/DocumentSemanticTokensRangeRequest.swift
   Requests/DocumentSemanticTokensRequest.swift
@@ -42,22 +57,34 @@ add_library(LanguageServerProtocol STATIC
   Requests/HoverRequest.swift
   Requests/ImplementationRequest.swift
   Requests/InitializeRequest.swift
+  Requests/InlayHintRefreshRequest.swift
   Requests/InlayHintRequest.swift
+  Requests/InlayHintResolveRequest.swift
+  Requests/InlineValueRefreshRequest.swift
+  Requests/InlineValueRequest.swift
+  Requests/LinkedEditingRangeRequest.swift
+  Requests/MonikersRequest.swift
   Requests/PollIndexRequest.swift
   Requests/PrepareRenameRequest.swift
   Requests/ReferencesRequest.swift
   Requests/RegisterCapabilityRequest.swift
   Requests/RenameRequest.swift
+  Requests/SelectionRangeRequest.swift
   Requests/ShowMessageRequest.swift
   Requests/ShutdownRequest.swift
+  Requests/SignatureHelpRequest.swift
   Requests/SymbolInfoRequest.swift
   Requests/TypeDefinitionRequest.swift
   Requests/TypeHierarchyPrepareRequest.swift
-  Requests/TypeHierarchySupertypesRequest.swift
   Requests/TypeHierarchySubtypesRequest.swift
+  Requests/TypeHierarchySupertypesRequest.swift
   Requests/UnregisterCapabilityRequest.swift
+  Requests/WillChangeFilesRequests.swift
+  Requests/WillSaveWaitUntilTextDocumentRequest.swift
+  Requests/WorkspaceDiagnosticsRequest.swift
   Requests/WorkspaceFoldersRequest.swift
   Requests/WorkspaceSemanticTokensRefreshRequest.swift
+  Requests/WorkspaceSymbolResolveRequest.swift
   Requests/WorkspaceSymbolsRequest.swift
 
   SupportTypes/CallHierarchyItem.swift
@@ -72,17 +99,25 @@ add_library(LanguageServerProtocol STATIC
   SupportTypes/FileSystemWatcher.swift
   SupportTypes/FoldingRangeKind.swift
   SupportTypes/InlayHint.swift
+  SupportTypes/InsertReplaceEdit.swift
   SupportTypes/Language.swift
   SupportTypes/Location.swift
   SupportTypes/LocationLink.swift
   SupportTypes/LocationsOrLocationLinksResponse.swift
   SupportTypes/LSPAny.swift
   SupportTypes/MarkupContent.swift
+  SupportTypes/NotebookCellTextDocumentFilter.swift
+  SupportTypes/NotebookDocument.swift
+  SupportTypes/NotebookDocumentChangeEvent.swift
+  SupportTypes/NotebookDocumentIdentifier.swift
   SupportTypes/Position.swift
+  SupportTypes/PositionEncoding.swift
+  SupportTypes/ProgressToken.swift
   SupportTypes/RegistrationOptions.swift
   SupportTypes/SemanticTokens.swift
   SupportTypes/ServerCapabilities.swift
   SupportTypes/SKCompletionOptions.swift
+  SupportTypes/StringOrMarkupContent.swift
   SupportTypes/SymbolKind.swift
   SupportTypes/TextDocumentContentChangeEvent.swift
   SupportTypes/TextDocumentEdit.swift
@@ -90,7 +125,9 @@ add_library(LanguageServerProtocol STATIC
   SupportTypes/TextDocumentItem.swift
   SupportTypes/TextDocumentSaveReason.swift
   SupportTypes/TextEdit.swift
+  SupportTypes/Tracing.swift
   SupportTypes/TypeHierarchyItem.swift
+  SupportTypes/VersionedNotebookDocumentIdentifier.swift
   SupportTypes/VersionedTextDocumentIdentifier.swift
   SupportTypes/WindowMessageType.swift
   SupportTypes/WorkspaceEdit.swift
