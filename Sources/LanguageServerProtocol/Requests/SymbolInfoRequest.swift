@@ -78,15 +78,20 @@ public struct SymbolDetails: ResponseType, Hashable {
   /// translation unit.
   public var bestLocalDeclaration: Location? = nil
 
+  /// The kind of the symbol
+  public var kind: SymbolKind?
+
   public init(
     name: String?,
     containerName: String? = nil,
     usr: String?,
-    bestLocalDeclaration: Location? = nil)
+    bestLocalDeclaration: Location? = nil,
+    kind: SymbolKind? = nil)
   {
     self.name = name
     self.containerName = containerName
     self.usr = usr
     self.bestLocalDeclaration = bestLocalDeclaration
+    self.kind = kind
   }
 }
