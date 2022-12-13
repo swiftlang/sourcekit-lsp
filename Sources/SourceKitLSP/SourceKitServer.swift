@@ -184,6 +184,7 @@ public final class SourceKitServer: LanguageServer {
     registerToolchainTextDocumentRequest(SourceKitServer.completion,
                                          CompletionList(isIncomplete: false, items: []))
     registerToolchainTextDocumentRequest(SourceKitServer.hover, nil)
+    registerToolchainTextDocumentRequest(SourceKitServer.openInterface, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.declaration, .locations([]))
     registerToolchainTextDocumentRequest(SourceKitServer.definition, .locations([]))
     registerToolchainTextDocumentRequest(SourceKitServer.references, [])
@@ -985,6 +986,14 @@ extension SourceKitServer {
   ) {
     languageService.hover(req)
   }
+  
+  func openInterface(
+    _ req: Request<OpenInterfaceRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
+    languageService.openInterface(req)
+  }
 
   /// Find all symbols in the workspace that include a string in their name.
   /// - returns: An array of SymbolOccurrences that match the string.
@@ -1272,6 +1281,26 @@ extension SourceKitServer {
     let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
     let index = self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
     let callback = callbackOnQueue(self.queue) { (result: LSPResult<SymbolInfoRequest.Response>) in
+
+      // If this symbol is a module then generate a textual interface
+      if case .success(let symbols) = result, let symbol = symbols.first, symbol.kind == .module, let name = symbol.name {
+        let openInterface = OpenInterfaceRequest(textDocument: req.params.textDocument, name: name)
+        let request = Request(openInterface, id: req.id, clientID: ObjectIdentifier(self),
+                              cancellation: req.cancellationToken, reply: { (result: Result<OpenInterfaceRequest.Response, ResponseError>) in
+          switch result {
+          case .success(let interfaceDetails?):
+            let loc = Location(uri: interfaceDetails.uri, range: Range(Position(line: 0, utf16index: 0)))
+            req.reply(.locations([loc]))
+          case .success(nil):
+            req.reply(.failure(.unknown("Could not generate Swift Interface for \(name)")))
+          case .failure(let error):
+            req.reply(.failure(error))
+          }
+        })
+        languageService.openInterface(request)
+        return
+      }
+
       let extractedResult = self.extractIndexedOccurrences(result: result, index: index, useLocalFallback: true) { (usr, index) in
         log("performing indexed jump-to-def with usr \(usr)")
         var occurs = index.occurrences(ofUSR: usr, roles: [.definition])

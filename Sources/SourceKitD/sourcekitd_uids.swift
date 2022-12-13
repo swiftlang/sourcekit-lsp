@@ -45,6 +45,7 @@ public struct sourcekitd_keys {
   public let kind: sourcekitd_uid_t
   public let length: sourcekitd_uid_t
   public let line: sourcekitd_uid_t
+  public let modulename: sourcekitd_uid_t
   public let name: sourcekitd_uid_t
   public let namelength: sourcekitd_uid_t
   public let nameoffset: sourcekitd_uid_t
@@ -63,6 +64,7 @@ public struct sourcekitd_keys {
   public let substructure: sourcekitd_uid_t
   public let syntactic_only: sourcekitd_uid_t
   public let syntaxmap: sourcekitd_uid_t
+  public let synthesizedextensions: sourcekitd_uid_t
   public let enablesyntaxmap: sourcekitd_uid_t
   public let text: sourcekitd_uid_t
   public let typename: sourcekitd_uid_t
@@ -118,6 +120,7 @@ public struct sourcekitd_keys {
     kind = api.uid_get_from_cstr("key.kind")!
     length = api.uid_get_from_cstr("key.length")!
     line = api.uid_get_from_cstr("key.line")!
+    modulename = api.uid_get_from_cstr("key.modulename")!
     name = api.uid_get_from_cstr("key.name")!
     namelength = api.uid_get_from_cstr("key.namelength")!
     nameoffset = api.uid_get_from_cstr("key.nameoffset")!
@@ -137,6 +140,7 @@ public struct sourcekitd_keys {
     syntactic_only = api.uid_get_from_cstr("key.syntactic_only")!
     syntaxmap = api.uid_get_from_cstr("key.syntaxmap")!
     enablesyntaxmap = api.uid_get_from_cstr("key.enablesyntaxmap")!
+    synthesizedextensions = api.uid_get_from_cstr("key.synthesizedextensions")!
     text = api.uid_get_from_cstr("key.text")!
     typename = api.uid_get_from_cstr("key.typename")!
     usr = api.uid_get_from_cstr("key.usr")!
@@ -163,6 +167,7 @@ public struct sourcekitd_keys {
 public struct sourcekitd_requests {
   public let crash_exit: sourcekitd_uid_t
   public let editor_open: sourcekitd_uid_t
+  public let editor_open_interface: sourcekitd_uid_t
   public let editor_close: sourcekitd_uid_t
   public let editor_replacetext: sourcekitd_uid_t
   public let codecomplete: sourcekitd_uid_t
@@ -178,6 +183,7 @@ public struct sourcekitd_requests {
   public init(api: sourcekitd_functions_t) {
     crash_exit = api.uid_get_from_cstr("source.request.crash_exit")!
     editor_open = api.uid_get_from_cstr("source.request.editor.open")!
+    editor_open_interface = api.uid_get_from_cstr("source.request.editor.open.interface")!
     editor_close = api.uid_get_from_cstr("source.request.editor.close")!
     editor_replacetext = api.uid_get_from_cstr("source.request.editor.replacetext")!
     codecomplete = api.uid_get_from_cstr("source.request.codecomplete")!

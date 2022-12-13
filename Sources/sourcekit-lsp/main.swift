@@ -130,6 +130,10 @@ struct Main: ParsableCommand {
   )
   var indexPrefixMappings = [PathPrefixMapping]()
 
+  @Option(
+    help: "Specify the directory where generated interfaces will be stored"
+  )
+  var generatedInterfacesPath = defaultDirectoryForGeneratedInterfaces
 
   @Option(
     help: "Whether to enable server-side filtering in code-completion"
@@ -156,6 +160,7 @@ struct Main: ParsableCommand {
     serverOptions.indexOptions.indexPrefixMappings = indexPrefixMappings
     serverOptions.completionOptions.serverSideFiltering = completionServerSideFiltering
     serverOptions.completionOptions.maxResults = completionMaxResults
+    serverOptions.generatedInterfacesPath = generatedInterfacesPath
 
     return serverOptions
   }

@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import Dispatch
-import struct Foundation.CharacterSet
 import LanguageServerProtocol
 import LSPLogging
 import SKCore
@@ -106,6 +106,9 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   let clientCapabilities: ClientCapabilities
 
   let serverOptions: SourceKitServer.Options
+  
+  /// Directory where generated Swift interfaces will be stored.
+  let generatedInterfacesPath: URL
 
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
@@ -154,6 +157,8 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     self.documentManager = DocumentManager()
     self.state = .connected
     self.reopenDocuments = reopenDocuments
+    self.generatedInterfacesPath = options.generatedInterfacesPath.asURL
+    try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
   }
 
   public func canHandle(workspace: Workspace) -> Bool {
@@ -259,7 +264,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
       }
     })
   }
-
+  
   /// Publish diagnostics for the given `snapshot`. We withhold semantic diagnostics if we are using
   /// fallback arguments.
   ///
@@ -1576,6 +1581,8 @@ extension sourcekitd_uid_t {
       case vals.decl_extension:
         // There are no extensions in LSP, so I return something vaguely similar
         return .namespace
+      case vals.ref_module:
+        return .module
       default:
         return nil
     }

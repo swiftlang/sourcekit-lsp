@@ -30,3 +30,8 @@ extension AbsolutePath {
     }
   }
 }
+
+/// The directory to write generated module interfaces
+public var defaultDirectoryForGeneratedInterfaces: AbsolutePath {
+  return AbsolutePath(NSTemporaryDirectory()).appending(component: "GeneratedInterfaces")
+}

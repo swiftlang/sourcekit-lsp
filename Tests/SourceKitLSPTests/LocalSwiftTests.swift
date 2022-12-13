@@ -1091,6 +1091,7 @@ final class LocalSwiftTests: XCTestCase {
       language: .swift,
       version: 1,
       text: """
+      import Foundation
       struct S {
         func foo() {
           var local = 1
@@ -1105,15 +1106,16 @@ final class LocalSwiftTests: XCTestCase {
 
       XCTAssertEqual(resp.count, 1)
       if let sym = resp.first {
-        XCTAssertEqual(sym.name, "S")
+        XCTAssertEqual(sym.name, "Foundation")
         XCTAssertNil(sym.containerName)
-        XCTAssertEqual(sym.usr, "s:1a1SV")
-        XCTAssertEqual(sym.bestLocalDeclaration?.uri, uri)
-        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 0)
-        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 7)
+        XCTAssertEqual(sym.usr, nil)
+        XCTAssertEqual(sym.kind, .module)
+        XCTAssertEqual(sym.bestLocalDeclaration?.uri, nil)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, nil)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, nil)
       }
     }
-
+    
     do {
       let resp = try! sk.sendSync(SymbolInfoRequest(
         textDocument: TextDocumentIdentifier(url),
@@ -1121,9 +1123,9 @@ final class LocalSwiftTests: XCTestCase {
 
       XCTAssertEqual(resp.count, 1)
       if let sym = resp.first {
-        XCTAssertEqual(sym.name, "foo()")
+        XCTAssertEqual(sym.name, "S")
         XCTAssertNil(sym.containerName)
-        XCTAssertEqual(sym.usr, "s:1a1SV3fooyyF")
+        XCTAssertEqual(sym.usr, "s:1a1SV")
         XCTAssertEqual(sym.bestLocalDeclaration?.uri, uri)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 1)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 7)
@@ -1133,7 +1135,23 @@ final class LocalSwiftTests: XCTestCase {
     do {
       let resp = try! sk.sendSync(SymbolInfoRequest(
         textDocument: TextDocumentIdentifier(url),
-        position: Position(line: 2, utf16index: 8)))
+        position: Position(line: 2, utf16index: 7)))
+
+      XCTAssertEqual(resp.count, 1)
+      if let sym = resp.first {
+        XCTAssertEqual(sym.name, "foo()")
+        XCTAssertNil(sym.containerName)
+        XCTAssertEqual(sym.usr, "s:1a1SV3fooyyF")
+        XCTAssertEqual(sym.bestLocalDeclaration?.uri, uri)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 2)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 7)
+      }
+    }
+
+    do {
+      let resp = try! sk.sendSync(SymbolInfoRequest(
+        textDocument: TextDocumentIdentifier(url),
+        position: Position(line: 3, utf16index: 8)))
 
       XCTAssertEqual(resp.count, 1)
       if let sym = resp.first {
@@ -1141,7 +1159,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertNil(sym.containerName)
         XCTAssertEqual(sym.usr, "s:1a1SV3fooyyF5localL_Sivp")
         XCTAssertEqual(sym.bestLocalDeclaration?.uri, uri)
-        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 2)
+        XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.line, 3)
         XCTAssertEqual(sym.bestLocalDeclaration?.range.lowerBound.utf16index, 8)
       }
     }
@@ -1272,7 +1290,7 @@ final class LocalSwiftTests: XCTestCase {
       }
     }
   }
-
+  
   func testDocumentSymbolHighlight() throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)

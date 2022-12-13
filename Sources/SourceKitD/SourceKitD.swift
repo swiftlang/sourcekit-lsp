@@ -112,6 +112,10 @@ extension SourceKitD {
 
     return handle
   }
+  
+  public func cancel(_ handle: sourcekitd_request_handle_t) {
+    api.cancel_request(handle)
+  }
 }
 
 private func logRequest(_ request: SKDRequestDictionary) {
