@@ -21,6 +21,7 @@ target_sources(SourceKitLSP PRIVATE
   Swift/Diagnostic.swift
   Swift/EditorPlaceholder.swift
   Swift/ExpressionTypeInfo.swift
+  Swift/OpenInterface.swift
   Swift/SemanticRefactorCommand.swift
   Swift/SemanticRefactoring.swift
   Swift/SourceKitD+ResponseError.swift
