@@ -369,8 +369,8 @@ extension SwiftLanguageServer {
           tokenModifiers: SyntaxHighlightingToken.Modifiers.allModifiers.map { $0.lspName! }),
         range: .bool(true),
         full: .bool(true)),
-      inlayHintProvider: InlayHintOptions(
-        resolveProvider: false)
+      inlayHintProvider: .value(InlayHintOptions(
+        resolveProvider: false))
     ))
   }
 
