@@ -106,7 +106,7 @@ public struct ServerCapabilities: Codable, Hashable {
   public var semanticTokensProvider: SemanticTokensOptions?
 
   /// Whether the server supports the `textDocument/inlayHint` family of requests.
-  public var inlayHintProvider: InlayHintOptions?
+  public var inlayHintProvider: ValueOrBool<InlayHintOptions>?
 
   /// Whether the server provides selection range support.
   public var selectionRangeProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>?
@@ -151,7 +151,7 @@ public struct ServerCapabilities: Codable, Hashable {
     callHierarchyProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     typeHierarchyProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     semanticTokensProvider: SemanticTokensOptions? = nil,
-    inlayHintProvider: InlayHintOptions? = nil,
+    inlayHintProvider: ValueOrBool<InlayHintOptions>? = nil,
     selectionRangeProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     linkedEditingRangeProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     monikerProvider: ValueOrBool<MonikerOptions>? = nil,

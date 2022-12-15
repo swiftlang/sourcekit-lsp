@@ -696,8 +696,16 @@ extension SourceKitServer {
         self.dynamicallyRegisterCapability($0, registry)
       }
     }
-    if let inlayHintOptions = server.inlayHintProvider {
-      registry.registerInlayHintIfNeeded(options: inlayHintOptions, for: languages) {
+    if let inlayHintProvider = server.inlayHintProvider,
+       inlayHintProvider.isSupported {
+      let options: InlayHintOptions
+      switch inlayHintProvider {
+      case .bool(_):
+        options = InlayHintOptions()
+      case .value(let opts):
+        options = opts
+      }
+      registry.registerInlayHintIfNeeded(options: options, for: languages) {
         self.dynamicallyRegisterCapability($0, registry)
       }
     }
