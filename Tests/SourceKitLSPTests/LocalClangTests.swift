@@ -150,7 +150,12 @@ final class LocalClangTests: XCTestCase {
       """)))
 
     let resp = try! sk.sendSync(FoldingRangeRequest(textDocument: TextDocumentIdentifier(url)))
-    XCTAssertNil(resp)
+    if let resp = resp {
+      XCTAssertEqual(resp, [
+        FoldingRange(startLine: 0, startUTF16Index: 10, endLine: 4, kind: .region),
+        FoldingRange(startLine: 1, startUTF16Index: 14, endLine: 3, endUTF16Index: 2, kind: .region),
+      ])
+    }
   }
 
   func testDocumentSymbols() throws {
