@@ -241,11 +241,11 @@ import Foundation
 if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
   // Building standalone.
   package.dependencies += [
-    .package(name: "IndexStoreDB", url: "https://github.com/apple/indexstore-db.git", .branch("main")),
-    .package(name: "SwiftPM", url: "https://github.com/apple/swift-package-manager.git", .branch("main")),
-    .package(url: "https://github.com/apple/swift-tools-support-core.git", .branch("main")),
+    .package(name: "IndexStoreDB", url: "https://github.com/apple/indexstore-db.git", .branch("release/5.8")),
+    .package(name: "SwiftPM", url: "https://github.com/apple/swift-package-manager.git", .branch("release/5.8")),
+    .package(url: "https://github.com/apple/swift-tools-support-core.git", .branch("release/5.8")),
     .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMinor(from: "1.0.1")),
-    .package(url: "https://github.com/apple/swift-syntax.git", .branch("main")),
+    .package(url: "https://github.com/apple/swift-syntax.git", .branch("release/5.8")),
   ]
 } else {
   package.dependencies += [
