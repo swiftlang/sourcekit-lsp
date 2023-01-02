@@ -12,11 +12,12 @@
 
 import BuildServerProtocol
 import LanguageServerProtocol
+import SKSupport
+import Foundation
 import Dispatch
 
 import class TSCBasic.Process
 import struct TSCBasic.AbsolutePath
-import enum TSCUtility.Platform
 
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
 public final class FallbackBuildSystem: BuildSystem {
@@ -29,14 +30,8 @@ public final class FallbackBuildSystem: BuildSystem {
 
   /// The path to the SDK.
   public lazy var sdkpath: AbsolutePath? = {
-    if case .darwin? = Platform.currentPlatform,
-       let str = try? Process.checkNonZeroExit(
-         args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx"),
-       let path = try? AbsolutePath(validating: str.spm_chomp())
-    {
-      return path
-    }
-    return nil
+    guard Platform.current == .darwin else { return nil }
+    return try? AbsolutePath(validating: Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx").trimmingCharacters(in: .whitespacesAndNewlines))
   }()
 
   /// Delegate to handle any build system events.

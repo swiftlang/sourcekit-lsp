@@ -13,6 +13,7 @@
 import SourceKitLSP
 import LanguageServerProtocol
 import SKCore
+import SKSupport
 import IndexStoreDB
 import ISDBTibs
 import ISDBTestSupport
@@ -21,7 +22,6 @@ import Foundation
 import LSPTestSupport
 
 import struct TSCBasic.AbsolutePath
-import enum TSCUtility.Platform
 import struct PackageModel.BuildFlags
 
 public typealias URL = Foundation.URL
@@ -237,7 +237,7 @@ extension Location {
 
 extension TibsToolchain {
   public convenience init(_ sktc: Toolchain) {
-    let execExt: String = Platform.currentPlatform?.executableExtension ?? ""
+    let execExt: String = Platform.current?.executableExtension ?? ""
 
     let ninja: URL?
     if let ninjaPath = ProcessInfo.processInfo.environment["NINJA_BIN"] {

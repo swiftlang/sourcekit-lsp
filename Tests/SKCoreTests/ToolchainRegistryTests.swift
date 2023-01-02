@@ -11,10 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import SKCore
+import SKSupport
 import TSCBasic
 import XCTest
-
-import enum TSCUtility.Platform
 
 final class ToolchainRegistryTests: XCTestCase {
   func testDefaultBasic() {
@@ -33,9 +32,9 @@ final class ToolchainRegistryTests: XCTestCase {
   }
 
   func testDefaultDarwin() {
-    let prevPlatform = Platform.currentPlatform
-    defer { Platform.currentPlatform = prevPlatform }
-    Platform.currentPlatform = .darwin
+    let prevPlatform = Platform.current
+    defer { Platform.current = prevPlatform }
+    Platform.current = .darwin
 
     let tr = ToolchainRegistry()
     tr.darwinToolchainOverride = nil
@@ -51,9 +50,9 @@ final class ToolchainRegistryTests: XCTestCase {
   }
 
   func testUnknownPlatform() {
-    let prevPlatform = Platform.currentPlatform
-    defer { Platform.currentPlatform = prevPlatform }
-    Platform.currentPlatform = nil
+    let prevPlatform = Platform.current
+    defer { Platform.current = prevPlatform }
+    Platform.current = nil
 
     let fs = InMemoryFileSystem()
     let binPath = AbsolutePath("/foo/bar/my_toolchain/bin")
@@ -548,7 +547,7 @@ private func makeToolchain(
 #endif
   }
 
-  let execExt = Platform.currentPlatform?.executableExtension ?? ""
+  let execExt = Platform.current?.executableExtension ?? ""
 
   if clang {
     makeExec(binPath.appending(component: "clang\(execExt)"))
@@ -560,7 +559,7 @@ private func makeToolchain(
     makeExec(binPath.appending(component: "swiftc\(execExt)"))
   }
 
-  let dylibSuffix = Platform.currentPlatform?.dynamicLibraryExtension ?? ".so"
+  let dylibSuffix = Platform.current?.dynamicLibraryExtension ?? ".so"
 
   if sourcekitd {
     try! fs.createDirectory(libPath.appending(component: "sourcekitd.framework"))

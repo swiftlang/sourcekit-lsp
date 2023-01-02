@@ -5,8 +5,7 @@ target_link_libraries(sourcekit-lsp PRIVATE
   ArgumentParser
   LanguageServerProtocolJSONRPC
   SKCore
-  SourceKitLSP
-  TSCUtility)
+  SourceKitLSP)
 target_link_libraries(sourcekit-lsp PRIVATE
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 

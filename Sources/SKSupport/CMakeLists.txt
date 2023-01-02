@@ -10,5 +10,3 @@ add_library(SKSupport STATIC
   dlopen.swift)
 set_target_properties(SKSupport PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
-target_link_libraries(SKSupport PRIVATE
-  TSCUtility)

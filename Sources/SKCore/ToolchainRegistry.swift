@@ -351,11 +351,7 @@ extension ToolchainRegistry {
 
   /// The path of the current Xcode.app/Contents/Developer.
   public static var currentXcodeDeveloperPath: AbsolutePath? {
-    if let str = try? Process.checkNonZeroExit(args: "/usr/bin/xcode-select", "-p"),
-       let path = try? AbsolutePath(validating: str.spm_chomp())
-    {
-      return path
-    }
-    return nil
+    guard let str = try? Process.checkNonZeroExit(args: "/usr/bin/xcode-select", "-p") else { return nil }
+    return try? AbsolutePath(validating: str.trimmingCharacters(in: .whitespacesAndNewlines))
   }
 }

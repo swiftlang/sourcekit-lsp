@@ -17,7 +17,6 @@ import SKSupport
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 import var TSCBasic.localFileSystem
-import enum TSCUtility.Platform
 
 /// A Toolchain is a collection of related compilers and libraries meant to be used together to
 /// build and edit source code.
@@ -135,7 +134,7 @@ extension Toolchain {
 
     var foundAny = false
 
-    let execExt = Platform.currentPlatform?.executableExtension ?? ""
+    let execExt = Platform.current?.executableExtension ?? ""
 
     let clangPath = binPath.appending(component: "clang\(execExt)")
     if fs.isExecutableFile(clangPath) {
@@ -162,7 +161,7 @@ extension Toolchain {
 
     // If 'currentPlatform' is nil it's most likely an unknown linux flavor.
     let dylibExt: String
-    if let dynamicLibraryExtension = Platform.currentPlatform?.dynamicLibraryExtension {
+    if let dynamicLibraryExtension = Platform.current?.dynamicLibraryExtension {
       dylibExt = dynamicLibraryExtension
     } else {
       log("Could not determine host OS. Falling back to using '.so' as dynamic library extension", level: .error)

@@ -13,12 +13,14 @@
 import LSPTestSupport
 import SourceKitD
 import SKCore
+import SKSupport
 import TSCBasic
 import ISDBTibs
 import ISDBTestSupport
+import Foundation
 import XCTest
 
-import enum TSCUtility.Platform
+import class TSCBasic.Process
 
 final class SourceKitDTests: XCTestCase {
   static var sourcekitdPath: AbsolutePath! = nil
@@ -26,12 +28,8 @@ final class SourceKitDTests: XCTestCase {
 
   override class func setUp() {
     sourcekitdPath = ToolchainRegistry.shared.default!.sourcekitd!
-    if case .darwin? = Platform.currentPlatform,
-       let str = try? Process.checkNonZeroExit(
-        args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx")
-    {
-      sdkpath = str.spm_chomp()
-    }
+    guard case .darwin? = Platform.current else { return }
+    sdkpath = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx").trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   func testMultipleNotificationHandlers() {
