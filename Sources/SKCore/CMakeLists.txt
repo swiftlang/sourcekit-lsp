@@ -24,5 +24,4 @@ target_link_libraries(SKCore PRIVATE
   LanguageServerProtocolJSONRPC
   PackageModel
   SKSupport
-  SourceKitD
-  TSCUtility)
+  SourceKitD)

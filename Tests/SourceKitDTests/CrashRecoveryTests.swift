@@ -16,6 +16,7 @@ import LSPTestSupport
 import LSPLogging
 import SourceKitLSP
 import SourceKitD
+import SKSupport
 import SKTestSupport
 import XCTest
 
@@ -42,7 +43,7 @@ fileprivate extension HoverResponse {
 
 final class CrashRecoveryTests: XCTestCase {
   func testSourcekitdCrashRecovery() throws {
-    try XCTSkipUnless(isDarwinHost, "Linux and Windows use in-process sourcekitd")
+    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
     try XCTSkipUnless(longTestsEnabled)
 
     let ws = try! staticSourceKitTibsWorkspace(name: "sourcekitdCrashRecovery")!
