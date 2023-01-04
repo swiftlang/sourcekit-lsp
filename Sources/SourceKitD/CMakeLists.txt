@@ -15,4 +15,6 @@ set_target_properties(SourceKitD PROPERTIES
 target_link_libraries(SourceKitD PRIVATE
   Csourcekitd
   LSPLogging
-  SKSupport)
+  SKSupport
+  TSCBasic
+  $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)
