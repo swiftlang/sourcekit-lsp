@@ -128,6 +128,7 @@ private struct XMLToMarkdown {
       out += "```\(node.attributes?.first(where: { $0.name == "language" })?.stringValue ?? "")\n"
       toMarkdown(node.children, separator: "\n")
       out += "```"
+      newlineIfNeeded(count: 2)
 
     case "zCodeLineNumbered":
       lineNumber += 1

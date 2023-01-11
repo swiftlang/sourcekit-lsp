@@ -917,6 +917,8 @@ final class LocalSwiftTests: XCTestCase {
       ```
       a
       ```
+
+
       """)
 
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
@@ -925,6 +927,8 @@ final class LocalSwiftTests: XCTestCase {
       ```
       1.\ta
       ```
+
+
       """)
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <CodeListing><zCodeLineNumbered>a</zCodeLineNumbered><zCodeLineNumbered>b</zCodeLineNumbered></CodeListing>
@@ -933,6 +937,8 @@ final class LocalSwiftTests: XCTestCase {
       1.\ta
       2.\tb
       ```
+
+      
       """)
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
       <Class><CodeListing><zCodeLineNumbered>a</zCodeLineNumbered><zCodeLineNumbered>b</zCodeLineNumbered></CodeListing><CodeListing><zCodeLineNumbered>c</zCodeLineNumbered><zCodeLineNumbered>d</zCodeLineNumbered></CodeListing></Class>
@@ -946,6 +952,8 @@ final class LocalSwiftTests: XCTestCase {
       1.\tc
       2.\td
       ```
+
+
       """)
 
     XCTAssertEqual(try! xmlDocumentationToMarkdown("""
@@ -1038,6 +1046,8 @@ final class LocalSwiftTests: XCTestCase {
       1.\tlet greeting = "Welcome!"
       2.\t
       ```
+
+
       """)
 
     XCTAssertEqual(try! xmlDocumentationToMarkdown(
@@ -1079,6 +1089,45 @@ final class LocalSwiftTests: XCTestCase {
     ### Throws
 
     Error.missingDocument if the document is not open.
+    """)
+
+    XCTAssertEqual(try! xmlDocumentationToMarkdown(
+      "<Class>" +
+        "<Name>S</Name>" +
+        "<USR>s:1a1SV</USR>" +
+        "<Declaration>struct S</Declaration>" +
+        "<CommentParts>" +
+          "<Discussion>" +
+            #"<CodeListing language="swift">"# +
+              "<zCodeLineNumbered>" +
+                "<![CDATA[let S = 12456]]>" +
+              "</zCodeLineNumbered>" +
+              "<zCodeLineNumbered></zCodeLineNumbered>" +
+            "</CodeListing>" +
+            "<rawHTML>" +
+              "<![CDATA[<h2>]]>" +
+            "</rawHTML>Title<rawHTML>" +
+              "<![CDATA[</h2>]]>" +
+            "</rawHTML>" +
+            "<Para>Details.</Para>" +
+          "</Discussion>" +
+        "</CommentParts>" +
+      "</Class>"), """
+    ```swift
+    struct S
+    ```
+
+    ---
+    ### Discussion
+
+    ```swift
+    1.\tlet S = 12456
+    2.\t
+    ```
+
+    <h2>Title</h2>
+
+    Details.
     """)
   }
 
