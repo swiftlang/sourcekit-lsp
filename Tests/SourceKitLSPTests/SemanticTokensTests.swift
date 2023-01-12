@@ -402,7 +402,6 @@ final class SemanticTokensTests: XCTestCase {
       Token(line: 0, utf16index: 5, length: 1, kind: .identifier),
       Token(line: 0, utf16index: 7, length: 1, kind: .identifier),
       Token(line: 0, utf16index: 10, length: 3, kind: .struct, modifiers: .defaultLibrary),
-      Token(line: 0, utf16index: 15, length: 1, kind: .keyword),
       Token(line: 0, utf16index: 17, length: 1, kind: .identifier),
       Token(line: 0, utf16index: 20, length: 6, kind: .struct, modifiers: .defaultLibrary),
     ])
