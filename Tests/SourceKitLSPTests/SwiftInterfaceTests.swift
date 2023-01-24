@@ -79,7 +79,7 @@ final class SwiftInterfaceTests: XCTestCase {
     XCTAssertTrue(location.uri.pseudoPath.hasSuffix("/Foundation.swiftinterface"))
     let fileContents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
     // Sanity-check that the generated Swift Interface contains Swift code
-    XCTAssertTrue(fileContents.hasPrefix("import "))
+    XCTAssert(fileContents.hasPrefix("import "), "Expected that the foundation swift interface starts with 'import ' but got '\(fileContents.prefix(100))'")
   }
   
   func testOpenInterface() throws {
