@@ -28,7 +28,7 @@ let package = Package(
       // See 'Dependencies' below.
     ],
     targets: [
-      .target(
+      .executableTarget(
         name: "sourcekit-lsp",
         dependencies: [
           "LanguageServerProtocolJSONRPC",
