@@ -55,8 +55,12 @@ public final class SKSwiftPMTestWorkspace {
   public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain, testServer: TestSourceKitServer? = nil) throws {
     self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
 
-    self.projectDir = URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(projectDir.path)).pathString)
-    self.tmpDir = URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(tmpDir.path)).pathString)
+    self.projectDir = URL(
+      fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: projectDir.path)).pathString
+    )
+    self.tmpDir = URL(
+      fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: tmpDir.path)).pathString
+    )
     self.toolchain = toolchain
 
     let fm = FileManager.default
@@ -71,8 +75,8 @@ public final class SKSwiftPMTestWorkspace {
 
     self.sources = try TestSources(rootDirectory: sourceDir)
 
-    let sourcePath = AbsolutePath(sources.rootDirectory.path)
-    let buildPath = AbsolutePath(buildDir.path)
+    let sourcePath = try AbsolutePath(validating: sources.rootDirectory.path)
+    let buildPath = try AbsolutePath(validating: buildDir.path)
     let buildSetup = BuildSetup(configuration: .debug, path: buildPath, flags: BuildFlags())
 
     let swiftpm = try SwiftPMWorkspace(

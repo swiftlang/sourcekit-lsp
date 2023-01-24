@@ -190,10 +190,10 @@ final class SupportTests: XCTestCase {
     }
   }
 
-  func testExpandingTilde() {
-    XCTAssertEqual(AbsolutePath(expandingTilde: "~/foo").basename, "foo")
-    XCTAssertNotEqual(AbsolutePath(expandingTilde: "~/foo").parentDirectory, .root)
-    XCTAssertEqual(AbsolutePath(expandingTilde: "/foo"), AbsolutePath("/foo"))
+  func testExpandingTilde() throws {
+    XCTAssertEqual(try AbsolutePath(expandingTilde: "~/foo").basename, "foo")
+    XCTAssertNotEqual(try AbsolutePath(expandingTilde: "~/foo").parentDirectory, .root)
+    XCTAssertEqual(try AbsolutePath(expandingTilde: "/foo"), try AbsolutePath(validating: "/foo"))
   }
 
   func testResultProjection() {

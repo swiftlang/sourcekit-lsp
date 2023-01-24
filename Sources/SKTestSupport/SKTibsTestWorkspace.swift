@@ -55,7 +55,7 @@ public final class SKTibsTestWorkspace {
       removeTmpDir: removeTmpDir,
       toolchain: TibsToolchain(toolchain))
 
-    initWorkspace(clientCapabilities: clientCapabilities)
+    try initWorkspace(clientCapabilities: clientCapabilities)
   }
 
   public init(
@@ -72,11 +72,11 @@ public final class SKTibsTestWorkspace {
       tmpDir: tmpDir,
       toolchain: TibsToolchain(toolchain))
 
-    initWorkspace(clientCapabilities: clientCapabilities)
+    try initWorkspace(clientCapabilities: clientCapabilities)
   }
 
-  func initWorkspace(clientCapabilities: ClientCapabilities) {
-    let buildPath = AbsolutePath(builder.buildRoot.path)
+  func initWorkspace(clientCapabilities: ClientCapabilities) throws {
+    let buildPath = try AbsolutePath(validating: builder.buildRoot.path)
     let buildSystem = CompilationDatabaseBuildSystem(projectRoot: buildPath)
     let indexDelegate = SourceKitIndexDelegate()
     tibsWorkspace.delegate = indexDelegate

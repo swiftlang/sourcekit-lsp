@@ -19,9 +19,9 @@ import struct PackageModel.BuildFlags
 
 final class FallbackBuildSystemTests: XCTestCase {
 
-  func testSwift() {
-    let sdk =  AbsolutePath("/my/sdk")
-    let source = AbsolutePath("/my/source.swift")
+  func testSwift() throws {
+    let sdk = try AbsolutePath(validating: "/my/sdk")
+    let source = try AbsolutePath(validating: "/my/source.swift")
 
     let bs = FallbackBuildSystem(buildSetup: .default)
     bs.sdkpath = sdk
@@ -46,9 +46,9 @@ final class FallbackBuildSystemTests: XCTestCase {
     ])
   }
 
-  func testSwiftWithCustomFlags() {
-    let sdk =  AbsolutePath("/my/sdk")
-    let source = AbsolutePath("/my/source.swift")
+  func testSwiftWithCustomFlags() throws {
+    let sdk = try AbsolutePath(validating: "/my/sdk")
+    let source = try AbsolutePath(validating: "/my/source.swift")
 
     let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(swiftCompilerFlags: [
       "-Xfrontend",
@@ -75,9 +75,9 @@ final class FallbackBuildSystemTests: XCTestCase {
     ])
   }
 
-  func testSwiftWithCustomSDKFlag() {
-    let sdk =  AbsolutePath("/my/sdk")
-    let source = AbsolutePath("/my/source.swift")
+  func testSwiftWithCustomSDKFlag() throws {
+    let sdk = try AbsolutePath(validating: "/my/sdk")
+    let source = try AbsolutePath(validating: "/my/source.swift")
 
     let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(swiftCompilerFlags: [
       "-sdk",
@@ -107,9 +107,9 @@ final class FallbackBuildSystemTests: XCTestCase {
     ])
   }
 
-  func testCXX() {
-    let sdk =  AbsolutePath("/my/sdk")
-    let source = AbsolutePath("/my/source.cpp")
+  func testCXX() throws {
+    let sdk = try AbsolutePath(validating: "/my/sdk")
+    let source = try AbsolutePath(validating: "/my/source.cpp")
 
     let bs = FallbackBuildSystem(buildSetup: .default)
     bs.sdkpath = sdk
@@ -131,9 +131,9 @@ final class FallbackBuildSystemTests: XCTestCase {
     ])
   }
 
-  func testCXXWithCustomFlags() {
-    let sdk =  AbsolutePath("/my/sdk")
-    let source = AbsolutePath("/my/source.cpp")
+  func testCXXWithCustomFlags() throws {
+    let sdk = try AbsolutePath(validating: "/my/sdk")
+    let source = try AbsolutePath(validating: "/my/source.cpp")
 
     let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(cxxCompilerFlags: [
       "-v"
@@ -156,9 +156,9 @@ final class FallbackBuildSystemTests: XCTestCase {
     ])
   }
 
-  func testCXXWithCustomIsysroot() {
-    let sdk =  AbsolutePath("/my/sdk")
-    let source = AbsolutePath("/my/source.cpp")
+  func testCXXWithCustomIsysroot() throws {
+    let sdk = try AbsolutePath(validating: "/my/sdk")
+    let source = try AbsolutePath(validating: "/my/source.cpp")
 
     let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(cxxCompilerFlags: [
       "-isysroot",
@@ -185,8 +185,8 @@ final class FallbackBuildSystemTests: XCTestCase {
     ])
   }
 
-  func testC() {
-    let source = AbsolutePath("/my/source.c")
+  func testC() throws {
+    let source = try AbsolutePath(validating: "/my/source.c")
     let bs = FallbackBuildSystem(buildSetup: .default)
     bs.sdkpath = nil
     XCTAssertEqual(bs.settings(for: source.asURI, .c)?.compilerArguments, [
@@ -194,8 +194,8 @@ final class FallbackBuildSystemTests: XCTestCase {
     ])
   }
 
-  func testCWithCustomFlags() {
-    let source = AbsolutePath("/my/source.c")
+  func testCWithCustomFlags() throws {
+    let source = try AbsolutePath(validating: "/my/source.c")
 
     let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(cCompilerFlags: [
       "-v"
@@ -208,8 +208,8 @@ final class FallbackBuildSystemTests: XCTestCase {
     ])
   }
 
-  func testObjC() {
-    let source = AbsolutePath("/my/source.m")
+  func testObjC() throws {
+    let source = try AbsolutePath(validating: "/my/source.m")
     let bs = FallbackBuildSystem(buildSetup: .default)
     bs.sdkpath = nil
     XCTAssertEqual(bs.settings(for: source.asURI, .objective_c)?.compilerArguments, [
@@ -217,8 +217,8 @@ final class FallbackBuildSystemTests: XCTestCase {
     ])
   }
 
-  func testObjCXX() {
-    let source = AbsolutePath("/my/source.mm")
+  func testObjCXX() throws {
+    let source = try AbsolutePath(validating: "/my/source.mm")
     let bs = FallbackBuildSystem(buildSetup: .default)
     bs.sdkpath = nil
     XCTAssertEqual(bs.settings(for: source.asURI, .objective_cpp)?.compilerArguments, [
@@ -226,8 +226,8 @@ final class FallbackBuildSystemTests: XCTestCase {
     ])
   }
 
-  func testUnknown() {
-    let source = AbsolutePath("/my/source.mm")
+  func testUnknown() throws {
+    let source = try AbsolutePath(validating: "/my/source.mm")
     let bs = FallbackBuildSystem(buildSetup: .default)
     XCTAssertNil(bs.settings(for: source.asURI, Language(rawValue: "unknown")))
   }

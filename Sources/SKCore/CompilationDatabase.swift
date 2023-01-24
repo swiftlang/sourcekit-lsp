@@ -162,7 +162,7 @@ public struct JSONCompilationDatabase: CompilationDatabase, Equatable {
     let url = command.url
     pathToCommands[url, default: []].append(commands.count)
 
-    let canonical = URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(url.path)).pathString)
+    let canonical = URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: url.path)).pathString)
     if canonical != url {
       pathToCommands[canonical, default: []].append(commands.count)
     }

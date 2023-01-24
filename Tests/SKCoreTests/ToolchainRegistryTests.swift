@@ -51,13 +51,13 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
   }
 
-  func testUnknownPlatform() {
+  func testUnknownPlatform() throws {
     let prevPlatform = Platform.current
     defer { Platform.current = prevPlatform }
     Platform.current = nil
 
     let fs = InMemoryFileSystem()
-    let binPath = AbsolutePath("/foo/bar/my_toolchain/bin")
+    let binPath = try AbsolutePath(validating: "/foo/bar/my_toolchain/bin")
     makeToolchain(binPath: binPath, fs, sourcekitdInProc: true)
 
     guard let t = Toolchain(binPath, fs) else {
@@ -67,7 +67,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNotNil(t.sourcekitd)
   }
 
-  func testSearchDarwin() {
+  func testSearchDarwin() throws {
 // FIXME: requires PropertyListEncoder
 #if os(macOS)
     let fs = InMemoryFileSystem()
@@ -145,12 +145,12 @@ final class ToolchainRegistryTests: XCTestCase {
     makeXCToolchain(
       identifier: "org.fake.global.A",
       opensource: true,
-      AbsolutePath("/Library/Developer/Toolchains/A.xctoolchain"), fs,
+      try AbsolutePath(validating: "/Library/Developer/Toolchains/A.xctoolchain"), fs,
       sourcekitd: true)
     makeXCToolchain(
       identifier: "org.fake.global.B",
       opensource: true,
-      AbsolutePath(expandingTilde: "~/Library/Developer/Toolchains/B.xctoolchain"), fs,
+      try AbsolutePath(expandingTilde: "~/Library/Developer/Toolchains/B.xctoolchain"), fs,
       sourcekitd: true)
 
     tr.scanForToolchains(fs)
@@ -190,10 +190,10 @@ final class ToolchainRegistryTests: XCTestCase {
 #endif
   }
 
-  func testSearchPATH() {
+  func testSearchPATH() throws {
     let fs = InMemoryFileSystem()
     let tr = ToolchainRegistry(fs)
-    let binPath = AbsolutePath("/foo/bar/my_toolchain/bin")
+    let binPath = try AbsolutePath(validating: "/foo/bar/my_toolchain/bin")
     makeToolchain(binPath: binPath, fs, sourcekitd: true)
 
     XCTAssertNil(tr.default)
@@ -223,7 +223,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNotNil(tc.sourcekitd)
     XCTAssertNil(tc.libIndexStore)
 
-    let binPath2 = AbsolutePath("/other/my_toolchain/bin")
+    let binPath2 = try AbsolutePath(validating: "/other/my_toolchain/bin")
     try! ProcessEnv.setVar("SOME_TEST_ENV_PATH", value: ["/bogus", binPath2.pathString, "bogus2"].joined(separator: separator))
     makeToolchain(binPath: binPath2, fs, sourcekitd: true)
     tr.scanForToolchains(pathVariables: ["NOPE", "SOME_TEST_ENV_PATH", "MORE_NOPE"], fs)
@@ -238,10 +238,10 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNotNil(tc2.sourcekitd)
   }
 
-  func testSearchExplicitEnvBuiltin() {
+  func testSearchExplicitEnvBuiltin() throws {
     let fs = InMemoryFileSystem()
     let tr = ToolchainRegistry(fs)
-    let binPath = AbsolutePath("/foo/bar/my_toolchain/bin")
+    let binPath = try AbsolutePath(validating: "/foo/bar/my_toolchain/bin")
     makeToolchain(binPath: binPath, fs, sourcekitd: true)
 
     XCTAssertNil(tr.default)
@@ -265,10 +265,10 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tc.libIndexStore)
   }
 
-  func testSearchExplicitEnv() {
+  func testSearchExplicitEnv() throws {
     let fs = InMemoryFileSystem()
     let tr = ToolchainRegistry(fs)
-    let binPath = AbsolutePath("/foo/bar/my_toolchain/bin")
+    let binPath = try AbsolutePath(validating: "/foo/bar/my_toolchain/bin")
     makeToolchain(binPath: binPath, fs, sourcekitd: true)
 
     XCTAssertNil(tr.default)
@@ -350,9 +350,9 @@ final class ToolchainRegistryTests: XCTestCase {
     }
   }
 
-  func testDylibNames() {
+  func testDylibNames() throws {
     let fs = InMemoryFileSystem()
-    let binPath = AbsolutePath("/foo/bar/my_toolchain/bin")
+    let binPath = try AbsolutePath(validating: "/foo/bar/my_toolchain/bin")
     makeToolchain(binPath: binPath, fs, sourcekitdInProc: true, libIndexStore: true)
     guard let t = Toolchain(binPath, fs) else {
       XCTFail("could not find any tools")
@@ -362,21 +362,21 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNotNil(t.libIndexStore)
   }
 
-  func testSubDirs() {
+  func testSubDirs() throws {
     let fs = InMemoryFileSystem()
-    makeToolchain(binPath: AbsolutePath("/t1/bin"), fs, sourcekitd: true)
-    makeToolchain(binPath: AbsolutePath("/t2/usr/bin"), fs, sourcekitd: true)
+    makeToolchain(binPath: try AbsolutePath(validating: "/t1/bin"), fs, sourcekitd: true)
+    makeToolchain(binPath: try AbsolutePath(validating: "/t2/usr/bin"), fs, sourcekitd: true)
 
-    XCTAssertNotNil(Toolchain(AbsolutePath("/t1"), fs))
-    XCTAssertNotNil(Toolchain(AbsolutePath("/t1/bin"), fs))
-    XCTAssertNotNil(Toolchain(AbsolutePath("/t2"), fs))
+    XCTAssertNotNil(Toolchain(try AbsolutePath(validating: "/t1"), fs))
+    XCTAssertNotNil(Toolchain(try AbsolutePath(validating: "/t1/bin"), fs))
+    XCTAssertNotNil(Toolchain(try AbsolutePath(validating: "/t2"), fs))
 
-    XCTAssertNil(Toolchain(AbsolutePath("/t3"), fs))
-    try! fs.createDirectory(AbsolutePath("/t3/bin"), recursive: true)
-    try! fs.createDirectory(AbsolutePath("/t3/lib/sourcekitd.framework"), recursive: true)
-    XCTAssertNil(Toolchain(AbsolutePath("/t3"), fs))
-    makeToolchain(binPath: AbsolutePath("/t3/bin"), fs, sourcekitd: true)
-    XCTAssertNotNil(Toolchain(AbsolutePath("/t3"), fs))
+    XCTAssertNil(Toolchain(try AbsolutePath(validating: "/t3"), fs))
+    try fs.createDirectory(try AbsolutePath(validating: "/t3/bin"), recursive: true)
+    try fs.createDirectory(try AbsolutePath(validating: "/t3/lib/sourcekitd.framework"), recursive: true)
+    XCTAssertNil(Toolchain(try AbsolutePath(validating: "/t3"), fs))
+    makeToolchain(binPath: try AbsolutePath(validating: "/t3/bin"), fs, sourcekitd: true)
+    XCTAssertNotNil(Toolchain(try AbsolutePath(validating: "/t3"), fs))
   }
 
   func testDuplicateError() {
@@ -392,9 +392,9 @@ final class ToolchainRegistryTests: XCTestCase {
     }
   }
 
-  func testDuplicatePathError() {
+  func testDuplicatePathError() throws {
     let tr = ToolchainRegistry()
-    let path = AbsolutePath("/foo/bar")
+    let path = try AbsolutePath(validating: "/foo/bar")
     let first = Toolchain(identifier: "a", displayName: "a", path: path)
     let second = Toolchain(identifier: "b", displayName: "b", path: path)
     XCTAssertNoThrow(try tr.registerToolchain(first), "Error registering toolchain")
@@ -407,11 +407,11 @@ final class ToolchainRegistryTests: XCTestCase {
     }
   }
 
-  func testDuplicateXcodeError() {
+  func testDuplicateXcodeError() throws {
     let tr = ToolchainRegistry()
     let xcodeToolchain = Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
                                    displayName: "a",
-                                   path: AbsolutePath("/versionA"))
+                                   path: try AbsolutePath(validating: "/versionA"))
     XCTAssertNoThrow(try tr.registerToolchain(xcodeToolchain), "Error registering toolchain")
     XCTAssertThrowsError(try tr.registerToolchain(xcodeToolchain),
                          "Expected error registering toolchain twice") { e in
@@ -422,13 +422,13 @@ final class ToolchainRegistryTests: XCTestCase {
     }
   }
 
-  func testMultipleXcodes() {
+  func testMultipleXcodes() throws {
     let tr = ToolchainRegistry()
-    let pathA = AbsolutePath("/versionA")
+    let pathA = try AbsolutePath(validating: "/versionA")
     let xcodeA = Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
                            displayName: "a",
                            path: pathA)
-    let pathB = AbsolutePath("/versionB")
+    let pathB = try AbsolutePath(validating: "/versionB")
     let xcodeB = Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
                            displayName: "b",
                            path: pathB)
@@ -443,34 +443,34 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssert(toolchains[1] === xcodeB)
   }
 
-  func testInstallPath() {
+  func testInstallPath() throws {
     let fs = InMemoryFileSystem()
-    makeToolchain(binPath: AbsolutePath("/t1/bin"), fs, sourcekitd: true)
+    makeToolchain(binPath: try AbsolutePath(validating: "/t1/bin"), fs, sourcekitd: true)
 
     let trEmpty = ToolchainRegistry(installPath: nil, fs)
     XCTAssertNil(trEmpty.default)
 
-    let tr1 = ToolchainRegistry(installPath: AbsolutePath("/t1/bin"), fs)
-    XCTAssertEqual(tr1.default?.path, AbsolutePath("/t1/bin"))
+    let tr1 = ToolchainRegistry(installPath: try AbsolutePath(validating: "/t1/bin"), fs)
+    XCTAssertEqual(tr1.default?.path, try AbsolutePath(validating: "/t1/bin"))
     XCTAssertNotNil(tr1.default?.sourcekitd)
 
-    let tr2 = ToolchainRegistry(installPath: AbsolutePath("/t2/bin"), fs)
+    let tr2 = ToolchainRegistry(installPath: try AbsolutePath(validating: "/t2/bin"), fs)
     XCTAssertNil(tr2.default)
   }
 
-  func testInstallPathVsEnv() {
+  func testInstallPathVsEnv() throws {
     let fs = InMemoryFileSystem()
-    makeToolchain(binPath: AbsolutePath("/t1/bin"), fs, sourcekitd: true)
-    makeToolchain(binPath: AbsolutePath("/t2/bin"), fs, sourcekitd: true)
+    makeToolchain(binPath: try AbsolutePath(validating: "/t1/bin"), fs, sourcekitd: true)
+    makeToolchain(binPath: try AbsolutePath(validating: "/t2/bin"), fs, sourcekitd: true)
 
     try! ProcessEnv.setVar("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: "/t2/bin")
 
     let tr = ToolchainRegistry()
-    tr.scanForToolchains(installPath: AbsolutePath("/t1/bin"), environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"], fs)
+    tr.scanForToolchains(installPath: try AbsolutePath(validating: "/t1/bin"), environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"], fs)
     XCTAssertEqual(tr.toolchains.count, 2)
 
     // Env variable wins.
-    XCTAssertEqual(tr.default?.path, AbsolutePath("/t2/bin"))
+    XCTAssertEqual(tr.default?.path, try AbsolutePath(validating: "/t2/bin"))
   }
 }
 
