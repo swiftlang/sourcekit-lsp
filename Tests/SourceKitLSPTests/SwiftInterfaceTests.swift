@@ -13,6 +13,7 @@
 import Foundation
 import LanguageServerProtocol
 import LSPTestSupport
+import LSPLogging
 import SKTestSupport
 import SourceKitLSP
 import XCTest
@@ -55,6 +56,17 @@ final class SwiftInterfaceTests: XCTestCase {
   }
   
   func testSystemModuleInterface() throws {
+    // This test is failing non-deterministically in CI becaue the file contents
+    // of the generated interface just contain a newline.
+    // I cannot reproduce the failure locally. Add some logging to determine
+    // whether the issue is sourcekitd not returning an empty generated
+    // interface or something around how the file is handled.
+    // Remove this lowering of the log level once we have determined what the
+    // issue is (rdar://104871745).
+    let previousLogLevel = Logger.shared.currentLevel
+    defer { Logger.shared.setLogLevel(previousLogLevel.description) }
+    Logger.shared.setLogLevel("debug")
+
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
