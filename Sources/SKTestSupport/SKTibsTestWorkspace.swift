@@ -21,6 +21,7 @@ import XCTest
 import Foundation
 import LSPTestSupport
 
+import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
 import struct PackageModel.BuildFlags
 

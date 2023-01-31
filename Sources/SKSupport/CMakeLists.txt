@@ -4,7 +4,6 @@ add_library(SKSupport STATIC
   ByteString.swift
   FileSystem.swift
   LineTable.swift
-  Platform.swift
   Random.swift
   Result.swift
   dlopen.swift)
