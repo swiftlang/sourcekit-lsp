@@ -25,7 +25,7 @@ import var TSCBasic.localFileSystem
 /// toolchain, such as the contents from `/usr/bin`.
 public final class Toolchain {
 
-  /// The unique toolchain identifer.
+  /// The unique toolchain identifier.
   ///
   /// For an xctoolchain, this is a reverse domain name e.g. "com.apple.dt.toolchain.XcodeDefault".
   /// Otherwise, it is typically derived from `path`.

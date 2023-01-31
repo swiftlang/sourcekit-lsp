@@ -23,7 +23,7 @@ import struct TSCBasic.FileSystemError
 /// A helper type for decoding the Info.plist or ToolchainInfo.plist file from an .xctoolchain.
 public struct XCToolchainPlist {
 
-  /// The toolchain identifer e.g. "com.apple.dt.toolchain.XcodeDefault".
+  /// The toolchain identifier e.g. "com.apple.dt.toolchain.XcodeDefault".
   public var identifier: String
 
   /// The toolchain's human-readable name.
