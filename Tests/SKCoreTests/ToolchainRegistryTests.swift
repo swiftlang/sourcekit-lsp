@@ -15,6 +15,8 @@ import SKSupport
 import TSCBasic
 import XCTest
 
+import enum PackageLoading.Platform
+
 final class ToolchainRegistryTests: XCTestCase {
   func testDefaultBasic() {
     let tr = ToolchainRegistry()

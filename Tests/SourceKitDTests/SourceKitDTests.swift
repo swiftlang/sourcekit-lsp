@@ -20,6 +20,7 @@ import ISDBTestSupport
 import Foundation
 import XCTest
 
+import enum PackageLoading.Platform
 import class TSCBasic.Process
 
 final class SourceKitDTests: XCTestCase {

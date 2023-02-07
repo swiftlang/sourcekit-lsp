@@ -14,6 +14,7 @@ import LanguageServerProtocol
 import LSPLogging
 import SKSupport
 
+import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 import var TSCBasic.localFileSystem

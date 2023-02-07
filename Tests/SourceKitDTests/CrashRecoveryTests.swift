@@ -20,6 +20,8 @@ import SKSupport
 import SKTestSupport
 import XCTest
 
+import enum PackageLoading.Platform
+
 fileprivate extension HoverResponse {
   func contains(string: String) -> Bool {
     switch self.contents {

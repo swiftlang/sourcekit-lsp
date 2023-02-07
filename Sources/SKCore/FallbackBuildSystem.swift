@@ -16,6 +16,7 @@ import SKSupport
 import Foundation
 import Dispatch
 
+import enum PackageLoading.Platform
 import class TSCBasic.Process
 import struct TSCBasic.AbsolutePath
 
