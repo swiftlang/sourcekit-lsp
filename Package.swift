@@ -65,7 +65,6 @@ let package = Package(
           "LSPTestSupport",
           "SourceKitLSP",
           .product(name: "ISDBTestSupport", package: "IndexStoreDB"),
-          .product(name: "tibs", package: "IndexStoreDB"), // Never imported, needed at runtime
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         ], 
         resources: [
