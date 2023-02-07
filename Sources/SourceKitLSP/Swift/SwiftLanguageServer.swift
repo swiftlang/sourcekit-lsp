@@ -1083,7 +1083,7 @@ extension SwiftLanguageServer {
             end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
         }
 
-        override func visit(_ node: SwitchStmtSyntax) -> SyntaxVisitorContinueKind {
+        override func visit(_ node: SwitchExprSyntax) -> SyntaxVisitorContinueKind {
           return self.addFoldingRange(
             start: node.cases.position.utf8Offset,
             end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
