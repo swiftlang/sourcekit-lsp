@@ -1,4 +1,4 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.5
 
 import PackageDescription
 
@@ -28,7 +28,7 @@ let package = Package(
       // See 'Dependencies' below.
     ],
     targets: [
-      .target(
+      .executableTarget(
         name: "sourcekit-lsp",
         dependencies: [
           "LanguageServerProtocolJSONRPC",
@@ -65,7 +65,6 @@ let package = Package(
           "LSPTestSupport",
           "SourceKitLSP",
           .product(name: "ISDBTestSupport", package: "IndexStoreDB"),
-          .product(name: "tibs", package: "IndexStoreDB"), // Never imported, needed at runtime
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         ], 
         resources: [
