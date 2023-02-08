@@ -1,6 +1,6 @@
 
 add_executable(sourcekit-lsp
-  main.swift)
+  SourceKitLSP.swift)
 target_link_libraries(sourcekit-lsp PRIVATE
   ArgumentParser
   LanguageServerProtocolJSONRPC
