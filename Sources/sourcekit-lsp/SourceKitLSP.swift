@@ -54,7 +54,6 @@ extension PathPrefixMapping: ExpressibleByArgument {
 extension LogLevel: ExpressibleByArgument {}
 extension BuildConfiguration: ExpressibleByArgument {}
 
-@main
 struct SourceKitLSP: ParsableCommand {
   static let configuration = CommandConfiguration(
     abstract: "Language Server Protocol implementation for Swift and C-based languages"
@@ -210,3 +209,5 @@ struct SourceKitLSP: ParsableCommand {
     dispatchMain()
   }
 }
+
+SourceKitLSP.main()
