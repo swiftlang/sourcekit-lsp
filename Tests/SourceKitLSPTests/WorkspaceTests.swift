@@ -96,8 +96,8 @@ final class WorkspaceTests: XCTestCase {
     ])
   }
 
-  func testMultipleClangdWorkspaces() {
-    guard let ws = try! staticSourceKitTibsWorkspace(name: "ClangModules") else { return }
+  func testMultipleClangdWorkspaces() throws {
+    guard let ws = try staticSourceKitTibsWorkspace(name: "ClangModules") else { return }
 
     let loc = ws.testLoc("main_file")
 
@@ -108,15 +108,15 @@ final class WorkspaceTests: XCTestCase {
       expectation.fulfill()
     }
 
-    try! ws.openDocument(loc.url, language: .objective_c)
+    try ws.openDocument(loc.url, language: .objective_c)
 
     waitForExpectations(timeout: defaultTimeout)
 
-    let otherWs = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings", server: ws.testServer)!
+    let otherWs = try staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings", server: ws.testServer)!
     assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
     let otherLoc = otherWs.testLoc("loc")
 
-    try! otherWs.openDocument(otherLoc.url, language: .cpp)
+    try otherWs.openDocument(otherLoc.url, language: .cpp)
 
     // Do a sanity check and verify that we get the expected result from a hover response before crashing clangd.
 
@@ -126,7 +126,7 @@ final class WorkspaceTests: XCTestCase {
     ]
 
     let highlightRequest = DocumentHighlightRequest(textDocument: otherLoc.docIdentifier, position: Position(line: 9, utf16index: 3))
-    let highlightResponse = try! otherWs.sk.sendSync(highlightRequest)
+    let highlightResponse = try otherWs.sk.sendSync(highlightRequest)
     XCTAssertEqual(highlightResponse, expectedHighlightResponse)
   }
 

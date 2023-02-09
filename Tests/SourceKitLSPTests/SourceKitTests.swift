@@ -102,9 +102,9 @@ final class SKTests: XCTestCase {
 
     let call = ws.testLoc("aaa:call")
     XCTAssertEqual(Set(refs), [
-      Location(TestLocation(url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(locDef.url.path)).pathString), line: locDef.line, utf8Column: locDef.utf8Column, utf16Column: locDef.utf16Column)),
-      Location(TestLocation(url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(locRef.url.path)).pathString), line: locRef.line, utf8Column: locRef.utf8Column, utf16Column: locRef.utf16Column)),
-      Location(TestLocation(url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(call.url.path)).pathString), line: call.line, utf8Column: call.utf8Column, utf16Column: call.utf16Column)),
+      Location(TestLocation(url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: locDef.url.path)).pathString), line: locDef.line, utf8Column: locDef.utf8Column, utf16Column: locDef.utf16Column)),
+      Location(TestLocation(url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: locRef.url.path)).pathString), line: locRef.line, utf8Column: locRef.utf8Column, utf16Column: locRef.utf16Column)),
+      Location(TestLocation(url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: call.url.path)).pathString), line: call.line, utf8Column: call.utf8Column, utf16Column: call.utf16Column)),
     ])
   }
 

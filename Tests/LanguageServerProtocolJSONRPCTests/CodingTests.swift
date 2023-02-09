@@ -215,7 +215,7 @@ final class CodingTests: XCTestCase {
   }
 
   // SR-16095
-  func testDecodeShutdownWithoutParams() {
+  func testDecodeShutdownWithoutParams() throws {
     let json = """
       {
         "id" : 1,
@@ -226,7 +226,7 @@ final class CodingTests: XCTestCase {
 
     let decoder = JSONDecoder()
     decoder.userInfo = defaultCodingInfo
-    let decodedValue = try! decoder.decode(JSONRPCMessage.self, from: json.data(using: .utf8)!)
+    let decodedValue = try decoder.decode(JSONRPCMessage.self, from: json.data(using: .utf8)!)
 
     guard case JSONRPCMessage.request(let decodedValueOpaque, let decodedID) = decodedValue, let decodedRequest = decodedValueOpaque as? ShutdownRequest else {
       XCTFail("decodedValue \(decodedValue) is not a ShutdownRequest")

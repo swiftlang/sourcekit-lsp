@@ -83,7 +83,10 @@ extension ToolchainRegistry {
   /// let tr = ToolchainRegistry()
   /// tr.scanForToolchains()
   /// ```
-  public convenience init(installPath: AbsolutePath? = nil, _ fileSystem: FileSystem) {
+  public convenience init(
+    installPath: AbsolutePath? = nil, 
+    _ fileSystem: FileSystem
+  ) {
     self.init()
     scanForToolchains(installPath: installPath, fileSystem)
   }
@@ -236,13 +239,15 @@ extension ToolchainRegistry {
     installPath: AbsolutePath? = nil,
     environmentVariables: [String] = ["SOURCEKIT_TOOLCHAIN_PATH"],
     xcodes: [AbsolutePath] = [currentXcodeDeveloperPath].compactMap({$0}),
-    xctoolchainSearchPaths: [AbsolutePath] = [
-      AbsolutePath(expandingTilde: "~/Library/Developer/Toolchains"),
-      AbsolutePath("/Library/Developer/Toolchains"),
-    ],
+    xctoolchainSearchPaths: [AbsolutePath]? = nil,
     pathVariables: [String] = ["SOURCEKIT_PATH", "PATH", "Path"],
-    _ fileSystem: FileSystem)
-  {
+    _ fileSystem: FileSystem
+  ) {
+    let xctoolchainSearchPaths = try! xctoolchainSearchPaths ?? [
+      AbsolutePath(expandingTilde: "~/Library/Developer/Toolchains"),
+      AbsolutePath(validating: "/Library/Developer/Toolchains"),
+    ]
+
     queue.sync {
       _scanForToolchains(environmentVariables: environmentVariables, setDefault: true, fileSystem)
       if let installPath = installPath,

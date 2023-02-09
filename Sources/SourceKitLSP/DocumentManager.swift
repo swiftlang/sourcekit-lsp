@@ -236,7 +236,7 @@ extension DocumentManager {
     return orLog("failed to edit document", level: .error) {
       try edit(
         note.textDocument.uri,
-        newVersion: note.textDocument.version ?? -1,
+        newVersion: note.textDocument.version,
         edits: note.contentChanges,
         willEditDocument: willEditDocument,
         updateDocumentTokens: updateDocumentTokens

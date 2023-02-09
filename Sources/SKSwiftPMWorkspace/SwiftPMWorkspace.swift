@@ -352,7 +352,14 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     }
     switch event.type {
     case .created, .deleted:
-      return self.workspace.fileAffectsSwiftOrClangBuildSettings(filePath: AbsolutePath(fileURL.path), packageGraph: self.packageGraph)
+      guard let path = try? AbsolutePath(validating: fileURL.path) else {
+        return false
+      }
+
+      return self.workspace.fileAffectsSwiftOrClangBuildSettings(
+        filePath: path, 
+        packageGraph: self.packageGraph
+      )
     case .changed:
       return fileURL.lastPathComponent == "Package.swift"
     default: // Unknown file change type
@@ -376,7 +383,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
       return .unhandled
     }
     return self.queue.sync {
-      if (try? targetDescription(for: AbsolutePath(fileUrl.path))) != nil {
+      if (try? targetDescription(for: AbsolutePath(validating: fileUrl.path))) != nil {
         return .handled
       } else {
         return .unhandled
@@ -493,8 +500,8 @@ extension SwiftPMWorkspace {
     var args = try td.basicArguments()
 
     let nativePath: AbsolutePath =
-        URL(fileURLWithPath: path.pathString).withUnsafeFileSystemRepresentation {
-          AbsolutePath(String(cString: $0!))
+        try URL(fileURLWithPath: path.pathString).withUnsafeFileSystemRepresentation {
+          try AbsolutePath(validating: String(cString: $0!))
         }
     let compilePath = try td.compilePaths().first(where: { $0.source == nativePath })
     if let compilePath = compilePath {

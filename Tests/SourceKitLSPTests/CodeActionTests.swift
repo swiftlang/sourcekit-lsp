@@ -38,7 +38,7 @@ final class CodeActionTests: XCTestCase {
     return try staticSourceKitTibsWorkspace(name: "SemanticRefactor", clientCapabilities: capabilities)
   }
 
-  func testCodeActionResponseLegacySupport() {
+  func testCodeActionResponseLegacySupport() throws {
     let command = Command(title: "Title", command: "Command", arguments: [1, "text", 2.2, nil])
     let codeAction = CodeAction(title: "1")
     let codeAction2 = CodeAction(title: "2", command: command)
@@ -59,10 +59,10 @@ final class CodeActionTests: XCTestCase {
      }
     """
     data = capabilityJson.data(using: .utf8)!
-    capabilities = try! JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
+    capabilities = try JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
                                              from: data)
     response = .init(codeActions: [codeAction, codeAction2], clientCapabilities: capabilities)
-    let actions = try! JSONDecoder().decode([CodeAction].self, from: JSONEncoder().encode(response))
+    let actions = try JSONDecoder().decode([CodeAction].self, from: JSONEncoder().encode(response))
     XCTAssertEqual(actions, [codeAction, codeAction2])
 
     capabilityJson =
@@ -72,14 +72,14 @@ final class CodeActionTests: XCTestCase {
     }
     """
     data = capabilityJson.data(using: .utf8)!
-    capabilities = try! JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
+    capabilities = try JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
                                              from: data)
     response = .init(codeActions: [codeAction, codeAction2], clientCapabilities: capabilities)
-    let commands = try! JSONDecoder().decode([Command].self, from: JSONEncoder().encode(response))
+    let commands = try JSONDecoder().decode([Command].self, from: JSONEncoder().encode(response))
     XCTAssertEqual(commands, [command])
   }
 
-  func testCodeActionResponseIgnoresSupportedKinds() {
+  func testCodeActionResponseIgnoresSupportedKinds() throws {
     // The client guarantees that unsupported kinds will be handled, and in
     // practice some clients use `"codeActionKind":{"valueSet":[]}`, since
     // they support all kinds anyway. So to avoid filtering all actions, we
@@ -106,7 +106,7 @@ final class CodeActionTests: XCTestCase {
     }
     """
     data = capabilityJson.data(using: .utf8)!
-    capabilities = try! JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
+    capabilities = try JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
                                              from: data)
 
     response = .init(codeActions: actions, clientCapabilities: capabilities)
@@ -124,20 +124,20 @@ final class CodeActionTests: XCTestCase {
     }
     """
     data = capabilityJson.data(using: .utf8)!
-    capabilities = try! JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
+    capabilities = try JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
                                              from: data)
 
     response = .init(codeActions: actions, clientCapabilities: capabilities)
     XCTAssertEqual(response, .codeActions([unspecifiedAction, refactorAction, quickfixAction]))
   }
 
-  func testCodeActionResponseCommandMetadataInjection() {
+  func testCodeActionResponseCommandMetadataInjection() throws {
     let url = URL(fileURLWithPath: "/a.swift")
     let textDocument = TextDocumentIdentifier(url)
-    let expectedMetadata: LSPAny = {
+    let expectedMetadata: LSPAny = try {
       let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
-      let data = try! JSONEncoder().encode(metadata)
-      return try! JSONDecoder().decode(LSPAny.self, from: data)
+      let data = try JSONEncoder().encode(metadata)
+      return try JSONDecoder().decode(LSPAny.self, from: data)
     }()
     XCTAssertEqual(expectedMetadata, .dictionary(["sourcekitlsp_textDocument": ["uri": "file:///a.swift"]]))
     let command = Command(title: "Title", command: "Command", arguments: [1, "text", 2.2, nil])
@@ -167,12 +167,12 @@ final class CodeActionTests: XCTestCase {
     XCTAssertNil(response)
   }
 
-  func testCommandEncoding() {
+  func testCommandEncoding() throws {
     let dictionary: LSPAny = ["1": [nil, 2], "2": "text", "3": ["4": [1, 2]]]
     let array: LSPAny = [1, [2,"string"], dictionary]
     let arguments: LSPAny = [1, 2.2, "text", nil, array, dictionary]
     let command = Command(title: "Command", command: "command.id", arguments: [arguments, arguments])
-    let decoded = try! JSONDecoder().decode(Command.self, from: JSONEncoder().encode(command))
+    let decoded = try JSONDecoder().decode(Command.self, from: JSONEncoder().encode(command))
     XCTAssertEqual(decoded, command)
   }
 

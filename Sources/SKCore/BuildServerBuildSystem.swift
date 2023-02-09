@@ -117,7 +117,7 @@ public final class BuildServerBuildSystem {
   }
 
   private func initializeBuildServer() throws {
-    var serverPath = AbsolutePath(serverConfig.argv[0], relativeTo: projectRoot)
+    var serverPath = try AbsolutePath(validating: serverConfig.argv[0], relativeTo: projectRoot)
     var flags = Array(serverConfig.argv[1...])
     if serverPath.suffix == ".py" {
       flags = [serverPath.pathString] + flags
@@ -154,10 +154,10 @@ public final class BuildServerBuildSystem {
 
     // see if index store was set as part of the server metadata
     if let indexDbPath = readReponseDataKey(data: response.data, key: "indexDatabasePath") {
-      self.indexDatabasePath = AbsolutePath(indexDbPath, relativeTo: self.projectRoot)
+      self.indexDatabasePath = try AbsolutePath(validating: indexDbPath, relativeTo: self.projectRoot)
     }
     if let indexStorePath = readReponseDataKey(data: response.data, key: "indexStorePath") {
-      self.indexStorePath = AbsolutePath(indexStorePath, relativeTo: self.projectRoot)
+      self.indexStorePath = try AbsolutePath(validating: indexStorePath, relativeTo: self.projectRoot)
     }
     self.buildServer = buildServer
     self.handler = handler
@@ -270,13 +270,16 @@ extension BuildServerBuildSystem: BuildSystem {
   public func filesDidChange(_ events: [FileEvent]) {}
 
   public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    guard let fileUrl = uri.fileURL else {
+    guard 
+      let fileUrl = uri.fileURL, 
+      let path = try? AbsolutePath(validating: fileUrl.path) 
+    else {
       return .unhandled
     }
 
     // FIXME: We should not make any assumptions about which files the build server can handle.
     // Instead we should query the build server which files it can handle (#492).
-    let path = AbsolutePath(fileUrl.path)
+    
     if projectRoot.isAncestorOfOrEqual(to: path) {
       return .handled
     }

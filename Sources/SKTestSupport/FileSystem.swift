@@ -23,7 +23,7 @@ extension FileSystem {
   ///   - files: Dictionary from path (relative to root) to contents.
   public func createFiles(root: AbsolutePath = .root, files: [String: ByteString]) throws {
     for (path, contents) in files {
-      let path = AbsolutePath(path, relativeTo: root)
+      let path = try AbsolutePath(validating: path, relativeTo: root)
       try createDirectory(path.parentDirectory, recursive: true)
       try writeFileContents(path, bytes: contents)
     }

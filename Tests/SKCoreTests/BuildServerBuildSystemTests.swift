@@ -22,16 +22,22 @@ import XCTest
 final class BuildServerBuildSystemTests: XCTestCase {
 
   var root: AbsolutePath {
-    AbsolutePath(XCTestCase.sklspInputsDirectory
+    try! AbsolutePath(validating: XCTestCase.sklspInputsDirectory
       .appendingPathComponent(testDirectoryName, isDirectory: true).path)
   } 
-  let buildFolder = AbsolutePath(NSTemporaryDirectory())
+  let buildFolder = try! AbsolutePath(validating: NSTemporaryDirectory())
 
   func testServerInitialize() throws {
     let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
-    XCTAssertEqual(buildSystem.indexDatabasePath, AbsolutePath("some/index/db/path", relativeTo: root))
-    XCTAssertEqual(buildSystem.indexStorePath, AbsolutePath("some/index/store/path", relativeTo: root))
+    XCTAssertEqual(
+      buildSystem.indexDatabasePath,
+      try AbsolutePath(validating: "some/index/db/path", relativeTo: root)
+    )
+    XCTAssertEqual(
+      buildSystem.indexStorePath, 
+      try AbsolutePath(validating: "some/index/store/path", relativeTo: root)
+    )
   }
 
   func testSettings() throws {

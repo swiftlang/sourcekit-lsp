@@ -416,10 +416,13 @@ extension ClangLanguageServerShim {
 
     // The compile command changed, send over the new one.
     // FIXME: what should we do if we no longer have valid build settings?
-    if let compileCommand = clangBuildSettings?.compileCommand {
+    if 
+      let compileCommand = clangBuildSettings?.compileCommand,
+      let pathString = (try? AbsolutePath(validating: url.path))?.pathString 
+    {
       let note = DidChangeConfigurationNotification(settings: .clangd(
         ClangWorkspaceSettings(
-          compilationDatabaseChanges: [AbsolutePath(url.path).pathString: compileCommand])))
+          compilationDatabaseChanges: [pathString: compileCommand])))
       forwardNotificationToClangdOnQueue(note)
     }
   }
