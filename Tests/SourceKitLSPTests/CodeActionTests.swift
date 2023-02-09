@@ -134,7 +134,7 @@ final class CodeActionTests: XCTestCase {
   func testCodeActionResponseCommandMetadataInjection() throws {
     let url = URL(fileURLWithPath: "/a.swift")
     let textDocument = TextDocumentIdentifier(url)
-    let expectedMetadata: LSPAny = {
+    let expectedMetadata: LSPAny = try {
       let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
       let data = try JSONEncoder().encode(metadata)
       return try JSONDecoder().decode(LSPAny.self, from: data)
