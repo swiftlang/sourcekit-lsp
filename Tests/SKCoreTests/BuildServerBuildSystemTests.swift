@@ -22,10 +22,8 @@ import XCTest
 final class BuildServerBuildSystemTests: XCTestCase {
 
   var root: AbsolutePath {
-    get throws {
-      try AbsolutePath(validating: XCTestCase.sklspInputsDirectory
-        .appendingPathComponent(testDirectoryName, isDirectory: true).path)
-    }
+    try! AbsolutePath(validating: XCTestCase.sklspInputsDirectory
+      .appendingPathComponent(testDirectoryName, isDirectory: true).path)
   } 
   let buildFolder = try! AbsolutePath(validating: NSTemporaryDirectory())
 

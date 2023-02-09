@@ -18,15 +18,15 @@ import TSCBasic
 
 final class CompilationDatabaseTests: XCTestCase {
   func testModifyCompilationDatabase() throws {
-    let ws = try! mutableSourceKitTibsTestWorkspace(name: "ClangCrashRecoveryBuildSettings")!
+    let ws = try mutableSourceKitTibsTestWorkspace(name: "ClangCrashRecoveryBuildSettings")!
     let loc = ws.testLoc("loc")
 
-    try! ws.openDocument(loc.url, language: .cpp)
+    try ws.openDocument(loc.url, language: .cpp)
 
     // Do a sanity check and verify that we get the expected result from a hover response before modifing the compile commands.
 
     let highlightRequest = DocumentHighlightRequest(textDocument: loc.docIdentifier, position: Position(line: 9, utf16index: 3))
-    let preChangeHighlightResponse = try! ws.sk.sendSync(highlightRequest)
+    let preChangeHighlightResponse = try ws.sk.sendSync(highlightRequest)
     XCTAssertEqual(preChangeHighlightResponse, [
       DocumentHighlight(range: Position(line: 3, utf16index: 5)..<Position(line: 3, utf16index: 8), kind: .text),
       DocumentHighlight(range: Position(line: 9, utf16index: 2)..<Position(line: 9, utf16index: 5), kind: .text)
@@ -65,7 +65,7 @@ final class CompilationDatabaseTests: XCTestCase {
     // Updating the build settings takes a few seconds.
     // Send code completion requests every second until we receive correct results.
     for _ in 0..<30 {
-      let postChangeHighlightResponse = try! ws.sk.sendSync(highlightRequest)
+      let postChangeHighlightResponse = try ws.sk.sendSync(highlightRequest)
 
       if postChangeHighlightResponse == expectedPostEditHighlight {
         didReceiveCorrectHighlight = true

@@ -18,13 +18,13 @@ import XCTest
 import enum PackageLoading.Platform
 
 final class ToolchainRegistryTests: XCTestCase {
-  func testDefaultBasic() {
+  func testDefaultBasic() throws {
     let tr = ToolchainRegistry()
     XCTAssertNil(tr.default)
-    try! tr.registerToolchain(Toolchain(identifier: "a", displayName: "a", path: nil))
+    try tr.registerToolchain(Toolchain(identifier: "a", displayName: "a", path: nil))
     XCTAssertEqual(tr.default?.identifier, "a")
     let b = Toolchain(identifier: "b", displayName: "b", path: nil)
-    try! tr.registerToolchain(b)
+    try tr.registerToolchain(b)
     XCTAssertEqual(tr.default?.identifier, "a")
     tr.default = b
     XCTAssertEqual(tr.default?.identifier, "b")
@@ -33,7 +33,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssert(tr.default === tr.toolchain(identifier: "a"))
   }
 
-  func testDefaultDarwin() {
+  func testDefaultDarwin() throws {
     let prevPlatform = Platform.current
     defer { Platform.current = prevPlatform }
     Platform.current = .darwin
@@ -42,8 +42,8 @@ final class ToolchainRegistryTests: XCTestCase {
     tr.darwinToolchainOverride = nil
     XCTAssertNil(tr.default)
     let a = Toolchain(identifier: "a", displayName: "a", path: nil)
-    try! tr.registerToolchain(a)
-    try! tr.registerToolchain(Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier, displayName: "a", path: nil))
+    try tr.registerToolchain(a)
+    try tr.registerToolchain(Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier, displayName: "a", path: nil))
     XCTAssertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
     tr.default = a
     XCTAssertEqual(tr.default?.identifier, "a")
@@ -205,7 +205,7 @@ final class ToolchainRegistryTests: XCTestCase {
     let separator: String = ":"
 #endif
 
-    try! ProcessEnv.setVar("SOURCEKIT_PATH", value: ["/bogus", binPath.pathString, "/bogus2"].joined(separator: separator))
+    try ProcessEnv.setVar("SOURCEKIT_PATH", value: ["/bogus", binPath.pathString, "/bogus2"].joined(separator: separator))
     defer { try! ProcessEnv.setVar("SOURCEKIT_PATH", value: "") }
 
     tr.scanForToolchains(fs)
@@ -224,7 +224,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tc.libIndexStore)
 
     let binPath2 = try AbsolutePath(validating: "/other/my_toolchain/bin")
-    try! ProcessEnv.setVar("SOME_TEST_ENV_PATH", value: ["/bogus", binPath2.pathString, "bogus2"].joined(separator: separator))
+    try ProcessEnv.setVar("SOME_TEST_ENV_PATH", value: ["/bogus", binPath2.pathString, "bogus2"].joined(separator: separator))
     makeToolchain(binPath: binPath2, fs, sourcekitd: true)
     tr.scanForToolchains(pathVariables: ["NOPE", "SOME_TEST_ENV_PATH", "MORE_NOPE"], fs)
 
@@ -247,7 +247,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! ProcessEnv.setVar("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: binPath.parentDirectory.pathString)
+    try ProcessEnv.setVar("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: binPath.parentDirectory.pathString)
 
     tr.scanForToolchains(environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"], fs)
 
@@ -274,7 +274,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-    try! ProcessEnv.setVar("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2", value: binPath.parentDirectory.pathString)
+    try ProcessEnv.setVar("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2", value: binPath.parentDirectory.pathString)
 
     tr.scanForToolchains(
       environmentVariables: ["TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2"],
@@ -294,10 +294,10 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tc.libIndexStore)
   }
 
-  func testFromDirectory() {
+  func testFromDirectory() throws {
     // This test uses the real file system because the in-memory system doesn't support marking files executable.
     let fs = localFileSystem
-    try! withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
       let path = tempDir.appending(components: "A.xctoolchain", "usr")
       makeToolchain(
         binPath: path.appending(component: "bin"), fs,
@@ -307,7 +307,7 @@ final class ToolchainRegistryTests: XCTestCase {
         shouldChmod: false,
         sourcekitd: true)
 
-      try! fs.writeFileContents(path.appending(components: "bin", "other") , bytes: "")
+      try fs.writeFileContents(path.appending(components: "bin", "other") , bytes: "")
 
       let t1 = Toolchain(path.parentDirectory, fs)!
       XCTAssertNotNil(t1.sourcekitd)
@@ -341,7 +341,7 @@ final class ToolchainRegistryTests: XCTestCase {
       XCTAssertNotNil(t2.swiftc)
 
       let tr = ToolchainRegistry()
-      let t3 = try! tr.registerToolchain(path.parentDirectory, fs)
+      let t3 = try tr.registerToolchain(path.parentDirectory, fs)
       XCTAssertEqual(t3.identifier, t2.identifier)
       XCTAssertEqual(t3.sourcekitd, t2.sourcekitd)
       XCTAssertEqual(t3.clang, t2.clang)
@@ -463,7 +463,7 @@ final class ToolchainRegistryTests: XCTestCase {
     makeToolchain(binPath: try AbsolutePath(validating: "/t1/bin"), fs, sourcekitd: true)
     makeToolchain(binPath: try AbsolutePath(validating: "/t2/bin"), fs, sourcekitd: true)
 
-    try! ProcessEnv.setVar("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: "/t2/bin")
+    try ProcessEnv.setVar("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: "/t2/bin")
 
     let tr = ToolchainRegistry()
     tr.scanForToolchains(installPath: try AbsolutePath(validating: "/t1/bin"), environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"], fs)

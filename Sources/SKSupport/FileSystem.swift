@@ -16,9 +16,7 @@ import struct TSCBasic.AbsolutePath
 
 /// The home directory of the current user (same as returned by Foundation's `NSHomeDirectory` method).
 public var homeDirectoryForCurrentUser: AbsolutePath {
-  get throws {
-    return try AbsolutePath(validating: NSHomeDirectory())
-  }
+  try! AbsolutePath(validating: NSHomeDirectory())
 }
 
 extension AbsolutePath {

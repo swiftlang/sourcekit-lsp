@@ -182,15 +182,15 @@ final class CompilationDatabaseTests: XCTestCase {
       ]
       """)
 
-    XCTAssertNotNil(tryLoadCompilationDatabase(directory: try! AbsolutePath(validating: "/a"), fs))
+    XCTAssertNotNil(tryLoadCompilationDatabase(directory: try AbsolutePath(validating: "/a"), fs))
   }
 
-  func testFixedCompilationDatabase() {
+  func testFixedCompilationDatabase() throws {
     let fs = InMemoryFileSystem()
-    try! fs.createDirectory(try! AbsolutePath(validating: "/a"))
+    try fs.createDirectory(try! AbsolutePath(validating: "/a"))
     XCTAssertNil(tryLoadCompilationDatabase(directory: try! AbsolutePath(validating: "/a"), fs))
 
-    try! fs.writeFileContents(try! AbsolutePath(validating: "/a/compile_flags.txt"), bytes: """
+    try fs.writeFileContents(try! AbsolutePath(validating: "/a/compile_flags.txt"), bytes: """
       -xc++
       -I
       libwidget/include/
@@ -200,7 +200,7 @@ final class CompilationDatabaseTests: XCTestCase {
     XCTAssertNotNil(db)
 
     XCTAssertEqual(db![URL(fileURLWithPath: "/a/b")], [
-      CompilationDatabase.Command(directory: try! AbsolutePath(validating: "/a").pathString,
+      CompilationDatabase.Command(directory: try AbsolutePath(validating: "/a").pathString,
                                   filename: "/a/b",
                                   commandLine: ["clang", "-xc++", "-I", "libwidget/include/", "/a/b"],
                                   output: nil)
