@@ -66,7 +66,7 @@ let package = Package(
           "SourceKitLSP",
           .product(name: "ISDBTestSupport", package: "IndexStoreDB"),
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-        ], 
+        ],
         resources: [
           .copy("INPUTS"),
         ]
@@ -243,7 +243,7 @@ if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
     .package(name: "IndexStoreDB", url: "https://github.com/apple/indexstore-db.git", .branch("main")),
     .package(name: "SwiftPM", url: "https://github.com/apple/swift-package-manager.git", .branch("main")),
     .package(url: "https://github.com/apple/swift-tools-support-core.git", .branch("main")),
-    .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMinor(from: "1.1.4")),
+    .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMinor(from: "1.2.2")),
     .package(url: "https://github.com/apple/swift-syntax.git", .branch("main")),
   ]
 } else {
