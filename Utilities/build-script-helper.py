@@ -4,7 +4,6 @@ import argparse
 import json
 import os
 import platform
-import re
 import shutil
 import subprocess
 import sys
@@ -68,13 +67,16 @@ def swiftpm_bin_path(swift_exec: str, swiftpm_args: List[str], additional_env: D
     return check_output(cmd, additional_env=additional_env, capture_stderr=False, verbose=verbose).strip()
 
 
-def get_build_target(swift_exec: str, args: argparse.Namespace) -> str:
+def get_build_target(swift_exec: str, args: argparse.Namespace, cross_compile: bool = False) -> str:
     """Returns the target-triple of the current machine or for cross-compilation."""
     try:
         command = [swift_exec, '-print-target-info']
+        if cross_compile:
+            cross_compile_json = json.load(open(args.cross_compile_config))
+            command += ['-target', cross_compile_json["target"]]
         target_info_json = subprocess.check_output(command, stderr=subprocess.PIPE, universal_newlines=True).strip()
         args.target_info = json.loads(target_info_json)
-        if platform.system() == 'Darwin':
+        if '-apple-macosx' in args.target_info["target"]["unversionedTriple"]:
             return args.target_info["target"]["unversionedTriple"]
         return args.target_info["target"]["triple"]
     except Exception as e:
@@ -105,7 +107,9 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace) -> List[str]:
         for san in args.sanitize:
             swiftpm_args += ['--sanitize=%s' % san]
 
-    if platform.system() == 'Darwin':
+    build_target = get_build_target(swift_exec, args, cross_compile=(True if args.cross_compile_config else False))
+    build_os = build_target.split('-')[2]
+    if build_os.startswith('macosx'):
         swiftpm_args += [
             '-Xlinker', '-rpath', '-Xlinker', '/usr/lib/swift',
             '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../lib/swift/macosx',
@@ -121,25 +125,23 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace) -> List[str]:
             os.path.join(args.toolchain, 'lib', 'swift', 'Block'),
         ]
 
-    if 'ANDROID_DATA' in os.environ or (args.cross_compile_host and re.match(
-            'android-', args.cross_compile_host)):
+    if '-android' in build_target:
         swiftpm_args += [
             '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/android',
             # SwiftPM will otherwise try to compile against GNU strerror_r on
             # Android and fail.
             '-Xswiftc', '-Xcc', '-Xswiftc', '-U_GNU_SOURCE',
         ]
-    elif platform.system() == 'Linux':
+    elif not build_os.startswith('macosx'):
         # Library rpath for swift, dispatch, Foundation, etc. when installing
         swiftpm_args += [
-            '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/linux',
+            '-Xlinker', '-rpath', '-Xlinker', '$ORIGIN/../lib/swift/' + build_os,
         ]
 
-    build_target = get_build_target(swift_exec, args)
     if args.cross_compile_host:
-        if re.search('-apple-macosx', build_target) and re.match('macosx-', args.cross_compile_host):
+        if build_os.startswith('macosx') and args.cross_compile_host.startswith('macosx-'):
             swiftpm_args += ["--arch", "x86_64", "--arch", "arm64"]
-        elif re.match('android-', args.cross_compile_host):
+        elif args.cross_compile_host.startswith('android-'):
             print('Cross-compiling for %s' % args.cross_compile_host)
             swiftpm_args += ['--destination', args.cross_compile_config]
         else:
