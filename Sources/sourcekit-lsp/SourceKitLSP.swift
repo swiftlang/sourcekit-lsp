@@ -26,14 +26,19 @@ import var TSCBasic.localFileSystem
 
 extension AbsolutePath: ExpressibleByArgument {
   public init?(argument: String) {
+    let path: AbsolutePath?
+
     if let cwd = localFileSystem.currentWorkingDirectory {
-      self.init(argument, relativeTo: cwd)
+      path = try? AbsolutePath(validating: argument, relativeTo: cwd)
     } else {
-      guard let path = try? AbsolutePath(validating: argument) else {
-        return nil
-      }
-      self = path
+      path = try? AbsolutePath(validating: argument)
     }
+
+    guard let path = path else {
+      return nil
+    }
+
+    self = path
   }
 
   public static var defaultCompletionKind: CompletionKind {
@@ -192,7 +197,7 @@ struct SourceKitLSP: ParsableCommand {
       syncRequests: syncRequests
     )
 
-    let installPath = AbsolutePath(Bundle.main.bundlePath)
+    let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
     ToolchainRegistry.shared = ToolchainRegistry(installPath: installPath, localFileSystem)
 
     let server = SourceKitServer(client: clientConnection, options: mapOptions(), onExit: {
