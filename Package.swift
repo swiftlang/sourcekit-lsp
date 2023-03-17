@@ -1,6 +1,16 @@
 // swift-tools-version:5.3
 
 import PackageDescription
+import Foundation
+
+// When building the toolchain on the CI, don't add the CI's runpath for the
+// final build before installing.
+let sourcekitLSPLinkSettings : [LinkerSetting]
+if ProcessInfo.processInfo.environment["SOURCEKIT_LSP_CI_INSTALL"] != nil {
+  sourcekitLSPLinkSettings = [ .unsafeFlags(["-no-toolchain-stdlib-rpath"], .when(platforms: [.linux, .android])) ]
+} else {
+  sourcekitLSPLinkSettings = []
+}
 
 let package = Package(
     name: "SourceKitLSP",
@@ -36,7 +46,8 @@ let package = Package(
           .product(name: "ArgumentParser", package: "swift-argument-parser"),
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         ],
-        exclude: ["CMakeLists.txt"]),
+        exclude: ["CMakeLists.txt"],
+        linkerSettings: sourcekitLSPLinkSettings),
 
       .target(
         name: "SourceKitLSP",
@@ -235,8 +246,6 @@ let package = Package(
 // When building with the swift build-script, use local dependencies whose contents are controlled
 // by the external environment. This allows sourcekit-lsp to take advantage of the automation used
 // for building the swift toolchain, such as `update-checkout`, or cross-repo PR tests.
-
-import Foundation
 
 if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
   // Building standalone.
