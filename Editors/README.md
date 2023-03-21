@@ -20,10 +20,6 @@ In general, you will need to know where to find the `sourcekit-lsp` server exect
 
 The [Swift for Visual Studio Code extension](https://marketplace.visualstudio.com/items?itemName=sswg.swift-lang) uses SourceKit-LSP for code completion, jump to definition and error annotations. Install the extension from the marketplace to add it to your VSCode environment.
 
-## Atom
-
-Download the `ide-sourcekit` package for Atom from [the corresponding package page](https://atom.io/packages/ide-sourcekit). It also contains installation instructions to get you started.
-
 ## Sublime Text
 
 Before using SourceKit-LSP with Sublime Text, you will need to install the LSP package from Package Control. To configure SourceKit-LSP, open the LSP package's settings. The following snippet should be enough to get started with Swift.
