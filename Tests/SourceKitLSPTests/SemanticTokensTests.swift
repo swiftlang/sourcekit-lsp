@@ -488,6 +488,17 @@ final class SemanticTokensTests: XCTestCase {
     ])
   }
 
+  func testRegexSemanticTokens() {
+    let text = """
+      let r = /a[bc]*/
+      """
+    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    XCTAssertEqual(tokens, [
+      Token(line: 0, utf16index: 0, length: 3, kind: .keyword),
+      Token(line: 0, utf16index: 4, length: 1, kind: .identifier),
+      Token(line: 0, utf16index: 8, length: 8, kind: .regexp),
+    ])
+  }
 
   func testOperatorDeclaration() {
     let text = """
