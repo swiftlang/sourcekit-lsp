@@ -96,6 +96,8 @@ extension SyntaxClassification {
       return (.number, [])
     case .stringLiteral:
       return (.string, [])
+    case .regexLiteral:
+      return (.regexp, [])
     case .poundDirectiveKeyword:
       return (.macro, [])
     case .buildConfigId, .objectLiteral:
