@@ -1,4 +1,4 @@
-// swift-tools-version:5.5
+// swift-tools-version:5.7
 
 import PackageDescription
 import Foundation
@@ -14,7 +14,7 @@ if ProcessInfo.processInfo.environment["SOURCEKIT_LSP_CI_INSTALL"] != nil {
 
 let package = Package(
     name: "SourceKitLSP",
-    platforms: [.macOS("10.15.4")],
+    platforms: [.macOS("12.0")],
     products: [
       .executable(
         name: "sourcekit-lsp",
