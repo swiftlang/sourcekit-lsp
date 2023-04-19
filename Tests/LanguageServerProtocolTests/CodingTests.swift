@@ -1034,21 +1034,33 @@ final class CodingTests: XCTestCase {
   }
 
   func testWorkDoneProgress() {
-    checkCoding(WorkDoneProgress.begin(WorkDoneProgressBegin(title: "My Work")), json: """
+    checkCoding(WorkDoneProgress(token: ProgressToken.integer(3), value: WorkDoneProgressKind.begin(WorkDoneProgressBegin(title: "My Work"))), json: """
+    {
+      "token" : 3,
+      "value" : {
+        "kind" : "begin",
+        "title" : "My Work"
+      }
+    }
+    """)
+  }
+
+  func testWorkDoneProgressType() {
+    checkCoding(WorkDoneProgressKind.begin(WorkDoneProgressBegin(title: "My Work")), json: """
     {
       "kind" : "begin",
       "title" : "My Work"
     }
     """)
 
-    checkCoding(WorkDoneProgress.report(WorkDoneProgressReport(message: "Still working")), json: """
+    checkCoding(WorkDoneProgressKind.report(WorkDoneProgressReport(message: "Still working")), json: """
     {
       "kind" : "report",
       "message" : "Still working"
     }
     """)
 
-    checkCoding(WorkDoneProgress.end(WorkDoneProgressEnd()), json: """
+    checkCoding(WorkDoneProgressKind.end(WorkDoneProgressEnd()), json: """
     {
       "kind" : "end"
     }
