@@ -520,7 +520,7 @@ private func makeToolchain(
   sourcekitdInProc: Bool = false,
   libIndexStore: Bool = false
 ) {
-  precondition(!clang && !swiftc && !clangd || fs === localFileSystem || !shouldChmod,
+  precondition(!clang && !swiftc && !clangd || !shouldChmod,
     "Cannot make toolchain binaries exectuable with InMemoryFileSystem")
 
   // tiny PE binary from: https://archive.is/w01DO
