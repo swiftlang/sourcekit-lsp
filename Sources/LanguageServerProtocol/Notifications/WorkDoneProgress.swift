@@ -10,9 +10,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-public enum WorkDoneProgress: NotificationType, Hashable {
+public struct WorkDoneProgress: NotificationType, Hashable {
   public static var method: String = "$/progress"
 
+  /// The progress token provided by the client or server.
+  public var token: ProgressToken
+
+  /// The progress data.
+  public var value: WorkDoneProgressKind
+
+  public init(token: ProgressToken, value: WorkDoneProgressKind) {
+    self.token = token
+    self.value = value
+  }
+}
+
+public enum WorkDoneProgressKind: Codable, Hashable {
   case begin(WorkDoneProgressBegin)
   case report(WorkDoneProgressReport)
   case end(WorkDoneProgressEnd)
