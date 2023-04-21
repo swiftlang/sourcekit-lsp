@@ -129,7 +129,7 @@ public final class SwiftPMWorkspace {
       buildConfiguration = .release
     }
 
-    self.buildParameters = try BuildParameters(
+    self.buildParameters = BuildParameters(
         dataPath: location.scratchDirectory.appending(component: triple.platformBuildPathComponent()),
         configuration: buildConfiguration,
         toolchain: toolchain,
