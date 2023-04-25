@@ -62,7 +62,7 @@ let package = Package(
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
           .product(name: "SwiftSyntax", package: "swift-syntax"),
           .product(name: "SwiftParser", package: "swift-syntax"),
-          .product(name: "IDEUtils", package: "swift-syntax"),
+          .product(name: "SwiftIDEUtils", package: "swift-syntax"),
         ],
         exclude: ["CMakeLists.txt"]),
 
