@@ -123,7 +123,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
       check("-target", hostTriple.tripleString(forPlatformVersion: versionString), arguments: arguments)
       check("-sdk", arguments: arguments)
-      check("-F", arguments: arguments, once: false)
+      check("-F", arguments: arguments, allowMultiple: false)
   #else
       check("-target", hostTriple.tripleString, arguments: arguments)
   #endif
@@ -365,7 +365,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         check("-target",
           hostTriple.tripleString(forPlatformVersion: versionString), arguments: arguments)
         check("-isysroot", arguments: arguments)
-        check("-F", arguments: arguments, once: false)
+        check("-F", arguments: arguments, allowMultiple: false)
     #else
         check("-target", hostTriple.tripleString, arguments: arguments)
     #endif
@@ -609,7 +609,7 @@ private func checkNot(
 private func check(
   _ pattern: String...,
   arguments: [String],
-  once: Bool = true,
+  allowMultiple: Bool = true,
   file: StaticString = #filePath,
   line: UInt = #line)
 {
@@ -618,7 +618,7 @@ private func check(
     return
   }
 
-  if once, let index2 = arguments[(index+1)...].firstIndex(of: pattern) {
+  if allowMultiple, let index2 = arguments[(index+1)...].firstIndex(of: pattern) {
     XCTFail(
       "pattern \(pattern) found twice (\(index), \(index2)) in \(arguments)",
       file: file, line: line)
