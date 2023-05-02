@@ -28,7 +28,7 @@ extension AbsolutePath: ExpressibleByArgument {
   public init?(argument: String) {
     let path: AbsolutePath?
 
-    if let cwd = localFileSystem.currentWorkingDirectory {
+    if let cwd: AbsolutePath = localFileSystem.currentWorkingDirectory {
       path = try? AbsolutePath(validating: argument, relativeTo: cwd)
     } else {
       path = try? AbsolutePath(validating: argument)

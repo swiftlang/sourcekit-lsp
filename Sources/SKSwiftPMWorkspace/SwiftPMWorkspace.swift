@@ -28,9 +28,11 @@ import Workspace
 import Dispatch
 import struct Foundation.URL
 
+import struct Basics.AbsolutePath
+import struct Basics.TSCAbsolutePath
+
 import func TSCBasic.resolveSymlinks
 import protocol TSCBasic.FileSystem
-import struct TSCBasic.AbsolutePath
 import var TSCBasic.localFileSystem
 
 /// Swift Package Manager build system and workspace support.
@@ -43,7 +45,7 @@ public final class SwiftPMWorkspace {
   public enum Error: Swift.Error {
 
     /// Could not find a manifest (Package.swift file). This is not a package.
-    case noManifest(workspacePath: AbsolutePath)
+    case noManifest(workspacePath: TSCAbsolutePath)
 
     /// Could not determine an appropriate toolchain for swiftpm to use for manifest loading.
     case cannotDetermineHostToolchain
@@ -52,10 +54,10 @@ public final class SwiftPMWorkspace {
   /// Delegate to handle any build system events.
   public weak var delegate: SKCore.BuildSystemDelegate? = nil
 
-  let workspacePath: AbsolutePath
-  let packageRoot: AbsolutePath
+  let workspacePath: TSCAbsolutePath
+  let packageRoot: TSCAbsolutePath
   /// *Public for testing*
-  public var _packageRoot: AbsolutePath { packageRoot }
+  public var _packageRoot: TSCAbsolutePath { packageRoot }
   var packageGraph: PackageGraph
   let workspace: Workspace
   public let buildParameters: BuildParameters
@@ -84,7 +86,7 @@ public final class SwiftPMWorkspace {
   ///     manifest parsing and runtime support.
   /// - Throws: If there is an error loading the package, or no manifest is found.
   public init(
-    workspacePath: AbsolutePath,
+    workspacePath: TSCAbsolutePath,
     toolchainRegistry: ToolchainRegistry,
     fileSystem: FileSystem = localFileSystem,
     buildSetup: BuildSetup) throws
@@ -102,12 +104,15 @@ public final class SwiftPMWorkspace {
         throw Error.cannotDetermineHostToolchain
     }
 
-    let destination = try Destination.hostDestination(destinationToolchainBinDir)
+    let destination = try Destination.hostDestination(AbsolutePath(destinationToolchainBinDir))
     let toolchain = try UserToolchain(destination: destination)
 
-    var location = try Workspace.Location(forRootPackage: packageRoot, fileSystem: fileSystem)
+    var location = try Workspace.Location(
+        forRootPackage: AbsolutePath(packageRoot),
+        fileSystem: fileSystem
+    )
     if let scratchDirectory = buildSetup.path {
-        location.scratchDirectory = scratchDirectory
+        location.scratchDirectory = AbsolutePath(scratchDirectory)
     }
 
     var configuration = WorkspaceConfiguration.default
@@ -150,7 +155,7 @@ public final class SwiftPMWorkspace {
   {
     do {
       try self.init(
-        workspacePath: try AbsolutePath(validating: url.path),
+        workspacePath: try TSCAbsolutePath(validating: url.path),
         toolchainRegistry: toolchainRegistry,
         fileSystem: localFileSystem,
         buildSetup: buildSetup)
@@ -176,7 +181,7 @@ extension SwiftPMWorkspace {
     })
 
     let packageGraph = try self.workspace.loadPackageGraph(
-      rootInput: PackageGraphRootInput(packages: [packageRoot]),
+      rootInput: PackageGraphRootInput(packages: [AbsolutePath(packageRoot)]),
       observabilityScope: observabilitySystem.topScope
     )
 
@@ -234,15 +239,15 @@ extension SwiftPMWorkspace {
 
 extension SwiftPMWorkspace: SKCore.BuildSystem {
 
-  public var buildPath: AbsolutePath {
-    return buildParameters.buildPath
+  public var buildPath: TSCAbsolutePath {
+    return TSCAbsolutePath(buildParameters.buildPath)
   }
 
-  public var indexStorePath: AbsolutePath? {
-    return buildParameters.indexStoreMode == .off ? nil : buildParameters.indexStore
+  public var indexStorePath: TSCAbsolutePath? {
+    return buildParameters.indexStoreMode == .off ? nil : TSCAbsolutePath(buildParameters.indexStore)
   }
 
-  public var indexDatabasePath: AbsolutePath? {
+  public var indexDatabasePath: TSCAbsolutePath? {
     return buildPath.appending(components: "index", "db")
   }
 
@@ -555,8 +560,8 @@ extension SwiftPMWorkspace {
 
 /// Find a Swift Package root directory that contains the given path, if any.
 private func findPackageDirectory(
-  containing path: AbsolutePath,
-  _ fileSystem: FileSystem) -> AbsolutePath? {
+  containing path: TSCAbsolutePath,
+  _ fileSystem: FileSystem) -> TSCAbsolutePath? {
   var path = path
   while true {
     let packagePath = path.appending(component: "Package.swift")

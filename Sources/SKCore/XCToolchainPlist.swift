@@ -49,8 +49,8 @@ extension XCToolchainPlist {
   init(fromDirectory path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
 #if os(macOS)
     let plistNames = [
-      RelativePath("ToolchainInfo.plist"), // Xcode
-      RelativePath("Info.plist"), // Swift.org
+      try RelativePath(validating: "ToolchainInfo.plist"), // Xcode
+      try RelativePath(validating: "Info.plist"), // Swift.org
     ]
 
     var missingPlistPath: AbsolutePath?
