@@ -202,6 +202,8 @@ public final class SourceKitServer: LanguageServer {
     registerToolchainTextDocumentRequest(SourceKitServer.colorPresentation, [])
     registerToolchainTextDocumentRequest(SourceKitServer.codeAction, nil)
     registerToolchainTextDocumentRequest(SourceKitServer.inlayHint, [])
+    registerToolchainTextDocumentRequest(SourceKitServer.documentDiagnostic,
+                                         .full(.init(items: [])))
   }
 
   /// Register a `TextDocumentRequest` that requires a valid `Workspace`, `ToolchainLanguageServer`,
@@ -709,6 +711,11 @@ extension SourceKitServer {
         self.dynamicallyRegisterCapability($0, registry)
       }
     }
+    if let diagnosticOptions = server.diagnosticProvider {
+      registry.registerDiagnosticIfNeeded(options: diagnosticOptions, for: languages) {
+        self.dynamicallyRegisterCapability($0, registry)
+      }
+    }
     if let commandOptions = server.executeCommandProvider {
       registry.registerExecuteCommandIfNeeded(commands: commandOptions.commands) {
         self.dynamicallyRegisterCapability($0, registry)
@@ -1207,6 +1214,14 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) {
     languageService.inlayHint(req)
+  }
+
+  func documentDiagnostic(
+    _ req: Request<DocumentDiagnosticsRequest>,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) {
+    languageService.documentDiagnostic(req)
   }
 
   /// Converts a location from the symbol index to an LSP location.

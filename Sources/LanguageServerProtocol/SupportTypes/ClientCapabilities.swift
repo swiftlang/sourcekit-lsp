@@ -526,6 +526,16 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     }
   }
 
+  /// Capabilities specific to 'textDocument/diagnostic'. Since LSP 3.17.0.
+  public struct Diagnostic: Equatable, Hashable, Codable {
+
+    /// Whether implementation supports dynamic registration.
+    public var dynamicRegistration: Bool?
+
+    /// Whether the clients supports related documents for document diagnostic pulls.
+    public var relatedDocumentSupport: Bool?
+  }
+
   // MARK: Properties
 
   public var synchronization: Synchronization? = nil
@@ -575,6 +585,8 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   public var semanticTokens: SemanticTokens? = nil
 
   public var inlayHint: InlayHint? = nil
+  
+  public var diagnostic: Diagnostic? = nil
 
   public init(synchronization: Synchronization? = nil,
               completion: Completion? = nil,
@@ -599,7 +611,8 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
               foldingRange: FoldingRange? = nil,
               callHierarchy: DynamicRegistrationCapability? = nil,
               semanticTokens: SemanticTokens? = nil,
-              inlayHint: InlayHint? = nil) {
+              inlayHint: InlayHint? = nil,
+              diagnostic: Diagnostic? = nil) {
     self.synchronization = synchronization
     self.completion = completion
     self.hover = hover
@@ -624,5 +637,6 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     self.callHierarchy = callHierarchy
     self.semanticTokens = semanticTokens
     self.inlayHint = inlayHint
+    self.diagnostic = diagnostic
   }
 }
