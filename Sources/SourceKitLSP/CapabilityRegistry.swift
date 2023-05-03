@@ -31,6 +31,9 @@ public final class CapabilityRegistry {
 
   /// Dynamically registered inlay hint options.
   private var inlayHint: [CapabilityRegistration: InlayHintRegistrationOptions] = [:]
+  
+  /// Dynamically registered pull diagnostics options.
+  private var pullDiagnostics: [CapabilityRegistration: DiagnosticRegistrationOptions] = [:]
 
   /// Dynamically registered file watchers.
   private var didChangeWatchedFiles: DidChangeWatchedFilesRegistrationOptions?
@@ -60,6 +63,10 @@ public final class CapabilityRegistry {
     clientCapabilities.textDocument?.inlayHint?.dynamicRegistration == true
   }
 
+  public var clientHasDocumentDiagnosticsRegistration: Bool {
+    clientCapabilities.textDocument?.diagnostic?.dynamicRegistration == true
+  }
+  
   public var clientHasDynamicExecuteCommandRegistration: Bool {
     clientCapabilities.workspace?.executeCommand?.dynamicRegistration == true
   }
@@ -198,6 +205,33 @@ public final class CapabilityRegistry {
       registerOptions: self.encode(registrationOptions))
     
     self.inlayHint[registration] = registrationOptions
+
+    registerOnClient(registration)
+  }
+
+  /// Dynamically register (pull model) diagnostic capabilities,
+  /// if the client supports it.
+  public func registerDiagnosticIfNeeded(
+    options: DiagnosticOptions,
+    for languages: [Language],
+    registerOnClient: ClientRegistrationHandler
+  ) {
+    guard clientHasDocumentDiagnosticsRegistration else { return }
+    if let registration = registration(for: languages, in: pullDiagnostics) {
+      if options != registration.diagnosticOptions {
+        log("Unable to register new pull diagnostics options \(options) for " +
+            "\(languages) due to pre-existing options \(registration.diagnosticOptions)", level: .warning)
+      }
+      return
+    }
+    let registrationOptions = DiagnosticRegistrationOptions(
+      documentSelector: self.documentSelector(for: languages),
+      diagnosticOptions: options)
+    let registration = CapabilityRegistration(
+      method: DocumentDiagnosticsRequest.method,
+      registerOptions: self.encode(registrationOptions))
+    
+    self.pullDiagnostics[registration] = registrationOptions
 
     registerOnClient(registration)
   }

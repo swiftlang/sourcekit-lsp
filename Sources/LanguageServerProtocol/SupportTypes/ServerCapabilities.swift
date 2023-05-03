@@ -108,6 +108,9 @@ public struct ServerCapabilities: Codable, Hashable {
   /// Whether the server supports the `textDocument/inlayHint` family of requests.
   public var inlayHintProvider: ValueOrBool<InlayHintOptions>?
 
+  /// Whether the server supports the `textDocument/diagnostic` request.
+  public var diagnosticProvider: DiagnosticOptions?
+
   /// Whether the server provides selection range support.
   public var selectionRangeProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>?
 
@@ -152,6 +155,7 @@ public struct ServerCapabilities: Codable, Hashable {
     typeHierarchyProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     semanticTokensProvider: SemanticTokensOptions? = nil,
     inlayHintProvider: ValueOrBool<InlayHintOptions>? = nil,
+    diagnosticProvider: DiagnosticOptions? = nil,
     selectionRangeProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     linkedEditingRangeProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     monikerProvider: ValueOrBool<MonikerOptions>? = nil,
@@ -188,6 +192,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.typeHierarchyProvider = typeHierarchyProvider
     self.semanticTokensProvider = semanticTokensProvider
     self.inlayHintProvider = inlayHintProvider
+    self.diagnosticProvider = diagnosticProvider
     self.selectionRangeProvider = selectionRangeProvider
     self.linkedEditingRangeProvider = linkedEditingRangeProvider
     self.experimental = experimental

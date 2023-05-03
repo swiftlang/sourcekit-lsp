@@ -515,6 +515,10 @@ extension ClangLanguageServerShim {
     forwardRequestToClangdOnQueue(req)
   }
 
+  func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) {
+    forwardRequestToClangdOnQueue(req)
+  }
+
   func foldingRange(_ req: Request<FoldingRangeRequest>) {
     queue.async {
       if self.capabilities?.foldingRangeProvider?.isSupported == true {
