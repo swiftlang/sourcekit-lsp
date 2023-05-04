@@ -156,6 +156,30 @@ public struct InlayHintRegistrationOptions: RegistrationOptions, TextDocumentReg
   }
 }
 
+/// Describe options to be used when registering for pull diagnostics. Since LSP 3.17.0
+public struct DiagnosticRegistrationOptions: RegistrationOptions, TextDocumentRegistrationOptionsProtocol {
+  public var textDocumentRegistrationOptions: TextDocumentRegistrationOptions
+  public var diagnosticOptions: DiagnosticOptions
+  
+  public init(
+    documentSelector: DocumentSelector? = nil,
+    diagnosticOptions: DiagnosticOptions
+  ) {
+    textDocumentRegistrationOptions = TextDocumentRegistrationOptions(documentSelector: documentSelector)
+    self.diagnosticOptions = diagnosticOptions
+  }
+
+  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
+    textDocumentRegistrationOptions.encodeIntoLSPAny(dict: &dict)
+
+    dict["interFileDependencies"] = .bool(diagnosticOptions.interFileDependencies)
+    dict["workspaceDiagnostics"] = .bool(diagnosticOptions.workspaceDiagnostics)
+    if let workDoneProgress = diagnosticOptions.workDoneProgress {
+      dict["workDoneProgress"] = .bool(workDoneProgress)
+    }
+  }
+}
+
 /// Describe options to be used when registering for file system change events.
 public struct DidChangeWatchedFilesRegistrationOptions: RegistrationOptions {
   /// The watchers to register.
