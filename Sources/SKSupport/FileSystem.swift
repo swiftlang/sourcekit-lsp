@@ -24,7 +24,7 @@ extension AbsolutePath {
   /// Inititializes an absolute path from a string, expanding a leading `~` to `homeDirectoryForCurrentUser` first.
   public init(expandingTilde path: String) throws {
     if path.first == "~" {
-      try self.init(homeDirectoryForCurrentUser, String(path.dropFirst(2)))
+      try self.init(homeDirectoryForCurrentUser, validating: String(path.dropFirst(2)))
     } else {
       try self.init(validating: path)
     }
