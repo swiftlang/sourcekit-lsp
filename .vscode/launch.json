@@ -23,7 +23,7 @@
         {
             "type": "lldb",
             "request": "attach",
-            "name": "Attach sourcekit-lsp",
+            "name": "Attach sourcekit-lsp (debug)",
             "program": "${workspaceFolder:sourcekit-lsp}/.build/debug/sourcekit-lsp",
             "sourceLanguages": ["swift"],
             "waitFor": true
