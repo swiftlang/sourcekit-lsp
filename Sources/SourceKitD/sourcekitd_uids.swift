@@ -177,6 +177,7 @@ public struct sourcekitd_requests {
   public let codecomplete_update: sourcekitd_uid_t
   public let codecomplete_close: sourcekitd_uid_t
   public let cursorinfo: sourcekitd_uid_t
+  public let diagnostics: sourcekitd_uid_t
   public let expression_type: sourcekitd_uid_t
   public let find_usr: sourcekitd_uid_t
   public let variable_type: sourcekitd_uid_t
@@ -194,6 +195,7 @@ public struct sourcekitd_requests {
     codecomplete_update = api.uid_get_from_cstr("source.request.codecomplete.update")!
     codecomplete_close = api.uid_get_from_cstr("source.request.codecomplete.close")!
     cursorinfo = api.uid_get_from_cstr("source.request.cursorinfo")!
+    diagnostics = api.uid_get_from_cstr("source.request.diagnostics")!
     expression_type = api.uid_get_from_cstr("source.request.expression.type")!
     find_usr = api.uid_get_from_cstr("source.request.editor.find_usr")!
     variable_type = api.uid_get_from_cstr("source.request.variable.type")!

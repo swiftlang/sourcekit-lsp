@@ -122,6 +122,14 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   var keys: sourcekitd_keys { return sourcekitd.keys }
   var requests: sourcekitd_requests { return sourcekitd.requests }
   var values: sourcekitd_values { return sourcekitd.values }
+
+  var enablePublishDiagnostics: Bool {
+    // Since LSP 3.17.0, diagnostics can be reported through pull-based requests,
+    // in addition to the existing push-based publish notifications.
+    // If the client supports pull diagnostics, we report the capability
+    // and we should disable the publish notifications to avoid double-reporting.
+    return clientCapabilities.textDocument?.diagnostic == nil
+  }
   
   private var state: LanguageServerState {
     didSet {
@@ -326,7 +334,10 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     req[keys.sourcetext] = ""
 
     if let dict = try? self.sourcekitd.sendSync(req) {
-      publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
+      if (enablePublishDiagnostics) {
+        publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
+      }
+
       if dict[keys.diagnostic_stage] as sourcekitd_uid_t? == sourcekitd.values.diag_stage_sema {
         // Only update semantic tokens if the 0,0 replacetext request returned semantic information.
         updateSemanticTokens(response: dict, for: snapshot)
@@ -370,7 +381,10 @@ extension SwiftLanguageServer {
         range: .bool(true),
         full: .bool(true)),
       inlayHintProvider: .value(InlayHintOptions(
-        resolveProvider: false))
+        resolveProvider: false)),
+      diagnosticProvider: DiagnosticOptions(
+        interFileDependencies: true,
+        workspaceDiagnostics: false)
     ))
   }
 
@@ -1326,10 +1340,78 @@ extension SwiftLanguageServer {
       }
     }
   }
+
+  // Must be called on self.queue
+  public func _documentDiagnostic(
+    _ uri: DocumentURI,
+    _ completion: @escaping (Result<[Diagnostic], ResponseError>) -> Void
+  ) {
+    dispatchPrecondition(condition: .onQueue(queue))
+
+    guard let snapshot = documentManager.latestSnapshot(uri) else {
+      let msg = "failed to find snapshot for url \(uri)"
+      log(msg)
+      return completion(.failure(.unknown(msg)))
+    }
+
+    let keys = self.keys
+
+    let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+    skreq[keys.request] = requests.diagnostics
+    skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
+
+    // FIXME: SourceKit should probably cache this for us.
+    if let compileCommand = self.commandsByFile[uri] {
+      skreq[keys.compilerargs] = compileCommand.compilerArgs
+    }
+
+    let supportsCodeDescription =
+          (clientCapabilities.textDocument?.publishDiagnostics?.codeDescriptionSupport == true)
+
+    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] response in
+      guard let self = self else { return }
+      guard let dict = response.success else {
+        return completion(.failure(ResponseError(response.failure!)))
+      }
+
+      var diagnostics: [Diagnostic] = []
+      dict[keys.diagnostics]?.forEach { _, diag in
+        if var diagnostic = Diagnostic(diag, in: snapshot, useEducationalNoteAsCode: supportsCodeDescription) {
+          diagnostic.source = "pulldiag"
+          diagnostics.append(diagnostic)
+        }
+        return true
+      }
+
+      completion(.success(diagnostics))
+    }
+
+    // FIXME: cancellation
+    _ = handle
+  }
   
+  public func documentDiagnostic(
+    _ uri: DocumentURI,
+    _ completion: @escaping (Result<[Diagnostic], ResponseError>) -> Void
+  ) {
+    self.queue.async {
+      self._documentDiagnostic(uri, completion)
+    }
+  }
+
   public func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) {
-    // TODO: Return provider object in initializeSync and implement pull-model document diagnostics here.
-    req.reply(.failure(.unknown("Pull-model diagnostics not implemented yet.")))
+    let uri = req.params.textDocument.uri
+    documentDiagnostic(req.params.textDocument.uri) { result in
+      switch result {
+        case .success(let diagnostics):
+          req.reply(.full(.init(items: diagnostics)))
+
+        case .failure(let error):
+          let message = "document diagnostic failed \(uri): \(error)"
+          log(message, level: .warning)
+          return req.reply(.failure(.unknown(message)))
+      }
+    }
   }
 
   public func executeCommand(_ req: Request<ExecuteCommandRequest>) {
