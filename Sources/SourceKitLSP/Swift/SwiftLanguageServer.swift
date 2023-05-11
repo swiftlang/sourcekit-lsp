@@ -1377,7 +1377,6 @@ extension SwiftLanguageServer {
       var diagnostics: [Diagnostic] = []
       dict[keys.diagnostics]?.forEach { _, diag in
         if var diagnostic = Diagnostic(diag, in: snapshot, useEducationalNoteAsCode: supportsCodeDescription) {
-          diagnostic.source = "pulldiag"
           diagnostics.append(diagnostic)
         }
         return true
