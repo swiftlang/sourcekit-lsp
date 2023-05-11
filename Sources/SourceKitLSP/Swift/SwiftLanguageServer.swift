@@ -103,7 +103,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   let sourcekitd: SourceKitD
 
-  let clientCapabilities: ClientCapabilities
+  let capabilityRegistry: CapabilityRegistry
 
   let serverOptions: SourceKitServer.Options
   
@@ -122,6 +122,14 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   var keys: sourcekitd_keys { return sourcekitd.keys }
   var requests: sourcekitd_requests { return sourcekitd.requests }
   var values: sourcekitd_values { return sourcekitd.values }
+
+  var enablePublishDiagnostics: Bool {
+    // Since LSP 3.17.0, diagnostics can be reported through pull-based requests,
+    // in addition to the existing push-based publish notifications.
+    // If the client supports pull diagnostics, we report the capability
+    // and we should disable the publish notifications to avoid double-reporting.
+    return capabilityRegistry.pullDiagnosticsRegistration(for: .swift) == nil
+  }
   
   private var state: LanguageServerState {
     didSet {
@@ -144,7 +152,6 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   public init?(
     client: LocalConnection,
     toolchain: Toolchain,
-    clientCapabilities: ClientCapabilities?,
     options: SourceKitServer.Options,
     workspace: Workspace,
     reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
@@ -152,7 +159,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
     self.client = client
     self.sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitd)
-    self.clientCapabilities = clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil)
+    self.capabilityRegistry = workspace.capabilityRegistry
     self.serverOptions = options
     self.documentManager = DocumentManager()
     self.state = .connected
@@ -242,7 +249,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   /// Inform the client about changes to the syntax highlighting tokens.
   private func requestTokensRefresh() {
-    if clientCapabilities.workspace?.semanticTokens?.refreshSupport ?? false {
+    if capabilityRegistry.clientHasSemanticTokenRefreshSupport {
       _ = client.send(WorkspaceSemanticTokensRefreshRequest(), queue: queue) { result in
         if let error = result.failure {
           log("refreshing tokens failed: \(error)", level: .warning)
@@ -285,8 +292,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     let stageUID: sourcekitd_uid_t? = response[sourcekitd.keys.diagnostic_stage]
     let stage = stageUID.flatMap { DiagnosticStage($0, sourcekitd: sourcekitd) } ?? .sema
 
-    let supportsCodeDescription =
-           (clientCapabilities.textDocument?.publishDiagnostics?.codeDescriptionSupport == true)
+    let supportsCodeDescription = capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
 
     // Note: we make the notification even if there are no diagnostics to clear the current state.
     var newDiags: [CachedDiagnostic] = []
@@ -326,7 +332,10 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     req[keys.sourcetext] = ""
 
     if let dict = try? self.sourcekitd.sendSync(req) {
-      publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
+      if (enablePublishDiagnostics) {
+        publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
+      }
+
       if dict[keys.diagnostic_stage] as sourcekitd_uid_t? == sourcekitd.values.diag_stage_sema {
         // Only update semantic tokens if the 0,0 replacetext request returned semantic information.
         updateSemanticTokens(response: dict, for: snapshot)
@@ -370,7 +379,10 @@ extension SwiftLanguageServer {
         range: .bool(true),
         full: .bool(true)),
       inlayHintProvider: .value(InlayHintOptions(
-        resolveProvider: false))
+        resolveProvider: false)),
+      diagnosticProvider: DiagnosticOptions(
+        interFileDependencies: true,
+        workspaceDiagnostics: false)
     ))
   }
 
@@ -964,6 +976,7 @@ extension SwiftLanguageServer {
   }
 
   public func foldingRange(_ req: Request<FoldingRangeRequest>) {
+    let foldingRangeCapabilities = capabilityRegistry.clientCapabilities.textDocument?.foldingRange
     queue.async {
       guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
         log("failed to find snapshot for url \(req.params.textDocument.uri)")
@@ -1142,17 +1155,16 @@ extension SwiftLanguageServer {
         }
       }
 
-      let capabilities = self.clientCapabilities.textDocument?.foldingRange
       // If the limit is less than one, do nothing.
-      if let limit = capabilities?.rangeLimit, limit <= 0 {
+      if let limit = foldingRangeCapabilities?.rangeLimit, limit <= 0 {
         req.reply([])
         return
       }
 
       let rangeFinder = FoldingRangeFinder(
         snapshot: snapshot,
-        rangeLimit: capabilities?.rangeLimit,
-        lineFoldingOnly: capabilities?.lineFoldingOnly ?? false)
+        rangeLimit: foldingRangeCapabilities?.rangeLimit,
+        lineFoldingOnly: foldingRangeCapabilities?.lineFoldingOnly ?? false)
       rangeFinder.walk(sourceFile)
       let ranges = rangeFinder.finalize()
 
@@ -1167,12 +1179,12 @@ extension SwiftLanguageServer {
     ]
     let wantedActionKinds = req.params.context.only
     let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
+    let codeActionCapabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
     retrieveCodeActions(req, providers: providers.map { $0.provider }) { result in
       switch result {
       case .success(let codeActions):
-        let capabilities = self.clientCapabilities.textDocument?.codeAction
         let response = CodeActionRequestResponse(codeActions: codeActions,
-                                                 clientCapabilities: capabilities)
+                                                 clientCapabilities: codeActionCapabilities)
         req.reply(response)
       case .failure(let error):
         req.reply(.failure(error))
@@ -1330,6 +1342,76 @@ extension SwiftLanguageServer {
   public func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) {
     // TODO: Return provider object in initializeSync and implement pull-model document diagnostics here.
     req.reply(.failure(.unknown("Pull-model diagnostics not implemented yet.")))
+  }
+
+  // Must be called on self.queue
+  public func _documentDiagnostic(
+    _ uri: DocumentURI,
+    _ completion: @escaping (Result<[Diagnostic], ResponseError>) -> Void
+  ) {
+    dispatchPrecondition(condition: .onQueue(queue))
+
+    guard let snapshot = documentManager.latestSnapshot(uri) else {
+      let msg = "failed to find snapshot for url \(uri)"
+      log(msg)
+      return completion(.failure(.unknown(msg)))
+    }
+
+    let keys = self.keys
+
+    let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+    skreq[keys.request] = requests.diagnostics
+    skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
+
+    // FIXME: SourceKit should probably cache this for us.
+    if let compileCommand = self.commandsByFile[uri] {
+      skreq[keys.compilerargs] = compileCommand.compilerArgs
+    }
+
+    let supportsCodeDescription = capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
+
+    let handle = self.sourcekitd.send(skreq, self.queue) { response in
+      guard let dict = response.success else {
+        return completion(.failure(ResponseError(response.failure!)))
+      }
+
+      var diagnostics: [Diagnostic] = []
+      dict[keys.diagnostics]?.forEach { _, diag in
+        if let diagnostic = Diagnostic(diag, in: snapshot, useEducationalNoteAsCode: supportsCodeDescription) {
+          diagnostics.append(diagnostic)
+        }
+        return true
+      }
+
+      completion(.success(diagnostics))
+    }
+
+    // FIXME: cancellation
+    _ = handle
+  }
+  
+  public func documentDiagnostic(
+    _ uri: DocumentURI,
+    _ completion: @escaping (Result<[Diagnostic], ResponseError>) -> Void
+  ) {
+    self.queue.async {
+      self._documentDiagnostic(uri, completion)
+    }
+  }
+
+  public func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) {
+    let uri = req.params.textDocument.uri
+    documentDiagnostic(req.params.textDocument.uri) { result in
+      switch result {
+        case .success(let diagnostics):
+          req.reply(.full(.init(items: diagnostics)))
+
+        case .failure(let error):
+          let message = "document diagnostic failed \(uri): \(error)"
+          log(message, level: .warning)
+          return req.reply(.failure(.unknown(message)))
+      }
+    }
   }
 
   public func executeCommand(_ req: Request<ExecuteCommandRequest>) {

@@ -171,12 +171,7 @@ public struct DiagnosticRegistrationOptions: RegistrationOptions, TextDocumentRe
 
   public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
     textDocumentRegistrationOptions.encodeIntoLSPAny(dict: &dict)
-
-    dict["interFileDependencies"] = .bool(diagnosticOptions.interFileDependencies)
-    dict["workspaceDiagnostics"] = .bool(diagnosticOptions.workspaceDiagnostics)
-    if let workDoneProgress = diagnosticOptions.workDoneProgress {
-      dict["workDoneProgress"] = .bool(workDoneProgress)
-    }
+    diagnosticOptions.encodeIntoLSPAny(dict: &dict)
   }
 }
 

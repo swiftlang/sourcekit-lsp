@@ -1766,7 +1766,6 @@ func languageService(
   let server = try languageServerType.serverType.init(
     client: connectionToClient,
     toolchain: toolchain,
-    clientCapabilities: workspace.capabilityRegistry.clientCapabilities,
     options: options,
     workspace: workspace,
     reopenDocuments: reopenDocuments
