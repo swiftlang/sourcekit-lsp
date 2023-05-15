@@ -674,7 +674,10 @@ extension SourceKitServer {
         changeNotifications: .bool(true)
       )),
       callHierarchyProvider: .bool(true),
-      typeHierarchyProvider: .bool(true)
+      typeHierarchyProvider: .bool(true),
+      diagnosticProvider: DiagnosticOptions(
+        interFileDependencies: true,
+        workspaceDiagnostics: false)
     )
   }
 
