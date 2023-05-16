@@ -22,9 +22,13 @@ public struct OpenInterfaceRequest: TextDocumentRequest, Hashable {
   /// The module to generate an index for.
   public var name: String
 
-  public init(textDocument: TextDocumentIdentifier, name: String) {
+  /// The symbol to search for in the generated module interface.
+  public var symbol: String?
+
+  public init(textDocument: TextDocumentIdentifier, name: String, symbol: String?) {
     self.textDocument = textDocument
     self.name = name
+    self.symbol = symbol
   }
 }
 
@@ -32,8 +36,10 @@ public struct OpenInterfaceRequest: TextDocumentRequest, Hashable {
 public struct InterfaceDetails: ResponseType, Hashable {
 
   public var uri: DocumentURI
+  public var position: Position?
 
-  public init(uri: DocumentURI) {
+  public init(uri: DocumentURI, position: Position?) {
     self.uri = uri
+    self.position = position
   }
 }

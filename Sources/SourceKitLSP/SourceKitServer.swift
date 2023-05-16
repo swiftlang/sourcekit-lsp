@@ -1307,7 +1307,7 @@ extension SourceKitServer {
 
       // If this symbol is a module then generate a textual interface
       if case .success(let symbols) = result, let symbol = symbols.first, symbol.kind == .module, let name = symbol.name {
-        self.respondWithInterface(req, moduleName: name, languageService: languageService)
+        self.respondWithInterface(req, moduleName: name, symbol: nil, languageService: languageService)
         return
       }
 
@@ -1327,7 +1327,12 @@ extension SourceKitServer {
         if let firstResolved = resolved.first, 
            let moduleName = firstResolved.occurrence?.location.moduleName, 
            firstResolved.location.uri.fileURL?.pathExtension == "swiftinterface" {
-          self.respondWithInterface(req, moduleName: moduleName, languageService: languageService)
+          self.respondWithInterface(
+            req, 
+            moduleName: moduleName, 
+            symbol: firstResolved.occurrence?.symbol.usr,
+            languageService: languageService
+          )
           return
         }
         let locs = resolved.map(\.location)
@@ -1352,6 +1357,7 @@ extension SourceKitServer {
   func respondWithInterface(
     _ req: Request<DefinitionRequest>,
     moduleName: String,
+    symbol: String?,
     languageService: ToolchainLanguageServer
   ) {
       var moduleName = moduleName
@@ -1359,12 +1365,13 @@ extension SourceKitServer {
       if moduleName.hasPrefix("Swift.") {
         moduleName = "Swift"
       }            
-      let openInterface = OpenInterfaceRequest(textDocument: req.params.textDocument, name: moduleName)
+      let openInterface = OpenInterfaceRequest(textDocument: req.params.textDocument, name: moduleName, symbol: symbol)
       let request = Request(openInterface, id: req.id, clientID: ObjectIdentifier(self),
                             cancellation: req.cancellationToken, reply: { (result: Result<OpenInterfaceRequest.Response, ResponseError>) in
         switch result {
         case .success(let interfaceDetails?):
-          let loc = Location(uri: interfaceDetails.uri, range: Range(Position(line: 0, utf16index: 0)))
+          let position = interfaceDetails.position ?? Position(line: 0, utf16index: 0)
+          let loc = Location(uri: interfaceDetails.uri, range: Range(position))
           req.reply(.locations([loc]))
         case .success(nil):
           req.reply(.failure(.unknown("Could not generate Swift Interface for \(moduleName)")))
