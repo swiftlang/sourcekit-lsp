@@ -56,7 +56,7 @@ extension SwiftLanguageServer {
                 switch result {
                   case .success(let info):
                     request.reply(.success(InterfaceDetails(uri: interfaceDocURI, position: info.position)))
-                  case .failure(let error):
+                  case .failure:
                     request.reply(.success(InterfaceDetails(uri: interfaceDocURI, position: nil)))
                 }
               }
