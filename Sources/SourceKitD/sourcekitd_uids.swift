@@ -40,6 +40,7 @@ public struct sourcekitd_keys {
   public let expression_type_list: sourcekitd_uid_t
   public let filepath: sourcekitd_uid_t
   public let fixits: sourcekitd_uid_t
+  public let groupname: sourcekitd_uid_t
   public let id: sourcekitd_uid_t
   public let is_system: sourcekitd_uid_t
   public let kind: sourcekitd_uid_t
@@ -115,6 +116,7 @@ public struct sourcekitd_keys {
     expression_type_list = api.uid_get_from_cstr("key.expression_type_list")!
     filepath = api.uid_get_from_cstr("key.filepath")!
     fixits = api.uid_get_from_cstr("key.fixits")!
+    groupname = api.uid_get_from_cstr("key.groupname")!
     id = api.uid_get_from_cstr("key.id")!
     is_system = api.uid_get_from_cstr("key.is_system")!
     kind = api.uid_get_from_cstr("key.kind")!

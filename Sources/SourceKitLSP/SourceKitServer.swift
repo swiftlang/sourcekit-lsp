@@ -1360,11 +1360,6 @@ extension SourceKitServer {
     symbol: String?,
     languageService: ToolchainLanguageServer
   ) {
-      var moduleName = moduleName
-      // Stdlib Swift modules are all in the "Swift" module, but their symbols return a module name `Swift.***`.
-      if moduleName.hasPrefix("Swift.") {
-        moduleName = "Swift"
-      }            
       let openInterface = OpenInterfaceRequest(textDocument: req.params.textDocument, name: moduleName, symbol: symbol)
       let request = Request(openInterface, id: req.id, clientID: ObjectIdentifier(self),
                             cancellation: req.cancellationToken, reply: { (result: Result<OpenInterfaceRequest.Response, ResponseError>) in

@@ -27,10 +27,11 @@ struct FindUSRInfo {
 extension SwiftLanguageServer {
   public func openInterface(_ request: LanguageServerProtocol.Request<LanguageServerProtocol.OpenInterfaceRequest>) {
     let uri = request.params.textDocument.uri
-    let moduleName = request.params.name
+    let moduleName = request.params.moduleName
+    let name = request.params.name
     let symbol = request.params.symbol
     self.queue.async {
-      let interfaceFilePath = self.generatedInterfacesPath.appendingPathComponent("\(moduleName).swiftinterface")
+      let interfaceFilePath = self.generatedInterfacesPath.appendingPathComponent("\(name).swiftinterface")
       let interfaceDocURI = DocumentURI(interfaceFilePath)
       // has interface already been generated
       if let snapshot = self.documentManager.latestSnapshot(interfaceDocURI) {
@@ -75,6 +76,9 @@ extension SwiftLanguageServer {
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.editor_open_interface
     skreq[keys.modulename] = name
+    if request.params.groupNames.count > 0 {
+      skreq[keys.groupname] = request.params.groupNames
+    }
     skreq[keys.name] = interfaceURI.pseudoPath
     skreq[keys.synthesizedextensions] = 1
     if let compileCommand = self.commandsByFile[uri] {
