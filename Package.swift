@@ -53,7 +53,7 @@ let package = Package(
         name: "SourceKitLSP",
         dependencies: [
           "BuildServerProtocol",
-          "IndexStoreDB",
+          .product(name: "IndexStoreDB", package: "indexstore-db"),
           "LanguageServerProtocol",
           "LanguageServerProtocolJSONRPC",
           "SKCore",
@@ -75,7 +75,7 @@ let package = Package(
           "CSKTestSupport",
           "LSPTestSupport",
           "SourceKitLSP",
-          .product(name: "ISDBTestSupport", package: "IndexStoreDB"),
+          .product(name: "ISDBTestSupport", package: "indexstore-db"),
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         ],
         resources: [
@@ -96,7 +96,7 @@ let package = Package(
           "BuildServerProtocol",
           "LanguageServerProtocol",
           "SKCore",
-          .product(name: "SwiftPM-auto", package: "SwiftPM")
+          .product(name: "SwiftPM-auto", package: "swift-package-manager")
         ],
         exclude: ["CMakeLists.txt"]),
 
@@ -119,7 +119,7 @@ let package = Package(
           "LanguageServerProtocol",
           "LanguageServerProtocolJSONRPC",
           "SKSupport",
-          .product(name: "SwiftPMDataModel-auto", package: "SwiftPM"),
+          .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
           .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         ],
         exclude: ["CMakeLists.txt"]),
@@ -249,8 +249,8 @@ let package = Package(
 if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
   // Building standalone.
   package.dependencies += [
-    .package(name: "IndexStoreDB", url: "https://github.com/apple/indexstore-db.git", branch: "main"),
-    .package(name: "SwiftPM", url: "https://github.com/apple/swift-package-manager.git", branch: "main"),
+    .package(url: "https://github.com/apple/indexstore-db.git", branch: "main"),
+    .package(url: "https://github.com/apple/swift-package-manager.git", branch: "main"),
     .package(url: "https://github.com/apple/swift-tools-support-core.git", branch: "main"),
     .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.2"),
     .package(url: "https://github.com/apple/swift-syntax.git", branch: "main"),
