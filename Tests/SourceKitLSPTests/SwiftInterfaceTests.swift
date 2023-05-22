@@ -116,7 +116,7 @@ final class SwiftInterfaceTests: XCTestCase {
   
   func testDefinitionInSystemModuleInterface() throws {
     guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
-    try ws.buildAndIndexWithSystemSymbols()
+    try ws.buildAndIndex(withSystemSymbols: true)
     let stringRef = ws.testLoc("Lib.a.string")
     try ws.openDocument(stringRef.url, language: .swift)
     let definition = try ws.sk.sendSync(DefinitionRequest(

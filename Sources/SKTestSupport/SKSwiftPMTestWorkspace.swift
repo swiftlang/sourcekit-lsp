@@ -120,34 +120,25 @@ extension SKSwiftPMTestWorkspace {
 
   public func testLoc(_ name: String) -> TestLocation { sources.locations[name]! }
 
-  public func buildAndIndex() throws {
-    try build()
+  public func buildAndIndex(withSystemSymbols: Bool = false) throws {
+    try build(withSystemSymbols: withSystemSymbols)
     index.pollForUnitChangesAndWait()
   }
 
-  public func buildAndIndexWithSystemSymbols() throws {
-    try buildWithSystemSymbols()
-    index.pollForUnitChangesAndWait()
-  }
-
-  func build() throws {
-    try TSCBasic.Process.checkNonZeroExit(arguments: [
+  func build(withSystemSymbols: Bool = false) throws {
+    var arguments = [
       toolchain.swift!.pathString,
       "build",
       "--package-path", sources.rootDirectory.path,
       "--scratch-path", buildDir.path,
-      "-Xswiftc", "-index-ignore-system-modules",
-      "-Xcc", "-index-ignore-system-symbols",
-    ])
-  }
-
-  func buildWithSystemSymbols() throws {
-    try TSCBasic.Process.checkNonZeroExit(arguments: [
-      toolchain.swift!.pathString,
-      "build",
-      "--package-path", sources.rootDirectory.path,
-      "--scratch-path", buildDir.path,
-    ])
+    ]
+    if !withSystemSymbols {
+      arguments.append(contentsOf: [
+        "-Xswiftc", "-index-ignore-system-modules",
+        "-Xcc", "-index-ignore-system-symbols",
+      ])
+    }
+    try TSCBasic.Process.checkNonZeroExit(arguments: arguments)
   }
 }
 
