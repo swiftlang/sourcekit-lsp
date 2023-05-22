@@ -128,7 +128,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     // in addition to the existing push-based publish notifications.
     // If the client supports pull diagnostics, we report the capability
     // and we should disable the publish notifications to avoid double-reporting.
-    return capabilityRegistry.pullDiagnosticsRegistration(.swift) == nil
+    return capabilityRegistry.pullDiagnosticsRegistration(for: .swift) == nil
   }
   
   private var state: LanguageServerState {
@@ -152,7 +152,6 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   public init?(
     client: LocalConnection,
     toolchain: Toolchain,
-    clientCapabilities: ClientCapabilities?,
     options: SourceKitServer.Options,
     workspace: Workspace,
     reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
@@ -977,6 +976,7 @@ extension SwiftLanguageServer {
   }
 
   public func foldingRange(_ req: Request<FoldingRangeRequest>) {
+    let foldingRangeCapabilities = capabilityRegistry.clientCapabilities.textDocument?.foldingRange
     queue.async {
       guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
         log("failed to find snapshot for url \(req.params.textDocument.uri)")
@@ -1155,17 +1155,16 @@ extension SwiftLanguageServer {
         }
       }
 
-      let capabilities = capabilityRegistry.clientCapabilities.textDocument?.foldingRange
       // If the limit is less than one, do nothing.
-      if let limit = capabilities?.rangeLimit, limit <= 0 {
+      if let limit = foldingRangeCapabilities?.rangeLimit, limit <= 0 {
         req.reply([])
         return
       }
 
       let rangeFinder = FoldingRangeFinder(
         snapshot: snapshot,
-        rangeLimit: capabilities?.rangeLimit,
-        lineFoldingOnly: capabilities?.lineFoldingOnly ?? false)
+        rangeLimit: foldingRangeCapabilities?.rangeLimit,
+        lineFoldingOnly: foldingRangeCapabilities?.lineFoldingOnly ?? false)
       rangeFinder.walk(sourceFile)
       let ranges = rangeFinder.finalize()
 
@@ -1180,12 +1179,12 @@ extension SwiftLanguageServer {
     ]
     let wantedActionKinds = req.params.context.only
     let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
+    let codeActionCapabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
     retrieveCodeActions(req, providers: providers.map { $0.provider }) { result in
       switch result {
       case .success(let codeActions):
-        let capabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
         let response = CodeActionRequestResponse(codeActions: codeActions,
-                                                 clientCapabilities: capabilities)
+                                                 clientCapabilities: codeActionCapabilities)
         req.reply(response)
       case .failure(let error):
         req.reply(.failure(error))
@@ -1366,15 +1365,14 @@ extension SwiftLanguageServer {
 
     let supportsCodeDescription = capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
 
-    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] response in
-      guard let self = self else { return }
+    let handle = self.sourcekitd.send(skreq, self.queue) { response in
       guard let dict = response.success else {
         return completion(.failure(ResponseError(response.failure!)))
       }
 
       var diagnostics: [Diagnostic] = []
       dict[keys.diagnostics]?.forEach { _, diag in
-        if var diagnostic = Diagnostic(diag, in: snapshot, useEducationalNoteAsCode: supportsCodeDescription) {
+        if let diagnostic = Diagnostic(diag, in: snapshot, useEducationalNoteAsCode: supportsCodeDescription) {
           diagnostics.append(diagnostic)
         }
         return true

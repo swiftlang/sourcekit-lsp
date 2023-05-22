@@ -274,22 +274,22 @@ public final class CapabilityRegistry {
     if registration.method == CompletionRequest.method {
       completion.removeValue(forKey: registration)
     }
-    if registration.method == FoldingRangeRegistrationOptions.method {
+    if registration.method == FoldingRangeRequest.method {
       foldingRange.removeValue(forKey: registration)
     }
     if registration.method == SemanticTokensRegistrationOptions.method {
       semanticTokens.removeValue(forKey: registration)
     }
-    if registration.method == InlayHintRegistrationOptions.method {
+    if registration.method == InlayHintRequest.method {
       inlayHint.removeValue(forKey: registration)
     }
-    if registration.method == DiagnosticRegistrationOptions.method {
+    if registration.method == DocumentDiagnosticsRequest.method {
       pullDiagnostics.removeValue(forKey: registration)
     }
   }
 
   public func pullDiagnosticsRegistration(for language: Language) -> DiagnosticRegistrationOptions? {
-    registration(for: language, in: pullDiagnostics)
+    registration(for: [language], in: pullDiagnostics)
   }
 
   private func documentSelector(for languages: [Language]) -> DocumentSelector {
