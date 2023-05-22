@@ -25,21 +25,16 @@ public struct OpenInterfaceRequest: TextDocumentRequest, Hashable {
   /// The module group name.
   public var groupNames: [String]
 
-  /// The symbol to search for in the generated module interface.
-  public var symbol: String?
+  /// The symbol USR to search for in the generated module interface.
+  public var symbolUSR: String?
 
-  public init(textDocument: TextDocumentIdentifier, name: String, symbol: String?) {
+  public init(textDocument: TextDocumentIdentifier, name: String, symbolUSR: String?) {
     self.textDocument = textDocument
-    self.symbol = symbol
+    self.symbolUSR = symbolUSR
     // Stdlib Swift modules are all in the "Swift" module, but their symbols return a module name `Swift.***`.
     let splitName = name.split(separator: ".")
-    if splitName.count == 1 {
-      self.moduleName = name
-      self.groupNames = []
-    } else {
-      self.moduleName = String(splitName[0])
-      self.groupNames = [String.SubSequence](splitName.dropFirst()).map { String($0)}
-    }
+    self.moduleName = String(splitName[0])
+    self.groupNames = [String.SubSequence](splitName.dropFirst()).map(String.init)
   }
 
   /// Name of interface module name with group names appended

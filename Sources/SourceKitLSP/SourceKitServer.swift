@@ -1307,7 +1307,7 @@ extension SourceKitServer {
 
       // If this symbol is a module then generate a textual interface
       if case .success(let symbols) = result, let symbol = symbols.first, symbol.kind == .module, let name = symbol.name {
-        self.respondWithInterface(req, moduleName: name, symbol: nil, languageService: languageService)
+        self.respondWithInterface(req, moduleName: name, symbolUSR: nil, languageService: languageService)
         return
       }
 
@@ -1330,7 +1330,7 @@ extension SourceKitServer {
           self.respondWithInterface(
             req, 
             moduleName: moduleName, 
-            symbol: firstResolved.occurrence?.symbol.usr,
+            symbolUSR: firstResolved.occurrence?.symbol.usr,
             languageService: languageService
           )
           return
@@ -1357,10 +1357,10 @@ extension SourceKitServer {
   func respondWithInterface(
     _ req: Request<DefinitionRequest>,
     moduleName: String,
-    symbol: String?,
+    symbolUSR: String?,
     languageService: ToolchainLanguageServer
   ) {
-      let openInterface = OpenInterfaceRequest(textDocument: req.params.textDocument, name: moduleName, symbol: symbol)
+      let openInterface = OpenInterfaceRequest(textDocument: req.params.textDocument, name: moduleName, symbolUSR: symbolUSR)
       let request = Request(openInterface, id: req.id, clientID: ObjectIdentifier(self),
                             cancellation: req.cancellationToken, reply: { (result: Result<OpenInterfaceRequest.Response, ResponseError>) in
         switch result {

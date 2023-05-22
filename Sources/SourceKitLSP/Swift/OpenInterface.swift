@@ -29,7 +29,7 @@ extension SwiftLanguageServer {
     let uri = request.params.textDocument.uri
     let moduleName = request.params.moduleName
     let name = request.params.name
-    let symbol = request.params.symbol
+    let symbol = request.params.symbolUSR
     self.queue.async {
       let interfaceFilePath = self.generatedInterfacesPath.appendingPathComponent("\(name).swiftinterface")
       let interfaceDocURI = DocumentURI(interfaceFilePath)
