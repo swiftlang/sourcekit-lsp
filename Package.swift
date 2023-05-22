@@ -257,8 +257,8 @@ if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
   ]
 } else {
   package.dependencies += [
-    .package(name: "IndexStoreDB", path: "../indexstore-db"),
-    .package(name: "SwiftPM", path: "../swiftpm"),
+    .package(path: "../indexstore-db"),
+    .package(path: "../swiftpm"),
     .package(path: "../swift-tools-support-core"),
     .package(path: "../swift-argument-parser"),
     .package(path: "../swift-syntax")
