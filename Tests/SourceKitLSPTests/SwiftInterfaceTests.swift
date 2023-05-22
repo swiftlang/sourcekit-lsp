@@ -14,6 +14,7 @@ import Foundation
 import LanguageServerProtocol
 import LSPTestSupport
 import LSPLogging
+import SKSupport
 import SKTestSupport
 import SourceKitLSP
 import XCTest
@@ -111,6 +112,27 @@ final class SwiftInterfaceTests: XCTestCase {
               public init()
           }
           """))
+  }
+  
+  func testDefinitionInSystemModuleInterface() throws {
+    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
+    try ws.buildAndIndexWithSystemSymbols()
+    let stringRef = ws.testLoc("Lib.a.string")
+    try ws.openDocument(stringRef.url, language: .swift)
+    let definition = try ws.sk.sendSync(DefinitionRequest(
+      textDocument: stringRef.docIdentifier,
+      position: stringRef.position))
+    guard case .locations(let jump) = definition else {
+      XCTFail("Response is not locations")
+      return
+    }
+    let location = try XCTUnwrap(jump.first)
+    XCTAssertTrue(location.uri.pseudoPath.hasSuffix("/Swift.String.swiftinterface"))
+    // load contents of swiftinterface
+    let contents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
+    let lineTable = LineTable(contents)
+    let line = lineTable[location.range.lowerBound.line]
+    XCTAssert(line.hasPrefix("@frozen public struct String"))
   }
   
   func testSwiftInterfaceAcrossModules() throws {

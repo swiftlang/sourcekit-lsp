@@ -125,6 +125,11 @@ extension SKSwiftPMTestWorkspace {
     index.pollForUnitChangesAndWait()
   }
 
+  public func buildAndIndexWithSystemSymbols() throws {
+    try buildWithSystemSymbols()
+    index.pollForUnitChangesAndWait()
+  }
+
   func build() throws {
     try TSCBasic.Process.checkNonZeroExit(arguments: [
       toolchain.swift!.pathString,
@@ -133,6 +138,15 @@ extension SKSwiftPMTestWorkspace {
       "--scratch-path", buildDir.path,
       "-Xswiftc", "-index-ignore-system-modules",
       "-Xcc", "-index-ignore-system-symbols",
+    ])
+  }
+
+  func buildWithSystemSymbols() throws {
+    try TSCBasic.Process.checkNonZeroExit(arguments: [
+      toolchain.swift!.pathString,
+      "build",
+      "--package-path", sources.rootDirectory.path,
+      "--scratch-path", buildDir.path,
     ])
   }
 }
