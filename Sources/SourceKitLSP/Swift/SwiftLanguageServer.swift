@@ -103,7 +103,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   let sourcekitd: SourceKitD
 
-  let clientCapabilities: ClientCapabilities
+  let capabilityRegistry: CapabilityRegistry
 
   let serverOptions: SourceKitServer.Options
   
@@ -128,7 +128,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     // in addition to the existing push-based publish notifications.
     // If the client supports pull diagnostics, we report the capability
     // and we should disable the publish notifications to avoid double-reporting.
-    return clientCapabilities.textDocument?.diagnostic == nil
+    return capabilityRegistry.pullDiagnosticsRegistration(.swift) == nil
   }
   
   private var state: LanguageServerState {
@@ -160,7 +160,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
     self.client = client
     self.sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitd)
-    self.clientCapabilities = clientCapabilities ?? ClientCapabilities(workspace: nil, textDocument: nil)
+    self.capabilityRegistry = workspace.capabilityRegistry
     self.serverOptions = options
     self.documentManager = DocumentManager()
     self.state = .connected
@@ -250,7 +250,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   /// Inform the client about changes to the syntax highlighting tokens.
   private func requestTokensRefresh() {
-    if clientCapabilities.workspace?.semanticTokens?.refreshSupport ?? false {
+    if capabilityRegistry.clientHasSemanticTokenRefreshSupport {
       _ = client.send(WorkspaceSemanticTokensRefreshRequest(), queue: queue) { result in
         if let error = result.failure {
           log("refreshing tokens failed: \(error)", level: .warning)
@@ -293,8 +293,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     let stageUID: sourcekitd_uid_t? = response[sourcekitd.keys.diagnostic_stage]
     let stage = stageUID.flatMap { DiagnosticStage($0, sourcekitd: sourcekitd) } ?? .sema
 
-    let supportsCodeDescription =
-           (clientCapabilities.textDocument?.publishDiagnostics?.codeDescriptionSupport == true)
+    let supportsCodeDescription = capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
 
     // Note: we make the notification even if there are no diagnostics to clear the current state.
     var newDiags: [CachedDiagnostic] = []
@@ -1156,7 +1155,7 @@ extension SwiftLanguageServer {
         }
       }
 
-      let capabilities = self.clientCapabilities.textDocument?.foldingRange
+      let capabilities = capabilityRegistry.clientCapabilities.textDocument?.foldingRange
       // If the limit is less than one, do nothing.
       if let limit = capabilities?.rangeLimit, limit <= 0 {
         req.reply([])
@@ -1184,7 +1183,7 @@ extension SwiftLanguageServer {
     retrieveCodeActions(req, providers: providers.map { $0.provider }) { result in
       switch result {
       case .success(let codeActions):
-        let capabilities = self.clientCapabilities.textDocument?.codeAction
+        let capabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
         let response = CodeActionRequestResponse(codeActions: codeActions,
                                                  clientCapabilities: capabilities)
         req.reply(response)
@@ -1365,8 +1364,7 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let supportsCodeDescription =
-          (clientCapabilities.textDocument?.publishDiagnostics?.codeDescriptionSupport == true)
+    let supportsCodeDescription = capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
 
     let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] response in
       guard let self = self else { return }

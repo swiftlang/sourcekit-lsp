@@ -75,6 +75,14 @@ public final class CapabilityRegistry {
     clientCapabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration == true
   }
 
+  public var clientHasSemanticTokenRefreshSupport: Bool {
+    clientCapabilities.workspace?.semanticTokens?.refreshSupport == true
+  }
+
+  public var clientHasDiagnosticsCodeDescriptionSupport: Bool {
+    clientCapabilities.textDocument?.publishDiagnostics?.codeDescriptionSupport == true
+  }
+
   /// Dynamically register completion capabilities if the client supports it and
   /// we haven't yet registered any completion capabilities for the given
   /// languages.
@@ -266,13 +274,26 @@ public final class CapabilityRegistry {
     if registration.method == CompletionRequest.method {
       completion.removeValue(forKey: registration)
     }
+    if registration.method == FoldingRangeRegistrationOptions.method {
+      foldingRange.removeValue(forKey: registration)
+    }
     if registration.method == SemanticTokensRegistrationOptions.method {
       semanticTokens.removeValue(forKey: registration)
     }
+    if registration.method == InlayHintRegistrationOptions.method {
+      inlayHint.removeValue(forKey: registration)
+    }
+    if registration.method == DiagnosticRegistrationOptions.method {
+      pullDiagnostics.removeValue(forKey: registration)
+    }
   }
 
-  private func documentSelector(for langauges: [Language]) -> DocumentSelector {
-    return DocumentSelector(langauges.map { DocumentFilter(language: $0.rawValue) })
+  public func pullDiagnosticsRegistration(for language: Language) -> DiagnosticRegistrationOptions? {
+    registration(for: language, in: pullDiagnostics)
+  }
+
+  private func documentSelector(for languages: [Language]) -> DocumentSelector {
+    return DocumentSelector(languages.map { DocumentFilter(language: $0.rawValue) })
   }
 
   private func encode<T: RegistrationOptions>(_ options: T) -> LSPAny {

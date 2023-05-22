@@ -103,7 +103,6 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
   public init?(
     client: LocalConnection,
     toolchain: Toolchain,
-    clientCapabilities: ClientCapabilities?,
     options: SourceKitServer.Options,
     workspace: Workspace,
     reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
