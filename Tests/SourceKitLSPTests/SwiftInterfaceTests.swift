@@ -99,7 +99,7 @@ final class SwiftInterfaceTests: XCTestCase {
     try ws.buildAndIndex()
     let importedModule = ws.testLoc("lib:import")
     try ws.openDocument(importedModule.url, language: .swift)
-    let openInterface = OpenInterfaceRequest(textDocument: importedModule.docIdentifier, name: "lib", symbol: nil)
+    let openInterface = OpenInterfaceRequest(textDocument: importedModule.docIdentifier, name: "lib", symbolUSR: nil)
     let interfaceDetails = try XCTUnwrap(ws.sk.sendSync(openInterface))
     XCTAssertTrue(interfaceDetails.uri.pseudoPath.hasSuffix("/lib.swiftinterface"))
     let fileContents = try XCTUnwrap(interfaceDetails.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
