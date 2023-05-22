@@ -64,11 +64,11 @@ final class PullDiagnosticsTests: XCTestCase {
         XCTFail("Unexpected diagnostics report type: \(report)")
     }
 
-    return fullReport.diagnostics
+    return fullReport.items
   }
 
-  func testUnknownIdentifierDiagnostic() {
-    let diagnostics = performDiagnosticRequest(text: """
+  func testUnknownIdentifierDiagnostic() throws {
+    let diagnostics = try performDiagnosticRequest(text: """
     func foo() {
       invalid
     }
