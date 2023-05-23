@@ -1307,20 +1307,7 @@ extension SourceKitServer {
 
       // If this symbol is a module then generate a textual interface
       if case .success(let symbols) = result, let symbol = symbols.first, symbol.kind == .module, let name = symbol.name {
-        let openInterface = OpenInterfaceRequest(textDocument: req.params.textDocument, name: name)
-        let request = Request(openInterface, id: req.id, clientID: ObjectIdentifier(self),
-                              cancellation: req.cancellationToken, reply: { (result: Result<OpenInterfaceRequest.Response, ResponseError>) in
-          switch result {
-          case .success(let interfaceDetails?):
-            let loc = Location(uri: interfaceDetails.uri, range: Range(Position(line: 0, utf16index: 0)))
-            req.reply(.locations([loc]))
-          case .success(nil):
-            req.reply(.failure(.unknown("Could not generate Swift Interface for \(name)")))
-          case .failure(let error):
-            req.reply(.failure(error))
-          }
-        })
-        languageService.openInterface(request)
+        self.respondWithInterface(req, moduleName: name, symbolUSR: nil, languageService: languageService)
         return
       }
 
@@ -1335,6 +1322,19 @@ extension SourceKitServer {
 
       switch extractedResult {
       case .success(let resolved):
+        // if first resolved location is in `.swiftinterface` file. Use moduleName to return 
+        // textual interface 
+        if let firstResolved = resolved.first, 
+           let moduleName = firstResolved.occurrence?.location.moduleName, 
+           firstResolved.location.uri.fileURL?.pathExtension == "swiftinterface" {
+          self.respondWithInterface(
+            req, 
+            moduleName: moduleName, 
+            symbolUSR: firstResolved.occurrence?.symbol.usr,
+            languageService: languageService
+          )
+          return
+        }
         let locs = resolved.map(\.location)
         // If we're unable to handle the definition request using our index, see if the
         // language service can handle it (e.g. clangd can provide AST based definitions).
@@ -1352,6 +1352,29 @@ extension SourceKitServer {
     let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
                           cancellation: req.cancellationToken, reply: callback)
     languageService.symbolInfo(request)
+  }
+
+  func respondWithInterface(
+    _ req: Request<DefinitionRequest>,
+    moduleName: String,
+    symbolUSR: String?,
+    languageService: ToolchainLanguageServer
+  ) {
+      let openInterface = OpenInterfaceRequest(textDocument: req.params.textDocument, name: moduleName, symbolUSR: symbolUSR)
+      let request = Request(openInterface, id: req.id, clientID: ObjectIdentifier(self),
+                            cancellation: req.cancellationToken, reply: { (result: Result<OpenInterfaceRequest.Response, ResponseError>) in
+        switch result {
+        case .success(let interfaceDetails?):
+          let position = interfaceDetails.position ?? Position(line: 0, utf16index: 0)
+          let loc = Location(uri: interfaceDetails.uri, range: Range(position))
+          req.reply(.locations([loc]))
+        case .success(nil):
+          req.reply(.failure(.unknown("Could not generate Swift Interface for \(moduleName)")))
+        case .failure(let error):
+          req.reply(.failure(error))
+        }
+      })
+      languageService.openInterface(request)
   }
 
   func implementation(

@@ -40,6 +40,7 @@ public struct sourcekitd_keys {
   public let expression_type_list: sourcekitd_uid_t
   public let filepath: sourcekitd_uid_t
   public let fixits: sourcekitd_uid_t
+  public let groupname: sourcekitd_uid_t
   public let id: sourcekitd_uid_t
   public let is_system: sourcekitd_uid_t
   public let kind: sourcekitd_uid_t
@@ -115,6 +116,7 @@ public struct sourcekitd_keys {
     expression_type_list = api.uid_get_from_cstr("key.expression_type_list")!
     filepath = api.uid_get_from_cstr("key.filepath")!
     fixits = api.uid_get_from_cstr("key.fixits")!
+    groupname = api.uid_get_from_cstr("key.groupname")!
     id = api.uid_get_from_cstr("key.id")!
     is_system = api.uid_get_from_cstr("key.is_system")!
     kind = api.uid_get_from_cstr("key.kind")!
@@ -176,6 +178,7 @@ public struct sourcekitd_requests {
   public let codecomplete_close: sourcekitd_uid_t
   public let cursorinfo: sourcekitd_uid_t
   public let expression_type: sourcekitd_uid_t
+  public let find_usr: sourcekitd_uid_t
   public let variable_type: sourcekitd_uid_t
   public let relatedidents: sourcekitd_uid_t
   public let semantic_refactoring: sourcekitd_uid_t
@@ -192,6 +195,7 @@ public struct sourcekitd_requests {
     codecomplete_close = api.uid_get_from_cstr("source.request.codecomplete.close")!
     cursorinfo = api.uid_get_from_cstr("source.request.cursorinfo")!
     expression_type = api.uid_get_from_cstr("source.request.expression.type")!
+    find_usr = api.uid_get_from_cstr("source.request.editor.find_usr")!
     variable_type = api.uid_get_from_cstr("source.request.variable.type")!
     relatedidents = api.uid_get_from_cstr("source.request.relatedidents")!
     semantic_refactoring = api.uid_get_from_cstr("source.request.semantic.refactoring")!

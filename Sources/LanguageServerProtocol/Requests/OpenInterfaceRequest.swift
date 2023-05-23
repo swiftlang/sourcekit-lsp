@@ -20,11 +20,30 @@ public struct OpenInterfaceRequest: TextDocumentRequest, Hashable {
   public var textDocument: TextDocumentIdentifier
 
   /// The module to generate an index for.
-  public var name: String
+  public var moduleName: String
 
-  public init(textDocument: TextDocumentIdentifier, name: String) {
+  /// The module group name.
+  public var groupNames: [String]
+
+  /// The symbol USR to search for in the generated module interface.
+  public var symbolUSR: String?
+
+  public init(textDocument: TextDocumentIdentifier, name: String, symbolUSR: String?) {
     self.textDocument = textDocument
-    self.name = name
+    self.symbolUSR = symbolUSR
+    // Stdlib Swift modules are all in the "Swift" module, but their symbols return a module name `Swift.***`.
+    let splitName = name.split(separator: ".")
+    self.moduleName = String(splitName[0])
+    self.groupNames = [String.SubSequence](splitName.dropFirst()).map(String.init)
+  }
+
+  /// Name of interface module name with group names appended
+  public var name: String {
+    if groupNames.count > 0 {
+      return "\(self.moduleName).\(self.groupNames.joined(separator: "."))"
+    } else {
+      return self.moduleName
+    }
   }
 }
 
@@ -32,8 +51,10 @@ public struct OpenInterfaceRequest: TextDocumentRequest, Hashable {
 public struct InterfaceDetails: ResponseType, Hashable {
 
   public var uri: DocumentURI
+  public var position: Position?
 
-  public init(uri: DocumentURI) {
+  public init(uri: DocumentURI, position: Position?) {
     self.uri = uri
+    self.position = position
   }
 }
