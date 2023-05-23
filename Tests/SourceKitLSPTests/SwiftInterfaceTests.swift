@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import ISDBTestSupport
 import LanguageServerProtocol
 import LSPTestSupport
 import LSPLogging
@@ -114,25 +115,59 @@ final class SwiftInterfaceTests: XCTestCase {
           """))
   }
   
-  func testDefinitionInSystemModuleInterface() throws {
-    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
-    try ws.buildAndIndex(withSystemSymbols: true)
-    let stringRef = ws.testLoc("Lib.a.string")
-    try ws.openDocument(stringRef.url, language: .swift)
+  /// Used by testDefinitionInSystemModuleInterface
+  func testSystemSwiftInterface(
+    _ testLoc: TestLocation, 
+    ws: SKSwiftPMTestWorkspace, 
+    swiftInterfaceFile: String, 
+    linePrefix: String
+  ) throws {
+    try ws.openDocument(testLoc.url, language: .swift)
     let definition = try ws.sk.sendSync(DefinitionRequest(
-      textDocument: stringRef.docIdentifier,
-      position: stringRef.position))
+      textDocument: testLoc.docIdentifier,
+      position: testLoc.position))
     guard case .locations(let jump) = definition else {
       XCTFail("Response is not locations")
       return
     }
     let location = try XCTUnwrap(jump.first)
-    XCTAssertTrue(location.uri.pseudoPath.hasSuffix("/Swift.String.swiftinterface"))
+    XCTAssertTrue(location.uri.pseudoPath.hasSuffix(swiftInterfaceFile))
     // load contents of swiftinterface
     let contents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
     let lineTable = LineTable(contents)
     let line = lineTable[location.range.lowerBound.line]
-    XCTAssert(line.hasPrefix("@frozen public struct String"))
+    XCTAssert(line.hasPrefix(linePrefix))
+    ws.closeDocument(testLoc.url)
+  }
+
+  func testDefinitionInSystemModuleInterface() throws {
+    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SystemSwiftInterface") else { return }
+    try ws.buildAndIndex(withSystemSymbols: true)
+    let stringRef = ws.testLoc("lib.string")
+    let intRef = ws.testLoc("lib.integer")
+    let withTaskGroupRef = ws.testLoc("lib.withTaskGroup")
+
+    // Test stdlib with one submodule
+    try testSystemSwiftInterface(
+      stringRef, 
+      ws: ws, 
+      swiftInterfaceFile: "/Swift.String.swiftinterface", 
+      linePrefix: "@frozen public struct String"
+    )
+    // Test stdlib with two submodules
+    try testSystemSwiftInterface(
+      intRef, 
+      ws: ws, 
+      swiftInterfaceFile: "/Swift.Math.Integers.swiftinterface", 
+      linePrefix: "@frozen public struct Int"
+    )
+    // Test concurrency
+    try testSystemSwiftInterface(
+      withTaskGroupRef, 
+      ws: ws, 
+      swiftInterfaceFile: "/_Concurrency.swiftinterface", 
+      linePrefix: "@inlinable public func withTaskGroup"
+    )
   }
   
   func testSwiftInterfaceAcrossModules() throws {
