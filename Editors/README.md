@@ -2,7 +2,7 @@
 
 This document contains information about how to configure an editor to use SourceKit-LSP. If your editor is not listed below, but it supports the [Language Server Protocol](https://microsoft.github.io/language-server-protocol/) (LSP), see [Other Editors](#other-editors).
 
-In general, you will need to know where to find the `sourcekit-lsp` server exectuable. Some examples:
+In general, you will need to know where to find the `sourcekit-lsp` server executable. Some examples:
 
 * With Xcode 11.4+
   * `xcrun sourcekit-lsp` - run the server
