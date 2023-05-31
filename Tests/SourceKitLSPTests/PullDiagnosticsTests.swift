@@ -16,6 +16,10 @@ import SKTestSupport
 import XCTest
 
 final class PullDiagnosticsTests: XCTestCase {
+  enum Error: Swift.Error {
+    case unexpectedDiagnosticReport
+  }
+
   /// Connection and lifetime management for the service.
   var connection: TestSourceKitServer! = nil
 
@@ -61,8 +65,7 @@ final class PullDiagnosticsTests: XCTestCase {
     }
 
     guard case .full(let fullReport) = report else {
-      XCTFail("Unexpected diagnostics report type: \(report)")
-      return
+      throw Error.unexpectedDiagnosticReport
     }
 
     return fullReport.items
