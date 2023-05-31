@@ -62,6 +62,7 @@ final class PullDiagnosticsTests: XCTestCase {
 
     guard case .full(let fullReport) = report else {
       XCTFail("Unexpected diagnostics report type: \(report)")
+      return
     }
 
     return fullReport.items
