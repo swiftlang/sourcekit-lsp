@@ -63,7 +63,7 @@ public final class CapabilityRegistry {
     clientCapabilities.textDocument?.inlayHint?.dynamicRegistration == true
   }
 
-  public var clientHasDocumentDiagnosticsRegistration: Bool {
+  public var clientHasDynamicDocumentDiagnosticsRegistration: Bool {
     clientCapabilities.textDocument?.diagnostic?.dynamicRegistration == true
   }
   
@@ -224,7 +224,7 @@ public final class CapabilityRegistry {
     for languages: [Language],
     registerOnClient: ClientRegistrationHandler
   ) {
-    guard clientHasDocumentDiagnosticsRegistration else { return }
+    guard clientHasDynamicDocumentDiagnosticsRegistration else { return }
     if let registration = registration(for: languages, in: pullDiagnostics) {
       if options != registration.diagnosticOptions {
         log("Unable to register new pull diagnostics options \(options) for " +
