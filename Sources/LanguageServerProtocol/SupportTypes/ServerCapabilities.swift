@@ -868,9 +868,6 @@ public struct DiagnosticOptions: WorkDoneProgressOptions, Codable, Hashable {
   /// The server provides support for workspace diagnostics as well.
   public var workspaceDiagnostics: Bool
 
-  /// A document selector to identify the scope of the registration. If set to null the document selector provided on the client side will be used.
-  public var documentSelector: DocumentSelector?
-
   /// The id used to register the request. The id can be used to deregister the request again. See also Registration#id
   public var id: String?
 
@@ -880,16 +877,28 @@ public struct DiagnosticOptions: WorkDoneProgressOptions, Codable, Hashable {
     identifier: String? = nil,
     interFileDependencies: Bool,
     workspaceDiagnostics: Bool,
-    documentSelector: DocumentSelector? = nil,
     id: String? = nil,
     workDoneProgress: Bool? = nil
   ) {
     self.identifier = identifier
     self.interFileDependencies = interFileDependencies
     self.workspaceDiagnostics = workspaceDiagnostics
-    self.documentSelector = documentSelector
     self.id = id
     self.workDoneProgress = workDoneProgress
+  }
+
+  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
+    if let identifier = identifier {
+      dict["identifier"] = .string(identifier)
+    }
+    dict["interFileDependencies"] = .bool(interFileDependencies)
+    dict["workspaceDiagnostics"] = .bool(workspaceDiagnostics)
+    if let id = id {
+      dict["id"] = .string(id)
+    }
+    if let workDoneProgress = workDoneProgress {
+      dict["workDoneProgress"] = .bool(workDoneProgress)
+    }
   }
 }
 

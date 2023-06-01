@@ -63,7 +63,7 @@ public final class CapabilityRegistry {
     clientCapabilities.textDocument?.inlayHint?.dynamicRegistration == true
   }
 
-  public var clientHasDocumentDiagnosticsRegistration: Bool {
+  public var clientHasDynamicDocumentDiagnosticsRegistration: Bool {
     clientCapabilities.textDocument?.diagnostic?.dynamicRegistration == true
   }
   
@@ -73,6 +73,14 @@ public final class CapabilityRegistry {
 
   public var clientHasDynamicDidChangeWatchedFilesRegistration: Bool {
     clientCapabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration == true
+  }
+
+  public var clientHasSemanticTokenRefreshSupport: Bool {
+    clientCapabilities.workspace?.semanticTokens?.refreshSupport == true
+  }
+
+  public var clientHasDiagnosticsCodeDescriptionSupport: Bool {
+    clientCapabilities.textDocument?.publishDiagnostics?.codeDescriptionSupport == true
   }
 
   /// Dynamically register completion capabilities if the client supports it and
@@ -216,7 +224,7 @@ public final class CapabilityRegistry {
     for languages: [Language],
     registerOnClient: ClientRegistrationHandler
   ) {
-    guard clientHasDocumentDiagnosticsRegistration else { return }
+    guard clientHasDynamicDocumentDiagnosticsRegistration else { return }
     if let registration = registration(for: languages, in: pullDiagnostics) {
       if options != registration.diagnosticOptions {
         log("Unable to register new pull diagnostics options \(options) for " +
@@ -266,13 +274,26 @@ public final class CapabilityRegistry {
     if registration.method == CompletionRequest.method {
       completion.removeValue(forKey: registration)
     }
+    if registration.method == FoldingRangeRequest.method {
+      foldingRange.removeValue(forKey: registration)
+    }
     if registration.method == SemanticTokensRegistrationOptions.method {
       semanticTokens.removeValue(forKey: registration)
     }
+    if registration.method == InlayHintRequest.method {
+      inlayHint.removeValue(forKey: registration)
+    }
+    if registration.method == DocumentDiagnosticsRequest.method {
+      pullDiagnostics.removeValue(forKey: registration)
+    }
   }
 
-  private func documentSelector(for langauges: [Language]) -> DocumentSelector {
-    return DocumentSelector(langauges.map { DocumentFilter(language: $0.rawValue) })
+  public func pullDiagnosticsRegistration(for language: Language) -> DiagnosticRegistrationOptions? {
+    registration(for: [language], in: pullDiagnostics)
+  }
+
+  private func documentSelector(for languages: [Language]) -> DocumentSelector {
+    return DocumentSelector(languages.map { DocumentFilter(language: $0.rawValue) })
   }
 
   private func encode<T: RegistrationOptions>(_ options: T) -> LSPAny {
