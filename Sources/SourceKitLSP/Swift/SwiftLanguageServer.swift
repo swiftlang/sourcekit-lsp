@@ -1338,11 +1338,6 @@ extension SwiftLanguageServer {
       }
     }
   }
-  
-  public func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) {
-    // TODO: Return provider object in initializeSync and implement pull-model document diagnostics here.
-    req.reply(.failure(.unknown("Pull-model diagnostics not implemented yet.")))
-  }
 
   // Must be called on self.queue
   public func _documentDiagnostic(
