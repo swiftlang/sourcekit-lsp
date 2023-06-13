@@ -139,8 +139,8 @@ extension SwiftLanguageServer {
       let typeName: String? = value[self.keys.typename]
       let docBrief: String? = value[self.keys.doc_brief]
 
-      let clientCompletionCapabilities = self.clientCapabilities.textDocument?.completion
-      let clientSupportsSnippets = clientCompletionCapabilities?.completionItem?.snippetSupport == true
+      let completionCapabilities = self.capabilityRegistry.clientCapabilities.textDocument?.completion
+      let clientSupportsSnippets = completionCapabilities?.completionItem?.snippetSupport == true
       let text = insertText.map {
         rewriteSourceKitPlaceholders(inString: $0, clientSupportsSnippets: clientSupportsSnippets)
       }

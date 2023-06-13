@@ -32,7 +32,6 @@ public protocol ToolchainLanguageServer: AnyObject {
   init?(
     client: LocalConnection,
     toolchain: Toolchain,
-    clientCapabilities: ClientCapabilities?,
     options: SourceKitServer.Options,
     workspace: Workspace,
     reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
@@ -97,6 +96,7 @@ public protocol ToolchainLanguageServer: AnyObject {
   func colorPresentation(_ req: Request<ColorPresentationRequest>)
   func codeAction(_ req: Request<CodeActionRequest>)
   func inlayHint(_ req: Request<InlayHintRequest>)
+  func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>)
 
   // MARK: - Other
 

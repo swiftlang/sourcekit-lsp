@@ -108,6 +108,9 @@ public struct ServerCapabilities: Codable, Hashable {
   /// Whether the server supports the `textDocument/inlayHint` family of requests.
   public var inlayHintProvider: ValueOrBool<InlayHintOptions>?
 
+  /// Whether the server supports the `textDocument/diagnostic` request.
+  public var diagnosticProvider: DiagnosticOptions?
+
   /// Whether the server provides selection range support.
   public var selectionRangeProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>?
 
@@ -152,6 +155,7 @@ public struct ServerCapabilities: Codable, Hashable {
     typeHierarchyProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     semanticTokensProvider: SemanticTokensOptions? = nil,
     inlayHintProvider: ValueOrBool<InlayHintOptions>? = nil,
+    diagnosticProvider: DiagnosticOptions? = nil,
     selectionRangeProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     linkedEditingRangeProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     monikerProvider: ValueOrBool<MonikerOptions>? = nil,
@@ -188,6 +192,7 @@ public struct ServerCapabilities: Codable, Hashable {
     self.typeHierarchyProvider = typeHierarchyProvider
     self.semanticTokensProvider = semanticTokensProvider
     self.inlayHintProvider = inlayHintProvider
+    self.diagnosticProvider = diagnosticProvider
     self.selectionRangeProvider = selectionRangeProvider
     self.linkedEditingRangeProvider = linkedEditingRangeProvider
     self.experimental = experimental
@@ -863,9 +868,6 @@ public struct DiagnosticOptions: WorkDoneProgressOptions, Codable, Hashable {
   /// The server provides support for workspace diagnostics as well.
   public var workspaceDiagnostics: Bool
 
-  /// A document selector to identify the scope of the registration. If set to null the document selector provided on the client side will be used.
-  public var documentSelector: DocumentSelector?
-
   /// The id used to register the request. The id can be used to deregister the request again. See also Registration#id
   public var id: String?
 
@@ -875,16 +877,28 @@ public struct DiagnosticOptions: WorkDoneProgressOptions, Codable, Hashable {
     identifier: String? = nil,
     interFileDependencies: Bool,
     workspaceDiagnostics: Bool,
-    documentSelector: DocumentSelector? = nil,
     id: String? = nil,
     workDoneProgress: Bool? = nil
   ) {
     self.identifier = identifier
     self.interFileDependencies = interFileDependencies
     self.workspaceDiagnostics = workspaceDiagnostics
-    self.documentSelector = documentSelector
     self.id = id
     self.workDoneProgress = workDoneProgress
+  }
+
+  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
+    if let identifier = identifier {
+      dict["identifier"] = .string(identifier)
+    }
+    dict["interFileDependencies"] = .bool(interFileDependencies)
+    dict["workspaceDiagnostics"] = .bool(workspaceDiagnostics)
+    if let id = id {
+      dict["id"] = .string(id)
+    }
+    if let workDoneProgress = workDoneProgress {
+      dict["workDoneProgress"] = .bool(workDoneProgress)
+    }
   }
 }
 

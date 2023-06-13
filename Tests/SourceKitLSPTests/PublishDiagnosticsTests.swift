@@ -15,7 +15,7 @@ import LSPTestSupport
 import SKTestSupport
 import XCTest
 
-final class DiagnosticsTests: XCTestCase {
+final class PublishDiagnosticsTests: XCTestCase {
   /// Connection and lifetime management for the service.
   var connection: TestSourceKitServer! = nil
 
@@ -28,7 +28,7 @@ final class DiagnosticsTests: XCTestCase {
 
   override func setUp() {
     version = 0
-    uri = DocumentURI(URL(fileURLWithPath: "/DiagnosticsTests/\(UUID()).swift"))
+    uri = DocumentURI(URL(fileURLWithPath: "/PublishDiagnosticsTests/\(UUID()).swift"))
     connection = TestSourceKitServer()
     sk = connection.client
     let documentCapabilities = TextDocumentClientCapabilities()

@@ -31,6 +31,9 @@ public final class CapabilityRegistry {
 
   /// Dynamically registered inlay hint options.
   private var inlayHint: [CapabilityRegistration: InlayHintRegistrationOptions] = [:]
+  
+  /// Dynamically registered pull diagnostics options.
+  private var pullDiagnostics: [CapabilityRegistration: DiagnosticRegistrationOptions] = [:]
 
   /// Dynamically registered file watchers.
   private var didChangeWatchedFiles: DidChangeWatchedFilesRegistrationOptions?
@@ -59,13 +62,24 @@ public final class CapabilityRegistry {
   public var clientHasDynamicInlayHintRegistration: Bool {
     clientCapabilities.textDocument?.inlayHint?.dynamicRegistration == true
   }
-
+  public var clientHasDynamicDocumentDiagnosticsRegistration: Bool {
+    clientCapabilities.textDocument?.diagnostic?.dynamicRegistration == true
+  }
+  
   public var clientHasDynamicExecuteCommandRegistration: Bool {
     clientCapabilities.workspace?.executeCommand?.dynamicRegistration == true
   }
 
   public var clientHasDynamicDidChangeWatchedFilesRegistration: Bool {
     clientCapabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration == true
+  }
+
+  public var clientHasSemanticTokenRefreshSupport: Bool {
+    clientCapabilities.workspace?.semanticTokens?.refreshSupport == true
+  }
+
+  public var clientHasDiagnosticsCodeDescriptionSupport: Bool {
+    clientCapabilities.textDocument?.publishDiagnostics?.codeDescriptionSupport == true
   }
 
   /// Dynamically register completion capabilities if the client supports it and
@@ -202,6 +216,33 @@ public final class CapabilityRegistry {
     registerOnClient(registration)
   }
 
+  /// Dynamically register (pull model) diagnostic capabilities,
+  /// if the client supports it.
+  public func registerDiagnosticIfNeeded(
+    options: DiagnosticOptions,
+    for languages: [Language],
+    registerOnClient: ClientRegistrationHandler
+  ) {
+    guard clientHasDynamicDocumentDiagnosticsRegistration else { return }
+    if let registration = registration(for: languages, in: pullDiagnostics) {
+      if options != registration.diagnosticOptions {
+        log("Unable to register new pull diagnostics options \(options) for " +
+            "\(languages) due to pre-existing options \(registration.diagnosticOptions)", level: .warning)
+      }
+      return
+    }
+    let registrationOptions = DiagnosticRegistrationOptions(
+      documentSelector: self.documentSelector(for: languages),
+      diagnosticOptions: options)
+    let registration = CapabilityRegistration(
+      method: DocumentDiagnosticsRequest.method,
+      registerOptions: self.encode(registrationOptions))
+    
+    self.pullDiagnostics[registration] = registrationOptions
+
+    registerOnClient(registration)
+  }
+
   /// Dynamically register executeCommand with the given IDs if the client supports
   /// it and we haven't yet registered the given command IDs yet.
   public func registerExecuteCommandIfNeeded(
@@ -232,13 +273,26 @@ public final class CapabilityRegistry {
     if registration.method == CompletionRequest.method {
       completion.removeValue(forKey: registration)
     }
+    if registration.method == FoldingRangeRequest.method {
+      foldingRange.removeValue(forKey: registration)
+    }
     if registration.method == SemanticTokensRegistrationOptions.method {
       semanticTokens.removeValue(forKey: registration)
     }
+    if registration.method == InlayHintRequest.method {
+      inlayHint.removeValue(forKey: registration)
+    }
+    if registration.method == DocumentDiagnosticsRequest.method {
+      pullDiagnostics.removeValue(forKey: registration)
+    }
   }
 
-  private func documentSelector(for langauges: [Language]) -> DocumentSelector {
-    return DocumentSelector(langauges.map { DocumentFilter(language: $0.rawValue) })
+  public func pullDiagnosticsRegistration(for language: Language) -> DiagnosticRegistrationOptions? {
+    registration(for: [language], in: pullDiagnostics)
+  }
+
+  private func documentSelector(for languages: [Language]) -> DocumentSelector {
+    return DocumentSelector(languages.map { DocumentFilter(language: $0.rawValue) })
   }
 
   private func encode<T: RegistrationOptions>(_ options: T) -> LSPAny {
