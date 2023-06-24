@@ -110,6 +110,7 @@ public struct InitializeRequest: RequestType, Hashable {
 extension InitializeRequest: Codable {
   private enum CodingKeys: String, CodingKey {
     case processId
+    case clientInfo
     case rootPath
     case rootURI = "rootUri"
     case initializationOptions
