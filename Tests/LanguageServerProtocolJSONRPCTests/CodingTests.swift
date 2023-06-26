@@ -18,7 +18,7 @@ import XCTest
 final class CodingTests: XCTestCase {
 
   func testMessageCoding() {
-    checkMessageCoding(InitializeRequest(processId: 1, clientInfo: InitializeRequest.ClientInfo(name: "dummy-client", version: "1.0"), rootPath: "/foo", rootURI: nil, initializationOptions: nil, capabilities: ClientCapabilities(workspace: nil, textDocument: nil), trace: .off, workspaceFolders: nil), id: .number(2), json: """
+    checkMessageCoding(InitializeRequest(processId: 1, clientInfo: InitializeRequest.ClientInfo(name: "dummy-client", version: "1.0"), locale: "en-US", rootPath: "/foo", rootURI: nil, initializationOptions: nil, capabilities: ClientCapabilities(workspace: nil, textDocument: nil), trace: .off, workspaceFolders: nil), id: .number(2), json: """
     {
       "id" : 2,
       "jsonrpc" : "2.0",
@@ -31,6 +31,7 @@ final class CodingTests: XCTestCase {
           "name" : "dummy-client",
           "version" : "1.0"
         },
+        "locale" : "en-US",
         "processId" : 1,
         "rootPath" : "\\/foo",
         "trace" : "off"
