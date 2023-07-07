@@ -62,6 +62,7 @@ public struct SyntaxHighlightingToken: Hashable {
   public enum Kind: UInt32, CaseIterable, Hashable {
     case namespace = 0
     case type
+    case actor
     case `class`
     case `enum`
     case interface
@@ -91,6 +92,7 @@ public struct SyntaxHighlightingToken: Hashable {
       switch self {
       case .namespace: return "namespace"
       case .type: return "type"
+      case .actor: return "class" // LSP doesn’t know about actors. Display actors as classes.
       case .class: return "class"
       case .enum: return "enum"
       case .interface: return "interface"

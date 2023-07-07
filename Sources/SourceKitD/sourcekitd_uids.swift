@@ -267,7 +267,9 @@ public struct sourcekitd_values {
   public let ref_var_local: sourcekitd_uid_t
   public let decl_var_parameter: sourcekitd_uid_t
   public let decl_module: sourcekitd_uid_t
+  public let decl_actor: sourcekitd_uid_t
   public let decl_class: sourcekitd_uid_t
+  public let ref_actor: sourcekitd_uid_t
   public let ref_class: sourcekitd_uid_t
   public let decl_struct: sourcekitd_uid_t
   public let ref_struct: sourcekitd_uid_t
@@ -371,6 +373,8 @@ public struct sourcekitd_values {
     ref_var_local = api.uid_get_from_cstr("source.lang.swift.ref.var.local")!
     decl_var_parameter = api.uid_get_from_cstr("source.lang.swift.decl.var.parameter")!
     decl_module = api.uid_get_from_cstr("source.lang.swift.decl.module")!
+    decl_actor = api.uid_get_from_cstr("source.lang.swift.decl.actor")!
+    ref_actor = api.uid_get_from_cstr("source.lang.swift.ref.actor")!
     decl_class = api.uid_get_from_cstr("source.lang.swift.decl.class")!
     ref_class = api.uid_get_from_cstr("source.lang.swift.ref.class")!
     decl_struct = api.uid_get_from_cstr("source.lang.swift.decl.struct")!

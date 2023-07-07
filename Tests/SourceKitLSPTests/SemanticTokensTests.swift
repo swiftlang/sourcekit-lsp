@@ -743,8 +743,33 @@ final class SemanticTokensTests: XCTestCase {
       Token(line: 1, utf16index: 8, length: 7, kind: .variable),
     ])
   }
-
   
+  func testActor() {
+    let text = """
+    actor MyActor {}
+
+    struct MyStruct {}
+
+    func t(
+        x: MyActor,
+        y: MyStruct
+    ) {}
+    """
+
+    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    XCTAssertEqual(tokens, [
+      Token(line: 0, utf16index: 0, length: 5, kind: .keyword),
+      Token(line: 0, utf16index: 6, length: 7, kind: .identifier),
+      Token(line: 2, utf16index: 0, length: 6, kind: .keyword),
+      Token(line: 2, utf16index: 7, length: 8, kind: .identifier),
+      Token(line: 4, utf16index: 0, length: 4, kind: .keyword),
+      Token(line: 4, utf16index: 5, length: 1, kind: .identifier),
+      Token(line: 5, utf16index: 4, length: 1, kind: .identifier),
+      Token(line: 5, utf16index: 7, length: 7, kind: .actor),
+      Token(line: 6, utf16index: 4, length: 1, kind: .identifier),
+      Token(line: 6, utf16index: 7, length: 8, kind: .struct)
+    ])
+  }
 }
 
 extension Token {

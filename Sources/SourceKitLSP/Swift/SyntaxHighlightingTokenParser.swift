@@ -83,6 +83,10 @@ struct SyntaxHighlightingTokenParser {
       return (.class, [.declaration])
     case values.ref_class:
       return (.class, [])
+    case values.decl_actor:
+      return (.actor, [.declaration])
+    case values.ref_actor:
+      return (.actor, [])
     case values.decl_struct:
       return (.struct, [.declaration])
     case values.ref_struct:
