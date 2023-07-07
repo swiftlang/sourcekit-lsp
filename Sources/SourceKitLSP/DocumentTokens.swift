@@ -103,7 +103,7 @@ extension SyntaxClassification {
       return (.string, [])
     case .regexLiteral:
       return (.regexp, [])
-    case .poundDirectiveKeyword:
+    case .poundDirective:
       return (.macro, [])
     case .buildConfigId, .objectLiteral:
       return (.macro, [])
