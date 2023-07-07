@@ -177,6 +177,7 @@ extension SwiftPMWorkspace {
 
     let packageGraph = try self.workspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [packageRoot]),
+      forceResolvedVersions: true,
       observabilityScope: observabilitySystem.topScope
     )
 
