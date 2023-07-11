@@ -58,6 +58,7 @@ final class SwiftInterfaceTests: XCTestCase {
   }
   
   func testSystemModuleInterface() throws {
+    try XCTSkipIf(true, "Test is flaky - rdar://108256204")
     // This test is failing non-deterministically in CI becaue the file contents
     // of the generated interface just contain a newline.
     // I cannot reproduce the failure locally. Add some logging to determine
