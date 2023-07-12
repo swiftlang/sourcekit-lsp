@@ -35,6 +35,14 @@ import func TSCBasic.resolveSymlinks
 import protocol TSCBasic.FileSystem
 import var TSCBasic.localFileSystem
 
+/// Parameter of `reloadPackageStatusCallback` in ``SwiftPMWorkspace``.
+///
+/// Informs the callback about whether `reloadPackage` started or finished executing.
+public enum ReloadPackageStatus {
+  case start
+  case end
+}
+
 /// Swift Package Manager build system and workspace support.
 ///
 /// This class implements the `BuildSystem` interface to provide the build settings for a Swift
@@ -78,18 +86,25 @@ public final class SwiftPMWorkspace {
   /// - `sourceDirToTarget`
   let queue: DispatchQueue = .init(label: "SwiftPMWorkspace.queue", qos: .utility)
 
+  /// This callback is informed when `reloadPackage` starts and ends executing.
+  var reloadPackageStatusCallback: (ReloadPackageStatus) -> Void
+
+
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
   /// - Parameters:
   ///   - workspace: The workspace root path.
   ///   - toolchainRegistry: The toolchain registry to use to provide the Swift compiler used for
   ///     manifest parsing and runtime support.
+  ///   - reloadPackageStatusCallback: Will be informed when `reloadPackage` starts and ends executing.
   /// - Throws: If there is an error loading the package, or no manifest is found.
   public init(
     workspacePath: TSCAbsolutePath,
     toolchainRegistry: ToolchainRegistry,
     fileSystem: FileSystem = localFileSystem,
-    buildSetup: BuildSetup) throws
+    buildSetup: BuildSetup,
+    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) -> Void = { _ in }
+  ) throws
   {
     self.workspacePath = workspacePath
     self.fileSystem = fileSystem
@@ -140,23 +155,31 @@ public final class SwiftPMWorkspace {
     )
 
     self.packageGraph = try PackageGraph(rootPackages: [], dependencies: [], binaryArtifacts: [:])
+    self.reloadPackageStatusCallback = reloadPackageStatusCallback
 
     try reloadPackage()
   }
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
-  ///
+  /// 
+  /// - Parameters:
+  ///   - reloadPackageStatusCallback: Will be informed when `reloadPackage` starts and ends executing.
   /// - Returns: nil if `workspacePath` is not part of a package or there is an error.
-  public convenience init?(url: URL,
-                           toolchainRegistry: ToolchainRegistry,
-                           buildSetup: BuildSetup)
+  public convenience init?(
+    url: URL,
+    toolchainRegistry: ToolchainRegistry,
+    buildSetup: BuildSetup,
+    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) -> Void
+  )
   {
     do {
       try self.init(
         workspacePath: try TSCAbsolutePath(validating: url.path),
         toolchainRegistry: toolchainRegistry,
         fileSystem: localFileSystem,
-        buildSetup: buildSetup)
+        buildSetup: buildSetup,
+        reloadPackageStatusCallback: reloadPackageStatusCallback
+      )
     } catch Error.noManifest(let path) {
       log("could not find manifest, or not a SwiftPM package: \(path)", level: .warning)
       return nil
@@ -173,6 +196,11 @@ extension SwiftPMWorkspace {
   /// dependencies.
   /// Must only be called on `queue` or from the initializer.
   func reloadPackage() throws {
+    reloadPackageStatusCallback(.start)
+    defer {
+      reloadPackageStatusCallback(.end)
+    }
+
 
     let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
         log(diagnostic.description, level: diagnostic.severity.asLogLevel)
