@@ -33,7 +33,12 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   override func setUp() {
-    connection = TestSourceKitServer()
+    // This is the only test that references modules from the SDK (Foundation).
+    // `testSystemModuleInterface` has been flaky for a long while and a
+    // hypothesis is that it was failing because of a malformed global module
+    // cache that might still be present from previous CI runs. If we use a
+    // local module cache, we define away that source of bugs.
+    connection = TestSourceKitServer(useGlobalModuleCache: false)
     sk = connection.client
     _ = try! sk.sendSync(InitializeRequest(
       processId: nil,
@@ -56,20 +61,8 @@ final class SwiftInterfaceTests: XCTestCase {
     sk = nil
     connection = nil
   }
-  
-  func testSystemModuleInterface() throws {
-    try XCTSkipIf(true, "Test is flaky - rdar://108256204")
-    // This test is failing non-deterministically in CI becaue the file contents
-    // of the generated interface just contain a newline.
-    // I cannot reproduce the failure locally. Add some logging to determine
-    // whether the issue is sourcekitd not returning an empty generated
-    // interface or something around how the file is handled.
-    // Remove this lowering of the log level once we have determined what the
-    // issue is (rdar://104871745).
-    let previousLogLevel = Logger.shared.currentLevel
-    defer { Logger.shared.setLogLevel(previousLogLevel.description) }
-    Logger.shared.setLogLevel("debug")
 
+  func testSystemModuleInterface() throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
