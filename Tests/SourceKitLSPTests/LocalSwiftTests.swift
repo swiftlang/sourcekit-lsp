@@ -16,6 +16,7 @@ import LSPTestSupport
 import SKTestSupport
 import SourceKitLSP
 import XCTest
+import SwiftSyntax
 
 // Workaround ambiguity with Foundation.
 typealias Notification = LanguageServerProtocol.Notification
@@ -1475,5 +1476,50 @@ final class LocalSwiftTests: XCTestCase {
     "#>"
     data = EditorPlaceholder(text)
     XCTAssertNil(data)
+  }
+  
+  func testIncrementalParse() throws {
+    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
+    let uri = DocumentURI(url)
+
+    var reusedNodes: [Syntax] = []
+    let swiftLanguageServer = connection.server!._languageService(for: uri, .swift, in: connection.server!.workspaceForDocumentOnQueue(uri: uri)!) as! SwiftLanguageServer
+    swiftLanguageServer.reusedNodeCallback = { reusedNodes.append($0) }
+    sk.allowUnexpectedNotification = false
+    
+    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+      uri: uri,
+      language: .swift,
+      version: 0,
+      text: """
+      func foo() {
+      }
+      class bar {
+      }
+      """
+    )))
+    
+    let didChangeTextDocumentExpectation = self.expectation(description: "didChangeTextDocument")
+    sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 1), contentChanges: [
+      .init(range: Range(Position(line: 2, utf16index: 7)), text: "a"),
+    ]), { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
+      log("Received diagnostics for text edit - syntactic")
+      didChangeTextDocumentExpectation.fulfill()
+    }, { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
+      log("Received diagnostics for text edit - semantic")
+    })
+    
+    self.wait(for: [didChangeTextDocumentExpectation], timeout: defaultTimeout)
+    
+    XCTAssertEqual(reusedNodes.count, 1)
+    
+    let firstNode = try XCTUnwrap(reusedNodes.first)
+    XCTAssertEqual(firstNode.description,
+      """
+      func foo() {
+      }
+      """
+    )
+    XCTAssertEqual(firstNode.kind, .codeBlockItem)
   }
 }
