@@ -13,11 +13,16 @@
 import LanguageServerProtocol
 import SwiftSyntax
 import SwiftIDEUtils
+import SwiftParser
 
 /// Syntax highlighting tokens for a particular document.
 public struct DocumentTokens {
   /// The syntax tree representing the entire document.
   public var syntaxTree: SourceFileSyntax?
+  /// This information is used to determine whether a syntax node can be re-used in incremental parsing.
+  /// 
+  /// The property is not nil only after the document is parsed.
+  public var lookaheadRanges: LookaheadRanges?
   /// Semantic tokens, e.g. variable references, type references, ...
   public var semantic: [SyntaxHighlightingToken] = []
 }

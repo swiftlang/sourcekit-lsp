@@ -118,6 +118,9 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   var currentCompletionSession: CodeCompletionSession? = nil
 
   var commandsByFile: [DocumentURI: SwiftCompileCommand] = [:]
+  
+  /// *For Testing*
+  public var reusedNodeCallback: ReusedNodeCallback?
 
   var keys: sourcekitd_keys { return sourcekitd.keys }
   var requests: sourcekitd_requests { return sourcekitd.requests }
@@ -197,13 +200,27 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   }
 
   /// Returns the updated lexical tokens for the given `snapshot`.
+  ///
+  /// - Parameters:
+  ///   - edits: If we are in the context of editing the contents of a file, i.e. calling ``SwiftLanguageServer/changeDocument(_:)``, we should pass `edits` to enable incremental parse. Otherwise, `edits` should be `nil`.
   private func updateSyntaxTree(
-    for snapshot: DocumentSnapshot
+    for snapshot: DocumentSnapshot,
+    with edits: ConcurrentEdits? = nil
   ) -> DocumentTokens {
     logExecutionTime(level: .debug) {
       var docTokens = snapshot.tokens
+      
+      var parseTransition: IncrementalParseTransition? = nil
+      if let previousTree = snapshot.tokens.syntaxTree,
+         let lookaheadRanges = snapshot.tokens.lookaheadRanges,
+         let edits {
+        parseTransition = IncrementalParseTransition(previousTree: previousTree, edits: edits, lookaheadRanges: lookaheadRanges, reusedNodeCallback: reusedNodeCallback)
+      }
+      let (tree, nextLookaheadRanges) = Parser.parseIncrementally(
+        source: snapshot.text, parseTransition: parseTransition)
 
-      docTokens.syntaxTree = Parser.parse(source: snapshot.text)
+      docTokens.syntaxTree = tree
+      docTokens.lookaheadRanges = nextLookaheadRanges
 
       return docTokens
     }
@@ -527,27 +544,36 @@ extension SwiftLanguageServer {
 
   public func changeDocument(_ note: DidChangeTextDocumentNotification) {
     let keys = self.keys
+    var edits: [IncrementalEdit] = []
 
     self.queue.async {
       var lastResponse: SKDResponseDictionary? = nil
 
-      let snapshot = self.documentManager.edit(note) { (before: DocumentSnapshot, edit: TextDocumentContentChangeEvent) in
+      let snapshot = self.documentManager.edit(note) {
+        (before: DocumentSnapshot, edit: TextDocumentContentChangeEvent) in
         let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
         req[keys.request] = self.requests.editor_replacetext
         req[keys.name] = note.textDocument.uri.pseudoPath
 
         if let range = edit.range {
-          guard let offset = before.utf8Offset(of: range.lowerBound), let end = before.utf8Offset(of: range.upperBound) else {
+          guard let offset = before.utf8Offset(of: range.lowerBound),
+            let end = before.utf8Offset(of: range.upperBound)
+          else {
             fatalError("invalid edit \(range)")
           }
 
+          let length = end - offset
           req[keys.offset] = offset
-          req[keys.length] = end - offset
+          req[keys.length] = length
 
+          edits.append(IncrementalEdit(offset: offset, length: length, replacementLength: edit.text.utf8.count))
         } else {
           // Full text
+          let length = before.text.utf8.count
           req[keys.offset] = 0
-          req[keys.length] = before.text.utf8.count
+          req[keys.length] = length
+
+          edits.append(IncrementalEdit(offset: 0, length: length, replacementLength: edit.text.utf8.count))
         }
 
         req[keys.sourcetext] = edit.text
@@ -556,7 +582,7 @@ extension SwiftLanguageServer {
         self.adjustDiagnosticRanges(of: note.textDocument.uri, for: edit)
       } updateDocumentTokens: { (after: DocumentSnapshot) in
         if lastResponse != nil {
-          return self.updateSyntaxTree(for: after)
+          return self.updateSyntaxTree(for: after, with: ConcurrentEdits(fromSequential: edits))
         } else {
           return DocumentTokens()
         }
