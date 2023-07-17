@@ -1320,13 +1320,17 @@ extension SwiftLanguageServer {
           .map { info -> InlayHint in
             let position = info.range.upperBound
             let label = ": \(info.printedType)"
+            let textEdits: [TextEdit]?
+            if info.canBeFollowedByTypeAnnotation {
+              textEdits = [TextEdit(range: position..<position, newText: label)]
+            } else {
+              textEdits = nil
+            }
             return InlayHint(
               position: position,
               label: .string(label),
               kind: .type,
-              textEdits: [
-                TextEdit(range: position..<position, newText: label)
-              ]
+              textEdits: textEdits
             )
           }
 

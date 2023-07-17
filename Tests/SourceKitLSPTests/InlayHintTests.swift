@@ -61,14 +61,18 @@ final class InlayHintTests: XCTestCase {
     }
   }
 
-  private func makeInlayHint(position: Position, kind: InlayHintKind, label: String) -> InlayHint {
-    InlayHint(
+  private func makeInlayHint(position: Position, kind: InlayHintKind, label: String, hasEdit: Bool = true) -> InlayHint {
+    let textEdits: [TextEdit]?
+    if hasEdit {
+      textEdits = [TextEdit(range: position..<position, newText: label)]
+    } else {
+      textEdits = nil
+    }
+    return InlayHint(
       position: position,
       label: .string(label),
       kind: kind,
-      textEdits: [
-        TextEdit(range: position..<position, newText: label)
-      ]
+      textEdits: textEdits
     )
   }
 
@@ -205,7 +209,8 @@ final class InlayHintTests: XCTestCase {
       makeInlayHint(
         position: Position(line: 3, utf16index: 31),
         kind: .type,
-        label: ": String"
+        label: ": String",
+        hasEdit: false
       ),
       makeInlayHint(
         position: Position(line: 4, utf16index: 40),
