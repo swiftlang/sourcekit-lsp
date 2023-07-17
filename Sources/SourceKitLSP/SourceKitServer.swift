@@ -58,6 +58,84 @@ enum LanguageServerType: Hashable {
   }
 }
 
+/// Keeps track of the state to send work done progress updates to the client
+final class WorkDoneProgressState {
+  private enum State {
+    /// No `WorkDoneProgress` has been created.
+    case noProgress
+    /// We have sent the request to create a `WorkDoneProgress` but haven’t received a respose yet.
+    case creating
+    /// A `WorkDoneProgress` has been created.
+    case created
+    /// The creation of a `WorkDoneProgress has failed`.
+    ///
+    /// This causes us to just give up creating any more `WorkDoneProgress` in
+    /// the future as those will most likely also fail.
+    case progressCreationFailed
+  }
+
+  /// How many active tasks are running.
+  ///
+  /// A work done progress should be displayed if activeTasks > 0
+  private var activeTasks: Int = 0
+  private var state: State = .noProgress
+
+  /// The token by which we track the `WorkDoneProgress`.
+  private let token: ProgressToken
+
+  /// The title that should be displayed to the user in the UI.
+  private let title: String
+
+  init(_ token: String, title: String) {
+    self.token = ProgressToken.string(token)
+    self.title = title
+  }
+  
+  /// Start a new task, creating a new `WorkDoneProgress` if none is running right now.
+  ///
+  /// - Parameter server: The server that is used to create the `WorkDoneProgress` on the client
+  ///
+  /// - Important: Must be called on `server.queue`.
+  func startProgress(server: SourceKitServer) {
+    dispatchPrecondition(condition: .onQueue(server.queue))
+    activeTasks += 1
+    if state == .noProgress {
+      state = .creating
+      // Discard the handle. We don't support cancellation of the creation of a work done progress.
+      _ = server.client.send(CreateWorkDoneProgressRequest(token: token), queue: server.queue) { result in
+        if result.success != nil {
+          if self.activeTasks == 0 {
+            // ActiveTasks might have been decreased while we created the `WorkDoneProgress`
+            self.state = .noProgress
+            server.client.send(WorkDoneProgress(token: self.token, value: .end(WorkDoneProgressEnd())))
+          } else {
+            self.state = .created
+            server.client.send(WorkDoneProgress(token: self.token, value: .begin(WorkDoneProgressBegin(title: self.title))))
+          }
+        } else {
+          self.state = .progressCreationFailed
+        }
+      }
+    }
+  }
+
+  /// End a new task stated using `startProgress`.
+  ///
+  /// If this drops the active task count to 0, the work done progress is ended on the client.
+  ///
+  /// - Parameter server: The server that is used to send and update of the `WorkDoneProgress` to the client
+  ///
+  /// - Important: Must be called on `server.queue`.
+  func endProgress(server: SourceKitServer) {
+    dispatchPrecondition(condition: .onQueue(server.queue))
+    assert(activeTasks > 0, "Unbalanced startProgress/endProgress calls")
+    activeTasks -= 1
+    if state == .created && activeTasks == 0 {
+      server.client.send(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
+    }
+  }
+}
+
 /// The SourceKit language server.
 ///
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
@@ -79,6 +157,8 @@ public final class SourceKitServer: LanguageServer {
   private var documentToPendingQueue: [DocumentURI: DocumentNotificationRequestQueue] = [:]
 
   private let documentManager = DocumentManager()
+
+  private var packageLoadingWorkDoneProgress = WorkDoneProgressState("SourceKitLSP.SoruceKitServer.reloadPackage", title: "Reloading Package")
 
   /// **Public for testing**
   public var _documentManager: DocumentManager {
@@ -559,7 +639,18 @@ extension SourceKitServer {
       capabilityRegistry: capabilityRegistry,
       toolchainRegistry: self.toolchainRegistry,
       buildSetup: self.options.buildSetup,
-      indexOptions: self.options.indexOptions)
+      indexOptions: self.options.indexOptions,
+      reloadPackageStatusCallback: { status in
+        self.queue.async {
+          switch status {
+          case .start:
+            self.packageLoadingWorkDoneProgress.startProgress(server: self)
+          case .end:
+            self.packageLoadingWorkDoneProgress.endProgress(server: self)
+          }
+        }
+      }
+    )
   }
 
   func initialize(_ req: Request<InitializeRequest>) {

@@ -137,6 +137,13 @@ public final class TestClient: MessageHandler {
   }
 
   public func handle<R: RequestType>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response>) -> Void) {
+    if R.self == CreateWorkDoneProgressRequest.self {
+      // We don’t want to require tests to specify request handlers for work done progress.
+      // Simply ignore requests to create WorkDoneProgress for now.
+      reply(.failure(.unknown("WorkDone not supported in TestClient")))
+      return
+    }
+
     let cancellationToken = CancellationToken()
 
     let request = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: reply)
