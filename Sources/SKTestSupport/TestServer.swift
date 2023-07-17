@@ -15,7 +15,7 @@ import SKCore
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SourceKitLSP
-import class Foundation.Pipe
+import Foundation
 import LSPTestSupport
 
 public final class TestSourceKitServer {
@@ -36,6 +36,12 @@ public final class TestSourceKitServer {
 
   public static let serverOptions: SourceKitServer.Options = SourceKitServer.Options()
 
+  /// If the server is not using the global module cache, the path of the local
+  /// module cache.
+  ///
+  /// This module cache will be deleted when the test server is destroyed.
+  private let moduleCache: URL?
+
   public let client: TestClient
   let connImpl: ConnectionImpl
 
@@ -43,15 +49,27 @@ public final class TestSourceKitServer {
 
   /// The server, if it is in the same process.
   public let server: SourceKitServer?
-
-  public init(connectionKind: ConnectionKind = .local) {
+  
+  /// - Parameters:
+  ///   - useGlobalModuleCache: If `false`, the server will use its own module
+  ///     cache in an empty temporary directory instead of the global module cache.
+  public init(connectionKind: ConnectionKind = .local, useGlobalModuleCache: Bool = true) {
+    if !useGlobalModuleCache {
+      moduleCache = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
+    } else {
+      moduleCache = nil
+    }
+    var serverOptions = Self.serverOptions
+    if let moduleCache {
+      serverOptions.buildSetup.flags.swiftCompilerFlags += ["-module-cache-path", moduleCache.path]
+    }
 
     switch connectionKind {
       case .local:
         let clientConnection = LocalConnection()
         let serverConnection = LocalConnection()
         client = TestClient(server: serverConnection)
-        server = SourceKitServer(client: clientConnection, options: Self.serverOptions, onExit: {
+        server = SourceKitServer(client: clientConnection, options: serverOptions, onExit: {
           clientConnection.close()
         })
 
@@ -76,7 +94,7 @@ public final class TestSourceKitServer {
         )
 
         client = TestClient(server: clientConnection)
-        server = SourceKitServer(client: serverConnection, options: Self.serverOptions, onExit: {
+        server = SourceKitServer(client: serverConnection, options: serverOptions, onExit: {
           serverConnection.close()
         })
 
@@ -101,6 +119,10 @@ public final class TestSourceKitServer {
 
   deinit {
     close()
+
+    if let moduleCache {
+      try? FileManager.default.removeItem(at: moduleCache)
+    }
   }
 
   func close() {
