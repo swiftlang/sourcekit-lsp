@@ -15,8 +15,10 @@ import CRT
 import WinSDK
 #elseif os(iOS) || os(macOS) || os(tvOS) || os(watchOS)
 import Darwin
-#else
+#elseif canImport(Glibc)
 import Glibc
+#elseif canImport(Musl)
+import Musl
 #endif
 
 public final class DLHandle {

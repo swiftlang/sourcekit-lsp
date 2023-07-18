@@ -13,13 +13,15 @@
 
 #if canImport(Glibc)
 import Glibc
+#elseif canImport(Musl)
+import Musl
 #endif
 
-#if os(Linux) || os(Android)
+#if canImport(Glibc) || canImport(Musl)
 // This is a lazily initialised global variable that when read for the first time, will ignore SIGPIPE.
 private let globallyIgnoredSIGPIPE: Bool = {
     /* no F_SETNOSIGPIPE on Linux :( */
-    _ = Glibc.signal(SIGPIPE, SIG_IGN)
+    _ = signal(SIGPIPE, SIG_IGN)
     return true
 }()
 
