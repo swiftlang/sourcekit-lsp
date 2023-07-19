@@ -104,8 +104,8 @@ public final class SwiftPMWorkspace {
         throw Error.cannotDetermineHostToolchain
     }
 
-    let destination = try Destination.hostDestination(AbsolutePath(destinationToolchainBinDir))
-    let toolchain = try UserToolchain(destination: destination)
+    let swiftSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(destinationToolchainBinDir))
+    let toolchain = try UserToolchain(swiftSDK: swiftSDK)
 
     var location = try Workspace.Location(
         forRootPackage: AbsolutePath(packageRoot),
@@ -124,8 +124,6 @@ public final class SwiftPMWorkspace {
         configuration: configuration,
         customHostToolchain: toolchain)
 
-    let triple = toolchain.triple
-
     let buildConfiguration: PackageModel.BuildConfiguration
     switch buildSetup.configuration {
     case .debug:
@@ -135,7 +133,7 @@ public final class SwiftPMWorkspace {
     }
 
     self.buildParameters = try BuildParameters(
-        dataPath: location.scratchDirectory.appending(component: triple.platformBuildPathComponent()),
+        dataPath: location.scratchDirectory.appending(component: toolchain.targetTriple.platformBuildPathComponent()),
         configuration: buildConfiguration,
         toolchain: toolchain,
         flags: buildSetup.flags
