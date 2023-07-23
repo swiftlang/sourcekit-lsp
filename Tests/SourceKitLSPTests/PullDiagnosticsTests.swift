@@ -34,7 +34,10 @@ final class PullDiagnosticsTests: XCTestCase {
       rootPath: nil,
       rootURI: nil,
       initializationOptions: nil,
-      capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
+      capabilities: ClientCapabilities(
+        workspace: nil,
+        textDocument: .init(codeAction: .init(codeActionLiteralSupport: .init(codeActionKind: .init(valueSet: [.quickFix]))))
+      ),
       trace: .off,
       workspaceFolders: nil
     ))
@@ -78,6 +81,43 @@ final class PullDiagnosticsTests: XCTestCase {
     }
     """)
     XCTAssertEqual(diagnostics.count, 1)
-    XCTAssertEqual(diagnostics[0].range, Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9))
+    let diagnostic = try XCTUnwrap(diagnostics.first)
+    XCTAssertEqual(diagnostic.range, Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9))
+  }
+
+  /// Test that we can get code actions for pulled diagnostics (https://github.com/apple/sourcekit-lsp/issues/776)
+  func testCodeActions() throws {
+    let diagnostics = try performDiagnosticRequest(text: """
+    protocol MyProtocol {
+      func bar()
+    }
+
+    struct Test: MyProtocol {}
+    """)
+    XCTAssertEqual(diagnostics.count, 1)
+    let diagnostic = try XCTUnwrap(diagnostics.first)
+    XCTAssertEqual(diagnostic.range, Position(line: 4, utf16index: 7)..<Position(line: 4, utf16index: 7))
+    let note = try XCTUnwrap(diagnostic.relatedInformation?.first)
+    XCTAssertEqual(note.location.range, Position(line: 4, utf16index: 7)..<Position(line: 4, utf16index: 7))
+    XCTAssertEqual(note.codeActions?.count ?? 0, 1)
+
+    let response = try sk.sendSync(CodeActionRequest(
+      range: note.location.range,
+      context: CodeActionContext(
+        diagnostics: diagnostics,
+        only: [.quickFix],
+        triggerKind: .invoked
+      ),
+      textDocument: TextDocumentIdentifier(note.location.uri)
+    ))
+
+    guard case .codeActions(let actions) = response else {
+      XCTFail("Expected codeActions response")
+      return
+    }
+
+    XCTAssertEqual(actions.count, 1)
+    let action = try XCTUnwrap(actions.first)
+    XCTAssertEqual(action.title, "do you want to add protocol stubs?")
   }
 }

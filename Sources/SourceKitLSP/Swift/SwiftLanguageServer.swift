@@ -288,7 +288,36 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
       }
     })
   }
-  
+
+  /// Register the diagnostics returned from sourcekitd in `currentDiagnostics`
+  /// and returns the corresponding LSP diagnostics.
+  private func registerDiagnostics(
+    sourcekitdDiagnostics: SKDResponseArray?,
+    snapshot: DocumentSnapshot,
+    stage: DiagnosticStage
+  ) -> [Diagnostic] {
+    let supportsCodeDescription = capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
+
+    var newDiags: [CachedDiagnostic] = []
+    sourcekitdDiagnostics?.forEach { _, diag in
+      if let diag = CachedDiagnostic(diag, in: snapshot, useEducationalNoteAsCode: supportsCodeDescription) {
+        newDiags.append(diag)
+      }
+      return true
+    }
+
+    let result = mergeDiagnostics(
+      old: currentDiagnostics[snapshot.document.uri] ?? [],
+      new: newDiags,
+      stage: stage,
+      isFallback: self.commandsByFile[snapshot.document.uri]?.isFallback ?? true
+    )
+    currentDiagnostics[snapshot.document.uri] = result
+
+    return result.map(\.diagnostic)
+
+  }
+
   /// Publish diagnostics for the given `snapshot`. We withhold semantic diagnostics if we are using
   /// fallback arguments.
   ///
@@ -304,31 +333,22 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
       return
     }
 
-    let isFallback = compileCommand?.isFallback ?? true
-
     let stageUID: sourcekitd_uid_t? = response[sourcekitd.keys.diagnostic_stage]
     let stage = stageUID.flatMap { DiagnosticStage($0, sourcekitd: sourcekitd) } ?? .sema
 
-    let supportsCodeDescription = capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
+    let diagnostics = registerDiagnostics(
+      sourcekitdDiagnostics: response[keys.diagnostics],
+      snapshot: snapshot,
+      stage: stage
+    )
 
-    // Note: we make the notification even if there are no diagnostics to clear the current state.
-    var newDiags: [CachedDiagnostic] = []
-    response[keys.diagnostics]?.forEach { _, diag in
-      if let diag = CachedDiagnostic(diag,
-                                     in: snapshot,
-                                     useEducationalNoteAsCode: supportsCodeDescription) {
-        newDiags.append(diag)
-      }
-      return true
-    }
-
-    let result = mergeDiagnostics(
-      old: currentDiagnostics[documentUri] ?? [],
-      new: newDiags, stage: stage, isFallback: isFallback)
-    currentDiagnostics[documentUri] = result
-
-    client.send(PublishDiagnosticsNotification(
-        uri: documentUri, version: snapshot.version, diagnostics: result.map { $0.diagnostic }))
+    client.send(
+      PublishDiagnosticsNotification(
+        uri: documentUri,
+        version: snapshot.version,
+        diagnostics: diagnostics
+      )
+    )
   }
 
   /// Should be called on self.queue.
@@ -1393,20 +1413,16 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let supportsCodeDescription = capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
-
     let handle = self.sourcekitd.send(skreq, self.queue) { response in
       guard let dict = response.success else {
         return completion(.failure(ResponseError(response.failure!)))
       }
 
-      var diagnostics: [Diagnostic] = []
-      dict[keys.diagnostics]?.forEach { _, diag in
-        if let diagnostic = Diagnostic(diag, in: snapshot, useEducationalNoteAsCode: supportsCodeDescription) {
-          diagnostics.append(diagnostic)
-        }
-        return true
-      }
+      let diagnostics = self.registerDiagnostics(
+        sourcekitdDiagnostics: dict[keys.diagnostics],
+        snapshot: snapshot,
+        stage: .sema
+      )
 
       completion(.success(diagnostics))
     }
