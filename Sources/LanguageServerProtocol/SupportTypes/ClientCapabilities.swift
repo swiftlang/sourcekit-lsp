@@ -19,11 +19,32 @@ public struct ClientCapabilities: Hashable, Codable {
   /// Document-specific client capabilities.
   public var textDocument: TextDocumentClientCapabilities?
 
-  // FIXME: public var experimental: Any?
+  /// Capabilities specific to the notebook document support.
+  public var notebookDocument: NotebookDocumentClientCapabilities?
 
-  public init(workspace: WorkspaceClientCapabilities? = nil, textDocument: TextDocumentClientCapabilities? = nil) {
+  /// Window specific client capabilities.
+  public var window: WindowClientCapabilities?
+
+  /// General client capabilities.
+  public var general: GeneralClientCapabilities?
+
+  /// Experimental client capabilities.
+  public var experimental: LSPAny?
+
+  public init(
+    workspace: WorkspaceClientCapabilities? = nil,
+    textDocument: TextDocumentClientCapabilities? = nil,
+    notebookDocument: NotebookDocumentClientCapabilities? = nil,
+    window: WindowClientCapabilities? = nil,
+    general: GeneralClientCapabilities? = nil,
+    experimental: LSPAny? = nil
+  ) {
     self.workspace = workspace
     self.textDocument = textDocument
+    self.notebookDocument = notebookDocument
+    self.window = window
+    self.general = general
+    self.experimental = experimental
   }
 }
 
@@ -34,6 +55,17 @@ public struct DynamicRegistrationCapability: Hashable, Codable {
 
   public init(dynamicRegistration: Bool? = nil) {
     self.dynamicRegistration = dynamicRegistration
+  }
+}
+
+/// Helper capability wrapper for structs that only have a `refreshSupport` member.
+public struct RefreshRegistrationCapability: Hashable, Codable {
+  /// Whether the client implementation supports a refresh request sent from the
+  /// server to the client.
+  public var refreshSupport: Bool?
+
+  public init(refreshSupport: Bool? = nil) {
+    self.refreshSupport = refreshSupport
   }
 }
 
@@ -80,20 +112,45 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
     }
   }
 
-  /// Capabilities specific to the `workspace/semanticTokens/refresh` request.
-  public struct SemanticTokensWorkspace: Hashable, Codable {
+  public struct FileOperations: Hashable, Codable {
+    /// Whether the client supports dynamic registration for file
+    /// requests/notifications.
+    public var dynamicRegistration: Bool?
 
-    /// Whether the client implementation supports a refresh request sent from
-    /// the server to the client.
-    ///
-    /// Note that this event is global and will force the client to refresh all
-    /// semantic tokens currently shown. It should be used with absolute care
-    /// and is useful for situation where a server, for example, detects a project
-    /// wide change that requires such a calculation.
-    public var refreshSupport: Bool?
+    /// The client has support for sending didCreateFiles notifications.
+    public var didCreate: Bool?
 
-    public init(refreshSupport: Bool? = nil) {
-      self.refreshSupport = refreshSupport
+    /// The client has support for sending willCreateFiles requests.
+    public var willCreate: Bool?
+
+    /// The client has support for sending didRenameFiles notifications.
+    public var didRename: Bool?
+
+    /// The client has support for sending willRenameFiles requests.
+    public var willRename: Bool?
+
+    /// The client has support for sending didDeleteFiles notifications.
+    public var didDelete: Bool?
+
+    /// The client has support for sending willDeleteFiles requests.
+    public var willDelete: Bool?
+
+    public init(
+      dynamicRegistration: Bool? = nil,
+      didCreate: Bool? = nil,
+      willCreate: Bool? = nil,
+      didRename: Bool? = nil,
+      willRename: Bool? = nil,
+      didDelete: Bool? = nil,
+      willDelete: Bool? = nil
+    ) {
+      self.dynamicRegistration = dynamicRegistration
+      self.didCreate = didCreate
+      self.willCreate = willCreate
+      self.didRename = didRename
+      self.willRename = willRename
+      self.didDelete = didDelete
+      self.willDelete = willDelete
     }
   }
 
@@ -120,7 +177,17 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
   /// Whether the client supports the `workspace/configuration` request.
   public var configuration: Bool? = nil
 
-  public var semanticTokens: SemanticTokensWorkspace? = nil
+  public var semanticTokens: RefreshRegistrationCapability? = nil
+
+  public var codeLens: RefreshRegistrationCapability? = nil
+
+  public var fileOperations: FileOperations? = nil
+
+  public var inlineValue: RefreshRegistrationCapability? = nil
+
+  public var inlayHint: RefreshRegistrationCapability? = nil
+
+  public var diagnostics: RefreshRegistrationCapability? = nil
 
   public init(
     applyEdit: Bool? = nil,
@@ -131,7 +198,12 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
     executeCommand: DynamicRegistrationCapability? = nil,
     workspaceFolders: Bool? = nil,
     configuration: Bool? = nil,
-    semanticTokens: SemanticTokensWorkspace? = nil
+    semanticTokens: RefreshRegistrationCapability? = nil,
+    codeLens: RefreshRegistrationCapability? = nil,
+    fileOperations: FileOperations? = nil,
+    inlineValue: RefreshRegistrationCapability? = nil,
+    inlayHint: RefreshRegistrationCapability? = nil,
+    diagnostics: RefreshRegistrationCapability? = nil
   ) {
     self.applyEdit = applyEdit
     self.workspaceEdit = workspaceEdit
@@ -142,6 +214,11 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
     self.workspaceFolders = workspaceFolders
     self.configuration = configuration
     self.semanticTokens = semanticTokens
+    self.codeLens = codeLens
+    self.fileOperations = fileOperations
+    self.inlineValue = inlineValue
+    self.inlayHint = inlayHint
+    self.diagnostics = diagnostics
   }
 }
 
@@ -546,18 +623,6 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
   public var signatureHelp: SignatureHelp? = nil
 
-  public var references: DynamicRegistrationCapability? = nil
-
-  public var documentHighlight: DynamicRegistrationCapability? = nil
-
-  public var documentSymbol: DocumentSymbol? = nil
-
-  public var formatting: DynamicRegistrationCapability? = nil
-
-  public var rangeFormatting: DynamicRegistrationCapability? = nil
-
-  public var onTypeFormatting: DynamicRegistrationCapability? = nil
-
   public var declaration: DynamicRegistrationLinkSupportCapability? = nil
 
   public var definition: DynamicRegistrationLinkSupportCapability? = nil
@@ -565,6 +630,12 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   public var typeDefinition: DynamicRegistrationLinkSupportCapability? = nil
 
   public var implementation: DynamicRegistrationLinkSupportCapability? = nil
+
+  public var references: DynamicRegistrationCapability? = nil
+
+  public var documentHighlight: DynamicRegistrationCapability? = nil
+
+  public var documentSymbol: DocumentSymbol? = nil
 
   public var codeAction: CodeAction? = nil
 
@@ -574,69 +645,300 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
   public var colorProvider: DynamicRegistrationCapability? = nil
 
+  public var formatting: DynamicRegistrationCapability? = nil
+
+  public var rangeFormatting: DynamicRegistrationCapability? = nil
+
+  public var onTypeFormatting: DynamicRegistrationCapability? = nil
+
   public var rename: DynamicRegistrationCapability? = nil
 
   public var publishDiagnostics: PublishDiagnostics? = nil
 
   public var foldingRange: FoldingRange? = nil
 
+  public var selectionRange: DynamicRegistrationCapability? = nil
+
+  public var linkedEditingRange: DynamicRegistrationCapability? = nil
+
   public var callHierarchy: DynamicRegistrationCapability? = nil
 
   public var semanticTokens: SemanticTokens? = nil
+
+  public var moniker: DynamicRegistrationCapability? = nil
+
+  public var typeHierarchy: DynamicRegistrationCapability? = nil
+
+  public var inlineValue: DynamicRegistrationCapability? = nil
 
   public var inlayHint: InlayHint? = nil
   
   public var diagnostic: Diagnostic? = nil
 
-  public init(synchronization: Synchronization? = nil,
-              completion: Completion? = nil,
-              hover: Hover? = nil,
-              signatureHelp: SignatureHelp? = nil,
-              references: DynamicRegistrationCapability? = nil,
-              documentHighlight: DynamicRegistrationCapability? = nil,
-              documentSymbol: DocumentSymbol? = nil,
-              formatting: DynamicRegistrationCapability? = nil,
-              rangeFormatting: DynamicRegistrationCapability? = nil,
-              onTypeFormatting: DynamicRegistrationCapability? = nil,
-              declaration: DynamicRegistrationLinkSupportCapability? = nil,
-              definition: DynamicRegistrationLinkSupportCapability? = nil,
-              typeDefinition: DynamicRegistrationLinkSupportCapability? = nil,
-              implementation: DynamicRegistrationLinkSupportCapability? = nil,
-              codeAction: CodeAction? = nil,
-              codeLens: DynamicRegistrationCapability? = nil,
-              documentLink: DynamicRegistrationCapability? = nil,
-              colorProvider: DynamicRegistrationCapability? = nil,
-              rename: DynamicRegistrationCapability? = nil,
-              publishDiagnostics: PublishDiagnostics? = nil,
-              foldingRange: FoldingRange? = nil,
-              callHierarchy: DynamicRegistrationCapability? = nil,
-              semanticTokens: SemanticTokens? = nil,
-              inlayHint: InlayHint? = nil,
-              diagnostic: Diagnostic? = nil) {
+  public init(
+    synchronization: Synchronization? = nil,
+    completion: Completion? = nil,
+    hover: Hover? = nil,
+    signatureHelp: SignatureHelp? = nil,
+    declaration: DynamicRegistrationLinkSupportCapability? = nil,
+    definition: DynamicRegistrationLinkSupportCapability? = nil,
+    typeDefinition: DynamicRegistrationLinkSupportCapability? = nil,
+    implementation: DynamicRegistrationLinkSupportCapability? = nil,
+    references: DynamicRegistrationCapability? = nil,
+    documentHighlight: DynamicRegistrationCapability? = nil,
+    documentSymbol: DocumentSymbol? = nil,
+    codeAction: CodeAction? = nil,
+    codeLens: DynamicRegistrationCapability? = nil,
+    documentLink: DynamicRegistrationCapability? = nil,
+    colorProvider: DynamicRegistrationCapability? = nil,
+    formatting: DynamicRegistrationCapability? = nil,
+    rangeFormatting: DynamicRegistrationCapability? = nil,
+    onTypeFormatting: DynamicRegistrationCapability? = nil,
+    rename: DynamicRegistrationCapability? = nil,
+    publishDiagnostics: PublishDiagnostics? = nil,
+    foldingRange: FoldingRange? = nil,
+    selectionRange: DynamicRegistrationCapability? = nil,
+    linkedEditingRange: DynamicRegistrationCapability? = nil,
+    callHierarchy: DynamicRegistrationCapability? = nil,
+    semanticTokens: SemanticTokens? = nil,
+    moniker: DynamicRegistrationCapability? = nil,
+    typeHierarchy: DynamicRegistrationCapability? = nil,
+    inlineValue: DynamicRegistrationCapability? = nil,
+    inlayHint: InlayHint? = nil,
+    diagnostic: Diagnostic? = nil
+  ) {
     self.synchronization = synchronization
     self.completion = completion
     self.hover = hover
     self.signatureHelp = signatureHelp
-    self.references = references
-    self.documentHighlight = documentHighlight
-    self.documentSymbol = documentSymbol
-    self.formatting = formatting
-    self.rangeFormatting = rangeFormatting
-    self.onTypeFormatting = onTypeFormatting
     self.declaration = declaration
     self.definition = definition
     self.typeDefinition = typeDefinition
     self.implementation = implementation
+    self.references = references
+    self.documentHighlight = documentHighlight
+    self.documentSymbol = documentSymbol
     self.codeAction = codeAction
     self.codeLens = codeLens
     self.documentLink = documentLink
     self.colorProvider = colorProvider
+    self.formatting = formatting
+    self.rangeFormatting = rangeFormatting
+    self.onTypeFormatting = onTypeFormatting
     self.rename = rename
     self.publishDiagnostics = publishDiagnostics
     self.foldingRange = foldingRange
+    self.selectionRange = selectionRange
+    self.linkedEditingRange = linkedEditingRange
     self.callHierarchy = callHierarchy
     self.semanticTokens = semanticTokens
+    self.moniker = moniker
+    self.typeHierarchy = typeHierarchy
+    self.inlineValue = inlineValue
     self.inlayHint = inlayHint
     self.diagnostic = diagnostic
+  }
+}
+
+/// Capabilities specific to the notebook document support.
+public struct NotebookDocumentClientCapabilities: Hashable, Codable {
+  public struct NotebookDocumentSync: Hashable, Codable {
+    /// Whether implementation supports dynamic registration. If this is
+    /// set to `true` the client supports the new
+    /// `(TextDocumentRegistrationOptions & StaticRegistrationOptions)`
+    /// return value for the corresponding server capability as well.
+    public var dynamicRegistration: Bool?
+
+    /// The client supports sending execution summary data per cell.
+    public var executionSummarySupport: Bool?
+
+    public init(
+      dynamicRegistration: Bool?,
+      executionSummarySupport: Bool?
+    ) {
+      self.dynamicRegistration = dynamicRegistration
+      self.executionSummarySupport = executionSummarySupport
+    }
+  }
+
+  /// Capabilities specific to notebook document synchronization
+  public var synchronization: NotebookDocumentSync
+
+  public init(synchronization: NotebookDocumentSync) {
+    self.synchronization = synchronization
+  }
+}
+
+
+/// Window specific client capabilities.
+public struct WindowClientCapabilities: Hashable, Codable {
+  /// Show message request client capabilities
+  public struct ShowMessageRequest: Hashable, Codable {
+    public struct MessageActionItem: Hashable, Codable {
+      /// Whether the client supports additional attributes which
+      /// are preserved and sent back to the server in the
+      /// request's response.
+      public var additionalPropertiesSupport: Bool?
+
+      public init(additionalPropertiesSupport: Bool? = nil) {
+        self.additionalPropertiesSupport = additionalPropertiesSupport
+      }
+    }
+
+     /// Capabilities specific to the `MessageActionItem` type.
+    public var messageActionItem: MessageActionItem?
+
+    public init(messageActionItem: MessageActionItem? = nil) {
+      self.messageActionItem = messageActionItem
+    }
+  }
+
+  /// Client capabilities for the show document request.
+  public struct ShowDocument: Hashable, Codable {
+    /// The client has support for the show document
+    /// request.
+    public var support: Bool
+
+    public init(support: Bool) {
+      self.support = support
+    }
+  }
+
+  /// It indicates whether the client supports server initiated
+  /// progress using the `window/workDoneProgress/create` request.
+  ///
+  /// The capability also controls Whether client supports handling
+  /// of progress notifications. If set servers are allowed to report a
+  /// `workDoneProgress` property in the request specific server
+  /// capabilities.
+  public var workDoneProgress: Bool?
+
+  /// Capabilities specific to the showMessage request
+  public var showMessage: ShowMessageRequest?
+
+  public var showDocument: ShowDocument?
+
+  public init(
+    workDoneProgress: Bool? = nil,
+    showMessage: ShowMessageRequest? = nil,
+    showDocument: ShowDocument? = nil
+  ) {
+    self.workDoneProgress = workDoneProgress
+    self.showMessage = showMessage
+    self.showDocument = showDocument
+  }
+}
+
+
+/// General client capabilities.
+public struct GeneralClientCapabilities: Hashable, Codable {
+  public struct StaleRequestSupport: Hashable, Codable {
+    /// The client will actively cancel the request.
+    public var cancel: Bool
+    
+    /// The list of requests for which the client
+    /// will retry the request if it receives a
+    /// response with error code `ContentModified``
+    public var retryOnContentModified: [String]
+
+    public init(cancel: Bool, retryOnContentModified: [String]) {
+      self.cancel = cancel
+      self.retryOnContentModified = retryOnContentModified
+    }
+  }
+
+  /// Client capabilities specific to regular expressions.
+  public struct RegularExpressions: Hashable, Codable {
+    /// The engine's name.
+    public var engine: String
+
+    /// The engine's version.
+    public var version: String?
+
+    public init(engine: String, version: String? = nil) {
+      self.engine = engine
+      self.version = version
+    }
+  }
+
+  /// Client capabilities specific to the used markdown parser.
+  public struct Markdown: Hashable, Codable {
+    /// The name of the parser.
+    public var parser: String
+
+    /// The version of the parser.
+    public var version: String?
+
+    /// A list of HTML tags that the client allows / supports in Markdown.
+    public var allowedTags: [String]?
+
+    public init(parser: String, version: String? = nil, allowedTags: [String]? = nil) {
+      self.parser = parser
+      self.version = version
+      self.allowedTags = allowedTags
+    }
+  }
+
+   /// A type indicating how positions are encoded,
+   /// specifically what column offsets mean.
+   public enum PositionEncodingKind: String, Hashable, Codable {
+
+     /// Character offsets count UTF-8 code units (e.g bytes).
+    case utf8 = "utf-8"
+
+     /// Character offsets count UTF-16 code units.
+     ///
+     /// This is the default and must always be supported
+     /// by servers
+    case utf16 = "utf-16"
+
+     /// Character offsets count UTF-32 code units.
+     ///
+     /// Implementation note: these are the same as Unicode code points,
+     /// so this `PositionEncodingKind` may also be used for an
+     /// encoding-agnostic representation of character offsets.
+    case utf32 = "utf-32"
+  }
+
+  /// Client capability that signals how the client
+  /// handles stale requests (e.g. a request
+  /// for which the client will not process the response
+  /// anymore since the information is outdated).
+  public var staleRequestSupport: StaleRequestSupport?
+  
+  /// Client capabilities specific to regular expressions.
+  public var regularExpressions: RegularExpressions?
+  
+  /// Client capabilities specific to the client's markdown parser.
+  public var markdown: Markdown?
+
+  /// The position encodings supported by the client. Client and server
+  /// have to agree on the same position encoding to ensure that offsets
+  /// (e.g. character position in a line) are interpreted the same on both
+  /// side.
+  ///
+  /// To keep the protocol backwards compatible the following applies: if
+  /// the value 'utf-16' is missing from the array of position encodings
+  /// servers can assume that the client supports UTF-16. UTF-16 is
+  /// therefore a mandatory encoding.
+  ///
+  /// If omitted it defaults to ['utf-16'].
+  ///
+  /// Implementation considerations: since the conversion from one encoding
+  /// into another requires the content of the file / line the conversion
+  /// is best done where the file is read which is usually on the server
+  /// side.
+  public var positionEncodings: [PositionEncodingKind]?
+
+  public init(
+    staleRequestSupport: StaleRequestSupport? = nil,
+    regularExpressions: RegularExpressions? = nil,
+    markdown: Markdown? = nil,
+    positionEncodings: [PositionEncodingKind]? = nil
+  ) {
+    self.staleRequestSupport = staleRequestSupport
+    self.regularExpressions = regularExpressions
+    self.markdown = markdown
+    self.positionEncodings = positionEncodings
   }
 }
