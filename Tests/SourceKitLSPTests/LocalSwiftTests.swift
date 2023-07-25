@@ -447,7 +447,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(
           fixit,
           CodeAction(
-            title: "chain the optional using '?' to access member 'bigEndian' only for non-'nil' base values",
+            title: "Chain the optional using '?' to access member 'bigEndian' only for non-'nil' base values",
             kind: .quickFix,
             diagnostics: nil,
             edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
@@ -469,7 +469,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual(
           fixit,
           CodeAction(
-            title: "force-unwrap using '!' to abort execution if the optional value contains 'nil'",
+            title: "Force-unwrap using '!' to abort execution if the optional value contains 'nil'",
             kind: .quickFix,
             diagnostics: nil,
             edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
@@ -627,11 +627,11 @@ final class LocalSwiftTests: XCTestCase {
 
     for fixit in quickFixes {
       if fixit.title.contains("!") {
-        XCTAssert(fixit.title.starts(with: "force-unwrap using '!'"))
+        XCTAssert(fixit.title.starts(with: "Force-unwrap using '!'"))
         expectedTextEdit.newText = "!"
         XCTAssertEqual(fixit.edit, WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil))
       } else {
-        XCTAssert(fixit.title.starts(with: "chain the optional using '?'"))
+        XCTAssert(fixit.title.starts(with: "Chain the optional using '?'"))
         expectedTextEdit.newText = "?"
         XCTAssertEqual(fixit.edit, WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil))
       }
@@ -639,7 +639,7 @@ final class LocalSwiftTests: XCTestCase {
       XCTAssertEqual(fixit.diagnostics?.count, 1)
       XCTAssertEqual(fixit.diagnostics?.first?.severity, .error)
       XCTAssertEqual(fixit.diagnostics?.first?.range, Range(Position(line: 1, utf16index: 6)))
-      XCTAssert(fixit.diagnostics?.first?.message.starts(with: "value of optional type") == true)
+      XCTAssert(fixit.diagnostics?.first?.message.starts(with: "Value of optional type") == true)
     }
   }
 
@@ -729,7 +729,7 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(quickFixes.count, 1)
     guard let fixit = quickFixes.first else { return }
 
-    XCTAssertEqual(fixit.title, "use 'new(_:hotness:)' instead")
+    XCTAssertEqual(fixit.title, "Use 'new(_:hotness:)' instead")
     XCTAssertEqual(fixit.diagnostics?.count, 1)
     XCTAssert(fixit.diagnostics?.first?.message.contains("is deprecated") == true)
     XCTAssertEqual(
@@ -1627,7 +1627,7 @@ final class LocalSwiftTests: XCTestCase {
 
     let diagnostic = try await testClient.nextDiagnosticsNotification()
     let diag = try XCTUnwrap(diagnostic.diagnostics.first)
-    XCTAssertEqual(diag.message, "cannot find 'bar' in scope")
+    XCTAssertEqual(diag.message, "Cannot find 'bar' in scope")
 
     // Ensure that we don't get a second `PublishDiagnosticsNotification`
     await assertThrowsError(try await testClient.nextDiagnosticsNotification(timeout: 2))
