@@ -143,6 +143,54 @@ As a test, open a Swift file, put the cursor on top of a symbol in normal mode a
 :call CocAction('jumpDefinition')
 ```
 
+### Neovim 0.8 and above
+since version 0.8, neovim has native LSP support, which can be used to connect to sourcekit-lsp directly. To do so, add the following to 
+a .lua config file (such as `lua/swift.lua`):
+
+```lua
+require'lspconfig'.sourcekit.setup{
+  cmd = {'$TOOLCHAIN_PATH/usr/bin/sourcekit-lsp'}
+}
+```
+where `$TOOLCHAIN_PATH` is the path to your active toolchain (for example, `/Library/Developer/Toolchains/swift-latest.xctoolchain`). This should enable
+the lsp server directly, and you can test it by opening a swift file and running `:LspInfo`--you should get a window popping up saying "1 client attached to this buffer" and be able to do navigation and such.
+
+The default LSP commands are not bound to many keys, so it is also useful to create some keybindings to help with various LSP activities. Here are some 
+of the known lsp commands that work with `sourcekit-lsp`:
+
+```lua
+vim.api.nvim_create_autocmd('LspAttach', {
+  group = vim.api.nvim_create_augroup('UserLspConfig', {}),
+  callback = function(ev)
+    --enable omnifunc completion
+    vim.bo[ev.buf].omnifunc = 'v:lua.vim.lsp.omnifunc'
+
+    -- buffer local mappings
+    local opts = { buffer = ev.buf }
+    -- go to definition
+    vim.keymap.set('n','gd',vim.lsp.buf.definition,opts)
+    --puts doc header info into a float page
+    vim.keymap.set('n','K',vim.lsp.buf.hover,opts)
+
+    -- workspace management. Necessary for multi-module projects
+    vim.keymap.set('n','<space>wa',vim.lsp.buf.add_workspace_folder, opts)
+    vim.keymap.set('n','<space>wr',vim.lsp.buf.remove_workspace_folder, opts)
+    vim.keymap.set('n','<space>wl',function()
+            print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
+    end,opts)
+
+    -- add LSP code actions
+    vim.keymap.set({'n','v'},'<space>ca',vim.lsp.buf.code_action,opts)                
+
+    -- find references of a type
+    vim.keymap.set('n','gr',vim.lsp.buf.references,opts)
+  end,
+})
+```
+
+Further information on neovim's LSP integration(including detailed information on configuration) can be found [in neovim's documentation](https://neovim.io/doc/user/lsp.html). 
+
+
 ## Theia Cloud IDE
 
 You can use SourceKit-LSP with Theia by using the `theiaide/theia-swift` image. To use the image you need to have [Docker](https://docs.docker.com/get-started/) installed first.
