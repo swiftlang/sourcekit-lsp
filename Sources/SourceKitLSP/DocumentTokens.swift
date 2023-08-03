@@ -105,7 +105,7 @@ extension SyntaxClassification {
       return (.regexp, [])
     case .poundDirective:
       return (.macro, [])
-    case .buildConfigId, .objectLiteral:
+    case .buildConfigId:
       return (.macro, [])
     case .attribute:
       return (.modifier, [])
