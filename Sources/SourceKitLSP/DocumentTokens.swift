@@ -41,7 +41,7 @@ extension DocumentSnapshot {
       return self.tokens.semantic
     }
     let range = range.flatMap({ $0.byteSourceRange(in: self) })
-             ?? ByteSourceRange(offset: 0, length: tree.byteSize)
+             ?? ByteSourceRange(offset: 0, length: tree.totalLength.utf8Length)
     return tree
       .classifications(in: range)
       .flatMap({ $0.highlightingTokens(in: self) })

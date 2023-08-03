@@ -1124,7 +1124,7 @@ extension SwiftLanguageServer {
             end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
         }
 
-        override func visit(_ node: MemberDeclBlockSyntax) -> SyntaxVisitorContinueKind {
+        override func visit(_ node: MemberBlockSyntax) -> SyntaxVisitorContinueKind {
           return self.addFoldingRange(
             start: node.members.position.utf8Offset,
             end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
@@ -1150,14 +1150,14 @@ extension SwiftLanguageServer {
 
         override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
           return self.addFoldingRange(
-            start: node.argumentList.position.utf8Offset,
-            end: node.argumentList.endPosition.utf8Offset)
+            start: node.arguments.position.utf8Offset,
+            end: node.arguments.endPosition.utf8Offset)
         }
 
-        override func visit(_ node: SubscriptExprSyntax) -> SyntaxVisitorContinueKind {
+        override func visit(_ node: SubscriptCallExprSyntax) -> SyntaxVisitorContinueKind {
           return self.addFoldingRange(
-            start: node.argumentList.position.utf8Offset,
-            end: node.argumentList.endPosition.utf8Offset)
+            start: node.arguments.position.utf8Offset,
+            end: node.arguments.endPosition.utf8Offset)
         }
 
         __consuming func finalize() -> Set<FoldingRange> {
