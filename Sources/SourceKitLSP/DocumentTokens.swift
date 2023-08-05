@@ -97,7 +97,7 @@ extension SyntaxClassification {
       return (.identifier, [])
     case .operatorIdentifier:
       return (.operator, [])
-    case .integerLiteral, .floatingLiteral:
+    case .integerLiteral, .floatLiteral:
       return (.number, [])
     case .stringLiteral:
       return (.string, [])
