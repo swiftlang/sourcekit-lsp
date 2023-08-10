@@ -89,23 +89,19 @@ extension SyntaxClassification {
       return nil
     case .editorPlaceholder:
       return nil
-    case .stringInterpolationAnchor:
-      return nil
     case .keyword:
       return (.keyword, [])
-    case .identifier, .typeIdentifier, .dollarIdentifier:
+    case .identifier, .type, .dollarIdentifier:
       return (.identifier, [])
-    case .operatorIdentifier:
+    case .operator:
       return (.operator, [])
-    case .integerLiteral, .floatingLiteral:
+    case .integerLiteral, .floatLiteral:
       return (.number, [])
     case .stringLiteral:
       return (.string, [])
     case .regexLiteral:
       return (.regexp, [])
-    case .poundDirective:
-      return (.macro, [])
-    case .buildConfigId:
+    case .ifConfigDirective:
       return (.macro, [])
     case .attribute:
       return (.modifier, [])
