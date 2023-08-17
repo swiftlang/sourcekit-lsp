@@ -125,12 +125,12 @@ final class SwiftInterfaceTests: XCTestCase {
       return
     }
     let location = try XCTUnwrap(jump.first)
-    XCTAssertTrue(location.uri.pseudoPath.hasSuffix(swiftInterfaceFile))
+    XCTAssertTrue(location.uri.pseudoPath.hasSuffix(swiftInterfaceFile), "Path was: '\(location.uri.pseudoPath)'")
     // load contents of swiftinterface
     let contents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
     let lineTable = LineTable(contents)
     let line = lineTable[location.range.lowerBound.line]
-    XCTAssert(line.hasPrefix(linePrefix))
+    XCTAssert(line.hasPrefix(linePrefix), "Full line was: '\(line)'")
     ws.closeDocument(testLoc.url)
   }
 
