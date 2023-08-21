@@ -118,6 +118,6 @@ final class PullDiagnosticsTests: XCTestCase {
 
     XCTAssertEqual(actions.count, 1)
     let action = try XCTUnwrap(actions.first)
-    XCTAssertEqual(action.title, "do you want to add protocol stubs?")
+    XCTAssertEqual(action.title, "add stubs for conformance")
   }
 }
