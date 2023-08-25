@@ -1072,50 +1072,78 @@ extension SwiftLanguageServer {
         }
 
         private func addTrivia(from node: TokenSyntax, _ trivia: Trivia) {
+          let pieces = trivia.pieces
           var start = node.position.utf8Offset
-          var lineCommentStart: Int? = nil
-          func flushLineComment(_ offset: Int = 0) {
-            if let lineCommentStart = lineCommentStart {
-              _ = self.addFoldingRange(
-                start: lineCommentStart,
-                end: start + offset,
-                kind: .comment)
-            }
-            lineCommentStart = nil
-          }
+          /// The index of the trivia piece we are currently inspecting.
+          var index = 0
 
-          for piece in node.leadingTrivia {
-            defer { start += piece.sourceLength.utf8Length }
+          while index < pieces.count {
+            let piece = pieces[index]
+            defer {
+              start += pieces[index].sourceLength.utf8Length
+              index += 1
+            }
             switch piece {
-            case .blockComment(_):
-              flushLineComment()
+            case .blockComment:
               _ = self.addFoldingRange(
                 start: start,
                 end: start + piece.sourceLength.utf8Length,
-                kind: .comment)
-            case .docBlockComment(_):
-              flushLineComment()
+                kind: .comment
+              )
+            case .docBlockComment:
               _ = self.addFoldingRange(
                 start: start,
                 end: start + piece.sourceLength.utf8Length,
-                kind: .comment)
-            case .lineComment(_), .docLineComment(_):
-              if lineCommentStart == nil {
-                lineCommentStart = start
+                kind: .comment
+              )
+            case .lineComment, .docLineComment:
+              let lineCommentBlockStart = start
+
+              // Keep scanning the upcoming trivia pieces to find the end of the
+              // block of line comments.
+              // As we find a new end of the block comment, we set `index` and
+              // `start` to `lookaheadIndex` and `lookaheadStart` resp. to
+              // commit the newly found end.
+              var lookaheadIndex = index
+              var lookaheadStart = start
+              var hasSeenNewline = false
+              LOOP: while lookaheadIndex < pieces.count {
+                let piece = pieces[lookaheadIndex]
+                defer {
+                  lookaheadIndex += 1
+                  lookaheadStart += piece.sourceLength.utf8Length
+                }
+                switch piece {
+                case .newlines(let count), .carriageReturns(let count), .carriageReturnLineFeeds(let count):
+                  if count > 1 || hasSeenNewline {
+                    // More than one newline is separating the two line comment blocks.
+                    // We have reached the end of this block of line comments.
+                    break LOOP
+                  }
+                  hasSeenNewline = true
+                case .spaces, .tabs:
+                  // We allow spaces and tabs because the comments might be indented
+                  continue
+                case .lineComment, .docLineComment:
+                  // We have found a new line comment in this block. Commit it.
+                  index = lookaheadIndex
+                  start = lookaheadStart
+                  hasSeenNewline = false
+                default:
+                  // We assume that any other trivia piece terminates the block
+                  // of line comments.
+                  break LOOP
+                }
               }
-            case .newlines(1), .carriageReturns(1), .spaces(_), .tabs(_):
-              if lineCommentStart != nil {
-                continue
-              } else {
-                flushLineComment()
-              }
+              _ = self.addFoldingRange(
+                start: lineCommentBlockStart,
+                end: start + pieces[index].sourceLength.utf8Length,
+                kind: .comment
+              )
             default:
-              flushLineComment()
-              continue
+              break
             }
           }
-
-          flushLineComment()
         }
 
         override func visit(_ node: CodeBlockSyntax) -> SyntaxVisitorContinueKind {
@@ -1713,6 +1741,17 @@ extension sourcekitd_uid_t {
         return .module
       default:
         return nil
+    }
+  }
+}
+
+extension TriviaPiece {
+  var isLineComment: Bool {
+    switch self {
+    case .lineComment, .docLineComment:
+      return true
+    default:
+      return false
     }
   }
 }
