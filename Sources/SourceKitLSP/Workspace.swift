@@ -84,15 +84,19 @@ public final class Workspace {
     capabilityRegistry: CapabilityRegistry,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
-    indexOptions: IndexOptions = IndexOptions()
+    indexOptions: IndexOptions = IndexOptions(),
+    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) -> Void
   ) throws {
     var buildSystem: BuildSystem? = nil
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
       if let buildServer = BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
         buildSystem = buildServer
-      } else if let swiftpm = SwiftPMWorkspace(url: rootUrl,
-                                          toolchainRegistry: toolchainRegistry,
-                                          buildSetup: buildSetup) {
+      } else if let swiftpm = SwiftPMWorkspace(
+        url: rootUrl,
+        toolchainRegistry: toolchainRegistry,
+        buildSetup: buildSetup,
+        reloadPackageStatusCallback: reloadPackageStatusCallback
+      ) {
         buildSystem = swiftpm
       } else {
         buildSystem = CompilationDatabaseBuildSystem(projectRoot: rootPath)
