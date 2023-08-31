@@ -1487,7 +1487,7 @@ final class LocalSwiftTests: XCTestCase {
     swiftLanguageServer.reusedNodeCallback = { reusedNodes.append($0) }
     sk.allowUnexpectedNotification = false
     
-    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
+    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uri,
       language: .swift,
       version: 0,
@@ -1497,19 +1497,19 @@ final class LocalSwiftTests: XCTestCase {
       class bar {
       }
       """
-    )))
-    
-    let didChangeTextDocumentExpectation = self.expectation(description: "didChangeTextDocument")
+    )), { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
+      log("Received diagnostics for open - syntactic")
+    }, { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
+      log("Received diagnostics for open - semantic")
+    })
+
     sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 1), contentChanges: [
       .init(range: Range(Position(line: 2, utf16index: 7)), text: "a"),
     ]), { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
       log("Received diagnostics for text edit - syntactic")
-      didChangeTextDocumentExpectation.fulfill()
     }, { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
       log("Received diagnostics for text edit - semantic")
     })
-    
-    self.wait(for: [didChangeTextDocumentExpectation], timeout: defaultTimeout)
     
     XCTAssertEqual(reusedNodes.count, 1)
     
