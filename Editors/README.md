@@ -188,6 +188,28 @@ vim.api.nvim_create_autocmd('LspAttach', {
 })
 ```
 
+while I was unable to make the example above work, below works for getting basic syntax coloring and feedback from LSP, yet lacks the keymaps mentioned above.
+
+```lua
+local swift_lsp = vim.api.nvim_create_augroup("swift_lsp", { clear = true })
+ vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "swift" },
+  callback = function()
+   local root_dir = vim.fs.dirname(vim.fs.find({
+    "Package.swift",
+    ".git",
+   }, { upward = true })[1])
+   local client = vim.lsp.start({
+    name = "sourcekit-lsp",
+    cmd = { "sourcekit-lsp" },
+    root_dir = root_dir,
+   })
+   vim.lsp.buf_attach_client(0, client)
+  end,
+  group = swift_lsp,
+ })
+```
+
 Further information on neovim's LSP integration(including detailed information on configuration) can be found [in neovim's documentation](https://neovim.io/doc/user/lsp.html). 
 
 
