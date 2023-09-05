@@ -148,7 +148,7 @@ public final class SwiftPMWorkspace {
     }
 
     self.buildParameters = try BuildParameters(
-        dataPath: location.scratchDirectory.appending(component: toolchain.targetTriple.platformBuildPathComponent()),
+        dataPath: location.scratchDirectory.appending(component: toolchain.targetTriple.platformBuildPathComponent),
         configuration: buildConfiguration,
         toolchain: toolchain,
         flags: buildSetup.flags

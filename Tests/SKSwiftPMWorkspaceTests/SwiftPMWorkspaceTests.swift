@@ -107,7 +107,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = ws.buildParameters.targetTriple
-      let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent())
+      let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       XCTAssertEqual(ws.buildPath, build)
       XCTAssertNotNil(ws.indexStorePath)
@@ -163,7 +163,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = ws.buildParameters.targetTriple
-      let build = buildPath(root: packageRoot, config: config, platform: hostTriple.platformBuildPathComponent())
+      let build = buildPath(root: packageRoot, config: config, platform: hostTriple.platformBuildPathComponent)
 
       XCTAssertEqual(ws.buildPath, build)
       let arguments = try ws._settings(for: aswift.asURI, .swift)!.compilerArguments
@@ -350,7 +350,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
       let hostTriple = ws.buildParameters.targetTriple
-      let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent())
+      let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       XCTAssertEqual(ws.buildPath, build)
       XCTAssertNotNil(ws.indexStorePath)
