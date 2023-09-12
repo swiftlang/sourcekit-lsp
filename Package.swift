@@ -247,7 +247,7 @@ let package = Package(
 // for building the swift toolchain, such as `update-checkout`, or cross-repo PR tests.
 
 if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
-  let relatedDependenciesBranch = "main"
+  let relatedDependenciesBranch = "release/5.10"
 
   // Building standalone.
   package.dependencies += [
