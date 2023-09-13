@@ -137,7 +137,9 @@ final class BuildSystemTests: XCTestCase {
     testServer = nil
   }
 
-  func testClangdDocumentUpdatedBuildSettings() {
+  func testClangdDocumentUpdatedBuildSettings() throws {
+    try XCTSkipIf(true, "rdar://115435598 - crashing on rebranch")
+
     guard haveClangd else { return }
 
 #if os(Windows)
