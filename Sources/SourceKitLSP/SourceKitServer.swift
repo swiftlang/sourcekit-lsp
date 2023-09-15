@@ -158,7 +158,7 @@ public final class SourceKitServer: LanguageServer {
 
   private let documentManager = DocumentManager()
 
-  private var packageLoadingWorkDoneProgress = WorkDoneProgressState("SourceKitLSP.SoruceKitServer.reloadPackage", title: "Reloading Package")
+  private var packageLoadingWorkDoneProgress = WorkDoneProgressState("SourceKitLSP.SourceKitServer.reloadPackage", title: "Reloading Package")
 
   /// **Public for testing**
   public var _documentManager: DocumentManager {
