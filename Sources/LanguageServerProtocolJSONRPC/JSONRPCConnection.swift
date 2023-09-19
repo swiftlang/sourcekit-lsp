@@ -279,12 +279,12 @@ public final class JSONRPCConnection {
     switch message {
     case .notification(let notification):
       messageHandlingQueue.async {
-        notification._handle(self.receiveHandler!, connection: self)
+        await notification._handle(self.receiveHandler!, connection: self)
       }
     case .request(let request, id: let id):
       let semaphore: DispatchSemaphore? = syncRequests ? .init(value: 0) : nil
       messageHandlingQueue.async {
-        request._handle(self.receiveHandler!, id: id, connection: self) { (response, id) in
+        await request._handle(self.receiveHandler!, id: id, connection: self) { (response, id) in
           self.sendReply(response, id: id)
         }
         semaphore?.signal()
