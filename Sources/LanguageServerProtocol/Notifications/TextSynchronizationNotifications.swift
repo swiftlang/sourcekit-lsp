@@ -138,6 +138,11 @@ public struct DidSaveTextDocumentNotification: TextDocumentNotification, Hashabl
   ///
   /// Only provided if the server specified `includeText == true`.
   public var text: String?
+
+  public init(textDocument: TextDocumentIdentifier, text: String? = nil) {
+    self.textDocument = textDocument
+    self.text = text
+  }
 }
 
 /// The open notification is sent from the client to the server when a notebook document is opened. It is only sent by a client if the server requested the synchronization mode `notebook` in its `notebookDocumentSync` capability.

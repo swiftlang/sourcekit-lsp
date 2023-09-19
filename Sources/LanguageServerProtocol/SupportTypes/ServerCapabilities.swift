@@ -761,7 +761,9 @@ public struct DocumentLinkOptions: WorkDoneProgressOptions, Codable, Hashable {
 public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable {
 
   public struct SemanticTokensRangeOptions: Equatable, Hashable, Codable {
-    // Empty in the LSP 3.16 spec.
+    public init() {
+      // Empty in the LSP 3.16 spec.
+    }
   }
 
   public struct SemanticTokensFullOptions: Equatable, Hashable, Codable {
