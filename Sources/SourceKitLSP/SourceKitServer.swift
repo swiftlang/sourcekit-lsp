@@ -147,8 +147,6 @@ public final class SourceKitServer {
   /// All incoming requests start on this queue, but should reply or move to another queue as soon as possible to avoid blocking.
   public let queue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
 
-  public var requestHandlers: [ObjectIdentifier: Any] = [:]
-
   public struct RequestCancelKey: Hashable {
     public var client: ObjectIdentifier
     public var request: RequestID
@@ -230,7 +228,6 @@ public final class SourceKitServer {
     self.onExit = onExit
 
     self.client = client
-    self._registerBuiltinHandlers()
   }
 
   public func workspaceForDocument(uri: DocumentURI) -> Workspace? {
@@ -256,81 +253,6 @@ public final class SourceKitServer {
     }
     uriToWorkspaceCache[uri] = WeakWorkspace(value: bestWorkspace.workspace)
     return bestWorkspace.workspace
-  }
-
-  public func _registerBuiltinHandlers() {
-    register(SourceKitServer.initialize)
-    register(SourceKitServer.shutdown)
-
-    register(SourceKitServer.workspaceSymbols)
-    register(SourceKitServer.pollIndex)
-    register(SourceKitServer.executeCommand)
-
-    register(SourceKitServer.incomingCalls)
-    register(SourceKitServer.outgoingCalls)
-
-    register(SourceKitServer.supertypes)
-    register(SourceKitServer.subtypes)
-
-    registerToolchainTextDocumentRequest(SourceKitServer.completion,
-                                         CompletionList(isIncomplete: false, items: []))
-    registerToolchainTextDocumentRequest(SourceKitServer.hover, nil)
-    registerToolchainTextDocumentRequest(SourceKitServer.openInterface, nil)
-    registerToolchainTextDocumentRequest(SourceKitServer.declaration, .locations([]))
-    registerToolchainTextDocumentRequest(SourceKitServer.definition, .locations([]))
-    registerToolchainTextDocumentRequest(SourceKitServer.references, [])
-    registerToolchainTextDocumentRequest(SourceKitServer.implementation, .locations([]))
-    registerToolchainTextDocumentRequest(SourceKitServer.prepareCallHierarchy, [])
-    registerToolchainTextDocumentRequest(SourceKitServer.prepareTypeHierarchy, [])
-    registerToolchainTextDocumentRequest(SourceKitServer.symbolInfo, [])
-    registerToolchainTextDocumentRequest(SourceKitServer.documentSymbolHighlight, nil)
-    registerToolchainTextDocumentRequest(SourceKitServer.foldingRange, nil)
-    registerToolchainTextDocumentRequest(SourceKitServer.documentSymbol, nil)
-    registerToolchainTextDocumentRequest(SourceKitServer.documentColor, [])
-    registerToolchainTextDocumentRequest(SourceKitServer.documentSemanticTokens, nil)
-    registerToolchainTextDocumentRequest(SourceKitServer.documentSemanticTokensDelta, nil)
-    registerToolchainTextDocumentRequest(SourceKitServer.documentSemanticTokensRange, nil)
-    registerToolchainTextDocumentRequest(SourceKitServer.colorPresentation, [])
-    registerToolchainTextDocumentRequest(SourceKitServer.codeAction, nil)
-    registerToolchainTextDocumentRequest(SourceKitServer.inlayHint, [])
-    registerToolchainTextDocumentRequest(SourceKitServer.documentDiagnostic,
-                                         .full(.init(items: [])))
-  }
-
-  /// Register a `TextDocumentRequest` that requires a valid `Workspace`, `ToolchainLanguageServer`,
-  /// and open file with resolved (yet potentially invalid) build settings.
-  func registerToolchainTextDocumentRequest<PositionRequest: TextDocumentRequest>(
-    _ requestHandler: @escaping (SourceKitServer) ->
-        (Request<PositionRequest>, Workspace, ToolchainLanguageServer) -> Void,
-    _ fallback: PositionRequest.Response
-  ) {
-    register { [unowned self] (req: Request<PositionRequest>) in
-      let doc = req.params.textDocument.uri
-      guard let workspace = self.workspaceForDocument(uri: doc) else {
-        return req.reply(.failure(.workspaceNotOpen(doc)))
-      }
-
-      // This should be created as soon as we receive an open call, even if the document
-      // isn't yet ready.
-      guard let languageService = workspace.documentService[doc] else {
-        return req.reply(fallback)
-      }
-
-      // If the document is ready, we can handle it right now.
-      guard !self.documentsReady.contains(doc) else {
-        requestHandler(self)(req, workspace, languageService)
-        return
-      }
-
-      // Not ready to handle it, we'll queue it and handle it later.
-      self.documentToPendingQueue[doc, default: DocumentNotificationRequestQueue()].add(operation: {
-          [weak self] in
-        guard let self = self else { return }
-        requestHandler(self)(req, workspace, languageService)
-      }, cancellationHandler: {
-        req.reply(fallback)
-      })
-    }
   }
 
   /// Execute `notificationHandler` once the document that it concerns is ready
@@ -361,8 +283,41 @@ public final class SourceKitServer {
     self.documentToPendingQueue[doc, default: DocumentNotificationRequestQueue()].add(operation: {
       notificationHandler(notification, languageService)
     })
-
   }
+
+  /// Execute `notificationHandler` once the document that it concerns is ready
+  /// and has the intial build settings. These build settings might still be
+  /// incomplete or fallback settings.
+  private func withReadyDocument<RequestType: TextDocumentRequest>(
+    for request: Request<RequestType>,
+    requestHandler: @escaping (Request<RequestType>, Workspace, ToolchainLanguageServer) -> Void,
+    fallback: RequestType.Response
+  ) {
+    let doc = request.params.textDocument.uri
+    guard let workspace = self.workspaceForDocument(uri: doc) else {
+      return request.reply(.failure(.workspaceNotOpen(doc)))
+    }
+
+    // This should be created as soon as we receive an open call, even if the document
+    // isn't yet ready.
+    guard let languageService = workspace.documentService[doc] else {
+      return request.reply(fallback)
+    }
+
+    // If the document is ready, we can handle it right now.
+    guard !self.documentsReady.contains(doc) else {
+      requestHandler(request, workspace, languageService)
+      return
+    }
+
+    // Not ready to handle it, we'll queue it and handle it later.
+    self.documentToPendingQueue[doc, default: DocumentNotificationRequestQueue()].add(operation: {
+      requestHandler(request, workspace, languageService)
+    }, cancellationHandler: {
+      request.reply(fallback)
+    })
+  }
+
 
   public func _handleUnknown<R>(_ req: Request<R>) {
     if req.clientID == ObjectIdentifier(client) {
@@ -527,23 +482,6 @@ public final class SourceKitServer {
 // MARK: - MessageHandler
 
 extension SourceKitServer: MessageHandler {
-  /// Register the given request handler, which must be a method on `self`.
-  ///
-  /// Must be called on `queue`.
-  private func register<R>(_ requestHandler: @escaping (SourceKitServer) -> (Request<R>) -> Void) {
-    // We can use `unowned` here because the handler is run synchronously on `queue`.
-    requestHandlers[ObjectIdentifier(R.self)] = { [unowned self] request in
-      requestHandler(self)(request)
-    }
-  }
-
-  /// Register the given request handler.
-  ///
-  /// Must be called on `queue`.
-  private func register<R>(_ requestHandler: @escaping (Request<R>) -> Void) {
-    requestHandlers[ObjectIdentifier(R.self)] = requestHandler
-  }
-
   public func handle<N: NotificationType>(_ params: N, from clientID: ObjectIdentifier) {
     queue.async {
 
@@ -595,12 +533,70 @@ extension SourceKitServer: MessageHandler {
 
       self._logRequest(request)
 
-      guard let handler = self.requestHandlers[ObjectIdentifier(R.self)] as? ((Request<R>) -> Void) else {
+      switch request {
+      case let request as Request<InitializeRequest>:
+        self.initialize(request)
+      case let request as Request<ShutdownRequest>:
+        self.shutdown(request)
+      case let request as Request<WorkspaceSymbolsRequest>:
+        self.workspaceSymbols(request)
+      case let request as Request<PollIndexRequest>:
+        self.pollIndex(request)
+      case let request as Request<ExecuteCommandRequest>:
+        self.executeCommand(request)
+      case let request as Request<CallHierarchyIncomingCallsRequest>:
+        self.incomingCalls(request)
+      case let request as Request<CallHierarchyOutgoingCallsRequest>:
+        self.outgoingCalls(request)
+      case let request as Request<TypeHierarchySupertypesRequest>:
+        self.supertypes(request)
+      case let request as Request<TypeHierarchySubtypesRequest>:
+        self.subtypes(request)
+      case let request as Request<CompletionRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.completion, fallback: CompletionList(isIncomplete: false, items: []))
+      case let request as Request<HoverRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.hover, fallback: nil)
+      case let request as Request<OpenInterfaceRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.openInterface, fallback: nil)
+      case let request as Request<DeclarationRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.declaration, fallback: nil)
+      case let request as Request<DefinitionRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.definition, fallback: .locations([]))
+      case let request as Request<ReferencesRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.references, fallback: [])
+      case let request as Request<ImplementationRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.implementation, fallback: .locations([]))
+      case let request as Request<CallHierarchyPrepareRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.prepareCallHierarchy, fallback: [])
+      case let request as Request<TypeHierarchyPrepareRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.prepareTypeHierarchy, fallback: [])
+      case let request as Request<SymbolInfoRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.symbolInfo, fallback: [])
+      case let request as Request<DocumentHighlightRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
+      case let request as Request<FoldingRangeRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.foldingRange, fallback: nil)
+      case let request as Request<DocumentSymbolRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.documentSymbol, fallback: nil)
+      case let request as Request<DocumentColorRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.documentColor, fallback: [])
+      case let request as Request<DocumentSemanticTokensRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.documentSemanticTokens, fallback: nil)
+      case let request as Request<DocumentSemanticTokensDeltaRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.documentSemanticTokensDelta, fallback: nil)
+      case let request as Request<DocumentSemanticTokensRangeRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.documentSemanticTokensRange, fallback: nil)
+      case let request as Request<ColorPresentationRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.colorPresentation, fallback: [])
+      case let request as Request<CodeActionRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.codeAction, fallback: nil)
+      case let request as Request<InlayHintRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.inlayHint, fallback: [])
+      case let request as Request<DocumentDiagnosticsRequest>:
+        self.withReadyDocument(for: request, requestHandler: self.documentDiagnostic, fallback: .full(.init(items: [])))
+      default:
         self._handleUnknown(request)
-        return
       }
-
-      handler(request)
     }
   }
 
