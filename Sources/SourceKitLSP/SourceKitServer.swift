@@ -141,7 +141,28 @@ final class WorkDoneProgressState {
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
 /// and cross-language support. Requests may be dispatched to language-specific services or handled
 /// centrally, but this is transparent to the client.
-public final class SourceKitServer: LanguageServerEndpoint {
+public final class SourceKitServer {
+  /// The server's request queue.
+  ///
+  /// All incoming requests start on this queue, but should reply or move to another queue as soon as possible to avoid blocking.
+  public let queue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
+
+  public var requestHandlers: [ObjectIdentifier: Any] = [:]
+
+  public var notificationHandlers: [ObjectIdentifier: Any] = [:]
+
+  public struct RequestCancelKey: Hashable {
+    public var client: ObjectIdentifier
+    public var request: RequestID
+    public init(client: ObjectIdentifier, request: RequestID) {
+      self.client = client
+      self.request = request
+    }
+  }
+
+  /// The set of outstanding requests that may be cancelled.
+  public var requestCancellation: [RequestCancelKey: CancellationToken] = [:]
+
   /// The connection to the editor.
   public let client: Connection
 
@@ -211,6 +232,7 @@ public final class SourceKitServer: LanguageServerEndpoint {
     self.onExit = onExit
 
     self.client = client
+    self._registerBuiltinHandlers()
   }
 
   public func workspaceForDocument(uri: DocumentURI) -> Workspace? {
@@ -238,31 +260,31 @@ public final class SourceKitServer: LanguageServerEndpoint {
     return bestWorkspace.workspace
   }
 
-  public override func _registerBuiltinHandlers() {
-    _register(SourceKitServer.initialize)
-    _register(SourceKitServer.clientInitialized)
-    _register(SourceKitServer.cancelRequest)
-    _register(SourceKitServer.shutdown)
-    _register(SourceKitServer.exit)
+  public func _registerBuiltinHandlers() {
+    register(SourceKitServer.initialize)
+    register(SourceKitServer.clientInitialized)
+    register(SourceKitServer.cancelRequest)
+    register(SourceKitServer.shutdown)
+    register(SourceKitServer.exit)
 
-    _register(SourceKitServer.openDocument)
-    _register(SourceKitServer.closeDocument)
-    _register(SourceKitServer.changeDocument)
-    _register(SourceKitServer.didChangeWorkspaceFolders)
-    _register(SourceKitServer.didChangeWatchedFiles)
+    register(SourceKitServer.openDocument)
+    register(SourceKitServer.closeDocument)
+    register(SourceKitServer.changeDocument)
+    register(SourceKitServer.didChangeWorkspaceFolders)
+    register(SourceKitServer.didChangeWatchedFiles)
 
     registerToolchainTextDocumentNotification(SourceKitServer.willSaveDocument)
     registerToolchainTextDocumentNotification(SourceKitServer.didSaveDocument)
 
-    _register(SourceKitServer.workspaceSymbols)
-    _register(SourceKitServer.pollIndex)
-    _register(SourceKitServer.executeCommand)
+    register(SourceKitServer.workspaceSymbols)
+    register(SourceKitServer.pollIndex)
+    register(SourceKitServer.executeCommand)
 
-    _register(SourceKitServer.incomingCalls)
-    _register(SourceKitServer.outgoingCalls)
+    register(SourceKitServer.incomingCalls)
+    register(SourceKitServer.outgoingCalls)
 
-    _register(SourceKitServer.supertypes)
-    _register(SourceKitServer.subtypes)
+    register(SourceKitServer.supertypes)
+    register(SourceKitServer.subtypes)
 
     registerToolchainTextDocumentRequest(SourceKitServer.completion,
                                          CompletionList(isIncomplete: false, items: []))
@@ -296,7 +318,7 @@ public final class SourceKitServer: LanguageServerEndpoint {
         (Request<PositionRequest>, Workspace, ToolchainLanguageServer) -> Void,
     _ fallback: PositionRequest.Response
   ) {
-    _register { [unowned self] (req: Request<PositionRequest>) in
+    register { [unowned self] (req: Request<PositionRequest>) in
       let doc = req.params.textDocument.uri
       guard let workspace = self.workspaceForDocument(uri: doc) else {
         return req.reply(.failure(.workspaceNotOpen(doc)))
@@ -332,7 +354,7 @@ public final class SourceKitServer: LanguageServerEndpoint {
     _ notificationHandler: @escaping (SourceKitServer) ->
         (Notification<TextNotification>, ToolchainLanguageServer) -> Void
   ) {
-    _register { [unowned self] (note: Notification<TextNotification>) in
+    register { [unowned self] (note: Notification<TextNotification>) in
       let doc = note.params.textDocument.uri
       guard let workspace = self.workspaceForDocument(uri: doc) else {
         return
@@ -359,9 +381,10 @@ public final class SourceKitServer: LanguageServerEndpoint {
     }
   }
 
-  public override func _handleUnknown<R>(_ req: Request<R>) {
+  public func _handleUnknown<R>(_ req: Request<R>) {
     if req.clientID == ObjectIdentifier(client) {
-      return super._handleUnknown(req)
+      req.reply(.failure(ResponseError.methodNotFound(R.method)))
+      return
     }
 
     // Unknown requests from a language server are passed on to the client.
@@ -374,9 +397,9 @@ public final class SourceKitServer: LanguageServerEndpoint {
   }
 
   /// Handle an unknown notification.
-  public override func _handleUnknown<N>(_ note: Notification<N>) {
+  public func _handleUnknown<N>(_ note: Notification<N>) {
     if note.clientID == ObjectIdentifier(client) {
-      return super._handleUnknown(note)
+      return
     }
 
     // Unknown notifications from a language server are passed on to the client.
@@ -515,6 +538,116 @@ public final class SourceKitServer: LanguageServerEndpoint {
 
     workspace.documentService[uri] = service
     return service
+  }
+}
+
+// MARK: - MessageHandler
+
+extension SourceKitServer: MessageHandler {
+  /// Register the given request handler, which must be a method on `self`.
+  ///
+  /// Must be called on `queue`.
+  private func register<R>(_ requestHandler: @escaping (SourceKitServer) -> (Request<R>) -> Void) {
+    // We can use `unowned` here because the handler is run synchronously on `queue`.
+    requestHandlers[ObjectIdentifier(R.self)] = { [unowned self] request in
+      requestHandler(self)(request)
+    }
+  }
+
+  /// Register the given notification handler, which must be a method on `self`.
+  ///
+  /// Must be called on `queue`.
+  private func register<N>(_ noteHandler: @escaping (SourceKitServer) -> (Notification<N>) -> Void) {
+    // We can use `unowned` here because the handler is run synchronously on `queue`.
+    notificationHandlers[ObjectIdentifier(N.self)] = { [unowned self] note in
+      noteHandler(self)(note)
+    }
+  }
+
+  /// Register the given request handler.
+  ///
+  /// Must be called on `queue`.
+  private func register<R>(_ requestHandler: @escaping (Request<R>) -> Void) {
+    requestHandlers[ObjectIdentifier(R.self)] = requestHandler
+  }
+
+  /// Register the given notification handler.
+  ///
+  /// Must be called on `queue`.
+  private func register<N>(_ noteHandler: @escaping (Notification<N>) -> Void) {
+    notificationHandlers[ObjectIdentifier(N.self)] = noteHandler
+  }
+
+  public func handle<N: NotificationType>(_ params: N, from clientID: ObjectIdentifier) {
+    queue.async {
+
+      let notification = Notification(params, clientID: clientID)
+      self._logNotification(notification)
+
+      guard let handler = self.notificationHandlers[ObjectIdentifier(N.self)] as? ((Notification<N>) -> Void) else {
+        self._handleUnknown(notification)
+        return
+      }
+      handler(notification)
+    }
+  }
+
+  public func handle<R: RequestType>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response >) -> Void) {
+    queue.async {
+
+      let cancellationToken = CancellationToken()
+      let key = RequestCancelKey(client: clientID, request: id)
+
+      self.requestCancellation[key] = cancellationToken
+
+      let request = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: { [weak self] result in
+        self?.queue.async {
+            self?.requestCancellation[key] = nil
+        }
+        reply(result)
+        self?._logResponse(result, id: id, method: R.method)
+      })
+
+      self._logRequest(request)
+
+      guard let handler = self.requestHandlers[ObjectIdentifier(R.self)] as? ((Request<R>) -> Void) else {
+        self._handleUnknown(request)
+        return
+      }
+
+      handler(request)
+    }
+  }
+
+  private func _logRequest<R>(_ request: Request<R>) {
+    logAsync { currentLevel in
+      guard currentLevel >= LogLevel.debug else {
+        return "\(type(of: self)): Request<\(R.method)(\(request.id))>"
+      }
+      return "\(type(of: self)): \(request)"
+    }
+  }
+
+  private func _logNotification<N>(_ notification: Notification<N>) {
+    logAsync { currentLevel in
+      guard currentLevel >= LogLevel.debug else {
+        return "\(type(of: self)): Notification<\(N.method)>"
+      }
+      return "\(type(of: self)): \(notification)"
+    }
+  }
+
+  private func _logResponse<Response>(_ result: LSPResult<Response>, id: RequestID, method: String) {
+    logAsync { currentLevel in
+      guard currentLevel >= LogLevel.debug else {
+        return "\(type(of: self)): Response<\(method)(\(id))>"
+      }
+      return """
+      \(type(of: self)): Response<\(method)(\(id))>(
+        \(result)
+      )
+      """
+    }
   }
 }
 

@@ -211,11 +211,11 @@ final class BuildServerHandler: MessageHandler {
     }
   }
 
-  func handleBuildTargetsChanged(_ notification: Notification<BuildTargetsChangedNotification>) {
+  func handleBuildTargetsChanged(_ notification: LanguageServerProtocol.Notification<BuildTargetsChangedNotification>) {
     self.delegate?.buildTargetsChanged(notification.params.changes)
   }
 
-  func handleFileOptionsChanged(_ notification: Notification<FileOptionsChangedNotification>) {
+  func handleFileOptionsChanged(_ notification: LanguageServerProtocol.Notification<FileOptionsChangedNotification>) {
     let result = notification.params.updatedOptions
     let settings = FileBuildSettings(
         compilerArguments: result.options, workingDirectory: result.workingDirectory)
