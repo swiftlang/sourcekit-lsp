@@ -149,8 +149,6 @@ public final class SourceKitServer {
 
   public var requestHandlers: [ObjectIdentifier: Any] = [:]
 
-  public var notificationHandlers: [ObjectIdentifier: Any] = [:]
-
   public struct RequestCancelKey: Hashable {
     public var client: ObjectIdentifier
     public var request: RequestID
@@ -262,19 +260,7 @@ public final class SourceKitServer {
 
   public func _registerBuiltinHandlers() {
     register(SourceKitServer.initialize)
-    register(SourceKitServer.clientInitialized)
-    register(SourceKitServer.cancelRequest)
     register(SourceKitServer.shutdown)
-    register(SourceKitServer.exit)
-
-    register(SourceKitServer.openDocument)
-    register(SourceKitServer.closeDocument)
-    register(SourceKitServer.changeDocument)
-    register(SourceKitServer.didChangeWorkspaceFolders)
-    register(SourceKitServer.didChangeWatchedFiles)
-
-    registerToolchainTextDocumentNotification(SourceKitServer.willSaveDocument)
-    registerToolchainTextDocumentNotification(SourceKitServer.didSaveDocument)
 
     register(SourceKitServer.workspaceSymbols)
     register(SourceKitServer.pollIndex)
@@ -347,38 +333,35 @@ public final class SourceKitServer {
     }
   }
 
-  /// Register a `TextDocumentNotification` that requires a valid
-  /// `ToolchainLanguageServer` and open file with resolved (yet
-  /// potentially invalid) build settings.
-  func registerToolchainTextDocumentNotification<TextNotification: TextDocumentNotification>(
-    _ notificationHandler: @escaping (SourceKitServer) ->
-        (Notification<TextNotification>, ToolchainLanguageServer) -> Void
+  /// Execute `notificationHandler` once the document that it concerns is ready
+  /// and has the intial build settings. These build settings might still be
+  /// incomplete or fallback settings.
+  private func withReadyDocument<NotificationType: TextDocumentNotification>(
+    for notification: Notification<NotificationType>,
+    notificationHandler: @escaping (Notification<NotificationType>, ToolchainLanguageServer) -> Void
   ) {
-    register { [unowned self] (note: Notification<TextNotification>) in
-      let doc = note.params.textDocument.uri
-      guard let workspace = self.workspaceForDocument(uri: doc) else {
-        return
-      }
-
-      // This should be created as soon as we receive an open call, even if the document
-      // isn't yet ready.
-      guard let languageService = workspace.documentService[doc] else {
-        return
-      }
-
-      // If the document is ready, we can handle it right now.
-      guard !self.documentsReady.contains(doc) else {
-        notificationHandler(self)(note, languageService)
-        return
-      }
-
-      // Not ready to handle it, we'll queue it and handle it later.
-      self.documentToPendingQueue[doc, default: DocumentNotificationRequestQueue()].add(operation: {
-          [weak self] in
-        guard let self = self else { return }
-        notificationHandler(self)(note, languageService)
-      })
+    let doc = notification.params.textDocument.uri
+    guard let workspace = self.workspaceForDocument(uri: doc) else {
+      return
     }
+
+    // This should be created as soon as we receive an open call, even if the document
+    // isn't yet ready.
+    guard let languageService = workspace.documentService[doc] else {
+      return
+    }
+
+    // If the document is ready, we can handle it right now.
+    guard !self.documentsReady.contains(doc) else {
+      notificationHandler(notification, languageService)
+      return
+    }
+
+    // Not ready to handle it, we'll queue it and handle it later.
+    self.documentToPendingQueue[doc, default: DocumentNotificationRequestQueue()].add(operation: {
+      notificationHandler(notification, languageService)
+    })
+
   }
 
   public func _handleUnknown<R>(_ req: Request<R>) {
@@ -554,28 +537,11 @@ extension SourceKitServer: MessageHandler {
     }
   }
 
-  /// Register the given notification handler, which must be a method on `self`.
-  ///
-  /// Must be called on `queue`.
-  private func register<N>(_ noteHandler: @escaping (SourceKitServer) -> (Notification<N>) -> Void) {
-    // We can use `unowned` here because the handler is run synchronously on `queue`.
-    notificationHandlers[ObjectIdentifier(N.self)] = { [unowned self] note in
-      noteHandler(self)(note)
-    }
-  }
-
   /// Register the given request handler.
   ///
   /// Must be called on `queue`.
   private func register<R>(_ requestHandler: @escaping (Request<R>) -> Void) {
     requestHandlers[ObjectIdentifier(R.self)] = requestHandler
-  }
-
-  /// Register the given notification handler.
-  ///
-  /// Must be called on `queue`.
-  private func register<N>(_ noteHandler: @escaping (Notification<N>) -> Void) {
-    notificationHandlers[ObjectIdentifier(N.self)] = noteHandler
   }
 
   public func handle<N: NotificationType>(_ params: N, from clientID: ObjectIdentifier) {
@@ -584,11 +550,30 @@ extension SourceKitServer: MessageHandler {
       let notification = Notification(params, clientID: clientID)
       self._logNotification(notification)
 
-      guard let handler = self.notificationHandlers[ObjectIdentifier(N.self)] as? ((Notification<N>) -> Void) else {
+      switch notification {
+      case let notification as Notification<InitializedNotification>:
+        self.clientInitialized(notification)
+      case let notification as Notification<CancelRequestNotification>:
+        self.cancelRequest(notification)
+      case let notification as Notification<ExitNotification>:
+        self.exit(notification)
+      case let notification as Notification<DidOpenTextDocumentNotification>:
+        self.openDocument(notification)
+      case let notification as Notification<DidCloseTextDocumentNotification>:
+        self.closeDocument(notification)
+      case let notification as Notification<DidChangeTextDocumentNotification>:
+        self.changeDocument(notification)
+      case let notification as Notification<DidChangeWorkspaceFoldersNotification>:
+        self.didChangeWorkspaceFolders(notification)
+      case let notification as Notification<DidChangeWatchedFilesNotification>:
+        self.didChangeWatchedFiles(notification)
+      case let notification as Notification<WillSaveTextDocumentNotification>:
+        self.withReadyDocument(for: notification, notificationHandler: self.willSaveDocument)
+      case let notification as Notification<DidSaveTextDocumentNotification>:
+        self.withReadyDocument(for: notification, notificationHandler: self.didSaveDocument)
+      default:
         self._handleUnknown(notification)
-        return
       }
-      handler(notification)
     }
   }
 
