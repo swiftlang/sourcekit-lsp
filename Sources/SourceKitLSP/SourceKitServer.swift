@@ -141,7 +141,10 @@ final class WorkDoneProgressState {
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
 /// and cross-language support. Requests may be dispatched to language-specific services or handled
 /// centrally, but this is transparent to the client.
-public final class SourceKitServer: LanguageServer {
+public final class SourceKitServer: LanguageServerEndpoint {
+  /// The connection to the editor.
+  public let client: Connection
+
   var options: Options
 
   let toolchainRegistry: ToolchainRegistry
@@ -207,7 +210,7 @@ public final class SourceKitServer: LanguageServer {
     self.options = options
     self.onExit = onExit
 
-    super.init(client: client)
+    self.client = client
   }
 
   public func workspaceForDocument(uri: DocumentURI) -> Workspace? {

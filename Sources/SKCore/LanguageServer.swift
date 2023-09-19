@@ -17,20 +17,6 @@ import SKSupport
 
 public typealias Notification = LanguageServerProtocol.Notification
 
-/// An abstract language server.
-///
-/// This class is designed to be the base class for a concrete language server. It provides the message handling interface along with some common functionality like request handler registration.
-open class LanguageServer: LanguageServerEndpoint {
-
-  /// The connection to the language client.
-  public let client: Connection
-
-  public init(client: Connection) {
-    self.client = client
-    super.init()
-  }
-}
-
 /// An abstract language client or server.
 open class LanguageServerEndpoint {
 
