@@ -65,11 +65,6 @@ struct SourceKitLSP: ParsableCommand {
     abstract: "Language Server Protocol implementation for Swift and C-based languages"
   )
 
-  /// Whether to wait for a response before handling the next request.
-  /// Used for testing.
-  @Flag(name: .customLong("sync"))
-  var syncRequests = false
-
   @Option(help: "Set the logging level [debug|info|warning|error] (default: \(LogLevel.default))")
   var logLevel: LogLevel?
 
@@ -193,8 +188,7 @@ struct SourceKitLSP: ParsableCommand {
     let clientConnection = JSONRPCConnection(
       protocol: MessageRegistry.lspProtocol,
       inFD: FileHandle.standardInput,
-      outFD: realStdoutHandle,
-      syncRequests: syncRequests
+      outFD: realStdoutHandle
     )
 
     let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)

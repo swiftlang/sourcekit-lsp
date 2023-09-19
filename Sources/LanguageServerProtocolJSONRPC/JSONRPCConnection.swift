@@ -30,9 +30,6 @@ public final class JSONRPCConnection {
   let sendIO: DispatchIO
   let messageRegistry: MessageRegistry
 
-  /// *For Testing* Whether to wait for requests to finish before handling the next message.
-  let syncRequests: Bool
-
   enum State {
     case created, running, closed
   }
@@ -60,8 +57,7 @@ public final class JSONRPCConnection {
   public init(
     protocol messageRegistry: MessageRegistry,
     inFD: FileHandle,
-    outFD: FileHandle,
-    syncRequests: Bool = false)
+    outFD: FileHandle)
   {
 #if os(Linux) || os(Android)
     // We receive a `SIGPIPE` if we write to a pipe that points to a crashed process. This in particular happens if the target of a `JSONRPCConnection` has crashed and we try to send it a message.
@@ -71,7 +67,6 @@ public final class JSONRPCConnection {
 #endif
     state = .created
     self.messageRegistry = messageRegistry
-    self.syncRequests = syncRequests
 
     let ioGroup = DispatchGroup()
 
@@ -265,12 +260,9 @@ public final class JSONRPCConnection {
     case .notification(let notification):
       notification._handle(receiveHandler!, connection: self)
     case .request(let request, id: let id):
-      let semaphore: DispatchSemaphore? = syncRequests ? .init(value: 0) : nil
       request._handle(receiveHandler!, id: id, connection: self) { (response, id) in
         self.sendReply(response, id: id)
-        semaphore?.signal()
       }
-      semaphore?.wait()
 
     case .response(let response, id: let id):
       guard let outstanding = outstandingRequests.removeValue(forKey: id) else {
