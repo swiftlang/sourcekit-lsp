@@ -66,7 +66,19 @@ public final class LocalConnection {
     case ready, started, closed
   }
 
+  /// The queue guarding `_nextRequestID`.
   let queue: DispatchQueue = DispatchQueue(label: "local-connection-queue")
+
+  /// The queue on which all messages (notifications, requests, responses) are
+  /// handled.
+  ///
+  /// The queue is blocked until the message has been sufficiently handled to
+  /// avoid out-of-order handling of messages. For sourcekitd, this means that
+  /// a request has been sent to sourcekitd and for clangd, this means that we
+  /// have forwarded the request to clangd.
+  ///
+  /// The actual semantic handling of the message happens off this queue.
+  let messageHandlingQueue: AsyncQueue = AsyncQueue()
 
   var _nextRequestID: Int = 0
 
@@ -104,22 +116,30 @@ public final class LocalConnection {
 
 extension LocalConnection: Connection {
   public func send<Notification>(_ notification: Notification) where Notification: NotificationType {
-    handler?.handle(notification, from: ObjectIdentifier(self))
+    messageHandlingQueue.async {
+      self.handler?.handle(notification, from: ObjectIdentifier(self))
+    }
   }
 
   public func send<Request>(_ request: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
     let id = nextRequestID()
-    guard let handler = handler else {
-      queue.async { reply(.failure(.serverCancelled)) }
-      return id
-    }
 
-    precondition(state == .started)
-    handler.handle(request, id: id, from: ObjectIdentifier(self)) { result in
-      queue.async {
-        reply(result)
+    messageHandlingQueue.async {
+      guard let handler = self.handler else {
+        queue.async {
+          reply(.failure(.serverCancelled))
+        }
+        return
+      }
+
+      precondition(self.state == .started)
+      handler.handle(request, id: id, from: ObjectIdentifier(self)) { result in
+        queue.async {
+          reply(result)
+        }
       }
     }
+
     return id
   }
 }
