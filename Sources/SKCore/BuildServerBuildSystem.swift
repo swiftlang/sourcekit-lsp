@@ -173,13 +173,42 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
   return nil
 }
 
-final class BuildServerHandler: LanguageServerEndpoint {
+/// A handler that receives messages from the build server. 
+///
+/// In practice, it listens for updated build settings and informs the 
+/// ``BuildSystemDelegate`` about these changes.
+final class BuildServerHandler: MessageHandler {
+  /// The handler's request queue. `delegate` will always be called on this queue.
+  public let queue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
 
   public weak var delegate: BuildSystemDelegate? = nil
 
-  override func _registerBuiltinHandlers() {
-    _register(BuildServerHandler.handleBuildTargetsChanged)
-    _register(BuildServerHandler.handleFileOptionsChanged)
+  /// Handler for notifications received **from** the builder server, ie.
+  /// the build server has sent us a notification.
+  ///
+  /// We need to notify the delegate about any updated build settings.
+  func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+    queue.async {
+      if let params = params as? BuildTargetsChangedNotification {
+        self.handleBuildTargetsChanged(Notification(params, clientID: clientID))
+      } else if let params = params as? FileOptionsChangedNotification {
+        self.handleFileOptionsChanged(Notification(params, clientID: clientID))
+      }
+    }
+  }
+
+  /// Handler for requests received **from** the build server.
+  ///
+  /// We currently can't handle any requests sent from the build server to us.
+  func handle<R: RequestType>(
+    _ params: R,
+    id: RequestID,
+    from clientID: ObjectIdentifier,
+    reply: @escaping (LSPResult<R.Response>) -> Void
+  ) {
+    queue.async {
+      reply(.failure(ResponseError.methodNotFound(R.method)))
+    }
   }
 
   func handleBuildTargetsChanged(_ notification: Notification<BuildTargetsChangedNotification>) {
