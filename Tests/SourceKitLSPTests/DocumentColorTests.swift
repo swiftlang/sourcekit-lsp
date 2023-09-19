@@ -28,11 +28,11 @@ final class DocumentColorTests: XCTestCase {
     connection = nil
   }
 
-  func initialize() {
+  func initialize() throws {
     connection = TestSourceKitServer()
     sk = connection.client
     let documentCapabilities = TextDocumentClientCapabilities()
-    _ = try! sk.sendSync(InitializeRequest(
+    _ = try sk.sendSync(InitializeRequest(
       processId: nil,
       rootPath: nil,
       rootURI: nil,
@@ -42,7 +42,7 @@ final class DocumentColorTests: XCTestCase {
       workspaceFolders: nil))
   }
 
-  func performDocumentColorRequest(text: String) -> [ColorInformation] {
+  func performDocumentColorRequest(text: String) throws -> [ColorInformation] {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
 
     sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
@@ -52,10 +52,10 @@ final class DocumentColorTests: XCTestCase {
       text: text)))
 
     let request = DocumentColorRequest(textDocument: TextDocumentIdentifier(url))
-    return try! sk.sendSync(request)
+    return try sk.sendSync(request)
   }
 
-  func performColorPresentationRequest(text: String, color: Color, range: Range<Position>) -> [ColorPresentation] {
+  func performColorPresentationRequest(text: String, color: Color, range: Range<Position>) throws -> [ColorPresentation] {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
 
     sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
@@ -68,21 +68,21 @@ final class DocumentColorTests: XCTestCase {
       textDocument: TextDocumentIdentifier(url), 
       color: color, 
       range: range)
-    return try! sk.sendSync(request)
+    return try sk.sendSync(request)
   }
 
-  func testEmptyText() {
-    initialize()
-    let colors = performDocumentColorRequest(text: "")
+  func testEmptyText() throws {
+    try initialize()
+    let colors = try performDocumentColorRequest(text: "")
     XCTAssertEqual(colors, [])
   }
 
-  func testSimple() {
-    initialize()
+  func testSimple() throws {
+    try initialize()
     let text = #"""
     #colorLiteral(red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4)
     """#
-    let colors = performDocumentColorRequest(text: text)
+    let colors = try performDocumentColorRequest(text: text)
 
     XCTAssertEqual(colors, [
       ColorInformation(
@@ -91,8 +91,8 @@ final class DocumentColorTests: XCTestCase {
     ])
   }
 
-  func testWeirdWhitespace() {
-    initialize()
+  func testWeirdWhitespace() throws {
+    try initialize()
     let text = #"""
       let x = #colorLiteral(red:0.5,green:0.5,blue:0.5,alpha:0.5)
       let y = #colorLiteral(
@@ -109,7 +109,7 @@ final class DocumentColorTests: XCTestCase {
         :       \#t0.5,       alpha:0.5   
         )
     """#
-    let colors = performDocumentColorRequest(text: text)
+    let colors = try performDocumentColorRequest(text: text)
 
     XCTAssertEqual(colors, [
       ColorInformation(
@@ -121,8 +121,8 @@ final class DocumentColorTests: XCTestCase {
     ])
   }
 
-  func testPresentation() {
-    initialize()
+  func testPresentation() throws {
+    try initialize()
     let text = """
     let x = #colorLiteral(red: 0.5, green: 0.5, blue: 0.5, alpha: 0.5);
     """
@@ -131,7 +131,7 @@ final class DocumentColorTests: XCTestCase {
     let newText = """
     #colorLiteral(red: \(color.red), green: \(color.green), blue: \(color.blue), alpha: \(color.alpha))
     """
-    let presentations = performColorPresentationRequest(text: text, color: color, range: range)
+    let presentations = try performColorPresentationRequest(text: text, color: color, range: range)
     XCTAssertEqual(presentations.count, 1)
     let presentation = presentations[0]
     XCTAssertEqual(presentation.label, "Color Literal")

@@ -33,9 +33,9 @@ final class SourceKitDTests: XCTestCase {
     sdkpath = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx").trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  func testMultipleNotificationHandlers() {
-    let ws = try! mutableTibsTestWorkspace(name: "proj1")!
-    let sourcekitd = try! SourceKitDImpl.getOrCreate(dylibPath: SourceKitDTests.sourcekitdPath)
+  func testMultipleNotificationHandlers() throws {
+    let ws = try mutableTibsTestWorkspace(name: "proj1")!
+    let sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: SourceKitDTests.sourcekitdPath)
     let keys = sourcekitd.keys
     let path: String = ws.testLoc("c").url.path
 
@@ -86,14 +86,14 @@ final class SourceKitDTests: XCTestCase {
     args.append(path)
     req[keys.compilerargs] = args
 
-    _ = try! sourcekitd.sendSync(req)
+    _ = try sourcekitd.sendSync(req)
 
     waitForExpectations(timeout: defaultTimeout)
 
     let close = SKDRequestDictionary(sourcekitd: sourcekitd)
     close[keys.request] = sourcekitd.requests.editor_close
     close[keys.name] = path
-    _ = try! sourcekitd.sendSync(close)
+    _ = try sourcekitd.sendSync(close)
   }
 }
 

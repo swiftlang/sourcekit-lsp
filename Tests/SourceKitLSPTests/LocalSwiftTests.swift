@@ -799,7 +799,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testXMLToMarkdownDeclaration() {
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Declaration>func foo(_ bar: <Type usr="fake">Baz</Type>)</Declaration>
       """), """
       ```swift
@@ -809,7 +809,7 @@ final class LocalSwiftTests: XCTestCase {
       ---
 
       """)
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Declaration>func foo() -&gt; <Type>Bar</Type></Declaration>
       """), """
       ```swift
@@ -819,17 +819,17 @@ final class LocalSwiftTests: XCTestCase {
       ---
 
       """)
-	  XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+	  XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Link href="https://example.com">My Link</Link>
       """), """
       [My Link](https://example.com)
       """)
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Link>My Invalid Link</Link>
       """), """
       My Invalid Link
       """)
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Declaration>func replacingOccurrences&lt;Target, Replacement&gt;(of target: Target, with replacement: Replacement, options: <Type usr="s:SS">String</Type>.<Type usr="s:SS10FoundationE14CompareOptionsa">CompareOptions</Type> = default, range searchRange: <Type usr="s:Sn">Range</Type>&lt;<Type usr="s:SS">String</Type>.<Type usr="s:SS5IndexV">Index</Type>&gt;? = default) -&gt; <Type usr="s:SS">String</Type> where Target : <Type usr="s:Sy">StringProtocol</Type>, Replacement : <Type usr="s:Sy">StringProtocol</Type></Declaration>
       """), """
       ```swift
@@ -842,7 +842,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testXMLToMarkdownComment() {
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Class><Declaration>var foo</Declaration></Class>
       """), """
       ```swift
@@ -853,7 +853,7 @@ final class LocalSwiftTests: XCTestCase {
 
       """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Class><Name>foo</Name><Declaration>var foo</Declaration></Class>
       """), """
       ```swift
@@ -863,7 +863,7 @@ final class LocalSwiftTests: XCTestCase {
       ---
 
       """)
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Class><USR>asdf</USR><Declaration>var foo</Declaration><Name>foo</Name></Class>
       """), """
       ```swift
@@ -874,12 +874,12 @@ final class LocalSwiftTests: XCTestCase {
 
       """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Class><Abstract>FOO</Abstract></Class>
       """), """
       FOO
       """)
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Class><Abstract>FOO</Abstract><Declaration>var foo</Declaration></Class>
       """), """
       FOO
@@ -892,7 +892,7 @@ final class LocalSwiftTests: XCTestCase {
 
       """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Class><Abstract>FOO</Abstract><Discussion>BAR</Discussion></Class>
       """), """
       FOO
@@ -902,7 +902,7 @@ final class LocalSwiftTests: XCTestCase {
       BAR
       """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Class><Para>A</Para><Para>B</Para><Para>C</Para></Class>
       """), """
       A
@@ -912,7 +912,7 @@ final class LocalSwiftTests: XCTestCase {
       C
       """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <CodeListing>a</CodeListing>
       """), """
       ```
@@ -922,7 +922,7 @@ final class LocalSwiftTests: XCTestCase {
 
       """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <CodeListing><zCodeLineNumbered>a</zCodeLineNumbered></CodeListing>
       """), """
       ```
@@ -931,7 +931,7 @@ final class LocalSwiftTests: XCTestCase {
 
 
       """)
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <CodeListing><zCodeLineNumbered>a</zCodeLineNumbered><zCodeLineNumbered>b</zCodeLineNumbered></CodeListing>
       """), """
       ```
@@ -941,7 +941,7 @@ final class LocalSwiftTests: XCTestCase {
 
       
       """)
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Class><CodeListing><zCodeLineNumbered>a</zCodeLineNumbered><zCodeLineNumbered>b</zCodeLineNumbered></CodeListing><CodeListing><zCodeLineNumbered>c</zCodeLineNumbered><zCodeLineNumbered>d</zCodeLineNumbered></CodeListing></Class>
       """), """
       ```
@@ -957,25 +957,25 @@ final class LocalSwiftTests: XCTestCase {
 
       """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Para>a b c <codeVoice>d e f</codeVoice> g h i</Para>
       """), """
       a b c `d e f` g h i
       """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Para>a b c <emphasis>d e f</emphasis> g h i</Para>
       """), """
       a b c *d e f* g h i
       """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Para>a b c <bold>d e f</bold> g h i</Para>
       """), """
       a b c **d e f** g h i
       """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Para>a b c<h1>d e f</h1>g h i</Para>
       """), """
       a b c
@@ -985,7 +985,7 @@ final class LocalSwiftTests: XCTestCase {
       g h i
       """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <Para>a b c<h3>d e f</h3>g h i</Para>
       """), """
       a b c
@@ -995,7 +995,7 @@ final class LocalSwiftTests: XCTestCase {
       g h i
       """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown(
+    XCTAssertEqual(try xmlDocumentationToMarkdown(
       "<Class>" +
         "<Name>String</Name>" +
         "<USR>s:SS</USR>" +
@@ -1051,7 +1051,7 @@ final class LocalSwiftTests: XCTestCase {
 
       """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown(
+    XCTAssertEqual(try xmlDocumentationToMarkdown(
       "<Function file=\"DocumentManager.swift\" line=\"92\" column=\"15\">" +
         "<CommentParts>" +
           "<Abstract><Para>Applies the given edits to the document.</Para></Abstract>" +
@@ -1076,7 +1076,7 @@ final class LocalSwiftTests: XCTestCase {
         - before: The document contents *before* the edit is applied.
     """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <ResultDiscussion><Para>The contents of the file after all the edits are applied.</Para></ResultDiscussion>
       """), """
     ### Returns
@@ -1084,7 +1084,7 @@ final class LocalSwiftTests: XCTestCase {
     The contents of the file after all the edits are applied.
     """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown("""
+    XCTAssertEqual(try xmlDocumentationToMarkdown("""
       <ThrowsDiscussion><Para>Error.missingDocument if the document is not open.</Para></ThrowsDiscussion>
       """), """
     ### Throws
@@ -1092,7 +1092,7 @@ final class LocalSwiftTests: XCTestCase {
     Error.missingDocument if the document is not open.
     """)
 
-    XCTAssertEqual(try! xmlDocumentationToMarkdown(
+    XCTAssertEqual(try xmlDocumentationToMarkdown(
       "<Class>" +
         "<Name>S</Name>" +
         "<USR>s:1a1SV</USR>" +
@@ -1132,7 +1132,7 @@ final class LocalSwiftTests: XCTestCase {
     """)
   }
 
-  func testSymbolInfo() {
+  func testSymbolInfo() throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
@@ -1150,7 +1150,7 @@ final class LocalSwiftTests: XCTestCase {
       """)))
 
     do {
-      let resp = try! sk.sendSync(SymbolInfoRequest(
+      let resp = try sk.sendSync(SymbolInfoRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 0, utf16index: 7)))
 
@@ -1167,7 +1167,7 @@ final class LocalSwiftTests: XCTestCase {
     }
     
     do {
-      let resp = try! sk.sendSync(SymbolInfoRequest(
+      let resp = try sk.sendSync(SymbolInfoRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 1, utf16index: 7)))
 
@@ -1183,7 +1183,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try! sk.sendSync(SymbolInfoRequest(
+      let resp = try sk.sendSync(SymbolInfoRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 2, utf16index: 7)))
 
@@ -1199,7 +1199,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try! sk.sendSync(SymbolInfoRequest(
+      let resp = try sk.sendSync(SymbolInfoRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 3, utf16index: 8)))
 
@@ -1215,7 +1215,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try! sk.sendSync(SymbolInfoRequest(
+      let resp = try sk.sendSync(SymbolInfoRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 3, utf16index: 0)))
 
@@ -1223,7 +1223,7 @@ final class LocalSwiftTests: XCTestCase {
     }
   }
 
-  func testHover() {
+  func testHover() throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
@@ -1239,7 +1239,7 @@ final class LocalSwiftTests: XCTestCase {
       """)))
 
     do {
-      let resp = try! sk.sendSync(HoverRequest(
+      let resp = try sk.sendSync(HoverRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 3, utf16index: 7)))
 
@@ -1268,7 +1268,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try! sk.sendSync(HoverRequest(
+      let resp = try sk.sendSync(HoverRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 0, utf16index: 7)))
 
@@ -1276,7 +1276,7 @@ final class LocalSwiftTests: XCTestCase {
     }
   }
 
-  func testHoverNameEscaping() {
+  func testHoverNameEscaping() throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
 
     sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
@@ -1291,7 +1291,7 @@ final class LocalSwiftTests: XCTestCase {
       """)))
 
     do {
-      let resp = try! sk.sendSync(HoverRequest(
+      let resp = try sk.sendSync(HoverRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 1, utf16index: 7)))
 
@@ -1316,7 +1316,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try! sk.sendSync(HoverRequest(
+      let resp = try sk.sendSync(HoverRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 3, utf16index: 7)))
 

@@ -16,10 +16,10 @@ import XCTest
 
 final class MessageParsingTests: XCTestCase {
 
-  func testSplitMessage() {
-    func check(_ string: String, contentLen: Int? = nil, restLen: Int?, file: StaticString = #filePath, line: UInt = #line) {
+  func testSplitMessage() throws {
+    func check(_ string: String, contentLen: Int? = nil, restLen: Int?, file: StaticString = #filePath, line: UInt = #line) throws {
       let bytes: [UInt8] = [UInt8](string.utf8)
-      guard let ((content, header), rest) = try! bytes.jsonrpcSplitMessage() else {
+      guard let ((content, header), rest) = try bytes.jsonrpcSplitMessage() else {
         XCTAssert(restLen == nil, "expected non-empty field", file: file, line: line)
         return
       }
@@ -39,23 +39,23 @@ final class MessageParsingTests: XCTestCase {
       }
     }
 
-    check("Content-Length: 2\r\n", restLen: nil)
-    check("Content-Length: 1\r\n\r\n", restLen: nil)
-    check("Content-Length: 2\r\n\r\n{", restLen: nil)
+    try check("Content-Length: 2\r\n", restLen: nil)
+    try check("Content-Length: 1\r\n\r\n", restLen: nil)
+    try check("Content-Length: 2\r\n\r\n{", restLen: nil)
 
-    check("Content-Length: 0\r\n\r\n", contentLen: 0,  restLen: 0)
-    check("Content-Length: 0\r\n\r\n{}", contentLen: 0,  restLen: 2)
-    check("Content-Length: 1\r\n\r\n{}", contentLen: 1,  restLen: 1)
-    check("Content-Length: 2\r\n\r\n{}", contentLen: 2,  restLen: 0)
-    check("Content-Length: 2\r\n\r\n{}Co", contentLen: 2,  restLen: 2)
+    try check("Content-Length: 0\r\n\r\n", contentLen: 0,  restLen: 0)
+    try check("Content-Length: 0\r\n\r\n{}", contentLen: 0,  restLen: 2)
+    try check("Content-Length: 1\r\n\r\n{}", contentLen: 1,  restLen: 1)
+    try check("Content-Length: 2\r\n\r\n{}", contentLen: 2,  restLen: 0)
+    try check("Content-Length: 2\r\n\r\n{}Co", contentLen: 2,  restLen: 2)
 
     checkError("\r\n\r\n{}", MessageDecodingError.parseError("missing Content-Length header"))
   }
 
-  func testParseHeader() {
-    func check(_ string: String, header expected: JSONRPCMessageHeader? = nil, restLen: Int?, file: StaticString = #filePath, line: UInt = #line) {
+  func testParseHeader() throws {
+    func check(_ string: String, header expected: JSONRPCMessageHeader? = nil, restLen: Int?, file: StaticString = #filePath, line: UInt = #line) throws {
       let bytes: [UInt8] = [UInt8](string.utf8)
-      guard let (header, rest) = try! bytes.jsonrcpParseHeader() else {
+      guard let (header, rest) = try bytes.jsonrcpParseHeader() else {
         XCTAssert(restLen == nil, "expected non-empty field", file: file, line: line)
         return
       }
@@ -78,15 +78,15 @@ final class MessageParsingTests: XCTestCase {
       checkErrorBytes([UInt8](string.utf8), expected, file: file, line: line)
     }
 
-    check("", restLen: nil)
-    check("C", restLen: nil)
-    check("Content-Length: 1", restLen: nil)
-    check("Content-Length: 1\r", restLen: nil)
-    check("Content-Length: 1\r\n", restLen: nil)
-    check("Content-Length: 1\r\n\r\n", header: JSONRPCMessageHeader(contentLength: 1), restLen: 0)
-    check("Content-Length: 1\r\n\r\n{}", header: JSONRPCMessageHeader(contentLength: 1), restLen: 2)
-    check("A:B\r\nContent-Length: 1\r\nC:D\r\n\r\n", header: JSONRPCMessageHeader(contentLength: 1), restLen: 0)
-    check("Content-Length:123   \r\n\r\n", header: JSONRPCMessageHeader(contentLength: 123), restLen: 0)
+    try check("", restLen: nil)
+    try check("C", restLen: nil)
+    try check("Content-Length: 1", restLen: nil)
+    try check("Content-Length: 1\r", restLen: nil)
+    try check("Content-Length: 1\r\n", restLen: nil)
+    try check("Content-Length: 1\r\n\r\n", header: JSONRPCMessageHeader(contentLength: 1), restLen: 0)
+    try check("Content-Length: 1\r\n\r\n{}", header: JSONRPCMessageHeader(contentLength: 1), restLen: 2)
+    try check("A:B\r\nContent-Length: 1\r\nC:D\r\n\r\n", header: JSONRPCMessageHeader(contentLength: 1), restLen: 0)
+    try check("Content-Length:123   \r\n\r\n", header: JSONRPCMessageHeader(contentLength: 123), restLen: 0)
 
     checkError("Content-Length:0x1\r\n\r\n", MessageDecodingError.parseError("expected integer value in 0x1"))
     checkError("Content-Length:a123\r\n\r\n", MessageDecodingError.parseError("expected integer value in a123"))
@@ -94,10 +94,10 @@ final class MessageParsingTests: XCTestCase {
     checkErrorBytes([UInt8]("Content-Length: ".utf8) + [0xFF] + [UInt8]("\r\n".utf8), MessageDecodingError.parseError("expected integer value in <invalid>"))
   }
 
-  func testParseHeaderField() {
-    func check(_ string: String, keyLen: Int? = nil, valueLen: Int? = nil, restLen: Int?, file: StaticString = #filePath, line: UInt = #line) {
+  func testParseHeaderField() throws {
+    func check(_ string: String, keyLen: Int? = nil, valueLen: Int? = nil, restLen: Int?, file: StaticString = #filePath, line: UInt = #line) throws {
       let bytes: [UInt8] = [UInt8](string.utf8)
-      guard let (kv, rest) = try! bytes.jsonrpcParseHeaderField() else {
+      guard let (kv, rest) = try bytes.jsonrpcParseHeaderField() else {
         XCTAssert(restLen == nil, "expected non-empty field", file: file, line: line)
         return
       }
@@ -123,25 +123,25 @@ final class MessageParsingTests: XCTestCase {
       }
     }
 
-    check("", restLen: nil)
-    check("C", restLen: nil)
-    check("Content-Length", restLen: nil)
-    check("Content-Length:", restLen: nil)
-    check("Content-Length:a", restLen: nil)
-    check("Content-Length: 1", restLen: nil)
-    check("Content-Length: 1\r", restLen: nil)
-    check("Content-Length: 1\r\n", keyLen: "Content-Length".count, valueLen: 2, restLen: 0)
-    check("Content-Length:1\r\n", keyLen: "Content-Length".count, valueLen: 1, restLen: 0)
-    check("Content-Length: 1\r\n ", keyLen: "Content-Length".count, valueLen: 2, restLen: 1)
-    check("Content-Length: 1\r\n\r\n", keyLen: "Content-Length".count, valueLen: 2, restLen: 2)
-    check("Unknown:asdf\r", restLen: nil)
-    check("Unknown:asdf\r\n", keyLen: "Unknown".count, valueLen: 4, restLen: 0)
-    check("\r", restLen: nil)
-    check("\r\n", restLen: 0)
-    check("\r\nC", restLen: 1)
-    check("\r\nContent-Length:1\r\n", restLen: "Content-Length:1\r\n".utf8.count)
-    check(":", restLen: nil)
-    check(":\r\n", keyLen: 0, valueLen: 0, restLen: 0)
+    try check("", restLen: nil)
+    try check("C", restLen: nil)
+    try check("Content-Length", restLen: nil)
+    try check("Content-Length:", restLen: nil)
+    try check("Content-Length:a", restLen: nil)
+    try check("Content-Length: 1", restLen: nil)
+    try check("Content-Length: 1\r", restLen: nil)
+    try check("Content-Length: 1\r\n", keyLen: "Content-Length".count, valueLen: 2, restLen: 0)
+    try check("Content-Length:1\r\n", keyLen: "Content-Length".count, valueLen: 1, restLen: 0)
+    try check("Content-Length: 1\r\n ", keyLen: "Content-Length".count, valueLen: 2, restLen: 1)
+    try check("Content-Length: 1\r\n\r\n", keyLen: "Content-Length".count, valueLen: 2, restLen: 2)
+    try check("Unknown:asdf\r", restLen: nil)
+    try check("Unknown:asdf\r\n", keyLen: "Unknown".count, valueLen: 4, restLen: 0)
+    try check("\r", restLen: nil)
+    try check("\r\n", restLen: 0)
+    try check("\r\nC", restLen: 1)
+    try check("\r\nContent-Length:1\r\n", restLen: "Content-Length:1\r\n".utf8.count)
+    try check(":", restLen: nil)
+    try check(":\r\n", keyLen: 0, valueLen: 0, restLen: 0)
 
     checkError("C\r\n", MessageDecodingError.parseError("expected ':' in message header"))
   }

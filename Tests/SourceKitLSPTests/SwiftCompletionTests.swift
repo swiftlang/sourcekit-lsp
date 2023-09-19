@@ -51,7 +51,7 @@ final class SwiftCompletionTests: XCTestCase {
     connection = nil
   }
 
-  func initializeServer(options: SKCompletionOptions = .init(), capabilities: CompletionCapabilities? = nil) {
+  func initializeServer(options: SKCompletionOptions = .init(), capabilities: CompletionCapabilities? = nil) throws {
     connection = TestSourceKitServer()
     sk = connection.client
     var documentCapabilities: TextDocumentClientCapabilities?
@@ -61,7 +61,7 @@ final class SwiftCompletionTests: XCTestCase {
     } else {
       documentCapabilities = nil
     }
-    _ = try! sk.sendSync(
+    _ = try sk.sendSync(
       InitializeRequest(
         processId: nil,
         rootPath: nil,
@@ -98,7 +98,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionBasic(options: SKCompletionOptions) throws {
-    initializeServer(options: options)
+    try initializeServer(options: options)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     openDocument(url: url)
 
@@ -149,7 +149,7 @@ final class SwiftCompletionTests: XCTestCase {
     var capabilities = CompletionCapabilities()
     capabilities.completionItem = CompletionCapabilities.CompletionItem(snippetSupport: true)
 
-    initializeServer(capabilities: capabilities)
+    try initializeServer(capabilities: capabilities)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     openDocument(url: url)
 
@@ -192,7 +192,7 @@ final class SwiftCompletionTests: XCTestCase {
 
     shutdownServer()
     capabilities.completionItem?.snippetSupport = false
-    initializeServer(capabilities: capabilities)
+    try initializeServer(capabilities: capabilities)
     openDocument(url: url)
 
     test = try getTestMethodACompletion()
@@ -228,7 +228,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionPosition(options: SKCompletionOptions) throws {
-    initializeServer(options: options)
+    try initializeServer(options: options)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     openDocument(text: "foo", url: url)
 
@@ -252,7 +252,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionOptional() throws {
-    initializeServer()
+    try initializeServer()
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let text = """
     struct Foo {
@@ -278,7 +278,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionOverride() throws {
-    initializeServer()
+    try initializeServer()
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let text = """
     class Base {
@@ -303,7 +303,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionOverrideInNewLine() throws {
-    initializeServer()
+    try initializeServer()
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let text = """
     class Base {
@@ -329,7 +329,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testMaxResults() throws {
-    initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
+    try initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     openDocument(text: """
       struct S {
@@ -412,7 +412,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testRefilterAfterIncompleteResults() throws {
-    initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: 20))
+    try initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: 20))
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     openDocument(text: """
       struct S {
@@ -473,7 +473,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testRefilterAfterIncompleteResultsWithEdits() throws {
-    initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
+    try initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     openDocument(text: """
       struct S {
@@ -554,7 +554,7 @@ final class SwiftCompletionTests: XCTestCase {
   /// Regression test for https://bugs.swift.org/browse/SR-13561 to make sure the a session
   /// close waits for its respective open to finish to prevent a session geting stuck open.
   func testSessionCloseWaitsforOpen() throws {
-    initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
+    try initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
     let url = URL(fileURLWithPath: "/\(UUID())/file.swift")
     openDocument(text: """
       struct S {

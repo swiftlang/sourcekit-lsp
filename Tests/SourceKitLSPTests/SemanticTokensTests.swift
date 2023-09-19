@@ -137,21 +137,21 @@ final class SemanticTokensTests: XCTestCase {
     ], expectRefresh: expectRefresh)
   }
 
-  private func performSemanticTokensRequest(range: Range<Position>? = nil) -> [Token] {
+  private func performSemanticTokensRequest(range: Range<Position>? = nil) throws -> [Token] {
     let response: DocumentSemanticTokensResponse!
 
     if let range = range {
-      response = try! sk.sendSync(DocumentSemanticTokensRangeRequest(textDocument: textDocument, range: range))
+      response = try sk.sendSync(DocumentSemanticTokensRangeRequest(textDocument: textDocument, range: range))
     } else {
-      response = try! sk.sendSync(DocumentSemanticTokensRequest(textDocument: textDocument))
+      response = try sk.sendSync(DocumentSemanticTokensRequest(textDocument: textDocument))
     }
 
     return [Token](lspEncodedTokens: response.data)
   }
 
-  private func openAndPerformSemanticTokensRequest(text: String, range: Range<Position>? = nil) -> [Token] {
+  private func openAndPerformSemanticTokensRequest(text: String, range: Range<Position>? = nil) throws -> [Token] {
     openDocument(text: text)
-    return performSemanticTokensRequest(range: range)
+    return try performSemanticTokensRequest(range: range)
   }
 
   func testIntArrayCoding() {
@@ -219,13 +219,13 @@ final class SemanticTokensTests: XCTestCase {
     ])
   }
 
-  func testEmpty() {
+  func testEmpty() throws {
     let text = ""
-    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [])
   }
 
-  func testRanged() {
+  func testRanged() throws {
     let text = """
     let x = 1
     let test = 20
@@ -234,7 +234,7 @@ final class SemanticTokensTests: XCTestCase {
     """
     let start = Position(line: 1, utf16index: 0)
     let end = Position(line: 2, utf16index: 5)
-    let tokens = openAndPerformSemanticTokensRequest(text: text, range: start..<end)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text, range: start..<end)
     XCTAssertEqual(tokens, [
       Token(line: 1, utf16index: 0, length: 3, kind: .keyword),
       Token(line: 1, utf16index: 4, length: 4, kind: .identifier),
@@ -244,13 +244,13 @@ final class SemanticTokensTests: XCTestCase {
     ])
   }
 
-  func testLexicalTokens() {
+  func testLexicalTokens() throws {
     let text = """
     let x = 3
     var y = "test"
     /* abc */ // 123
     """
-    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [
       // let x = 3
       Token(line: 0, utf16index: 0, length: 3, kind: .keyword),
@@ -266,13 +266,13 @@ final class SemanticTokensTests: XCTestCase {
     ])
   }
 
-  func testLexicalTokensForMultiLineComments() {
+  func testLexicalTokensForMultiLineComments() throws {
     let text = """
     let x = 3 /*
     let x = 12
     */
     """
-    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [
       Token(line: 0, utf16index: 0, length: 3, kind: .keyword),
       Token(line: 0, utf16index: 4, length: 1, kind: .identifier),
@@ -284,26 +284,26 @@ final class SemanticTokensTests: XCTestCase {
     ])
   }
 
-  func testLexicalTokensForDocComments() {
+  func testLexicalTokensForDocComments() throws {
     let text = """
     /** abc */
       /// def
     """
-    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [
       Token(line: 0, utf16index: 0, length: 10, kind: .comment, modifiers: [.documentation]),
       Token(line: 1, utf16index: 2, length: 7, kind: .comment, modifiers: [.documentation]),
     ])
   }
 
-  func testLexicalTokensForBackticks() {
+  func testLexicalTokensForBackticks() throws {
     let text = """
     var `if` = 20
     let `else` = 3
     let `onLeft = ()
     let onRight` = ()
     """
-    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [
       // var `if` = 20
       Token(line: 0, utf16index: 0, length: 3, kind: .keyword),
@@ -322,7 +322,7 @@ final class SemanticTokensTests: XCTestCase {
     ])
   }
 
-  func testSemanticTokens() {
+  func testSemanticTokens() throws {
     let text = """
     struct X {}
 
@@ -335,7 +335,7 @@ final class SemanticTokensTests: XCTestCase {
     a()
     b()
     """
-    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [
       // struct X {}
       Token(line: 0, utf16index: 0, length: 6, kind: .keyword),
@@ -363,7 +363,7 @@ final class SemanticTokensTests: XCTestCase {
     ])
   }
 
-  func testSemanticTokensForProtocols() {
+  func testSemanticTokensForProtocols() throws {
     let text = """
     protocol X {}
     class Y: X {}
@@ -372,7 +372,7 @@ final class SemanticTokensTests: XCTestCase {
 
     func f<T: X>() {}
     """
-    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [
       // protocol X {}
       Token(line: 0, utf16index: 0, length: 8, kind: .keyword),
@@ -394,9 +394,9 @@ final class SemanticTokensTests: XCTestCase {
     ])
   }
 
-  func testSemanticTokensForFunctionSignatures() {
+  func testSemanticTokensForFunctionSignatures() throws {
     let text = "func f(x: Int, _ y: String) {}"
-    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [
       Token(line: 0, utf16index: 0, length: 4, kind: .keyword),
       Token(line: 0, utf16index: 5, length: 1, kind: .identifier),
@@ -407,16 +407,16 @@ final class SemanticTokensTests: XCTestCase {
     ])
   }
 
-  func testSemanticTokensForFunctionSignaturesWithEmoji() {
+  func testSemanticTokensForFunctionSignaturesWithEmoji() throws {
     let text = "func x👍y() {}"
-    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [
       Token(line: 0, utf16index: 0, length: 4, kind: .keyword),
       Token(line: 0, utf16index: 5, length: 4, kind: .identifier),
     ])
   }
 
-  func testSemanticTokensForStaticMethods() {
+  func testSemanticTokensForStaticMethods() throws {
     let text = """
     class X {
       deinit {}
@@ -426,7 +426,7 @@ final class SemanticTokensTests: XCTestCase {
     X.f()
     X.g()
     """
-    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [
       // class X
       Token(line: 0, utf16index: 0, length: 5, kind: .keyword),
@@ -450,7 +450,7 @@ final class SemanticTokensTests: XCTestCase {
     ])
   }
 
-  func testSemanticTokensForEnumMembers() {
+  func testSemanticTokensForEnumMembers() throws {
     let text = """
     enum Maybe<T> {
       case none
@@ -460,7 +460,7 @@ final class SemanticTokensTests: XCTestCase {
     let x = Maybe<String>.none
     let y: Maybe = .some(42)
     """
-    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [
       // enum Maybe<T>
       Token(line: 0, utf16index: 0, length: 4, kind: .keyword),
@@ -488,11 +488,11 @@ final class SemanticTokensTests: XCTestCase {
     ])
   }
 
-  func testRegexSemanticTokens() {
+  func testRegexSemanticTokens() throws {
     let text = """
       let r = /a[bc]*/
       """
-    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [
       Token(line: 0, utf16index: 0, length: 3, kind: .keyword),
       Token(line: 0, utf16index: 4, length: 1, kind: .identifier),
@@ -500,11 +500,11 @@ final class SemanticTokensTests: XCTestCase {
     ])
   }
 
-  func testOperatorDeclaration() {
+  func testOperatorDeclaration() throws {
     let text = """
     infix operator ?= :ComparisonPrecedence
     """
-    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [
       Token(line: 0, utf16index: 0, length: 5, kind: .keyword),
       Token(line: 0, utf16index: 6, length: 8, kind: .keyword),
@@ -513,29 +513,29 @@ final class SemanticTokensTests: XCTestCase {
     ])
   }
 
-  func testEmptyEdit() {
+  func testEmptyEdit() throws {
     let text = """
     let x: String = "test"
     var y = 123
     """
     openDocument(text: text)
 
-    let before = performSemanticTokensRequest()
+    let before = try performSemanticTokensRequest()
 
     let pos = Position(line: 0, utf16index: 1)
     editDocument(range: pos..<pos, text: "", expectRefresh: false)
 
-    let after = performSemanticTokensRequest()
+    let after = try performSemanticTokensRequest()
     XCTAssertEqual(before, after)
   }
 
-  func testReplaceUntilMiddleOfToken() {
+  func testReplaceUntilMiddleOfToken() throws {
     let text = """
     var test = 4567
     """
     openDocument(text: text)
 
-    let before = performSemanticTokensRequest()
+    let before = try performSemanticTokensRequest()
     let expectedLeading = [
       Token(line: 0, utf16index: 0, length: 3, kind: .keyword),
       Token(line: 0, utf16index: 4, length: 4, kind: .identifier),
@@ -548,19 +548,19 @@ final class SemanticTokensTests: XCTestCase {
     let end = Position(line: 0, utf16index: 13)
     editDocument(range: start..<end, text: " 1")
 
-    let after = performSemanticTokensRequest()
+    let after = try performSemanticTokensRequest()
     XCTAssertEqual(after, expectedLeading + [
       Token(line: 0, utf16index: 11, length: 3, kind: .number),
     ])
   }
 
-  func testReplaceUntilEndOfToken() {
+  func testReplaceUntilEndOfToken() throws {
     let text = """
     fatalError("xyz")
     """
     openDocument(text: text)
 
-    let before = performSemanticTokensRequest()
+    let before = try performSemanticTokensRequest()
     XCTAssertEqual(before, [
       Token(line: 0, utf16index: 0, length: 10, kind: .function, modifiers: .defaultLibrary),
       Token(line: 0, utf16index: 11, length: 5, kind: .string),
@@ -570,14 +570,14 @@ final class SemanticTokensTests: XCTestCase {
     let end = Position(line: 0, utf16index: 16)
     editDocument(range: start..<end, text: "(\"test\"")
 
-    let after = performSemanticTokensRequest()
+    let after = try performSemanticTokensRequest()
     XCTAssertEqual(after, [
       Token(line: 0, utf16index: 0, length: 10, kind: .function, modifiers: .defaultLibrary),
       Token(line: 0, utf16index: 11, length: 6, kind: .string),
     ])
   }
 
-  func testInsertSpaceBeforeToken() {
+  func testInsertSpaceBeforeToken() throws {
     let text = """
     let x: String = "test"
     """
@@ -589,14 +589,14 @@ final class SemanticTokensTests: XCTestCase {
       SyntaxHighlightingToken(line: 0, utf16index: 7, length: 6, kind: .struct, modifiers: [.defaultLibrary]),
       SyntaxHighlightingToken(line: 0, utf16index: 16, length: 6, kind: .string)
     ]
-    let before = performSemanticTokensRequest()
+    let before = try performSemanticTokensRequest()
     XCTAssertEqual(before, expectedBefore)
 
     let pos = Position(line: 0, utf16index: 0)
     let editText = " "
     editDocument(range: pos..<pos, text: editText, expectRefresh: false)
 
-    let after = performSemanticTokensRequest()
+    let after = try performSemanticTokensRequest()
     let expectedAfter = [
       SyntaxHighlightingToken(line: 0, utf16index: 1, length: 3, kind: .keyword),
       SyntaxHighlightingToken(line: 0, utf16index: 5, length: 1, kind: .identifier),
@@ -606,23 +606,23 @@ final class SemanticTokensTests: XCTestCase {
     XCTAssertEqual(after, expectedAfter)
   }
 
-  func testInsertSpaceAfterToken() {
+  func testInsertSpaceAfterToken() throws {
     let text = """
     var x = 0
     """
     openDocument(text: text)
 
-    let before = performSemanticTokensRequest()
+    let before = try performSemanticTokensRequest()
 
     let pos = Position(line: 0, utf16index: 9)
     let editText = " "
     editDocument(range: pos..<pos, text: editText, expectRefresh: false)
 
-    let after = performSemanticTokensRequest()
+    let after = try performSemanticTokensRequest()
     XCTAssertEqual(before, after)
   }
 
-  func testInsertNewline() {
+  func testInsertNewline() throws {
     let text = """
     fatalError("123")
     """
@@ -632,13 +632,13 @@ final class SemanticTokensTests: XCTestCase {
       SyntaxHighlightingToken(line: 0, utf16index: 0, length: 10, kind: .function, modifiers: [.defaultLibrary]),
       SyntaxHighlightingToken(line: 0, utf16index: 11, length: 5, kind: .string)
     ]
-    let before = performSemanticTokensRequest()
+    let before = try performSemanticTokensRequest()
     XCTAssertEqual(before, expectedBefore)
 
     let pos = Position(line: 0, utf16index: 0)
     editDocument(range: pos..<pos, text: "\n", expectRefresh: false)
 
-    let after = performSemanticTokensRequest()
+    let after = try performSemanticTokensRequest()
     let expectedAfter = [
       SyntaxHighlightingToken(line: 1, utf16index: 0, length: 10, kind: .function, modifiers: [.defaultLibrary]),
       SyntaxHighlightingToken(line: 1, utf16index: 11, length: 5, kind: .string)
@@ -646,14 +646,14 @@ final class SemanticTokensTests: XCTestCase {
     XCTAssertEqual(after, expectedAfter)
   }
 
-  func testRemoveNewline() {
+  func testRemoveNewline() throws {
     let text = """
     let x =
             "abc"
     """
     openDocument(text: text)
 
-    let before = performSemanticTokensRequest()
+    let before = try performSemanticTokensRequest()
     let expectedBefore = [
       Token(line: 0, utf16index: 0, length: 3, kind: .keyword),
       Token(line: 0, utf16index: 4, length: 1, kind: .identifier),
@@ -665,7 +665,7 @@ final class SemanticTokensTests: XCTestCase {
     let end = Position(line: 1, utf16index: 7)
     editDocument(range: start..<end, text: "", expectRefresh: false)
 
-    let after = performSemanticTokensRequest()
+    let after = try performSemanticTokensRequest()
     let expectedAfter = [
       Token(line: 0, utf16index: 0, length: 3, kind: .keyword),
       Token(line: 0, utf16index: 4, length: 1, kind: .identifier),
@@ -674,14 +674,14 @@ final class SemanticTokensTests: XCTestCase {
     XCTAssertEqual(after, expectedAfter)
   }
 
-  func testInsertTokens() {
+  func testInsertTokens() throws {
     let text = """
     let x =
             "abc"
     """
     openDocument(text: text)
 
-    let before = performSemanticTokensRequest()
+    let before = try performSemanticTokensRequest()
     let expectedBefore = [
       Token(line: 0, utf16index: 0, length: 3, kind: .keyword),
       Token(line: 0, utf16index: 4, length: 1, kind: .identifier),
@@ -693,7 +693,7 @@ final class SemanticTokensTests: XCTestCase {
     let end = Position(line: 1, utf16index: 7)
     editDocument(range: start..<end, text: " \"test\" +", expectRefresh: true)
 
-    let after = performSemanticTokensRequest()
+    let after = try performSemanticTokensRequest()
     let expectedAfter: [Token] = [
       Token(line: 0, utf16index: 0, length: 3, kind: .keyword),
       Token(line: 0, utf16index: 4, length: 1, kind: .identifier),
@@ -704,14 +704,14 @@ final class SemanticTokensTests: XCTestCase {
     XCTAssertEqual(after, expectedAfter)
   }
 
-  func testSemanticMultiEdit() {
+  func testSemanticMultiEdit() throws {
     let text = """
     let x = "abc"
     let y = x
     """
     openDocument(text: text)
 
-    let before = performSemanticTokensRequest()
+    let before = try performSemanticTokensRequest()
     XCTAssertEqual(before, [
       Token(line: 0, utf16index: 0, length: 3, kind: .keyword),
       Token(line: 0, utf16index: 4, length: 1, kind: .identifier),
@@ -733,7 +733,7 @@ final class SemanticTokensTests: XCTestCase {
       ),
     ], expectRefresh: true)
 
-    let after = performSemanticTokensRequest()
+    let after = try performSemanticTokensRequest()
     XCTAssertEqual(after, [
       Token(line: 0, utf16index: 0, length: 3, kind: .keyword),
       Token(line: 0, utf16index: 4, length: 7, kind: .identifier),
@@ -744,7 +744,7 @@ final class SemanticTokensTests: XCTestCase {
     ])
   }
   
-  func testActor() {
+  func testActor() throws {
     let text = """
     actor MyActor {}
 
@@ -756,7 +756,7 @@ final class SemanticTokensTests: XCTestCase {
     ) {}
     """
 
-    let tokens = openAndPerformSemanticTokensRequest(text: text)
+    let tokens = try openAndPerformSemanticTokensRequest(text: text)
     XCTAssertEqual(tokens, [
       Token(line: 0, utf16index: 0, length: 5, kind: .keyword),
       Token(line: 0, utf16index: 6, length: 7, kind: .identifier),

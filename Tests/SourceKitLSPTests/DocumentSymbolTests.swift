@@ -30,12 +30,12 @@ final class DocumentSymbolTests: XCTestCase {
     connection = nil
   }
 
-  func initialize(capabilities: DocumentSymbolCapabilities) {
+  func initialize(capabilities: DocumentSymbolCapabilities) throws {
     connection = TestSourceKitServer()
     sk = connection.client
     var documentCapabilities = TextDocumentClientCapabilities()
     documentCapabilities.documentSymbol = capabilities
-    _ = try! sk.sendSync(InitializeRequest(
+    _ = try sk.sendSync(InitializeRequest(
       processId: nil,
       rootPath: nil,
       rootURI: nil,
@@ -45,7 +45,7 @@ final class DocumentSymbolTests: XCTestCase {
       workspaceFolders: nil))
   }
 
-  func performDocumentSymbolRequest(text: String) -> DocumentSymbolResponse {
+  func performDocumentSymbolRequest(text: String) throws -> DocumentSymbolResponse {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
 
     sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
@@ -56,7 +56,7 @@ final class DocumentSymbolTests: XCTestCase {
     )))
 
     let request = DocumentSymbolRequest(textDocument: TextDocumentIdentifier(url))
-    return try! sk.sendSync(request)!
+    return try sk.sendSync(request)!
   }
 
   func range(from startTuple: (Int, Int), to endTuple: (Int, Int)) -> Range<Position> {
@@ -65,23 +65,23 @@ final class DocumentSymbolTests: XCTestCase {
     return startPos..<endPos
   }
 
-  func testEmpty() {
+  func testEmpty() throws {
     let capabilities = DocumentSymbolCapabilities()
-    initialize(capabilities: capabilities)
+    try initialize(capabilities: capabilities)
 
     let text = ""
-    let symbols = performDocumentSymbolRequest(text: text)
+    let symbols = try performDocumentSymbolRequest(text: text)
     XCTAssertEqual(symbols, .documentSymbols([]))
   }
 
-  func testStruct() {
+  func testStruct() throws {
     let capabilities = DocumentSymbolCapabilities()
-    initialize(capabilities: capabilities)
+    try initialize(capabilities: capabilities)
 
     let text = """
     struct Foo { }
     """
-    let symbols = performDocumentSymbolRequest(text: text)
+    let symbols = try performDocumentSymbolRequest(text: text)
 
     XCTAssertEqual(symbols, .documentSymbols([
       DocumentSymbol(
@@ -96,15 +96,15 @@ final class DocumentSymbolTests: XCTestCase {
     ]))
   }
 
-  func testUnicode() {
+  func testUnicode() throws {
     let capabilities = DocumentSymbolCapabilities()
-    initialize(capabilities: capabilities)
+    try initialize(capabilities: capabilities)
 
     let text = """
     struct Żółć { }
     struct 🍰 { }
     """
-    let symbols = performDocumentSymbolRequest(text: text)
+    let symbols = try performDocumentSymbolRequest(text: text)
 
     // while not ascii, these are still single code unit
     let żółćRange = range(from: (0, 0), to: (0, 15))
@@ -134,9 +134,9 @@ final class DocumentSymbolTests: XCTestCase {
     ]))
   }
 
-  func testEnum() {
+  func testEnum() throws {
     let capabilities = DocumentSymbolCapabilities()
-    initialize(capabilities: capabilities)
+    try initialize(capabilities: capabilities)
 
     let text = """
     enum Foo {
@@ -151,7 +151,7 @@ final class DocumentSymbolTests: XCTestCase {
       case ninth(someName: Int)
     }
     """
-    let symbols = performDocumentSymbolRequest(text: text)
+    let symbols = try performDocumentSymbolRequest(text: text)
 
     XCTAssertEqual(symbols, .documentSymbols([
       DocumentSymbol(
@@ -285,9 +285,9 @@ final class DocumentSymbolTests: XCTestCase {
     ]))
   }
 
-  func testAll() {
+  func testAll() throws {
     let capabilities = DocumentSymbolCapabilities()
-    initialize(capabilities: capabilities)
+    try initialize(capabilities: capabilities)
 
     let text = """
     // struct ThisIsCommentedOut { }
@@ -325,7 +325,7 @@ final class DocumentSymbolTests: XCTestCase {
       }
     }
     """
-    let symbols = performDocumentSymbolRequest(text: text)
+    let symbols = try performDocumentSymbolRequest(text: text)
 
     XCTAssertEqual(symbols, .documentSymbols([
       DocumentSymbol(

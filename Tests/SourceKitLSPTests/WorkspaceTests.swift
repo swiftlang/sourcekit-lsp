@@ -154,7 +154,7 @@ final class WorkspaceTests: XCTestCase {
     _ = try ws.sources.edit { builder in
       let packageManifest = ws.sources.rootDirectory
         .appendingPathComponent("Package.swift")
-      var packageManifestContents = try! String(contentsOf: packageManifest, encoding: .utf8)
+      var packageManifestContents = try String(contentsOf: packageManifest, encoding: .utf8)
       let targetMarkerRange = packageManifestContents.range(of: "/*Package.swift:targets*/")!
       packageManifestContents.replaceSubrange(targetMarkerRange, with: """
         .target(
