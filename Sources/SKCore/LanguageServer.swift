@@ -17,6 +17,15 @@ import SKSupport
 
 public typealias Notification = LanguageServerProtocol.Notification
 
+public struct RequestCancelKey: Hashable {
+  public var client: ObjectIdentifier
+  public var request: RequestID
+  public init(client: ObjectIdentifier, request: RequestID) {
+    self.client = client
+    self.request = request
+  }
+}
+
 /// An abstract language client or server.
 open class LanguageServerEndpoint {
 
@@ -28,15 +37,6 @@ open class LanguageServerEndpoint {
   private var requestHandlers: [ObjectIdentifier: Any] = [:]
 
   private var notificationHandlers: [ObjectIdentifier: Any] = [:]
-
-  public struct RequestCancelKey: Hashable {
-    public var client: ObjectIdentifier
-    public var request: RequestID
-    public init(client: ObjectIdentifier, request: RequestID) {
-      self.client = client
-      self.request = request
-    }
-  }
 
   /// The set of outstanding requests that may be cancelled.
   public var requestCancellation: [RequestCancelKey: CancellationToken] = [:]
@@ -64,35 +64,6 @@ open class LanguageServerEndpoint {
   /// Handle an unknown notification.
   open func _handleUnknown<N>(_ notification: Notification<N>) {
     // Do nothing.
-  }
-
-  fileprivate func _logRequest<R>(_ request: Request<R>) {
-    logAsync { currentLevel in
-      guard currentLevel >= LogLevel.debug else {
-        return "\(type(of: self)): Request<\(R.method)(\(request.id))>"
-      }
-      return "\(type(of: self)): \(request)"
-    }
-  }
-  fileprivate func _logNotification<N>(_ notification: Notification<N>) {
-    logAsync { currentLevel in
-      guard currentLevel >= LogLevel.debug else {
-        return "\(type(of: self)): Notification<\(N.method)>"
-      }
-      return "\(type(of: self)): \(notification)"
-    }
-  }
-  open func _logResponse<Response>(_ result: LSPResult<Response>, id: RequestID, method: String) {
-    logAsync { currentLevel in
-      guard currentLevel >= LogLevel.debug else {
-        return "\(type(of: self)): Response<\(method)(\(id))>"
-      }
-      return """
-      \(type(of: self)): Response<\(method)(\(id))>(
-        \(result)
-      )
-      """
-    }
   }
 }
 
@@ -189,6 +160,37 @@ extension LanguageServerEndpoint: MessageHandler {
 
       handler(request)
 
+    }
+  }
+}
+
+extension LanguageServerEndpoint {
+  fileprivate func _logRequest<R>(_ request: Request<R>) {
+    logAsync { currentLevel in
+      guard currentLevel >= LogLevel.debug else {
+        return "\(type(of: self)): Request<\(R.method)(\(request.id))>"
+      }
+      return "\(type(of: self)): \(request)"
+    }
+  }
+  fileprivate func _logNotification<N>(_ notification: Notification<N>) {
+    logAsync { currentLevel in
+      guard currentLevel >= LogLevel.debug else {
+        return "\(type(of: self)): Notification<\(N.method)>"
+      }
+      return "\(type(of: self)): \(notification)"
+    }
+  }
+  fileprivate func _logResponse<Response>(_ result: LSPResult<Response>, id: RequestID, method: String) {
+    logAsync { currentLevel in
+      guard currentLevel >= LogLevel.debug else {
+        return "\(type(of: self)): Response<\(method)(\(id))>"
+      }
+      return """
+      \(type(of: self)): Response<\(method)(\(id))>(
+        \(result)
+      )
+      """
     }
   }
 }
