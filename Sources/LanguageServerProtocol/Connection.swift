@@ -42,10 +42,10 @@ extension Connection {
 public protocol MessageHandler: AnyObject {
 
   /// Handle a notification without a reply.
-  func handle<Notification>(_: Notification, from: ObjectIdentifier) where Notification: NotificationType
+  func handle(_ params: some NotificationType, from clientID: ObjectIdentifier)
 
   /// Handle a request and (asynchronously) receive a reply.
-  func handle<Request>(_: Request, id: RequestID, from: ObjectIdentifier, reply: @escaping (LSPResult<Request.Response>) -> Void) where Request: RequestType
+  func handle<Request: RequestType>(_ params: Request, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<Request.Response>) -> Void)
 }
 
 /// A connection between two message handlers in the same process.

@@ -80,7 +80,7 @@ open class LanguageServerEndpoint {
     // Do nothing.
   }
 
-  open func _logRequest<R>(_ request: Request<R>) {
+  fileprivate func _logRequest<R>(_ request: Request<R>) {
     logAsync { currentLevel in
       guard currentLevel >= LogLevel.debug else {
         return "\(type(of: self)): Request<\(R.method)(\(request.id))>"
@@ -88,7 +88,7 @@ open class LanguageServerEndpoint {
       return "\(type(of: self)): \(request)"
     }
   }
-  open func _logNotification<N>(_ notification: Notification<N>) {
+  fileprivate func _logNotification<N>(_ notification: Notification<N>) {
     logAsync { currentLevel in
       guard currentLevel >= LogLevel.debug else {
         return "\(type(of: self)): Notification<\(N.method)>"
