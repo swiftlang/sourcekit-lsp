@@ -22,13 +22,13 @@ public typealias URL = Foundation.URL
 
 final class SKTests: XCTestCase {
 
-    func testInitLocal() {
+    func testInitLocal() throws {
       let c = TestSourceKitServer()
       defer { withExtendedLifetime(c) {} } // Keep connection alive for callbacks.
 
       let sk = c.client
 
-      let initResult = try! sk.sendSync(InitializeRequest(
+      let initResult = try sk.sendSync(InitializeRequest(
         processId: nil,
         rootPath: nil,
         rootURI: nil,
@@ -45,13 +45,13 @@ final class SKTests: XCTestCase {
       XCTAssertNotNil(initResult.capabilities.completionProvider)
     }
 
-    func testInitJSON() {
+    func testInitJSON() throws {
       let c = TestSourceKitServer(connectionKind: .jsonrpc)
       defer { withExtendedLifetime(c) {} } // Keep connection alive for callbacks.
 
       let sk = c.client
 
-      let initResult = try! sk.sendSync(InitializeRequest(
+      let initResult = try sk.sendSync(InitializeRequest(
         processId: nil,
         rootPath: nil,
         rootURI: nil,
@@ -377,7 +377,7 @@ final class SKTests: XCTestCase {
 
     let goToInclude = DeclarationRequest(
       textDocument: mainLoc.docIdentifier, position: includePosition)
-    let resp = try! ws.sk.sendSync(goToInclude)
+    let resp = try ws.sk.sendSync(goToInclude)
 
     let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-declaration")
     switch locationsOrLinks {

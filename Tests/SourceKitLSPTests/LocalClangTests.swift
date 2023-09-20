@@ -61,7 +61,7 @@ final class LocalClangTests: XCTestCase {
 
   // MARK: Tests
 
-  func testSymbolInfo() {
+  func testSymbolInfo() throws {
     guard haveClangd else { return }
 #if os(Windows)
     let url = URL(fileURLWithPath: "C:/a.cpp")
@@ -82,7 +82,7 @@ final class LocalClangTests: XCTestCase {
       """)))
 
     do {
-      let resp = try! sk.sendSync(SymbolInfoRequest(
+      let resp = try sk.sendSync(SymbolInfoRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 0, utf16index: 7)))
 
@@ -95,7 +95,7 @@ final class LocalClangTests: XCTestCase {
     }
 
     do {
-      let resp = try! sk.sendSync(SymbolInfoRequest(
+      let resp = try sk.sendSync(SymbolInfoRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 1, utf16index: 7)))
 
@@ -108,7 +108,7 @@ final class LocalClangTests: XCTestCase {
     }
 
     do {
-      let resp = try! sk.sendSync(SymbolInfoRequest(
+      let resp = try sk.sendSync(SymbolInfoRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 2, utf16index: 8)))
 
@@ -121,7 +121,7 @@ final class LocalClangTests: XCTestCase {
     }
 
     do {
-      let resp = try! sk.sendSync(SymbolInfoRequest(
+      let resp = try sk.sendSync(SymbolInfoRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 3, utf16index: 0)))
 
@@ -129,7 +129,7 @@ final class LocalClangTests: XCTestCase {
     }
   }
 
-  func testFoldingRange() {
+  func testFoldingRange() throws {
     guard haveClangd else { return }
 #if os(Windows)
     let url = URL(fileURLWithPath: "C:/a.cpp")
@@ -149,7 +149,7 @@ final class LocalClangTests: XCTestCase {
       };
       """)))
 
-    let resp = try! sk.sendSync(FoldingRangeRequest(textDocument: TextDocumentIdentifier(url)))
+    let resp = try sk.sendSync(FoldingRangeRequest(textDocument: TextDocumentIdentifier(url)))
     if let resp = resp {
       XCTAssertEqual(resp, [
         FoldingRange(startLine: 0, startUTF16Index: 10, endLine: 4, kind: .region),
@@ -178,7 +178,7 @@ final class LocalClangTests: XCTestCase {
       };
       """)))
 
-    guard let resp = try! sk.sendSync(DocumentSymbolRequest(textDocument: TextDocumentIdentifier(url))) else {
+    guard let resp = try sk.sendSync(DocumentSymbolRequest(textDocument: TextDocumentIdentifier(url))) else {
       XCTFail("Invalid document symbol response")
       return
     }
@@ -279,8 +279,8 @@ final class LocalClangTests: XCTestCase {
     }
   }
 
-  func testClangModules() {
-    guard let ws = try! staticSourceKitTibsWorkspace(name: "ClangModules") else { return }
+  func testClangModules() throws {
+    guard let ws = try staticSourceKitTibsWorkspace(name: "ClangModules") else { return }
     if ToolchainRegistry.shared.default?.clangd == nil { return }
 
     let loc = ws.testLoc("main_file")
@@ -292,7 +292,7 @@ final class LocalClangTests: XCTestCase {
       expectation.fulfill()
     }
 
-    try! ws.openDocument(loc.url, language: .objective_c)
+    try ws.openDocument(loc.url, language: .objective_c)
 
     withExtendedLifetime(ws) {
       waitForExpectations(timeout: defaultTimeout)
@@ -329,7 +329,7 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testDocumentDependenciesUpdated() throws {
-    let ws = try! mutableSourceKitTibsTestWorkspace(name: "BasicCXX")!
+    let ws = try mutableSourceKitTibsTestWorkspace(name: "BasicCXX")!
 
     let cFileLoc = ws.testLoc("Object:ref:main")
 
@@ -340,14 +340,14 @@ final class LocalClangTests: XCTestCase {
       documentOpened.fulfill()
     })
 
-    try! ws.openDocument(cFileLoc.url, language: .cpp)
+    try ws.openDocument(cFileLoc.url, language: .cpp)
 
     self.wait(for: [documentOpened], timeout: 5)
 
     // We rename Object to MyObject in the header.
     _ = try ws.sources.edit { builder in
       let headerFilePath = ws.sources.rootDirectory.appendingPathComponent("Object.h")
-      var headerFile = try! String(contentsOf: headerFilePath, encoding: .utf8)
+      var headerFile = try String(contentsOf: headerFilePath, encoding: .utf8)
       let targetMarkerRange = headerFile.range(of: "/*Object*/")!
       headerFile.replaceSubrange(targetMarkerRange, with: "My")
       builder.write(headerFile, to: headerFilePath)

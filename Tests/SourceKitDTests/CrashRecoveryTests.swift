@@ -48,7 +48,7 @@ final class CrashRecoveryTests: XCTestCase {
     try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
     try XCTSkipUnless(longTestsEnabled)
 
-    let ws = try! staticSourceKitTibsWorkspace(name: "sourcekitdCrashRecovery")!
+    let ws = try staticSourceKitTibsWorkspace(name: "sourcekitdCrashRecovery")!
     let loc = ws.testLoc("loc")
 
     // Open the document. Wait for the semantic diagnostics to know it has been fully opened and we are not entering any data races about outstanding diagnostics when we crash sourcekitd.
@@ -63,7 +63,7 @@ final class CrashRecoveryTests: XCTestCase {
       log("Received diagnostics for open - semantic")
       documentOpened.fulfill()
     })
-    try! ws.openDocument(loc.url, language: .swift)
+    try ws.openDocument(loc.url, language: .swift)
     self.wait(for: [documentOpened], timeout: defaultTimeout)
 
     // Make a change to the file that's not saved to disk. This way we can check that we re-open the correct in-memory state.
@@ -83,7 +83,7 @@ final class CrashRecoveryTests: XCTestCase {
     // Do a sanity check and verify that we get the expected result from a hover response before crashing sourcekitd.
 
     let hoverRequest = HoverRequest(textDocument: loc.docIdentifier, position: Position(line: 1, utf16index: 6))
-    let preCrashHoverResponse = try! ws.sk.sendSync(hoverRequest)
+    let preCrashHoverResponse = try ws.sk.sendSync(hoverRequest)
     precondition(preCrashHoverResponse?.contains(string: "foo()") ?? false, "Sanity check failed. The Hover response did not contain foo(), even before crashing sourcekitd. Received response: \(String(describing: preCrashHoverResponse))")
 
     // Crash sourcekitd
@@ -112,7 +112,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Check that we have syntactic functionality again
 
-    XCTAssertNoThrow(try ws.sk.sendSync(FoldingRangeRequest(textDocument: loc.docIdentifier)))
+    _ = try ws.sk.sendSync(FoldingRangeRequest(textDocument: loc.docIdentifier))
 
     // sourcekitd's semantic request timer is only started when the first semantic request comes in.
     // Send a hover request (which will fail) to trigger that timer.
@@ -122,10 +122,10 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Check that we get the same hover response from the restored in-memory state
 
-    XCTAssertNoThrow(try {
+    assertNoThrow {
       let postCrashHoverResponse = try ws.sk.sendSync(hoverRequest)
       XCTAssertTrue(postCrashHoverResponse?.contains(string: "foo()") ?? false)
-    }())
+    }
   }
   
   /// Crashes clangd and waits for it to restart
@@ -158,10 +158,10 @@ final class CrashRecoveryTests: XCTestCase {
   func testClangdCrashRecovery() throws {
     try XCTSkipUnless(longTestsEnabled)
 
-    let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
+    let ws = try staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
     let loc = ws.testLoc("loc")
 
-    try! ws.openDocument(loc.url, language: .cpp)
+    try ws.openDocument(loc.url, language: .cpp)
 
     // Make a change to the file that's not saved to disk. This way we can check that we re-open the correct in-memory state.
 
@@ -177,7 +177,7 @@ final class CrashRecoveryTests: XCTestCase {
     let expectedHoverRange = Position(line: 1, utf16index: 5)..<Position(line: 1, utf16index: 9)
 
     let hoverRequest = HoverRequest(textDocument: loc.docIdentifier, position: Position(line: 1, utf16index: 6))
-    let preCrashHoverResponse = try! ws.sk.sendSync(hoverRequest)
+    let preCrashHoverResponse = try ws.sk.sendSync(hoverRequest)
     precondition(preCrashHoverResponse?.range == expectedHoverRange, "Sanity check failed. The Hover response was not what we expected, even before crashing sourcekitd")
 
     // Crash clangd
@@ -186,19 +186,19 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Check that we have re-opened the document with the correct in-memory state
 
-    XCTAssertNoThrow(try {
+    assertNoThrow {
       let postCrashHoverResponse = try ws.sk.sendSync(hoverRequest)
       XCTAssertEqual(postCrashHoverResponse?.range, expectedHoverRange)
-    }())
+    }
   }
     
   func testClangdCrashRecoveryReopensWithCorrectBuildSettings() throws {
     try XCTSkipUnless(longTestsEnabled)
 
-    let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings")!
+    let ws = try staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings")!
     let loc = ws.testLoc("loc")
     
-    try! ws.openDocument(loc.url, language: .cpp)
+    try ws.openDocument(loc.url, language: .cpp)
     
     // Do a sanity check and verify that we get the expected result from a hover response before crashing clangd.
     
@@ -208,7 +208,7 @@ final class CrashRecoveryTests: XCTestCase {
     ]
     
     let highlightRequest = DocumentHighlightRequest(textDocument: loc.docIdentifier, position: Position(line: 9, utf16index: 3))
-    let preCrashHighlightResponse = try! ws.sk.sendSync(highlightRequest)
+    let preCrashHighlightResponse = try ws.sk.sendSync(highlightRequest)
     precondition(preCrashHighlightResponse == expectedHighlightResponse, "Sanity check failed. The Hover response was not what we expected, even before crashing sourcekitd")
     
     // Crash clangd
@@ -219,24 +219,24 @@ final class CrashRecoveryTests: XCTestCase {
     // If we did not recover the correct build settings, document highlight would
     // pick the definition of foo() in the #else branch.
 
-    XCTAssertNoThrow(try {
+    assertNoThrow {
       let postCrashHighlightResponse = try ws.sk.sendSync(highlightRequest)
       XCTAssertEqual(postCrashHighlightResponse, expectedHighlightResponse)
-    }())
+    }
   }
   
   func testPreventClangdCrashLoop() throws {
     try XCTSkipUnless(longTestsEnabled)
 
-    let ws = try! staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
+    let ws = try staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
     let loc = ws.testLoc("loc")
 
-    try! ws.openDocument(loc.url, language: .cpp)
+    try ws.openDocument(loc.url, language: .cpp)
 
     // Send a nonsensical request to wait for clangd to start up
     
     let hoverRequest = HoverRequest(textDocument: loc.docIdentifier, position: Position(line: 1, utf16index: 6))
-    _ = try! ws.sk.sendSync(hoverRequest)
+    _ = try ws.sk.sendSync(hoverRequest)
     
     // Keep track of clangd crashes
     

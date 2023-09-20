@@ -26,10 +26,10 @@ import struct PackageModel.BuildFlags
 
 final class SwiftPMWorkspaceTests: XCTestCase {
 
-  func testNoPackage() {
+  func testNoPackage() throws {
     let fs = InMemoryFileSystem()
-    try! withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try! fs.createFiles(root: tempDir, files: [
+    try withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+      try fs.createFiles(root: tempDir, files: [
         "pkg/Sources/lib/a.swift": "",
       ])
       let packageRoot = tempDir.appending(component: "pkg")
