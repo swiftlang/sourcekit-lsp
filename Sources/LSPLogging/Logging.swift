@@ -62,6 +62,22 @@ public func orLog<R>(
   }
 }
 
+/// Like `try?`, but logs the error on failure.
+public func orLog<R>(
+  _ prefix: String = "",
+  level: LogLevel = .default,
+  logger: Logger = Logger.shared,
+  _ block: () async throws -> R?) async -> R?
+{
+  do {
+    return try await block()
+  } catch {
+    logger.log("\(prefix)\(prefix.isEmpty ? "" : " ")\(error)", level: level)
+    return nil
+  }
+}
+
+
 /// Logs the time that the given block takes to execute in milliseconds.
 public func logExecutionTime<R>(
   _ prefix: String = #function,

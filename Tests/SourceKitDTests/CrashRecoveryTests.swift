@@ -138,7 +138,7 @@ final class CrashRecoveryTests: XCTestCase {
     let clangdCrashed = self.expectation(description: "clangd crashed")
     let clangdRestarted = self.expectation(description: "clangd restarted")
 
-    clangdServer.addStateChangeHandler { (oldState, newState) in
+    await clangdServer.addStateChangeHandler { (oldState, newState) in
       switch newState {
       case .connectionInterrupted:
         clangdCrashed.fulfill()
@@ -149,7 +149,7 @@ final class CrashRecoveryTests: XCTestCase {
       }
     }
 
-    clangdServer._crash()
+    await clangdServer._crash()
 
     try await fulfillmentOfOrThrow([clangdCrashed])
     try await fulfillmentOfOrThrow([clangdRestarted])
@@ -250,7 +250,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     var clangdHasRestartedFirstTime = false
 
-    clangdServer.addStateChangeHandler { (oldState, newState) in
+    await clangdServer.addStateChangeHandler { (oldState, newState) in
       switch newState {
       case .connectionInterrupted:
         clangdCrashed.fulfill()
@@ -266,7 +266,7 @@ final class CrashRecoveryTests: XCTestCase {
       }
     }
 
-    clangdServer._crash()
+    await clangdServer._crash()
 
     try await fulfillmentOfOrThrow([clangdCrashed], timeout: 5)
     try await fulfillmentOfOrThrow([clangdRestartedFirstTime], timeout: 30)
@@ -274,7 +274,7 @@ final class CrashRecoveryTests: XCTestCase {
     let firstRestartDate = Date()
 
     // Crash clangd again. This time, it should only restart after a delay.
-    clangdServer._crash()
+    await clangdServer._crash()
 
     try await fulfillmentOfOrThrow([clangdRestartedSecondTime], timeout: 30)
     XCTAssert(Date().timeIntervalSince(firstRestartDate) > 5, "Clangd restarted too quickly after crashing twice in a row. We are not preventing crash loops.")
