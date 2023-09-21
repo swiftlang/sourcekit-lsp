@@ -55,18 +55,6 @@ final class TestBuildSystem: BuildSystem {
     watchedFiles.remove(uri)
   }
 
-  func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
-    reply(.failure(buildTargetsNotSupported))
-  }
-
-  func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[SourcesItem]>) -> Void) {
-    reply(.failure(buildTargetsNotSupported))
-  }
-
-  func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
-    reply(.failure(buildTargetsNotSupported))
-  }
-
   func filesDidChange(_ events: [FileEvent]) {}
 
   public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {

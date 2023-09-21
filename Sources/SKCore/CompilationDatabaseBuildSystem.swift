@@ -111,18 +111,6 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     }
   }
 
-  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
-    reply(.failure(buildTargetsNotSupported))
-  }
-
-  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[SourcesItem]>) -> Void) {
-    reply(.failure(buildTargetsNotSupported))
-  }
-
-  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
-    reply(.failure(buildTargetsNotSupported))
-  }
-
   /// Must be invoked on `queue`.
   private func database(for url: URL) -> CompilationDatabase? {
     dispatchPrecondition(condition: .onQueue(queue))

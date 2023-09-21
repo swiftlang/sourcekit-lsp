@@ -309,42 +309,6 @@ extension BuildSystemManager {
     }
   }
 
-  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
-    queue.async {
-      if let buildSystem = self.buildSystem {
-        buildSystem.buildTargets(reply: reply)
-      } else {
-        reply(.success([]))
-      }
-    }
-  }
-
-  public func buildTargetSources(
-    targets: [BuildTargetIdentifier],
-    reply: @escaping (LSPResult<[SourcesItem]>) -> Void)
-  {
-    queue.async {
-      if let buildSystem = self.buildSystem {
-        buildSystem.buildTargetSources(targets: targets, reply: reply)
-      } else {
-        reply(.success([]))
-      }
-    }
-  }
-
-  public func buildTargetOutputPaths(
-    targets: [BuildTargetIdentifier],
-    reply: @escaping (LSPResult<[OutputsItem]>) -> Void)
-  {
-    queue.async {
-      if let buildSystem = self.buildSystem {
-        buildSystem.buildTargetOutputPaths(targets: targets, reply: reply)
-      } else {
-        reply(.success([]))
-      }
-    }
-  }
-
   public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
     return max(buildSystem?.fileHandlingCapability(for: uri) ?? .unhandled, fallbackBuildSystem?.fileHandlingCapability(for: uri) ?? .unhandled)
   }

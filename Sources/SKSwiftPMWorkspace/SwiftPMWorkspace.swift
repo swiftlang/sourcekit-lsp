@@ -347,19 +347,6 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     }
   }
 
-  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
-    // TODO: Support for build targets
-    reply(.failure(buildTargetsNotSupported))
-  }
-
-  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[SourcesItem]>) -> Void) {
-    reply(.failure(buildTargetsNotSupported))
-  }
-
-  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
-    reply(.failure(buildTargetsNotSupported))
-  }
-
   /// Returns the resolved target description for the given file, if one is known.
   /// Must only be called on `queue`.
   private func targetDescription(for file: AbsolutePath) throws -> TargetBuildDescription? {
