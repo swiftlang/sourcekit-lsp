@@ -43,14 +43,15 @@ func executable(_ name: String) -> String {
 ///
 /// Provides build settings from a build server launched based on a
 /// `buildServer.json` configuration file provided in the repo root.
-public final class BuildServerBuildSystem {
+public final class BuildServerBuildSystem: MessageHandler {
+  /// The handler's request queue. `delegate` will always be called on this queue.
+  public let queue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
 
   let projectRoot: AbsolutePath
   let buildFolder: AbsolutePath?
   let serverConfig: BuildServerConfig
   let requestQueue: DispatchQueue
 
-  var handler: BuildServerHandler?
   var buildServer: JSONRPCConnection?
 
   let searchPaths: [AbsolutePath]
@@ -62,10 +63,7 @@ public final class BuildServerBuildSystem {
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
   /// Delegate to handle any build system events.
-  public weak var delegate: BuildSystemDelegate? {
-    get { return self.handler?.delegate }
-    set { self.handler?.delegate = newValue }
-  }
+  public weak var delegate: BuildSystemDelegate?
 
   public init(projectRoot: AbsolutePath, buildFolder: AbsolutePath?, fileSystem: FileSystem = localFileSystem) throws {
     let configPath = projectRoot.appending(component: "buildServer.json")
@@ -146,8 +144,7 @@ public final class BuildServerBuildSystem {
       rootUri: URI(self.projectRoot.asURL),
       capabilities: BuildClientCapabilities(languageIds: languages))
 
-    let handler = BuildServerHandler()
-    let buildServer = try makeJSONRPCBuildServer(client: handler, serverPath: serverPath, serverFlags: flags)
+    let buildServer = try makeJSONRPCBuildServer(client: self, serverPath: serverPath, serverFlags: flags)
     let response = try buildServer.sendSync(initializeRequest)
     buildServer.send(InitializedBuildNotification())
     log("initialized build server \(response.displayName)")
@@ -160,34 +157,13 @@ public final class BuildServerBuildSystem {
       self.indexStorePath = try AbsolutePath(validating: indexStorePath, relativeTo: self.projectRoot)
     }
     self.buildServer = buildServer
-    self.handler = handler
   }
-}
-
-private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
-  if case .dictionary(let dataDict)? = data,
-    case .string(let stringVal)? = dataDict[key] {
-    return stringVal
-  }
-
-  return nil
-}
-
-/// A handler that receives messages from the build server. 
-///
-/// In practice, it listens for updated build settings and informs the 
-/// ``BuildSystemDelegate`` about these changes.
-final class BuildServerHandler: MessageHandler {
-  /// The handler's request queue. `delegate` will always be called on this queue.
-  public let queue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
-
-  public weak var delegate: BuildSystemDelegate? = nil
 
   /// Handler for notifications received **from** the builder server, ie.
   /// the build server has sent us a notification.
   ///
   /// We need to notify the delegate about any updated build settings.
-  func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+  public func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
     queue.async {
       if let params = params as? BuildTargetsChangedNotification {
         self.handleBuildTargetsChanged(Notification(params, clientID: clientID))
@@ -200,7 +176,7 @@ final class BuildServerHandler: MessageHandler {
   /// Handler for requests received **from** the build server.
   ///
   /// We currently can't handle any requests sent from the build server to us.
-  func handle<R: RequestType>(
+  public func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
     from clientID: ObjectIdentifier,
@@ -221,6 +197,15 @@ final class BuildServerHandler: MessageHandler {
         compilerArguments: result.options, workingDirectory: result.workingDirectory)
     self.delegate?.fileBuildSettingsChanged([notification.params.uri: .modified(settings)])
   }
+}
+
+private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
+  if case .dictionary(let dataDict)? = data,
+    case .string(let stringVal)? = dataDict[key] {
+    return stringVal
+  }
+
+  return nil
 }
 
 extension BuildServerBuildSystem {
