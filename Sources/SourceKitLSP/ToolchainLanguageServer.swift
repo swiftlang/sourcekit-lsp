@@ -38,70 +38,72 @@ public protocol ToolchainLanguageServer: AnyObject {
   ) throws
 
   /// Returns `true` if this instance of the language server can handle opening documents in `workspace`.
+  ///
   /// If this returns `false`, a new language server will be started for `workspace`.
   func canHandle(workspace: Workspace) -> Bool
 
   // MARK: - Lifetime
 
-  func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult
-  func clientInitialized(_ initialized: InitializedNotification)
-  /// `callback` will be called when the server has finished shutting down.
-  func shutdown(callback: @escaping () -> Void)
+  func initializeSync(_ initialize: InitializeRequest) async throws -> InitializeResult
+  func clientInitialized(_ initialized: InitializedNotification) async
+  
+  /// Shut the server down and return once the server has finished shutting down
+  func shutdown() async
 
   /// Add a handler that is called whenever the state of the language server changes.
-  func addStateChangeHandler(handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void)
+  func addStateChangeHandler(handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void) async
 
   // MARK: - Text synchronization
 
   /// Sent to open up a document on the Language Server.
   /// This may be called before or after a corresponding
   /// `documentUpdatedBuildSettings` call for the same document.
-  func openDocument(_ note: DidOpenTextDocumentNotification)
+  func openDocument(_ note: DidOpenTextDocumentNotification) async
 
   /// Sent to close a document on the Language Server.
-  func closeDocument(_ note: DidCloseTextDocumentNotification)
-  func changeDocument(_ note: DidChangeTextDocumentNotification)
-  func willSaveDocument(_ note: WillSaveTextDocumentNotification)
-  func didSaveDocument(_ note: DidSaveTextDocumentNotification)
+  func closeDocument(_ note: DidCloseTextDocumentNotification) async
+  func changeDocument(_ note: DidChangeTextDocumentNotification) async
+  func willSaveDocument(_ note: WillSaveTextDocumentNotification) async
+  func didSaveDocument(_ note: DidSaveTextDocumentNotification) async
 
   // MARK: - Build System Integration
 
   /// Sent when the `BuildSystem` has resolved build settings, such as for the intial build settings
   /// or when the settings have changed (e.g. modified build system files). This may be sent before
   /// the respective `DocumentURI` has been opened.
-  func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange)
+  func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) async
 
   /// Sent when the `BuildSystem` has detected that dependencies of the given file have changed
   /// (e.g. header files, swiftmodule files, other compiler input files).
-  func documentDependenciesUpdated(_ uri: DocumentURI)
+  func documentDependenciesUpdated(_ uri: DocumentURI) async
 
   // MARK: - Text Document
 
-  func completion(_ req: Request<CompletionRequest>)
-  func hover(_ req: Request<HoverRequest>)
-  func symbolInfo(_ request: Request<SymbolInfoRequest>)
-  func openInterface(_ request: Request<OpenInterfaceRequest>)
+  func completion(_ req: Request<CompletionRequest>) async
+  func hover(_ req: Request<HoverRequest>) async
+  func symbolInfo(_ request: Request<SymbolInfoRequest>) async
+  func openInterface(_ request: Request<OpenInterfaceRequest>) async
 
   /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
-  func definition(_ request: Request<DefinitionRequest>) -> Bool
-  func declaration(_ request: Request<DeclarationRequest>) -> Bool
+  func definition(_ request: Request<DefinitionRequest>) async -> Bool
+  func declaration(_ request: Request<DeclarationRequest>) async -> Bool
 
-  func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>)
-  func foldingRange(_ req: Request<FoldingRangeRequest>)
-  func documentSymbol(_ req: Request<DocumentSymbolRequest>)
-  func documentColor(_ req: Request<DocumentColorRequest>)
-  func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>)
-  func documentSemanticTokensDelta(_ req: Request<DocumentSemanticTokensDeltaRequest>)
-  func documentSemanticTokensRange(_ req: Request<DocumentSemanticTokensRangeRequest>)
-  func colorPresentation(_ req: Request<ColorPresentationRequest>)
-  func codeAction(_ req: Request<CodeActionRequest>)
-  func inlayHint(_ req: Request<InlayHintRequest>)
-  func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>)
+  func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) async
+  func foldingRange(_ req: Request<FoldingRangeRequest>) async
+  func documentSymbol(_ req: Request<DocumentSymbolRequest>) async
+  func documentColor(_ req: Request<DocumentColorRequest>) async
+  func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) async
+  func documentSemanticTokensDelta(_ req: Request<DocumentSemanticTokensDeltaRequest>) async
+  func documentSemanticTokensRange(_ req: Request<DocumentSemanticTokensRangeRequest>) async
+  func colorPresentation(_ req: Request<ColorPresentationRequest>) async
+  func codeAction(_ req: Request<CodeActionRequest>) async
+  func inlayHint(_ req: Request<InlayHintRequest>) async
+  func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) async
 
   // MARK: - Other
 
-  func executeCommand(_ req: Request<ExecuteCommandRequest>)
+  func executeCommand(_ req: Request<ExecuteCommandRequest>) async
 
   /// Crash the language server. Should be used for crash recovery testing only.
-  func _crash()
+  func _crash() async
 }

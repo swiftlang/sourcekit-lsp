@@ -352,7 +352,7 @@ final class LocalClangTests: XCTestCase {
 
     let clangdServer = await ws.testServer.server!._languageService(for: cFileLoc.docUri, .cpp, in: ws.testServer.server!.workspaceForDocument(uri: cFileLoc.docUri)!)!
 
-    clangdServer.documentDependenciesUpdated(cFileLoc.docUri)
+    await clangdServer.documentDependenciesUpdated(cFileLoc.docUri)
 
     try await fulfillmentOfOrThrow([updatedNotificationsReceived], timeout: 5)
   }
