@@ -427,15 +427,17 @@ extension SwiftLanguageServer {
     // Nothing to do.
   }
 
-  public func shutdown(callback: @escaping () -> Void) {
-    queue.async {
-      if let session = self.currentCompletionSession {
-        session.close()
-        self.currentCompletionSession = nil
+  public func shutdown() async {
+    await withCheckedContinuation { continuation in
+      queue.async {
+        if let session = self.currentCompletionSession {
+          session.close()
+          self.currentCompletionSession = nil
+        }
+        self.sourcekitd.removeNotificationHandler(self)
+        self.client.close()
+        continuation.resume(returning: ())
       }
-      self.sourcekitd.removeNotificationHandler(self)
-      self.client.close()
-      callback()
     }
   }
 
