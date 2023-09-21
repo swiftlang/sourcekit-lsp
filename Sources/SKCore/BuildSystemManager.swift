@@ -135,14 +135,7 @@ public final class BuildSystemManager {
   }
 }
 
-extension BuildSystemManager: BuildSystem {
-
-  public var indexStorePath: AbsolutePath? {  queue.sync { buildSystem?.indexStorePath } }
-
-  public var indexDatabasePath: AbsolutePath? { queue.sync { buildSystem?.indexDatabasePath } }
-
-  public var indexPrefixMappings: [PathPrefixMapping] { queue.sync { buildSystem?.indexPrefixMappings ?? [] } }
-
+extension BuildSystemManager {
   public var delegate: BuildSystemDelegate? {
     get { queue.sync { _delegate } }
     set { queue.sync { _delegate = newValue } }
