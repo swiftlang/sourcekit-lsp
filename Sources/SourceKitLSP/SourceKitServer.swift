@@ -606,8 +606,7 @@ extension SourceKitServer: MessageHandler {
 // MARK: - Build System Delegate
 
 extension SourceKitServer: BuildSystemDelegate {
-  // FIXME: (async) Make this method isolated once `BuildSystemDelegate` has been asyncified
-  public nonisolated func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
+  public func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
     // TODO: do something with these changes once build target support is in place
   }
 
@@ -622,19 +621,11 @@ extension SourceKitServer: BuildSystemDelegate {
     return documentManager.openDocuments.intersection(changes)
   }
 
-  // FIXME: (async) Make this method isolated once `BuildSystemDelegate` has been asyncified
-  /// Non-async variant that executes `fileBuildSettingsChangedImpl` in a new task.
-  public nonisolated func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
-    Task {
-      await self.fileBuildSettingsChangedImpl(changedFiles)
-    }
-  }
-
   /// Handle a build settings change notification from the `BuildSystem`.
   /// This has two primary cases:
   /// - Initial settings reported for a given file, now we can fully open it
   /// - Changed settings for an already open file
-  public func fileBuildSettingsChangedImpl(_ changedFiles: Set<DocumentURI>) async {
+  public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
     for uri in changedFiles {
       guard self.documentManager.openDocuments.contains(uri) else {
         continue
@@ -648,17 +639,10 @@ extension SourceKitServer: BuildSystemDelegate {
     }
   }
 
-  // FIXME: (async) Make this method isolated once `BuildSystemDelegate` has been asyncified
-  public nonisolated func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) {
-    Task {
-      await filesDependenciesUpdatedImpl(changedFiles)
-    }
-  }
-
   /// Handle a dependencies updated notification from the `BuildSystem`.
   /// We inform the respective language services as long as the given file is open
   /// (not queued for opening).
-  public func filesDependenciesUpdatedImpl(_ changedFiles: Set<DocumentURI>) async {
+  public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
     // Split the changedFiles into the workspaces they belong to.
     // Then invoke affectedOpenDocumentsForChangeSet for each workspace with its affected files.
     let changedFilesAndWorkspace = await changedFiles.asyncMap {
@@ -678,14 +662,7 @@ extension SourceKitServer: BuildSystemDelegate {
     }
   }
 
-  // FIXME: (async) Make this method isolated once `BuildSystemDelegate` has been asyncified
-  public nonisolated func fileHandlingCapabilityChanged() {
-    Task {
-      await fileHandlingCapabilityChangedImpl()
-    }
-  }
-
-  public func fileHandlingCapabilityChangedImpl() {
+  public func fileHandlingCapabilityChanged() {
     self.uriToWorkspaceCache = [:]
   }
 }

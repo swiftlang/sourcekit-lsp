@@ -108,7 +108,7 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[a] = nil
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, nil, changed, #file, #line)])
-    bsm.fileBuildSettingsChanged([a])
+    await bsm.fileBuildSettingsChanged([a])
     try await fulfillmentOfOrThrow([changed])
   }
 
@@ -129,7 +129,7 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, bs.map[a]!, changed, #file, #line)])
-    bsm.fileBuildSettingsChanged([a])
+    await bsm.fileBuildSettingsChanged([a])
     try await fulfillmentOfOrThrow([changed])
   }
 
@@ -152,13 +152,13 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[a] = FileBuildSettings(compilerArguments: ["non-fallback", "args"])
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, bs.map[a]!, changed, #file, #line)])
-    bsm.fileBuildSettingsChanged([a])
+    await bsm.fileBuildSettingsChanged([a])
     try await fulfillmentOfOrThrow([changed])
 
     bs.map[a] = nil
     let revert = expectation(description: "revert to fallback settings")
     await del.setExpected([(a, .swift, fallbackSettings, revert, #file, #line)])
-    bsm.fileBuildSettingsChanged([a])
+    await bsm.fileBuildSettingsChanged([a])
     try await fulfillmentOfOrThrow([revert])
   }
 
@@ -186,7 +186,7 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[b] = FileBuildSettings(compilerArguments: ["yy"])
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, bs.map[a]!, changed, #file, #line)])
-    bsm.fileBuildSettingsChanged([a])
+    await bsm.fileBuildSettingsChanged([a])
     try await fulfillmentOfOrThrow([changed])
 
     // Test multiple changes.
@@ -198,7 +198,7 @@ final class BuildSystemManagerTests: XCTestCase {
       (a, .swift, bs.map[a]!, changedBothA, #file, #line),
       (b, .swift, bs.map[b]!, changedBothB, #file, #line),
     ])
-    bsm.fileBuildSettingsChanged([a, b])
+    await bsm.fileBuildSettingsChanged([a, b])
     try await fulfillmentOfOrThrow([changedBothA, changedBothB])
   }
 
@@ -228,7 +228,7 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[b] = nil
     let changed = expectation(description: "changed settings")
     await del.setExpected([(b, .swift, nil, changed, #file, #line)])
-    bsm.fileBuildSettingsChanged([b])
+    await bsm.fileBuildSettingsChanged([b])
     try await fulfillmentOfOrThrow([changed])
   }
 
@@ -327,7 +327,7 @@ final class BuildSystemManagerTests: XCTestCase {
       (h1, .c, newArgsH1, changed1, #file, #line),
       (h2, .c, newArgsH2, changed2, #file, #line),
     ])
-    bsm.fileBuildSettingsChanged([cpp])
+    await bsm.fileBuildSettingsChanged([cpp])
 
     try await fulfillmentOfOrThrow([changed1, changed2])
   }
@@ -370,7 +370,7 @@ final class BuildSystemManagerTests: XCTestCase {
     await bsm.unregisterForChangeNotifications(for: c)
     // At this point only b is registered, but that can race with notifications,
     // so ensure nothing bad happens and we still get the notification for b.
-    bsm.fileBuildSettingsChanged([a, b, c])
+    await bsm.fileBuildSettingsChanged([a, b, c])
 
     try await fulfillmentOfOrThrow([changedB])
   }
@@ -396,7 +396,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let depUpdate2 = expectation(description: "dependencies update 2")
     await del.setExpectedDependenciesUpdate([(a, depUpdate2, #file, #line)])
 
-    bsm.filesDependenciesUpdated([a])
+    await bsm.filesDependenciesUpdated([a])
     try await fulfillmentOfOrThrow([depUpdate2])
   }
 }

@@ -243,7 +243,7 @@ final class SKTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 0)
       finishExpectation.fulfill()
     }
-    server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
+    await server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
 
     try await fulfillmentOfOrThrow([finishExpectation])
   }
@@ -286,7 +286,7 @@ final class SKTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 0)
       finishExpectation.fulfill()
     }
-    server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
+    await server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
 
     try await fulfillmentOfOrThrow([finishExpectation])
   }
