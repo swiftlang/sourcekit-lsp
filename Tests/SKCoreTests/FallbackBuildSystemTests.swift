@@ -29,7 +29,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     XCTAssertNil(bs.indexStorePath)
     XCTAssertNil(bs.indexDatabasePath)
 
-    let settings = bs.settings(for: source.asURI, .swift)!
+    let settings = bs.buildSettings(for: source.asURI, language: .swift)!
     XCTAssertNil(settings.workingDirectory)
 
     let args = settings.compilerArguments
@@ -41,7 +41,7 @@ final class FallbackBuildSystemTests: XCTestCase {
 
     bs.sdkpath = nil
 
-    XCTAssertEqual(bs.settings(for: source.asURI, .swift)?.compilerArguments, [
+    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .swift)?.compilerArguments, [
       source.pathString,
     ])
   }
@@ -57,7 +57,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let bs = FallbackBuildSystem(buildSetup: buildSetup)
     bs.sdkpath = sdk
 
-    let args = bs.settings(for: source.asURI, .swift)?.compilerArguments
+    let args = bs.buildSettings(for: source.asURI, language: .swift)?.compilerArguments
     XCTAssertEqual(args, [
       "-Xfrontend",
       "-debug-constraints",
@@ -68,7 +68,7 @@ final class FallbackBuildSystemTests: XCTestCase {
 
     bs.sdkpath = nil
 
-    XCTAssertEqual(bs.settings(for: source.asURI, .swift)?.compilerArguments, [
+    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .swift)?.compilerArguments, [
       "-Xfrontend",
       "-debug-constraints",
       source.pathString,
@@ -88,7 +88,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let bs = FallbackBuildSystem(buildSetup: buildSetup)
     bs.sdkpath = sdk
 
-    XCTAssertEqual(bs.settings(for: source.asURI, .swift)!.compilerArguments, [
+    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .swift)!.compilerArguments, [
       "-sdk",
       "/some/custom/sdk",
       "-Xfrontend",
@@ -98,7 +98,7 @@ final class FallbackBuildSystemTests: XCTestCase {
 
     bs.sdkpath = nil
 
-    XCTAssertEqual(bs.settings(for: source.asURI, .swift)!.compilerArguments, [
+    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .swift)!.compilerArguments, [
       "-sdk",
       "/some/custom/sdk",
       "-Xfrontend",
@@ -114,7 +114,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let bs = FallbackBuildSystem(buildSetup: .default)
     bs.sdkpath = sdk
 
-    let settings = bs.settings(for: source.asURI, .cpp)!
+    let settings = bs.buildSettings(for: source.asURI, language: .cpp)!
     XCTAssertNil(settings.workingDirectory)
 
     let args = settings.compilerArguments
@@ -126,7 +126,7 @@ final class FallbackBuildSystemTests: XCTestCase {
 
     bs.sdkpath = nil
 
-    XCTAssertEqual(bs.settings(for: source.asURI, .cpp)?.compilerArguments, [
+    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments, [
       source.pathString,
     ])
   }
@@ -141,7 +141,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let bs = FallbackBuildSystem(buildSetup: buildSetup)
     bs.sdkpath = sdk
 
-    XCTAssertEqual(bs.settings(for: source.asURI, .cpp)?.compilerArguments, [
+    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments, [
       "-v",
       "-isysroot",
       sdk.pathString,
@@ -150,7 +150,7 @@ final class FallbackBuildSystemTests: XCTestCase {
 
     bs.sdkpath = nil
 
-    XCTAssertEqual(bs.settings(for: source.asURI, .cpp)?.compilerArguments, [
+    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments, [
       "-v",
       source.pathString,
     ])
@@ -168,7 +168,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let bs = FallbackBuildSystem(buildSetup: buildSetup)
     bs.sdkpath = sdk
 
-    XCTAssertEqual(bs.settings(for: source.asURI, .cpp)?.compilerArguments, [
+    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments, [
       "-isysroot",
       "/my/custom/sdk",
       "-v",
@@ -177,7 +177,7 @@ final class FallbackBuildSystemTests: XCTestCase {
 
     bs.sdkpath = nil
 
-    XCTAssertEqual(bs.settings(for: source.asURI, .cpp)?.compilerArguments, [
+    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments, [
       "-isysroot",
       "/my/custom/sdk",
       "-v",
@@ -189,7 +189,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let source = try AbsolutePath(validating: "/my/source.c")
     let bs = FallbackBuildSystem(buildSetup: .default)
     bs.sdkpath = nil
-    XCTAssertEqual(bs.settings(for: source.asURI, .c)?.compilerArguments, [
+    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .c)?.compilerArguments, [
       source.pathString,
     ])
   }
@@ -202,7 +202,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     ]))
     let bs = FallbackBuildSystem(buildSetup: buildSetup)
     bs.sdkpath = nil
-    XCTAssertEqual(bs.settings(for: source.asURI, .c)?.compilerArguments, [
+    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .c)?.compilerArguments, [
       "-v",
       source.pathString,
     ])
@@ -212,7 +212,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let source = try AbsolutePath(validating: "/my/source.m")
     let bs = FallbackBuildSystem(buildSetup: .default)
     bs.sdkpath = nil
-    XCTAssertEqual(bs.settings(for: source.asURI, .objective_c)?.compilerArguments, [
+    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .objective_c)?.compilerArguments, [
       source.pathString,
     ])
   }
@@ -221,7 +221,7 @@ final class FallbackBuildSystemTests: XCTestCase {
     let source = try AbsolutePath(validating: "/my/source.mm")
     let bs = FallbackBuildSystem(buildSetup: .default)
     bs.sdkpath = nil
-    XCTAssertEqual(bs.settings(for: source.asURI, .objective_cpp)?.compilerArguments, [
+    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .objective_cpp)?.compilerArguments, [
       source.pathString,
     ])
   }
@@ -229,6 +229,6 @@ final class FallbackBuildSystemTests: XCTestCase {
   func testUnknown() throws {
     let source = try AbsolutePath(validating: "/my/source.mm")
     let bs = FallbackBuildSystem(buildSetup: .default)
-    XCTAssertNil(bs.settings(for: source.asURI, Language(rawValue: "unknown")))
+    XCTAssertNil(bs.buildSettings(for: source.asURI, language: Language(rawValue: "unknown")))
   }
 }

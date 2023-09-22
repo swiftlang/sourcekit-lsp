@@ -34,7 +34,8 @@ public protocol ToolchainLanguageServer: AnyObject {
     toolchain: Toolchain,
     options: SourceKitServer.Options,
     workspace: Workspace,
-    reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
+    reopenDocuments: @escaping (ToolchainLanguageServer) -> Void,
+    workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
   ) throws
 
   /// Returns `true` if this instance of the language server can handle opening documents in `workspace`.
