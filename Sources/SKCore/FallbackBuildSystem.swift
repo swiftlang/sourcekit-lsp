@@ -63,8 +63,8 @@ public final class FallbackBuildSystem: BuildSystem {
     guard let delegate = self.delegate else { return }
 
     let settings = self.buildSettings(for: uri, language: language)
-    DispatchQueue.global().async {
-      delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    Task {
+      await delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
     }
   }
 

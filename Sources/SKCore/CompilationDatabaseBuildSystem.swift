@@ -91,13 +91,13 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     return self.settings(for: document)
   }
 
-  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
     self.watchedFiles[uri] = language
 
     guard let delegate = self.delegate else { return }
 
     let settings = self.settings(for: uri)
-    delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    await delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
   }
 
   /// We don't support change watching.
@@ -142,7 +142,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
 
   /// The compilation database has been changed on disk.
   /// Reload it and notify the delegate about build setting changes.
-  private func reloadCompilationDatabase() {
+  private func reloadCompilationDatabase() async {
     guard let projectRoot = self.projectRoot else { return }
 
     self.compdb = tryLoadCompilationDatabase(directory: projectRoot, self.fileSystem)
@@ -156,13 +156,13 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
           changedFiles[uri] = .removedOrUnavailable
         }
       }
-      delegate.fileBuildSettingsChanged(changedFiles)
+      await delegate.fileBuildSettingsChanged(changedFiles)
     }
   }
 
-  public func filesDidChange(_ events: [FileEvent]) {
+  public func filesDidChange(_ events: [FileEvent]) async {
     if events.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
-      self.reloadCompilationDatabase()
+      await self.reloadCompilationDatabase()
     }
   }
 
