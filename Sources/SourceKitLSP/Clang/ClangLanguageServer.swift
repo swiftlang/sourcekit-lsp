@@ -64,12 +64,6 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   
   let clangdOptions: [String]
 
-  /// Resolved build settings by file. Must be accessed with the `lock`.
-  private var buildSettingsByFile: [DocumentURI: ClangBuildSettings] = [:]
-
-  /// Lock protecting `buildSettingsByFile`.
-  private var lock: NSLock = NSLock()
-
   /// The current state of the `clangd` language server.
   /// Changing the property automatically notified the state change handlers.
   private var state: LanguageServerState {
@@ -102,6 +96,10 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// A callback with which `ClangLanguageServer` can request its owner to reopen all documents in case it has crashed.
   private let reopenDocuments: (ToolchainLanguageServer) -> Void
 
+  /// The documents that have been opened and which language they have been
+  /// opened with.
+  private var openDocuments: [DocumentURI: Language] = [:]
+
   /// While `clangd` is running, its PID.
 #if os(Windows)
   private var hClangd: HANDLE = INVALID_HANDLE_VALUE
@@ -132,6 +130,16 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     try startClangdProcesss()
   }
 
+  private func buildSettings(for document: DocumentURI) async -> ClangBuildSettings? {
+    guard let workspace = workspace.value, let language = openDocuments[document] else {
+      return nil
+    }
+    guard let settings = await workspace.buildSystemManager.buildSettings(for: document, language: language) else {
+      return nil
+    }
+    return ClangBuildSettings(settings.buildSettings, clangPath: clangdPath, isFallback: settings.isFallback)
+  }
+
   nonisolated func canHandle(workspace: Workspace) -> Bool {
     // We launch different clangd instance for each workspace because clangd doesn't have multi-root workspace support.
     return workspace === self.workspace.value
@@ -160,8 +168,8 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
 
   /// Start the `clangd` process, either on creation of the `ClangLanguageServerShim` or after `clangd` has crashed.
   private func startClangdProcesss() throws {
-    // Since we are starting a new clangd process, reset the build settings we have transmitted to clangd
-    buildSettingsByFile = [:]
+    // Since we are starting a new clangd process, reset the list of open document
+    openDocuments = [:]
 
     let usToClangd: Pipe = Pipe()
     let clangdToUs: Pipe = Pipe()
@@ -249,9 +257,9 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// sending a notification that's intended for the editor.
   ///
   /// We should either handle it ourselves or forward it to the client.
-  func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+  func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) async {
     if let publishDiags = params as? PublishDiagnosticsNotification {
-      self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
+      await self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
     } else if clientID == ObjectIdentifier(self.clangd) {
       self.client.send(params)
     }
@@ -332,19 +340,27 @@ extension ClangLanguageServerShim {
 
   /// Intercept clangd's `PublishDiagnosticsNotification` to withold it if we're using fallback
   /// build settings.
-  func publishDiagnostics(_ note: Notification<PublishDiagnosticsNotification>) {
+  func publishDiagnostics(_ note: Notification<PublishDiagnosticsNotification>) async {
     let params = note.params
-    let buildSettings = self.lock.withLock {
-      return self.buildSettingsByFile[params.uri]
-    }
-    let isFallback = buildSettings?.isFallback ?? true
-    guard isFallback else {
+    // Technically, the publish diagnostics notification could still originate
+    // from when we opened the file with fallback build settings and we could
+    // have received real build settings since, which haven't been acknowledged
+    // by clangd yet.
+    //
+    // Since there is no way to tell which build settings clangd used to generate
+    // the diagnostics, there's no good way to resolve this race. For now, this
+    // should be good enough since the time in which the race may occur is pretty
+    // short and we expect clangd to send us new diagnostics with the updated
+    // non-fallback settings very shortly after, which will override the
+    // incorrect result, making it very temporary.
+    let buildSettings = await self.buildSettings(for: params.uri)
+    if buildSettings?.isFallback ?? true {
+      // Fallback: send empty publish notification instead.
+      client.send(PublishDiagnosticsNotification(
+        uri: params.uri, version: params.version, diagnostics: []))
+    } else {
       client.send(note.params)
-      return
     }
-    // Fallback: send empty publish notification instead.
-    client.send(PublishDiagnosticsNotification(
-      uri: params.uri, version: params.version, diagnostics: []))
   }
 
 }
@@ -383,16 +399,18 @@ extension ClangLanguageServerShim {
 
   // MARK: - Text synchronization
 
-  public func openDocument(_ note: DidOpenTextDocumentNotification) {
+  public func openDocument(_ note: DidOpenTextDocumentNotification) async {
+    openDocuments[note.textDocument.uri] = note.textDocument.language
+    // Send clangd the build settings for the new file. We need to do this before
+    // sending the open notification, so that the initial diagnostics already
+    // have build settings.
+    await documentUpdatedBuildSettings(note.textDocument.uri, change: .removedOrUnavailable)
     clangd.send(note)
   }
 
   public func closeDocument(_ note: DidCloseTextDocumentNotification) {
+    openDocuments[note.textDocument.uri] = nil
     clangd.send(note)
-
-    // Don't clear cached build settings since we've already informed clangd of the settings for the
-    // file; if we clear the build settings here we should give clangd dummy build settings to make
-    // sure we're in sync.
   }
 
   public func changeDocument(_ note: DidChangeTextDocumentNotification) {
@@ -409,25 +427,17 @@ extension ClangLanguageServerShim {
 
   // MARK: - Build System Integration
 
-  public func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) {
+  public func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) async {
     guard let url = uri.fileURL else {
       // FIXME: The clang workspace can probably be reworked to support non-file URIs.
       log("Received updated build settings for non-file URI '\(uri)'. Ignoring the update.")
       return
     }
-    let clangBuildSettings = ClangBuildSettings(change: change, clangPath: self.clangPath)
+    let clangBuildSettings = await self.buildSettings(for: uri)
     logAsync(level: clangBuildSettings == nil ? .warning : .debug) { _ in
       let settingsStr = clangBuildSettings == nil ? "nil" : clangBuildSettings!.compilerArgs.description
       return "settings for \(uri): \(settingsStr)"
     }
-
-    let changed = lock.withLock { () -> Bool in
-      let prevBuildSettings = self.buildSettingsByFile[uri]
-      guard clangBuildSettings != prevBuildSettings else { return false }
-      self.buildSettingsByFile[uri] = clangBuildSettings
-      return true
-    }
-    guard changed else { return }
 
     // The compile command changed, send over the new one.
     // FIXME: what should we do if we no longer have valid build settings?
