@@ -25,7 +25,7 @@ struct FindUSRInfo {
 }
 
 extension SwiftLanguageServer {
-  public func openInterface(_ request: LanguageServerProtocol.Request<LanguageServerProtocol.OpenInterfaceRequest>) {
+  public func openInterface(_ request: LanguageServerProtocol.Request<LanguageServerProtocol.OpenInterfaceRequest>) async {
     let uri = request.params.textDocument.uri
     let moduleName = request.params.moduleName
     let name = request.params.name
@@ -37,7 +37,7 @@ extension SwiftLanguageServer {
       self._findUSRAndRespond(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
     } else {
       // generate interface
-      self._openInterface(request: request, uri: uri, name: moduleName, interfaceURI: interfaceDocURI) { result in
+      await self._openInterface(request: request, uri: uri, name: moduleName, interfaceURI: interfaceDocURI) { result in
         switch result {
         case .success(let interfaceInfo):
           do {
@@ -69,7 +69,7 @@ extension SwiftLanguageServer {
                               uri: DocumentURI,
                               name: String,
                               interfaceURI: DocumentURI,
-                              completion: @escaping (Swift.Result<InterfaceInfo, SKDError>) -> Void) {
+                              completion: @escaping (Swift.Result<InterfaceInfo, SKDError>) -> Void) async {
     let keys = self.keys
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.editor_open_interface
@@ -79,7 +79,7 @@ extension SwiftLanguageServer {
     }
     skreq[keys.name] = interfaceURI.pseudoPath
     skreq[keys.synthesizedextensions] = 1
-    if let compileCommand = self.commandsByFile[uri] {
+    if let compileCommand = await self.buildSettings(for: uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
     

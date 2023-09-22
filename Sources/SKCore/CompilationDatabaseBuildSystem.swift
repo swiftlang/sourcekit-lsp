@@ -93,6 +93,15 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
 
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
+  public func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
+    // FIXME: (async) Convert this to an async function once `CompilationDatabaseBuildSystem` is an actor.
+    return await withCheckedContinuation { continuation in
+      self.queue.async {
+        continuation.resume(returning: self.settings(for: document))
+      }
+    }
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     queue.async {
       self.watchedFiles[uri] = language

@@ -84,7 +84,7 @@ extension SwiftLanguageServer {
     _ uri: DocumentURI,
     _ range: Range<Position>,
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil,
-    _ completion: @escaping (Swift.Result<CursorInfo?, CursorInfoError>) -> Void)
+    _ completion: @escaping (Swift.Result<CursorInfo?, CursorInfoError>) -> Void) async
   {
     guard let snapshot = documentManager.latestSnapshot(uri) else {
        return completion(.failure(.unknownDocument(uri)))
@@ -105,7 +105,7 @@ extension SwiftLanguageServer {
     skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
 
     // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = self.commandsByFile[uri] {
+    if let compileCommand = await self.buildSettings(for: uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
