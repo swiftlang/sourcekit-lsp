@@ -418,9 +418,9 @@ final class BuildSystemManagerTests: XCTestCase {
     mainFiles.mainFiles = [a: Set([a])]
 
     class DepUpdateDuringRegistrationBS: ManualBuildSystem {
-        override func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
-          delegate?.filesDependenciesUpdated([uri])
-          super.registerForChangeNotifications(for: uri, language: language)
+        override func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
+          await delegate?.filesDependenciesUpdated([uri])
+          await super.registerForChangeNotifications(for: uri, language: language)
         }
     }
 
@@ -483,9 +483,9 @@ class ManualBuildSystem: BuildSystem {
     return map[uri]
   }
 
-  func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+  func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
     let settings = self.buildSettings(for: uri, language: language)
-    self.delegate?.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    await self.delegate?.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
   }
 
   func unregisterForChangeNotifications(for: DocumentURI) {

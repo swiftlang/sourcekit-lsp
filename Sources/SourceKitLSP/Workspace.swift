@@ -97,7 +97,7 @@ public final class Workspace {
   ) async throws {
     var buildSystem: BuildSystem? = nil
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
-      if let buildServer = BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
+      if let buildServer = await BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
         buildSystem = buildServer
       } else if let swiftpm = await SwiftPMWorkspace(
         url: rootUrl,

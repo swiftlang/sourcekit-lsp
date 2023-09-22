@@ -200,7 +200,7 @@ extension BuildSystemManager {
     if let mainChange = newStatus.buildSettingsChange,
        let delegate = self._delegate {
       let change = self.convert(change: mainChange, ofMainFile: mainFile, to: uri)
-      delegate.fileBuildSettingsChanged([uri: change])
+      await delegate.fileBuildSettingsChanged([uri: change])
     }
   }
 
@@ -242,7 +242,7 @@ extension BuildSystemManager {
       if let fallback = self.fallbackBuildSystem {
         Task {
           try await Task.sleep(nanoseconds: UInt64(self.fallbackSettingsTimeout.nanoseconds()!))
-          self.handleFallbackTimer(for: mainFile, language: language, fallback)
+          await self.handleFallbackTimer(for: mainFile, language: language, fallback)
         }
       }
 
@@ -280,7 +280,7 @@ extension BuildSystemManager {
 
   /// Update and notify our delegate for the given main file changes if they are
   /// convertible into `FileBuildSettingsChange`.
-  func updateAndNotifyStatuses(changes: [DocumentURI: MainFileStatus]) {
+  func updateAndNotifyStatuses(changes: [DocumentURI: MainFileStatus]) async {
     var changedWatchedFiles = [DocumentURI: FileBuildSettingsChange]()
     for (mainFile, status) in changes {
       let watches = self.watchedFiles.filter { $1.mainFile == mainFile }
@@ -307,7 +307,7 @@ extension BuildSystemManager {
     }
 
     if !changedWatchedFiles.isEmpty, let delegate = self._delegate {
-      delegate.fileBuildSettingsChanged(changedWatchedFiles)
+      await delegate.fileBuildSettingsChanged(changedWatchedFiles)
     }
   }
 
@@ -319,14 +319,14 @@ extension BuildSystemManager {
     for mainFile: DocumentURI,
     language: Language,
     _ fallback: FallbackBuildSystem
-  ) {
+  ) async {
     // There won't be a current status if it's unreferenced by any watched file.
     // Similarly, if the status isn't `waiting` then there's nothing to do.
     guard let status = self.mainFileStatuses[mainFile], status == .waiting else {
       return
     }
     if let settings = fallback.buildSettings(for: mainFile, language: language) {
-      self.updateAndNotifyStatuses(changes: [mainFile: .waitingUsingFallback(settings)])
+      await self.updateAndNotifyStatuses(changes: [mainFile: .waitingUsingFallback(settings)])
     } else {
       // Keep the status as waiting.
     }
@@ -367,7 +367,7 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  public func fileBuildSettingsChangedImpl(_ changes: [DocumentURI: FileBuildSettingsChange]) {
+  public func fileBuildSettingsChangedImpl(_ changes: [DocumentURI: FileBuildSettingsChange]) async {
     let statusChanges: [DocumentURI: MainFileStatus] =
         changes.reduce(into: [:]) { (result, entry) in
       let mainFile = entry.key
@@ -395,7 +395,7 @@ extension BuildSystemManager: BuildSystemDelegate {
       }
       result[mainFile] = newStatus
     }
-    self.updateAndNotifyStatuses(changes: statusChanges)
+    await self.updateAndNotifyStatuses(changes: statusChanges)
   }
 
   // FIXME: (async) Make this method isolated once `BuildSystemDelegate` has ben asyncified
@@ -405,11 +405,11 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  public func filesDependenciesUpdatedImpl(_ changedFiles: Set<DocumentURI>) {
+  public func filesDependenciesUpdatedImpl(_ changedFiles: Set<DocumentURI>) async {
     // Empty changes --> assume everything has changed.
     guard !changedFiles.isEmpty else {
       if let delegate = self._delegate {
-        delegate.filesDependenciesUpdated(changedFiles)
+        await delegate.filesDependenciesUpdated(changedFiles)
       }
       return
     }
@@ -418,7 +418,7 @@ extension BuildSystemManager: BuildSystemDelegate {
     let changedWatchedFiles = self.watchedFiles.filter { changedFiles.contains($1.mainFile) }
     let newChangedFiles = Set(changedWatchedFiles.map { $0.key })
     if let delegate = self._delegate, !newChangedFiles.isEmpty {
-      delegate.filesDependenciesUpdated(newChangedFiles)
+      await delegate.filesDependenciesUpdated(newChangedFiles)
     }
   }
 
@@ -429,9 +429,9 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  public func buildTargetsChangedImpl(_ changes: [BuildTargetEvent]) {
+  public func buildTargetsChangedImpl(_ changes: [BuildTargetEvent]) async {
     if let delegate = self._delegate {
-      delegate.buildTargetsChanged(changes)
+      await delegate.buildTargetsChanged(changes)
     }
   }
 
@@ -442,9 +442,9 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
   }
 
-  public func fileHandlingCapabilityChangedImpl() {
+  public func fileHandlingCapabilityChangedImpl() async {
     if let delegate = self._delegate {
-      delegate.fileHandlingCapabilityChanged()
+      await delegate.fileHandlingCapabilityChanged()
     }
   }
 }
@@ -484,7 +484,7 @@ extension BuildSystemManager: MainFilesDelegate {
     }
 
     if let delegate = self._delegate, !buildSettingsChanges.isEmpty {
-      delegate.fileBuildSettingsChanged(buildSettingsChanges)
+      await delegate.fileBuildSettingsChanged(buildSettingsChanges)
     }
   }
 }
