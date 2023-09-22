@@ -414,6 +414,10 @@ public actor SourceKitServer {
           Task {
             await self.reopenDocuments(for: toolchainLanguageServer)
           }
+        },
+        workspaceForDocument: { [weak self] document in
+          guard let self else { return nil }
+          return await self.workspaceForDocument(uri: document)
         }
       )
 
@@ -2008,7 +2012,8 @@ func languageService(
   options: SourceKitServer.Options,
   client: MessageHandler,
   in workspace: Workspace,
-  reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
+  reopenDocuments: @escaping (ToolchainLanguageServer) -> Void,
+  workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
 ) throws -> ToolchainLanguageServer? {
   let connectionToClient = LocalConnection()
 
@@ -2017,7 +2022,8 @@ func languageService(
     toolchain: toolchain,
     options: options,
     workspace: workspace,
-    reopenDocuments: reopenDocuments
+    reopenDocuments: reopenDocuments,
+    workspaceForDocument: workspaceForDocument
   )
   connectionToClient.start(handler: client)
   return server

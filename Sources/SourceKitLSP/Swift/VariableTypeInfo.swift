@@ -93,7 +93,7 @@ extension SwiftLanguageServer {
     _ uri: DocumentURI,
     _ range: Range<Position>? = nil,
     _ completion: @escaping (Swift.Result<[VariableTypeInfo], VariableTypeInfoError>) -> Void
-  ) {
+  ) async {
     guard let snapshot = documentManager.latestSnapshot(uri) else {
       return completion(.failure(.unknownDocument(uri)))
     }
@@ -112,7 +112,7 @@ extension SwiftLanguageServer {
     }
 
     // FIXME: SourceKit should probably cache this for us
-    if let compileCommand = self.commandsByFile[uri] {
+    if let compileCommand = await self.buildSettings(for: uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 

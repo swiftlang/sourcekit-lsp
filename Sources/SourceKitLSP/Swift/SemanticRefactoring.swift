@@ -126,7 +126,7 @@ extension SwiftLanguageServer {
   ///   - completion: Completion block to asynchronously receive the SemanticRefactoring data, or error.
   func semanticRefactoring(
     _ refactorCommand: SemanticRefactorCommand,
-    _ completion: @escaping (Result<SemanticRefactoring, SemanticRefactoringError>) -> Void)
+    _ completion: @escaping (Result<SemanticRefactoring, SemanticRefactoringError>) -> Void) async
   {
     let keys = self.keys
 
@@ -156,7 +156,7 @@ extension SwiftLanguageServer {
     skreq[keys.actionuid] = self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!
 
     // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = self.commandsByFile[snapshot.document.uri] {
+    if let compileCommand = await self.buildSettings(for: snapshot.document.uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 

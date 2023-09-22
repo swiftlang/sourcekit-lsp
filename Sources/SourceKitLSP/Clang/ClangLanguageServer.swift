@@ -118,7 +118,8 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     toolchain: Toolchain,
     options: SourceKitServer.Options,
     workspace: Workspace,
-    reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
+    reopenDocuments: @escaping (ToolchainLanguageServer) -> Void,
+    workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
   ) throws {
     guard let clangdPath = toolchain.clangd else {
       return nil

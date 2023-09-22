@@ -290,6 +290,18 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     }
   }
 
+  public func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
+    return try await withCheckedThrowingContinuation { continuation in
+      queue.async {
+        do {
+          continuation.resume(returning: try self.settings(for: document, language))
+        } catch {
+          continuation.resume(throwing: error)
+        }
+      }
+    }
+  }
+
   /// Must only be called on `queue`.
   private func settings(
     for uri: DocumentURI,

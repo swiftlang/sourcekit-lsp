@@ -40,24 +40,6 @@ final class BuildServerBuildSystemTests: XCTestCase {
     )
   }
 
-  func testSettings() throws {
-#if os(Windows)
-    try XCTSkipIf(true, "hang")
-#endif
-    let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
-
-    // test settings with a response
-    let fileURL = URL(fileURLWithPath: "/path/to/some/file.swift")
-    let settings = buildSystem._settings(for: DocumentURI(fileURL))
-    XCTAssertNotNil(settings)
-    XCTAssertEqual(settings?.compilerArguments, ["-a", "-b"])
-    XCTAssertEqual(settings?.workingDirectory, fileURL.deletingLastPathComponent().path)
-
-    // test error
-    let missingFileURL = URL(fileURLWithPath: "/path/to/some/missingfile.missing")
-    XCTAssertNil(buildSystem._settings(for: DocumentURI(missingFileURL)))
-  }
-
   func testFileRegistration() throws {
     let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 

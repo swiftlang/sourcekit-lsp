@@ -149,7 +149,7 @@ final class BuildSystemManagerTests: XCTestCase {
       mainFilesProvider: mainFiles)
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
     let del = BSMDelegate(bsm)
-    let fallbackSettings = fallback.settings(for: a, .swift)
+    let fallbackSettings = fallback.buildSettings(for: a, language: .swift)
     let initial = expectation(description: "initial fallback settings")
     del.expected = [(a, fallbackSettings, initial, #file, #line)]
     bsm.registerForChangeNotifications(for: a, language: .swift)
@@ -475,12 +475,12 @@ class ManualBuildSystem: BuildSystem {
 
   var delegate: BuildSystemDelegate? = nil
 
-  func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
+  func buildSettings(for uri: DocumentURI, language: Language) -> FileBuildSettings? {
     return map[uri]
   }
 
   func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
-    let settings = self.settings(for: uri, language)
+    let settings = self.buildSettings(for: uri, language: language)
     self.delegate?.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
   }
 
