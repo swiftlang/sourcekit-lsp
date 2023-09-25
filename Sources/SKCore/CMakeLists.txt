@@ -10,7 +10,6 @@ add_library(SKCore STATIC
   FallbackBuildSystem.swift
   FileBuildSettings.swift
   FileBuildSettingsChange.swift
-  LanguageServer.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift
   Toolchain.swift

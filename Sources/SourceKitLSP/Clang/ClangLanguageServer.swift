@@ -36,7 +36,20 @@ extension NSLock {
 ///
 /// In addition, it also intercepts notifications and replies from clangd in order to do things
 /// like witholding diagnostics when fallback build settings are being used.
-final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
+///
+/// ``ClangLangaugeServerShim`` conforms to ``MessageHandler`` to receive
+/// requests and notifications **from** clangd, not from the editor, and it will
+/// forward these requests and notifications to the editor.
+final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
+  /// The server's request queue.
+  ///
+  /// All incoming requests start on this queue, but should reply or move to another queue as soon as possible to avoid blocking.
+  public let queue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
+
+  /// The connection to the client. In the case of `ClangLanguageServerShim`,
+  /// the client is always a ``SourceKitServer``, which will forward the request
+  /// to the editor.
+  public let client: Connection
 
   /// The connection to the clangd LSP. `nil` until `startClangdProcesss` has been called.
   var clangd: Connection!
@@ -116,7 +129,7 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
     self.workspace = workspace
     self.reopenDocuments = reopenDocuments
     self.state = .connected
-    super.init(client: client)
+    self.client = client
     try startClangdProcesss()
   }
 
@@ -228,22 +241,41 @@ final class ClangLanguageServerShim: LanguageServer, ToolchainLanguageServer {
       }
     }
   }
-  
-  public override func _registerBuiltinHandlers() {
-    _register(ClangLanguageServerShim.publishDiagnostics)
-  }
 
-  public override func _handleUnknown<R>(_ req: Request<R>) {
-    guard req.clientID != ObjectIdentifier(clangd) else {
-      forwardRequest(req, to: client)
-      return
+  /// Handler for notifications received **from** clangd, ie. **clangd** is
+  /// sending a notification that's intended for the editor.
+  ///
+  /// We should either handle it ourselves or forward it to the client.
+  func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+    queue.async {
+      if let publishDiags = params as? PublishDiagnosticsNotification {
+        self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
+      } else if clientID == ObjectIdentifier(self.clangd) {
+        self.client.send(params)
+      }
     }
-    super._handleUnknown(req)
   }
 
-  public override func _handleUnknown<N>(_ note: Notification<N>) {
-    if note.clientID == ObjectIdentifier(clangd) {
-      client.send(note.params)
+  /// Handler for requests received **from** clangd, ie. **clangd** is
+  /// sending a notification that's intended for the editor.
+  ///
+  /// We should either handle it ourselves or forward it to the client.
+  func handle<R: RequestType>(
+    _ params: R,
+    id: RequestID,
+    from clientID: ObjectIdentifier,
+    reply: @escaping (LSPResult<R.Response>) -> Void
+  ) {
+    queue.async {
+      let request = Request(params, id: id, clientID: clientID, cancellation: CancellationToken(), reply: { result in
+        reply(result)
+      })
+
+      if request.clientID == ObjectIdentifier(self.clangd) {
+        self.forwardRequest(request, to: self.client)
+      } else {
+        request.reply(.failure(ResponseError.methodNotFound(R.method)))
+      }
     }
   }
 
