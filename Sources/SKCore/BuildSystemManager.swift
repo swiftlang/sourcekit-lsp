@@ -295,15 +295,8 @@ extension BuildSystemManager: BuildSystemDelegate {
 }
 
 extension BuildSystemManager: MainFilesDelegate {
-  // FIXME: (async) Make this method isolated once `MainFilesDelegate` has ben asyncified
-  public nonisolated func mainFilesChanged() {
-    Task {
-      await mainFilesChangedImpl()
-    }
-  }
-
   // FIXME: Consider debouncing/limiting this, seems to trigger often during a build.
-  public func mainFilesChangedImpl() async {
+  public func mainFilesChanged() async {
     let origWatched = self.watchedFiles
     self.watchedFiles = [:]
     var buildSettingsChanges = Set<DocumentURI>()

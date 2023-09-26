@@ -30,5 +30,5 @@ public protocol MainFilesProvider: AnyObject {
 public protocol MainFilesDelegate: AnyObject {
 
   /// The mapping from files to main files (may have) changed.
-  func mainFilesChanged()
+  func mainFilesChanged() async
 }

@@ -66,7 +66,7 @@ final class BuildSystemManagerTests: XCTestCase {
     await assertEqual(bsm._cachedMainFile(for: c), c)
     await assertEqual(bsm._cachedMainFile(for: d), d)
 
-    await bsm.mainFilesChangedImpl()
+    await bsm.mainFilesChanged()
 
     await assertEqual(bsm._cachedMainFile(for: a), a)
     await assertEqual(bsm._cachedMainFile(for: b), bMain) // never changes to a
@@ -80,7 +80,7 @@ final class BuildSystemManagerTests: XCTestCase {
     await assertEqual(bsm._cachedMainFile(for: d), d)
 
     await bsm.unregisterForChangeNotifications(for: b)
-    await bsm.mainFilesChangedImpl()
+    await bsm.mainFilesChanged()
     await bsm.unregisterForChangeNotifications(for: c)
     await bsm.unregisterForChangeNotifications(for: d)
     await assertEqual(bsm._cachedMainFile(for: a), nil)
@@ -261,13 +261,13 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let changed = expectation(description: "changed settings to cpp2")
     await del.setExpected([(h, .c, bs.map[cpp2]!, changed, #file, #line)])
-    await bsm.mainFilesChangedImpl()
+    await bsm.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed])
 
     let changed2 = expectation(description: "still cpp2, no update")
     changed2.isInverted = true
     await del.setExpected([(h, .c, nil, changed2, #file, #line)])
-    await bsm.mainFilesChangedImpl()
+    await bsm.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed2], timeout: 1)
 
     mainFiles.mainFiles[h] = Set([cpp1, cpp2])
@@ -275,14 +275,14 @@ final class BuildSystemManagerTests: XCTestCase {
     let changed3 = expectation(description: "added main file, no update")
     changed3.isInverted = true
     await del.setExpected([(h, .c, nil, changed3, #file, #line)])
-    await bsm.mainFilesChangedImpl()
+    await bsm.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed3], timeout: 1)
 
     mainFiles.mainFiles[h] = Set([])
 
     let changed4 = expectation(description: "changed settings to []")
     await del.setExpected([(h, .c, nil, changed4, #file, #line)])
-    await bsm.mainFilesChangedImpl()
+    await bsm.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed4])
   }
 
