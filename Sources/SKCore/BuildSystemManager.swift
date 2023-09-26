@@ -299,7 +299,10 @@ extension BuildSystemManager: BuildSystem {
 
   public func unregisterForChangeNotifications(for uri: DocumentURI) {
     queue.async {
-      let mainFile = self.watchedFiles[uri]!.mainFile
+      guard let mainFile = self.watchedFiles[uri]?.mainFile else {
+        log("Unbalanced calls for registerForChangeNotifications and unregisterForChangeNotifications", level: .warning)
+        return
+      }
       self.watchedFiles[uri] = nil
       self.checkUnreferencedMainFile(mainFile)
     }
