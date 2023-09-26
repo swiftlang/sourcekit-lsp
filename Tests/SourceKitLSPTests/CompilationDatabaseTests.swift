@@ -71,7 +71,7 @@ final class CompilationDatabaseTests: XCTestCase {
         didReceiveCorrectHighlight = true
         break
       }
-      try await Task.sleep(for: .seconds(1))
+      try await Task.sleep(nanoseconds: 1_000_000_000)
     }
 
     XCTAssert(didReceiveCorrectHighlight)

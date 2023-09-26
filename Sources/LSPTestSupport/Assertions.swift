@@ -50,7 +50,11 @@ extension XCTestCase {
     timeout: TimeInterval = defaultTimeout,
     enforceOrder enforceOrderOfFulfillment: Bool = false
   ) async throws {
-    let started = await XCTWaiter.fulfillment(of: expectations, timeout: timeout, enforceOrder: enforceOrderOfFulfillment)
+    // `XCTWaiter.fulfillment` was introduced in the macOS 13.3 SDK but marked as being available on macOS 10.15.
+    // At the same time that XCTWaiter.fulfillment was introduced `XCTWaiter.wait` was deprecated in async contexts.
+    // This means that we can't write code that compiles without warnings with both the macOS 13.3 and any previous SDK.
+    // Accepting the warning here when compiling with macOS 13.3 or later is the only thing that I know of that we can do here.
+    let started = XCTWaiter.wait(for: expectations, timeout: timeout, enforceOrder: enforceOrderOfFulfillment)
     if started != .completed {
       throw ExpectationNotFulfilledError(expecatations: expectations)
     }

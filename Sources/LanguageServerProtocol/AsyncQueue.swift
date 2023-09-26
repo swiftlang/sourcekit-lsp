@@ -24,6 +24,15 @@ extension Task: AnyTask where Failure == Never {
   }
 }
 
+extension NSLock {
+  /// NOTE: Keep in sync with SwiftPM's 'Sources/Basics/NSLock+Extensions.swift'
+  func withLock<T>(_ body: () throws -> T) rethrows -> T {
+    lock()
+    defer { unlock() }
+    return try body()
+  }
+}
+
 /// A serial queue that allows the execution of asyncronous blocks of code.
 public final class AsyncQueue {
   /// Lock guarding `lastTask`.
