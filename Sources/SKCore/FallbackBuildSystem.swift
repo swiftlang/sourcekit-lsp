@@ -67,18 +67,6 @@ public final class FallbackBuildSystem: BuildSystem {
   /// We don't support change watching.
   public func unregisterForChangeNotifications(for: DocumentURI) {}
 
-  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
-    reply(.failure(buildTargetsNotSupported))
-  }
-
-  public func buildTargetSources(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[SourcesItem]>) -> Void) {
-    reply(.failure(buildTargetsNotSupported))
-  }
-
-  public func buildTargetOutputPaths(targets: [BuildTargetIdentifier], reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
-    reply(.failure(buildTargetsNotSupported))
-  }
-
   func settingsSwift(_ file: String) -> FileBuildSettings {
     var args: [String] = []
     args.append(contentsOf: self.buildSetup.flags.swiftCompilerFlags)

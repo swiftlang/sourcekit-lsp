@@ -135,14 +135,7 @@ public final class BuildSystemManager {
   }
 }
 
-extension BuildSystemManager: BuildSystem {
-
-  public var indexStorePath: AbsolutePath? {  queue.sync { buildSystem?.indexStorePath } }
-
-  public var indexDatabasePath: AbsolutePath? { queue.sync { buildSystem?.indexDatabasePath } }
-
-  public var indexPrefixMappings: [PathPrefixMapping] { queue.sync { buildSystem?.indexPrefixMappings ?? [] } }
-
+extension BuildSystemManager {
   public var delegate: BuildSystemDelegate? {
     get { queue.sync { _delegate } }
     set { queue.sync { _delegate = newValue } }
@@ -316,42 +309,6 @@ extension BuildSystemManager: BuildSystem {
       // This was the last reference to the main file. Remove it.
       self.buildSystem?.unregisterForChangeNotifications(for: mainFile)
       self.mainFileStatuses[mainFile] = nil
-    }
-  }
-
-  public func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
-    queue.async {
-      if let buildSystem = self.buildSystem {
-        buildSystem.buildTargets(reply: reply)
-      } else {
-        reply(.success([]))
-      }
-    }
-  }
-
-  public func buildTargetSources(
-    targets: [BuildTargetIdentifier],
-    reply: @escaping (LSPResult<[SourcesItem]>) -> Void)
-  {
-    queue.async {
-      if let buildSystem = self.buildSystem {
-        buildSystem.buildTargetSources(targets: targets, reply: reply)
-      } else {
-        reply(.success([]))
-      }
-    }
-  }
-
-  public func buildTargetOutputPaths(
-    targets: [BuildTargetIdentifier],
-    reply: @escaping (LSPResult<[OutputsItem]>) -> Void)
-  {
-    queue.async {
-      if let buildSystem = self.buildSystem {
-        buildSystem.buildTargetOutputPaths(targets: targets, reply: reply)
-      } else {
-        reply(.success([]))
-      }
     }
   }
 

@@ -491,20 +491,6 @@ class ManualBuildSystem: BuildSystem {
   var indexDatabasePath: AbsolutePath? { nil }
   var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
-  func buildTargets(reply: @escaping (LSPResult<[BuildTarget]>) -> Void) {
-    fatalError()
-  }
-
-  func buildTargetSources(targets: [BuildTargetIdentifier],
-    reply: @escaping (LSPResult<[SourcesItem]>) -> Void) {
-    fatalError()
-  }
-
-  func buildTargetOutputPaths(targets: [BuildTargetIdentifier],
-    reply: @escaping (LSPResult<[OutputsItem]>) -> Void) {
-    fatalError()
-  }
-
   func filesDidChange(_ events: [FileEvent]) {}
 
   public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
