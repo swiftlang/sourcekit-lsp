@@ -691,18 +691,11 @@ extension SourceKitServer {
           // Client doesn’t support work done progress
           return
         }
-        // FIXME: (async) This can cause out-of-order notifications to be sent to the editor
-        // if the scheduled tasks change order.
-        // Make `reloadPackageStatusCallback` async and shift the responsibility for
-        // guaranteeing in-order calls to `reloadPackageStatusCallback` to
-        // `SwiftPMWorkspace.reloadPackage` once that method is async.
-        Task {
-          switch status {
-          case .start:
-            await self.packageLoadingWorkDoneProgress.startProgress(server: self)
-          case .end:
-            await self.packageLoadingWorkDoneProgress.endProgress(server: self)
-          }
+        switch status {
+        case .start:
+          await self.packageLoadingWorkDoneProgress.startProgress(server: self)
+        case .end:
+          await self.packageLoadingWorkDoneProgress.endProgress(server: self)
         }
       }
     )
