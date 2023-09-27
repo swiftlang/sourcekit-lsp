@@ -136,17 +136,6 @@ public actor SourceKitServer {
   /// The queue on which we communicate with the client.
   public let clientCommunicationQueue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
 
-  public struct RequestCancelKey: Hashable {
-    public var client: ObjectIdentifier
-    public var request: RequestID
-    public init(client: ObjectIdentifier, request: RequestID) {
-      self.client = client
-      self.request = request
-    }
-  }
-
-  /// The set of outstanding requests that may be cancelled.
-  public var requestCancellation: [RequestCancelKey: CancellationToken] = [:]
 
   /// The connection to the editor.
   public let client: Connection
@@ -527,16 +516,7 @@ extension SourceKitServer: MessageHandler {
 
   public func handle<R: RequestType>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response >) -> Void) async {
     let cancellationToken = CancellationToken()
-    let key = RequestCancelKey(client: clientID, request: id)
-
-    self.requestCancellation[key] = cancellationToken
-
     let request = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: { [weak self] result in
-      if let self {
-        Task {
-          await self.stopTrackingCancellationKey(key)
-        }
-      }
       reply(result)
       if let self {
         Task {
@@ -1011,13 +991,7 @@ extension SourceKitServer {
   }
 
   func cancelRequest(_ notification: Notification<CancelRequestNotification>) {
-    let key = RequestCancelKey(client: notification.clientID, request: notification.params.id)
-    requestCancellation[key]?.cancel()
-  }
-
-  /// Stop keeping track of the cancellation handler for the given cancellation key.
-  func stopTrackingCancellationKey(_ key: RequestCancelKey) {
-    requestCancellation[key] = nil
+    // TODO: Implement cancellation
   }
 
   /// The server is about to exit, and the server should flush any buffered state.
