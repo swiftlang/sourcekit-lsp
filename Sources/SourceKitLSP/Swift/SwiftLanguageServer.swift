@@ -150,7 +150,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
   
   /// A callback with which `SwiftLanguageServer` can request its owner to reopen all documents in case it has crashed.
-  private let reopenDocuments: (ToolchainLanguageServer) -> Void
+  private let reopenDocuments: (ToolchainLanguageServer) async -> Void
 
   /// Get the workspace that the document with the given URI belongs to.
   ///
@@ -166,7 +166,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     toolchain: Toolchain,
     options: SourceKitServer.Options,
     workspace: Workspace,
-    reopenDocuments: @escaping (ToolchainLanguageServer) -> Void,
+    reopenDocuments: @escaping (ToolchainLanguageServer) async -> Void,
     workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
   ) throws {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
@@ -1523,7 +1523,7 @@ extension SwiftLanguageServer: SKDNotificationHandler {
       self.state = .semanticFunctionalityDisabled
 
       // Ask our parent to re-open all of our documents.
-      self.reopenDocuments(self)
+      await self.reopenDocuments(self)
     }
 
     if case .connectionInterrupted = notification.error {
