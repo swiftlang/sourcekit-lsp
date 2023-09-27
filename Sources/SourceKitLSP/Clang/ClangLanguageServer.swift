@@ -293,30 +293,17 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     }
   }
 
-  /// Forwards a request to the given connection, taking care of replying to the original request
-  /// and cancellation, while providing a callback with the response for additional processing.
-  ///
-  /// Immediately after `handler` returns, this passes the result to the original reply handler by
-  /// calling `request.reply(result)`.
+  /// Forwards a request to `clangd`, taking care of replying to the original request
+  /// and cancellation.
   ///
   /// The cancellation token from the original request is automatically linked to the forwarded
   /// request such that cancelling the original request will cancel the forwarded request.
-  ///
-  /// - Parameters:
-  ///   - request: The request to forward.
-  ///   - to: Where to forward the request (e.g. self.clangd).
-  ///   - handler: An optional closure that will be called with the result of the request.
-  func forwardRequest<R>(
-    _ request: Request<R>,
-    to: Connection,
-    _ handler: ((LSPResult<R.Response>) -> Void)? = nil)
-  {
-    let id = to.send(request.params, queue: clangdCommunicationQueue) { result in
-      handler?(result)
+  func forwardRequestToClangd<R>(_ request: Request<R>) {
+    let id = clangd.send(request.params, queue: clangdCommunicationQueue) { result in
       request.reply(result)
     }
     request.cancellationToken.addCancellationHandler {
-      to.send(CancelRequestNotification(id: id))
+      self.clangd.send(CancelRequestNotification(id: id))
     }
   }
   
@@ -482,80 +469,80 @@ extension ClangLanguageServerShim {
   /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
   public func definition(_ req: Request<DefinitionRequest>) -> Bool {
     // We handle it to provide jump-to-header support for #import/#include.
-    self.forwardRequest(req, to: self.clangd)
+    self.forwardRequestToClangd(req)
     return true
   }
 
   /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
   public func declaration(_ req: Request<DeclarationRequest>) -> Bool {
     // We handle it to provide jump-to-header support for #import/#include.
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangd(req)
     return true
   }
 
   func completion(_ req: Request<CompletionRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangd(req)
   }
 
   func hover(_ req: Request<HoverRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangd(req)
   }
 
   func symbolInfo(_ req: Request<SymbolInfoRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangd(req)
   }
 
   func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangd(req)
   }
 
   func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangd(req)
   }
 
   func documentColor(_ req: Request<DocumentColorRequest>) {
     if self.capabilities?.colorProvider?.isSupported == true {
-      forwardRequest(req, to: clangd)
+      forwardRequestToClangd(req)
     } else {
       req.reply(.success([]))
     }
   }
 
   func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangd(req)
   }
 
   func documentSemanticTokensDelta(_ req: Request<DocumentSemanticTokensDeltaRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangd(req)
   }
 
   func documentSemanticTokensRange(_ req: Request<DocumentSemanticTokensRangeRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangd(req)
   }
 
   func colorPresentation(_ req: Request<ColorPresentationRequest>) {
     if self.capabilities?.colorProvider?.isSupported == true {
-      forwardRequest(req, to: clangd)
+      forwardRequestToClangd(req)
     } else {
       req.reply(.success([]))
     }
   }
 
   func codeAction(_ req: Request<CodeActionRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangd(req)
   }
 
   func inlayHint(_ req: Request<InlayHintRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangd(req)
   }
 
   func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangd(req)
   }
 
   func foldingRange(_ req: Request<FoldingRangeRequest>) {
     if self.capabilities?.foldingRangeProvider?.isSupported == true {
-      forwardRequest(req, to: clangd)
+      forwardRequestToClangd(req)
     } else {
       req.reply(.success(nil))
     }
@@ -568,7 +555,7 @@ extension ClangLanguageServerShim {
   // MARK: - Other
 
   func executeCommand(_ req: Request<ExecuteCommandRequest>) {
-    forwardRequest(req, to: clangd)
+    forwardRequestToClangd(req)
   }
 }
 
