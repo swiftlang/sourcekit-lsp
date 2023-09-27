@@ -26,6 +26,12 @@ import func TSCBasic.resolveSymlinks
 import struct TSCBasic.AbsolutePath
 import struct PackageModel.BuildFlags
 
+fileprivate extension SourceKitServer {
+  func addWorkspace(_ workspace: Workspace) {
+    self._workspaces.append(workspace)
+  }
+}
+
 public final class SKSwiftPMTestWorkspace {
 
   /// The directory containing the original, unmodified project.
@@ -52,7 +58,7 @@ public final class SKSwiftPMTestWorkspace {
   public var sk: TestClient { testServer.client }
 
   /// When `testServer` is not `nil`, the workspace will be opened in that server, otherwise a new server will be created for the workspace
-  public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain, testServer: TestSourceKitServer? = nil) throws {
+  public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain, testServer: TestSourceKitServer? = nil) async throws {
     self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
 
     self.projectDir = URL(
@@ -108,7 +114,7 @@ public final class SKSwiftPMTestWorkspace {
       index: index,
       indexDelegate: indexDelegate)
     workspace.buildSystemManager.delegate = server
-    server._workspaces.append(workspace)
+    await server.addWorkspace(workspace)
   }
 
   deinit {
@@ -158,10 +164,10 @@ extension SKSwiftPMTestWorkspace {
 
 extension XCTestCase {
 
-  public func staticSourceKitSwiftPMWorkspace(name: String, server: TestSourceKitServer? = nil) throws -> SKSwiftPMTestWorkspace? {
+  public func staticSourceKitSwiftPMWorkspace(name: String, server: TestSourceKitServer? = nil) async throws -> SKSwiftPMTestWorkspace? {
     let testDirName = testDirectoryName
     let toolchain = ToolchainRegistry.shared.default!
-    let workspace = try SKSwiftPMTestWorkspace(
+    let workspace = try await SKSwiftPMTestWorkspace(
       projectDir: XCTestCase.sklspInputsDirectory.appendingPathComponent(name, isDirectory: true),
       tmpDir: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("sk-test-data/\(testDirName)/\(name)", isDirectory: true),

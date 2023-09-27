@@ -20,8 +20,8 @@ import XCTest
 
 final class MainFilesProviderTests: XCTestCase {
 
-  func testMainFilesChanged() throws {
-    let ws = try mutableSourceKitTibsTestWorkspace(name: "MainFiles")!
+  func testMainFilesChanged() async throws {
+    let ws = try await mutableSourceKitTibsTestWorkspace(name: "MainFiles")!
     let indexDelegate = SourceKitIndexDelegate()
     ws.tibsWorkspace.delegate = indexDelegate
 
@@ -62,7 +62,7 @@ final class MainFilesProviderTests: XCTestCase {
     XCTAssertEqual(ws.index.mainFilesContainingFile(shared_h), [c, d])
     XCTAssertEqual(ws.index.mainFilesContainingFile(bridging), [c])
 
-    wait(for: [mainFilesDelegate.expectation], timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([mainFilesDelegate.expectation])
 
     try ws.edit { changes, _ in
       changes.write("""
@@ -83,7 +83,7 @@ final class MainFilesProviderTests: XCTestCase {
     XCTAssertEqual(ws.index.mainFilesContainingFile(shared_h), [])
     XCTAssertEqual(ws.index.mainFilesContainingFile(bridging), [d])
 
-    wait(for: [mainFilesDelegate.expectation], timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([mainFilesDelegate.expectation])
 
     XCTAssertEqual(ws.index.mainFilesContainingFile(DocumentURI(string: "not:file")), [])
   }

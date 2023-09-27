@@ -33,9 +33,9 @@ final class CodeActionTests: XCTestCase {
     return ClientCapabilities(workspace: nil, textDocument: documentCapabilities)
   }
 
-  private func refactorTibsWorkspace() throws -> SKTibsTestWorkspace? {
+  private func refactorTibsWorkspace() async throws -> SKTibsTestWorkspace? {
     let capabilities = clientCapabilitiesWithCodeActionSupport()
-    return try staticSourceKitTibsWorkspace(name: "SemanticRefactor", clientCapabilities: capabilities)
+    return try await staticSourceKitTibsWorkspace(name: "SemanticRefactor", clientCapabilities: capabilities)
   }
 
   func testCodeActionResponseLegacySupport() throws {
@@ -176,8 +176,8 @@ final class CodeActionTests: XCTestCase {
     XCTAssertEqual(decoded, command)
   }
 
-  func testEmptyCodeActionResult() throws {
-    guard let ws = try refactorTibsWorkspace() else { return }
+  func testEmptyCodeActionResult() async throws {
+    guard let ws = try await refactorTibsWorkspace() else { return }
     let loc = ws.testLoc("sr:foo")
     try ws.openDocument(loc.url, language: .swift)
 
@@ -190,8 +190,8 @@ final class CodeActionTests: XCTestCase {
     }
   }
 
-  func testSemanticRefactorLocalRenameResult() throws {
-    guard let ws = try refactorTibsWorkspace() else { return }
+  func testSemanticRefactorLocalRenameResult() async throws {
+    guard let ws = try await refactorTibsWorkspace() else { return }
     let loc = ws.testLoc("sr:local")
     try ws.openDocument(loc.url, language: .swift)
 
@@ -203,8 +203,8 @@ final class CodeActionTests: XCTestCase {
     }
   }
 
-  func testSemanticRefactorLocationCodeActionResult() throws {
-    guard let ws = try refactorTibsWorkspace() else { return }
+  func testSemanticRefactorLocationCodeActionResult() async throws {
+    guard let ws = try await refactorTibsWorkspace() else { return }
     let loc = ws.testLoc("sr:string")
     try ws.openDocument(loc.url, language: .swift)
 
@@ -225,8 +225,8 @@ final class CodeActionTests: XCTestCase {
     XCTAssertEqual(result, .codeActions([expectedCodeAction]))
   }
 
-  func testSemanticRefactorRangeCodeActionResult() throws {
-    guard let ws = try refactorTibsWorkspace() else { return }
+  func testSemanticRefactorRangeCodeActionResult() async throws {
+    guard let ws = try await refactorTibsWorkspace() else { return }
     let rangeStartLoc = ws.testLoc("sr:extractStart")
     let rangeEndLoc = ws.testLoc("sr:extractEnd")
     try ws.openDocument(rangeStartLoc.url, language: .swift)
@@ -249,9 +249,9 @@ final class CodeActionTests: XCTestCase {
     XCTAssertEqual(result, .codeActions([expectedCodeAction]))
   }
 
-  func testCodeActionsRemovePlaceholders() throws {
+  func testCodeActionsRemovePlaceholders() async throws {
     let capabilities = clientCapabilitiesWithCodeActionSupport()
-    let ws = try staticSourceKitTibsWorkspace(name: "Fixit", clientCapabilities: capabilities)!
+    let ws = try await staticSourceKitTibsWorkspace(name: "Fixit", clientCapabilities: capabilities)!
 
     let def = ws.testLoc("MyStruct:def")
 
@@ -276,7 +276,7 @@ final class CodeActionTests: XCTestCase {
       semanticDiagnosticsReceived.fulfill()
     }
 
-    self.wait(for: [syntacticDiagnosticsReceived, semanticDiagnosticsReceived], timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([syntacticDiagnosticsReceived, semanticDiagnosticsReceived])
 
     let textDocument = TextDocumentIdentifier(def.url)
     let actionsRequest = CodeActionRequest(range: def.position..<def.position, context: .init(diagnostics: diags), textDocument: textDocument)
@@ -330,6 +330,6 @@ final class CodeActionTests: XCTestCase {
     }
     _ = try ws.sk.sendSync(ExecuteCommandRequest(command: command.command, arguments: command.arguments))
 
-    self.wait(for: [editReceived], timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([editReceived])
   }
 }

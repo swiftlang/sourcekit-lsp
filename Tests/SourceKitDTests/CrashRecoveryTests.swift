@@ -44,11 +44,11 @@ fileprivate extension HoverResponse {
 }
 
 final class CrashRecoveryTests: XCTestCase {
-  func testSourcekitdCrashRecovery() throws {
+  func testSourcekitdCrashRecovery() async throws {
     try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
     try XCTSkipIf(longTestsDisabled)
 
-    let ws = try staticSourceKitTibsWorkspace(name: "sourcekitdCrashRecovery")!
+    let ws = try await staticSourceKitTibsWorkspace(name: "sourcekitdCrashRecovery")!
     let loc = ws.testLoc("loc")
 
     // Open the document. Wait for the semantic diagnostics to know it has been fully opened and we are not entering any data races about outstanding diagnostics when we crash sourcekitd.
@@ -64,7 +64,7 @@ final class CrashRecoveryTests: XCTestCase {
       documentOpened.fulfill()
     })
     try ws.openDocument(loc.url, language: .swift)
-    self.wait(for: [documentOpened], timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([documentOpened])
 
     // Make a change to the file that's not saved to disk. This way we can check that we re-open the correct in-memory state.
 
@@ -88,7 +88,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Crash sourcekitd
 
-    let sourcekitdServer = ws.testServer.server!._languageService(for: loc.docUri, .swift, in: ws.testServer.server!.workspaceForDocumentOnQueue(uri: loc.docUri)!) as! SwiftLanguageServer
+    let sourcekitdServer = await ws.testServer.server!._languageService(for: loc.docUri, .swift, in: ws.testServer.server!.workspaceForDocument(uri: loc.docUri)!) as! SwiftLanguageServer
 
     let sourcekitdCrashed = expectation(description: "sourcekitd has crashed")
     let sourcekitdRestarted = expectation(description: "sourcekitd has been restarted (syntactic only)")
@@ -107,8 +107,8 @@ final class CrashRecoveryTests: XCTestCase {
 
     sourcekitdServer._crash()
 
-    self.wait(for: [sourcekitdCrashed], timeout: 5)
-    self.wait(for: [sourcekitdRestarted], timeout: 30)
+    try await fulfillmentOfOrThrow([sourcekitdCrashed], timeout: 5)
+    try await fulfillmentOfOrThrow([sourcekitdRestarted], timeout: 30)
 
     // Check that we have syntactic functionality again
 
@@ -118,7 +118,7 @@ final class CrashRecoveryTests: XCTestCase {
     // Send a hover request (which will fail) to trigger that timer.
     // Afterwards wait for semantic functionality to be restored.
     _ = try? ws.sk.sendSync(hoverRequest)
-    self.wait(for: [semanticFunctionalityRestored], timeout: 30)
+    try await fulfillmentOfOrThrow([semanticFunctionalityRestored], timeout: 30)
 
     // Check that we get the same hover response from the restored in-memory state
 
@@ -132,9 +132,9 @@ final class CrashRecoveryTests: XCTestCase {
   /// - Parameters:
   ///   - ws: The workspace for which the clangd server shall be crashed
   ///   - document: The URI of a C/C++/... document in the workspace
-  private func crashClangd(for ws: SKTibsTestWorkspace, document docUri: DocumentURI) {
-    let clangdServer = ws.testServer.server!._languageService(for: docUri, .cpp, in: ws.testServer.server!.workspaceForDocumentOnQueue(uri: docUri)!)!
-    
+  private func crashClangd(for ws: SKTibsTestWorkspace, document docUri: DocumentURI) async throws {
+    let clangdServer = await ws.testServer.server!._languageService(for: docUri, .cpp, in: ws.testServer.server!.workspaceForDocument(uri: docUri)!)!
+
     let clangdCrashed = self.expectation(description: "clangd crashed")
     let clangdRestarted = self.expectation(description: "clangd restarted")
 
@@ -151,14 +151,14 @@ final class CrashRecoveryTests: XCTestCase {
 
     clangdServer._crash()
 
-    self.wait(for: [clangdCrashed], timeout: 5)
-    self.wait(for: [clangdRestarted], timeout: 30)
+    try await fulfillmentOfOrThrow([clangdCrashed])
+    try await fulfillmentOfOrThrow([clangdRestarted])
   }
 
-  func testClangdCrashRecovery() throws {
+  func testClangdCrashRecovery() async throws {
     try XCTSkipIf(longTestsDisabled)
 
-    let ws = try staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
+    let ws = try await staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
     let loc = ws.testLoc("loc")
 
     try ws.openDocument(loc.url, language: .cpp)
@@ -182,7 +182,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Crash clangd
 
-    crashClangd(for: ws, document: loc.docUri)
+    try await crashClangd(for: ws, document: loc.docUri)
 
     // Check that we have re-opened the document with the correct in-memory state
 
@@ -192,10 +192,10 @@ final class CrashRecoveryTests: XCTestCase {
     }
   }
     
-  func testClangdCrashRecoveryReopensWithCorrectBuildSettings() throws {
+  func testClangdCrashRecoveryReopensWithCorrectBuildSettings() async throws {
     try XCTSkipIf(longTestsDisabled)
 
-    let ws = try staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings")!
+    let ws = try await staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings")!
     let loc = ws.testLoc("loc")
     
     try ws.openDocument(loc.url, language: .cpp)
@@ -213,8 +213,8 @@ final class CrashRecoveryTests: XCTestCase {
     
     // Crash clangd
 
-    crashClangd(for: ws, document: loc.docUri)
-    
+    try await crashClangd(for: ws, document: loc.docUri)
+
     // Check that we have re-opened the document with the correct build settings
     // If we did not recover the correct build settings, document highlight would
     // pick the definition of foo() in the #else branch.
@@ -225,10 +225,10 @@ final class CrashRecoveryTests: XCTestCase {
     }
   }
   
-  func testPreventClangdCrashLoop() throws {
+  func testPreventClangdCrashLoop() async throws {
     try XCTSkipIf(longTestsDisabled)
 
-    let ws = try staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
+    let ws = try await staticSourceKitTibsWorkspace(name: "ClangCrashRecovery")!
     let loc = ws.testLoc("loc")
 
     try ws.openDocument(loc.url, language: .cpp)
@@ -240,8 +240,8 @@ final class CrashRecoveryTests: XCTestCase {
     
     // Keep track of clangd crashes
     
-    let clangdServer = ws.testServer.server!._languageService(for: loc.docUri, .cpp, in: ws.testServer.server!.workspaceForDocumentOnQueue(uri: loc.docUri)!)!
-    
+    let clangdServer = await ws.testServer.server!._languageService(for: loc.docUri, .cpp, in: ws.testServer.server!.workspaceForDocument(uri: loc.docUri)!)!
+
     let clangdCrashed = self.expectation(description: "clangd crashed")
     clangdCrashed.assertForOverFulfill = false
     
@@ -268,15 +268,15 @@ final class CrashRecoveryTests: XCTestCase {
 
     clangdServer._crash()
 
-    self.wait(for: [clangdCrashed], timeout: 5)
-    self.wait(for: [clangdRestartedFirstTime], timeout: 30)
+    try await fulfillmentOfOrThrow([clangdCrashed], timeout: 5)
+    try await fulfillmentOfOrThrow([clangdRestartedFirstTime], timeout: 30)
     // Clangd has restarted. Note the date so we can check that the second restart doesn't happen too quickly.
     let firstRestartDate = Date()
 
     // Crash clangd again. This time, it should only restart after a delay.
     clangdServer._crash()
 
-    self.wait(for: [clangdRestartedSecondTime], timeout: 30)
+    try await fulfillmentOfOrThrow([clangdRestartedSecondTime], timeout: 30)
     XCTAssert(Date().timeIntervalSince(firstRestartDate) > 5, "Clangd restarted too quickly after crashing twice in a row. We are not preventing crash loops.")
   }
 }

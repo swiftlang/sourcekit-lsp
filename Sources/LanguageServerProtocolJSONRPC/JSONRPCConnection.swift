@@ -70,7 +70,9 @@ public final class JSONRPCConnection {
   /// The set of currently outstanding outgoing requests along with information about how to decode and handle their responses.
   var outstandingRequests: [RequestID: OutstandingRequest] = [:]
 
-  var closeHandler: (() -> Void)! = nil
+  /// A handler that will be called asyncronously when the connection is being
+  /// closed.
+  var closeHandler: (() async -> Void)! = nil
 
   public init(
     protocol messageRegistry: MessageRegistry,
@@ -120,8 +122,10 @@ public final class JSONRPCConnection {
 
     ioGroup.notify(queue: queue) { [weak self] in
       guard let self = self else { return }
-      self.closeHandler()
-      self.receiveHandler = nil // break retain cycle
+      Task {
+        await self.closeHandler()
+        self.receiveHandler = nil // break retain cycle
+      }
     }
 
     // We cannot assume the client will send us bytes in packets of any particular size, so set the lower limit to 1.
@@ -139,7 +143,7 @@ public final class JSONRPCConnection {
   /// Start processing `inFD` and send messages to `receiveHandler`.
   ///
   /// - parameter receiveHandler: The message handler to invoke for requests received on the `inFD`.
-  public func start(receiveHandler: MessageHandler, closeHandler: @escaping () -> Void = {}) {
+  public func start(receiveHandler: MessageHandler, closeHandler: @escaping () async -> Void = {}) {
     precondition(state == .created)
     state = .running
     self.receiveHandler = receiveHandler
