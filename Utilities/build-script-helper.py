@@ -178,8 +178,8 @@ def get_swiftpm_environment_variables(swift_exec: str, args: argparse.Namespace)
     if args.sanitize and 'thread' in args.sanitize:
         env['TSAN_OPTIONS'] = 'halt_on_error=true'
 
-    if args.action == 'test' and not args.skip_long_tests:
-        env['SOURCEKIT_LSP_ENABLE_LONG_TESTS'] = '1'
+    if args.action == 'test' and args.skip_long_tests:
+        env['SKIP_LONG_TESTS'] = '1'
 
     return env
 
