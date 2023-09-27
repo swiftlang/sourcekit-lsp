@@ -22,12 +22,10 @@ let package = Package(
       ),
       .library(
         name: "_SourceKitLSP",
-        type: .dynamic,
         targets: ["SourceKitLSP"]
       ),
       .library(
         name: "LSPBindings",
-        type: .static,
         targets: [
           "LanguageServerProtocol",
           "LanguageServerProtocolJSONRPC",

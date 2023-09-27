@@ -238,11 +238,7 @@ def handle_invocation(swift_exec: str, args: argparse.Namespace) -> None:
     Depending on the action in 'args', build the package, installs the package or run tests.
     """
     if args.action == 'build':
-        # These products are listed in dependency order. Lower-level targets are listed first.
-        products = ["LSPBindings", "_SourceKitLSP", "sourcekit-lsp"]
-        # Build in reverse dependency order so we can build lower-level targets in parallel.
-        for product in reversed(products):
-            build_single_product(product, swift_exec, args)
+        build_single_product("sourcekit-lsp", swift_exec, args)
     elif args.action == 'test':
         run_tests(swift_exec, args)
     elif args.action == 'install':
