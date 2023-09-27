@@ -12,8 +12,8 @@
 
 import Foundation
 
-public var longTestsEnabled: Bool {
-  if let value = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_ENABLE_LONG_TESTS"] {
+public var longTestsDisabled: Bool {
+  if let value = ProcessInfo.processInfo.environment["SKIP_LONG_TESTS"] {
     return value == "1" || value == "YES"
   }
   return false
