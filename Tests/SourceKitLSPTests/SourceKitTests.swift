@@ -68,8 +68,8 @@ final class SKTests: XCTestCase {
       XCTAssertNotNil(initResult.capabilities.completionProvider)
     }
 
-  func testIndexSwiftModules() throws {
-    guard let ws = try staticSourceKitTibsWorkspace(name: "SwiftModules") else { return }
+  func testIndexSwiftModules() async throws {
+    guard let ws = try await staticSourceKitTibsWorkspace(name: "SwiftModules") else { return }
     try ws.buildAndIndex()
     defer { withExtendedLifetime(ws) {} } // Keep workspace alive for callbacks.
 
@@ -108,7 +108,7 @@ final class SKTests: XCTestCase {
     ])
   }
 
-  func testIndexShutdown() throws {
+  func testIndexShutdown() async throws {
 
     let tmpDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("sk-test-data/\(testDirectoryName)", isDirectory: true)
@@ -117,8 +117,8 @@ final class SKTests: XCTestCase {
       try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
     }
 
-    func checkRunningIndex(build: Bool) throws -> URL? {
-      guard let ws = try staticSourceKitTibsWorkspace(
+    func checkRunningIndex(build: Bool) async throws -> URL? {
+      guard let ws = try await staticSourceKitTibsWorkspace(
         name: "SwiftModules", tmpDir: tmpDir, removeTmpDir: false)
       else {
         return nil
@@ -158,19 +158,19 @@ final class SKTests: XCTestCase {
       return versionedPath
     }
 
-    guard let versionedPath = try checkRunningIndex(build: true) else { return }
+    guard let versionedPath = try await checkRunningIndex(build: true) else { return }
 
     let versionContentsAfter = try listdir(versionedPath)
     XCTAssertEqual(versionContentsAfter.count, 1)
     XCTAssertEqual(versionContentsAfter.first?.lastPathComponent, "saved")
 
-    _ = try checkRunningIndex(build: true)
+    _ = try await checkRunningIndex(build: true)
 
     try FileManager.default.removeItem(atPath: tmpDir.path)
   }
 
-  func testCodeCompleteSwiftTibs() throws {
-    guard let ws = try staticSourceKitTibsWorkspace(name: "CodeCompleteSingleModule") else { return }
+  func testCodeCompleteSwiftTibs() async throws {
+    guard let ws = try await staticSourceKitTibsWorkspace(name: "CodeCompleteSingleModule") else { return }
     let loc = ws.testLoc("cc:A")
     try ws.openDocument(loc.url, language: .swift)
 
@@ -200,8 +200,8 @@ final class SKTests: XCTestCase {
     ])
   }
 
-  func testDependenciesUpdatedSwiftTibs() throws {
-    guard let ws = try mutableSourceKitTibsTestWorkspace(name: "SwiftModules") else { return }
+  func testDependenciesUpdatedSwiftTibs() async throws {
+    guard let ws = try await mutableSourceKitTibsTestWorkspace(name: "SwiftModules") else { return }
     defer { withExtendedLifetime(ws) {} } // Keep workspace alive for callbacks.
     guard let server = ws.testServer.server else {
       XCTFail("Unable to fetch SourceKitServer to notify for build system events.")
@@ -227,10 +227,7 @@ final class SKTests: XCTestCase {
     }
 
     try ws.openDocument(moduleRef.url, language: .swift)
-    let started = XCTWaiter.wait(for: [startExpectation], timeout: defaultTimeout)
-    if started != .completed {
-      fatalError("error \(started) waiting for initial diagnostics notification")
-    }
+    try await fulfillmentOfOrThrow([startExpectation])
 
     try ws.buildAndIndex()
 
@@ -248,14 +245,11 @@ final class SKTests: XCTestCase {
     }
     server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
 
-    let finished = XCTWaiter.wait(for: [finishExpectation], timeout: defaultTimeout)
-    if finished != .completed {
-      fatalError("error \(finished) waiting for post-build diagnostics notification")
-    }
+    try await fulfillmentOfOrThrow([finishExpectation])
   }
 
-  func testDependenciesUpdatedCXXTibs() throws {
-    guard let ws = try mutableSourceKitTibsTestWorkspace(name: "GeneratedHeader") else { return }
+  func testDependenciesUpdatedCXXTibs() async throws {
+    guard let ws = try await mutableSourceKitTibsTestWorkspace(name: "GeneratedHeader") else { return }
     defer { withExtendedLifetime(ws) {} } // Keep workspace alive for callbacks.
     guard let server = ws.testServer.server else {
       XCTFail("Unable to fetch SourceKitServer to notify for build system events.")
@@ -278,11 +272,7 @@ final class SKTests: XCTestCase {
     // files without a recently upstreamed extension.
     try "".write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
     try ws.openDocument(moduleRef.url, language: .c)
-    let started = XCTWaiter.wait(for: [startExpectation], timeout: defaultTimeout)
-    guard started == .completed else {
-      XCTFail("error \(started) waiting for initial diagnostics notification")
-      return
-    }
+    try await fulfillmentOfOrThrow([startExpectation])
 
     // Update the header file to have the proper contents for our code to build.
     let contents = "int libX(int value);"
@@ -298,15 +288,11 @@ final class SKTests: XCTestCase {
     }
     server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
 
-    let finished = XCTWaiter.wait(for: [finishExpectation], timeout: defaultTimeout)
-    guard finished == .completed else {
-      XCTFail("error \(finished) waiting for post-build diagnostics notification")
-      return
-    }
+    try await fulfillmentOfOrThrow([finishExpectation])
   }
 
-  func testClangdGoToInclude() throws {
-    guard let ws = try staticSourceKitTibsWorkspace(name: "BasicCXX") else { return }
+  func testClangdGoToInclude() async throws {
+    guard let ws = try await staticSourceKitTibsWorkspace(name: "BasicCXX") else { return }
     guard ToolchainRegistry.shared.default?.clangd != nil else { return }
 
     let mainLoc = ws.testLoc("Object:include:main")
@@ -335,8 +321,8 @@ final class SKTests: XCTestCase {
     }
   }
 
-  func testClangdGoToDefinitionWithoutIndex() throws {
-    guard let ws = try staticSourceKitTibsWorkspace(name: "BasicCXX") else { return }
+  func testClangdGoToDefinitionWithoutIndex() async throws {
+    guard let ws = try await staticSourceKitTibsWorkspace(name: "BasicCXX") else { return }
     guard ToolchainRegistry.shared.default?.clangd != nil else { return }
 
     let refLoc = ws.testLoc("Object:ref:main")
@@ -364,8 +350,8 @@ final class SKTests: XCTestCase {
     }
   }
 
-  func testClangdGoToDeclaration() throws {
-    guard let ws = try staticSourceKitTibsWorkspace(name: "BasicCXX") else { return }
+  func testClangdGoToDeclaration() async throws {
+    guard let ws = try await staticSourceKitTibsWorkspace(name: "BasicCXX") else { return }
     guard ToolchainRegistry.shared.default?.clangd != nil else { return }
 
     let mainLoc = ws.testLoc("Object:ref:newObject")

@@ -21,11 +21,11 @@ import XCTest
 
 final class WorkspaceTests: XCTestCase {
 
-  func testMultipleSwiftPMWorkspaces() throws {
-    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
+  func testMultipleSwiftPMWorkspaces() async throws {
+    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
     try ws.buildAndIndex()
 
-    guard let otherWs = try staticSourceKitSwiftPMWorkspace(name: "OtherSwiftPMPackage", server: ws.testServer) else { return }
+    guard let otherWs = try await staticSourceKitSwiftPMWorkspace(name: "OtherSwiftPMPackage", server: ws.testServer) else { return }
     try otherWs.buildAndIndex()
 
     assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
@@ -96,8 +96,8 @@ final class WorkspaceTests: XCTestCase {
     ])
   }
 
-  func testMultipleClangdWorkspaces() throws {
-    guard let ws = try staticSourceKitTibsWorkspace(name: "ClangModules") else { return }
+  func testMultipleClangdWorkspaces() async throws {
+    guard let ws = try await staticSourceKitTibsWorkspace(name: "ClangModules") else { return }
 
     let loc = ws.testLoc("main_file")
 
@@ -110,9 +110,9 @@ final class WorkspaceTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .objective_c)
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
 
-    let otherWs = try staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings", server: ws.testServer)!
+    let otherWs = try await staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings", server: ws.testServer)!
     assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
     let otherLoc = otherWs.testLoc("loc")
 
@@ -130,11 +130,11 @@ final class WorkspaceTests: XCTestCase {
     XCTAssertEqual(highlightResponse, expectedHighlightResponse)
   }
 
-  func testRecomputeFileWorkspaceMembershipOnPackageSwiftChange() throws {
-    guard let otherWs = try staticSourceKitSwiftPMWorkspace(name: "OtherSwiftPMPackage") else { return }
+  func testRecomputeFileWorkspaceMembershipOnPackageSwiftChange() async throws {
+    guard let otherWs = try await staticSourceKitSwiftPMWorkspace(name: "OtherSwiftPMPackage") else { return }
     try otherWs.buildAndIndex()
 
-    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage", server: otherWs.testServer) else { return }
+    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage", server: otherWs.testServer) else { return }
     try ws.buildAndIndex()
 
     assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
@@ -148,7 +148,7 @@ final class WorkspaceTests: XCTestCase {
     // SwiftPMPackage that hasn't been added to Package.swift yet) will belong
     // to OtherSwiftPMPackage by default (because it provides fallback build
     // settings for it).
-    XCTAssertEqual(ws.testServer.server!.workspaceForDocumentOnQueue(uri: otherLib.docUri)?.rootUri, DocumentURI(otherWs.sources.rootDirectory))
+    assertEqual(await ws.testServer.server!.workspaceForDocument(uri: otherLib.docUri)?.rootUri, DocumentURI(otherWs.sources.rootDirectory))
 
     // Add the otherlib target to Package.swift
     _ = try ws.sources.edit { builder in
@@ -179,18 +179,18 @@ final class WorkspaceTests: XCTestCase {
 
     // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
     for _ in 0..<30 {
-      if ws.testServer.server!.workspaceForDocumentOnQueue(uri: otherLib.docUri)?.rootUri == DocumentURI(ws.sources.rootDirectory) {
+      if await ws.testServer.server!.workspaceForDocument(uri: otherLib.docUri)?.rootUri == DocumentURI(ws.sources.rootDirectory) {
         didReceiveCorrectWorkspaceMembership = true
         break
       }
-      Thread.sleep(forTimeInterval: 1)
+      try await Task.sleep(for: .seconds(1))
     }
 
     XCTAssert(didReceiveCorrectWorkspaceMembership)
   }
 
-  func testMixedPackage() throws {
-    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "MixedPackage") else { return }
+  func testMixedPackage() async throws {
+    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "MixedPackage") else { return }
     try ws.buildAndIndex()
 
     let cLoc = ws.testLoc("clib_func:body")
@@ -211,13 +211,13 @@ final class WorkspaceTests: XCTestCase {
       }
     }
 
-    self.wait(for: [receivedResponse], timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([receivedResponse])
   }
 
-  func testChangeWorkspaceFolders() throws {
-    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "ChangeWorkspaceFolders") else { return }
+  func testChangeWorkspaceFolders() async throws {
+    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "ChangeWorkspaceFolders") else { return }
     // Build the package. We can't use ws.buildAndIndex() because that doesn't put the build products in .build where SourceKit-LSP expects them.
-    try TSCBasic.Process.checkNonZeroExit(arguments: [
+    try await TSCBasic.Process.checkNonZeroExit(arguments: [
       ToolchainRegistry.shared.default!.swift!.pathString,
       "build",
       "--package-path", ws.sources.rootDirectory.path,
