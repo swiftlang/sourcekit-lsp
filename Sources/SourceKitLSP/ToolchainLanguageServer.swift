@@ -34,7 +34,7 @@ public protocol ToolchainLanguageServer: AnyObject {
     toolchain: Toolchain,
     options: SourceKitServer.Options,
     workspace: Workspace,
-    reopenDocuments: @escaping (ToolchainLanguageServer) -> Void,
+    reopenDocuments: @escaping (ToolchainLanguageServer) async -> Void,
     workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
   ) async throws
 

@@ -94,7 +94,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   private let workspace: WeakWorkspace
 
   /// A callback with which `ClangLanguageServer` can request its owner to reopen all documents in case it has crashed.
-  private let reopenDocuments: (ToolchainLanguageServer) -> Void
+  private let reopenDocuments: (ToolchainLanguageServer) async -> Void
 
   /// The documents that have been opened and which language they have been
   /// opened with.
@@ -114,7 +114,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     toolchain: Toolchain,
     options: SourceKitServer.Options,
     workspace: Workspace,
-    reopenDocuments: @escaping (ToolchainLanguageServer) -> Void,
+    reopenDocuments: @escaping (ToolchainLanguageServer) async -> Void,
     workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
   ) async throws {
     guard let clangdPath = toolchain.clangd else {
@@ -245,7 +245,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
         // But since SourceKitServer more or less ignores them right now anyway, this should be fine for now.
         _ = try self.initializeSync(initializeRequest)
         self.clientInitialized(InitializedNotification())
-        self.reopenDocuments(self)
+        await self.reopenDocuments(self)
         self.state = .connected
       } catch {
         log("Failed to restart clangd after a crash.", level: .error)
