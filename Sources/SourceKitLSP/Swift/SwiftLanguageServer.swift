@@ -94,9 +94,16 @@ public struct SwiftCompileCommand: Equatable {
   }
 }
 
-public final class SwiftLanguageServer: ToolchainLanguageServer {
+public actor SwiftLanguageServer: ToolchainLanguageServer {
 
-  /// The server's request queue, used to serialize requests and responses to `sourcekitd`.
+  // FIXME: (async) We can delete this after
+  // - CodeCompletionSession is an actor
+  // - sourcekitd.send is async
+  // - client.send is async
+  /// The queue on which we want to be called back. This includes
+  /// - Completion callback from sourcekitd
+  /// - Sending requests to the editor
+  /// - Guarding the state of `CodeCompletionSession`
   public let queue: DispatchQueue = DispatchQueue(label: "swift-language-server-queue", qos: .userInitiated)
 
   let client: LocalConnection
@@ -122,9 +129,9 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   /// *For Testing*
   public var reusedNodeCallback: ReusedNodeCallback?
 
-  var keys: sourcekitd_keys { return sourcekitd.keys }
-  var requests: sourcekitd_requests { return sourcekitd.requests }
-  var values: sourcekitd_values { return sourcekitd.values }
+  nonisolated var keys: sourcekitd_keys { return sourcekitd.keys }
+  nonisolated var requests: sourcekitd_requests { return sourcekitd.requests }
+  nonisolated var values: sourcekitd_values { return sourcekitd.values }
 
   var enablePublishDiagnostics: Bool {
     // Since LSP 3.17.0, diagnostics can be reported through pull-based requests,
@@ -136,8 +143,6 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   
   private var state: LanguageServerState {
     didSet {
-      // `state` must only be set from `queue`.
-      dispatchPrecondition(condition: .onQueue(queue))
       for handler in stateChangeHandlers {
         handler(oldValue, state)
       }
@@ -171,24 +176,19 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
   }
 
-  public func canHandle(workspace: Workspace) -> Bool {
+  public nonisolated func canHandle(workspace: Workspace) -> Bool {
     // We have a single sourcekitd instance for all workspaces.
     return true
   }
 
   public func addStateChangeHandler(handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void) {
-    queue.async {
-      self.stateChangeHandlers.append(handler)
-    }
+    self.stateChangeHandlers.append(handler)
   }
 
   /// Updates the lexical tokens for the given `snapshot`.
-  /// Must be called on `self.queue`.
   private func updateSyntacticTokens(
     for snapshot: DocumentSnapshot
   ) {
-    dispatchPrecondition(condition: .onQueue(queue))
-
     let uri = snapshot.document.uri
     let docTokens = updateSyntaxTree(for: snapshot)
 
@@ -227,13 +227,10 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
   }
 
   /// Updates the semantic tokens for the given `snapshot`.
-  /// Must be called on `self.queue`.
   private func updateSemanticTokens(
     response: SKDResponseDictionary,
     for snapshot: DocumentSnapshot
   ) {
-    dispatchPrecondition(condition: .onQueue(queue))
-
     let uri = snapshot.document.uri
     let docTokens = updatedSemanticTokens(response: response, for: snapshot)
 
@@ -320,8 +317,6 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
 
   /// Publish diagnostics for the given `snapshot`. We withhold semantic diagnostics if we are using
   /// fallback arguments.
-  ///
-  /// Should be called on self.queue.
   func publishDiagnostics(
     response: SKDResponseDictionary,
     for snapshot: DocumentSnapshot,
@@ -351,9 +346,7 @@ public final class SwiftLanguageServer: ToolchainLanguageServer {
     )
   }
 
-  /// Should be called on self.queue.
   func handleDocumentUpdate(uri: DocumentURI) {
-    dispatchPrecondition(condition: .onQueue(queue))
     guard let snapshot = documentManager.latestSnapshot(uri) else {
       return
     }
@@ -428,17 +421,12 @@ extension SwiftLanguageServer {
   }
 
   public func shutdown() async {
-    await withCheckedContinuation { continuation in
-      queue.async {
-        if let session = self.currentCompletionSession {
-          session.close()
-          self.currentCompletionSession = nil
-        }
-        self.sourcekitd.removeNotificationHandler(self)
-        self.client.close()
-        continuation.resume(returning: ())
-      }
+    if let session = self.currentCompletionSession {
+      session.close()
+      self.currentCompletionSession = nil
     }
+    self.sourcekitd.removeNotificationHandler(self)
+    self.client.close()
   }
 
   /// Tell sourcekitd to crash itself. For testing purposes only.
@@ -450,7 +438,6 @@ extension SwiftLanguageServer {
   
   // MARK: - Build System Integration
 
-  /// Should be called on self.queue.
   private func reopenDocument(_ snapshot: DocumentSnapshot, _ compileCmd: SwiftCompileCommand?) {
     let keys = self.keys
     let uri = snapshot.document.uri
@@ -479,37 +466,33 @@ extension SwiftLanguageServer {
   }
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) {
-    self.queue.async {
-      let compileCommand = SwiftCompileCommand(change: change)
-      // Confirm that the compile commands actually changed, otherwise we don't need to do anything.
-      // This includes when the compiler arguments are the same but the command is no longer
-      // considered to be fallback.
-      guard self.commandsByFile[uri] != compileCommand else {
-        return
-      }
-      self.commandsByFile[uri] = compileCommand
-
-      // We may not have a snapshot if this is called just before `openDocument`.
-      guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-        return
-      }
-
-      // Close and re-open the document internally to inform sourcekitd to update the compile
-      // command. At the moment there's no better way to do this.
-      self.reopenDocument(snapshot, compileCommand)
+    let compileCommand = SwiftCompileCommand(change: change)
+    // Confirm that the compile commands actually changed, otherwise we don't need to do anything.
+    // This includes when the compiler arguments are the same but the command is no longer
+    // considered to be fallback.
+    guard self.commandsByFile[uri] != compileCommand else {
+      return
     }
+    self.commandsByFile[uri] = compileCommand
+
+    // We may not have a snapshot if this is called just before `openDocument`.
+    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
+      return
+    }
+
+    // Close and re-open the document internally to inform sourcekitd to update the compile
+    // command. At the moment there's no better way to do this.
+    self.reopenDocument(snapshot, compileCommand)
   }
 
   public func documentDependenciesUpdated(_ uri: DocumentURI) {
-    self.queue.async {
-      guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-        return
-      }
-
-      // Forcefully reopen the document since the `BuildSystem` has informed us
-      // that the dependencies have changed and the AST needs to be reloaded.
-      self.reopenDocument(snapshot, self.commandsByFile[uri])
+    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
+      return
     }
+
+    // Forcefully reopen the document since the `BuildSystem` has informed us
+    // that the dependencies have changed and the AST needs to be reloaded.
+    self.reopenDocument(snapshot, self.commandsByFile[uri])
   }
 
   // MARK: - Text synchronization
@@ -517,103 +500,97 @@ extension SwiftLanguageServer {
   public func openDocument(_ note: DidOpenTextDocumentNotification) {
     let keys = self.keys
 
-    self.queue.async {
-      guard let snapshot = self.documentManager.open(note) else {
-        // Already logged failure.
-        return
-      }
-
-      let uri = snapshot.document.uri
-      let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-      req[keys.request] = self.requests.editor_open
-      req[keys.name] = note.textDocument.uri.pseudoPath
-      req[keys.sourcetext] = snapshot.text
-
-      let compileCommand = self.commandsByFile[uri]
-
-      if let compilerArgs = compileCommand?.compilerArgs {
-        req[keys.compilerargs] = compilerArgs
-      }
-
-      guard let dict = try? self.sourcekitd.sendSync(req) else {
-        // Already logged failure.
-        return
-      }
-      self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
-      self.updateSyntacticTokens(for: snapshot)
+    guard let snapshot = self.documentManager.open(note) else {
+      // Already logged failure.
+      return
     }
+
+    let uri = snapshot.document.uri
+    let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+    req[keys.request] = self.requests.editor_open
+    req[keys.name] = note.textDocument.uri.pseudoPath
+    req[keys.sourcetext] = snapshot.text
+
+    let compileCommand = self.commandsByFile[uri]
+
+    if let compilerArgs = compileCommand?.compilerArgs {
+      req[keys.compilerargs] = compilerArgs
+    }
+
+    guard let dict = try? self.sourcekitd.sendSync(req) else {
+      // Already logged failure.
+      return
+    }
+    self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
+    self.updateSyntacticTokens(for: snapshot)
   }
 
   public func closeDocument(_ note: DidCloseTextDocumentNotification) {
     let keys = self.keys
 
-    self.queue.async {
-      self.documentManager.close(note)
+    self.documentManager.close(note)
 
-      let uri = note.textDocument.uri
+    let uri = note.textDocument.uri
 
-      let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-      req[keys.request] = self.requests.editor_close
-      req[keys.name] = uri.pseudoPath
+    let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+    req[keys.request] = self.requests.editor_close
+    req[keys.name] = uri.pseudoPath
 
-      // Clear settings that should not be cached for closed documents.
-      self.commandsByFile[uri] = nil
-      self.currentDiagnostics[uri] = nil
+    // Clear settings that should not be cached for closed documents.
+    self.commandsByFile[uri] = nil
+    self.currentDiagnostics[uri] = nil
 
-      _ = try? self.sourcekitd.sendSync(req)
-    }
+    _ = try? self.sourcekitd.sendSync(req)
   }
 
   public func changeDocument(_ note: DidChangeTextDocumentNotification) {
     let keys = self.keys
     var edits: [IncrementalEdit] = []
 
-    self.queue.async {
-      var lastResponse: SKDResponseDictionary? = nil
+    var lastResponse: SKDResponseDictionary? = nil
 
-      let snapshot = self.documentManager.edit(note) {
-        (before: DocumentSnapshot, edit: TextDocumentContentChangeEvent) in
-        let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-        req[keys.request] = self.requests.editor_replacetext
-        req[keys.name] = note.textDocument.uri.pseudoPath
+    let snapshot = self.documentManager.edit(note) {
+      (before: DocumentSnapshot, edit: TextDocumentContentChangeEvent) in
+      let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+      req[keys.request] = self.requests.editor_replacetext
+      req[keys.name] = note.textDocument.uri.pseudoPath
 
-        if let range = edit.range {
-          guard let offset = before.utf8Offset(of: range.lowerBound),
-            let end = before.utf8Offset(of: range.upperBound)
-          else {
-            fatalError("invalid edit \(range)")
-          }
-
-          let length = end - offset
-          req[keys.offset] = offset
-          req[keys.length] = length
-
-          edits.append(IncrementalEdit(offset: offset, length: length, replacementLength: edit.text.utf8.count))
-        } else {
-          // Full text
-          let length = before.text.utf8.count
-          req[keys.offset] = 0
-          req[keys.length] = length
-
-          edits.append(IncrementalEdit(offset: 0, length: length, replacementLength: edit.text.utf8.count))
+      if let range = edit.range {
+        guard let offset = before.utf8Offset(of: range.lowerBound),
+          let end = before.utf8Offset(of: range.upperBound)
+        else {
+          fatalError("invalid edit \(range)")
         }
 
-        req[keys.sourcetext] = edit.text
-        lastResponse = try? self.sourcekitd.sendSync(req)
+        let length = end - offset
+        req[keys.offset] = offset
+        req[keys.length] = length
 
-        self.adjustDiagnosticRanges(of: note.textDocument.uri, for: edit)
-      } updateDocumentTokens: { (after: DocumentSnapshot) in
-        if lastResponse != nil {
-          return self.updateSyntaxTree(for: after, with: ConcurrentEdits(fromSequential: edits))
-        } else {
-          return DocumentTokens()
-        }
+        edits.append(IncrementalEdit(offset: offset, length: length, replacementLength: edit.text.utf8.count))
+      } else {
+        // Full text
+        let length = before.text.utf8.count
+        req[keys.offset] = 0
+        req[keys.length] = length
+
+        edits.append(IncrementalEdit(offset: 0, length: length, replacementLength: edit.text.utf8.count))
       }
 
-      if let dict = lastResponse, let snapshot = snapshot {
-        let compileCommand = self.commandsByFile[note.textDocument.uri]
-        self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
+      req[keys.sourcetext] = edit.text
+      lastResponse = try? self.sourcekitd.sendSync(req)
+
+      self.adjustDiagnosticRanges(of: note.textDocument.uri, for: edit)
+    } updateDocumentTokens: { (after: DocumentSnapshot) in
+      if lastResponse != nil {
+        return self.updateSyntaxTree(for: after, with: ConcurrentEdits(fromSequential: edits))
+      } else {
+        return DocumentTokens()
       }
+    }
+
+    if let dict = lastResponse, let snapshot = snapshot {
+      let compileCommand = self.commandsByFile[note.textDocument.uri]
+      self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
     }
   }
 
@@ -636,12 +613,6 @@ extension SwiftLanguageServer {
   public func declaration(_ request: Request<DeclarationRequest>) -> Bool {
     // We don't handle it.
     return false
-  }
-
-  public func completion(_ req: Request<CompletionRequest>) {
-    queue.async {
-      self._completion(req)
-    }
   }
 
   public func hover(_ req: Request<HoverRequest>) {
@@ -699,13 +670,10 @@ extension SwiftLanguageServer {
     }
   }
 
-  // Must be called on self.queue
-  private func _documentSymbols(
+  public func documentSymbols(
     _ uri: DocumentURI,
     _ completion: @escaping (Result<[DocumentSymbol], ResponseError>) -> Void
   ) {
-    dispatchPrecondition(condition: .onQueue(queue))
-
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
       let msg = "failed to find snapshot for url \(uri)"
       log(msg)
@@ -793,15 +761,6 @@ extension SwiftLanguageServer {
     _ = handle
   }
 
-  public func documentSymbols(
-    _ uri: DocumentURI,
-    _ completion: @escaping (Result<[DocumentSymbol], ResponseError>) -> Void
-  ) {
-    queue.async {
-      self._documentSymbols(uri, completion)
-    }
-  }
-
   public func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
     documentSymbols(req.params.textDocument.uri) { result in
       req.reply(result.map { .documentSymbols($0) })
@@ -811,122 +770,118 @@ extension SwiftLanguageServer {
   public func documentColor(_ req: Request<DocumentColorRequest>) {
     let keys = self.keys
 
-    queue.async {
-      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
-        log("failed to find snapshot for url \(req.params.textDocument.uri)")
-        req.reply([])
+    guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
+      log("failed to find snapshot for url \(req.params.textDocument.uri)")
+      req.reply([])
+      return
+    }
+
+    let helperDocumentName = "DocumentColor:" + snapshot.document.uri.pseudoPath
+    let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+    skreq[keys.request] = self.requests.editor_open
+    skreq[keys.name] = helperDocumentName
+    skreq[keys.sourcetext] = snapshot.text
+    skreq[keys.syntactic_only] = 1
+
+    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
+      guard let self = self else { return }
+
+      defer {
+        let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+        closeHelperReq[keys.request] = self.requests.editor_close
+        closeHelperReq[keys.name] = helperDocumentName
+        _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
+      }
+
+      guard let dict = result.success else {
+        req.reply(.failure(ResponseError(result.failure!)))
         return
       }
 
-      let helperDocumentName = "DocumentColor:" + snapshot.document.uri.pseudoPath
-      let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-      skreq[keys.request] = self.requests.editor_open
-      skreq[keys.name] = helperDocumentName
-      skreq[keys.sourcetext] = snapshot.text
-      skreq[keys.syntactic_only] = 1
-
-      let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
-        guard let self = self else { return }
-
-        defer {
-          let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-          closeHelperReq[keys.request] = self.requests.editor_close
-          closeHelperReq[keys.name] = helperDocumentName
-          _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
-        }
-
-        guard let dict = result.success else {
-          req.reply(.failure(ResponseError(result.failure!)))
-          return
-        }
-
-        guard let results: SKDResponseArray = dict[self.keys.substructure] else {
-          return req.reply([])
-        }
-
-        func colorInformation(dict: SKDResponseDictionary) -> ColorInformation? {
-          guard let kind: sourcekitd_uid_t = dict[self.keys.kind],
-                kind == self.values.expr_object_literal,
-                let name: String = dict[self.keys.name],
-                name == "colorLiteral",
-                let offset: Int = dict[self.keys.offset],
-                let start: Position = snapshot.positionOf(utf8Offset: offset),
-                let length: Int = dict[self.keys.length],
-                let end: Position = snapshot.positionOf(utf8Offset: offset + length),
-                let substructure: SKDResponseArray = dict[self.keys.substructure] else {
-            return nil
-          }
-          var red, green, blue, alpha: Double?
-          substructure.forEach{ (i: Int, value: SKDResponseDictionary) in
-            guard let name: String = value[self.keys.name],
-                  let bodyoffset: Int = value[self.keys.bodyoffset],
-                  let bodylength: Int = value[self.keys.bodylength] else {
-              return true
-            }
-            let view = snapshot.text.utf8
-            let bodyStart = view.index(view.startIndex, offsetBy: bodyoffset)
-            let bodyEnd = view.index(view.startIndex, offsetBy: bodyoffset+bodylength)
-            let value = String(view[bodyStart..<bodyEnd]).flatMap(Double.init)
-            switch name {
-              case "red":
-                red = value
-              case "green":
-                green = value
-              case "blue":
-                blue = value
-              case "alpha":
-                alpha = value
-              default:
-                break
-            }
-            return true
-          }
-          if let red = red,
-             let green = green,
-             let blue = blue,
-             let alpha = alpha {
-            let color = Color(red: red, green: green, blue: blue, alpha: alpha)
-            return ColorInformation(range: start..<end, color: color)
-          } else {
-            return nil
-          }
-        }
-
-        func colorInformation(array: SKDResponseArray) -> [ColorInformation] {
-          var result: [ColorInformation] = []
-          array.forEach { (i: Int, value: SKDResponseDictionary) in
-            if let documentSymbol = colorInformation(dict: value) {
-              result.append(documentSymbol)
-            } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
-              result += colorInformation(array: substructure)
-            }
-            return true
-          }
-          return result
-        }
-
-        req.reply(colorInformation(array: results))
+      guard let results: SKDResponseArray = dict[self.keys.substructure] else {
+        return req.reply([])
       }
-      // FIXME: cancellation
-      _ = handle
+
+      func colorInformation(dict: SKDResponseDictionary) -> ColorInformation? {
+        guard let kind: sourcekitd_uid_t = dict[self.keys.kind],
+              kind == self.values.expr_object_literal,
+              let name: String = dict[self.keys.name],
+              name == "colorLiteral",
+              let offset: Int = dict[self.keys.offset],
+              let start: Position = snapshot.positionOf(utf8Offset: offset),
+              let length: Int = dict[self.keys.length],
+              let end: Position = snapshot.positionOf(utf8Offset: offset + length),
+              let substructure: SKDResponseArray = dict[self.keys.substructure] else {
+          return nil
+        }
+        var red, green, blue, alpha: Double?
+        substructure.forEach{ (i: Int, value: SKDResponseDictionary) in
+          guard let name: String = value[self.keys.name],
+                let bodyoffset: Int = value[self.keys.bodyoffset],
+                let bodylength: Int = value[self.keys.bodylength] else {
+            return true
+          }
+          let view = snapshot.text.utf8
+          let bodyStart = view.index(view.startIndex, offsetBy: bodyoffset)
+          let bodyEnd = view.index(view.startIndex, offsetBy: bodyoffset+bodylength)
+          let value = String(view[bodyStart..<bodyEnd]).flatMap(Double.init)
+          switch name {
+            case "red":
+              red = value
+            case "green":
+              green = value
+            case "blue":
+              blue = value
+            case "alpha":
+              alpha = value
+            default:
+              break
+          }
+          return true
+        }
+        if let red = red,
+           let green = green,
+           let blue = blue,
+           let alpha = alpha {
+          let color = Color(red: red, green: green, blue: blue, alpha: alpha)
+          return ColorInformation(range: start..<end, color: color)
+        } else {
+          return nil
+        }
+      }
+
+      func colorInformation(array: SKDResponseArray) -> [ColorInformation] {
+        var result: [ColorInformation] = []
+        array.forEach { (i: Int, value: SKDResponseDictionary) in
+          if let documentSymbol = colorInformation(dict: value) {
+            result.append(documentSymbol)
+          } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
+            result += colorInformation(array: substructure)
+          }
+          return true
+        }
+        return result
+      }
+
+      req.reply(colorInformation(array: results))
     }
+    // FIXME: cancellation
+    _ = handle
   }
 
   public func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) {
     let uri = req.params.textDocument.uri
 
-    queue.async {
-      guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-        log("failed to find snapshot for uri \(uri)")
-        req.reply(DocumentSemanticTokensResponse(data: []))
-        return
-      }
-
-      let tokens = snapshot.mergedAndSortedTokens()
-      let encodedTokens = tokens.lspEncoded
-
-      req.reply(DocumentSemanticTokensResponse(data: encodedTokens))
+    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
+      log("failed to find snapshot for uri \(uri)")
+      req.reply(DocumentSemanticTokensResponse(data: []))
+      return
     }
+
+    let tokens = snapshot.mergedAndSortedTokens()
+    let encodedTokens = tokens.lspEncoded
+
+    req.reply(DocumentSemanticTokensResponse(data: encodedTokens))
   }
 
   public func documentSemanticTokensDelta(_ req: Request<DocumentSemanticTokensDeltaRequest>) {
@@ -938,18 +893,16 @@ extension SwiftLanguageServer {
     let uri = req.params.textDocument.uri
     let range = req.params.range
 
-    queue.async {
-      guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-        log("failed to find snapshot for uri \(uri)")
-        req.reply(DocumentSemanticTokensResponse(data: []))
-        return
-      }
-
-      let tokens = snapshot.mergedAndSortedTokens(in: range)
-      let encodedTokens = tokens.lspEncoded
-
-      req.reply(DocumentSemanticTokensResponse(data: encodedTokens))
+    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
+      log("failed to find snapshot for uri \(uri)")
+      req.reply(DocumentSemanticTokensResponse(data: []))
+      return
     }
+
+    let tokens = snapshot.mergedAndSortedTokens(in: range)
+    let encodedTokens = tokens.lspEncoded
+
+    req.reply(DocumentSemanticTokensResponse(data: encodedTokens))
   }
 
   public func colorPresentation(_ req: Request<ColorPresentationRequest>) {
@@ -965,290 +918,286 @@ extension SwiftLanguageServer {
   public func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
     let keys = self.keys
 
-    queue.async {
-      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
-        log("failed to find snapshot for url \(req.params.textDocument.uri)")
-        req.reply(nil)
-        return
-      }
-
-      guard let offset = snapshot.utf8Offset(of: req.params.position) else {
-        log("invalid position \(req.params.position)")
-        req.reply(nil)
-        return
-      }
-
-      let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-      skreq[keys.request] = self.requests.relatedidents
-      skreq[keys.offset] = offset
-      skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
-
-      // FIXME: SourceKit should probably cache this for us.
-      if let compileCommand = self.commandsByFile[snapshot.document.uri] {
-        skreq[keys.compilerargs] = compileCommand.compilerArgs
-      }
-
-      let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
-        guard let self = self else { return }
-        guard let dict = result.success else {
-          req.reply(.failure(ResponseError(result.failure!)))
-          return
-        }
-
-        guard let results: SKDResponseArray = dict[self.keys.results] else {
-          return req.reply([])
-        }
-
-        var highlights: [DocumentHighlight] = []
-
-        results.forEach { _, value in
-          if let offset: Int = value[self.keys.offset],
-             let start: Position = snapshot.positionOf(utf8Offset: offset),
-             let length: Int = value[self.keys.length],
-             let end: Position = snapshot.positionOf(utf8Offset: offset + length)
-          {
-            highlights.append(DocumentHighlight(
-              range: start..<end,
-              kind: .read // unknown
-            ))
-          }
-          return true
-        }
-
-        req.reply(highlights)
-      }
-
-      // FIXME: cancellation
-      _ = handle
+    guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
+      log("failed to find snapshot for url \(req.params.textDocument.uri)")
+      req.reply(nil)
+      return
     }
+
+    guard let offset = snapshot.utf8Offset(of: req.params.position) else {
+      log("invalid position \(req.params.position)")
+      req.reply(nil)
+      return
+    }
+
+    let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+    skreq[keys.request] = self.requests.relatedidents
+    skreq[keys.offset] = offset
+    skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
+
+    // FIXME: SourceKit should probably cache this for us.
+    if let compileCommand = self.commandsByFile[snapshot.document.uri] {
+      skreq[keys.compilerargs] = compileCommand.compilerArgs
+    }
+
+    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
+      guard let self = self else { return }
+      guard let dict = result.success else {
+        req.reply(.failure(ResponseError(result.failure!)))
+        return
+      }
+
+      guard let results: SKDResponseArray = dict[self.keys.results] else {
+        return req.reply([])
+      }
+
+      var highlights: [DocumentHighlight] = []
+
+      results.forEach { _, value in
+        if let offset: Int = value[self.keys.offset],
+           let start: Position = snapshot.positionOf(utf8Offset: offset),
+           let length: Int = value[self.keys.length],
+           let end: Position = snapshot.positionOf(utf8Offset: offset + length)
+        {
+          highlights.append(DocumentHighlight(
+            range: start..<end,
+            kind: .read // unknown
+          ))
+        }
+        return true
+      }
+
+      req.reply(highlights)
+    }
+
+    // FIXME: cancellation
+    _ = handle
   }
 
   public func foldingRange(_ req: Request<FoldingRangeRequest>) {
     let foldingRangeCapabilities = capabilityRegistry.clientCapabilities.textDocument?.foldingRange
-    queue.async {
-      guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
-        log("failed to find snapshot for url \(req.params.textDocument.uri)")
-        req.reply(nil)
-        return
+    guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
+      log("failed to find snapshot for url \(req.params.textDocument.uri)")
+      req.reply(nil)
+      return
+    }
+
+    guard let sourceFile = snapshot.tokens.syntaxTree else {
+      log("no lexical structure available for url \(req.params.textDocument.uri)")
+      req.reply(nil)
+      return
+    }
+
+    final class FoldingRangeFinder: SyntaxVisitor {
+      private let snapshot: DocumentSnapshot
+      /// Some ranges might occur multiple times.
+      /// E.g. for `print("hi")`, `"hi"` is both the range of all call arguments and the range the first argument in the call.
+      /// It doesn't make sense to report them multiple times, so use a `Set` here.
+      private var ranges: Set<FoldingRange>
+      /// The client-imposed limit on the number of folding ranges it would
+      /// prefer to recieve from the LSP server. If the value is `nil`, there
+      /// is no preset limit.
+      private var rangeLimit: Int?
+      /// If `true`, the client is only capable of folding entire lines. If
+      /// `false` the client can handle folding ranges.
+      private var lineFoldingOnly: Bool
+
+      init(snapshot: DocumentSnapshot, rangeLimit: Int?, lineFoldingOnly: Bool) {
+        self.snapshot = snapshot
+        self.ranges = []
+        self.rangeLimit = rangeLimit
+        self.lineFoldingOnly = lineFoldingOnly
+        super.init(viewMode: .sourceAccurate)
       }
 
-      guard let sourceFile = snapshot.tokens.syntaxTree else {
-        log("no lexical structure available for url \(req.params.textDocument.uri)")
-        req.reply(nil)
-        return
+      override func visit(_ node: TokenSyntax) -> SyntaxVisitorContinueKind {
+        // Index comments, so we need to see at least '/*', or '//'.
+        if node.leadingTriviaLength.utf8Length > 2 {
+          self.addTrivia(from: node, node.leadingTrivia)
+        }
+
+        if node.trailingTriviaLength.utf8Length > 2 {
+          self.addTrivia(from: node, node.trailingTrivia)
+        }
+
+        return .visitChildren
       }
 
-      final class FoldingRangeFinder: SyntaxVisitor {
-        private let snapshot: DocumentSnapshot
-        /// Some ranges might occur multiple times.
-        /// E.g. for `print("hi")`, `"hi"` is both the range of all call arguments and the range the first argument in the call.
-        /// It doesn't make sense to report them multiple times, so use a `Set` here.
-        private var ranges: Set<FoldingRange>
-        /// The client-imposed limit on the number of folding ranges it would
-        /// prefer to recieve from the LSP server. If the value is `nil`, there
-        /// is no preset limit.
-        private var rangeLimit: Int?
-        /// If `true`, the client is only capable of folding entire lines. If
-        /// `false` the client can handle folding ranges.
-        private var lineFoldingOnly: Bool
+      private func addTrivia(from node: TokenSyntax, _ trivia: Trivia) {
+        let pieces = trivia.pieces
+        var start = node.position.utf8Offset
+        /// The index of the trivia piece we are currently inspecting.
+        var index = 0
 
-        init(snapshot: DocumentSnapshot, rangeLimit: Int?, lineFoldingOnly: Bool) {
-          self.snapshot = snapshot
-          self.ranges = []
-          self.rangeLimit = rangeLimit
-          self.lineFoldingOnly = lineFoldingOnly
-          super.init(viewMode: .sourceAccurate)
-        }
-
-        override func visit(_ node: TokenSyntax) -> SyntaxVisitorContinueKind {
-          // Index comments, so we need to see at least '/*', or '//'.
-          if node.leadingTriviaLength.utf8Length > 2 {
-            self.addTrivia(from: node, node.leadingTrivia)
+        while index < pieces.count {
+          let piece = pieces[index]
+          defer {
+            start += pieces[index].sourceLength.utf8Length
+            index += 1
           }
+          switch piece {
+          case .blockComment:
+            _ = self.addFoldingRange(
+              start: start,
+              end: start + piece.sourceLength.utf8Length,
+              kind: .comment
+            )
+          case .docBlockComment:
+            _ = self.addFoldingRange(
+              start: start,
+              end: start + piece.sourceLength.utf8Length,
+              kind: .comment
+            )
+          case .lineComment, .docLineComment:
+            let lineCommentBlockStart = start
 
-          if node.trailingTriviaLength.utf8Length > 2 {
-            self.addTrivia(from: node, node.trailingTrivia)
-          }
-
-          return .visitChildren
-        }
-
-        private func addTrivia(from node: TokenSyntax, _ trivia: Trivia) {
-          let pieces = trivia.pieces
-          var start = node.position.utf8Offset
-          /// The index of the trivia piece we are currently inspecting.
-          var index = 0
-
-          while index < pieces.count {
-            let piece = pieces[index]
-            defer {
-              start += pieces[index].sourceLength.utf8Length
-              index += 1
-            }
-            switch piece {
-            case .blockComment:
-              _ = self.addFoldingRange(
-                start: start,
-                end: start + piece.sourceLength.utf8Length,
-                kind: .comment
-              )
-            case .docBlockComment:
-              _ = self.addFoldingRange(
-                start: start,
-                end: start + piece.sourceLength.utf8Length,
-                kind: .comment
-              )
-            case .lineComment, .docLineComment:
-              let lineCommentBlockStart = start
-
-              // Keep scanning the upcoming trivia pieces to find the end of the
-              // block of line comments.
-              // As we find a new end of the block comment, we set `index` and
-              // `start` to `lookaheadIndex` and `lookaheadStart` resp. to
-              // commit the newly found end.
-              var lookaheadIndex = index
-              var lookaheadStart = start
-              var hasSeenNewline = false
-              LOOP: while lookaheadIndex < pieces.count {
-                let piece = pieces[lookaheadIndex]
-                defer {
-                  lookaheadIndex += 1
-                  lookaheadStart += piece.sourceLength.utf8Length
-                }
-                switch piece {
-                case .newlines(let count), .carriageReturns(let count), .carriageReturnLineFeeds(let count):
-                  if count > 1 || hasSeenNewline {
-                    // More than one newline is separating the two line comment blocks.
-                    // We have reached the end of this block of line comments.
-                    break LOOP
-                  }
-                  hasSeenNewline = true
-                case .spaces, .tabs:
-                  // We allow spaces and tabs because the comments might be indented
-                  continue
-                case .lineComment, .docLineComment:
-                  // We have found a new line comment in this block. Commit it.
-                  index = lookaheadIndex
-                  start = lookaheadStart
-                  hasSeenNewline = false
-                default:
-                  // We assume that any other trivia piece terminates the block
-                  // of line comments.
+            // Keep scanning the upcoming trivia pieces to find the end of the
+            // block of line comments.
+            // As we find a new end of the block comment, we set `index` and
+            // `start` to `lookaheadIndex` and `lookaheadStart` resp. to
+            // commit the newly found end.
+            var lookaheadIndex = index
+            var lookaheadStart = start
+            var hasSeenNewline = false
+            LOOP: while lookaheadIndex < pieces.count {
+              let piece = pieces[lookaheadIndex]
+              defer {
+                lookaheadIndex += 1
+                lookaheadStart += piece.sourceLength.utf8Length
+              }
+              switch piece {
+              case .newlines(let count), .carriageReturns(let count), .carriageReturnLineFeeds(let count):
+                if count > 1 || hasSeenNewline {
+                  // More than one newline is separating the two line comment blocks.
+                  // We have reached the end of this block of line comments.
                   break LOOP
                 }
+                hasSeenNewline = true
+              case .spaces, .tabs:
+                // We allow spaces and tabs because the comments might be indented
+                continue
+              case .lineComment, .docLineComment:
+                // We have found a new line comment in this block. Commit it.
+                index = lookaheadIndex
+                start = lookaheadStart
+                hasSeenNewline = false
+              default:
+                // We assume that any other trivia piece terminates the block
+                // of line comments.
+                break LOOP
               }
-              _ = self.addFoldingRange(
-                start: lineCommentBlockStart,
-                end: start + pieces[index].sourceLength.utf8Length,
-                kind: .comment
-              )
-            default:
-              break
             }
+            _ = self.addFoldingRange(
+              start: lineCommentBlockStart,
+              end: start + pieces[index].sourceLength.utf8Length,
+              kind: .comment
+            )
+          default:
+            break
           }
         }
+      }
 
-        override func visit(_ node: CodeBlockSyntax) -> SyntaxVisitorContinueKind {
-          return self.addFoldingRange(
-            start: node.statements.position.utf8Offset,
-            end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+      override func visit(_ node: CodeBlockSyntax) -> SyntaxVisitorContinueKind {
+        return self.addFoldingRange(
+          start: node.statements.position.utf8Offset,
+          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+      }
+
+      override func visit(_ node: MemberBlockSyntax) -> SyntaxVisitorContinueKind {
+        return self.addFoldingRange(
+          start: node.members.position.utf8Offset,
+          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+      }
+
+      override func visit(_ node: ClosureExprSyntax) -> SyntaxVisitorContinueKind {
+        return self.addFoldingRange(
+          start: node.statements.position.utf8Offset,
+          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+      }
+
+      override func visit(_ node: AccessorBlockSyntax) -> SyntaxVisitorContinueKind {
+        return self.addFoldingRange(
+          start: node.accessors.position.utf8Offset,
+          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+      }
+
+      override func visit(_ node: SwitchExprSyntax) -> SyntaxVisitorContinueKind {
+        return self.addFoldingRange(
+          start: node.cases.position.utf8Offset,
+          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+      }
+
+      override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
+        return self.addFoldingRange(
+          start: node.arguments.position.utf8Offset,
+          end: node.arguments.endPosition.utf8Offset)
+      }
+
+      override func visit(_ node: SubscriptCallExprSyntax) -> SyntaxVisitorContinueKind {
+        return self.addFoldingRange(
+          start: node.arguments.position.utf8Offset,
+          end: node.arguments.endPosition.utf8Offset)
+      }
+
+      __consuming func finalize() -> Set<FoldingRange> {
+        return self.ranges
+      }
+
+      private func addFoldingRange(start: Int, end: Int, kind: FoldingRangeKind? = nil) -> SyntaxVisitorContinueKind {
+        if let limit = self.rangeLimit, self.ranges.count >= limit {
+          return .skipChildren
         }
 
-        override func visit(_ node: MemberBlockSyntax) -> SyntaxVisitorContinueKind {
-          return self.addFoldingRange(
-            start: node.members.position.utf8Offset,
-            end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
-        }
-
-        override func visit(_ node: ClosureExprSyntax) -> SyntaxVisitorContinueKind {
-          return self.addFoldingRange(
-            start: node.statements.position.utf8Offset,
-            end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
-        }
-
-        override func visit(_ node: AccessorBlockSyntax) -> SyntaxVisitorContinueKind {
-          return self.addFoldingRange(
-            start: node.accessors.position.utf8Offset,
-            end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
-        }
-
-        override func visit(_ node: SwitchExprSyntax) -> SyntaxVisitorContinueKind {
-          return self.addFoldingRange(
-            start: node.cases.position.utf8Offset,
-            end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
-        }
-
-        override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
-          return self.addFoldingRange(
-            start: node.arguments.position.utf8Offset,
-            end: node.arguments.endPosition.utf8Offset)
-        }
-
-        override func visit(_ node: SubscriptCallExprSyntax) -> SyntaxVisitorContinueKind {
-          return self.addFoldingRange(
-            start: node.arguments.position.utf8Offset,
-            end: node.arguments.endPosition.utf8Offset)
-        }
-
-        __consuming func finalize() -> Set<FoldingRange> {
-          return self.ranges
-        }
-
-        private func addFoldingRange(start: Int, end: Int, kind: FoldingRangeKind? = nil) -> SyntaxVisitorContinueKind {
-          if let limit = self.rangeLimit, self.ranges.count >= limit {
-            return .skipChildren
-          }
-
-          guard let start: Position = snapshot.positionOf(utf8Offset: start),
-                let end: Position = snapshot.positionOf(utf8Offset: end) else {
-            log("folding range failed to retrieve position of \(snapshot.document.uri): \(start)-\(end)", level: .warning)
-            return .visitChildren
-          }
-          let range: FoldingRange
-          if lineFoldingOnly {
-            // Since the client cannot fold less than a single line, if the
-            // fold would span 1 line there's no point in reporting it.
-            guard end.line > start.line else {
-              return .visitChildren
-            }
-
-            // If the client only supports folding full lines, don't report
-            // the end of the range since there's nothing they could do with it.
-            range = FoldingRange(startLine: start.line,
-                                 startUTF16Index: nil,
-                                 endLine: end.line,
-                                 endUTF16Index: nil,
-                                 kind: kind)
-          } else {
-            range = FoldingRange(startLine: start.line,
-                                 startUTF16Index: start.utf16index,
-                                 endLine: end.line,
-                                 endUTF16Index: end.utf16index,
-                                 kind: kind)
-          }
-          ranges.insert(range)
+        guard let start: Position = snapshot.positionOf(utf8Offset: start),
+              let end: Position = snapshot.positionOf(utf8Offset: end) else {
+          log("folding range failed to retrieve position of \(snapshot.document.uri): \(start)-\(end)", level: .warning)
           return .visitChildren
         }
+        let range: FoldingRange
+        if lineFoldingOnly {
+          // Since the client cannot fold less than a single line, if the
+          // fold would span 1 line there's no point in reporting it.
+          guard end.line > start.line else {
+            return .visitChildren
+          }
+
+          // If the client only supports folding full lines, don't report
+          // the end of the range since there's nothing they could do with it.
+          range = FoldingRange(startLine: start.line,
+                               startUTF16Index: nil,
+                               endLine: end.line,
+                               endUTF16Index: nil,
+                               kind: kind)
+        } else {
+          range = FoldingRange(startLine: start.line,
+                               startUTF16Index: start.utf16index,
+                               endLine: end.line,
+                               endUTF16Index: end.utf16index,
+                               kind: kind)
+        }
+        ranges.insert(range)
+        return .visitChildren
       }
-
-      // If the limit is less than one, do nothing.
-      if let limit = foldingRangeCapabilities?.rangeLimit, limit <= 0 {
-        req.reply([])
-        return
-      }
-
-      let rangeFinder = FoldingRangeFinder(
-        snapshot: snapshot,
-        rangeLimit: foldingRangeCapabilities?.rangeLimit,
-        lineFoldingOnly: foldingRangeCapabilities?.lineFoldingOnly ?? false)
-      rangeFinder.walk(sourceFile)
-      let ranges = rangeFinder.finalize()
-
-      req.reply(ranges.sorted())
     }
+
+    // If the limit is less than one, do nothing.
+    if let limit = foldingRangeCapabilities?.rangeLimit, limit <= 0 {
+      req.reply([])
+      return
+    }
+
+    let rangeFinder = FoldingRangeFinder(
+      snapshot: snapshot,
+      rangeLimit: foldingRangeCapabilities?.rangeLimit,
+      lineFoldingOnly: foldingRangeCapabilities?.lineFoldingOnly ?? false)
+    rangeFinder.walk(sourceFile)
+    let ranges = rangeFinder.finalize()
+
+    req.reply(ranges.sorted())
   }
 
-  public func codeAction(_ req: Request<CodeActionRequest>) {
+  public func codeAction(_ req: Request<CodeActionRequest>) async {
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
       (retrieveRefactorCodeActions, .refactor),
       (retrieveQuickFixCodeActions, .quickFix)
@@ -1256,7 +1205,7 @@ extension SwiftLanguageServer {
     let wantedActionKinds = req.params.context.only
     let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
     let codeActionCapabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
-    retrieveCodeActions(req, providers: providers.map { $0.provider }) { result in
+    await retrieveCodeActions(req, providers: providers.map { $0.provider }) { result in
       switch result {
       case .success(let codeActions):
         let response = CodeActionRequestResponse(codeActions: codeActions,
@@ -1268,28 +1217,35 @@ extension SwiftLanguageServer {
     }
   }
 
-  func retrieveCodeActions(_ req: Request<CodeActionRequest>, providers: [CodeActionProvider], completion: @escaping CodeActionProviderCompletion) {
+  func retrieveCodeActions(_ req: Request<CodeActionRequest>, providers: [CodeActionProvider], completion: @escaping CodeActionProviderCompletion) async {
     guard providers.isEmpty == false else {
       completion(.success([]))
       return
     }
-    var codeActions = [CodeAction]()
-    let dispatchGroup = DispatchGroup()
-    (0..<providers.count).forEach { _ in dispatchGroup.enter() }
-    dispatchGroup.notify(queue: queue) {
-      completion(.success(codeActions))
-    }
-    for i in 0..<providers.count {
-      self.queue.async {
-        providers[i](req.params) { result in
-          defer { dispatchGroup.leave() }
-          guard case .success(let actions) = result else {
-            return
+    let codeActions = await withTaskGroup(of: [CodeAction].self) { taskGroup in
+      for provider in providers {
+        taskGroup.addTask {
+          // FIXME: (async) Migrate `CodeActionProvider` to be async so that we
+          // don't need to do the `withCheckedContinuation` dance here.
+          await withCheckedContinuation { continuation in
+            provider(req.params) {
+              switch $0 {
+              case .success(let actions):
+                continuation.resume(returning: actions)
+              case .failure:
+                continuation.resume(returning: [])
+              }
+            }
           }
-          codeActions += actions
         }
       }
+      var results: [CodeAction] = []
+      for await taskResults in taskGroup {
+        results += taskResults
+      }
+      return results
     }
+    completion(.success(codeActions))
   }
 
   func retrieveRefactorCodeActions(_ params: CodeActionRequest, completion: @escaping CodeActionProviderCompletion) {
@@ -1297,7 +1253,7 @@ extension SwiftLanguageServer {
       skreq[self.keys.retrieve_refactor_actions] = 1
     }
 
-    _cursorInfo(
+    cursorInfo(
       params.textDocument.uri,
       params.range,
       additionalParameters: additionalCursorInfoParameters)
@@ -1419,13 +1375,10 @@ extension SwiftLanguageServer {
     }
   }
 
-  // Must be called on self.queue
-  public func _documentDiagnostic(
+  public func documentDiagnostic(
     _ uri: DocumentURI,
     _ completion: @escaping (Result<[Diagnostic], ResponseError>) -> Void
   ) {
-    dispatchPrecondition(condition: .onQueue(queue))
-
     guard let snapshot = documentManager.latestSnapshot(uri) else {
       let msg = "failed to find snapshot for url \(uri)"
       log(msg)
@@ -1459,15 +1412,6 @@ extension SwiftLanguageServer {
 
     // FIXME: cancellation
     _ = handle
-  }
-  
-  public func documentDiagnostic(
-    _ uri: DocumentURI,
-    _ completion: @escaping (Result<[Diagnostic], ResponseError>) -> Void
-  ) {
-    self.queue.async {
-      self._documentDiagnostic(uri, completion)
-    }
   }
 
   public func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) {
@@ -1540,32 +1484,34 @@ extension SwiftLanguageServer {
 }
 
 extension SwiftLanguageServer: SKDNotificationHandler {
-  public func notification(_ notification: SKDResponse) {
+  // FIXME: (async) Make this method isolated once `SKDNotificationHandler` has ben asyncified
+  public nonisolated func notification(_ notification: SKDResponse) {
+    Task {
+      await notificationImpl(notification)
+    }
+  }
+
+  public func notificationImpl(_ notification: SKDResponse) {
     // Check if we need to update our `state` based on the contents of the notification.
-    // Execute the entire code block on `queue` because we need to switch to `queue` anyway to
-    // check `state` in the second `if`. Moving `queue.async` up ensures we only need to switch
-    // queues once and makes the code inside easier to read.
-    self.queue.async {
-      if notification.value?[self.keys.notification] == self.values.notification_sema_enabled {
-        self.state = .connected
-      }
+    if notification.value?[self.keys.notification] == self.values.notification_sema_enabled {
+      self.state = .connected
+    }
 
-      if self.state == .connectionInterrupted {
-        // If we get a notification while we are restoring the connection, it means that the server has restarted.
-        // We still need to wait for semantic functionality to come back up.
-        self.state = .semanticFunctionalityDisabled
+    if self.state == .connectionInterrupted {
+      // If we get a notification while we are restoring the connection, it means that the server has restarted.
+      // We still need to wait for semantic functionality to come back up.
+      self.state = .semanticFunctionalityDisabled
 
-        // Ask our parent to re-open all of our documents.
-        self.reopenDocuments(self)
-      }
+      // Ask our parent to re-open all of our documents.
+      self.reopenDocuments(self)
+    }
 
-      if case .connectionInterrupted = notification.error {
-        self.state = .connectionInterrupted
+    if case .connectionInterrupted = notification.error {
+      self.state = .connectionInterrupted
 
-        // We don't have any open documents anymore after sourcekitd crashed.
-        // Reset the document manager to reflect that.
-        self.documentManager = DocumentManager()
-      }
+      // We don't have any open documents anymore after sourcekitd crashed.
+      // Reset the document manager to reflect that.
+      self.documentManager = DocumentManager()
     }
     
     guard let dict = notification.value else {
@@ -1579,33 +1525,31 @@ extension SwiftLanguageServer: SKDNotificationHandler {
        kind == self.values.notification_documentupdate,
        let name: String = dict[self.keys.name] {
 
-      self.queue.async {
-        let uri: DocumentURI
+      let uri: DocumentURI
 
-        // Paths are expected to be absolute; on Windows, this means that the
-        // path is either drive letter prefixed (and thus `PathGetDriveNumberW`
-        // will provide the driver number OR it is a UNC path and `PathIsUNCW`
-        // will return `true`.  On Unix platforms, the path will start with `/`
-        // which takes care of both a regular absolute path and a POSIX
-        // alternate root path.
+      // Paths are expected to be absolute; on Windows, this means that the
+      // path is either drive letter prefixed (and thus `PathGetDriveNumberW`
+      // will provide the driver number OR it is a UNC path and `PathIsUNCW`
+      // will return `true`.  On Unix platforms, the path will start with `/`
+      // which takes care of both a regular absolute path and a POSIX
+      // alternate root path.
 
-        // TODO: this is not completely portable, e.g. MacOS 9 HFS paths are
-        // unhandled.
+      // TODO: this is not completely portable, e.g. MacOS 9 HFS paths are
+      // unhandled.
 #if os(Windows)
-        let isPath: Bool = name.withCString(encodedAs: UTF16.self) {
-          !PathIsURLW($0)
-        }
-#else
-        let isPath: Bool = name.starts(with: "/")
-#endif
-        if isPath {
-          // If sourcekitd returns us a path, translate it back into a URL
-          uri = DocumentURI(URL(fileURLWithPath: name))
-        } else {
-          uri = DocumentURI(string: name)
-        }
-        self.handleDocumentUpdate(uri: uri)
+      let isPath: Bool = name.withCString(encodedAs: UTF16.self) {
+        !PathIsURLW($0)
       }
+#else
+      let isPath: Bool = name.starts(with: "/")
+#endif
+      if isPath {
+        // If sourcekitd returns us a path, translate it back into a URL
+        uri = DocumentURI(URL(fileURLWithPath: name))
+      } else {
+        uri = DocumentURI(string: name)
+      }
+      self.handleDocumentUpdate(uri: uri)
     }
   }
 }
