@@ -49,13 +49,15 @@ enum ExpressionTypeInfoError: Error, Equatable {
 }
 
 extension SwiftLanguageServer {
-  /// Must be called on self.queue.
-  private func _expressionTypeInfos(
+  /// Provides typed expressions in a document.
+  ///
+  /// - Parameters:
+  ///   - url: Document URL in which to perform the request. Must be an open document.
+  ///   - completion: Completion block to asynchronously receive the ExpressionTypeInfos, or error.
+  func expressionTypeInfos(
     _ uri: DocumentURI,
     _ completion: @escaping (Swift.Result<[ExpressionTypeInfo], ExpressionTypeInfoError>) -> Void
   ) {
-    dispatchPrecondition(condition: .onQueue(queue))
-
     guard let snapshot = documentManager.latestSnapshot(uri) else {
       return completion(.failure(.unknownDocument(uri)))
     }
@@ -97,19 +99,5 @@ extension SwiftLanguageServer {
 
     // FIXME: cancellation
     _ = handle
-  }
-
-  /// Provides typed expressions in a document.
-  ///
-  /// - Parameters:
-  ///   - url: Document URL in which to perform the request. Must be an open document.
-  ///   - completion: Completion block to asynchronously receive the ExpressionTypeInfos, or error.
-  func expressionTypeInfos(
-    _ uri: DocumentURI,
-    _ completion: @escaping (Swift.Result<[ExpressionTypeInfo], ExpressionTypeInfoError>) -> Void
-  ) {
-    queue.async {
-      self._expressionTypeInfos(uri, completion)
-    }
   }
 }
