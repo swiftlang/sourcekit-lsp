@@ -27,10 +27,6 @@ import var TSCBasic.localFileSystem
 
 public typealias URL = Foundation.URL
 
-private struct WeakWorkspace {
-  weak var value: Workspace?
-}
-
 /// Exhaustive enumeration of all toolchain language servers known to SourceKit-LSP.
 enum LanguageServerType: Hashable {
   case clangd
@@ -232,7 +228,7 @@ public actor SourceKitServer {
         bestWorkspace = (workspace, fileHandlingCapability)
       }
     }
-    uriToWorkspaceCache[uri] = WeakWorkspace(value: bestWorkspace.workspace)
+    uriToWorkspaceCache[uri] = WeakWorkspace(bestWorkspace.workspace)
     return bestWorkspace.workspace
   }
 
@@ -403,7 +399,7 @@ public actor SourceKitServer {
 
     // Start a new service.
     return await orLog("failed to start language service", level: .error) {
-      let service = try SourceKitLSP.languageService(
+      let service = try await SourceKitLSP.languageService(
         for: toolchain,
         serverType,
         options: options,
@@ -2014,10 +2010,10 @@ func languageService(
   in workspace: Workspace,
   reopenDocuments: @escaping (ToolchainLanguageServer) -> Void,
   workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
-) throws -> ToolchainLanguageServer? {
+) async throws -> ToolchainLanguageServer? {
   let connectionToClient = LocalConnection()
 
-  let server = try languageServerType.serverType.init(
+  let server = try await languageServerType.serverType.init(
     client: connectionToClient,
     toolchain: toolchain,
     options: options,
