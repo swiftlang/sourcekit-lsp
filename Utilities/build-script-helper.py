@@ -210,7 +210,6 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
 
     cmd = [
         swift_exec, 'test',
-        '--parallel',
         '--disable-testable-imports',
         '--test-product', 'SourceKitLSPPackageTests'
     ] + swiftpm_args
