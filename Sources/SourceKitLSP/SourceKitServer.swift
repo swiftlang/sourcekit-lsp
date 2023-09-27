@@ -59,7 +59,7 @@ final actor WorkDoneProgressState {
   private enum State {
     /// No `WorkDoneProgress` has been created.
     case noProgress
-    /// We have sent the request to create a `WorkDoneProgress` but haven’t received a respose yet.
+    /// We have sent the request to create a `WorkDoneProgress` but haven’t received a response yet.
     case creating
     /// A `WorkDoneProgress` has been created.
     case created
@@ -481,10 +481,10 @@ public actor SourceKitServer {
     log("Using toolchain \(toolchain.displayName) (\(toolchain.identifier)) for \(uri)")
 
     if let concurrentlySetService = workspace.documentService[uri] {
-      // Since we await the consutrction of `service`, another call to this
+      // Since we await the construction of `service`, another call to this
       // function might have happened and raced us, setting
       // `workspace.documentServices[uri]`. If this is the case, return the
-      // exising value and discard the service that we just retrieved.
+      // existing value and discard the service that we just retrieved.
       return concurrentlySetService
     }
     workspace.documentService[uri] = service
@@ -708,7 +708,7 @@ extension SourceKitServer: BuildSystemDelegate {
 
         // Catch up on any queued notifications and requests.
         while !(documentToPendingQueue[uri]?.queue.isEmpty ?? true) {
-          // We need to run this loop until converence since new closures can
+          // We need to run this loop until convergence since new closures can
           // get added to `documentToPendingQueue` while we are awaiting the
           // result of a `task.operation()`.
           let pendingQueue = documentToPendingQueue[uri]?.queue ?? []
