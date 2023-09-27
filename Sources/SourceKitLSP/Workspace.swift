@@ -143,6 +143,15 @@ public final class Workspace {
   }
 }
 
+/// Wrapper around a workspace that isn't being retained.
+struct WeakWorkspace {
+  weak var value: Workspace?
+
+  init(_ value: Workspace? = nil) {
+    self.value = value
+  }
+}
+
 public struct IndexOptions {
 
   /// Override the index-store-path provided by the build system.
