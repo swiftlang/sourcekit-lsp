@@ -94,7 +94,7 @@ final class CrashRecoveryTests: XCTestCase {
     let sourcekitdRestarted = expectation(description: "sourcekitd has been restarted (syntactic only)")
     let semanticFunctionalityRestored = expectation(description: "sourcekitd has restored semantic language functionality")
 
-    sourcekitdServer.addStateChangeHandler { (oldState, newState) in
+    await sourcekitdServer.addStateChangeHandler { (oldState, newState) in
       switch newState {
       case .connectionInterrupted:
         sourcekitdCrashed.fulfill()
@@ -105,7 +105,7 @@ final class CrashRecoveryTests: XCTestCase {
       }
     }
 
-    sourcekitdServer._crash()
+    await sourcekitdServer._crash()
 
     try await fulfillmentOfOrThrow([sourcekitdCrashed], timeout: 5)
     try await fulfillmentOfOrThrow([sourcekitdRestarted], timeout: 30)

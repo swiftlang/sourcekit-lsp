@@ -71,8 +71,16 @@ extension CursorInfoError: CustomStringConvertible {
 
 extension SwiftLanguageServer {
 
-  /// Must be called on self.queue.
-  func _cursorInfo(
+  /// Provides detailed information about a symbol under the cursor, if any.
+  ///
+  /// Wraps the information returned by sourcekitd's `cursor_info` request, such as symbol name,
+  /// USR, and declaration location. This request does minimal processing of the result.
+  ///
+  /// - Parameters:
+  ///   - url: Document URL in which to perform the request. Must be an open document.
+  ///   - range: The position range within the document to lookup the symbol at.
+  ///   - completion: Completion block to asynchronously receive the CursorInfo, or error.
+  func cursorInfo(
     _ uri: DocumentURI,
     _ range: Range<Position>,
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil,
@@ -146,26 +154,5 @@ extension SwiftLanguageServer {
 
     // FIXME: cancellation
     _ = handle
-  }
-
-  /// Provides detailed information about a symbol under the cursor, if any.
-  ///
-  /// Wraps the information returned by sourcekitd's `cursor_info` request, such as symbol name,
-  /// USR, and declaration location. This request does minimal processing of the result.
-  ///
-  /// - Parameters:
-  ///   - url: Document URL in which to perform the request. Must be an open document.
-  ///   - range: The position range within the document to lookup the symbol at.
-  ///   - completion: Completion block to asynchronously receive the CursorInfo, or error.
-  func cursorInfo(
-    _ uri: DocumentURI,
-    _ range: Range<Position>,
-    additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil,
-    _ completion: @escaping (Swift.Result<CursorInfo?, CursorInfoError>) -> Void)
-  {
-    self.queue.async {
-      self._cursorInfo(uri, range,
-                       additionalParameters: appendAdditionalParameters, completion)
-    }
   }
 }
