@@ -24,8 +24,23 @@ import LSPLogging
 public final class JSONRPCConnection {
 
   var receiveHandler: MessageHandler? = nil
+  
+  /// The queue on which we read the data
   let queue: DispatchQueue = DispatchQueue(label: "jsonrpc-queue", qos: .userInitiated)
+
+  /// The queue on which we send data.
   let sendQueue: DispatchQueue = DispatchQueue(label: "jsonrpc-send-queue", qos: .userInitiated)
+
+  /// The queue on which all messages (notifications, requests, responses) are
+  /// handled.
+  ///
+  /// The queue is blocked until the message has been sufficiently handled to
+  /// avoid out-of-order handling of messages. For sourcekitd, this means that
+  /// a request has been sent to sourcekitd and for clangd, this means that we
+  /// have forwarded the request to clangd.
+  ///
+  /// The actual semantic handling of the message happens off this queue.
+  let messageHandlingQueue: AsyncQueue = AsyncQueue()
   let receiveIO: DispatchIO
   let sendIO: DispatchIO
   let messageRegistry: MessageRegistry
@@ -55,7 +70,9 @@ public final class JSONRPCConnection {
   /// The set of currently outstanding outgoing requests along with information about how to decode and handle their responses.
   var outstandingRequests: [RequestID: OutstandingRequest] = [:]
 
-  var closeHandler: (() -> Void)! = nil
+  /// A handler that will be called asyncronously when the connection is being
+  /// closed.
+  var closeHandler: (() async -> Void)! = nil
 
   public init(
     protocol messageRegistry: MessageRegistry,
@@ -105,8 +122,10 @@ public final class JSONRPCConnection {
 
     ioGroup.notify(queue: queue) { [weak self] in
       guard let self = self else { return }
-      self.closeHandler()
-      self.receiveHandler = nil // break retain cycle
+      Task {
+        await self.closeHandler()
+        self.receiveHandler = nil // break retain cycle
+      }
     }
 
     // We cannot assume the client will send us bytes in packets of any particular size, so set the lower limit to 1.
@@ -124,7 +143,7 @@ public final class JSONRPCConnection {
   /// Start processing `inFD` and send messages to `receiveHandler`.
   ///
   /// - parameter receiveHandler: The message handler to invoke for requests received on the `inFD`.
-  public func start(receiveHandler: MessageHandler, closeHandler: @escaping () -> Void = {}) {
+  public func start(receiveHandler: MessageHandler, closeHandler: @escaping () async -> Void = {}) {
     precondition(state == .created)
     state = .running
     self.receiveHandler = receiveHandler
@@ -263,11 +282,15 @@ public final class JSONRPCConnection {
   func handle(_ message: JSONRPCMessage) {
     switch message {
     case .notification(let notification):
-      notification._handle(receiveHandler!, connection: self)
+      messageHandlingQueue.async {
+        await notification._handle(self.receiveHandler!, connection: self)
+      }
     case .request(let request, id: let id):
       let semaphore: DispatchSemaphore? = syncRequests ? .init(value: 0) : nil
-      request._handle(receiveHandler!, id: id, connection: self) { (response, id) in
-        self.sendReply(response, id: id)
+      messageHandlingQueue.async {
+        await request._handle(self.receiveHandler!, id: id, connection: self) { (response, id) in
+          self.sendReply(response, id: id)
+        }
         semaphore?.signal()
       }
       semaphore?.wait()

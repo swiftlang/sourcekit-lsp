@@ -191,8 +191,8 @@ final class LocalClangTests: XCTestCase {
     XCTAssertEqual(syms.first?.children?.first?.name, "foo")
   }
 
-  func testCodeAction() throws {
-    guard let ws = try staticSourceKitTibsWorkspace(name: "CodeActionCxx") else { return }
+  func testCodeAction() async throws {
+    guard let ws = try await staticSourceKitTibsWorkspace(name: "CodeActionCxx") else { return }
     if ToolchainRegistry.shared.default?.clangd == nil { return }
 
     let loc = ws.testLoc("SwitchColor")
@@ -212,10 +212,7 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .cpp)
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    if result != .completed {
-      fatalError("error \(result) waiting for diagnostics notification")
-    }
+    try await fulfillmentOfOrThrow([expectation])
 
     let codeAction = CodeActionRequest(
       range: Position(loc)..<Position(endLoc),
@@ -247,14 +244,11 @@ final class LocalClangTests: XCTestCase {
       command: command.command, arguments: command.arguments)
     _ = try ws.sk.sendSync(executeCommand)
 
-    let editResult = XCTWaiter.wait(for: [applyEdit], timeout: defaultTimeout)
-    if editResult != .completed {
-      fatalError("error \(editResult) waiting for applyEdit request")
-    }
+    try await fulfillmentOfOrThrow([applyEdit])
   }
 
-  func testClangStdHeaderCanary() throws {
-    guard let ws = try staticSourceKitTibsWorkspace(name: "ClangStdHeaderCanary") else { return }
+  func testClangStdHeaderCanary() async throws {
+    guard let ws = try await staticSourceKitTibsWorkspace(name: "ClangStdHeaderCanary") else { return }
     if ToolchainRegistry.shared.default?.clangd == nil { return }
 
     let loc = ws.testLoc("unused_b")
@@ -273,14 +267,11 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .cpp)
 
-    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    if result != .completed {
-      fatalError("error \(result) waiting for diagnostics notification")
-    }
+    try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testClangModules() throws {
-    guard let ws = try staticSourceKitTibsWorkspace(name: "ClangModules") else { return }
+  func testClangModules() async throws {
+    guard let ws = try await staticSourceKitTibsWorkspace(name: "ClangModules") else { return }
     if ToolchainRegistry.shared.default?.clangd == nil { return }
 
     let loc = ws.testLoc("main_file")
@@ -294,14 +285,13 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .objective_c)
 
-    withExtendedLifetime(ws) {
-      waitForExpectations(timeout: defaultTimeout)
-    }
+    try await fulfillmentOfOrThrow([expectation])
+    withExtendedLifetime(ws) {}
   }
 
-  func testSemanticHighlighting() throws {
+  func testSemanticHighlighting() async throws {
     guard haveClangd else { return }
-    guard let ws = try staticSourceKitTibsWorkspace(name: "BasicCXX") else {
+    guard let ws = try await staticSourceKitTibsWorkspace(name: "BasicCXX") else {
       return
     }
     let mainLoc = ws.testLoc("Object:include:main")
@@ -313,7 +303,7 @@ final class LocalClangTests: XCTestCase {
     }
 
     try ws.openDocument(mainLoc.url, language: .c)
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([diagnostics])
 
     let request = DocumentSemanticTokensRequest(textDocument: mainLoc.docIdentifier)
     do {
@@ -328,8 +318,8 @@ final class LocalClangTests: XCTestCase {
     }
   }
 
-  func testDocumentDependenciesUpdated() throws {
-    let ws = try mutableSourceKitTibsTestWorkspace(name: "BasicCXX")!
+  func testDocumentDependenciesUpdated() async throws {
+    let ws = try await mutableSourceKitTibsTestWorkspace(name: "BasicCXX")!
 
     let cFileLoc = ws.testLoc("Object:ref:main")
 
@@ -342,7 +332,7 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(cFileLoc.url, language: .cpp)
 
-    self.wait(for: [documentOpened], timeout: 5)
+    try await fulfillmentOfOrThrow([documentOpened], timeout: 5)
 
     // We rename Object to MyObject in the header.
     _ = try ws.sources.edit { builder in
@@ -360,10 +350,10 @@ final class LocalClangTests: XCTestCase {
       updatedNotificationsReceived.fulfill()
     })
 
-    let clangdServer = ws.testServer.server!._languageService(for: cFileLoc.docUri, .cpp, in: ws.testServer.server!.workspaceForDocumentOnQueue(uri: cFileLoc.docUri)!)!
+    let clangdServer = await ws.testServer.server!._languageService(for: cFileLoc.docUri, .cpp, in: ws.testServer.server!.workspaceForDocument(uri: cFileLoc.docUri)!)!
 
     clangdServer.documentDependenciesUpdated(cFileLoc.docUri)
 
-    self.wait(for: [updatedNotificationsReceived], timeout: 5)
+    try await fulfillmentOfOrThrow([updatedNotificationsReceived], timeout: 5)
   }
 }

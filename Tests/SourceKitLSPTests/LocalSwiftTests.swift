@@ -29,10 +29,6 @@ final class LocalSwiftTests: XCTestCase {
   /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
 
-  var documentManager: DocumentManager! {
-    connection.server!._documentManager
-  }
-
   override func setUp() {
     connection = TestSourceKitServer()
     sk = connection.client
@@ -58,11 +54,13 @@ final class LocalSwiftTests: XCTestCase {
     connection = nil
   }
 
-  func testEditing() {
+  func testEditing() async {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
     sk.allowUnexpectedNotification = false
+
+    let documentManager = await connection.server!._documentManager
 
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uri,
@@ -75,7 +73,7 @@ final class LocalSwiftTests: XCTestCase {
       log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", self.documentManager.latestSnapshot(uri)!.text)
+      XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 12)
@@ -93,7 +91,7 @@ final class LocalSwiftTests: XCTestCase {
       // 0 = semantic update finished already
       XCTAssertEqual(note.params.version, 13)
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func foo() {}\n", self.documentManager.latestSnapshot(uri)!.text)
+      XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 1 - semantic")
       XCTAssertEqual(note.params.version, 13)
@@ -111,7 +109,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         bar()
-        """, self.documentManager.latestSnapshot(uri)!.text)
+        """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 2 - semantic")
       XCTAssertEqual(note.params.version, 14)
@@ -132,7 +130,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         foo()
-        """, self.documentManager.latestSnapshot(uri)!.text)
+        """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 3 - semantic")
       XCTAssertEqual(note.params.version, 14)
@@ -150,7 +148,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         fooTypo()
-        """, self.documentManager.latestSnapshot(uri)!.text)
+        """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 4 - semantic")
       XCTAssertEqual(note.params.version, 15)
@@ -173,7 +171,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func bar() {}
         foo()
-        """, self.documentManager.latestSnapshot(uri)!.text)
+        """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 5 - semantic")
       XCTAssertEqual(note.params.version, 16)
@@ -184,10 +182,12 @@ final class LocalSwiftTests: XCTestCase {
     })
   }
 
-  func testEditingNonURL() {
+  func testEditingNonURL() async {
     let uri = DocumentURI(string: "urn:uuid:A1B08909-E791-469E-BF0F-F5790977E051")
 
     sk.allowUnexpectedNotification = false
+
+    let documentManager = await connection.server!._documentManager
 
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: uri,
@@ -200,7 +200,7 @@ final class LocalSwiftTests: XCTestCase {
       log("Received diagnostics for open - syntactic")
       XCTAssertEqual(note.params.version, 12)
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", self.documentManager.latestSnapshot(uri)!.text)
+      XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for open - semantic")
       XCTAssertEqual(note.params.version, 12)
@@ -218,7 +218,7 @@ final class LocalSwiftTests: XCTestCase {
       // 1 = remaining semantic error
       // 0 = semantic update finished already
       XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func foo() {}\n", self.documentManager.latestSnapshot(uri)!.text)
+      XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 1 - semantic")
       XCTAssertEqual(note.params.version, 13)
@@ -236,7 +236,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         bar()
-        """, self.documentManager.latestSnapshot(uri)!.text)
+        """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 2 - semantic")
       XCTAssertEqual(note.params.version, 14)
@@ -257,7 +257,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         foo()
-        """, self.documentManager.latestSnapshot(uri)!.text)
+        """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 3 - semantic")
       XCTAssertEqual(note.params.version, 14)
@@ -275,7 +275,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func foo() {}
         fooTypo()
-        """, self.documentManager.latestSnapshot(uri)!.text)
+        """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 4 - semantic")
       XCTAssertEqual(note.params.version, 15)
@@ -298,7 +298,7 @@ final class LocalSwiftTests: XCTestCase {
         XCTAssertEqual("""
         func bar() {}
         foo()
-        """, self.documentManager.latestSnapshot(uri)!.text)
+        """, documentManager.latestSnapshot(uri)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       log("Received diagnostics for edit 5 - semantic")
       XCTAssertEqual(note.params.version, 16)
@@ -1478,12 +1478,12 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertNil(data)
   }
   
-  func testIncrementalParse() throws {
+  func testIncrementalParse() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
     var reusedNodes: [Syntax] = []
-    let swiftLanguageServer = connection.server!._languageService(for: uri, .swift, in: connection.server!.workspaceForDocumentOnQueue(uri: uri)!) as! SwiftLanguageServer
+    let swiftLanguageServer = await connection.server!._languageService(for: uri, .swift, in: connection.server!.workspaceForDocument(uri: uri)!) as! SwiftLanguageServer
     swiftLanguageServer.reusedNodeCallback = { reusedNodes.append($0) }
     sk.allowUnexpectedNotification = false
     

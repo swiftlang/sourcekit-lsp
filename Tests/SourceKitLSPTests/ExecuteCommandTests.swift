@@ -42,8 +42,8 @@ final class ExecuteCommandTests: XCTestCase {
       workspaceFolders: nil))
   }
 
-  func testLocationSemanticRefactoring() throws {
-    guard let ws = try staticSourceKitTibsWorkspace(name: "SemanticRefactor") else { return }
+  func testLocationSemanticRefactoring() async throws {
+    guard let ws = try await staticSourceKitTibsWorkspace(name: "SemanticRefactor") else { return }
     let loc = ws.testLoc("sr:string")
     try ws.openDocument(loc.url, language: .swift)
 
@@ -82,8 +82,8 @@ final class ExecuteCommandTests: XCTestCase {
     ]))
   }
 
-  func testRangeSemanticRefactoring() throws {
-    guard let ws = try staticSourceKitTibsWorkspace(name: "SemanticRefactor") else { return }
+  func testRangeSemanticRefactoring() async throws {
+    guard let ws = try await staticSourceKitTibsWorkspace(name: "SemanticRefactor") else { return }
     let loc = ws.testLoc("sr:foo")
     try ws.openDocument(loc.url, language: .swift)
 

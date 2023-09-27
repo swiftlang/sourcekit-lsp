@@ -16,8 +16,8 @@ import TSCBasic
 import XCTest
 
 final class ImplementationTests: XCTestCase {
-  func testImplementation() throws {
-    let ws = try staticSourceKitTibsWorkspace(name: "Implementation")!
+  func testImplementation() async throws {
+    let ws = try await staticSourceKitTibsWorkspace(name: "Implementation")!
     try ws.buildAndIndex()
 
     try ws.openDocument(ws.testLoc("a.swift").url, language: .swift)

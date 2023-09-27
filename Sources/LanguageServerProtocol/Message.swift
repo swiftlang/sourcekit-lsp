@@ -28,7 +28,7 @@ public protocol _RequestType: MessageType {
     id: RequestID,
     connection: Connection,
     reply: @escaping (LSPResult<ResponseType>, RequestID) -> Void
-  )
+  ) async
 }
 
 /// A request, which must have a unique `method` name as well as an associated response type.
@@ -54,16 +54,16 @@ extension RequestType {
     id: RequestID,
     connection: Connection,
     reply: @escaping (LSPResult<ResponseType>, RequestID) -> Void
-  ) {
-    handler.handle(self, id: id, from: ObjectIdentifier(connection)) { response in
+  ) async {
+    await handler.handle(self, id: id, from: ObjectIdentifier(connection)) { response in
       reply(response.map({ $0 as ResponseType }), id)
     }
   }
 }
 
 extension NotificationType {
-  public func _handle(_ handler: MessageHandler, connection: Connection) {
-    handler.handle(self, from: ObjectIdentifier(connection))
+  public func _handle(_ handler: MessageHandler, connection: Connection) async {
+    await handler.handle(self, from: ObjectIdentifier(connection))
   }
 }
 
