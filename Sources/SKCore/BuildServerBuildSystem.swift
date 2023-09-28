@@ -65,9 +65,6 @@ public final class BuildServerBuildSystem: MessageHandler {
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate?
 
-  /// The build settings that have been received from the build server.
-  private var buildSettings: [DocumentURI: FileBuildSettings] = [:]
-
   public init(projectRoot: AbsolutePath, buildFolder: AbsolutePath?, fileSystem: FileSystem = localFileSystem) throws {
     let configPath = projectRoot.appending(component: "buildServer.json")
     let config = try loadBuildServerConfig(path: configPath, fileSystem: fileSystem)
@@ -198,18 +195,7 @@ public final class BuildServerBuildSystem: MessageHandler {
     let result = notification.params.updatedOptions
     let settings = FileBuildSettings(
         compilerArguments: result.options, workingDirectory: result.workingDirectory)
-    self.buildSettingsChanged(for: notification.params.uri, settings: settings)
-  }
-
-  /// Record the new build settings for the given document and inform the delegate
-  /// about the changed build settings.
-  private func buildSettingsChanged(for document: DocumentURI, settings: FileBuildSettings?) {
-    buildSettings[document] = settings
-    if let settings {
-      self.delegate?.fileBuildSettingsChanged([document: .modified(settings)])
-    } else {
-      self.delegate?.fileBuildSettingsChanged([document: .removedOrUnavailable])
-    }
+    self.delegate?.fileBuildSettingsChanged([notification.params.uri: .modified(settings)])
   }
 }
 
@@ -222,14 +208,19 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
   return nil
 }
 
-extension BuildServerBuildSystem: BuildSystem {
-  /// The build settings for the given file.
-  ///
-  /// Returns `nil` if no build settings have been received from the build
-  /// server yet or if no build settings are available for this file.
-  public func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
-    return buildSettings[document]
+extension BuildServerBuildSystem {
+  /// Exposed for *testing*.
+  public func _settings(for uri: DocumentURI) -> FileBuildSettings? {
+    if let response = try? self.buildServer?.sendSync(SourceKitOptions(uri: uri)) {
+      return FileBuildSettings(
+        compilerArguments: response.options,
+        workingDirectory: response.workingDirectory)
+    }
+    return nil
   }
+}
+
+extension BuildServerBuildSystem: BuildSystem {
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     let request = RegisterForChanges(uri: uri, action: .register)
@@ -239,7 +230,7 @@ extension BuildServerBuildSystem: BuildSystem {
 
         // BuildServer registration failed, so tell our delegate that no build
         // settings are available.
-        self.buildSettingsChanged(for: uri, settings: nil)
+        self.delegate?.fileBuildSettingsChanged([uri: .removedOrUnavailable])
       }
     })
   }
