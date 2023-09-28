@@ -17,7 +17,8 @@ import Foundation
 
 extension SwiftLanguageServer {
 
-  public func completion(_ req: Request<CompletionRequest>) {
+  /// Must be called on `queue`.
+  func _completion(_ req: Request<CompletionRequest>) {
     guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.uri) else {
       log("failed to find snapshot for url \(req.params.textDocument.uri)")
       req.reply(CompletionList(isIncomplete: true, items: []))
@@ -119,7 +120,7 @@ extension SwiftLanguageServer {
     _ = handle
   }
 
-  nonisolated func completionsFromSKDResponse(
+  func completionsFromSKDResponse(
     _ completions: SKDResponseArray,
     in snapshot: DocumentSnapshot,
     completionPos: Position,
@@ -219,7 +220,7 @@ extension SwiftLanguageServer {
     return Position(line: pos.line, utf16index: adjustedOffset)
   }
 
-  private nonisolated func computeCompletionTextEdit(completionPos: Position, requestPosition: Position, utf8CodeUnitsToErase: Int, newText: String, snapshot: DocumentSnapshot) -> TextEdit {
+  private func computeCompletionTextEdit(completionPos: Position, requestPosition: Position, utf8CodeUnitsToErase: Int, newText: String, snapshot: DocumentSnapshot) -> TextEdit {
     let textEditRangeStart: Position
 
     // Compute the TextEdit
