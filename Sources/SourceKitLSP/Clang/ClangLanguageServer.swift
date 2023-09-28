@@ -40,11 +40,10 @@ extension NSLock {
 /// ``ClangLangaugeServerShim`` conforms to ``MessageHandler`` to receive
 /// requests and notifications **from** clangd, not from the editor, and it will
 /// forward these requests and notifications to the editor.
-final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
-  /// The server's request queue.
-  ///
-  /// All incoming requests start on this queue, but should reply or move to another queue as soon as possible to avoid blocking.
-  public let queue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
+actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
+  // FIXME: (async) Remove once `Connection.send` has been asyncified.
+  /// The queue on which clangd calls us back.
+  public let clangdCommunicationQueue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
 
   /// The connection to the client. In the case of `ClangLanguageServerShim`,
   /// the client is always a ``SourceKitServer``, which will forward the request
@@ -65,18 +64,10 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   
   let clangdOptions: [String]
 
-  /// Resolved build settings by file. Must be accessed with the `lock`.
-  private var buildSettingsByFile: [DocumentURI: ClangBuildSettings] = [:]
-
-  /// Lock protecting `buildSettingsByFile`.
-  private var lock: NSLock = NSLock()
-
   /// The current state of the `clangd` language server.
   /// Changing the property automatically notified the state change handlers.
   private var state: LanguageServerState {
     didSet {
-      // `state` must only be set from `queue`.
-      dispatchPrecondition(condition: .onQueue(queue))
       for handler in stateChangeHandlers {
         handler(oldValue, state)
       }
@@ -98,11 +89,16 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   private var initializeRequest: InitializeRequest?
 
   /// The workspace this `ClangLanguageServer` was opened for.
+  ///
   /// `clangd` doesn't have support for multi-root workspaces, so we need to start a separate `clangd` instance for every workspace root.
-  private weak var workspace: Workspace?
+  private let workspace: WeakWorkspace
 
   /// A callback with which `ClangLanguageServer` can request its owner to reopen all documents in case it has crashed.
-  private let reopenDocuments: (ToolchainLanguageServer) -> Void
+  private let reopenDocuments: (ToolchainLanguageServer) async -> Void
+
+  /// The documents that have been opened and which language they have been
+  /// opened with.
+  private var openDocuments: [DocumentURI: Language] = [:]
 
   /// While `clangd` is running, its PID.
 #if os(Windows)
@@ -118,36 +114,62 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     toolchain: Toolchain,
     options: SourceKitServer.Options,
     workspace: Workspace,
-    reopenDocuments: @escaping (ToolchainLanguageServer) -> Void
-  ) throws {
+    reopenDocuments: @escaping (ToolchainLanguageServer) async -> Void,
+    workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
+  ) async throws {
     guard let clangdPath = toolchain.clangd else {
       return nil
     }
     self.clangPath = toolchain.clang
     self.clangdPath = clangdPath
     self.clangdOptions = options.clangdOptions
-    self.workspace = workspace
+    self.workspace = WeakWorkspace(workspace)
     self.reopenDocuments = reopenDocuments
     self.state = .connected
     self.client = client
     try startClangdProcesss()
   }
 
-  func canHandle(workspace: Workspace) -> Bool {
+  private func buildSettings(for document: DocumentURI) async -> ClangBuildSettings? {
+    guard let workspace = workspace.value, let language = openDocuments[document] else {
+      return nil
+    }
+    guard let settings = await workspace.buildSystemManager.buildSettings(for: document, language: language) else {
+      return nil
+    }
+    return ClangBuildSettings(settings.buildSettings, clangPath: clangdPath, isFallback: settings.isFallback)
+  }
+
+  nonisolated func canHandle(workspace: Workspace) -> Bool {
     // We launch different clangd instance for each workspace because clangd doesn't have multi-root workspace support.
-    return workspace === self.workspace
+    return workspace === self.workspace.value
   }
 
   func addStateChangeHandler(handler: @escaping (LanguageServerState, LanguageServerState) -> Void) {
-    queue.async {
-      self.stateChangeHandlers.append(handler)
+    self.stateChangeHandlers.append(handler)
+  }
+
+  /// Called after the `clangd` process exits.
+  ///
+  /// Restarts `clangd` if it has crashed.
+  ///
+  /// - Parameter terminationStatus: The exit code of `clangd`.
+  private func handleClangdTermination(terminationStatus: Int32) {
+#if os(Windows)
+    self.hClangd = INVALID_HANDLE_VALUE
+#else
+    self.clangdPid = nil
+#endif
+    if terminationStatus != 0 {
+      self.state = .connectionInterrupted
+      self.restartClangd()
     }
   }
 
   /// Start the `clangd` process, either on creation of the `ClangLanguageServerShim` or after `clangd` has crashed.
   private func startClangdProcesss() throws {
-    // Since we are starting a new clangd process, reset the build settings we have transmitted to clangd
-    buildSettingsByFile = [:]
+    // Since we are starting a new clangd process, reset the list of open document
+    openDocuments = [:]
 
     let usToClangd: Pipe = Pipe()
     let clangdToUs: Pipe = Pipe()
@@ -179,16 +201,8 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
       log("clangd exited: \(process.terminationReason) \(process.terminationStatus)")
       connectionToClangd.close()
       guard let self = self else { return }
-      self.queue.async {
-#if os(Windows)
-        self.hClangd = INVALID_HANDLE_VALUE
-#else
-        self.clangdPid = nil
-#endif
-        if process.terminationStatus != 0 {
-          self.state = .connectionInterrupted
-          self.restartClangd()
-        }
+      Task {
+        await self.handleClangdTermination(terminationStatus: process.terminationStatus)
       }
     }
     try process.run()
@@ -202,57 +216,52 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// Restart `clangd` after it has crashed.
   /// Delays restarting of `clangd` in case there is a crash loop.
   private func restartClangd() {
-    queue.async {
-      precondition(self.state == .connectionInterrupted)
-      
-      precondition(self.clangRestartScheduled == false)
-      self.clangRestartScheduled = true
-      
-      guard let initializeRequest = self.initializeRequest else {
-        log("clangd crashed before it was sent an InitializeRequest.", level: .error)
-        return
-      }
-      
-      let restartDelay: Int
-      if let lastClangdRestart = self.lastClangdRestart, Date().timeIntervalSince(lastClangdRestart) < 30 {
-        log("clangd has already been restarted in the last 30 seconds. Delaying another restart by 10 seconds.", level: .info)
-        restartDelay = 10
-      } else {
-        restartDelay = 0
-      }
-      self.lastClangdRestart = Date()
-      
-      DispatchQueue.global(qos: .default).asyncAfter(deadline: .now() + .seconds(restartDelay)) {
-        self.clangRestartScheduled = false
-        do {
-          try self.startClangdProcesss()
-          // FIXME: We assume that clangd will return the same capabilites after restarting.
-          // Theoretically they could have changed and we would need to inform SourceKitServer about them.
-          // But since SourceKitServer more or less ignores them right now anyway, this should be fine for now.
-          _ = try self.initializeSync(initializeRequest)
-          self.clientInitialized(InitializedNotification())
-          self.reopenDocuments(self)
-          self.queue.async {
-            self.state = .connected
-          }
-        } catch {
-          log("Failed to restart clangd after a crash.", level: .error)
-        }
-      }
+    precondition(self.state == .connectionInterrupted)
+
+    precondition(self.clangRestartScheduled == false)
+    self.clangRestartScheduled = true
+
+    guard let initializeRequest = self.initializeRequest else {
+      log("clangd crashed before it was sent an InitializeRequest.", level: .error)
+      return
     }
+
+    let restartDelay: Int
+    if let lastClangdRestart = self.lastClangdRestart, Date().timeIntervalSince(lastClangdRestart) < 30 {
+      log("clangd has already been restarted in the last 30 seconds. Delaying another restart by 10 seconds.", level: .info)
+      restartDelay = 10
+    } else {
+      restartDelay = 0
+    }
+    self.lastClangdRestart = Date()
+
+    Task {
+      try await Task.sleep(nanoseconds: UInt64(restartDelay) * 1_000_000_000)
+      self.clangRestartScheduled = false
+      do {
+        try self.startClangdProcesss()
+        // FIXME: We assume that clangd will return the same capabilites after restarting.
+        // Theoretically they could have changed and we would need to inform SourceKitServer about them.
+        // But since SourceKitServer more or less ignores them right now anyway, this should be fine for now.
+        _ = try self.initializeSync(initializeRequest)
+        self.clientInitialized(InitializedNotification())
+        await self.reopenDocuments(self)
+        self.state = .connected
+      } catch {
+        log("Failed to restart clangd after a crash.", level: .error)
+      }
+      }
   }
 
   /// Handler for notifications received **from** clangd, ie. **clangd** is
   /// sending a notification that's intended for the editor.
   ///
   /// We should either handle it ourselves or forward it to the client.
-  func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
-    queue.async {
-      if let publishDiags = params as? PublishDiagnosticsNotification {
-        self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
-      } else if clientID == ObjectIdentifier(self.clangd) {
-        self.client.send(params)
-      }
+  func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) async {
+    if let publishDiags = params as? PublishDiagnosticsNotification {
+      await self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
+    } else if clientID == ObjectIdentifier(self.clangd) {
+      self.client.send(params)
     }
   }
 
@@ -266,16 +275,14 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
-    queue.async {
-      let request = Request(params, id: id, clientID: clientID, cancellation: CancellationToken(), reply: { result in
-        reply(result)
-      })
+    let request = Request(params, id: id, clientID: clientID, cancellation: CancellationToken(), reply: { result in
+      reply(result)
+    })
 
-      if request.clientID == ObjectIdentifier(self.clangd) {
-        self.forwardRequest(request, to: self.client)
-      } else {
-        request.reply(.failure(ResponseError.methodNotFound(R.method)))
-      }
+    if request.clientID == ObjectIdentifier(self.clangd) {
+      self.forwardRequest(request, to: self.client)
+    } else {
+      request.reply(.failure(ResponseError.methodNotFound(R.method)))
     }
   }
 
@@ -297,7 +304,7 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     to: Connection,
     _ handler: ((LSPResult<R.Response>) -> Void)? = nil)
   {
-    let id = to.send(request.params, queue: queue) { result in
+    let id = to.send(request.params, queue: clangdCommunicationQueue) { result in
       handler?(result)
       request.reply(result)
     }
@@ -306,40 +313,24 @@ final class ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     }
   }
   
-  /// Forward the given `notification` to `clangd` by asynchronously switching to `queue` for a thread-safe access to `clangd`.
-  private func forwardNotificationToClangdOnQueue<Notification>(_ notification: Notification) where Notification: NotificationType {
-    queue.async {
-      self.clangd.send(notification)
-    }
-  }
-
   func _crash() {
-    self.queue.async {
-      // Since `clangd` doesn't have a method to crash it, kill it.
+    // Since `clangd` doesn't have a method to crash it, kill it.
 #if os(Windows)
-      if self.hClangd != INVALID_HANDLE_VALUE {
-        // FIXME(compnerd) this is a bad idea - we can potentially deadlock the
-        // process if a kobject is a pending state.  Unfortunately, the
-        // `OpenProcess(PROCESS_TERMINATE, ...)`, `CreateRemoteThread`,
-        // `ExitProcess` dance, while safer, can also indefinitely hang as
-        // `CreateRemoteThread` may not be serviced depending on the state of
-        // the process.  This just attempts to terminate the process, risking a
-        // deadlock and resource leaks.
-        _ = TerminateProcess(self.hClangd, 0)
-      }
+    if self.hClangd != INVALID_HANDLE_VALUE {
+      // FIXME(compnerd) this is a bad idea - we can potentially deadlock the
+      // process if a kobject is a pending state.  Unfortunately, the
+      // `OpenProcess(PROCESS_TERMINATE, ...)`, `CreateRemoteThread`,
+      // `ExitProcess` dance, while safer, can also indefinitely hang as
+      // `CreateRemoteThread` may not be serviced depending on the state of
+      // the process.  This just attempts to terminate the process, risking a
+      // deadlock and resource leaks.
+      _ = TerminateProcess(self.hClangd, 0)
+    }
 #else
-      if let pid = self.clangdPid {
-        kill(pid, SIGKILL)
-      }
+    if let pid = self.clangdPid {
+      kill(pid, SIGKILL)
+    }
 #endif
-    }
-  }
-  
-  /// Forward the given `request` to `clangd` by asynchronously switching to `queue` for a thread-safe access to `clangd`.
-  private func forwardRequestToClangdOnQueue<R>(_ request: Request<R>, _ handler: ((LSPResult<R.Response>) -> Void)? = nil) {
-    queue.async {
-      self.forwardRequest(request, to: self.clangd, handler)
-    }
   }
 }
 
@@ -349,19 +340,27 @@ extension ClangLanguageServerShim {
 
   /// Intercept clangd's `PublishDiagnosticsNotification` to withold it if we're using fallback
   /// build settings.
-  func publishDiagnostics(_ note: Notification<PublishDiagnosticsNotification>) {
+  func publishDiagnostics(_ note: Notification<PublishDiagnosticsNotification>) async {
     let params = note.params
-    let buildSettings = self.lock.withLock {
-      return self.buildSettingsByFile[params.uri]
-    }
-    let isFallback = buildSettings?.isFallback ?? true
-    guard isFallback else {
+    // Technically, the publish diagnostics notification could still originate
+    // from when we opened the file with fallback build settings and we could
+    // have received real build settings since, which haven't been acknowledged
+    // by clangd yet.
+    //
+    // Since there is no way to tell which build settings clangd used to generate
+    // the diagnostics, there's no good way to resolve this race. For now, this
+    // should be good enough since the time in which the race may occur is pretty
+    // short and we expect clangd to send us new diagnostics with the updated
+    // non-fallback settings very shortly after, which will override the
+    // incorrect result, making it very temporary.
+    let buildSettings = await self.buildSettings(for: params.uri)
+    if buildSettings?.isFallback ?? true {
+      // Fallback: send empty publish notification instead.
+      client.send(PublishDiagnosticsNotification(
+        uri: params.uri, version: params.version, diagnostics: []))
+    } else {
       client.send(note.params)
-      return
     }
-    // Fallback: send empty publish notification instead.
-    client.send(PublishDiagnosticsNotification(
-      uri: params.uri, version: params.version, diagnostics: []))
   }
 
 }
@@ -371,48 +370,51 @@ extension ClangLanguageServerShim {
 extension ClangLanguageServerShim {
 
   func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult {
-    return try queue.sync {
-      // Store the initialize request so we can replay it in case clangd crashes
-      self.initializeRequest = initialize
-      
-      let result = try clangd.sendSync(initialize)
-      self.capabilities = result.capabilities
-      return result
-    }
+    // Store the initialize request so we can replay it in case clangd crashes
+    self.initializeRequest = initialize
+
+    let result = try clangd.sendSync(initialize)
+    self.capabilities = result.capabilities
+    return result
   }
 
   public func clientInitialized(_ initialized: InitializedNotification) {
-    forwardNotificationToClangdOnQueue(initialized)
+    clangd.send(initialized)
   }
 
-  public func shutdown(callback: @escaping () -> Void) {
-    queue.async {
-      _ = self.clangd.send(ShutdownRequest(), queue: self.queue) { [weak self] _ in
-        self?.clangd.send(ExitNotification())
-        if let localConnection = self?.client as? LocalConnection {
-          localConnection.close()
+  public func shutdown() async {
+    await withCheckedContinuation { continuation in
+      _ = clangd.send(ShutdownRequest(), queue: self.clangdCommunicationQueue) { [weak self] _ in
+        guard let self else { return }
+        Task {
+          await self.clangd.send(ExitNotification())
+          if let localConnection = self.client as? LocalConnection {
+            localConnection.close()
+          }
+          continuation.resume()
         }
-        callback()
       }
     }
   }
 
   // MARK: - Text synchronization
 
-  public func openDocument(_ note: DidOpenTextDocumentNotification) {
-    forwardNotificationToClangdOnQueue(note)
+  public func openDocument(_ note: DidOpenTextDocumentNotification) async {
+    openDocuments[note.textDocument.uri] = note.textDocument.language
+    // Send clangd the build settings for the new file. We need to do this before
+    // sending the open notification, so that the initial diagnostics already
+    // have build settings.
+    await documentUpdatedBuildSettings(note.textDocument.uri, change: .removedOrUnavailable)
+    clangd.send(note)
   }
 
   public func closeDocument(_ note: DidCloseTextDocumentNotification) {
-    forwardNotificationToClangdOnQueue(note)
-
-    // Don't clear cached build settings since we've already informed clangd of the settings for the
-    // file; if we clear the build settings here we should give clangd dummy build settings to make
-    // sure we're in sync.
+    openDocuments[note.textDocument.uri] = nil
+    clangd.send(note)
   }
 
   public func changeDocument(_ note: DidChangeTextDocumentNotification) {
-    forwardNotificationToClangdOnQueue(note)
+    clangd.send(note)
   }
 
   public func willSaveDocument(_ note: WillSaveTextDocumentNotification) {
@@ -420,30 +422,22 @@ extension ClangLanguageServerShim {
   }
 
   public func didSaveDocument(_ note: DidSaveTextDocumentNotification) {
-    forwardNotificationToClangdOnQueue(note)
+    clangd.send(note)
   }
 
   // MARK: - Build System Integration
 
-  public func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) {
+  public func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) async {
     guard let url = uri.fileURL else {
       // FIXME: The clang workspace can probably be reworked to support non-file URIs.
       log("Received updated build settings for non-file URI '\(uri)'. Ignoring the update.")
       return
     }
-    let clangBuildSettings = ClangBuildSettings(change: change, clangPath: self.clangPath)
+    let clangBuildSettings = await self.buildSettings(for: uri)
     logAsync(level: clangBuildSettings == nil ? .warning : .debug) { _ in
       let settingsStr = clangBuildSettings == nil ? "nil" : clangBuildSettings!.compilerArgs.description
       return "settings for \(uri): \(settingsStr)"
     }
-
-    let changed = lock.withLock { () -> Bool in
-      let prevBuildSettings = self.buildSettingsByFile[uri]
-      guard clangBuildSettings != prevBuildSettings else { return false }
-      self.buildSettingsByFile[uri] = clangBuildSettings
-      return true
-    }
-    guard changed else { return }
 
     // The compile command changed, send over the new one.
     // FIXME: what should we do if we no longer have valid build settings?
@@ -454,7 +448,7 @@ extension ClangLanguageServerShim {
       let note = DidChangeConfigurationNotification(settings: .clangd(
         ClangWorkspaceSettings(
           compilationDatabaseChanges: [pathString: compileCommand])))
-      forwardNotificationToClangdOnQueue(note)
+      clangd.send(note)
     }
   }
 
@@ -466,7 +460,7 @@ extension ClangLanguageServerShim {
       textDocument: VersionedTextDocumentIdentifier(uri, version: 0),
       contentChanges: [],
       forceRebuild: true)
-    forwardNotificationToClangdOnQueue(note)
+    clangd.send(note)
   }
 
   // MARK: - Text Document
@@ -475,88 +469,82 @@ extension ClangLanguageServerShim {
   /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
   public func definition(_ req: Request<DefinitionRequest>) -> Bool {
     // We handle it to provide jump-to-header support for #import/#include.
-    forwardRequestToClangdOnQueue(req)
+    self.forwardRequest(req, to: self.clangd)
     return true
   }
 
   /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
   public func declaration(_ req: Request<DeclarationRequest>) -> Bool {
     // We handle it to provide jump-to-header support for #import/#include.
-    forwardRequestToClangdOnQueue(req)
+    forwardRequest(req, to: clangd)
     return true
   }
 
   func completion(_ req: Request<CompletionRequest>) {
-    forwardRequestToClangdOnQueue(req)
+    forwardRequest(req, to: clangd)
   }
 
   func hover(_ req: Request<HoverRequest>) {
-    forwardRequestToClangdOnQueue(req)
+    forwardRequest(req, to: clangd)
   }
 
   func symbolInfo(_ req: Request<SymbolInfoRequest>) {
-    forwardRequestToClangdOnQueue(req)
+    forwardRequest(req, to: clangd)
   }
 
   func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
-    forwardRequestToClangdOnQueue(req)
+    forwardRequest(req, to: clangd)
   }
 
   func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
-    forwardRequestToClangdOnQueue(req)
+    forwardRequest(req, to: clangd)
   }
 
   func documentColor(_ req: Request<DocumentColorRequest>) {
-    queue.async {
-      if self.capabilities?.colorProvider?.isSupported == true {
-        self.forwardRequestToClangdOnQueue(req)
-      } else {
-        req.reply(.success([]))
-      }
+    if self.capabilities?.colorProvider?.isSupported == true {
+      forwardRequest(req, to: clangd)
+    } else {
+      req.reply(.success([]))
     }
   }
 
   func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) {
-    forwardRequestToClangdOnQueue(req)
+    forwardRequest(req, to: clangd)
   }
 
   func documentSemanticTokensDelta(_ req: Request<DocumentSemanticTokensDeltaRequest>) {
-    forwardRequestToClangdOnQueue(req)
+    forwardRequest(req, to: clangd)
   }
 
   func documentSemanticTokensRange(_ req: Request<DocumentSemanticTokensRangeRequest>) {
-    forwardRequestToClangdOnQueue(req)
+    forwardRequest(req, to: clangd)
   }
 
   func colorPresentation(_ req: Request<ColorPresentationRequest>) {
-    queue.async {
-      if self.capabilities?.colorProvider?.isSupported == true {
-        self.forwardRequestToClangdOnQueue(req)
-      } else {
-        req.reply(.success([]))
-      }
+    if self.capabilities?.colorProvider?.isSupported == true {
+      forwardRequest(req, to: clangd)
+    } else {
+      req.reply(.success([]))
     }
   }
 
   func codeAction(_ req: Request<CodeActionRequest>) {
-    forwardRequestToClangdOnQueue(req)
+    forwardRequest(req, to: clangd)
   }
 
   func inlayHint(_ req: Request<InlayHintRequest>) {
-    forwardRequestToClangdOnQueue(req)
+    forwardRequest(req, to: clangd)
   }
 
   func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) {
-    forwardRequestToClangdOnQueue(req)
+    forwardRequest(req, to: clangd)
   }
 
   func foldingRange(_ req: Request<FoldingRangeRequest>) {
-    queue.async {
-      if self.capabilities?.foldingRangeProvider?.isSupported == true {
-        self.forwardRequestToClangdOnQueue(req)
-      } else {
-        req.reply(.success(nil))
-      }
+    if self.capabilities?.foldingRangeProvider?.isSupported == true {
+      forwardRequest(req, to: clangd)
+    } else {
+      req.reply(.success(nil))
     }
   }
 
@@ -567,7 +555,7 @@ extension ClangLanguageServerShim {
   // MARK: - Other
 
   func executeCommand(_ req: Request<ExecuteCommandRequest>) {
-    forwardRequestToClangdOnQueue(req)
+    forwardRequest(req, to: clangd)
   }
 }
 

@@ -146,6 +146,41 @@ extension BuildSystemManager {
     set { queue.sync { _mainFilesProvider = newValue } }
   }
 
+  /// Get the build settings for the given document, assuming it has the given
+  /// language.
+  ///
+  /// Returns `nil` if no build settings are available in the build system and
+  /// no fallback build settings can be computed.
+  ///
+  /// `isFallback` is `true` if the build settings couldn't be computed and
+  /// fallback settings are used. These fallback settings are most likely not
+  /// correct and provide limited semantic functionality.
+  public func buildSettings(
+    for document: DocumentURI,
+    language: Language
+  ) async -> (buildSettings: FileBuildSettings, isFallback: Bool)? {
+    do {
+      // FIXME: (async) We should only wait `fallbackSettingsTimeout` for build
+      // settings and return fallback afterwards. I am not sure yet, how best to
+      // implement that with Swift concurrency.
+      // For now, this should be fine because all build systems return
+      // very quickly from `settings(for:language:)`.
+      if let settings = try await buildSystem?.buildSettings(for: document, language: language) {
+        return (buildSettings: settings, isFallback: false)
+      }
+    } catch {
+      log("Getting build settings failed: \(error)")
+    }
+    if let settings = fallbackBuildSystem?.buildSettings(for: document, language: language) {
+      // If there is no build system and we only have the fallback build system,
+      // we will never get real build settings. Consider the build settings
+      // non-fallback.
+      return (buildSettings: settings, isFallback: buildSystem != nil)
+    } else {
+      return nil
+    }
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     return queue.async {
       log("registerForChangeNotifications(\(uri.pseudoPath))")
@@ -222,7 +257,7 @@ extension BuildSystemManager {
     } else if let fallback = self.fallbackBuildSystem {
       // Only have a fallback build system. We consider it be a primary build
       // system that functions synchronously.
-      if let settings = fallback.settings(for: mainFile, language) {
+      if let settings = fallback.buildSettings(for: mainFile, language: language) {
         newStatus = .primary(settings)
       } else {
         newStatus = .unsupported
@@ -235,7 +270,7 @@ extension BuildSystemManager {
   }
 
   /// *Must be called on queue*. Update and notify our delegate for the given
-  /// main file changes if they are convertable into `FileBuildSettingsChange`.
+  /// main file changes if they are convertible into `FileBuildSettingsChange`.
   func updateAndNotifyStatuses(changes: [DocumentURI: MainFileStatus]) {
     var changedWatchedFiles = [DocumentURI: FileBuildSettingsChange]()
     for (mainFile, status) in changes {
@@ -279,11 +314,11 @@ extension BuildSystemManager {
     _ fallback: FallbackBuildSystem
   ) {
     // There won't be a current status if it's unreferenced by any watched file.
-    // Simiarly, if the status isn't `waiting` then there's nothing to do.
+    // Similarly, if the status isn't `waiting` then there's nothing to do.
     guard let status = self.mainFileStatuses[mainFile], status == .waiting else {
       return
     }
-    if let settings = fallback.settings(for: mainFile, language) {
+    if let settings = fallback.buildSettings(for: mainFile, language: language) {
       self.updateAndNotifyStatuses(changes: [mainFile: .waitingUsingFallback(settings)])
     } else {
       // Keep the status as waiting.
@@ -336,9 +371,9 @@ extension BuildSystemManager: BuildSystemDelegate {
           newStatus = settingsChange.isFallback ? .fallback(newSettings) : .primary(newSettings)
         } else if let fallback = self.fallbackBuildSystem {
           // FIXME: we need to stop threading the language everywhere, or we need the build system
-          // itself to pass it in here. Or alteratively cache the fallback settings/language earlier?
+          // itself to pass it in here. Or alternatively cache the fallback settings/language earlier?
           let language = firstWatch.value.language
-          if let settings = fallback.settings(for: mainFile, language) {
+          if let settings = fallback.buildSettings(for: mainFile, language: language) {
             newStatus = .fallback(settings)
           } else {
             newStatus = .unsupported
