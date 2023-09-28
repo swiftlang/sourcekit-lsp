@@ -104,7 +104,7 @@ public final class SKSwiftPMTestWorkspace {
       listenToUnitEvents: false)
 
     let server = self.testServer.server!
-    let workspace = Workspace(
+    let workspace = await Workspace(
       documentManager: DocumentManager(),
       rootUri: DocumentURI(sources.rootDirectory),
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),

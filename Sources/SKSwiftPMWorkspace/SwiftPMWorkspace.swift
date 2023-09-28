@@ -62,6 +62,10 @@ public final class SwiftPMWorkspace {
   /// Delegate to handle any build system events.
   public weak var delegate: SKCore.BuildSystemDelegate? = nil
 
+  public func setDelegate(_ delegate: SKCore.BuildSystemDelegate?) async {
+    self.delegate = delegate
+  }
+
   let workspacePath: TSCAbsolutePath
   let packageRoot: TSCAbsolutePath
   /// *Public for testing*

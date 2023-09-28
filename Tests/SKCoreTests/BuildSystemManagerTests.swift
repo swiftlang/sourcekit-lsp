@@ -33,7 +33,7 @@ final class BuildSystemManagerTests: XCTestCase {
       d: Set([d]),
     ]
 
-    let bsm = BuildSystemManager(
+    let bsm = await BuildSystemManager(
       buildSystem: FallbackBuildSystem(buildSetup: .default),
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
@@ -94,7 +94,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a])]
     let bs = ManualBuildSystem()
-    let bsm = BuildSystemManager(
+    let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
@@ -119,7 +119,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a])]
     let bs = ManualBuildSystem()
-    let bsm = BuildSystemManager(
+    let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
@@ -143,7 +143,7 @@ final class BuildSystemManagerTests: XCTestCase {
     mainFiles.mainFiles = [a: Set([a])]
     let bs = ManualBuildSystem()
     let fallback = FallbackBuildSystem(buildSetup: .default)
-    let bsm = BuildSystemManager(
+    let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: fallback,
       mainFilesProvider: mainFiles)
@@ -174,7 +174,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a]), b: Set([b])]
     let bs = ManualBuildSystem()
-    let bsm = BuildSystemManager(
+    let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
@@ -221,7 +221,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a]), b: Set([b])]
     let bs = ManualBuildSystem()
-    let bsm = BuildSystemManager(
+    let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
@@ -263,7 +263,7 @@ final class BuildSystemManagerTests: XCTestCase {
     ]
 
     let bs = ManualBuildSystem()
-    let bsm = BuildSystemManager(
+    let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
@@ -318,7 +318,7 @@ final class BuildSystemManagerTests: XCTestCase {
     ]
 
     let bs = ManualBuildSystem()
-    let bsm = BuildSystemManager(
+    let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
@@ -366,7 +366,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a]), b: Set([b]), c: Set([c])]
     let bs = ManualBuildSystem()
-    let bsm = BuildSystemManager(
+    let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
@@ -425,7 +425,7 @@ final class BuildSystemManagerTests: XCTestCase {
     }
 
     let bs = DepUpdateDuringRegistrationBS()
-    let bsm = BuildSystemManager(
+    let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
@@ -474,6 +474,10 @@ class ManualBuildSystem: BuildSystem {
   var map: [DocumentURI: FileBuildSettings] = [:]
 
   var delegate: BuildSystemDelegate? = nil
+
+  func setDelegate(_ delegate: SKCore.BuildSystemDelegate?) async {
+    self.delegate = delegate
+  }
 
   func buildSettings(for uri: DocumentURI, language: Language) -> FileBuildSettings? {
     return map[uri]

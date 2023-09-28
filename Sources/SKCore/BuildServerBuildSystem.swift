@@ -65,6 +65,11 @@ public final class BuildServerBuildSystem: MessageHandler {
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate?
 
+  /// - Note: Needed to set the delegate from a different actor isolation context
+  public func setDelegate(_ delegate: BuildSystemDelegate?) async {
+    self.delegate = delegate
+  }
+
   /// The build settings that have been received from the build server.
   private var buildSettings: [DocumentURI: FileBuildSettings] = [:]
 

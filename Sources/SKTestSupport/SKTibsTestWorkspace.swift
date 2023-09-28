@@ -87,7 +87,7 @@ public final class SKTibsTestWorkspace {
     let indexDelegate = SourceKitIndexDelegate()
     tibsWorkspace.delegate = indexDelegate
 
-    let workspace = Workspace(
+    let workspace = await Workspace(
       documentManager: DocumentManager(),
       rootUri: DocumentURI(sources.rootDirectory),
       capabilityRegistry: CapabilityRegistry(clientCapabilities: clientCapabilities),
