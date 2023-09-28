@@ -84,16 +84,14 @@ enum VariableTypeInfoError: Error, Equatable {
 }
 
 extension SwiftLanguageServer {
-  /// Provides typed variable declarations in a document.
-  ///
-  /// - Parameters:
-  ///   - url: Document URL in which to perform the request. Must be an open document.
-  ///   - completion: Completion block to asynchronously receive the VariableTypeInfos, or error.
-  func variableTypeInfos(
+  /// Must be called on self.queue.
+  private func _variableTypeInfos(
     _ uri: DocumentURI,
     _ range: Range<Position>? = nil,
     _ completion: @escaping (Swift.Result<[VariableTypeInfo], VariableTypeInfoError>) -> Void
-  ) async {
+  ) {
+    dispatchPrecondition(condition: .onQueue(queue))
+
     guard let snapshot = documentManager.latestSnapshot(uri) else {
       return completion(.failure(.unknownDocument(uri)))
     }
@@ -112,7 +110,7 @@ extension SwiftLanguageServer {
     }
 
     // FIXME: SourceKit should probably cache this for us
-    if let compileCommand = await self.buildSettings(for: uri) {
+    if let compileCommand = self.commandsByFile[uri] {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
@@ -142,5 +140,20 @@ extension SwiftLanguageServer {
 
     // FIXME: cancellation
     _ = handle
+  }
+
+  /// Provides typed variable declarations in a document.
+  ///
+  /// - Parameters:
+  ///   - url: Document URL in which to perform the request. Must be an open document.
+  ///   - completion: Completion block to asynchronously receive the VariableTypeInfos, or error.
+  func variableTypeInfos(
+    _ uri: DocumentURI,
+    _ range: Range<Position>? = nil,
+    _ completion: @escaping (Swift.Result<[VariableTypeInfo], VariableTypeInfoError>) -> Void
+  ) {
+    queue.async {
+      self._variableTypeInfos(uri, range, completion)
+    }
   }
 }

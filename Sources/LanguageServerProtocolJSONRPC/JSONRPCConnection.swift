@@ -286,22 +286,14 @@ public final class JSONRPCConnection {
         await notification._handle(self.receiveHandler!, connection: self)
       }
     case .request(let request, id: let id):
+      let semaphore: DispatchSemaphore? = syncRequests ? .init(value: 0) : nil
       messageHandlingQueue.async {
-        if self.syncRequests {
-          await withCheckedContinuation { continuation in
-            Task {
-              await request._handle(self.receiveHandler!, id: id, connection: self) { (response, id) in
-                self.sendReply(response, id: id)
-                continuation.resume()
-              }
-            }
-          }
-        } else {
-          await request._handle(self.receiveHandler!, id: id, connection: self) { (response, id) in
-            self.sendReply(response, id: id)
-          }
+        await request._handle(self.receiveHandler!, id: id, connection: self) { (response, id) in
+          self.sendReply(response, id: id)
         }
+        semaphore?.signal()
       }
+      semaphore?.wait()
 
     case .response(let response, id: let id):
       guard let outstanding = outstandingRequests.removeValue(forKey: id) else {

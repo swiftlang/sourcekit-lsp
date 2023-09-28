@@ -44,7 +44,7 @@ public final class FallbackBuildSystem: BuildSystem {
 
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
-  public func buildSettings(for uri: DocumentURI, language: Language) -> FileBuildSettings? {
+  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
     switch language {
     case .swift:
       return settingsSwift(uri.pseudoPath)
@@ -58,7 +58,7 @@ public final class FallbackBuildSystem: BuildSystem {
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     guard let delegate = self.delegate else { return }
 
-    let settings = self.buildSettings(for: uri, language: language)
+    let settings = self.settings(for: uri, language)
     DispatchQueue.global().async {
       delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
     }

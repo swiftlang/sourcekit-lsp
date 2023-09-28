@@ -25,33 +25,35 @@ struct FindUSRInfo {
 }
 
 extension SwiftLanguageServer {
-  public func openInterface(_ request: LanguageServerProtocol.Request<LanguageServerProtocol.OpenInterfaceRequest>) async {
+  public func openInterface(_ request: LanguageServerProtocol.Request<LanguageServerProtocol.OpenInterfaceRequest>) {
     let uri = request.params.textDocument.uri
     let moduleName = request.params.moduleName
     let name = request.params.name
     let symbol = request.params.symbolUSR
-    let interfaceFilePath = self.generatedInterfacesPath.appendingPathComponent("\(name).swiftinterface")
-    let interfaceDocURI = DocumentURI(interfaceFilePath)
-    // has interface already been generated
-    if let snapshot = self.documentManager.latestSnapshot(interfaceDocURI) {
-      self._findUSRAndRespond(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
-    } else {
-      // generate interface
-      await self._openInterface(request: request, uri: uri, name: moduleName, interfaceURI: interfaceDocURI) { result in
-        switch result {
-        case .success(let interfaceInfo):
-          do {
-            // write to file
-            try interfaceInfo.contents.write(to: interfaceFilePath, atomically: true, encoding: String.Encoding.utf8)
-            // store snapshot
-            let snapshot = try self.documentManager.open(interfaceDocURI, language: .swift, version: 0, text: interfaceInfo.contents)
-            self._findUSRAndRespond(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
-          } catch {
-            request.reply(.failure(ResponseError.unknown(error.localizedDescription)))
+    self.queue.async {
+      let interfaceFilePath = self.generatedInterfacesPath.appendingPathComponent("\(name).swiftinterface")
+      let interfaceDocURI = DocumentURI(interfaceFilePath)
+      // has interface already been generated
+      if let snapshot = self.documentManager.latestSnapshot(interfaceDocURI) {
+        self._findUSRAndRespond(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
+      } else {
+        // generate interface
+        self._openInterface(request: request, uri: uri, name: moduleName, interfaceURI: interfaceDocURI) { result in
+          switch result {
+          case .success(let interfaceInfo):
+            do {
+              // write to file
+              try interfaceInfo.contents.write(to: interfaceFilePath, atomically: true, encoding: String.Encoding.utf8)
+              // store snapshot
+              let snapshot = try self.documentManager.open(interfaceDocURI, language: .swift, version: 0, text: interfaceInfo.contents)
+              self._findUSRAndRespond(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
+            } catch {
+              request.reply(.failure(ResponseError.unknown(error.localizedDescription)))
+            }
+          case .failure(let error):
+            log("open interface failed: \(error)", level: .warning)
+            request.reply(.failure(ResponseError(error)))
           }
-        case .failure(let error):
-          log("open interface failed: \(error)", level: .warning)
-          request.reply(.failure(ResponseError(error)))
         }
       }
     }
@@ -69,7 +71,7 @@ extension SwiftLanguageServer {
                               uri: DocumentURI,
                               name: String,
                               interfaceURI: DocumentURI,
-                              completion: @escaping (Swift.Result<InterfaceInfo, SKDError>) -> Void) async {
+                              completion: @escaping (Swift.Result<InterfaceInfo, SKDError>) -> Void) {
     let keys = self.keys
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.editor_open_interface
@@ -79,7 +81,7 @@ extension SwiftLanguageServer {
     }
     skreq[keys.name] = interfaceURI.pseudoPath
     skreq[keys.synthesizedextensions] = 1
-    if let compileCommand = await self.buildSettings(for: uri) {
+    if let compileCommand = self.commandsByFile[uri] {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
     
