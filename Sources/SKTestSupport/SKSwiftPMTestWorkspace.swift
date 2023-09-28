@@ -113,7 +113,7 @@ public final class SKSwiftPMTestWorkspace {
       underlyingBuildSystem: swiftpm,
       index: index,
       indexDelegate: indexDelegate)
-    workspace.buildSystemManager.delegate = server
+    await workspace.buildSystemManager.setDelegate(server)
     await server.addWorkspace(workspace)
   }
 

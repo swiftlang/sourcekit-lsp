@@ -19,7 +19,7 @@ import XCTest
 
 final class BuildSystemManagerTests: XCTestCase {
 
-  func testMainFiles() {
+  func testMainFiles() async {
     let a = DocumentURI(string: "bsm:a")
     let b = DocumentURI(string: "bsm:b")
     let c = DocumentURI(string: "bsm:c")
@@ -39,20 +39,20 @@ final class BuildSystemManagerTests: XCTestCase {
       mainFilesProvider: mainFiles)
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
 
-    XCTAssertEqual(bsm._cachedMainFile(for: a), nil)
-    XCTAssertEqual(bsm._cachedMainFile(for: b), nil)
-    XCTAssertEqual(bsm._cachedMainFile(for: c), nil)
-    XCTAssertEqual(bsm._cachedMainFile(for: d), nil)
+    await assertEqual(bsm._cachedMainFile(for: a), nil)
+    await assertEqual(bsm._cachedMainFile(for: b), nil)
+    await assertEqual(bsm._cachedMainFile(for: c), nil)
+    await assertEqual(bsm._cachedMainFile(for: d), nil)
 
-    bsm.registerForChangeNotifications(for: a, language: .c)
-    bsm.registerForChangeNotifications(for: b, language: .c)
-    bsm.registerForChangeNotifications(for: c, language: .c)
-    bsm.registerForChangeNotifications(for: d, language: .c)
-    XCTAssertEqual(bsm._cachedMainFile(for: a), c)
-    let bMain = bsm._cachedMainFile(for: b)
+    await bsm.registerForChangeNotifications(for: a, language: .c)
+    await bsm.registerForChangeNotifications(for: b, language: .c)
+    await bsm.registerForChangeNotifications(for: c, language: .c)
+    await bsm.registerForChangeNotifications(for: d, language: .c)
+    await assertEqual(bsm._cachedMainFile(for: a), c)
+    let bMain = await bsm._cachedMainFile(for: b)
     XCTAssert(Set([c, d]).contains(bMain))
-    XCTAssertEqual(bsm._cachedMainFile(for: c), c)
-    XCTAssertEqual(bsm._cachedMainFile(for: d), d)
+    await assertEqual(bsm._cachedMainFile(for: c), c)
+    await assertEqual(bsm._cachedMainFile(for: d), d)
 
     mainFiles.mainFiles = [
       a: Set([a]),
@@ -61,35 +61,35 @@ final class BuildSystemManagerTests: XCTestCase {
       d: Set([d]),
     ]
 
-    XCTAssertEqual(bsm._cachedMainFile(for: a), c)
-    XCTAssertEqual(bsm._cachedMainFile(for: b), bMain)
-    XCTAssertEqual(bsm._cachedMainFile(for: c), c)
-    XCTAssertEqual(bsm._cachedMainFile(for: d), d)
+    await assertEqual(bsm._cachedMainFile(for: a), c)
+    await assertEqual(bsm._cachedMainFile(for: b), bMain)
+    await assertEqual(bsm._cachedMainFile(for: c), c)
+    await assertEqual(bsm._cachedMainFile(for: d), d)
 
-    bsm.mainFilesChanged()
+    await bsm.mainFilesChangedImpl()
 
-    XCTAssertEqual(bsm._cachedMainFile(for: a), a)
-    XCTAssertEqual(bsm._cachedMainFile(for: b), bMain) // never changes to a
-    XCTAssertEqual(bsm._cachedMainFile(for: c), c)
-    XCTAssertEqual(bsm._cachedMainFile(for: d), d)
+    await assertEqual(bsm._cachedMainFile(for: a), a)
+    await assertEqual(bsm._cachedMainFile(for: b), bMain) // never changes to a
+    await assertEqual(bsm._cachedMainFile(for: c), c)
+    await assertEqual(bsm._cachedMainFile(for: d), d)
 
-    bsm.unregisterForChangeNotifications(for: a)
-    XCTAssertEqual(bsm._cachedMainFile(for: a), nil)
-    XCTAssertEqual(bsm._cachedMainFile(for: b), bMain) // never changes to a
-    XCTAssertEqual(bsm._cachedMainFile(for: c), c)
-    XCTAssertEqual(bsm._cachedMainFile(for: d), d)
+    await bsm.unregisterForChangeNotifications(for: a)
+    await assertEqual(bsm._cachedMainFile(for: a), nil)
+    await assertEqual(bsm._cachedMainFile(for: b), bMain) // never changes to a
+    await assertEqual(bsm._cachedMainFile(for: c), c)
+    await assertEqual(bsm._cachedMainFile(for: d), d)
 
-    bsm.unregisterForChangeNotifications(for: b)
-    bsm.mainFilesChanged()
-    bsm.unregisterForChangeNotifications(for: c)
-    bsm.unregisterForChangeNotifications(for: d)
-    XCTAssertEqual(bsm._cachedMainFile(for: a), nil)
-    XCTAssertEqual(bsm._cachedMainFile(for: b), nil)
-    XCTAssertEqual(bsm._cachedMainFile(for: c), nil)
-    XCTAssertEqual(bsm._cachedMainFile(for: d), nil)
+    await bsm.unregisterForChangeNotifications(for: b)
+    await bsm.mainFilesChangedImpl()
+    await bsm.unregisterForChangeNotifications(for: c)
+    await bsm.unregisterForChangeNotifications(for: d)
+    await assertEqual(bsm._cachedMainFile(for: a), nil)
+    await assertEqual(bsm._cachedMainFile(for: b), nil)
+    await assertEqual(bsm._cachedMainFile(for: c), nil)
+    await assertEqual(bsm._cachedMainFile(for: d), nil)
   }
 
-  func testSettingsMainFile() {
+  func testSettingsMainFile() async throws {
     let a = DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a])]
@@ -99,22 +99,22 @@ final class BuildSystemManagerTests: XCTestCase {
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
-    let del = BSMDelegate(bsm)
+    let del = await BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
     let initial = expectation(description: "initial settings")
     del.expected = [(a, bs.map[a]!, initial, #file, #line)]
-    bsm.registerForChangeNotifications(for: a, language: .swift)
-    wait(for: [initial], timeout: defaultTimeout, enforceOrder: true)
+    await bsm.registerForChangeNotifications(for: a, language: .swift)
+    try await fulfillmentOfOrThrow([initial])
 
     bs.map[a] = nil
     let changed = expectation(description: "changed settings")
     del.expected = [(a, nil, changed, #file, #line)]
     bsm.fileBuildSettingsChanged([a: .removedOrUnavailable])
-    wait(for: [changed], timeout: defaultTimeout, enforceOrder: true)
+    try await fulfillmentOfOrThrow([changed])
   }
 
-  func testSettingsMainFileInitialNil() {
+  func testSettingsMainFileInitialNil() async throws {
     let a = DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a])]
@@ -124,20 +124,20 @@ final class BuildSystemManagerTests: XCTestCase {
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
-    let del = BSMDelegate(bsm)
+    let del = await BSMDelegate(bsm)
     let initial = expectation(description: "initial settings")
     del.expected = [(a, nil, initial, #file, #line)]
-    bsm.registerForChangeNotifications(for: a, language: .swift)
-    wait(for: [initial], timeout: defaultTimeout, enforceOrder: true)
+    await bsm.registerForChangeNotifications(for: a, language: .swift)
+    try await fulfillmentOfOrThrow([initial])
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
     let changed = expectation(description: "changed settings")
     del.expected = [(a, bs.map[a]!, changed, #file, #line)]
     bsm.fileBuildSettingsChanged([a: .modified(bs.map[a]!)])
-    wait(for: [changed], timeout: defaultTimeout, enforceOrder: true)
+    try await fulfillmentOfOrThrow([changed])
   }
 
-  func testSettingsMainFileWithFallback() {
+  func testSettingsMainFileWithFallback() async throws {
     let a = DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a])]
@@ -148,27 +148,27 @@ final class BuildSystemManagerTests: XCTestCase {
       fallbackBuildSystem: fallback,
       mainFilesProvider: mainFiles)
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
-    let del = BSMDelegate(bsm)
+    let del = await BSMDelegate(bsm)
     let fallbackSettings = fallback.buildSettings(for: a, language: .swift)
     let initial = expectation(description: "initial fallback settings")
     del.expected = [(a, fallbackSettings, initial, #file, #line)]
-    bsm.registerForChangeNotifications(for: a, language: .swift)
-    wait(for: [initial], timeout: defaultTimeout, enforceOrder: true)
+    await bsm.registerForChangeNotifications(for: a, language: .swift)
+    try await fulfillmentOfOrThrow([initial])
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["non-fallback", "args"])
     let changed = expectation(description: "changed settings")
     del.expected = [(a, bs.map[a]!, changed, #file, #line)]
     bsm.fileBuildSettingsChanged([a: .modified(bs.map[a]!)])
-    wait(for: [changed], timeout: defaultTimeout, enforceOrder: true)
+    try await fulfillmentOfOrThrow([changed])
 
     bs.map[a] = nil
     let revert = expectation(description: "revert to fallback settings")
     del.expected = [(a, fallbackSettings, revert, #file, #line)]
     bsm.fileBuildSettingsChanged([a: .removedOrUnavailable])
-    wait(for: [revert], timeout: defaultTimeout, enforceOrder: true)
+    try await fulfillmentOfOrThrow([revert])
   }
 
-  func testSettingsMainFileInitialIntersect() {
+  func testSettingsMainFileInitialIntersect() async throws {
     let a = DocumentURI(string: "bsm:a.swift")
     let b = DocumentURI(string: "bsm:b.swift")
     let mainFiles = ManualMainFilesProvider()
@@ -179,25 +179,25 @@ final class BuildSystemManagerTests: XCTestCase {
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
-    let del = BSMDelegate(bsm)
+    let del = await BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
     bs.map[b] = FileBuildSettings(compilerArguments: ["y"])
     let initial = expectation(description: "initial settings")
     del.expected = [(a, bs.map[a]!, initial, #file, #line)]
-    bsm.registerForChangeNotifications(for: a, language: .swift)
-    wait(for: [initial], timeout: defaultTimeout, enforceOrder: true)
+    await bsm.registerForChangeNotifications(for: a, language: .swift)
+    try await fulfillmentOfOrThrow([initial])
     let initialB = expectation(description: "initial settings")
     del.expected = [(b, bs.map[b]!, initialB, #file, #line)]
-    bsm.registerForChangeNotifications(for: b, language: .swift)
-    wait(for: [initialB], timeout: defaultTimeout, enforceOrder: true)
+    await bsm.registerForChangeNotifications(for: b, language: .swift)
+    try await fulfillmentOfOrThrow([initialB])
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["xx"])
     bs.map[b] = FileBuildSettings(compilerArguments: ["yy"])
     let changed = expectation(description: "changed settings")
     del.expected = [(a, bs.map[a]!, changed, #file, #line)]
     bsm.fileBuildSettingsChanged([a: .modified(bs.map[a]!)])
-    wait(for: [changed], timeout: defaultTimeout, enforceOrder: true)
+    try await fulfillmentOfOrThrow([changed])
 
     // Test multiple changes.
     bs.map[a] = FileBuildSettings(compilerArguments: ["xxx"])
@@ -212,10 +212,10 @@ final class BuildSystemManagerTests: XCTestCase {
       a:. modified(bs.map[a]!),
       b: .modified(bs.map[b]!)
     ])
-    wait(for: [changedBothA, changedBothB], timeout: defaultTimeout, enforceOrder: false)
+    try await fulfillmentOfOrThrow([changedBothA, changedBothB])
   }
 
-  func testSettingsMainFileUnchanged() {
+  func testSettingsMainFileUnchanged() async throws {
     let a = DocumentURI(string: "bsm:a.swift")
     let b = DocumentURI(string: "bsm:b.swift")
     let mainFiles = ManualMainFilesProvider()
@@ -226,20 +226,20 @@ final class BuildSystemManagerTests: XCTestCase {
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
-    let del = BSMDelegate(bsm)
+    let del = await BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["a"])
     bs.map[b] = FileBuildSettings(compilerArguments: ["b"])
 
     let initialA = expectation(description: "initial settings a")
     del.expected = [(a, bs.map[a]!, initialA, #file, #line)]
-    bsm.registerForChangeNotifications(for: a, language: .swift)
-    wait(for: [initialA], timeout: defaultTimeout, enforceOrder: true)
+    await bsm.registerForChangeNotifications(for: a, language: .swift)
+    try await fulfillmentOfOrThrow([initialA])
 
     let initialB = expectation(description: "initial settings b")
     del.expected = [(b, bs.map[b]!, initialB, #file, #line)]
-    bsm.registerForChangeNotifications(for: b, language: .swift)
-    wait(for: [initialB], timeout: defaultTimeout, enforceOrder: true)
+    await bsm.registerForChangeNotifications(for: b, language: .swift)
+    try await fulfillmentOfOrThrow([initialB])
 
     bs.map[a] = nil
     bs.map[b] = nil
@@ -248,10 +248,10 @@ final class BuildSystemManagerTests: XCTestCase {
     bsm.fileBuildSettingsChanged([
       b: .removedOrUnavailable
     ])
-    wait(for: [changed], timeout: defaultTimeout, enforceOrder: true)
+    try await fulfillmentOfOrThrow([changed])
   }
 
-  func testSettingsHeaderChangeMainFile() {
+  func testSettingsHeaderChangeMainFile() async throws {
     let h = DocumentURI(string: "bsm:header.h")
     let cpp1 = DocumentURI(string: "bsm:main.cpp")
     let cpp2 = DocumentURI(string: "bsm:other.cpp")
@@ -268,46 +268,46 @@ final class BuildSystemManagerTests: XCTestCase {
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
-    let del = BSMDelegate(bsm)
+    let del = await BSMDelegate(bsm)
 
     bs.map[cpp1] = FileBuildSettings(compilerArguments: ["C++ 1"])
     bs.map[cpp2] = FileBuildSettings(compilerArguments: ["C++ 2"])
 
     let initial = expectation(description: "initial settings via cpp1")
     del.expected = [(h, bs.map[cpp1]!, initial, #file, #line)]
-    bsm.registerForChangeNotifications(for: h, language: .c)
-    wait(for: [initial], timeout: defaultTimeout, enforceOrder: true)
+    await bsm.registerForChangeNotifications(for: h, language: .c)
+    try await fulfillmentOfOrThrow([initial])
 
     mainFiles.mainFiles[h] = Set([cpp2])
 
     let changed = expectation(description: "changed settings to cpp2")
     del.expected = [(h, bs.map[cpp2]!, changed, #file, #line)]
-    bsm.mainFilesChanged()
-    wait(for: [changed], timeout: defaultTimeout, enforceOrder: true)
+    await bsm.mainFilesChangedImpl()
+    try await fulfillmentOfOrThrow([changed])
 
     let changed2 = expectation(description: "still cpp2, no update")
     changed2.isInverted = true
     del.expected = [(h, nil, changed2, #file, #line)]
-    bsm.mainFilesChanged()
-    wait(for: [changed2], timeout: 1, enforceOrder: true)
+    await bsm.mainFilesChangedImpl()
+    try await fulfillmentOfOrThrow([changed2], timeout: 1)
 
     mainFiles.mainFiles[h] = Set([cpp1, cpp2])
 
     let changed3 = expectation(description: "added main file, no update")
     changed3.isInverted = true
     del.expected = [(h, nil, changed3, #file, #line)]
-    bsm.mainFilesChanged()
-    wait(for: [changed3], timeout: 1, enforceOrder: true)
+    await bsm.mainFilesChangedImpl()
+    try await fulfillmentOfOrThrow([changed3], timeout: 1)
 
     mainFiles.mainFiles[h] = Set([])
 
     let changed4 = expectation(description: "changed settings to []")
     del.expected = [(h, nil, changed4, #file, #line)]
-    bsm.mainFilesChanged()
-    wait(for: [changed4], timeout: defaultTimeout, enforceOrder: true)
+    await bsm.mainFilesChangedImpl()
+    try await fulfillmentOfOrThrow([changed4])
   }
 
-  func testSettingsOneMainTwoHeader() {
+  func testSettingsOneMainTwoHeader() async throws {
     let h1 = DocumentURI(string: "bsm:header1.h")
     let h2 = DocumentURI(string: "bsm:header2.h")
     let cpp = DocumentURI(string: "bsm:main.cpp")
@@ -323,7 +323,7 @@ final class BuildSystemManagerTests: XCTestCase {
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
-    let del = BSMDelegate(bsm)
+    let del = await BSMDelegate(bsm)
 
     let cppArg = "C++ Main File"
     bs.map[cpp] = FileBuildSettings(compilerArguments: [cppArg, cpp.pseudoPath])
@@ -337,12 +337,12 @@ final class BuildSystemManagerTests: XCTestCase {
       (h2, expectedArgsH2, initial2, #file, #line),
     ]
 
-    bsm.registerForChangeNotifications(for: h1, language: .c)
-    bsm.registerForChangeNotifications(for: h2, language: .c)
+    await bsm.registerForChangeNotifications(for: h1, language: .c)
+    await bsm.registerForChangeNotifications(for: h2, language: .c)
 
     // Since the registration is async, it's possible that they get grouped together
     // since they are backed by the same underlying cpp file.
-    wait(for: [initial1, initial2], timeout: defaultTimeout, enforceOrder: false)
+    try await fulfillmentOfOrThrow([initial1, initial2])
 
     let newCppArg = "New C++ Main File"
     bs.map[cpp] = FileBuildSettings(compilerArguments: [newCppArg, cpp.pseudoPath])
@@ -356,10 +356,10 @@ final class BuildSystemManagerTests: XCTestCase {
     ]
     bsm.fileBuildSettingsChanged([cpp: .modified(bs.map[cpp]!)])
 
-    wait(for: [changed1, changed2], timeout: defaultTimeout, enforceOrder: false)
+    try await fulfillmentOfOrThrow([changed1, changed2])
   }
 
-  func testSettingsChangedAfterUnregister() {
+  func testSettingsChangedAfterUnregister() async throws {
     let a = DocumentURI(string: "bsm:a.swift")
     let b = DocumentURI(string: "bsm:b.swift")
     let c = DocumentURI(string: "bsm:c.swift")
@@ -371,7 +371,7 @@ final class BuildSystemManagerTests: XCTestCase {
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
-    let del = BSMDelegate(bsm)
+    let del = await BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["a"])
     bs.map[b] = FileBuildSettings(compilerArguments: ["b"])
@@ -385,10 +385,10 @@ final class BuildSystemManagerTests: XCTestCase {
       (b, bs.map[b]!, initialB, #file, #line),
       (c, bs.map[c]!, initialC, #file, #line),
     ]
-    bsm.registerForChangeNotifications(for: a, language: .swift)
-    bsm.registerForChangeNotifications(for: b, language: .swift)
-    bsm.registerForChangeNotifications(for: c, language: .swift)
-    wait(for: [initialA, initialB, initialC], timeout: defaultTimeout, enforceOrder: false)
+    await bsm.registerForChangeNotifications(for: a, language: .swift)
+    await bsm.registerForChangeNotifications(for: b, language: .swift)
+    await bsm.registerForChangeNotifications(for: c, language: .swift)
+    try await fulfillmentOfOrThrow([initialA, initialB, initialC])
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["new-a"])
     bs.map[b] = FileBuildSettings(compilerArguments: ["new-b"])
@@ -399,8 +399,8 @@ final class BuildSystemManagerTests: XCTestCase {
       (b, bs.map[b]!, changedB, #file, #line),
     ]
 
-    bsm.unregisterForChangeNotifications(for: a)
-    bsm.unregisterForChangeNotifications(for: c)
+    await bsm.unregisterForChangeNotifications(for: a)
+    await bsm.unregisterForChangeNotifications(for: c)
     // At this point only b is registered, but that can race with notifications,
     // so ensure nothing bad happens and we still get the notification for b.
     bsm.fileBuildSettingsChanged([
@@ -409,10 +409,10 @@ final class BuildSystemManagerTests: XCTestCase {
       c: .modified(bs.map[c]!)
     ])
 
-    wait(for: [changedB], timeout: defaultTimeout, enforceOrder: false)
+    try await fulfillmentOfOrThrow([changedB])
   }
 
-  func testDependenciesUpdated() {
+  func testDependenciesUpdated() async throws {
     let a = DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a])]
@@ -430,7 +430,7 @@ final class BuildSystemManagerTests: XCTestCase {
       fallbackBuildSystem: nil,
       mainFilesProvider: mainFiles)
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
-    let del = BSMDelegate(bsm)
+    let del = await BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
     let initial = expectation(description: "initial settings")
@@ -439,14 +439,14 @@ final class BuildSystemManagerTests: XCTestCase {
     let depUpdate1 = expectation(description: "dependencies update during registration")
     del.expectedDependenciesUpdate = [(a, depUpdate1, #file, #line)]
 
-    bsm.registerForChangeNotifications(for: a, language: .swift)
-    wait(for: [initial, depUpdate1], timeout: defaultTimeout, enforceOrder: false)
+    await bsm.registerForChangeNotifications(for: a, language: .swift)
+    try await fulfillmentOfOrThrow([initial, depUpdate1])
 
     let depUpdate2 = expectation(description: "dependencies update 2")
     del.expectedDependenciesUpdate = [(a, depUpdate2, #file, #line)]
 
     bsm.filesDependenciesUpdated([a])
-    wait(for: [depUpdate2], timeout: defaultTimeout, enforceOrder: false)
+    try await fulfillmentOfOrThrow([depUpdate2])
   }
 }
 
@@ -509,9 +509,9 @@ private final class BSMDelegate: BuildSystemDelegate {
   var expected: [(uri: DocumentURI, settings: FileBuildSettings?, expectation: XCTestExpectation, file: StaticString, line: UInt)] = []
   var expectedDependenciesUpdate: [(uri: DocumentURI, expectation: XCTestExpectation, file: StaticString, line: UInt)] = []
 
-  init(_ bsm: BuildSystemManager) {
+  init(_ bsm: BuildSystemManager) async {
     self.bsm = bsm
-    bsm.delegate = self
+    await bsm.setDelegate(self)
   }
 
   func fileBuildSettingsChanged(_ changes: [DocumentURI: FileBuildSettingsChange]) {

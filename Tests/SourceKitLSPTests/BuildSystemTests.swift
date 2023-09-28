@@ -118,7 +118,7 @@ final class BuildSystemTests: XCTestCase {
 
 
       await server.setWorkspaces([workspace])
-      workspace.buildSystemManager.delegate = server
+      await workspace.buildSystemManager.setDelegate(server)
 
       sk = testServer.client
       _ = try! sk.sendSync(InitializeRequest(
