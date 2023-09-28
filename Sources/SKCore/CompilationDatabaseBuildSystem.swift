@@ -46,6 +46,10 @@ public final class CompilationDatabaseBuildSystem {
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate? = nil
 
+  public func setDelegate(_ delegate: BuildSystemDelegate?) async {
+    self.delegate = delegate
+  }
+
   let projectRoot: AbsolutePath?
 
   let fileSystem: FileSystem

@@ -111,17 +111,18 @@ public actor BuildSystemManager {
   /// Create a BuildSystemManager that wraps the given build system. The new
   /// manager will modify the delegate of the underlying build system.
   public init(buildSystem: BuildSystem?, fallbackBuildSystem: FallbackBuildSystem?,
-              mainFilesProvider: MainFilesProvider?, fallbackSettingsTimeout: DispatchTimeInterval = .seconds(3)) {
-    precondition(buildSystem?.delegate == nil)
+              mainFilesProvider: MainFilesProvider?, fallbackSettingsTimeout: DispatchTimeInterval = .seconds(3)) async {
+    let buildSystemHasDelegate = await buildSystem?.delegate != nil
+    precondition(!buildSystemHasDelegate)
     self.buildSystem = buildSystem
     self.fallbackBuildSystem = fallbackBuildSystem
     self._mainFilesProvider = mainFilesProvider
     self.fallbackSettingsTimeout = fallbackSettingsTimeout
-    self.buildSystem?.delegate = self
+    await self.buildSystem?.setDelegate(self)
   }
 
-  public func filesDidChange(_ events: [FileEvent]) {
-    self.buildSystem?.filesDidChange(events)
+  public func filesDidChange(_ events: [FileEvent]) async {
+    await self.buildSystem?.filesDidChange(events)
     self.fallbackBuildSystem?.filesDidChange(events)
   }
 }
@@ -182,7 +183,7 @@ extension BuildSystemManager {
     }
   }
 
-  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
     log("registerForChangeNotifications(\(uri.pseudoPath))")
     let mainFile: DocumentURI
 
@@ -194,7 +195,7 @@ extension BuildSystemManager {
       self.watchedFiles[uri] = (mainFile, language)
     }
 
-    let newStatus = self.cachedStatusOrRegisterForSettings(for: mainFile, language: language)
+    let newStatus = await self.cachedStatusOrRegisterForSettings(for: mainFile, language: language)
 
     if let mainChange = newStatus.buildSettingsChange,
        let delegate = self._delegate {
@@ -206,7 +207,7 @@ extension BuildSystemManager {
   /// Return settings for `file` based on  the `change` settings for `mainFile`.
   ///
   /// This is used when inferring arguments for header files (e.g. main file is a `.m`  while file is  a` .h`).
-  func convert(
+  nonisolated func convert(
     change: FileBuildSettingsChange,
     ofMainFile mainFile: DocumentURI,
     to file: DocumentURI
@@ -227,7 +228,7 @@ extension BuildSystemManager {
   func cachedStatusOrRegisterForSettings(
     for mainFile: DocumentURI,
     language: Language
-  ) -> MainFileStatus {
+  ) async -> MainFileStatus {
     // If we already have a status for the main file, use that.
     // Don't update any existing timeout.
     if let status = self.mainFileStatuses[mainFile] {
@@ -248,7 +249,7 @@ extension BuildSystemManager {
       // Intentionally register with the `BuildSystem` after setting the fallback to allow for
       // testing of the fallback system triggering before the `BuildSystem` can reply (e.g. if a
       // fallback time of 0 is specified).
-      buildSystem.registerForChangeNotifications(for: mainFile, language: language)
+      await buildSystem.registerForChangeNotifications(for: mainFile, language: language)
 
 
       newStatus = .waiting
@@ -263,6 +264,16 @@ extension BuildSystemManager {
     } else {  // Don't have any build systems.
       newStatus = .unsupported
     }
+
+    if let status = self.mainFileStatuses[mainFile] {
+      // Since we await above, another call to `cachedStatusOrRegisterForSettings`
+      // might have set the main file status of `mainFile`. If this race happened,
+      // return the value set by the concurrently executing function. This is safe
+      // since all calls from this function are either side-effect free or
+      // idempotent.
+      return status
+    }
+
     self.mainFileStatuses[mainFile] = newStatus
     return newStatus
   }
@@ -321,27 +332,30 @@ extension BuildSystemManager {
     }
   }
 
-  public func unregisterForChangeNotifications(for uri: DocumentURI) {
+  public func unregisterForChangeNotifications(for uri: DocumentURI) async {
     guard let mainFile = self.watchedFiles[uri]?.mainFile else {
       log("Unbalanced calls for registerForChangeNotifications and unregisterForChangeNotifications", level: .warning)
       return
     }
     self.watchedFiles[uri] = nil
-    self.checkUnreferencedMainFile(mainFile)
+    await self.checkUnreferencedMainFile(mainFile)
   }
 
   /// If the given main file is no longer referenced by any watched files,
   /// remove it and unregister it at the underlying build system.
-  func checkUnreferencedMainFile(_ mainFile: DocumentURI) {
+  func checkUnreferencedMainFile(_ mainFile: DocumentURI) async {
     if !self.watchedFiles.values.lazy.map({ $0.mainFile }).contains(mainFile) {
       // This was the last reference to the main file. Remove it.
-      self.buildSystem?.unregisterForChangeNotifications(for: mainFile)
+      await self.buildSystem?.unregisterForChangeNotifications(for: mainFile)
       self.mainFileStatuses[mainFile] = nil
     }
   }
 
-  public nonisolated func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    return max(buildSystem?.fileHandlingCapability(for: uri) ?? .unhandled, fallbackBuildSystem?.fileHandlingCapability(for: uri) ?? .unhandled)
+  public func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability {
+    return max(
+      await buildSystem?.fileHandlingCapability(for: uri) ?? .unhandled,
+      fallbackBuildSystem?.fileHandlingCapability(for: uri) ?? .unhandled
+    )
   }
 }
 
@@ -444,7 +458,7 @@ extension BuildSystemManager: MainFilesDelegate {
   }
 
   // FIXME: Consider debouncing/limiting this, seems to trigger often during a build.
-  public func mainFilesChangedImpl() {
+  public func mainFilesChangedImpl() async {
     let origWatched = self.watchedFiles
     self.watchedFiles = [:]
     var buildSettingsChanges = [DocumentURI: FileBuildSettingsChange]()
@@ -458,9 +472,9 @@ extension BuildSystemManager: MainFilesDelegate {
 
       if state.mainFile != newMainFile {
         log("main file for '\(uri)' changed old: '\(state.mainFile)' -> new: '\(newMainFile)'", level: .info)
-        self.checkUnreferencedMainFile(state.mainFile)
+        await self.checkUnreferencedMainFile(state.mainFile)
 
-        let newStatus = self.cachedStatusOrRegisterForSettings(
+        let newStatus = await self.cachedStatusOrRegisterForSettings(
             for: newMainFile, language: language)
         if let change = newStatus.buildSettingsChange {
           let newChange = self.convert(change: change, ofMainFile: newMainFile, to: uri)
