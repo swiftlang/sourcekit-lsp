@@ -505,7 +505,7 @@ extension SourceKitServer: MessageHandler {
     case let notification as Notification<CancelRequestNotification>:
       self.cancelRequest(notification)
     case let notification as Notification<ExitNotification>:
-      self.exit(notification)
+      await self.exit(notification)
     case let notification as Notification<DidOpenTextDocumentNotification>:
       await self.openDocument(notification)
     case let notification as Notification<DidCloseTextDocumentNotification>:
@@ -515,7 +515,7 @@ extension SourceKitServer: MessageHandler {
     case let notification as Notification<DidChangeWorkspaceFoldersNotification>:
       await self.didChangeWorkspaceFolders(notification)
     case let notification as Notification<DidChangeWatchedFilesNotification>:
-      self.didChangeWatchedFiles(notification)
+      await self.didChangeWatchedFiles(notification)
     case let notification as Notification<WillSaveTextDocumentNotification>:
       await self.withReadyDocument(for: notification, notificationHandler: self.willSaveDocument)
     case let notification as Notification<DidSaveTextDocumentNotification>:
@@ -549,7 +549,7 @@ extension SourceKitServer: MessageHandler {
 
     switch request {
     case let request as Request<InitializeRequest>:
-      self.initialize(request)
+      await self.initialize(request)
     case let request as Request<ShutdownRequest>:
       await self.shutdown(request)
     case let request as Request<WorkspaceSymbolsRequest>:
@@ -818,7 +818,7 @@ extension SourceKitServer {
     )
   }
 
-  func initialize(_ req: Request<InitializeRequest>) {
+  func initialize(_ req: Request<InitializeRequest>) async {
     if case .dictionary(let options) = req.params.initializationOptions {
       if case .bool(let listenToUnitEvents) = options["listenToUnitEvents"] {
         self.options.indexOptions.listenToUnitEvents = listenToUnitEvents
@@ -871,7 +871,7 @@ extension SourceKitServer {
 
     assert(!self.workspaces.isEmpty)
     for workspace in self.workspaces {
-      workspace.buildSystemManager.delegate = self
+      await workspace.buildSystemManager.setDelegate(self)
     }
 
     req.reply(InitializeResult(capabilities:
@@ -1017,24 +1017,27 @@ extension SourceKitServer {
   /// The server shall not be used to handle more requests (other than possibly
   /// `shutdown` and `exit`) and should attempt to flush any buffered state
   /// immediately, such as sending index changes to disk.
-  public func prepareForExit() {
+  public func prepareForExit() async {
     // Note: this method should be safe to call multiple times, since we want to
     // be resilient against multiple possible shutdown sequences, including
     // pipe failure.
 
-    // Close the index, which will flush to disk.
+    // Theoretically, new workspaces could be added while we are awaiting inside
+    // the loop. But since we are currently exiting, it doesn't make sense for
+    // the client to open new workspaces.
     for workspace in self.workspaces {
-      workspace.buildSystemManager.mainFilesProvider = nil
+      await workspace.buildSystemManager.setMainFilesProvider(nil)
+      // Close the index, which will flush to disk.
       workspace.index = nil
 
       // Break retain cycle with the BSM.
-      workspace.buildSystemManager.delegate = nil
+      await workspace.buildSystemManager.setDelegate(nil)
     }
   }
 
 
   func shutdown(_ request: Request<ShutdownRequest>) async {
-    prepareForExit()
+    await prepareForExit()
 
     await withTaskGroup(of: Void.self) { taskGroup in
       for service in languageServices.values.flatMap({ $0 }) {
@@ -1057,9 +1060,9 @@ extension SourceKitServer {
     request.reply(VoidResponse())
   }
 
-  func exit(_ notification: Notification<ExitNotification>) {
+  func exit(_ notification: Notification<ExitNotification>) async {
     // Should have been called in shutdown, but allow misbehaving clients.
-    prepareForExit()
+    await prepareForExit()
 
     // Call onExit only once, and hop off queue to allow the handler to call us back.
     let onExit = self.onExit
@@ -1094,7 +1097,7 @@ extension SourceKitServer {
       return
     }
 
-    workspace.buildSystemManager.registerForChangeNotifications(for: uri, language: language)
+    await workspace.buildSystemManager.registerForChangeNotifications(for: uri, language: language)
 
     // If the document is ready, we can immediately send the notification.
     guard !documentsReady.contains(uri) else {
@@ -1124,7 +1127,7 @@ extension SourceKitServer {
 
     let uri = note.textDocument.uri
 
-    workspace.buildSystemManager.unregisterForChangeNotifications(for: uri)
+    await workspace.buildSystemManager.unregisterForChangeNotifications(for: uri)
 
     // If the document is ready, we can close it now.
     guard !documentsReady.contains(uri) else {
@@ -1190,7 +1193,7 @@ extension SourceKitServer {
     if let added = note.params.event.added {
       let newWorkspaces = added.compactMap({ self.workspace(uri: $0.uri) })
       for workspace in newWorkspaces {
-        workspace.buildSystemManager.delegate = self
+        await workspace.buildSystemManager.setDelegate(self)
       }
       self.workspaces.append(contentsOf: newWorkspaces)
     }
@@ -1221,14 +1224,14 @@ extension SourceKitServer {
     }
   }
 
-  func didChangeWatchedFiles(_ note: Notification<DidChangeWatchedFilesNotification>) {
+  func didChangeWatchedFiles(_ note: Notification<DidChangeWatchedFilesNotification>) async {
     // We can't make any assumptions about which file changes a particular build
     // system is interested in. Just because it doesn't have build settings for
     // a file doesn't mean a file can't affect the build system's build settings
     // (e.g. Package.swift doesn't have build settings but affects build
     // settings). Inform the build system about all file changes.
     for workspace in workspaces {
-      workspace.buildSystemManager.filesDidChange(note.params.changes)
+      await workspace.buildSystemManager.filesDidChange(note.params.changes)
     }
   }
 

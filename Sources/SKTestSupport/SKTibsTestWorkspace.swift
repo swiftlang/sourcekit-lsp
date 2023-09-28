@@ -97,7 +97,7 @@ public final class SKTibsTestWorkspace {
       index: index,
       indexDelegate: indexDelegate)
 
-    workspace.buildSystemManager.delegate = testServer.server!
+    await workspace.buildSystemManager.setDelegate(testServer.server!)
     await testServer.server!.setWorkspaces([workspace])
   }
 }
