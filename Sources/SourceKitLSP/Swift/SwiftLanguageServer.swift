@@ -987,12 +987,26 @@ extension SwiftLanguageServer {
     _ = handle
   }
 
-  public func foldingRange(_ req: Request<FoldingRangeRequest>) {
+  public func foldingRange(_ req: Request<FoldingRangeRequest>) async {
     let foldingRangeCapabilities = capabilityRegistry.clientCapabilities.textDocument?.foldingRange
-    guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
+    let uri = req.params.textDocument.uri
+    guard var snapshot = self.documentManager.latestSnapshot(uri) else {
       log("failed to find snapshot for url \(req.params.textDocument.uri)")
       req.reply(nil)
       return
+    }
+
+    // FIXME: (async) We might not have computed the syntax tree yet. Wait until we have a syntax tree.
+    // Really, getting the syntax tree should be an async operation.
+    while snapshot.tokens.syntaxTree == nil {
+      try? await Task.sleep(nanoseconds: 1_000_000)
+      if let newSnapshot = documentManager.latestSnapshot(uri) {
+        snapshot = newSnapshot
+      } else {
+        log("failed to find snapshot for url \(req.params.textDocument.uri)")
+        req.reply(nil)
+        return
+      }
     }
 
     guard let sourceFile = snapshot.tokens.syntaxTree else {

@@ -99,7 +99,7 @@ public final class Workspace {
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
       if let buildServer = BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
         buildSystem = buildServer
-      } else if let swiftpm = SwiftPMWorkspace(
+      } else if let swiftpm = await SwiftPMWorkspace(
         url: rootUrl,
         toolchainRegistry: toolchainRegistry,
         buildSetup: buildSetup,

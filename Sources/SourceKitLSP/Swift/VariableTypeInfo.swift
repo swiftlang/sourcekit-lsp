@@ -94,8 +94,19 @@ extension SwiftLanguageServer {
     _ range: Range<Position>? = nil,
     _ completion: @escaping (Swift.Result<[VariableTypeInfo], VariableTypeInfoError>) -> Void
   ) async {
-    guard let snapshot = documentManager.latestSnapshot(uri) else {
+    guard var snapshot = documentManager.latestSnapshot(uri) else {
       return completion(.failure(.unknownDocument(uri)))
+    }
+
+    // FIXME: (async) We might not have computed the syntax tree yet. Wait until we have a syntax tree.
+    // Really, getting the syntax tree should be an async operation.
+    while snapshot.tokens.syntaxTree == nil {
+      try? await Task.sleep(nanoseconds: 1_000_000)
+      if let newSnapshot = documentManager.latestSnapshot(uri) {
+        snapshot = newSnapshot
+      } else {
+        return completion(.failure(.unknownDocument(uri)))
+      }
     }
 
     let keys = self.keys
