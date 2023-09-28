@@ -385,16 +385,14 @@ extension ClangLanguageServerShim {
     forwardNotificationToClangdOnQueue(initialized)
   }
 
-  public func shutdown() async {
-    await withCheckedContinuation { continuation in
-      queue.async {
-        _ = self.clangd.send(ShutdownRequest(), queue: self.queue) { [weak self] _ in
-          self?.clangd.send(ExitNotification())
-          if let localConnection = self?.client as? LocalConnection {
-            localConnection.close()
-          }
-          continuation.resume()
+  public func shutdown(callback: @escaping () -> Void) {
+    queue.async {
+      _ = self.clangd.send(ShutdownRequest(), queue: self.queue) { [weak self] _ in
+        self?.clangd.send(ExitNotification())
+        if let localConnection = self?.client as? LocalConnection {
+          localConnection.close()
         }
+        callback()
       }
     }
   }
