@@ -290,8 +290,8 @@ public final class JSONRPCConnection {
       messageHandlingQueue.async {
         await request._handle(self.receiveHandler!, id: id, connection: self) { (response, id) in
           self.sendReply(response, id: id)
+          semaphore?.signal()
         }
-        semaphore?.signal()
       }
       semaphore?.wait()
 
