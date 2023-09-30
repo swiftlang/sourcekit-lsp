@@ -63,7 +63,7 @@ final class CompilationDatabaseTests: XCTestCase {
     var didReceiveCorrectHighlight = false
 
     // Updating the build settings takes a few seconds.
-    // Send code completion requests every second until we receive correct results.
+    // Send highlight requests every second until we receive correct results.
     for _ in 0..<30 {
       let postChangeHighlightResponse = try ws.sk.sendSync(highlightRequest)
 

@@ -102,10 +102,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let del = await BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
-    let initial = expectation(description: "initial settings")
-    await del.setExpected([(a, .swift, bs.map[a]!, initial, #file, #line)])
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    try await fulfillmentOfOrThrow([initial])
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings, bs.map[a]!)
 
     bs.map[a] = nil
     let changed = expectation(description: "changed settings")
@@ -125,10 +123,8 @@ final class BuildSystemManagerTests: XCTestCase {
       mainFilesProvider: mainFiles)
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
-    let initial = expectation(description: "initial settings")
-    await del.setExpected([(a, .swift, nil, initial, #file, #line)])
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    try await fulfillmentOfOrThrow([initial])
+    assertNil(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
     let changed = expectation(description: "changed settings")
@@ -150,10 +146,8 @@ final class BuildSystemManagerTests: XCTestCase {
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
     let fallbackSettings = fallback.buildSettings(for: a, language: .swift)
-    let initial = expectation(description: "initial fallback settings")
-    await del.setExpected([(a, .swift, fallbackSettings, initial, #file, #line)])
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    try await fulfillmentOfOrThrow([initial])
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings, fallbackSettings)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["non-fallback", "args"])
     let changed = expectation(description: "changed settings")
@@ -183,14 +177,10 @@ final class BuildSystemManagerTests: XCTestCase {
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
     bs.map[b] = FileBuildSettings(compilerArguments: ["y"])
-    let initial = expectation(description: "initial settings")
-    await del.setExpected([(a, .swift, bs.map[a]!, initial, #file, #line)])
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    try await fulfillmentOfOrThrow([initial])
-    let initialB = expectation(description: "initial settings")
-    await del.setExpected([(b, .swift, bs.map[b]!, initialB, #file, #line)])
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings, bs.map[a]!)
     await bsm.registerForChangeNotifications(for: b, language: .swift)
-    try await fulfillmentOfOrThrow([initialB])
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: b, language: .swift)?.buildSettings, bs.map[b]!)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["xx"])
     bs.map[b] = FileBuildSettings(compilerArguments: ["yy"])
@@ -228,15 +218,11 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[a] = FileBuildSettings(compilerArguments: ["a"])
     bs.map[b] = FileBuildSettings(compilerArguments: ["b"])
 
-    let initialA = expectation(description: "initial settings a")
-    await del.setExpected([(a, .swift, bs.map[a]!, initialA, #file, #line)])
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    try await fulfillmentOfOrThrow([initialA])
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings, bs.map[a]!)
 
-    let initialB = expectation(description: "initial settings b")
-    await del.setExpected([(b, .swift, bs.map[b]!, initialB, #file, #line)])
     await bsm.registerForChangeNotifications(for: b, language: .swift)
-    try await fulfillmentOfOrThrow([initialB])
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: b, language: .swift)?.buildSettings, bs.map[b]!)
 
     bs.map[a] = nil
     bs.map[b] = nil
@@ -268,10 +254,8 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[cpp1] = FileBuildSettings(compilerArguments: ["C++ 1"])
     bs.map[cpp2] = FileBuildSettings(compilerArguments: ["C++ 2"])
 
-    let initial = expectation(description: "initial settings via cpp1")
-    await del.setExpected([(h, .c, bs.map[cpp1]!, initial, #file, #line)])
     await bsm.registerForChangeNotifications(for: h, language: .c)
-    try await fulfillmentOfOrThrow([initial])
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h, language: .c)?.buildSettings, bs.map[cpp1]!)
 
     mainFiles.mainFiles[h] = Set([cpp2])
 
@@ -323,21 +307,15 @@ final class BuildSystemManagerTests: XCTestCase {
     let cppArg = "C++ Main File"
     bs.map[cpp] = FileBuildSettings(compilerArguments: [cppArg, cpp.pseudoPath])
 
-    let initial1 = expectation(description: "initial settings h1 via cpp")
-    let initial2 = expectation(description: "initial settings h2 via cpp")
-    let expectedArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h1.pseudoPath])
-    let expectedArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h2.pseudoPath])
-    await del.setExpected([
-      (h1, .c, expectedArgsH1, initial1, #file, #line),
-      (h2, .c, expectedArgsH2, initial2, #file, #line),
-    ])
 
     await bsm.registerForChangeNotifications(for: h1, language: .c)
-    await bsm.registerForChangeNotifications(for: h2, language: .c)
 
-    // Since the registration is async, it's possible that they get grouped together
-    // since they are backed by the same underlying cpp file.
-    try await fulfillmentOfOrThrow([initial1, initial2])
+    await bsm.registerForChangeNotifications(for: h2, language: .c)
+    
+    let expectedArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h1.pseudoPath])
+    let expectedArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h2.pseudoPath])
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h1, language: .c)?.buildSettings, expectedArgsH1)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h2, language: .c)?.buildSettings, expectedArgsH2)
 
     let newCppArg = "New C++ Main File"
     bs.map[cpp] = FileBuildSettings(compilerArguments: [newCppArg, cpp.pseudoPath])
@@ -372,18 +350,12 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[b] = FileBuildSettings(compilerArguments: ["b"])
     bs.map[c] = FileBuildSettings(compilerArguments: ["c"])
 
-    let initialA = expectation(description: "initial settings a")
-    let initialB = expectation(description: "initial settings b")
-    let initialC = expectation(description: "initial settings c")
-    await del.setExpected([
-      (a, .swift, bs.map[a]!, initialA, #file, #line),
-      (b, .swift, bs.map[b]!, initialB, #file, #line),
-      (c, .swift, bs.map[c]!, initialC, #file, #line),
-    ])
     await bsm.registerForChangeNotifications(for: a, language: .swift)
     await bsm.registerForChangeNotifications(for: b, language: .swift)
     await bsm.registerForChangeNotifications(for: c, language: .swift)
-    try await fulfillmentOfOrThrow([initialA, initialB, initialC])
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings, bs.map[a]!)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: b, language: .swift)?.buildSettings, bs.map[b]!)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: c, language: .swift)?.buildSettings, bs.map[c]!)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["new-a"])
     bs.map[b] = FileBuildSettings(compilerArguments: ["new-b"])
@@ -408,14 +380,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let mainFiles = ManualMainFilesProvider()
     mainFiles.mainFiles = [a: Set([a])]
 
-    class DepUpdateDuringRegistrationBS: ManualBuildSystem {
-        override func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
-          await delegate?.filesDependenciesUpdated([uri])
-          await super.registerForChangeNotifications(for: uri, language: language)
-        }
-    }
-
-    let bs = DepUpdateDuringRegistrationBS()
+    let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
@@ -424,14 +389,9 @@ final class BuildSystemManagerTests: XCTestCase {
     let del = await BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
-    let initial = expectation(description: "initial settings")
-    await del.setExpected([(a, .swift, bs.map[a]!, initial, #file, #line)])
-
-    let depUpdate1 = expectation(description: "dependencies update during registration")
-    await del.setExpectedDependenciesUpdate([(a, depUpdate1, #file, #line)])
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings, bs.map[a]!)
 
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    try await fulfillmentOfOrThrow([initial, depUpdate1])
 
     let depUpdate2 = expectation(description: "dependencies update 2")
     await del.setExpectedDependenciesUpdate([(a, depUpdate2, #file, #line)])
@@ -475,7 +435,6 @@ class ManualBuildSystem: BuildSystem {
   }
 
   func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
-    await self.delegate?.fileBuildSettingsChanged([uri])
   }
 
   func unregisterForChangeNotifications(for: DocumentURI) {

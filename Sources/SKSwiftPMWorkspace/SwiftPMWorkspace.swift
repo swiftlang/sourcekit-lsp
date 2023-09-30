@@ -298,16 +298,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
     assert(self.watchedFiles[uri] == nil, "Registered twice for change notifications of the same URI")
-    guard let delegate = self.delegate else { return }
     self.watchedFiles[uri] = language
-
-    var settings: FileBuildSettings? = nil
-    do {
-      settings = try self.buildSettings(for: uri, language: language)
-    } catch {
-      log("error computing settings: \(error)")
-    }
-    await delegate.fileBuildSettingsChanged([uri])
   }
 
   /// Unregister the given file for build-system level change notifications, such as command

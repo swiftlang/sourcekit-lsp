@@ -51,17 +51,8 @@ final class TestBuildSystem: BuildSystem {
     return buildSettingsByFile[document]
   }
 
-  func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+  func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
     watchedFiles.insert(uri)
-
-    // Inform our delegate of settings for the file if they're available.
-    guard let delegate = self.delegate else {
-      return
-    }
-
-    Task {
-      await delegate.fileBuildSettingsChanged([uri])
-    }
   }
 
   func unregisterForChangeNotifications(for uri: DocumentURI) {
@@ -360,44 +351,6 @@ final class BuildSystemTests: XCTestCase {
     await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
     try await fulfillmentOfOrThrow([expectation])
-  }
-
-  func testSwiftDocumentBuildSettingsChangedFalseAlarm() async throws {
-    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
-    let doc = DocumentURI(url)
-
-    sk.allowUnexpectedNotification = false
-
-    let documentManager = await self.testServer.server!._documentManager
-
-    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: doc,
-      language: .swift,
-      version: 12,
-      text: """
-      func
-      """
-    )), { (note: Notification<PublishDiagnosticsNotification>) in
-      XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", documentManager.latestSnapshot(doc)!.text)
-    }, { (note: Notification<PublishDiagnosticsNotification>) in
-      // Using fallback system, so we will receive the same syntactic diagnostics from before.
-      XCTAssertEqual(note.params.diagnostics.count, 1)
-    })
-
-    // Modify the build settings and inform the SourceKitServer.
-    // This shouldn't trigger new diagnostics since nothing actually changed (false alarm).
-    await buildSystem.delegate?.fileBuildSettingsChanged([doc])
-
-    let expectation = XCTestExpectation(description: "refresh doesn't occur")
-    expectation.isInverted = true
-    sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
-      XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", documentManager.latestSnapshot(doc)!.text)
-      expectation.fulfill()
-    }
-
-    try await fulfillmentOfOrThrow([expectation], timeout: 1)
   }
 
   func testMainFilesChanged() async throws {

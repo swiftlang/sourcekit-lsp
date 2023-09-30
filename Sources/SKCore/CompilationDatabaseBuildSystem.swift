@@ -93,10 +93,6 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
     self.watchedFiles[uri] = language
-
-    guard let delegate = self.delegate else { return }
-
-    await delegate.fileBuildSettingsChanged([uri])
   }
 
   /// We don't support change watching.
