@@ -27,21 +27,39 @@ final class BuildServerBuildSystemTests: XCTestCase {
   } 
   let buildFolder = try! AbsolutePath(validating: NSTemporaryDirectory())
 
-  func testServerInitialize() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
+  func testServerInitialize() throws {
+    let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
-    assertEqual(
-      await buildSystem.indexDatabasePath,
+    XCTAssertEqual(
+      buildSystem.indexDatabasePath,
       try AbsolutePath(validating: "some/index/db/path", relativeTo: root)
     )
-    assertEqual(
-      await buildSystem.indexStorePath,
+    XCTAssertEqual(
+      buildSystem.indexStorePath, 
       try AbsolutePath(validating: "some/index/store/path", relativeTo: root)
     )
   }
 
-  func testFileRegistration() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
+  func testSettings() throws {
+#if os(Windows)
+    try XCTSkipIf(true, "hang")
+#endif
+    let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
+
+    // test settings with a response
+    let fileURL = URL(fileURLWithPath: "/path/to/some/file.swift")
+    let settings = buildSystem._settings(for: DocumentURI(fileURL))
+    XCTAssertNotNil(settings)
+    XCTAssertEqual(settings?.compilerArguments, ["-a", "-b"])
+    XCTAssertEqual(settings?.workingDirectory, fileURL.deletingLastPathComponent().path)
+
+    // test error
+    let missingFileURL = URL(fileURLWithPath: "/path/to/some/missingfile.missing")
+    XCTAssertNil(buildSystem._settings(for: DocumentURI(missingFileURL)))
+  }
+
+  func testFileRegistration() throws {
+    let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "\(fileUrl) settings updated")
@@ -50,14 +68,14 @@ final class BuildServerBuildSystemTests: XCTestCase {
       // BuildSystemManager has a weak reference to delegate. Keep it alive.
       _fixLifetime(buildSystemDelegate)
     }
-    await buildSystem.setDelegate(buildSystemDelegate)
-    await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl), language: .swift)
+    buildSystem.delegate = buildSystemDelegate
+    buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl), language: .swift)
 
     XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: defaultTimeout), .completed)
   }
 
-  func testBuildTargetsChanged() async throws {
-    let buildSystem = try await BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
+  func testBuildTargetsChanged() throws {
+    let buildSystem = try BuildServerBuildSystem(projectRoot: root, buildFolder: buildFolder)
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "target changed")
@@ -71,10 +89,14 @@ final class BuildServerBuildSystemTests: XCTestCase {
       // BuildSystemManager has a weak reference to delegate. Keep it alive.
       _fixLifetime(buildSystemDelegate)
     }
-    await buildSystem.setDelegate(buildSystemDelegate)
-    await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl), language: .swift)
+    buildSystem.delegate = buildSystemDelegate
+    buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl), language: .swift)
 
-    try await fulfillmentOfOrThrow([expectation])
+    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
+    guard result == .completed else {
+      XCTFail("error \(result) waiting for targets changed notification")
+      return
+    }
   }
 }
 

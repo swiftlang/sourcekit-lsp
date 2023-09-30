@@ -27,12 +27,6 @@ import struct PackageModel.BuildFlags
 
 public typealias URL = Foundation.URL
 
-fileprivate extension SourceKitServer {
-  func setWorkspaces(_ workspaces: [Workspace]) {
-    self._workspaces = workspaces
-  }
-}
-
 public final class SKTibsTestWorkspace {
 
   public let tibsWorkspace: TibsTestWorkspace
@@ -51,7 +45,7 @@ public final class SKTibsTestWorkspace {
     toolchain: Toolchain,
     clientCapabilities: ClientCapabilities,
     testServer: TestSourceKitServer? = nil
-  ) async throws
+  ) throws
   {
     self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
     self.tibsWorkspace = try TibsTestWorkspace(
@@ -61,7 +55,7 @@ public final class SKTibsTestWorkspace {
       removeTmpDir: removeTmpDir,
       toolchain: TibsToolchain(toolchain))
 
-    try await initWorkspace(clientCapabilities: clientCapabilities)
+    try initWorkspace(clientCapabilities: clientCapabilities)
   }
 
   public init(
@@ -70,7 +64,7 @@ public final class SKTibsTestWorkspace {
     toolchain: Toolchain,
     clientCapabilities: ClientCapabilities,
     testServer: TestSourceKitServer? = nil
-  ) async throws {
+  ) throws {
     self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
 
     self.tibsWorkspace = try TibsTestWorkspace(
@@ -78,16 +72,16 @@ public final class SKTibsTestWorkspace {
       tmpDir: tmpDir,
       toolchain: TibsToolchain(toolchain))
 
-    try await initWorkspace(clientCapabilities: clientCapabilities)
+    try initWorkspace(clientCapabilities: clientCapabilities)
   }
 
-  func initWorkspace(clientCapabilities: ClientCapabilities) async throws {
+  func initWorkspace(clientCapabilities: ClientCapabilities) throws {
     let buildPath = try AbsolutePath(validating: builder.buildRoot.path)
     let buildSystem = CompilationDatabaseBuildSystem(projectRoot: buildPath)
     let indexDelegate = SourceKitIndexDelegate()
     tibsWorkspace.delegate = indexDelegate
 
-    let workspace = await Workspace(
+    let workspace = Workspace(
       documentManager: DocumentManager(),
       rootUri: DocumentURI(sources.rootDirectory),
       capabilityRegistry: CapabilityRegistry(clientCapabilities: clientCapabilities),
@@ -97,8 +91,8 @@ public final class SKTibsTestWorkspace {
       index: index,
       indexDelegate: indexDelegate)
 
-    await workspace.buildSystemManager.setDelegate(testServer.server!)
-    await testServer.server!.setWorkspaces([workspace])
+    workspace.buildSystemManager.delegate = testServer.server!
+    testServer.server!._workspaces = [workspace]
   }
 }
 
@@ -137,9 +131,9 @@ extension XCTestCase {
     tmpDir: URL? = nil,
     removeTmpDir: Bool = true,
     server: TestSourceKitServer? = nil
-  ) async throws -> SKTibsTestWorkspace? {
+  ) throws -> SKTibsTestWorkspace? {
     let testDirName = testDirectoryName
-    let workspace = try await SKTibsTestWorkspace(
+    let workspace = try SKTibsTestWorkspace(
       immutableProjectDir: XCTestCase.sklspInputsDirectory
         .appendingPathComponent(name, isDirectory: true),
       persistentBuildDir: XCTestCase.productsDirectory
@@ -169,9 +163,9 @@ extension XCTestCase {
     name: String,
     clientCapabilities: ClientCapabilities = .init(),
     tmpDir: URL? = nil
-  ) async throws -> SKTibsTestWorkspace? {
+  ) throws -> SKTibsTestWorkspace? {
     let testDirName = testDirectoryName
-    let workspace = try await SKTibsTestWorkspace(
+    let workspace = try SKTibsTestWorkspace(
       projectDir: XCTestCase.sklspInputsDirectory.appendingPathComponent(name, isDirectory: true),
       tmpDir: tmpDir ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),

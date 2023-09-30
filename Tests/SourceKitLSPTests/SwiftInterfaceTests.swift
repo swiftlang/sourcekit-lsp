@@ -28,6 +28,10 @@ final class SwiftInterfaceTests: XCTestCase {
   /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
 
+  var documentManager: DocumentManager! {
+    connection.server!._documentManager
+  }
+
   override func setUp() {
     // This is the only test that references modules from the SDK (Foundation).
     // `testSystemModuleInterface` has been flaky for a long while and a
@@ -86,8 +90,8 @@ final class SwiftInterfaceTests: XCTestCase {
     XCTAssert(fileContents.hasPrefix("import "), "Expected that the foundation swift interface starts with 'import ' but got '\(fileContents.prefix(100))'")
   }
   
-  func testOpenInterface() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
+  func testOpenInterface() throws {
+    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
     try ws.buildAndIndex()
     let importedModule = ws.testLoc("lib:import")
     try ws.openDocument(importedModule.url, language: .swift)
@@ -130,8 +134,8 @@ final class SwiftInterfaceTests: XCTestCase {
     ws.closeDocument(testLoc.url)
   }
 
-  func testDefinitionInSystemModuleInterface() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SystemSwiftInterface") else { return }
+  func testDefinitionInSystemModuleInterface() throws {
+    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SystemSwiftInterface") else { return }
     try ws.buildAndIndex(withSystemSymbols: true)
     let stringRef = ws.testLoc("lib.string")
     let intRef = ws.testLoc("lib.integer")
@@ -160,8 +164,8 @@ final class SwiftInterfaceTests: XCTestCase {
     )
   }
   
-  func testSwiftInterfaceAcrossModules() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
+  func testSwiftInterfaceAcrossModules() throws {
+    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
     try ws.buildAndIndex()
     let importedModule = ws.testLoc("lib:import")
     try ws.openDocument(importedModule.url, language: .swift)

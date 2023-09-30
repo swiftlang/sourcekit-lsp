@@ -19,15 +19,6 @@ import SKSwiftPMWorkspace
 
 import struct TSCBasic.AbsolutePath
 
-/// Same as `??` but allows the right-hand side of the operator to 'await'.
-fileprivate func firstNonNil<T>(_ optional: T?, _ defaultValue: @autoclosure () async throws -> T) async rethrows -> T {
-  if let optional {
-    return optional
-  }
-  return try await defaultValue()
-}
-
-
 /// Represents the configuration and state of a project or combination of projects being worked on
 /// together.
 ///
@@ -66,18 +57,19 @@ public final class Workspace {
     buildSetup: BuildSetup,
     underlyingBuildSystem: BuildSystem?,
     index: IndexStoreDB?,
-    indexDelegate: SourceKitIndexDelegate?
-  ) async {
+    indexDelegate: SourceKitIndexDelegate?)
+  {
     self.documentManager = documentManager
     self.buildSetup = buildSetup
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
     self.index = index
-    self.buildSystemManager = await BuildSystemManager(
+    let bsm = BuildSystemManager(
       buildSystem: underlyingBuildSystem,
       fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
       mainFilesProvider: index)
-    indexDelegate?.registerMainFileChanged(buildSystemManager)
+    indexDelegate?.registerMainFileChanged(bsm)
+    self.buildSystemManager = bsm
   }
 
   /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
@@ -94,12 +86,12 @@ public final class Workspace {
     buildSetup: BuildSetup,
     indexOptions: IndexOptions = IndexOptions(),
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) -> Void
-  ) async throws {
+  ) throws {
     var buildSystem: BuildSystem? = nil
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
-      if let buildServer = await BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
+      if let buildServer = BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
         buildSystem = buildServer
-      } else if let swiftpm = await SwiftPMWorkspace(
+      } else if let swiftpm = SwiftPMWorkspace(
         url: rootUrl,
         toolchainRegistry: toolchainRegistry,
         buildSetup: buildSetup,
@@ -118,14 +110,14 @@ public final class Workspace {
     var index: IndexStoreDB? = nil
     var indexDelegate: SourceKitIndexDelegate? = nil
 
-    if let storePath = await firstNonNil(indexOptions.indexStorePath, await buildSystem?.indexStorePath),
-       let dbPath = await firstNonNil(indexOptions.indexDatabasePath, await buildSystem?.indexDatabasePath),
+    if let storePath = indexOptions.indexStorePath ?? buildSystem?.indexStorePath,
+       let dbPath = indexOptions.indexDatabasePath ?? buildSystem?.indexDatabasePath,
        let libPath = toolchainRegistry.default?.libIndexStore
     {
       do {
         let lib = try IndexStoreLibrary(dylibPath: libPath.pathString)
         indexDelegate = SourceKitIndexDelegate()
-        let prefixMappings = await firstNonNil(indexOptions.indexPrefixMappings, await buildSystem?.indexPrefixMappings) ?? []
+        let prefixMappings = indexOptions.indexPrefixMappings ?? buildSystem?.indexPrefixMappings ?? []
         index = try IndexStoreDB(
           storePath: storePath.pathString,
           databasePath: dbPath.pathString,
@@ -139,7 +131,7 @@ public final class Workspace {
       }
     }
 
-    await self.init(
+    self.init(
       documentManager: documentManager,
       rootUri: rootUri,
       capabilityRegistry: capabilityRegistry,
@@ -148,15 +140,6 @@ public final class Workspace {
       underlyingBuildSystem: buildSystem,
       index: index,
       indexDelegate: indexDelegate)
-  }
-}
-
-/// Wrapper around a workspace that isn't being retained.
-struct WeakWorkspace {
-  weak var value: Workspace?
-
-  init(_ value: Workspace? = nil) {
-    self.value = value
   }
 }
 

@@ -25,10 +25,18 @@ import var TSCBasic.localFileSystem
 ///
 /// Provides build settings from a `CompilationDatabase` found by searching a project. For now, only
 /// one compilation database, located at the project root.
-public actor CompilationDatabaseBuildSystem {
+public final class CompilationDatabaseBuildSystem {
+
+  /// Queue guarding the following properties:
+  /// - `compdb`
+  /// - `watchedFiles`
+  /// - `_indexStorePath`
+  let queue: DispatchQueue = .init(label: "CompilationDatabaseBuildSystem.queue", qos: .userInitiated)
+
   /// The compilation database.
   var compdb: CompilationDatabase? = nil {
     didSet {
+      dispatchPrecondition(condition: .onQueue(queue))
       // Build settings have changed and thus the index store path might have changed.
       // Recompute it on demand.
       _indexStorePath = nil
@@ -37,10 +45,6 @@ public actor CompilationDatabaseBuildSystem {
 
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate? = nil
-
-  public func setDelegate(_ delegate: BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
 
   let projectRoot: AbsolutePath?
 
@@ -52,22 +56,24 @@ public actor CompilationDatabaseBuildSystem {
 
   private var _indexStorePath: AbsolutePath?
   public var indexStorePath: AbsolutePath? {
-    if let indexStorePath = _indexStorePath {
-      return indexStorePath
-    }
+    return queue.sync {
+      if let indexStorePath = _indexStorePath {
+        return indexStorePath
+      }
 
-    if let allCommands = self.compdb?.allCommands {
-      for command in allCommands {
-        let args = command.commandLine
-        for i in args.indices.reversed() {
-          if args[i] == "-index-store-path" && i != args.endIndex - 1 {
-            _indexStorePath = try? AbsolutePath(validating: args[i+1])
-            return _indexStorePath
+      if let allCommands = self.compdb?.allCommands {
+        for command in allCommands {
+          let args = command.commandLine
+          for i in args.indices.reversed() {
+            if args[i] == "-index-store-path" && i != args.endIndex - 1 {
+              _indexStorePath = try? AbsolutePath(validating: args[i+1])
+              return _indexStorePath
+            }
           }
         }
       }
+      return nil
     }
-    return nil
   }
 
   public init(projectRoot: AbsolutePath? = nil, fileSystem: FileSystem = localFileSystem) {
@@ -87,32 +93,36 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
 
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
-  public func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
-    return self.settings(for: document)
-  }
+  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+    queue.async {
+      self.watchedFiles[uri] = language
 
-  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
-    self.watchedFiles[uri] = language
+      guard let delegate = self.delegate else { return }
 
-    guard let delegate = self.delegate else { return }
-
-    let settings = self.settings(for: uri)
-    await delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+      let settings = self.settings(for: uri)
+      delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    }
   }
 
   /// We don't support change watching.
   public func unregisterForChangeNotifications(for uri: DocumentURI) {
-    self.watchedFiles[uri] = nil
+    queue.async {
+      self.watchedFiles[uri] = nil
+    }
   }
 
+  /// Must be invoked on `queue`.
   private func database(for url: URL) -> CompilationDatabase? {
+    dispatchPrecondition(condition: .onQueue(queue))
     if let path = try? AbsolutePath(validating: url.path) {
       return database(for: path)
     }
     return compdb
   }
 
+  /// Must be invoked on `queue`.
   private func database(for path: AbsolutePath) -> CompilationDatabase? {
+    dispatchPrecondition(condition: .onQueue(queue))
     if compdb == nil {
       var dir = path
       while !dir.isRoot {
@@ -142,7 +152,10 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
 
   /// The compilation database has been changed on disk.
   /// Reload it and notify the delegate about build setting changes.
-  private func reloadCompilationDatabase() async {
+  /// Must be called on `queue`.
+  private func reloadCompilationDatabase() {
+    dispatchPrecondition(condition: .onQueue(queue))
+
     guard let projectRoot = self.projectRoot else { return }
 
     self.compdb = tryLoadCompilationDatabase(directory: projectRoot, self.fileSystem)
@@ -156,13 +169,15 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
           changedFiles[uri] = .removedOrUnavailable
         }
       }
-      await delegate.fileBuildSettingsChanged(changedFiles)
+      delegate.fileBuildSettingsChanged(changedFiles)
     }
   }
 
-  public func filesDidChange(_ events: [FileEvent]) async {
-    if events.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
-      await self.reloadCompilationDatabase()
+  public func filesDidChange(_ events: [FileEvent]) {
+    queue.async {
+      if events.contains(where: { self.fileEventShouldTriggerCompilationDatabaseReload(event: $0) }) {
+        self.reloadCompilationDatabase()
+      }
     }
   }
 
@@ -170,16 +185,20 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     guard let fileUrl = uri.fileURL else {
       return .unhandled
     }
-    if database(for: fileUrl) != nil {
-      return .handled
-    } else {
-      return .unhandled
+    return queue.sync {
+      if database(for: fileUrl) != nil {
+        return .handled
+      } else {
+        return .unhandled
+      }
     }
   }
 }
 
 extension CompilationDatabaseBuildSystem {
+  /// Must be invoked on `queue`.
   private func settings(for uri: DocumentURI) -> FileBuildSettings? {
+    dispatchPrecondition(condition: .onQueue(queue))
     guard let url = uri.fileURL else {
       // We can't determine build settings for non-file URIs.
       return nil
@@ -193,6 +212,8 @@ extension CompilationDatabaseBuildSystem {
 
   /// Exposed for *testing*.
   public func _settings(for uri: DocumentURI) -> FileBuildSettings? {
-    return self.settings(for: uri)
+    return queue.sync {
+      return self.settings(for: uri)
+    }
   }
 }

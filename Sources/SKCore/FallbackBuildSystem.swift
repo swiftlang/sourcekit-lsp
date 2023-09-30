@@ -38,17 +38,13 @@ public final class FallbackBuildSystem: BuildSystem {
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate? = nil
 
-  public func setDelegate(_ delegate: BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
-
   public var indexStorePath: AbsolutePath? { return nil }
 
   public var indexDatabasePath: AbsolutePath? { return nil }
 
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
-  public func buildSettings(for uri: DocumentURI, language: Language) -> FileBuildSettings? {
+  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
     switch language {
     case .swift:
       return settingsSwift(uri.pseudoPath)
@@ -62,9 +58,9 @@ public final class FallbackBuildSystem: BuildSystem {
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     guard let delegate = self.delegate else { return }
 
-    let settings = self.buildSettings(for: uri, language: language)
-    Task {
-      await delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    let settings = self.settings(for: uri, language)
+    DispatchQueue.global().async {
+      delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
     }
   }
 

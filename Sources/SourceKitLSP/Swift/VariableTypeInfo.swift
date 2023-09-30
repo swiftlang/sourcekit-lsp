@@ -84,29 +84,16 @@ enum VariableTypeInfoError: Error, Equatable {
 }
 
 extension SwiftLanguageServer {
-  /// Provides typed variable declarations in a document.
-  ///
-  /// - Parameters:
-  ///   - url: Document URL in which to perform the request. Must be an open document.
-  ///   - completion: Completion block to asynchronously receive the VariableTypeInfos, or error.
-  func variableTypeInfos(
+  /// Must be called on self.queue.
+  private func _variableTypeInfos(
     _ uri: DocumentURI,
     _ range: Range<Position>? = nil,
     _ completion: @escaping (Swift.Result<[VariableTypeInfo], VariableTypeInfoError>) -> Void
-  ) async {
-    guard var snapshot = documentManager.latestSnapshot(uri) else {
-      return completion(.failure(.unknownDocument(uri)))
-    }
+  ) {
+    dispatchPrecondition(condition: .onQueue(queue))
 
-    // FIXME: (async) We might not have computed the syntax tree yet. Wait until we have a syntax tree.
-    // Really, getting the syntax tree should be an async operation.
-    while snapshot.tokens.syntaxTree == nil {
-      try? await Task.sleep(nanoseconds: 1_000_000)
-      if let newSnapshot = documentManager.latestSnapshot(uri) {
-        snapshot = newSnapshot
-      } else {
-        return completion(.failure(.unknownDocument(uri)))
-      }
+    guard let snapshot = documentManager.latestSnapshot(uri) else {
+      return completion(.failure(.unknownDocument(uri)))
     }
 
     let keys = self.keys
@@ -123,7 +110,7 @@ extension SwiftLanguageServer {
     }
 
     // FIXME: SourceKit should probably cache this for us
-    if let compileCommand = await self.buildSettings(for: uri) {
+    if let compileCommand = self.commandsByFile[uri] {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
@@ -153,5 +140,20 @@ extension SwiftLanguageServer {
 
     // FIXME: cancellation
     _ = handle
+  }
+
+  /// Provides typed variable declarations in a document.
+  ///
+  /// - Parameters:
+  ///   - url: Document URL in which to perform the request. Must be an open document.
+  ///   - completion: Completion block to asynchronously receive the VariableTypeInfos, or error.
+  func variableTypeInfos(
+    _ uri: DocumentURI,
+    _ range: Range<Position>? = nil,
+    _ completion: @escaping (Swift.Result<[VariableTypeInfo], VariableTypeInfoError>) -> Void
+  ) {
+    queue.async {
+      self._variableTypeInfos(uri, range, completion)
+    }
   }
 }
