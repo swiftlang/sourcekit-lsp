@@ -45,10 +45,10 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// The queue on which clangd calls us back.
   public let clangdCommunicationQueue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
 
-  /// The connection to the client. In the case of `ClangLanguageServerShim`,
-  /// the client is always a ``SourceKitServer``, which will forward the request
-  /// to the editor.
-  public let client: Connection
+  /// The ``SourceKitServer`` instance that created this `ClangLanguageServerShim`.
+  ///
+  /// Used to send requests and notifications to the editor.
+  private weak var sourceKitServer: SourceKitServer?
 
   /// The connection to the clangd LSP. `nil` until `startClangdProcesss` has been called.
   var clangd: Connection!
@@ -93,9 +93,6 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// `clangd` doesn't have support for multi-root workspaces, so we need to start a separate `clangd` instance for every workspace root.
   private let workspace: WeakWorkspace
 
-  /// A callback with which `ClangLanguageServer` can request its owner to reopen all documents in case it has crashed.
-  private let reopenDocuments: (ToolchainLanguageServer) async -> Void
-
   /// The documents that have been opened and which language they have been
   /// opened with.
   private var openDocuments: [DocumentURI: Language] = [:]
@@ -110,12 +107,10 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// Creates a language server for the given client referencing the clang binary specified in `toolchain`.
   /// Returns `nil` if `clangd` can't be found.
   public init?(
-    client: LocalConnection,
+    sourceKitServer: SourceKitServer,
     toolchain: Toolchain,
     options: SourceKitServer.Options,
-    workspace: Workspace,
-    reopenDocuments: @escaping (ToolchainLanguageServer) async -> Void,
-    workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
+    workspace: Workspace
   ) async throws {
     guard let clangdPath = toolchain.clangd else {
       return nil
@@ -124,9 +119,8 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     self.clangdPath = clangdPath
     self.clangdOptions = options.clangdOptions
     self.workspace = WeakWorkspace(workspace)
-    self.reopenDocuments = reopenDocuments
     self.state = .connected
-    self.client = client
+    self.sourceKitServer = sourceKitServer
     try startClangdProcesss()
   }
 
@@ -245,7 +239,11 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
         // But since SourceKitServer more or less ignores them right now anyway, this should be fine for now.
         _ = try self.initializeSync(initializeRequest)
         self.clientInitialized(InitializedNotification())
-        await self.reopenDocuments(self)
+        if let sourceKitServer {
+          await sourceKitServer.reopenDocuments(for: self)
+        } else {
+          log("Cannot reopen documents because SourceKitServer is no longer alive", level: .error)
+        }
         self.state = .connected
       } catch {
         log("Failed to restart clangd after a crash.", level: .error)
@@ -256,12 +254,15 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// Handler for notifications received **from** clangd, ie. **clangd** is
   /// sending a notification that's intended for the editor.
   ///
-  /// We should either handle it ourselves or forward it to the client.
+  /// We should either handle it ourselves or forward it to the editor.
   func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) async {
-    if let publishDiags = params as? PublishDiagnosticsNotification {
+    switch params {
+    case let publishDiags as PublishDiagnosticsNotification:
       await self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
-    } else if clientID == ObjectIdentifier(self.clangd) {
-      self.client.send(params)
+    default:
+      // We don't know how to handle any other notifications and ignore them.
+      log("Ignoring unknown notification \(type(of: params))", level: .warning)
+      break
     }
   }
 
@@ -274,13 +275,19 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     id: RequestID,
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
-  ) {
+  ) async {
     let request = Request(params, id: id, clientID: clientID, cancellation: CancellationToken(), reply: { result in
       reply(result)
     })
+    guard let sourceKitServer else {
+      // `SourceKitServer` has been destructed. We are tearing down the language
+      // server. Nothing left to do.
+      request.reply(.failure(.unknown("Connection to the editor closed")))
+      return
+    }
 
     if request.clientID == ObjectIdentifier(self.clangd) {
-      self.forwardRequest(request, to: self.client)
+      await sourceKitServer.sendRequestToClient(request.params, reply: request.reply)
     } else {
       request.reply(.failure(ResponseError.methodNotFound(R.method)))
     }
@@ -354,12 +361,21 @@ extension ClangLanguageServerShim {
     // non-fallback settings very shortly after, which will override the
     // incorrect result, making it very temporary.
     let buildSettings = await self.buildSettings(for: params.uri)
+    guard let sourceKitServer else {
+      log("Cannot publish diagnostics because SourceKitServer has been destroyed", level: .error)
+      return
+    }
     if buildSettings?.isFallback ?? true {
       // Fallback: send empty publish notification instead.
-      client.send(PublishDiagnosticsNotification(
-        uri: params.uri, version: params.version, diagnostics: []))
+      await sourceKitServer.sendNotificationToClient(
+        PublishDiagnosticsNotification(
+          uri: params.uri,
+          version: params.version,
+          diagnostics: []
+        )
+      )
     } else {
-      client.send(note.params)
+      await sourceKitServer.sendNotificationToClient(note.params)
     }
   }
 
@@ -388,9 +404,6 @@ extension ClangLanguageServerShim {
         guard let self else { return }
         Task {
           await self.clangd.send(ExitNotification())
-          if let localConnection = self.client as? LocalConnection {
-            localConnection.close()
-          }
           continuation.resume()
         }
       }

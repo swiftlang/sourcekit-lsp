@@ -303,12 +303,23 @@ public actor SourceKitServer {
     }
 
     // Unknown requests from a language server are passed on to the client.
-    let id = client.send(req.params, queue: clientCommunicationQueue) { result in
-      req.reply(result)
+    sendRequestToClient(req.params, reply: req.reply)
+  }
+
+  /// Send the given notification to the editor.
+  public func sendNotificationToClient(_ notification: some NotificationType) {
+    client.send(notification)
+  }
+
+  /// Send the given request to the editor.
+  ///
+  /// Return the result via the `reply` completion handler. `reply` is guaranteed
+  /// to be called exactly once.
+  public func sendRequestToClient<R: RequestType>(_ request: R, reply: @escaping (LSPResult<R.Response>) -> Void) {
+    _ = client.send(request, queue: clientCommunicationQueue) { result in
+      reply(result)
     }
-    req.cancellationToken.addCancellationHandler {
-      self.client.send(CancelRequestNotification(id: id))
-    }
+    // FIXME: (async) Handle cancellation
   }
 
   /// Handle an unknown notification.
@@ -399,19 +410,11 @@ public actor SourceKitServer {
 
     // Start a new service.
     return await orLog("failed to start language service", level: .error) {
-      let service = try await SourceKitLSP.languageService(
-        for: toolchain,
-        serverType,
+      let service = try await serverType.serverType.init(
+        sourceKitServer: self,
+        toolchain: toolchain,
         options: options,
-        client: self,
-        in: workspace,
-        reopenDocuments: { [weak self] toolchainLanguageServer in
-          await self?.reopenDocuments(for: toolchainLanguageServer)
-        },
-        workspaceForDocument: { [weak self] document in
-          guard let self else { return nil }
-          return await self.workspaceForDocument(uri: document)
-        }
+        workspace: workspace
       )
 
       guard let service else {
@@ -2013,34 +2016,6 @@ extension SourceKitServer {
     }
     req.reply(VoidResponse())
   }
-}
-
-/// Creates a new connection from `client` to a service for `language` if available, and launches
-/// the service. Does *not* send the initialization request.
-///
-/// - returns: The connection, if a suitable language service is available; otherwise nil.
-/// - throws: If there is a suitable service but it fails to launch, throws an error.
-func languageService(
-  for toolchain: Toolchain,
-  _ languageServerType: LanguageServerType,
-  options: SourceKitServer.Options,
-  client: MessageHandler,
-  in workspace: Workspace,
-  reopenDocuments: @escaping (ToolchainLanguageServer) async -> Void,
-  workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
-) async throws -> ToolchainLanguageServer? {
-  let connectionToClient = LocalConnection()
-
-  let server = try await languageServerType.serverType.init(
-    client: connectionToClient,
-    toolchain: toolchain,
-    options: options,
-    workspace: workspace,
-    reopenDocuments: reopenDocuments,
-    workspaceForDocument: workspaceForDocument
-  )
-  connectionToClient.start(handler: client)
-  return server
 }
 
 private func languageClass(for language: Language) -> [Language] {

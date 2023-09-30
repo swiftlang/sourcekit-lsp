@@ -30,12 +30,10 @@ public protocol ToolchainLanguageServer: AnyObject {
   // MARK: - Creation
 
   init?(
-    client: LocalConnection,
+    sourceKitServer: SourceKitServer,
     toolchain: Toolchain,
     options: SourceKitServer.Options,
-    workspace: Workspace,
-    reopenDocuments: @escaping (ToolchainLanguageServer) async -> Void,
-    workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
+    workspace: Workspace
   ) async throws
 
   /// Returns `true` if this instance of the language server can handle opening documents in `workspace`.
