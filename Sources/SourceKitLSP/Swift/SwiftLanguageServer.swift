@@ -106,7 +106,8 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   /// - Guarding the state of `CodeCompletionSession`
   public let queue: DispatchQueue = DispatchQueue(label: "swift-language-server-queue", qos: .userInitiated)
 
-  let client: LocalConnection
+  /// The ``SourceKitServer`` instance that created this `ClangLanguageServerShim`.
+  private weak var sourceKitServer: SourceKitServer?
 
   let sourcekitd: SourceKitD
 
@@ -148,42 +149,33 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   }
   
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
-  
-  /// A callback with which `SwiftLanguageServer` can request its owner to reopen all documents in case it has crashed.
-  private let reopenDocuments: (ToolchainLanguageServer) async -> Void
-
-  /// Get the workspace that the document with the given URI belongs to.
-  ///
-  /// This is used to find the `BuildSystemManager` that is able to deliver
-  /// build settings for this document.
-  private let workspaceForDocument: (DocumentURI) async -> Workspace?
 
   /// Creates a language server for the given client using the sourcekitd dylib specified in `toolchain`.
   /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageServer` asks its parent server to reopen all of its documents.
   /// Returns `nil` if `sourcektid` couldn't be found.
   public init?(
-    client: LocalConnection,
+    sourceKitServer: SourceKitServer,
     toolchain: Toolchain,
     options: SourceKitServer.Options,
-    workspace: Workspace,
-    reopenDocuments: @escaping (ToolchainLanguageServer) async -> Void,
-    workspaceForDocument: @escaping (DocumentURI) async -> Workspace?
+    workspace: Workspace
   ) throws {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
-    self.client = client
+    self.sourceKitServer = sourceKitServer
     self.sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitd)
     self.capabilityRegistry = workspace.capabilityRegistry
     self.serverOptions = options
     self.documentManager = DocumentManager()
     self.state = .connected
-    self.reopenDocuments = reopenDocuments
-    self.workspaceForDocument = workspaceForDocument
     self.generatedInterfacesPath = options.generatedInterfacesPath.asURL
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
   }
 
   func buildSettings(for document: DocumentURI) async -> SwiftCompileCommand? {
-    guard let workspace = await self.workspaceForDocument(document) else {
+    guard let sourceKitServer else {
+      log("Cannot retrieve build settings because SourceKitServer is no longer alive", level: .error)
+      return nil
+    }
+    guard let workspace = await sourceKitServer.workspaceForDocument(uri: document) else {
       return nil
     }
     if let settings = await workspace.buildSystemManager.buildSettings(for: document, language: .swift) {
@@ -279,9 +271,13 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   }
 
   /// Inform the client about changes to the syntax highlighting tokens.
-  private func requestTokensRefresh() {
+  private func requestTokensRefresh() async {
+    guard let sourceKitServer else {
+      log("Cannot request a token refresh because SourceKitServer has been destructed", level: .error)
+      return
+    }
     if capabilityRegistry.clientHasSemanticTokenRefreshSupport {
-      _ = client.send(WorkspaceSemanticTokensRefreshRequest(), queue: queue) { result in
+      _ = await sourceKitServer.sendRequestToClient(WorkspaceSemanticTokensRefreshRequest()) { result in
         if let error = result.failure {
           log("refreshing tokens failed: \(error)", level: .warning)
         }
@@ -343,7 +339,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     response: SKDResponseDictionary,
     for snapshot: DocumentSnapshot,
     compileCommand: SwiftCompileCommand?
-  ) {
+  ) async {
     let documentUri = snapshot.document.uri
     guard diagnosticsEnabled(for: documentUri) else {
       log("Ignoring diagnostics for blacklisted file \(documentUri.pseudoPath)", level: .debug)
@@ -360,7 +356,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
       isFromFallbackBuildSettings: compileCommand?.isFallback ?? true
     )
 
-    client.send(
+    await sourceKitServer?.sendNotificationToClient(
       PublishDiagnosticsNotification(
         uri: documentUri,
         version: snapshot.version,
@@ -385,14 +381,16 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     req[keys.sourcetext] = ""
 
     if let dict = try? self.sourcekitd.sendSync(req) {
-      if (enablePublishDiagnostics) {
-        publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
-      }
-
-      if dict[keys.diagnostic_stage] as sourcekitd_uid_t? == sourcekitd.values.diag_stage_sema {
+      let isSemaStage = dict[keys.diagnostic_stage] as sourcekitd_uid_t? == sourcekitd.values.diag_stage_sema
+      if isSemaStage {
         // Only update semantic tokens if the 0,0 replacetext request returned semantic information.
         updateSemanticTokens(response: dict, for: snapshot)
-        requestTokensRefresh()
+      }
+      if enablePublishDiagnostics {
+        await publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
+      }
+      if isSemaStage {
+        await requestTokensRefresh()
       }
     }
   }
@@ -449,7 +447,6 @@ extension SwiftLanguageServer {
       self.currentCompletionSession = nil
     }
     self.sourcekitd.removeNotificationHandler(self)
-    self.client.close()
   }
 
   /// Tell sourcekitd to crash itself. For testing purposes only.
@@ -461,7 +458,7 @@ extension SwiftLanguageServer {
   
   // MARK: - Build System Integration
 
-  private func reopenDocument(_ snapshot: DocumentSnapshot, _ compileCmd: SwiftCompileCommand?) {
+  private func reopenDocument(_ snapshot: DocumentSnapshot, _ compileCmd: SwiftCompileCommand?) async {
     let keys = self.keys
     let uri = snapshot.document.uri
     let path = uri.pseudoPath
@@ -483,9 +480,9 @@ extension SwiftLanguageServer {
       // Already logged failure.
       return
     }
-    self.publishDiagnostics(
-        response: dict, for: snapshot, compileCommand: compileCmd)
     self.updateSyntacticTokens(for: snapshot)
+    await self.publishDiagnostics(
+        response: dict, for: snapshot, compileCommand: compileCmd)
   }
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) async {
@@ -496,7 +493,7 @@ extension SwiftLanguageServer {
 
     // Close and re-open the document internally to inform sourcekitd to update the compile
     // command. At the moment there's no better way to do this.
-    self.reopenDocument(snapshot, await self.buildSettings(for: uri))
+    await self.reopenDocument(snapshot, await self.buildSettings(for: uri))
   }
 
   public func documentDependenciesUpdated(_ uri: DocumentURI) async {
@@ -535,8 +532,8 @@ extension SwiftLanguageServer {
       // Already logged failure.
       return
     }
-    self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
     self.updateSyntacticTokens(for: snapshot)
+    await self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
   }
 
   public func closeDocument(_ note: DidCloseTextDocumentNotification) {
@@ -603,7 +600,7 @@ extension SwiftLanguageServer {
 
     if let dict = lastResponse, let snapshot = snapshot {
       let compileCommand = await self.buildSettings(for: note.textDocument.uri)
-      self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
+      await self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
     }
   }
 
@@ -1473,28 +1470,35 @@ extension SwiftLanguageServer {
     }
     let uri = swiftCommand.textDocument.uri
     await semanticRefactoring(swiftCommand) { result in
-      switch result {
-      case .success(let refactor):
-        let edit = refactor.edit
-        self.applyEdit(label: refactor.title, edit: edit) { editResult in
-          switch editResult {
-          case .success:
-            req.reply(edit.encodeToLSPAny())
-          case .failure(let error):
-            req.reply(.failure(error))
+      Task {
+        switch result {
+        case .success(let refactor):
+          let edit = refactor.edit
+          await self.applyEdit(label: refactor.title, edit: edit) { editResult in
+            switch editResult {
+            case .success:
+              req.reply(edit.encodeToLSPAny())
+            case .failure(let error):
+              req.reply(.failure(error))
+            }
           }
+        case .failure(let error):
+          let message = "semantic refactoring failed \(uri): \(error)"
+          log(message, level: .warning)
+          return req.reply(.failure(.unknown(message)))
         }
-      case .failure(let error):
-        let message = "semantic refactoring failed \(uri): \(error)"
-        log(message, level: .warning)
-        return req.reply(.failure(.unknown(message)))
       }
     }
   }
 
-  func applyEdit(label: String, edit: WorkspaceEdit, completion: @escaping (LSPResult<ApplyEditResponse>) -> Void) {
+  func applyEdit(label: String, edit: WorkspaceEdit, completion: @escaping (LSPResult<ApplyEditResponse>) -> Void) async {
     let req = ApplyEditRequest(label: label, edit: edit)
-    let handle = client.send(req, queue: queue) { reply in
+    guard let sourceKitServer else {
+      // `SourceKitServer` has been destructed. We are tearing down the language
+      // server. Nothing left to do.
+      return completion(.failure(.unknown("Connection to the editor closed")))
+    }
+    await sourceKitServer.sendRequestToClient(req) { reply in
       switch reply {
       case .success(let response) where response.applied == false:
         let reason: String
@@ -1512,8 +1516,7 @@ extension SwiftLanguageServer {
       completion(reply)
     }
 
-    // FIXME: cancellation
-    _ = handle
+    // FIXME: (async) cancellation
   }
 }
 
@@ -1537,7 +1540,11 @@ extension SwiftLanguageServer: SKDNotificationHandler {
       self.state = .semanticFunctionalityDisabled
 
       // Ask our parent to re-open all of our documents.
-      await self.reopenDocuments(self)
+      if let sourceKitServer {
+        await sourceKitServer.reopenDocuments(for: self)
+      } else {
+        log("Cannot reopen documents because SourceKitServer is no longer alive", level: .error)
+      }
     }
 
     if case .connectionInterrupted = notification.error {
