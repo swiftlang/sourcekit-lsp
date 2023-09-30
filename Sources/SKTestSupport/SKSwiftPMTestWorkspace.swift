@@ -85,26 +85,26 @@ public final class SKSwiftPMTestWorkspace {
     let buildPath = try AbsolutePath(validating: buildDir.path)
     let buildSetup = BuildSetup(configuration: .debug, path: buildPath, flags: BuildFlags())
 
-    let swiftpm = try SwiftPMWorkspace(
+    let swiftpm = try await SwiftPMWorkspace(
       workspacePath: sourcePath,
       toolchainRegistry: ToolchainRegistry.shared,
       buildSetup: buildSetup)
 
     let libIndexStore = try IndexStoreLibrary(dylibPath: toolchain.libIndexStore!.pathString)
 
-    try fm.createDirectory(atPath: swiftpm.indexStorePath!.pathString, withIntermediateDirectories: true)
+    try fm.createDirectory(atPath: await swiftpm.indexStorePath!.pathString, withIntermediateDirectories: true)
 
     let indexDelegate = SourceKitIndexDelegate()
 
     self.index = try IndexStoreDB(
-      storePath: swiftpm.indexStorePath!.pathString,
+      storePath: await swiftpm.indexStorePath!.pathString,
       databasePath: tmpDir.path,
       library: libIndexStore,
       delegate: indexDelegate,
       listenToUnitEvents: false)
 
     let server = self.testServer.server!
-    let workspace = Workspace(
+    let workspace = await Workspace(
       documentManager: DocumentManager(),
       rootUri: DocumentURI(sources.rootDirectory),
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
@@ -113,7 +113,7 @@ public final class SKSwiftPMTestWorkspace {
       underlyingBuildSystem: swiftpm,
       index: index,
       indexDelegate: indexDelegate)
-    workspace.buildSystemManager.delegate = server
+    await workspace.buildSystemManager.setDelegate(server)
     await server.addWorkspace(workspace)
   }
 

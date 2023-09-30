@@ -48,7 +48,7 @@ public enum ReloadPackageStatus {
 /// This class implements the `BuildSystem` interface to provide the build settings for a Swift
 /// Package Manager (SwiftPM) package. The settings are determined by loading the Package.swift
 /// manifest using `libSwiftPM` and constructing a build plan using the default (debug) parameters.
-public final class SwiftPMWorkspace {
+public actor SwiftPMWorkspace {
 
   public enum Error: Swift.Error {
 
@@ -61,6 +61,10 @@ public final class SwiftPMWorkspace {
 
   /// Delegate to handle any build system events.
   public weak var delegate: SKCore.BuildSystemDelegate? = nil
+
+  public func setDelegate(_ delegate: SKCore.BuildSystemDelegate?) async {
+    self.delegate = delegate
+  }
 
   let workspacePath: TSCAbsolutePath
   let packageRoot: TSCAbsolutePath
@@ -77,14 +81,6 @@ public final class SwiftPMWorkspace {
   /// The URIs for which the delegate has registered for change notifications,
   /// mapped to the language the delegate specified when registering for change notifications.
   var watchedFiles: [DocumentURI: Language] = [:]
-
-  /// Queue guarding the following properties:
-  /// - `delegate`
-  /// - `watchedFiles`
-  /// - `packageGraph`
-  /// - `fileToTarget`
-  /// - `sourceDirToTarget`
-  let queue: DispatchQueue = .init(label: "SwiftPMWorkspace.queue", qos: .utility)
 
   /// This callback is informed when `reloadPackage` starts and ends executing.
   var reloadPackageStatusCallback: (ReloadPackageStatus) -> Void
@@ -104,8 +100,7 @@ public final class SwiftPMWorkspace {
     fileSystem: FileSystem = localFileSystem,
     buildSetup: BuildSetup,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) -> Void = { _ in }
-  ) throws
-  {
+  ) async throws {
     self.workspacePath = workspacePath
     self.fileSystem = fileSystem
 
@@ -157,7 +152,7 @@ public final class SwiftPMWorkspace {
     self.packageGraph = try PackageGraph(rootPackages: [], dependencies: [], binaryArtifacts: [:])
     self.reloadPackageStatusCallback = reloadPackageStatusCallback
 
-    try reloadPackage()
+    try await reloadPackage()
   }
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
@@ -165,15 +160,14 @@ public final class SwiftPMWorkspace {
   /// - Parameters:
   ///   - reloadPackageStatusCallback: Will be informed when `reloadPackage` starts and ends executing.
   /// - Returns: nil if `workspacePath` is not part of a package or there is an error.
-  public convenience init?(
+  public init?(
     url: URL,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) -> Void
-  )
-  {
+  ) async {
     do {
-      try self.init(
+      try await self.init(
         workspacePath: try TSCAbsolutePath(validating: url.path),
         toolchainRegistry: toolchainRegistry,
         fileSystem: localFileSystem,
@@ -194,8 +188,7 @@ extension SwiftPMWorkspace {
 
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
-  /// Must only be called on `queue` or from the initializer.
-  func reloadPackage() throws {
+  func reloadPackage() async throws {
     reloadPackageStatusCallback(.start)
     defer {
       reloadPackageStatusCallback(.end)
@@ -252,15 +245,15 @@ extension SwiftPMWorkspace {
     var changedFiles: [DocumentURI: FileBuildSettingsChange] = [:]
     for (uri, language) in self.watchedFiles {
       orLog {
-        if let settings = try self.settings(for: uri, language) {
+        if let settings = try self.buildSettings(for: uri, language: language) {
           changedFiles[uri] = FileBuildSettingsChange(settings)
         } else {
           changedFiles[uri] = .removedOrUnavailable
         }
       }
     }
-    delegate.fileBuildSettingsChanged(changedFiles)
-    delegate.fileHandlingCapabilityChanged()
+    await delegate.fileBuildSettingsChanged(changedFiles)
+    await delegate.fileHandlingCapabilityChanged()
   }
 }
 
@@ -285,29 +278,10 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     for uri: DocumentURI,
     _ language: Language) throws -> FileBuildSettings?
   {
-    return try queue.sync {
-      try self.settings(for: uri, language)
-    }
+    try self.buildSettings(for: uri, language: language)
   }
 
-  public func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
-    return try await withCheckedThrowingContinuation { continuation in
-      queue.async {
-        do {
-          continuation.resume(returning: try self.settings(for: document, language))
-        } catch {
-          continuation.resume(throwing: error)
-        }
-      }
-    }
-  }
-
-  /// Must only be called on `queue`.
-  private func settings(
-    for uri: DocumentURI,
-    _ language: Language) throws -> FileBuildSettings?
-  {
-    dispatchPrecondition(condition: .onQueue(queue))
+  public func buildSettings(for uri: DocumentURI, language: Language) throws -> FileBuildSettings? {
     guard let url = uri.fileURL else {
       // We can't determine build settings for non-file URIs.
       return nil
@@ -331,38 +305,32 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     return nil
   }
 
-  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
-    queue.async {
-      assert(self.watchedFiles[uri] == nil, "Registered twice for change notifications of the same URI")
-      guard let delegate = self.delegate else { return }
-      self.watchedFiles[uri] = language
+  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
+    assert(self.watchedFiles[uri] == nil, "Registered twice for change notifications of the same URI")
+    guard let delegate = self.delegate else { return }
+    self.watchedFiles[uri] = language
 
-      var settings: FileBuildSettings? = nil
-      do {
-        settings = try self.settings(for: uri, language)
-      } catch {
-        log("error computing settings: \(error)")
-      }
-      if let settings = settings {
-        delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
-      } else {
-        delegate.fileBuildSettingsChanged([uri: .removedOrUnavailable])
-      }
+    var settings: FileBuildSettings? = nil
+    do {
+      settings = try self.buildSettings(for: uri, language: language)
+    } catch {
+      log("error computing settings: \(error)")
+    }
+    if let settings = settings {
+      await delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    } else {
+      await delegate.fileBuildSettingsChanged([uri: .removedOrUnavailable])
     }
   }
 
   /// Unregister the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
   public func unregisterForChangeNotifications(for uri: DocumentURI) {
-    queue.async {
-      self.watchedFiles[uri] = nil
-    }
+    self.watchedFiles[uri] = nil
   }
 
   /// Returns the resolved target description for the given file, if one is known.
-  /// Must only be called on `queue`.
   private func targetDescription(for file: AbsolutePath) throws -> TargetBuildDescription? {
-    dispatchPrecondition(condition: .onQueue(queue))
     if let td = fileToTarget[file] {
       return td
     }
@@ -398,13 +366,11 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     }
   }
 
-  public func filesDidChange(_ events: [FileEvent]) {
-    queue.async {
-      if events.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
-        orLog {
-          // TODO: It should not be necessary to reload the entire package just to get build settings for one file.
-          try self.reloadPackage()
-        }
+  public func filesDidChange(_ events: [FileEvent]) async {
+    if events.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
+      await orLog {
+        // TODO: It should not be necessary to reload the entire package just to get build settings for one file.
+        try await self.reloadPackage()
       }
     }
   }
@@ -413,12 +379,10 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     guard let fileUrl = uri.fileURL else {
       return .unhandled
     }
-    return self.queue.sync {
-      if (try? targetDescription(for: AbsolutePath(validating: fileUrl.path))) != nil {
-        return .handled
-      } else {
-        return .unhandled
-      }
+    if (try? targetDescription(for: AbsolutePath(validating: fileUrl.path))) != nil {
+      return .handled
+    } else {
+      return .unhandled
     }
   }
 }
@@ -446,9 +410,7 @@ extension SwiftPMWorkspace {
   }
 
   /// Retrieve settings for a package manifest (Package.swift).
-  /// Must only be called on `queue`.
   private func settings(forPackageManifest path: AbsolutePath) throws -> FileBuildSettings? {
-    dispatchPrecondition(condition: .onQueue(queue))
     func impl(_ path: AbsolutePath) -> FileBuildSettings? {
       for package in packageGraph.packages where path == package.manifest.path {
         let compilerArgs = workspace.interpreterFlags(for: package.path) + [path.pathString]
@@ -466,9 +428,7 @@ extension SwiftPMWorkspace {
   }
 
   /// Retrieve settings for a given header file.
-  /// Must only be called on `queue`.
   private func settings(forHeader path: AbsolutePath, _ language: Language) throws -> FileBuildSettings? {
-    dispatchPrecondition(condition: .onQueue(queue))
     func impl(_ path: AbsolutePath) throws -> FileBuildSettings? {
       var dir = path.parentDirectory
       while !dir.isRoot {

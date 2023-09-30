@@ -18,14 +18,14 @@ public protocol BuildSystemDelegate: AnyObject {
   ///
   /// The callee should request new sources and outputs for the build targets of
   /// interest.
-  func buildTargetsChanged(_ changes: [BuildTargetEvent])
+  func buildTargetsChanged(_ changes: [BuildTargetEvent]) async
 
   /// Notify the delegate that the given files' build settings have changed.
   ///
   /// The delegate should cache the new build settings for any of the given
   /// files that they are interested in.
   func fileBuildSettingsChanged(
-    _ changedFiles: [DocumentURI: FileBuildSettingsChange])
+    _ changedFiles: [DocumentURI: FileBuildSettingsChange]) async
 
   /// Notify the delegate that the dependencies of the given files have changed
   /// and that ASTs may need to be refreshed. If the given set is empty, assume
@@ -33,10 +33,10 @@ public protocol BuildSystemDelegate: AnyObject {
   ///
   /// The callee should refresh ASTs unless it is able to determine that a
   /// refresh is not necessary.
-  func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>)
+  func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async
 
   /// Notify the delegate that the file handling capability of this build system
   /// for some file has changed. The delegate should discard any cached file
   /// handling capability.
-  func fileHandlingCapabilityChanged()
+  func fileHandlingCapabilityChanged() async
 }
