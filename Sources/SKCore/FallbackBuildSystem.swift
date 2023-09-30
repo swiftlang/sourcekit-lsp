@@ -62,9 +62,8 @@ public final class FallbackBuildSystem: BuildSystem {
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     guard let delegate = self.delegate else { return }
 
-    let settings = self.buildSettings(for: uri, language: language)
     Task {
-      await delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+      await delegate.fileBuildSettingsChanged([uri])
     }
   }
 

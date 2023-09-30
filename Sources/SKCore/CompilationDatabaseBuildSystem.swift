@@ -96,8 +96,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
 
     guard let delegate = self.delegate else { return }
 
-    let settings = self.settings(for: uri)
-    await delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    await delegate.fileBuildSettingsChanged([uri])
   }
 
   /// We don't support change watching.
@@ -148,13 +147,9 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     self.compdb = tryLoadCompilationDatabase(directory: projectRoot, self.fileSystem)
 
     if let delegate = self.delegate {
-      var changedFiles: [DocumentURI: FileBuildSettingsChange] = [:]
+      var changedFiles = Set<DocumentURI>()
       for (uri, _) in self.watchedFiles {
-        if let settings = self.settings(for: uri) {
-          changedFiles[uri] = FileBuildSettingsChange(settings)
-        } else {
-          changedFiles[uri] = .removedOrUnavailable
-        }
+        changedFiles.insert(uri)
       }
       await delegate.fileBuildSettingsChanged(changedFiles)
     }

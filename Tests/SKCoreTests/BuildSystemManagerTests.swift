@@ -110,7 +110,7 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[a] = nil
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, nil, changed, #file, #line)])
-    bsm.fileBuildSettingsChanged([a: .removedOrUnavailable])
+    bsm.fileBuildSettingsChanged([a])
     try await fulfillmentOfOrThrow([changed])
   }
 
@@ -133,7 +133,7 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, bs.map[a]!, changed, #file, #line)])
-    bsm.fileBuildSettingsChanged([a: .modified(bs.map[a]!)])
+    bsm.fileBuildSettingsChanged([a])
     try await fulfillmentOfOrThrow([changed])
   }
 
@@ -158,13 +158,13 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[a] = FileBuildSettings(compilerArguments: ["non-fallback", "args"])
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, bs.map[a]!, changed, #file, #line)])
-    bsm.fileBuildSettingsChanged([a: .modified(bs.map[a]!)])
+    bsm.fileBuildSettingsChanged([a])
     try await fulfillmentOfOrThrow([changed])
 
     bs.map[a] = nil
     let revert = expectation(description: "revert to fallback settings")
     await del.setExpected([(a, .swift, fallbackSettings, revert, #file, #line)])
-    bsm.fileBuildSettingsChanged([a: .removedOrUnavailable])
+    bsm.fileBuildSettingsChanged([a])
     try await fulfillmentOfOrThrow([revert])
   }
 
@@ -196,7 +196,7 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[b] = FileBuildSettings(compilerArguments: ["yy"])
     let changed = expectation(description: "changed settings")
     await del.setExpected([(a, .swift, bs.map[a]!, changed, #file, #line)])
-    bsm.fileBuildSettingsChanged([a: .modified(bs.map[a]!)])
+    bsm.fileBuildSettingsChanged([a])
     try await fulfillmentOfOrThrow([changed])
 
     // Test multiple changes.
@@ -208,10 +208,7 @@ final class BuildSystemManagerTests: XCTestCase {
       (a, .swift, bs.map[a]!, changedBothA, #file, #line),
       (b, .swift, bs.map[b]!, changedBothB, #file, #line),
     ])
-    bsm.fileBuildSettingsChanged([
-      a:. modified(bs.map[a]!),
-      b: .modified(bs.map[b]!)
-    ])
+    bsm.fileBuildSettingsChanged([a, b])
     try await fulfillmentOfOrThrow([changedBothA, changedBothB])
   }
 
@@ -245,9 +242,7 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[b] = nil
     let changed = expectation(description: "changed settings")
     await del.setExpected([(b, .swift, nil, changed, #file, #line)])
-    bsm.fileBuildSettingsChanged([
-      b: .removedOrUnavailable
-    ])
+    bsm.fileBuildSettingsChanged([b])
     try await fulfillmentOfOrThrow([changed])
   }
 
@@ -354,7 +349,7 @@ final class BuildSystemManagerTests: XCTestCase {
       (h1, .c, newArgsH1, changed1, #file, #line),
       (h2, .c, newArgsH2, changed2, #file, #line),
     ])
-    bsm.fileBuildSettingsChanged([cpp: .modified(bs.map[cpp]!)])
+    bsm.fileBuildSettingsChanged([cpp])
 
     try await fulfillmentOfOrThrow([changed1, changed2])
   }
@@ -403,11 +398,7 @@ final class BuildSystemManagerTests: XCTestCase {
     await bsm.unregisterForChangeNotifications(for: c)
     // At this point only b is registered, but that can race with notifications,
     // so ensure nothing bad happens and we still get the notification for b.
-    bsm.fileBuildSettingsChanged([
-      a: .modified(bs.map[a]!),
-      b: .modified(bs.map[b]!),
-      c: .modified(bs.map[c]!)
-    ])
+    bsm.fileBuildSettingsChanged([a, b, c])
 
     try await fulfillmentOfOrThrow([changedB])
   }
@@ -484,8 +475,7 @@ class ManualBuildSystem: BuildSystem {
   }
 
   func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
-    let settings = self.buildSettings(for: uri, language: language)
-    await self.delegate?.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
+    await self.delegate?.fileBuildSettingsChanged([uri])
   }
 
   func unregisterForChangeNotifications(for: DocumentURI) {
@@ -536,8 +526,8 @@ private actor BSMDelegate: BuildSystemDelegate {
     }()
   }
 
-  func fileBuildSettingsChanged(_ changes: [DocumentURI: FileBuildSettingsChange]) async {
-    for (uri, _) in changes {
+  func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
+    for uri in changedFiles {
       guard let expected = expected.first(where: { $0.uri == uri }) else {
         XCTFail("unexpected settings change for \(uri)")
         continue
