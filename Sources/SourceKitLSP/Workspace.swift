@@ -27,6 +27,12 @@ fileprivate func firstNonNil<T>(_ optional: T?, _ defaultValue: @autoclosure () 
   return try await defaultValue()
 }
 
+fileprivate func firstNonNil<T>(_ optional: T?, _ defaultValue: @autoclosure () async throws -> T?) async rethrows -> T? {
+  if let optional {
+    return optional
+  }
+  return try await defaultValue()
+}
 
 /// Represents the configuration and state of a project or combination of projects being worked on
 /// together.
