@@ -178,7 +178,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     guard let workspace = await sourceKitServer.workspaceForDocument(uri: document) else {
       return nil
     }
-    if let settings = await workspace.buildSystemManager.buildSettings(for: document, language: .swift) {
+    if let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(for: document, language: .swift) {
       return SwiftCompileCommand(settings.buildSettings, isFallback: settings.isFallback)
     } else {
       return nil

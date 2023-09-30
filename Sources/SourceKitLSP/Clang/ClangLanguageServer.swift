@@ -128,7 +128,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     guard let workspace = workspace.value, let language = openDocuments[document] else {
       return nil
     }
-    guard let settings = await workspace.buildSystemManager.buildSettings(for: document, language: language) else {
+    guard let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(for: document, language: language) else {
       return nil
     }
     return ClangBuildSettings(settings.buildSettings, clangPath: clangdPath, isFallback: settings.isFallback)

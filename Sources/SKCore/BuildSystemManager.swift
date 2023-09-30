@@ -148,16 +148,7 @@ extension BuildSystemManager {
     self.mainFilesProvider = mainFilesProvider
   }
 
-  /// Get the build settings for the given document, assuming it has the given
-  /// language.
-  ///
-  /// Returns `nil` if no build settings are available in the build system and
-  /// no fallback build settings can be computed.
-  ///
-  /// `isFallback` is `true` if the build settings couldn't be computed and
-  /// fallback settings are used. These fallback settings are most likely not
-  /// correct and provide limited semantic functionality.
-  public func buildSettings(
+  private func buildSettings(
     for document: DocumentURI,
     language: Language
   ) async -> (buildSettings: FileBuildSettings, isFallback: Bool)? {
