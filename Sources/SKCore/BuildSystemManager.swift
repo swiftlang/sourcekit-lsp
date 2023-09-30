@@ -183,6 +183,28 @@ extension BuildSystemManager {
     }
   }
 
+  /// Returns the build settings for the given document.
+  ///
+  /// If the document doesn't have builds settings by itself, eg. because it is
+  /// a C header file, the build settings will be inferred from the primary main
+  /// file of the document. In practice this means that we will compute the build
+  /// settings of a C file that includes the header and replace any file
+  /// references to that C file in the build settings by the header file.
+  public func buildSettingsInferredFromMainFile(
+    for document: DocumentURI,
+    language: Language
+  ) async -> (buildSettings: FileBuildSettings, isFallback: Bool)? {
+    if let mainFile = mainFilesProvider?.mainFilesContainingFile(document).first {
+      if let mainFileBuildSettings = await buildSettings(for: mainFile, language: language) {
+        return (
+          buildSettings: mainFileBuildSettings.buildSettings.patching(newFile: document.pseudoPath, originalFile: mainFile.pseudoPath),
+          isFallback: mainFileBuildSettings.isFallback
+        )
+      }
+    }
+    return await buildSettings(for: document, language: language)
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
     log("registerForChangeNotifications(\(uri.pseudoPath))")
     let mainFile: DocumentURI
