@@ -19,12 +19,6 @@ import SourceKitLSP
 import TSCBasic
 import XCTest
 
-fileprivate extension SourceKitServer {
-  func setWorkspaces(_ workspaces: [Workspace]) {
-    self._workspaces = workspaces
-  }
-}
-
 // Workaround ambiguity with Foundation.
 typealias LSPNotification = LanguageServerProtocol.Notification
 
@@ -37,19 +31,11 @@ final class TestBuildSystem: BuildSystem {
 
   weak var delegate: BuildSystemDelegate?
 
-  public func setDelegate(_ delegate: BuildSystemDelegate?) async {
-    self.delegate = delegate
-  }
-
   /// Build settings by file.
   var buildSettingsByFile: [DocumentURI: FileBuildSettings] = [:]
 
   /// Files currently being watched by our delegate.
   var watchedFiles: Set<DocumentURI> = []
-
-  func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
-    return buildSettingsByFile[document]
-  }
 
   func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     watchedFiles.insert(uri)
@@ -60,8 +46,8 @@ final class TestBuildSystem: BuildSystem {
       return
     }
 
-    Task {
-      await delegate.fileBuildSettingsChanged([uri: .modified(settings)])
+    DispatchQueue.global().async {
+      delegate.fileBuildSettingsChanged([uri: .modified(settings)])
     }
   }
 
@@ -88,6 +74,9 @@ final class BuildSystemTests: XCTestCase {
   /// The primary interface to make requests to the SourceKitServer.
   var sk: TestClient! = nil
 
+  /// The document manager of the server
+  var documentManager: DocumentManager!
+
   /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
   var workspace: Workspace! = nil
 
@@ -98,34 +87,28 @@ final class BuildSystemTests: XCTestCase {
   var haveClangd: Bool = false
 
   override func setUp() {
-    // XCTestCase.setUp cannot be async, so unfortunately we need to do some
-    // hackery to synchronously wait for a task to finish. This is very much an
-    // anti-pattern because it can easily lead to priority inversions and should
-    // thus not be copied to any non-test code.
-    let sema = DispatchSemaphore(value: 0)
-    Task {
-      haveClangd = ToolchainRegistry.shared.toolchains.contains { $0.clangd != nil }
-      testServer = TestSourceKitServer()
-      buildSystem = TestBuildSystem()
+    haveClangd = ToolchainRegistry.shared.toolchains.contains { $0.clangd != nil }
+    testServer = TestSourceKitServer()
+    buildSystem = TestBuildSystem()
 
-      let server = testServer.server!
+    let server = testServer.server!
+    documentManager = server._documentManager
 
-      self.workspace = await Workspace(
-        documentManager: DocumentManager(),
-        rootUri: nil,
-        capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
-        toolchainRegistry: ToolchainRegistry.shared,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup,
-        underlyingBuildSystem: buildSystem,
-        index: nil,
-        indexDelegate: nil)
+    self.workspace = Workspace(
+      documentManager: DocumentManager(),
+      rootUri: nil,
+      capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
+      toolchainRegistry: ToolchainRegistry.shared,
+      buildSetup: TestSourceKitServer.serverOptions.buildSetup,
+      underlyingBuildSystem: buildSystem,
+      index: nil,
+      indexDelegate: nil)
 
+    server._workspaces = [workspace]
+    workspace.buildSystemManager.delegate = server
 
-      await server.setWorkspaces([workspace])
-      await workspace.buildSystemManager.setDelegate(server)
-
-      sk = testServer.client
-      _ = try! sk.sendSync(InitializeRequest(
+    sk = testServer.client
+    _ = try! sk.sendSync(InitializeRequest(
         processId: nil,
         rootPath: nil,
         rootURI: nil,
@@ -133,9 +116,6 @@ final class BuildSystemTests: XCTestCase {
         capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
         workspaceFolders: nil))
-      sema.signal()
-    }
-    sema.wait()
   }
 
   override func tearDown() {
@@ -145,7 +125,7 @@ final class BuildSystemTests: XCTestCase {
     testServer = nil
   }
 
-  func testClangdDocumentUpdatedBuildSettings() async throws {
+  func testClangdDocumentUpdatedBuildSettings() throws {
     try XCTSkipIf(true, "rdar://115435598 - crashing on rebranch")
 
     guard haveClangd else { return }
@@ -172,8 +152,6 @@ final class BuildSystemTests: XCTestCase {
 
     sk.allowUnexpectedNotification = false
 
-    let documentManager = await self.testServer.server!._documentManager
-
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: doc,
       language: .objective_c,
@@ -181,7 +159,7 @@ final class BuildSystemTests: XCTestCase {
       text: text
     )), { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual(text, self.documentManager.latestSnapshot(doc)!.text)
     })
 
     // Modify the build settings and inform the delegate.
@@ -192,19 +170,23 @@ final class BuildSystemTests: XCTestCase {
     let expectation = XCTestExpectation(description: "refresh")
     sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 0)
-      XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual(text, self.documentManager.latestSnapshot(doc)!.text)
       expectation.fulfill()
     }
 
-    await buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
+    buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
-    try await fulfillmentOfOrThrow([expectation])
+    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
+    guard result == .completed else {
+      XCTFail("wait for diagnostics failed with \(result)")
+      return
+    }
   }
 
-  func testSwiftDocumentUpdatedBuildSettings() async throws {
+  func testSwiftDocumentUpdatedBuildSettings() {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let doc = DocumentURI(url)
-    let args = FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!.compilerArguments
+    let args = FallbackBuildSystem(buildSetup: .default).settings(for: doc, .swift)!.compilerArguments
 
     buildSystem.buildSettingsByFile[doc] = FileBuildSettings(compilerArguments: args)
 
@@ -218,8 +200,6 @@ final class BuildSystemTests: XCTestCase {
 
     sk.allowUnexpectedNotification = false
 
-    let documentManager = await self.testServer.server!._documentManager
-
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: doc,
       language: .swift,
@@ -228,7 +208,7 @@ final class BuildSystemTests: XCTestCase {
     )), { (note: Notification<PublishDiagnosticsNotification>) in
       // Syntactic analysis - no expected errors here.
       XCTAssertEqual(note.params.diagnostics.count, 0)
-      XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual(text, self.documentManager.latestSnapshot(doc)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       // Semantic analysis - expect one error here.
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -251,13 +231,17 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 0)
       expectation.fulfill()
     }
-    await buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
+    buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
-    try await fulfillmentOfOrThrow([expectation])
+    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
+    guard result == .completed else {
+      XCTFail("wait for diagnostics failed with \(result)")
+      return
+    }
   }
 
-  func testClangdDocumentFallbackWithholdsDiagnostics() async throws {
-    try XCTSkipIf(!haveClangd)
+  func testClangdDocumentFallbackWithholdsDiagnostics() {
+    guard haveClangd else { return }
 
 #if os(Windows)
     let url = URL(fileURLWithPath: "C:/\(UUID())/file.m")
@@ -279,8 +263,6 @@ final class BuildSystemTests: XCTestCase {
 
     sk.allowUnexpectedNotification = false
 
-    let documentManager = await self.testServer.server!._documentManager
-
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: doc,
       language: .objective_c,
@@ -289,7 +271,7 @@ final class BuildSystemTests: XCTestCase {
     )), { (note: Notification<PublishDiagnosticsNotification>) in
       // Expect diagnostics to be withheld.
       XCTAssertEqual(note.params.diagnostics.count, 0)
-      XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual(text, self.documentManager.latestSnapshot(doc)!.text)
     })
 
     // Modify the build settings and inform the delegate.
@@ -300,21 +282,25 @@ final class BuildSystemTests: XCTestCase {
     let expectation = XCTestExpectation(description: "refresh due to fallback --> primary")
     sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual(text, self.documentManager.latestSnapshot(doc)!.text)
       expectation.fulfill()
     }
 
-    await buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
+    buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(newSettings)])
 
-    try await fulfillmentOfOrThrow([expectation])
+    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
+    guard result == .completed else {
+      XCTFail("wait for diagnostics failed with \(result)")
+      return
+    }
   }
 
-  func testSwiftDocumentFallbackWithholdsSemanticDiagnostics() async throws {
+  func testSwiftDocumentFallbackWithholdsSemanticDiagnostics() {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let doc = DocumentURI(url)
 
     // Primary settings must be different than the fallback settings.
-    var primarySettings = FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!
+    var primarySettings = FallbackBuildSystem(buildSetup: .default).settings(for: doc, .swift)!
     primarySettings.compilerArguments.append("-DPRIMARY")
 
     let text = """
@@ -328,8 +314,6 @@ final class BuildSystemTests: XCTestCase {
 
     sk.allowUnexpectedNotification = false
 
-    let documentManager = await self.testServer.server!._documentManager
-
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: doc,
       language: .swift,
@@ -338,7 +322,7 @@ final class BuildSystemTests: XCTestCase {
     )), { (note: Notification<PublishDiagnosticsNotification>) in
       // Syntactic analysis - one expected errors here (for `func`).
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual(text, self.documentManager.latestSnapshot(doc)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       // Should be the same syntactic analysis since we are using fallback arguments
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -358,18 +342,20 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 2)
       expectation.fulfill()
     }
-    await buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(primarySettings)])
+    buildSystem.delegate?.fileBuildSettingsChanged([doc: .modified(primarySettings)])
 
-    try await fulfillmentOfOrThrow([expectation])
+    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
+    guard result == .completed else {
+      XCTFail("wait for diagnostics failed with \(result)")
+      return
+    }
   }
 
-  func testSwiftDocumentBuildSettingsChangedFalseAlarm() async throws {
+  func testSwiftDocumentBuildSettingsChangedFalseAlarm() {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let doc = DocumentURI(url)
 
     sk.allowUnexpectedNotification = false
-
-    let documentManager = await self.testServer.server!._documentManager
 
     sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
       uri: doc,
@@ -380,7 +366,7 @@ final class BuildSystemTests: XCTestCase {
       """
     )), { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual("func", self.documentManager.latestSnapshot(doc)!.text)
     }, { (note: Notification<PublishDiagnosticsNotification>) in
       // Using fallback system, so we will receive the same syntactic diagnostics from before.
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -388,23 +374,27 @@ final class BuildSystemTests: XCTestCase {
 
     // Modify the build settings and inform the SourceKitServer.
     // This shouldn't trigger new diagnostics since nothing actually changed (false alarm).
-    await buildSystem.delegate?.fileBuildSettingsChanged([doc: .removedOrUnavailable])
+    buildSystem.delegate?.fileBuildSettingsChanged([doc: .removedOrUnavailable])
 
     let expectation = XCTestExpectation(description: "refresh doesn't occur")
     expectation.isInverted = true
     sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual("func", documentManager.latestSnapshot(doc)!.text)
+      XCTAssertEqual("func", self.documentManager.latestSnapshot(doc)!.text)
       expectation.fulfill()
     }
 
-    try await fulfillmentOfOrThrow([expectation], timeout: 1)
+    let result = XCTWaiter.wait(for: [expectation], timeout: 1)
+    guard result == .completed else {
+      XCTFail("wait for diagnostics failed with \(result)")
+      return
+    }
   }
 
-  func testMainFilesChanged() async throws {
+  func testMainFilesChanged() throws {
     try XCTSkipIf(true, "rdar://115176405 - failing on rebranch due to extra published diagnostic")
 
-    let ws = try await mutableSourceKitTibsTestWorkspace(name: "MainFiles")!
+    let ws = try mutableSourceKitTibsTestWorkspace(name: "MainFiles")!
     let unique_h = ws.testLoc("unique").docIdentifier.uri
 
     ws.testServer.client.allowUnexpectedNotification = false
@@ -417,7 +407,7 @@ final class BuildSystemTests: XCTestCase {
     }
 
     try ws.openDocument(unique_h.fileURL!, language: .cpp)
-    try await fulfillmentOfOrThrow([expectation])
+    wait(for: [expectation], timeout: defaultTimeout)
 
     let use_d = self.expectation(description: "update settings to d.cpp")
     ws.testServer.client.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
@@ -430,7 +420,7 @@ final class BuildSystemTests: XCTestCase {
     }
 
     try ws.buildAndIndex()
-    try await fulfillmentOfOrThrow([use_d])
+    wait(for: [use_d], timeout: defaultTimeout)
 
     let use_c = self.expectation(description: "update settings to c.cpp")
     ws.testServer.client.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
@@ -451,7 +441,7 @@ final class BuildSystemTests: XCTestCase {
         """, to: ws.testLoc("c_func").url)
     }
 
-    try await fulfillmentOfOrThrow([use_c])
+    wait(for: [use_c], timeout: defaultTimeout)
   }
 
   private func clangBuildSettings(for uri: DocumentURI) -> FileBuildSettings {

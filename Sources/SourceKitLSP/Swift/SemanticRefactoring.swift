@@ -126,52 +126,54 @@ extension SwiftLanguageServer {
   ///   - completion: Completion block to asynchronously receive the SemanticRefactoring data, or error.
   func semanticRefactoring(
     _ refactorCommand: SemanticRefactorCommand,
-    _ completion: @escaping (Result<SemanticRefactoring, SemanticRefactoringError>) -> Void) async
+    _ completion: @escaping (Result<SemanticRefactoring, SemanticRefactoringError>) -> Void)
   {
     let keys = self.keys
 
-    let uri = refactorCommand.textDocument.uri
-    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-      return completion(.failure(.unknownDocument(uri)))
-    }
-    guard let offsetRange = snapshot.utf8OffsetRange(of: refactorCommand.positionRange) else {
-      return completion(.failure(.failedToRetrieveOffset(refactorCommand.positionRange)))
-    }
-    let line = refactorCommand.positionRange.lowerBound.line
-    let utf16Column = refactorCommand.positionRange.lowerBound.utf16index
-    guard let utf8Column = snapshot.lineTable.utf8ColumnAt(line: line, utf16Column: utf16Column) else {
-      return completion(.failure(.invalidRange(refactorCommand.positionRange)))
-    }
-
-    let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-    skreq[keys.request] = self.requests.semantic_refactoring
-    // Preferred name for e.g. an extracted variable.
-    // Empty string means sourcekitd chooses a name automatically.
-    skreq[keys.name] = ""
-    skreq[keys.sourcefile] = uri.pseudoPath
-    // LSP is zero based, but this request is 1 based.
-    skreq[keys.line] = line + 1
-    skreq[keys.column] = utf8Column + 1
-    skreq[keys.length] = offsetRange.count
-    skreq[keys.actionuid] = self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!
-
-    // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = await self.buildSettings(for: snapshot.document.uri) {
-      skreq[keys.compilerargs] = compileCommand.compilerArgs
-    }
-
-    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        return completion(.failure(.responseError(ResponseError(result.failure!))))
+    queue.async {
+      let uri = refactorCommand.textDocument.uri
+      guard let snapshot = self.documentManager.latestSnapshot(uri) else {
+        return completion(.failure(.unknownDocument(uri)))
       }
-      guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {
-        return completion(.failure(.noEditsNeeded(uri)))
+      guard let offsetRange = snapshot.utf8OffsetRange(of: refactorCommand.positionRange) else {
+        return completion(.failure(.failedToRetrieveOffset(refactorCommand.positionRange)))
       }
-      completion(.success(refactor))
-    }
+      let line = refactorCommand.positionRange.lowerBound.line
+      let utf16Column = refactorCommand.positionRange.lowerBound.utf16index
+      guard let utf8Column = snapshot.lineTable.utf8ColumnAt(line: line, utf16Column: utf16Column) else {
+        return completion(.failure(.invalidRange(refactorCommand.positionRange)))
+      }
 
-    // FIXME: cancellation
-    _ = handle
+      let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+      skreq[keys.request] = self.requests.semantic_refactoring
+      // Preferred name for e.g. an extracted variable.
+      // Empty string means sourcekitd chooses a name automatically.
+      skreq[keys.name] = ""
+      skreq[keys.sourcefile] = uri.pseudoPath
+      // LSP is zero based, but this request is 1 based.
+      skreq[keys.line] = line + 1
+      skreq[keys.column] = utf8Column + 1
+      skreq[keys.length] = offsetRange.count
+      skreq[keys.actionuid] = self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!
+
+      // FIXME: SourceKit should probably cache this for us.
+      if let compileCommand = self.commandsByFile[snapshot.document.uri] {
+        skreq[keys.compilerargs] = compileCommand.compilerArgs
+      }
+
+      let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
+        guard let self = self else { return }
+        guard let dict = result.success else {
+          return completion(.failure(.responseError(ResponseError(result.failure!))))
+        }
+        guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {
+          return completion(.failure(.noEditsNeeded(uri)))
+        }
+        completion(.success(refactor))
+      }
+
+      // FIXME: cancellation
+      _ = handle
+    }
   }
 }

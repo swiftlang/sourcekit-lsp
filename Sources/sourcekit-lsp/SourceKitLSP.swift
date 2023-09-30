@@ -204,7 +204,7 @@ struct SourceKitLSP: ParsableCommand {
       clientConnection.close()
     })
     clientConnection.start(receiveHandler: server, closeHandler: {
-      await server.prepareForExit()
+      server.prepareForExit()
       // FIXME: keep the FileHandle alive until we close the connection to
       // workaround SR-13822.
       withExtendedLifetime(realStdoutHandle) {}

@@ -17,8 +17,8 @@ import SKCore
 import TSCBasic
 
 final class CompilationDatabaseTests: XCTestCase {
-  func testModifyCompilationDatabase() async throws {
-    let ws = try await mutableSourceKitTibsTestWorkspace(name: "ClangCrashRecoveryBuildSettings")!
+  func testModifyCompilationDatabase() throws {
+    let ws = try mutableSourceKitTibsTestWorkspace(name: "ClangCrashRecoveryBuildSettings")!
     let loc = ws.testLoc("loc")
 
     try ws.openDocument(loc.url, language: .cpp)
@@ -71,7 +71,7 @@ final class CompilationDatabaseTests: XCTestCase {
         didReceiveCorrectHighlight = true
         break
       }
-      try await Task.sleep(nanoseconds: 1_000_000_000)
+      Thread.sleep(forTimeInterval: 1)
     }
 
     XCTAssert(didReceiveCorrectHighlight)

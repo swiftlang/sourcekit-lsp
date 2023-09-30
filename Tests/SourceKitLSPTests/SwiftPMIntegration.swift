@@ -16,8 +16,8 @@ import XCTest
 
 final class SwiftPMIntegrationTests: XCTestCase {
 
-  func testSwiftPMIntegration() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
+  func testSwiftPMIntegration() throws {
+    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
     try ws.buildAndIndex()
 
     let call = ws.testLoc("Lib.foo:call")
@@ -58,8 +58,8 @@ final class SwiftPMIntegrationTests: XCTestCase {
     ])
   }
 
-  func testAddFile() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
+  func testAddFile() throws {
+    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
     try ws.buildAndIndex()
 
     /// Add a new file to the project that wasn't built
@@ -142,8 +142,8 @@ final class SwiftPMIntegrationTests: XCTestCase {
     )
   }
 
-  func testModifyPackageManifest() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
+  func testModifyPackageManifest() throws {
+    guard let ws = try staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
     try ws.buildAndIndex()
 
     let otherLib = ws.testLoc("OtherLib.topLevelFunction:libMember")
@@ -211,7 +211,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
         didReceiveCorrectCompletions = true
         break
       }
-      try await Task.sleep(nanoseconds: 1_000_000_000)
+      Thread.sleep(forTimeInterval: 1)
     }
 
     XCTAssert(didReceiveCorrectCompletions)

@@ -26,12 +26,6 @@ import func TSCBasic.resolveSymlinks
 import struct TSCBasic.AbsolutePath
 import struct PackageModel.BuildFlags
 
-fileprivate extension SourceKitServer {
-  func addWorkspace(_ workspace: Workspace) {
-    self._workspaces.append(workspace)
-  }
-}
-
 public final class SKSwiftPMTestWorkspace {
 
   /// The directory containing the original, unmodified project.
@@ -58,7 +52,7 @@ public final class SKSwiftPMTestWorkspace {
   public var sk: TestClient { testServer.client }
 
   /// When `testServer` is not `nil`, the workspace will be opened in that server, otherwise a new server will be created for the workspace
-  public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain, testServer: TestSourceKitServer? = nil) async throws {
+  public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain, testServer: TestSourceKitServer? = nil) throws {
     self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
 
     self.projectDir = URL(
@@ -85,26 +79,26 @@ public final class SKSwiftPMTestWorkspace {
     let buildPath = try AbsolutePath(validating: buildDir.path)
     let buildSetup = BuildSetup(configuration: .debug, path: buildPath, flags: BuildFlags())
 
-    let swiftpm = try await SwiftPMWorkspace(
+    let swiftpm = try SwiftPMWorkspace(
       workspacePath: sourcePath,
       toolchainRegistry: ToolchainRegistry.shared,
       buildSetup: buildSetup)
 
     let libIndexStore = try IndexStoreLibrary(dylibPath: toolchain.libIndexStore!.pathString)
 
-    try fm.createDirectory(atPath: await swiftpm.indexStorePath!.pathString, withIntermediateDirectories: true)
+    try fm.createDirectory(atPath: swiftpm.indexStorePath!.pathString, withIntermediateDirectories: true)
 
     let indexDelegate = SourceKitIndexDelegate()
 
     self.index = try IndexStoreDB(
-      storePath: await swiftpm.indexStorePath!.pathString,
+      storePath: swiftpm.indexStorePath!.pathString,
       databasePath: tmpDir.path,
       library: libIndexStore,
       delegate: indexDelegate,
       listenToUnitEvents: false)
 
     let server = self.testServer.server!
-    let workspace = await Workspace(
+    let workspace = Workspace(
       documentManager: DocumentManager(),
       rootUri: DocumentURI(sources.rootDirectory),
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
@@ -113,8 +107,8 @@ public final class SKSwiftPMTestWorkspace {
       underlyingBuildSystem: swiftpm,
       index: index,
       indexDelegate: indexDelegate)
-    await workspace.buildSystemManager.setDelegate(server)
-    await server.addWorkspace(workspace)
+    workspace.buildSystemManager.delegate = server
+    server._workspaces.append(workspace)
   }
 
   deinit {
@@ -164,10 +158,10 @@ extension SKSwiftPMTestWorkspace {
 
 extension XCTestCase {
 
-  public func staticSourceKitSwiftPMWorkspace(name: String, server: TestSourceKitServer? = nil) async throws -> SKSwiftPMTestWorkspace? {
+  public func staticSourceKitSwiftPMWorkspace(name: String, server: TestSourceKitServer? = nil) throws -> SKSwiftPMTestWorkspace? {
     let testDirName = testDirectoryName
     let toolchain = ToolchainRegistry.shared.default!
-    let workspace = try await SKSwiftPMTestWorkspace(
+    let workspace = try SKSwiftPMTestWorkspace(
       projectDir: XCTestCase.sklspInputsDirectory.appendingPathComponent(name, isDirectory: true),
       tmpDir: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("sk-test-data/\(testDirName)/\(name)", isDirectory: true),
