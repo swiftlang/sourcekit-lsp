@@ -69,13 +69,13 @@ final class BuildSystemManagerTests: XCTestCase {
     await bsm.mainFilesChanged()
 
     await assertEqual(bsm._cachedMainFile(for: a), a)
-    await assertEqual(bsm._cachedMainFile(for: b), bMain) // never changes to a
+    await assertEqual(bsm._cachedMainFile(for: b), a)
     await assertEqual(bsm._cachedMainFile(for: c), c)
     await assertEqual(bsm._cachedMainFile(for: d), d)
 
     await bsm.unregisterForChangeNotifications(for: a)
     await assertEqual(bsm._cachedMainFile(for: a), nil)
-    await assertEqual(bsm._cachedMainFile(for: b), bMain) // never changes to a
+    await assertEqual(bsm._cachedMainFile(for: b), a)
     await assertEqual(bsm._cachedMainFile(for: c), c)
     await assertEqual(bsm._cachedMainFile(for: d), d)
 
@@ -272,9 +272,8 @@ final class BuildSystemManagerTests: XCTestCase {
 
     mainFiles.mainFiles[h] = Set([cpp1, cpp2])
 
-    let changed3 = expectation(description: "added main file, no update")
-    changed3.isInverted = true
-    await del.setExpected([(h, .c, nil, changed3, #file, #line)])
+    let changed3 = expectation(description: "added lexicographically earlier main file")
+    await del.setExpected([(h, .c, bs.map[cpp1]!, changed3, #file, #line)])
     await bsm.mainFilesChanged()
     try await fulfillmentOfOrThrow([changed3], timeout: 1)
 
