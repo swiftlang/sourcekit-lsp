@@ -120,7 +120,6 @@ public actor BuildSystemManager {
 
   public func filesDidChange(_ events: [FileEvent]) async {
     await self.buildSystem?.filesDidChange(events)
-    self.fallbackBuildSystem?.filesDidChange(events)
   }
 }
 
@@ -206,7 +205,6 @@ extension BuildSystemManager {
     }
 
     await buildSystem?.registerForChangeNotifications(for: mainFile, language: language)
-    fallbackBuildSystem?.registerForChangeNotifications(for: mainFile, language: language)
   }
 
   /// Return settings for `file` based on  the `change` settings for `mainFile`.
@@ -248,7 +246,7 @@ extension BuildSystemManager {
   public func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability {
     return max(
       await buildSystem?.fileHandlingCapability(for: uri) ?? .unhandled,
-      fallbackBuildSystem?.fileHandlingCapability(for: uri) ?? .unhandled
+      fallbackBuildSystem != nil ? .fallback : .unhandled
     )
   }
 }

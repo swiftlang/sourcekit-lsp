@@ -34,8 +34,8 @@ final class BuildSystemManagerTests: XCTestCase {
     ]
 
     let bsm = await BuildSystemManager(
-      buildSystem: FallbackBuildSystem(buildSetup: .default),
-      fallbackBuildSystem: nil,
+      buildSystem: nil,
+      fallbackBuildSystem: FallbackBuildSystem(buildSetup: .default),
       mainFilesProvider: mainFiles)
     defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
 
