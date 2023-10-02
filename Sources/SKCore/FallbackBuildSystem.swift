@@ -60,12 +60,7 @@ public final class FallbackBuildSystem: BuildSystem {
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
-    guard let delegate = self.delegate else { return }
-
-    let settings = self.buildSettings(for: uri, language: language)
-    Task {
-      await delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
-    }
+    // Fallback build systems never change.
   }
 
   /// We don't support change watching.

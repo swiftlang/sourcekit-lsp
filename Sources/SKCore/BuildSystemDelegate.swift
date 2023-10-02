@@ -21,11 +21,7 @@ public protocol BuildSystemDelegate: AnyObject {
   func buildTargetsChanged(_ changes: [BuildTargetEvent]) async
 
   /// Notify the delegate that the given files' build settings have changed.
-  ///
-  /// The delegate should cache the new build settings for any of the given
-  /// files that they are interested in.
-  func fileBuildSettingsChanged(
-    _ changedFiles: [DocumentURI: FileBuildSettingsChange]) async
+  func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async
 
   /// Notify the delegate that the dependencies of the given files have changed
   /// and that ASTs may need to be refreshed. If the given set is empty, assume

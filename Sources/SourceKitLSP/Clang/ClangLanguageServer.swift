@@ -128,7 +128,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     guard let workspace = workspace.value, let language = openDocuments[document] else {
       return nil
     }
-    guard let settings = await workspace.buildSystemManager.buildSettings(for: document, language: language) else {
+    guard let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(for: document, language: language) else {
       return nil
     }
     return ClangBuildSettings(settings.buildSettings, clangPath: clangdPath, isFallback: settings.isFallback)
@@ -404,7 +404,7 @@ extension ClangLanguageServerShim {
     // Send clangd the build settings for the new file. We need to do this before
     // sending the open notification, so that the initial diagnostics already
     // have build settings.
-    await documentUpdatedBuildSettings(note.textDocument.uri, change: .removedOrUnavailable)
+    await documentUpdatedBuildSettings(note.textDocument.uri)
     clangd.send(note)
   }
 
@@ -427,7 +427,7 @@ extension ClangLanguageServerShim {
 
   // MARK: - Build System Integration
 
-  public func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) async {
+  public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
     guard let url = uri.fileURL else {
       // FIXME: The clang workspace can probably be reworked to support non-file URIs.
       log("Received updated build settings for non-file URI '\(uri)'. Ignoring the update.")

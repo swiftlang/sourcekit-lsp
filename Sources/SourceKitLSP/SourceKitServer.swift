@@ -148,12 +148,6 @@ public actor SourceKitServer {
 
   var languageServices: [LanguageServerType: [ToolchainLanguageServer]] = [:]
 
-  /// Documents that are ready for requests and notifications.
-  /// This generally means that the `BuildSystem` has notified of us of build settings.
-  var documentsReady: Set<DocumentURI> = []
-
-  private var documentToPendingQueue: [DocumentURI: DocumentNotificationRequestQueue] = [:]
-
   private let documentManager = DocumentManager()
 
   private var packageLoadingWorkDoneProgress = WorkDoneProgressState("SourceKitLSP.SourceKitServer.reloadPackage", title: "Reloading Package")
@@ -221,10 +215,9 @@ public actor SourceKitServer {
     return bestWorkspace.workspace
   }
 
-  /// Execute `notificationHandler` once the document that it concerns is ready
-  /// and has the initial build settings. These build settings might still be
-  /// incomplete or fallback settings.
-  private func withReadyDocument<NotificationType: TextDocumentNotification>(
+  /// Execute `notificationHandler` with the request as well as the workspace
+  /// and language that handle this document.
+  private func withLanguageServiceAndWorkspace<NotificationType: TextDocumentNotification>(
     for notification: Notification<NotificationType>,
     notificationHandler: @escaping (Notification<NotificationType>, ToolchainLanguageServer) async -> Void
   ) async {
@@ -239,22 +232,15 @@ public actor SourceKitServer {
       return
     }
 
-    // If the document is ready, we can handle it right now.
-    guard !self.documentsReady.contains(doc) else {
-      await notificationHandler(notification, languageService)
-      return
-    }
-
-    // Not ready to handle it, we'll queue it and handle it later.
-    self.documentToPendingQueue[doc, default: DocumentNotificationRequestQueue()].add(operation: {
-      await notificationHandler(notification, languageService)
-    })
+    await notificationHandler(notification, languageService)
   }
 
-  /// Execute `notificationHandler` once the document that it concerns is ready
-  /// and has the initial build settings. These build settings might still be
-  /// incomplete or fallback settings.
-  private func withReadyDocument<RequestType: TextDocumentRequest>(
+  /// Execute `requestHandler` with the request as well as the workspace
+  /// and language that handle this document.
+  ///
+  /// If no language service exists for the document mentioned in the request,
+  /// reply with `fallback`.
+  private func withLanguageServiceAndWorkspace<RequestType: TextDocumentRequest>(
     for request: Request<RequestType>,
     requestHandler: @escaping (Request<RequestType>, Workspace, ToolchainLanguageServer) async -> Void,
     fallback: RequestType.Response
@@ -270,18 +256,7 @@ public actor SourceKitServer {
       return request.reply(fallback)
     }
 
-    // If the document is ready, we can handle it right now.
-    guard !self.documentsReady.contains(doc) else {
-      await requestHandler(request, workspace, languageService)
-      return
-    }
-
-    // Not ready to handle it, we'll queue it and handle it later.
-    self.documentToPendingQueue[doc, default: DocumentNotificationRequestQueue()].add(operation: {
-      await requestHandler(request, workspace, languageService)
-    }, cancellationHandler: {
-      request.reply(fallback)
-    })
+    await requestHandler(request, workspace, languageService)
   }
 
 
@@ -509,9 +484,9 @@ extension SourceKitServer: MessageHandler {
     case let notification as Notification<DidChangeWatchedFilesNotification>:
       await self.didChangeWatchedFiles(notification)
     case let notification as Notification<WillSaveTextDocumentNotification>:
-      await self.withReadyDocument(for: notification, notificationHandler: self.willSaveDocument)
+      await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
     case let notification as Notification<DidSaveTextDocumentNotification>:
-      await self.withReadyDocument(for: notification, notificationHandler: self.didSaveDocument)
+      await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.didSaveDocument)
     default:
       self._handleUnknown(notification)
     }
@@ -550,47 +525,47 @@ extension SourceKitServer: MessageHandler {
     case let request as Request<TypeHierarchySubtypesRequest>:
       await self.subtypes(request)
     case let request as Request<CompletionRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.completion, fallback: CompletionList(isIncomplete: false, items: []))
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.completion, fallback: CompletionList(isIncomplete: false, items: []))
     case let request as Request<HoverRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.hover, fallback: nil)
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.hover, fallback: nil)
     case let request as Request<OpenInterfaceRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.openInterface, fallback: nil)
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.openInterface, fallback: nil)
     case let request as Request<DeclarationRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.declaration, fallback: nil)
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.declaration, fallback: nil)
     case let request as Request<DefinitionRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.definition, fallback: .locations([]))
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.definition, fallback: .locations([]))
     case let request as Request<ReferencesRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.references, fallback: [])
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.references, fallback: [])
     case let request as Request<ImplementationRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.implementation, fallback: .locations([]))
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.implementation, fallback: .locations([]))
     case let request as Request<CallHierarchyPrepareRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.prepareCallHierarchy, fallback: [])
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.prepareCallHierarchy, fallback: [])
     case let request as Request<TypeHierarchyPrepareRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.prepareTypeHierarchy, fallback: [])
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.prepareTypeHierarchy, fallback: [])
     case let request as Request<SymbolInfoRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.symbolInfo, fallback: [])
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.symbolInfo, fallback: [])
     case let request as Request<DocumentHighlightRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
     case let request as Request<FoldingRangeRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.foldingRange, fallback: nil)
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.foldingRange, fallback: nil)
     case let request as Request<DocumentSymbolRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.documentSymbol, fallback: nil)
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSymbol, fallback: nil)
     case let request as Request<DocumentColorRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.documentColor, fallback: [])
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentColor, fallback: [])
     case let request as Request<DocumentSemanticTokensRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.documentSemanticTokens, fallback: nil)
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokens, fallback: nil)
     case let request as Request<DocumentSemanticTokensDeltaRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.documentSemanticTokensDelta, fallback: nil)
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokensDelta, fallback: nil)
     case let request as Request<DocumentSemanticTokensRangeRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.documentSemanticTokensRange, fallback: nil)
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokensRange, fallback: nil)
     case let request as Request<ColorPresentationRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.colorPresentation, fallback: [])
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.colorPresentation, fallback: [])
     case let request as Request<CodeActionRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.codeAction, fallback: nil)
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.codeAction, fallback: nil)
     case let request as Request<InlayHintRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.inlayHint, fallback: [])
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.inlayHint, fallback: [])
     case let request as Request<DocumentDiagnosticsRequest>:
-      await self.withReadyDocument(for: request, requestHandler: self.documentDiagnostic, fallback: .full(.init(items: [])))
+      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentDiagnostic, fallback: .full(.init(items: [])))
     default:
       self._handleUnknown(request)
     }
@@ -649,7 +624,7 @@ extension SourceKitServer: BuildSystemDelegate {
 
   // FIXME: (async) Make this method isolated once `BuildSystemDelegate` has been asyncified
   /// Non-async variant that executes `fileBuildSettingsChangedImpl` in a new task.
-  public nonisolated func fileBuildSettingsChanged(_ changedFiles: [DocumentURI: FileBuildSettingsChange]) {
+  public nonisolated func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
     Task {
       await self.fileBuildSettingsChangedImpl(changedFiles)
     }
@@ -659,57 +634,17 @@ extension SourceKitServer: BuildSystemDelegate {
   /// This has two primary cases:
   /// - Initial settings reported for a given file, now we can fully open it
   /// - Changed settings for an already open file
-  public func fileBuildSettingsChangedImpl(
-    _ changedFiles: [DocumentURI: FileBuildSettingsChange]
-  ) async {
-    for (uri, change) in changedFiles {
-      // Non-ready documents should be considered open even though we haven't
-      // opened it with the language service yet.
-      guard self.documentManager.openDocuments.contains(uri) else { continue }
-
-      guard let workspace = await self.workspaceForDocument(uri: uri) else {
-        continue
-      }
-      guard self.documentsReady.contains(uri) else {
-        // Case 1: initial settings for a given file. Now we can process our backlog.
-        log("Initial build settings received for opened file \(uri)")
-
-        guard let service = workspace.documentService[uri] else {
-          // Unexpected: we should have an existing language service if we've registered for
-          // change notifications for an opened but non-ready document.
-          log("No language service for build settings change to non-ready file \(uri)",
-              level: .error)
-
-          // We're in an odd state, cancel pending requests if we have any.
-          self.documentToPendingQueue[uri]?.cancelAll()
-          self.documentToPendingQueue[uri] = nil
-          continue
-        }
-
-        // Notify the language server so it can apply the proper arguments.
-        await service.documentUpdatedBuildSettings(uri, change: change)
-
-        // Catch up on any queued notifications and requests.
-        while !(documentToPendingQueue[uri]?.queue.isEmpty ?? true) {
-          // We need to run this loop until convergence since new closures can
-          // get added to `documentToPendingQueue` while we are awaiting the
-          // result of a `task.operation()`.
-          let pendingQueue = documentToPendingQueue[uri]?.queue ?? []
-          documentToPendingQueue[uri]?.queue = []
-          for task in pendingQueue {
-            await task.operation()
-          }
-        }
-        self.documentToPendingQueue[uri] = nil
-        self.documentsReady.insert(uri)
+  public func fileBuildSettingsChangedImpl(_ changedFiles: Set<DocumentURI>) async {
+    for uri in changedFiles {
+      guard self.documentManager.openDocuments.contains(uri) else {
         continue
       }
 
-      // Case 2: changed settings for an already open file.
-      log("Build settings changed for opened file \(uri)")
-      if let service = workspace.documentService[uri] {
-        await service.documentUpdatedBuildSettings(uri, change: change)
+      guard let service = await self.workspaceForDocument(uri: uri)?.documentService[uri] else {
+        continue
       }
+
+      await service.documentUpdatedBuildSettings(uri)
     }
   }
 
@@ -735,11 +670,6 @@ extension SourceKitServer: BuildSystemDelegate {
         continue
       }
       for uri in self.affectedOpenDocumentsForChangeSet(changedFilesForWorkspace, self.documentManager) {
-        // Make sure the document is ready - otherwise the language service won't
-        // know about the document yet.
-        guard self.documentsReady.contains(uri) else {
-          continue
-        }
         log("Dependencies updated for opened file \(uri)")
         if let service = workspace.documentService[uri] {
           await service.documentDependenciesUpdated(uri)
@@ -1085,15 +1015,7 @@ extension SourceKitServer {
     await workspace.buildSystemManager.registerForChangeNotifications(for: uri, language: language)
 
     // If the document is ready, we can immediately send the notification.
-    guard !documentsReady.contains(uri) else {
-      await service.openDocument(note)
-      return
-    }
-
-    // Need to queue the open call so we can handle it when ready.
-    self.documentToPendingQueue[uri, default: DocumentNotificationRequestQueue()].add(operation: {
-      await service.openDocument(note)
-    })
+    await service.openDocument(note)
   }
 
   func closeDocument(_ note: Notification<DidCloseTextDocumentNotification>) async {
@@ -1114,17 +1036,7 @@ extension SourceKitServer {
 
     await workspace.buildSystemManager.unregisterForChangeNotifications(for: uri)
 
-    // If the document is ready, we can close it now.
-    guard !documentsReady.contains(uri) else {
-      self.documentsReady.remove(uri)
-      await workspace.documentService[uri]?.closeDocument(note)
-      return
-    }
-
-    // Clear any queued notifications via their cancellation handlers.
-    // No need to send the notification since it was never considered opened.
-    self.documentToPendingQueue[uri]?.cancelAll()
-    self.documentToPendingQueue[uri] = nil
+    await workspace.documentService[uri]?.closeDocument(note)
   }
 
   func changeDocument(_ note: Notification<DidChangeTextDocumentNotification>) async {
@@ -1136,17 +1048,8 @@ extension SourceKitServer {
     }
 
     // If the document is ready, we can handle the change right now.
-    guard !documentsReady.contains(uri) else {
-      documentManager.edit(note.params)
-      await workspace.documentService[uri]?.changeDocument(note.params)
-      return
-    }
-
-    // Need to queue the change call so we can handle it when ready.
-    self.documentToPendingQueue[uri, default: DocumentNotificationRequestQueue()].add(operation: {
-      self.documentManager.edit(note.params)
-      await workspace.documentService[uri]?.changeDocument(note.params)
-    })
+    documentManager.edit(note.params)
+    await workspace.documentService[uri]?.changeDocument(note.params)
   }
 
   func willSaveDocument(
@@ -1400,27 +1303,6 @@ extension SourceKitServer {
     }
     guard let languageService = workspace.documentService[uri] else {
       req.reply(nil)
-      return
-    }
-
-    // If the document isn't yet ready, queue the request.
-    guard self.documentsReady.contains(uri) else {
-      let operation = { [weak self] in
-        guard let self = self else { return }
-        // FIXME: (async) This might cause out-of order requests if  tasks of the
-        // same `documentToPendingQueue` are executed out-of-order. To fix this, we should
-        // always wait for build settings before handling a request and remove
-        // documentToPendingQueue.
-        Task {
-          await self.fowardExecuteCommand(req, languageService: languageService)
-        }
-      }
-      let cancellationHandler = {
-        req.reply(nil)
-      }
-
-      self.documentToPendingQueue[uri, default: DocumentNotificationRequestQueue()]
-        .add(operation: operation, cancellationHandler: cancellationHandler)
       return
     }
 

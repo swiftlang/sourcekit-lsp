@@ -98,9 +98,8 @@ final class TestDelegate: BuildSystemDelegate {
     }
   }
 
-  func fileBuildSettingsChanged(
-    _ changedFiles: [DocumentURI: FileBuildSettingsChange]) {
-    for (uri, _) in changedFiles {
+  func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) {
+    for uri in changedFiles {
       settingsExpectations[uri]?.fulfill()
     }
   }

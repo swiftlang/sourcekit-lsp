@@ -178,7 +178,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     guard let workspace = await sourceKitServer.workspaceForDocument(uri: document) else {
       return nil
     }
-    if let settings = await workspace.buildSystemManager.buildSettings(for: document, language: .swift) {
+    if let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(for: document, language: .swift) {
       return SwiftCompileCommand(settings.buildSettings, isFallback: settings.isFallback)
     } else {
       return nil
@@ -485,7 +485,7 @@ extension SwiftLanguageServer {
         response: dict, for: snapshot, compileCommand: compileCmd)
   }
 
-  public func documentUpdatedBuildSettings(_ uri: DocumentURI, change: FileBuildSettingsChange) async {
+  public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
     // We may not have a snapshot if this is called just before `openDocument`.
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
       return
