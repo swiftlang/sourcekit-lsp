@@ -567,7 +567,7 @@ extension SourceKitServer: MessageHandler {
       case let request as Request<InitializeRequest>:
         await self.handleRequest(request, handler: self.initialize)
       case let request as Request<ShutdownRequest>:
-        await self.shutdown(request)
+        await self.handleRequest(request, handler: self.shutdown)
       case let request as Request<WorkspaceSymbolsRequest>:
         await self.workspaceSymbols(request)
       case let request as Request<PollIndexRequest>:
@@ -984,7 +984,7 @@ extension SourceKitServer {
   }
 
 
-  func shutdown(_ request: Request<ShutdownRequest>) async {
+  func shutdown(_ request: ShutdownRequest) async throws -> VoidResponse {
     await prepareForExit()
 
     await withTaskGroup(of: Void.self) { taskGroup in
@@ -1005,7 +1005,7 @@ extension SourceKitServer {
     // Otherwise we might terminate sourcekit-lsp while it still has open
     // connections to the toolchain servers, which could send messages to
     // sourcekit-lsp while it is being deallocated, causing crashes.
-    request.reply(VoidResponse())
+    return VoidResponse()
   }
 
   func exit(_ notification: ExitNotification) async {
