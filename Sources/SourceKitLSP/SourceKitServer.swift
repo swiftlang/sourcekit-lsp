@@ -577,7 +577,7 @@ extension SourceKitServer: MessageHandler {
       case let request as Request<CallHierarchyIncomingCallsRequest>:
         await self.handleRequest(request, handler: self.incomingCalls)
       case let request as Request<CallHierarchyOutgoingCallsRequest>:
-        await self.outgoingCalls(request)
+        await self.handleRequest(request, handler: self.outgoingCalls)
       case let request as Request<TypeHierarchySupertypesRequest>:
         await self.supertypes(request)
       case let request as Request<TypeHierarchySubtypesRequest>:
@@ -1640,11 +1640,10 @@ extension SourceKitServer {
     return calls
   }
 
-  func outgoingCalls(_ req: Request<CallHierarchyOutgoingCallsRequest>) async {
-    guard let data = extractCallHierarchyItemData(req.params.item.data),
+  func outgoingCalls(_ req: CallHierarchyOutgoingCallsRequest) async throws -> [CallHierarchyOutgoingCall]? {
+    guard let data = extractCallHierarchyItemData(req.item.data),
           let index = await self.workspaceForDocument(uri: data.uri)?.index else {
-      req.reply([])
-      return
+      return []
     }
     let occurs = index.occurrences(relatedToUSR: data.usr, roles: .calledBy)
     let calls = occurs.compactMap { occurrence -> CallHierarchyOutgoingCall? in
@@ -1666,7 +1665,7 @@ extension SourceKitServer {
         fromRanges: [location.range]
       )
     }
-    req.reply(calls)
+    return calls
   }
 
   private func indexToLSPTypeHierarchyItem(
