@@ -15,14 +15,20 @@ import LanguageServerProtocol
 import LSPLogging
 import SKSupport
 
+/// An immutable snapshot of a document at a given time.
+///
+/// ``DocumentSnapshot`` is always derived from a ``Document``. That is, the
+/// data structure that is stored internally by the ``DocumentManager`` is a
+/// ``Document``. The purpose of a ``DocumentSnapshot`` is to be able to work
+/// with one version of a document without having to think about it changing.
 public struct DocumentSnapshot {
-  public var document: Document
-  public var version: Int
-  public var lineTable: LineTable
+  public let document: Document
+  public let version: Int
+  public let lineTable: LineTable
   /// Syntax highlighting tokens for the document. Note that
   /// `uri` + `latestVersion` only uniquely identifies a snapshot's content,
   /// the tokens are updated independently and only used internally.
-  public var tokens: DocumentTokens
+  public let tokens: DocumentTokens
 
   public var text: String { lineTable.content }
 
@@ -168,8 +174,8 @@ public final class DocumentManager {
           document.latestTokens = DocumentTokens()
         }
 
-        if let f = updateDocumentTokens {
-          document.latestTokens = f(document.latestSnapshot)
+        if let updateDocumentTokens {
+          document.latestTokens = updateDocumentTokens(document.latestSnapshot)
         }
       }
 
