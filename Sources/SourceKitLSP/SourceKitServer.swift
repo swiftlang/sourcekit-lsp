@@ -569,7 +569,7 @@ extension SourceKitServer: MessageHandler {
       case let request as Request<ShutdownRequest>:
         await self.handleRequest(request, handler: self.shutdown)
       case let request as Request<WorkspaceSymbolsRequest>:
-        await self.workspaceSymbols(request)
+        await self.handleRequest(request, handler: self.workspaceSymbols)
       case let request as Request<PollIndexRequest>:
         await self.pollIndex(request)
       case let request as Request<ExecuteCommandRequest>:
@@ -1228,9 +1228,9 @@ extension SourceKitServer {
 
   /// Handle a workspace/symbol request, returning the SymbolInformation.
   /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
-  func workspaceSymbols(_ req: Request<WorkspaceSymbolsRequest>) {
+  func workspaceSymbols(_ req: WorkspaceSymbolsRequest) async throws -> [WorkspaceSymbolItem]? {
     let symbols = findWorkspaceSymbols(
-      matching: req.params.query
+      matching: req.query
     ).map({symbolOccurrence -> WorkspaceSymbolItem in
       let symbolPosition = Position(
         line: symbolOccurrence.location.line - 1, // 1-based -> 0-based
@@ -1249,7 +1249,7 @@ extension SourceKitServer {
         containerName: symbolOccurrence.getContainerName()
       ))
     })
-    req.reply(symbols)
+    return symbols
   }
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
