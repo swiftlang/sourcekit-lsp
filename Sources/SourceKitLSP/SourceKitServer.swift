@@ -565,7 +565,7 @@ extension SourceKitServer: MessageHandler {
 
       switch request {
       case let request as Request<InitializeRequest>:
-        await self.initialize(request)
+        await self.handleRequest(request, handler: self.initialize)
       case let request as Request<ShutdownRequest>:
         await self.shutdown(request)
       case let request as Request<WorkspaceSymbolsRequest>:
@@ -760,8 +760,8 @@ extension SourceKitServer {
     )
   }
 
-  func initialize(_ req: Request<InitializeRequest>) async {
-    if case .dictionary(let options) = req.params.initializationOptions {
+  func initialize(_ req: InitializeRequest) async throws -> InitializeResult {
+    if case .dictionary(let options) = req.initializationOptions {
       if case .bool(let listenToUnitEvents) = options["listenToUnitEvents"] {
         self.options.indexOptions.listenToUnitEvents = listenToUnitEvents
       }
@@ -782,15 +782,15 @@ extension SourceKitServer {
       }
     }
 
-    capabilityRegistry = CapabilityRegistry(clientCapabilities: req.params.capabilities)
+    capabilityRegistry = CapabilityRegistry(clientCapabilities: req.capabilities)
 
-    if let workspaceFolders = req.params.workspaceFolders {
+    if let workspaceFolders = req.workspaceFolders {
       self.workspaces += await workspaceFolders.asyncCompactMap { await self.createWorkspace(uri: $0.uri) }
-    } else if let uri = req.params.rootURI {
+    } else if let uri = req.rootURI {
       if let workspace = await self.createWorkspace(uri: uri) {
         self.workspaces.append(workspace)
       }
-    } else if let path = req.params.rootPath {
+    } else if let path = req.rootPath {
       if let workspace = await self.createWorkspace(uri: DocumentURI(URL(fileURLWithPath: path))) {
         self.workspaces.append(workspace)
       }
@@ -801,7 +801,7 @@ extension SourceKitServer {
 
       let workspace = await Workspace(
         documentManager: self.documentManager,
-        rootUri: req.params.rootURI,
+        rootUri: req.rootURI,
         capabilityRegistry: self.capabilityRegistry!,
         toolchainRegistry: self.toolchainRegistry,
         buildSetup: self.options.buildSetup,
@@ -824,8 +824,12 @@ extension SourceKitServer {
       await workspace.buildSystemManager.setDelegate(self)
     }
 
-    req.reply(InitializeResult(capabilities:
-      self.serverCapabilities(for: req.params.capabilities, registry: self.capabilityRegistry!)))
+    return InitializeResult(
+      capabilities: self.serverCapabilities(
+        for: req.capabilities,
+        registry: self.capabilityRegistry!
+      )
+    )
   }
 
   func serverCapabilities(
