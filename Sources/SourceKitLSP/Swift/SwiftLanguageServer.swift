@@ -620,9 +620,8 @@ extension SwiftLanguageServer {
     return false
   }
 
-  public func declaration(_ request: Request<DeclarationRequest>) -> Bool {
-    // We don't handle it.
-    return false
+  public func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
+    throw ResponseError.unknown("unsupported method")
   }
 
   public func hover(_ req: HoverRequest) async throws -> HoverResponse? {

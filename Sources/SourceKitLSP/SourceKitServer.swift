@@ -589,7 +589,7 @@ extension SourceKitServer: MessageHandler {
       case let request as Request<OpenInterfaceRequest>:
         await self.handleRequest(for: request, requestHandler: self.openInterface, fallback: nil)
       case let request as Request<DeclarationRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.declaration, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.declaration, fallback: nil)
       case let request as Request<DefinitionRequest>:
         await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.definition, fallback: .locations([]))
       case let request as Request<ReferencesRequest>:
@@ -1428,13 +1428,11 @@ extension SourceKitServer {
   }
 
   func declaration(
-    _ req: Request<DeclarationRequest>,
+    _ req: DeclarationRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    guard await languageService.declaration(req) else {
-      return req.reply(.locations([]))
-    }
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    return try await languageService.declaration(req)
   }
 
   func definition(
