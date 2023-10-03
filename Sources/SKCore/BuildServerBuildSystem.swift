@@ -47,8 +47,7 @@ public actor BuildServerBuildSystem: MessageHandler {
   let projectRoot: AbsolutePath
   let buildFolder: AbsolutePath?
   let serverConfig: BuildServerConfig
-  let requestQueue: DispatchQueue
-
+  
   var buildServer: JSONRPCConnection?
 
   /// The queue on which all messages that originate from the build server are
@@ -95,7 +94,6 @@ public actor BuildServerBuildSystem: MessageHandler {
 #endif
     self.buildFolder = buildFolder
     self.projectRoot = projectRoot
-    self.requestQueue = DispatchQueue(label: "build_server_request_queue")
     self.serverConfig = config
     try self.initializeBuildServer()
   }
