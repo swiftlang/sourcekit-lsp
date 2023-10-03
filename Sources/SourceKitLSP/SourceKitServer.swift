@@ -18,6 +18,7 @@ import LanguageServerProtocol
 import LSPLogging
 import SKCore
 import SKSupport
+import SourceKitD
 
 import PackageLoading
 
@@ -288,6 +289,8 @@ public actor SourceKitServer {
       request.reply(.success(result))
     } catch let error as ResponseError {
       request.reply(.failure(error))
+    } catch let error as SKDError {
+      request.reply(.failure(ResponseError(error)))
     } catch is CancellationError {
       request.reply(.failure(.cancelled))
     } catch {
@@ -1156,11 +1159,11 @@ extension SourceKitServer {
   }
 
   func hover(
-    _ req: Request<HoverRequest>,
+    _ req: HoverRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.hover(req)
+  ) async throws -> HoverResponse? {
+    return try await languageService.hover(req)
   }
   
   func openInterface(

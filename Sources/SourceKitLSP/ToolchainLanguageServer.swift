@@ -79,7 +79,7 @@ public protocol ToolchainLanguageServer: AnyObject {
   // MARK: - Text Document
 
   func completion(_ req: Request<CompletionRequest>) async
-  func hover(_ req: Request<HoverRequest>) async
+  func hover(_ req: HoverRequest) async throws -> HoverResponse?
   func symbolInfo(_ request: Request<SymbolInfoRequest>) async
   func openInterface(_ request: Request<OpenInterfaceRequest>) async
 

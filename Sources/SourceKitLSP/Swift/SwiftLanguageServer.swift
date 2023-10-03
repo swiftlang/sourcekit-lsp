@@ -625,58 +625,56 @@ extension SwiftLanguageServer {
     return false
   }
 
-  public func hover(_ req: Request<HoverRequest>) async {
-    let uri = req.params.textDocument.uri
-    let position = req.params.position
-    await cursorInfo(uri, position..<position) { result in
-      guard let cursorInfo: CursorInfo = result.success ?? nil else {
-        if let error = result.failure, error != .responseError(.serverCancelled) {
-          log("cursor info failed \(uri):\(position): \(error)", level: .warning)
-        }
-        return req.reply(nil)
-      }
+  public func hover(_ req: HoverRequest) async throws -> HoverResponse? {
+    let uri = req.textDocument.uri
+    let position = req.position
+    guard let cursorInfo = try await cursorInfo(uri, position..<position) else {
+      return nil
+    }
 
-      guard let name: String = cursorInfo.symbolInfo.name else {
-        // There is a cursor but we don't know how to deal with it.
-        req.reply(nil)
-        return
-      }
+    guard let name: String = cursorInfo.symbolInfo.name else {
+      // There is a cursor but we don't know how to deal with it.
+      return nil
+    }
 
-      /// Prepend backslash to `*` and `_`, to prevent them
-      /// from being interpreted as markdown.
-      func escapeNameMarkdown(_ str: String) -> String {
-        return String(str.flatMap({ ($0 == "*" || $0 == "_") ? ["\\", $0] : [$0] }))
-      }
+    /// Prepend backslash to `*` and `_`, to prevent them
+    /// from being interpreted as markdown.
+    func escapeNameMarkdown(_ str: String) -> String {
+      return String(str.flatMap({ ($0 == "*" || $0 == "_") ? ["\\", $0] : [$0] }))
+    }
 
-      var result = escapeNameMarkdown(name)
-      if let doc = cursorInfo.documentationXML {
-        result += """
+    var result = escapeNameMarkdown(name)
+    if let doc = cursorInfo.documentationXML {
+      result += """
 
         \(orLog { try xmlDocumentationToMarkdown(doc) } ?? doc)
         """
-      } else if let annotated: String = cursorInfo.annotatedDeclaration {
-        result += """
+    } else if let annotated: String = cursorInfo.annotatedDeclaration {
+      result += """
 
         \(orLog { try xmlDocumentationToMarkdown(annotated) } ?? annotated)
         """
-      }
-
-      req.reply(HoverResponse(contents: .markupContent(MarkupContent(kind: .markdown, value: result)), range: nil))
     }
+
+    return HoverResponse(contents: .markupContent(MarkupContent(kind: .markdown, value: result)), range: nil)
   }
 
   public func symbolInfo(_ req: Request<SymbolInfoRequest>) async {
     let uri = req.params.textDocument.uri
     let position = req.params.position
-    await cursorInfo(uri, position..<position) { result in
-      guard let cursorInfo: CursorInfo = result.success ?? nil else {
-        if let error = result.failure {
-          log("cursor info failed \(uri):\(position): \(error)", level: .warning)
+    Task {
+      do {
+        guard let cursorInfo = try await cursorInfo(uri, position..<position) else {
+          return req.reply([])
         }
-        return req.reply([])
+        req.reply([cursorInfo.symbolInfo])
+        // FIXME: (async) This error catching logic should no longer be necessary once
+        // retrieveRefactorCodeActions returns the result asynchronously.
+      } catch let error as ResponseError {
+        req.reply(.failure(error))
+      } catch {
+        req.reply(.failure(.unknown("Unknown error: \(error)")))
       }
-
-      req.reply([cursorInfo.symbolInfo])
     }
   }
 
@@ -1277,35 +1275,36 @@ extension SwiftLanguageServer {
       skreq[self.keys.retrieve_refactor_actions] = 1
     }
 
-    await cursorInfo(
-      params.textDocument.uri,
-      params.range,
-      additionalParameters: additionalCursorInfoParameters)
-    { result in
-      guard let dict: CursorInfo = result.success ?? nil else {
-        if let failure = result.failure {
-          let message = "failed to find refactor actions: \(failure)"
-          log(message)
-          completion(.failure(.unknown(message)))
-        } else {
+    Task {
+      do {
+        guard let dict = try await cursorInfo(
+          params.textDocument.uri,
+          params.range,
+          additionalParameters: additionalCursorInfoParameters) else {
           completion(.failure(.unknown("CursorInfo failed.")))
+          return
         }
-        return
-      }
-      guard let refactorActions = dict.refactorActions else {
-        completion(.success([]))
-        return
-      }
-      let codeActions: [CodeAction] = refactorActions.compactMap {
-        do {
-          let lspCommand = try $0.asCommand()
-          return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
-        } catch {
-          log("Failed to convert SwiftCommand to Command type: \(error)", level: .error)
-          return nil
+        guard let refactorActions = dict.refactorActions else {
+          completion(.success([]))
+          return
         }
+        let codeActions: [CodeAction] = refactorActions.compactMap {
+          do {
+            let lspCommand = try $0.asCommand()
+            return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
+          } catch {
+            log("Failed to convert SwiftCommand to Command type: \(error)", level: .error)
+            return nil
+          }
+        }
+        completion(.success(codeActions))
+        // FIXME: (async) This error catching logic should no longer be necessary once
+        // retrieveRefactorCodeActions returns the result asynchronously.
+      } catch let error as ResponseError {
+        completion(.failure(error))
+      } catch {
+        completion(.failure(.unknown("Unknown error: \(error)")))
       }
-      completion(.success(codeActions))
     }
   }
 

@@ -515,8 +515,8 @@ extension ClangLanguageServerShim {
     forwardRequestToClangd(req)
   }
 
-  func hover(_ req: Request<HoverRequest>) {
-    forwardRequestToClangd(req)
+  func hover(_ req: HoverRequest) async throws -> HoverResponse? {
+    return try await forwardRequestToClangd(req)
   }
 
   func symbolInfo(_ req: Request<SymbolInfoRequest>) {

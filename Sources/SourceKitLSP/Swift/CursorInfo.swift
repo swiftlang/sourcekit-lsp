@@ -83,15 +83,14 @@ extension SwiftLanguageServer {
   func cursorInfo(
     _ uri: DocumentURI,
     _ range: Range<Position>,
-    additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil,
-    _ completion: @escaping (Swift.Result<CursorInfo?, CursorInfoError>) -> Void) async
-  {
+    additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil
+  ) async throws -> CursorInfo? {
     guard let snapshot = documentManager.latestSnapshot(uri) else {
-       return completion(.failure(.unknownDocument(uri)))
+       throw CursorInfoError.unknownDocument(uri)
      }
 
     guard let offsetRange = snapshot.utf8OffsetRange(of: range) else {
-      return completion(.failure(.invalidRange(range)))
+      throw CursorInfoError.invalidRange(range)
     }
 
     let keys = self.keys
@@ -111,48 +110,40 @@ extension SwiftLanguageServer {
 
     appendAdditionalParameters?(skreq)
 
-    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        return completion(.failure(.responseError(ResponseError(result.failure!))))
-      }
+    let dict = try await self.sourcekitd.send(skreq)
 
-      guard let kind: sourcekitd_uid_t = dict[keys.kind] else {
-        // Nothing to report.
-        return completion(.success(nil))
-      }
-
-      var location: Location? = nil
-      if let filepath: String = dict[keys.filepath],
-         let offset: Int = dict[keys.offset],
-         let pos = snapshot.positionOf(utf8Offset: offset)
-      {
-        location = Location(uri: DocumentURI(URL(fileURLWithPath: filepath)), range: Range(pos))
-      }
-
-      let refactorActionsArray: SKDResponseArray? = dict[keys.refactor_actions]
-
-      completion(.success(
-        CursorInfo(
-          SymbolDetails(
-          name: dict[keys.name],
-          containerName: nil,
-          usr: dict[keys.usr],
-          bestLocalDeclaration: location,
-          kind: kind.asSymbolKind(self.sourcekitd.values)),
-        annotatedDeclaration: dict[keys.annotated_decl],
-        documentationXML: dict[keys.doc_full_as_xml],
-        refactorActions:
-          [SemanticRefactorCommand](
-          array: refactorActionsArray,
-          range: range,
-          textDocument: TextDocumentIdentifier(uri),
-          keys,
-          self.sourcekitd.api)
-      )))
+    guard let kind: sourcekitd_uid_t = dict[keys.kind] else {
+      // Nothing to report.
+      return nil
     }
 
-    // FIXME: cancellation
-    _ = handle
+    var location: Location? = nil
+    if let filepath: String = dict[keys.filepath],
+       let offset: Int = dict[keys.offset],
+       let pos = snapshot.positionOf(utf8Offset: offset)
+    {
+      location = Location(uri: DocumentURI(URL(fileURLWithPath: filepath)), range: Range(pos))
+    }
+
+    let refactorActionsArray: SKDResponseArray? = dict[keys.refactor_actions]
+
+    return CursorInfo(
+      SymbolDetails(
+        name: dict[keys.name],
+        containerName: nil,
+        usr: dict[keys.usr],
+        bestLocalDeclaration: location,
+        kind: kind.asSymbolKind(self.sourcekitd.values)
+      ),
+      annotatedDeclaration: dict[keys.annotated_decl],
+      documentationXML: dict[keys.doc_full_as_xml],
+      refactorActions: [SemanticRefactorCommand](
+        array: refactorActionsArray,
+        range: range,
+        textDocument: TextDocumentIdentifier(uri),
+        keys,
+        self.sourcekitd.api
+      )
+    )
   }
 }

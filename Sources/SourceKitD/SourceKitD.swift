@@ -82,6 +82,7 @@ extension SourceKitD {
   }
 
   /// Send the given request and asynchronously receive a reply dictionary (or error) on the given queue.
+  // FIXME: (async) Remove this in favor of the async version
   public func send(
     _ req: SKDRequestDictionary,
     _ queue: DispatchQueue,
@@ -112,7 +113,32 @@ extension SourceKitD {
 
     return handle
   }
-  
+
+  public func send(_ req: SKDRequestDictionary) async throws -> SKDResponseDictionary {
+    logRequest(req)
+
+    return try await withCheckedThrowingContinuation { continuation in
+      var handle: sourcekitd_request_handle_t? = nil
+
+      api.send_request(req.dict, &handle) { [weak self] _resp in
+        guard let self = self else { return }
+
+        let resp = SKDResponse(_resp, sourcekitd: self)
+
+        logResponse(resp)
+
+        guard let dict = resp.value else {
+          continuation.resume(throwing: resp.error!)
+          return
+        }
+
+        continuation.resume(returning: dict)
+      }
+
+      // FIXME: (async) Cancellation
+    }
+  }
+
   public func cancel(_ handle: sourcekitd_request_handle_t) {
     api.cancel_request(handle)
   }
