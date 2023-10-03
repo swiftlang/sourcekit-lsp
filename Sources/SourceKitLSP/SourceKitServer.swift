@@ -229,10 +229,10 @@ public actor SourceKitServer {
   /// Execute `notificationHandler` with the request as well as the workspace
   /// and language that handle this document.
   private func withLanguageServiceAndWorkspace<NotificationType: TextDocumentNotification>(
-    for notification: Notification<NotificationType>,
-    notificationHandler: @escaping (Notification<NotificationType>, ToolchainLanguageServer) async -> Void
+    for notification: NotificationType,
+    notificationHandler: @escaping (NotificationType, ToolchainLanguageServer) async -> Void
   ) async {
-    let doc = notification.params.textDocument.uri
+    let doc = notification.textDocument.uri
     guard let workspace = await self.workspaceForDocument(uri: doc) else {
       return
     }
@@ -513,26 +513,26 @@ extension SourceKitServer: MessageHandler {
       let notification = Notification(params, clientID: clientID)
       await self._logNotification(notification)
 
-      switch notification {
-      case let notification as Notification<InitializedNotification>:
+      switch notification.params {
+      case let notification as InitializedNotification:
         await self.clientInitialized(notification)
-      case let notification as Notification<CancelRequestNotification>:
+      case let notification as CancelRequestNotification:
         await self.cancelRequest(notification)
-      case let notification as Notification<ExitNotification>:
+      case let notification as ExitNotification:
         await self.exit(notification)
-      case let notification as Notification<DidOpenTextDocumentNotification>:
+      case let notification as DidOpenTextDocumentNotification:
         await self.openDocument(notification)
-      case let notification as Notification<DidCloseTextDocumentNotification>:
+      case let notification as DidCloseTextDocumentNotification:
         await self.closeDocument(notification)
-      case let notification as Notification<DidChangeTextDocumentNotification>:
+      case let notification as DidChangeTextDocumentNotification:
         await self.changeDocument(notification)
-      case let notification as Notification<DidChangeWorkspaceFoldersNotification>:
+      case let notification as DidChangeWorkspaceFoldersNotification:
         await self.didChangeWorkspaceFolders(notification)
-      case let notification as Notification<DidChangeWatchedFilesNotification>:
+      case let notification as DidChangeWatchedFilesNotification:
         await self.didChangeWatchedFiles(notification)
-      case let notification as Notification<WillSaveTextDocumentNotification>:
+      case let notification as WillSaveTextDocumentNotification:
         await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
-      case let notification as Notification<DidSaveTextDocumentNotification>:
+      case let notification as DidSaveTextDocumentNotification:
         await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.didSaveDocument)
       default:
         break
@@ -948,11 +948,11 @@ extension SourceKitServer {
     }
   }
 
-  func clientInitialized(_: Notification<InitializedNotification>) {
+  func clientInitialized(_: InitializedNotification) {
     // Nothing to do.
   }
 
-  func cancelRequest(_ notification: Notification<CancelRequestNotification>) {
+  func cancelRequest(_ notification: CancelRequestNotification) {
     // TODO: Implement cancellation
   }
 
@@ -1004,7 +1004,7 @@ extension SourceKitServer {
     request.reply(VoidResponse())
   }
 
-  func exit(_ notification: Notification<ExitNotification>) async {
+  func exit(_ notification: ExitNotification) async {
     // Should have been called in shutdown, but allow misbehaving clients.
     await prepareForExit()
 
@@ -1018,13 +1018,13 @@ extension SourceKitServer {
 
   // MARK: - Text synchronization
 
-  func openDocument(_ note: Notification<DidOpenTextDocumentNotification>) async {
-    let uri = note.params.textDocument.uri
+  func openDocument(_ notification: DidOpenTextDocumentNotification) async {
+    let uri = notification.textDocument.uri
     guard let workspace = await workspaceForDocument(uri: uri) else {
       log("received open notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
       return
     }
-    await openDocument(note.params, workspace: workspace)
+    await openDocument(notification, workspace: workspace)
   }
 
   private func openDocument(_ note: DidOpenTextDocumentNotification, workspace: Workspace) async {
@@ -1047,13 +1047,13 @@ extension SourceKitServer {
     await service.openDocument(note)
   }
 
-  func closeDocument(_ note: Notification<DidCloseTextDocumentNotification>) async {
-    let uri = note.params.textDocument.uri
+  func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
+    let uri = notification.textDocument.uri
     guard let workspace = await workspaceForDocument(uri: uri) else {
       log("received close notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
       return
     }
-    await self.closeDocument(note.params, workspace: workspace)
+    await self.closeDocument(notification, workspace: workspace)
   }
 
   func closeDocument(_ note: DidCloseTextDocumentNotification, workspace: Workspace) async {
@@ -1068,8 +1068,8 @@ extension SourceKitServer {
     await workspace.documentService[uri]?.closeDocument(note)
   }
 
-  func changeDocument(_ note: Notification<DidChangeTextDocumentNotification>) async {
-    let uri = note.params.textDocument.uri
+  func changeDocument(_ notification: DidChangeTextDocumentNotification) async {
+    let uri = notification.textDocument.uri
 
     guard let workspace = await workspaceForDocument(uri: uri) else {
       log("received change notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
@@ -1077,25 +1077,25 @@ extension SourceKitServer {
     }
 
     // If the document is ready, we can handle the change right now.
-    documentManager.edit(note.params)
-    await workspace.documentService[uri]?.changeDocument(note.params)
+    documentManager.edit(notification)
+    await workspace.documentService[uri]?.changeDocument(notification)
   }
 
   func willSaveDocument(
-    _ note: Notification<WillSaveTextDocumentNotification>,
+    _ notification: WillSaveTextDocumentNotification,
     languageService: ToolchainLanguageServer
   ) async {
-    await languageService.willSaveDocument(note.params)
+    await languageService.willSaveDocument(notification)
   }
 
   func didSaveDocument(
-    _ note: Notification<DidSaveTextDocumentNotification>,
+    _ note: DidSaveTextDocumentNotification,
     languageService: ToolchainLanguageServer
   ) async {
-    await languageService.didSaveDocument(note.params)
+    await languageService.didSaveDocument(note)
   }
 
-  func didChangeWorkspaceFolders(_ note: Notification<DidChangeWorkspaceFoldersNotification>) async {
+  func didChangeWorkspaceFolders(_ notification: DidChangeWorkspaceFoldersNotification) async {
     // There is a theoretical race condition here: While we await in this function,
     // the open documents or workspaces could have changed. Because of this,
     // we might close a document in a workspace that is no longer responsible
@@ -1110,14 +1110,14 @@ extension SourceKitServer {
     for docUri in self.documentManager.openDocuments {
       preChangeWorkspaces[docUri] = await self.workspaceForDocument(uri: docUri)
     }
-    if let removed = note.params.event.removed {
+    if let removed = notification.event.removed {
       self.workspaces.removeAll { workspace in
         return removed.contains(where: { workspaceFolder in
           workspace.rootUri == workspaceFolder.uri
         })
       }
     }
-    if let added = note.params.event.added {
+    if let added = notification.event.added {
       let newWorkspaces = await added.asyncCompactMap { await self.createWorkspace(uri: $0.uri) }
       for workspace in newWorkspaces {
         await workspace.buildSystemManager.setDelegate(self)
@@ -1151,14 +1151,14 @@ extension SourceKitServer {
     }
   }
 
-  func didChangeWatchedFiles(_ note: Notification<DidChangeWatchedFilesNotification>) async {
+  func didChangeWatchedFiles(_ notification: DidChangeWatchedFilesNotification) async {
     // We can't make any assumptions about which file changes a particular build
     // system is interested in. Just because it doesn't have build settings for
     // a file doesn't mean a file can't affect the build system's build settings
     // (e.g. Package.swift doesn't have build settings but affects build
     // settings). Inform the build system about all file changes.
     for workspace in workspaces {
-      await workspace.buildSystemManager.filesDidChange(note.params.changes)
+      await workspace.buildSystemManager.filesDidChange(notification.changes)
     }
   }
 
