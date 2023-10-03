@@ -1260,11 +1260,11 @@ extension SourceKitServer {
   }
 
   func documentSymbol(
-    _ req: Request<DocumentSymbolRequest>,
+    _ req: DocumentSymbolRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.documentSymbol(req)
+  ) async throws -> DocumentSymbolResponse?{
+    return try await languageService.documentSymbol(req)
   }
 
   func documentColor(

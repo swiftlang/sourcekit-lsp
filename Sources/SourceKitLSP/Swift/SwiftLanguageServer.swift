@@ -678,14 +678,11 @@ extension SwiftLanguageServer {
     }
   }
 
-  public func documentSymbols(
-    _ uri: DocumentURI,
-    _ completion: @escaping (Result<[DocumentSymbol], ResponseError>) -> Void
-  ) {
-    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-      let msg = "failed to find snapshot for url \(uri)"
+  public func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
+    guard let snapshot = self.documentManager.latestSnapshot(req.textDocument.uri) else {
+      let msg = "failed to find snapshot for url \(req.textDocument.uri)"
       log(msg)
-      return completion(.failure(.unknown(msg)))
+      throw ResponseError.unknown(msg)
     }
 
     let helperDocumentName = "DocumentSymbols:" + snapshot.document.uri.pseudoPath
@@ -695,84 +692,69 @@ extension SwiftLanguageServer {
     skreq[keys.sourcetext] = snapshot.text
     skreq[keys.syntactic_only] = 1
 
-    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
-      guard let self = self else { return }
-
-      defer {
-        let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-        closeHelperReq[self.keys.request] = self.requests.editor_close
-        closeHelperReq[self.keys.name] = helperDocumentName
-        _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
-      }
-
-      guard let dict = result.success else {
-        return completion(.failure(ResponseError(result.failure!)))
-      }
-      guard let results: SKDResponseArray = dict[self.keys.substructure] else {
-        return completion(.success([]))
-      }
-
-      func documentSymbol(value: SKDResponseDictionary) -> DocumentSymbol? {
-        guard let name: String = value[self.keys.name],
-              let uid: sourcekitd_uid_t = value[self.keys.kind],
-              let kind: SymbolKind = uid.asSymbolKind(self.values),
-              let offset: Int = value[self.keys.offset],
-              let start: Position = snapshot.positionOf(utf8Offset: offset),
-              let length: Int = value[self.keys.length],
-              let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
-          return nil
-        }
-
-        let range = start..<end
-        let selectionRange: Range<Position>
-        if let nameOffset: Int = value[self.keys.nameoffset],
-            let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
-            let nameLength: Int = value[self.keys.namelength],
-            let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
-          selectionRange = nameStart..<nameEnd
-        } else {
-          selectionRange = range
-        }
-
-        let children: [DocumentSymbol]
-        if let substructure: SKDResponseArray = value[self.keys.substructure] {
-          children = documentSymbols(array: substructure)
-        } else {
-          children = []
-        }
-        return DocumentSymbol(name: name,
-                              detail: value[self.keys.typename] as String?,
-                              kind: kind,
-                              deprecated: nil,
-                              range: range,
-                              selectionRange: selectionRange,
-                              children: children)
-      }
-
-      func documentSymbols(array: SKDResponseArray) -> [DocumentSymbol] {
-        var result: [DocumentSymbol] = []
-        array.forEach { (i: Int, value: SKDResponseDictionary) in
-          if let documentSymbol = documentSymbol(value: value) {
-            result.append(documentSymbol)
-          } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
-            result += documentSymbols(array: substructure)
-          }
-          return true
-        }
-        return result
-      }
-
-      completion(.success(documentSymbols(array: results)))
+    let dict = try await self.sourcekitd.send(skreq)
+    defer {
+      let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+      closeHelperReq[self.keys.request] = self.requests.editor_close
+      closeHelperReq[self.keys.name] = helperDocumentName
+      _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
     }
 
-    // FIXME: cancellation
-    _ = handle
-  }
-
-  public func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
-    documentSymbols(req.params.textDocument.uri) { result in
-      req.reply(result.map { .documentSymbols($0) })
+    guard let results: SKDResponseArray = dict[self.keys.substructure] else {
+      return .documentSymbols([])
     }
+
+    func documentSymbol(value: SKDResponseDictionary) -> DocumentSymbol? {
+      guard let name: String = value[self.keys.name],
+            let uid: sourcekitd_uid_t = value[self.keys.kind],
+            let kind: SymbolKind = uid.asSymbolKind(self.values),
+            let offset: Int = value[self.keys.offset],
+            let start: Position = snapshot.positionOf(utf8Offset: offset),
+            let length: Int = value[self.keys.length],
+            let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
+        return nil
+      }
+
+      let range = start..<end
+      let selectionRange: Range<Position>
+      if let nameOffset: Int = value[self.keys.nameoffset],
+          let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
+          let nameLength: Int = value[self.keys.namelength],
+          let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
+        selectionRange = nameStart..<nameEnd
+      } else {
+        selectionRange = range
+      }
+
+      let children: [DocumentSymbol]
+      if let substructure: SKDResponseArray = value[self.keys.substructure] {
+        children = documentSymbols(array: substructure)
+      } else {
+        children = []
+      }
+      return DocumentSymbol(name: name,
+                            detail: value[self.keys.typename] as String?,
+                            kind: kind,
+                            deprecated: nil,
+                            range: range,
+                            selectionRange: selectionRange,
+                            children: children)
+    }
+
+    func documentSymbols(array: SKDResponseArray) -> [DocumentSymbol] {
+      var result: [DocumentSymbol] = []
+      array.forEach { (i: Int, value: SKDResponseDictionary) in
+        if let documentSymbol = documentSymbol(value: value) {
+          result.append(documentSymbol)
+        } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
+          result += documentSymbols(array: substructure)
+        }
+        return true
+      }
+      return result
+    }
+
+    return .documentSymbols(documentSymbols(array: results))
   }
 
   public func documentColor(_ req: Request<DocumentColorRequest>) {

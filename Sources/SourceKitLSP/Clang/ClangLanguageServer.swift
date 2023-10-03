@@ -527,8 +527,8 @@ extension ClangLanguageServerShim {
     return try await forwardRequestToClangd(req)
   }
 
-  func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
-    forwardRequestToClangd(req)
+  func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
+    return try await forwardRequestToClangd(req)
   }
 
   func documentColor(_ req: Request<DocumentColorRequest>) {
