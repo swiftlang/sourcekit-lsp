@@ -94,7 +94,7 @@ public protocol ToolchainLanguageServer: AnyObject {
   func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse?
   func documentSemanticTokensDelta(_ req: DocumentSemanticTokensDeltaRequest) async throws -> DocumentSemanticTokensDeltaResponse?
   func documentSemanticTokensRange(_ req: DocumentSemanticTokensRangeRequest) async throws -> DocumentSemanticTokensResponse?
-  func colorPresentation(_ req: Request<ColorPresentationRequest>) async
+  func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation]
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse?
   func inlayHint(_ req: Request<InlayHintRequest>) async
   func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) async

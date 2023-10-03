@@ -1300,11 +1300,11 @@ extension SourceKitServer {
   }
 
   func colorPresentation(
-    _ req: Request<ColorPresentationRequest>,
+    _ req: ColorPresentationRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.colorPresentation(req)
+  ) async throws -> [ColorPresentation] {
+    return try await languageService.colorPresentation(req)
   }
 
   func executeCommand(_ req: Request<ExecuteCommandRequest>) async {

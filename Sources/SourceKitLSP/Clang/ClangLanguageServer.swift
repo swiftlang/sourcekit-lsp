@@ -550,12 +550,11 @@ extension ClangLanguageServerShim {
     return try await forwardRequestToClangd(req)
   }
 
-  func colorPresentation(_ req: Request<ColorPresentationRequest>) {
-    if self.capabilities?.colorProvider?.isSupported == true {
-      forwardRequestToClangd(req)
-    } else {
-      req.reply(.success([]))
+  func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
+    guard self.capabilities?.colorProvider?.isSupported ?? false else {
+      return []
     }
+    return try await forwardRequestToClangd(req)
   }
 
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {

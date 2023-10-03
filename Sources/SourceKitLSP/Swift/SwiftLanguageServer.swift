@@ -881,14 +881,14 @@ extension SwiftLanguageServer {
     return DocumentSemanticTokensResponse(data: encodedTokens)
   }
 
-  public func colorPresentation(_ req: Request<ColorPresentationRequest>) {
-    let color = req.params.color
+  public func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
+    let color = req.color
     // Empty string as a label breaks VSCode color picker
     let label = "Color Literal"
     let newText = "#colorLiteral(red: \(color.red), green: \(color.green), blue: \(color.blue), alpha: \(color.alpha))"
-    let textEdit = TextEdit(range: req.params.range, newText: newText)
+    let textEdit = TextEdit(range: req.range, newText: newText)
     let presentation = ColorPresentation(label: label, textEdit: textEdit, additionalTextEdits: nil)
-    req.reply([presentation])
+    return [presentation]
   }
 
   public func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
