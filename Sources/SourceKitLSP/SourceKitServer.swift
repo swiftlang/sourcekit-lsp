@@ -581,7 +581,7 @@ extension SourceKitServer: MessageHandler {
       case let request as Request<TypeHierarchySupertypesRequest>:
         await self.handleRequest(request, handler: self.supertypes)
       case let request as Request<TypeHierarchySubtypesRequest>:
-        await self.subtypes(request)
+        await self.handleRequest(request, handler: self.subtypes)
       case let request as Request<CompletionRequest>:
         await self.handleRequest(for: request, requestHandler: self.completion, fallback: CompletionList(isIncomplete: false, items: []))
       case let request as Request<HoverRequest>:
@@ -1806,11 +1806,10 @@ extension SourceKitServer {
     return types
   }
 
-  func subtypes(_ req: Request<TypeHierarchySubtypesRequest>) async {
-    guard let data = extractTypeHierarchyItemData(req.params.item.data),
+  func subtypes(_ req: TypeHierarchySubtypesRequest) async throws -> [TypeHierarchyItem]? {
+    guard let data = extractTypeHierarchyItemData(req.item.data),
           let index = await self.workspaceForDocument(uri: data.uri)?.index else {
-      req.reply([])
-      return
+      return []
     }
 
     // Resolve child types and extensions
@@ -1835,7 +1834,7 @@ extension SourceKitServer {
         index: index
       )
     }
-    req.reply(types)
+    return types
   }
 
   func pollIndex(_ req: PollIndexRequest) async throws -> VoidResponse {
