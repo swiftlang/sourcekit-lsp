@@ -217,7 +217,7 @@ final class CompilationDatabaseTests: XCTestCase {
       }
     ]
     """) { buildSystem in
-      let settings = await buildSystem._settings(for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")))
+      let settings = await buildSystem.buildSettings(for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")), language: .swift)
       XCTAssertNotNil(settings)
       XCTAssertEqual(settings?.workingDirectory, "/a")
       XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", "/a/a.swift"])

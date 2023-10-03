@@ -83,7 +83,7 @@ public actor SwiftPMWorkspace {
   var watchedFiles: [DocumentURI: Language] = [:]
 
   /// This callback is informed when `reloadPackage` starts and ends executing.
-  var reloadPackageStatusCallback: (ReloadPackageStatus) -> Void
+  var reloadPackageStatusCallback: (ReloadPackageStatus) async -> Void
 
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
@@ -99,7 +99,7 @@ public actor SwiftPMWorkspace {
     toolchainRegistry: ToolchainRegistry,
     fileSystem: FileSystem = localFileSystem,
     buildSetup: BuildSetup,
-    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) -> Void = { _ in }
+    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void = { _ in }
   ) async throws {
     self.workspacePath = workspacePath
     self.fileSystem = fileSystem
@@ -164,7 +164,7 @@ public actor SwiftPMWorkspace {
     url: URL,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
-    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) -> Void
+    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
   ) async {
     do {
       try await self.init(
@@ -189,11 +189,7 @@ extension SwiftPMWorkspace {
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
   func reloadPackage() async throws {
-    reloadPackageStatusCallback(.start)
-    defer {
-      reloadPackageStatusCallback(.end)
-    }
-
+    await reloadPackageStatusCallback(.start)
 
     let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
         log(diagnostic.description, level: diagnostic.severity.asLogLevel)
@@ -241,10 +237,14 @@ extension SwiftPMWorkspace {
         return td
     })
 
-    guard let delegate = self.delegate else { return }
+    guard let delegate = self.delegate else {
+      await reloadPackageStatusCallback(.end)
+      return
+    }
     let changedFiles = Set<DocumentURI>(self.watchedFiles.keys)
     await delegate.fileBuildSettingsChanged(changedFiles)
     await delegate.fileHandlingCapabilityChanged()
+    await reloadPackageStatusCallback(.end)
   }
 }
 

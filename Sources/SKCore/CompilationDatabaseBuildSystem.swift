@@ -87,8 +87,16 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
 
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
-  public func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
-    return self.settings(for: document)
+  public func buildSettings(for document: DocumentURI, language: Language) async -> FileBuildSettings? {
+    guard let url = document.fileURL else {
+      // We can't determine build settings for non-file URIs.
+      return nil
+    }
+    guard let db = database(for: url),
+          let cmd = db[url].first else { return nil }
+    return FileBuildSettings(
+      compilerArguments: Array(cmd.commandLine.dropFirst()),
+      workingDirectory: cmd.directory)
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
@@ -166,24 +174,5 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     } else {
       return .unhandled
     }
-  }
-}
-
-extension CompilationDatabaseBuildSystem {
-  private func settings(for uri: DocumentURI) -> FileBuildSettings? {
-    guard let url = uri.fileURL else {
-      // We can't determine build settings for non-file URIs.
-      return nil
-    }
-    guard let db = database(for: url),
-          let cmd = db[url].first else { return nil }
-    return FileBuildSettings(
-      compilerArguments: Array(cmd.commandLine.dropFirst()),
-      workingDirectory: cmd.directory)
-  }
-
-  /// Exposed for *testing*.
-  public func _settings(for uri: DocumentURI) -> FileBuildSettings? {
-    return self.settings(for: uri)
   }
 }

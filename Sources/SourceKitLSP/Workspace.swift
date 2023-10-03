@@ -99,7 +99,7 @@ public final class Workspace {
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
     indexOptions: IndexOptions = IndexOptions(),
-    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) -> Void
+    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
   ) async throws {
     var buildSystem: BuildSystem? = nil
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
