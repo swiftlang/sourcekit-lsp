@@ -246,30 +246,6 @@ public actor SourceKitServer {
     await notificationHandler(notification, languageService)
   }
 
-  /// Execute `requestHandler` with the request as well as the workspace
-  /// and language that handle this document.
-  ///
-  /// If no language service exists for the document mentioned in the request,
-  /// reply with `fallback`.
-  private func withLanguageServiceAndWorkspace<RequestType: TextDocumentRequest>(
-    for request: Request<RequestType>,
-    requestHandler: @escaping (Request<RequestType>, Workspace, ToolchainLanguageServer) async -> Void,
-    fallback: RequestType.Response
-  ) async {
-    let doc = request.params.textDocument.uri
-    guard let workspace = await self.workspaceForDocument(uri: doc) else {
-      return request.reply(.failure(.workspaceNotOpen(doc)))
-    }
-
-    // This should be created as soon as we receive an open call, even if the document
-    // isn't yet ready.
-    guard let languageService = workspace.documentService[doc] else {
-      return request.reply(fallback)
-    }
-
-    await requestHandler(request, workspace, languageService)
-  }
-
   private func handleRequest<R: RequestType>(_ request: Request<R>, handler: (R) async throws -> R.Response) async {
     do {
       request.reply(try await handler(request.params))
