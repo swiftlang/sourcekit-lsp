@@ -1334,23 +1334,12 @@ extension SourceKitServer {
   }
 
   func codeAction(
-    _ req: Request<CodeActionRequest>,
+    _ req: CodeActionRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    let codeAction = CodeActionRequest(range: req.params.range, context: req.params.context,
-                                       textDocument: req.params.textDocument)
-    let callback = { (result: Result<CodeActionRequest.Response, ResponseError>) in
-      switch result {
-      case .success(let reply):
-        req.reply(req.params.injectMetadata(toResponse: reply))
-      default:
-        req.reply(result)
-      }
-    }
-    let request = Request(codeAction, id: req.id, clientID: ObjectIdentifier(self),
-                          cancellation: req.cancellationToken, reply: callback)
-    await languageService.codeAction(request)
+  ) async throws -> CodeActionRequestResponse? {
+    let response = try await languageService.codeAction(req)
+    return req.injectMetadata(toResponse: response)
   }
 
   func inlayHint(

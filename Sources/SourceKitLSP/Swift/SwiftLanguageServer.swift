@@ -1217,47 +1217,34 @@ extension SwiftLanguageServer {
     return ranges.sorted()
   }
 
-  public func codeAction(_ req: Request<CodeActionRequest>) async {
+  public func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
       (retrieveRefactorCodeActions, .refactor),
       (retrieveQuickFixCodeActions, .quickFix)
     ]
-    let wantedActionKinds = req.params.context.only
+    let wantedActionKinds = req.context.only
     let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
     let codeActionCapabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
-    await retrieveCodeActions(req, providers: providers.map { $0.provider }) { result in
-      switch result {
-      case .success(let codeActions):
-        let response = CodeActionRequestResponse(codeActions: codeActions,
-                                                 clientCapabilities: codeActionCapabilities)
-        req.reply(response)
-      case .failure(let error):
-        req.reply(.failure(error))
-      }
-    }
+    let codeActions = try await retrieveCodeActions(req, providers: providers.map { $0.provider })
+    let response = CodeActionRequestResponse(
+      codeActions: codeActions,
+      clientCapabilities: codeActionCapabilities
+    )
+    return response
   }
 
-  func retrieveCodeActions(_ req: Request<CodeActionRequest>, providers: [CodeActionProvider], completion: @escaping CodeActionProviderCompletion) async {
+  func retrieveCodeActions(_ req: CodeActionRequest, providers: [CodeActionProvider]) async throws -> [CodeAction] {
     guard providers.isEmpty == false else {
-      completion(.success([]))
-      return
+      return []
     }
     let codeActions = await withTaskGroup(of: [CodeAction].self) { taskGroup in
       for provider in providers {
         taskGroup.addTask {
-          // FIXME: (async) Migrate `CodeActionProvider` to be async so that we
-          // don't need to do the `withCheckedContinuation` dance here.
-          await withCheckedContinuation { continuation in
-            Task {
-              await provider(req.params) {
-                switch $0 {
-                case .success(let actions):
-                  continuation.resume(returning: actions)
-                case .failure:
-                  continuation.resume(returning: [])
-                }
-              }
-            }
+          do {
+            return try await provider(req)
+          } catch {
+            // Ignore any providers that failed to provide refactoring actions.
+            return []
           }
         }
       }
@@ -1267,51 +1254,40 @@ extension SwiftLanguageServer {
       }
       return results
     }
-    completion(.success(codeActions))
+    return codeActions
   }
 
-  func retrieveRefactorCodeActions(_ params: CodeActionRequest, completion: @escaping CodeActionProviderCompletion) async {
+  func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
     let additionalCursorInfoParameters: ((SKDRequestDictionary) -> Void) = { skreq in
       skreq[self.keys.retrieve_refactor_actions] = 1
     }
 
-    Task {
+    let cursorInfoResponse = try await cursorInfo(
+      params.textDocument.uri,
+      params.range,
+      additionalParameters: additionalCursorInfoParameters)
+
+    guard let cursorInfoResponse else {
+      throw ResponseError.unknown("CursorInfo failed.")
+    }
+    guard let refactorActions = cursorInfoResponse.refactorActions else {
+      return []
+    }
+    let codeActions: [CodeAction] = refactorActions.compactMap {
       do {
-        guard let dict = try await cursorInfo(
-          params.textDocument.uri,
-          params.range,
-          additionalParameters: additionalCursorInfoParameters) else {
-          completion(.failure(.unknown("CursorInfo failed.")))
-          return
-        }
-        guard let refactorActions = dict.refactorActions else {
-          completion(.success([]))
-          return
-        }
-        let codeActions: [CodeAction] = refactorActions.compactMap {
-          do {
-            let lspCommand = try $0.asCommand()
-            return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
-          } catch {
-            log("Failed to convert SwiftCommand to Command type: \(error)", level: .error)
-            return nil
-          }
-        }
-        completion(.success(codeActions))
-        // FIXME: (async) This error catching logic should no longer be necessary once
-        // retrieveRefactorCodeActions returns the result asynchronously.
-      } catch let error as ResponseError {
-        completion(.failure(error))
+        let lspCommand = try $0.asCommand()
+        return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
       } catch {
-        completion(.failure(.unknown("Unknown error: \(error)")))
+        log("Failed to convert SwiftCommand to Command type: \(error)", level: .error)
+        return nil
       }
     }
+    return codeActions
   }
 
-  func retrieveQuickFixCodeActions(_ params: CodeActionRequest, completion: @escaping CodeActionProviderCompletion) {
+  func retrieveQuickFixCodeActions(_ params: CodeActionRequest) -> [CodeAction] {
     guard let cachedDiags = currentDiagnostics[params.textDocument.uri] else {
-      completion(.success([]))
-      return
+      return []
     }
 
     let codeActions = cachedDiags.flatMap { (cachedDiag) -> [CodeAction] in
@@ -1361,7 +1337,7 @@ extension SwiftLanguageServer {
       })
     }
 
-    completion(.success(codeActions))
+    return codeActions
   }
 
   public func inlayHint(_ req: Request<InlayHintRequest>) async {

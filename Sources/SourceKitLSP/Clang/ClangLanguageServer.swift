@@ -559,8 +559,8 @@ extension ClangLanguageServerShim {
     }
   }
 
-  func codeAction(_ req: Request<CodeActionRequest>) {
-    forwardRequestToClangd(req)
+  func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
+    return try await forwardRequestToClangd(req)
   }
 
   func inlayHint(_ req: Request<InlayHintRequest>) {
