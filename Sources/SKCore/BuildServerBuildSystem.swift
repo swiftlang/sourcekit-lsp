@@ -51,6 +51,17 @@ public actor BuildServerBuildSystem: MessageHandler {
 
   var buildServer: JSONRPCConnection?
 
+  /// The queue on which all messages that originate from the build server are
+  /// handled.
+  ///
+  /// These are requests and notifications sent *from* the build server,
+  /// not replies from the build server.
+  ///
+  /// This ensures that messages from the build server are handled in the order
+  /// they were received. Swift concurrency does not guarentee in-order
+  /// execution of tasks.
+  public let bspMessageHandlingQueue = AsyncQueue(.serial)
+
   let searchPaths: [AbsolutePath]
 
   public private(set) var indexDatabasePath: AbsolutePath?
@@ -167,18 +178,20 @@ public actor BuildServerBuildSystem: MessageHandler {
   /// the build server has sent us a notification.
   ///
   /// We need to notify the delegate about any updated build settings.
-  public func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) async {
-    if let params = params as? BuildTargetsChangedNotification {
-      await self.handleBuildTargetsChanged(Notification(params, clientID: clientID))
-    } else if let params = params as? FileOptionsChangedNotification {
-      await self.handleFileOptionsChanged(Notification(params, clientID: clientID))
+  public nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+    bspMessageHandlingQueue.async {
+      if let params = params as? BuildTargetsChangedNotification {
+        await self.handleBuildTargetsChanged(Notification(params, clientID: clientID))
+      } else if let params = params as? FileOptionsChangedNotification {
+        await self.handleFileOptionsChanged(Notification(params, clientID: clientID))
+      }
     }
   }
 
   /// Handler for requests received **from** the build server.
   ///
   /// We currently can't handle any requests sent from the build server to us.
-  public func handle<R: RequestType>(
+  public nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
     from clientID: ObjectIdentifier,

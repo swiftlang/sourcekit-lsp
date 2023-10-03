@@ -45,6 +45,16 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// The queue on which clangd calls us back.
   public let clangdCommunicationQueue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
 
+  /// The queue on which all messages that originate from clangd are handled.
+  ///
+  /// These are requests and notifications sent *from* clangd, not replies from
+  /// clangd.
+  ///
+  /// Since we are blindly forwarding requests from clangd to the editor, we
+  /// cannot allow concurrent requests. This should be fine since the number of
+  /// requests and notifications sent from clangd to the client is quite small.
+  public let clangdMessageHandlingQueue = AsyncQueue(.serial)
+
   /// The ``SourceKitServer`` instance that created this `ClangLanguageServerShim`.
   ///
   /// Used to send requests and notifications to the editor.
@@ -255,14 +265,16 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// sending a notification that's intended for the editor.
   ///
   /// We should either handle it ourselves or forward it to the editor.
-  func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) async {
-    switch params {
-    case let publishDiags as PublishDiagnosticsNotification:
-      await self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
-    default:
-      // We don't know how to handle any other notifications and ignore them.
-      log("Ignoring unknown notification \(type(of: params))", level: .warning)
-      break
+  nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+    clangdMessageHandlingQueue.async {
+      switch params {
+      case let publishDiags as PublishDiagnosticsNotification:
+        await self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
+      default:
+        // We don't know how to handle any other notifications and ignore them.
+        log("Ignoring unknown notification \(type(of: params))", level: .warning)
+        break
+      }
     }
   }
 
@@ -270,26 +282,24 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// sending a notification that's intended for the editor.
   ///
   /// We should either handle it ourselves or forward it to the client.
-  func handle<R: RequestType>(
+  nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
-  ) async {
-    let request = Request(params, id: id, clientID: clientID, cancellation: CancellationToken(), reply: { result in
-      reply(result)
-    })
-    guard let sourceKitServer else {
-      // `SourceKitServer` has been destructed. We are tearing down the language
-      // server. Nothing left to do.
-      request.reply(.failure(.unknown("Connection to the editor closed")))
-      return
-    }
+  ) {
+    clangdMessageHandlingQueue.async {
+      let request = Request(params, id: id, clientID: clientID, cancellation: CancellationToken(), reply: { result in
+        reply(result)
+      })
+      guard let sourceKitServer = await self.sourceKitServer else {
+        // `SourceKitServer` has been destructed. We are tearing down the language
+        // server. Nothing left to do.
+        request.reply(.failure(.unknown("Connection to the editor closed")))
+        return
+      }
 
-    if request.clientID == ObjectIdentifier(self.clangd) {
       await sourceKitServer.sendRequestToClient(request.params, reply: request.reply)
-    } else {
-      request.reply(.failure(ResponseError.methodNotFound(R.method)))
     }
   }
 
@@ -307,6 +317,27 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     }
   }
   
+  /// Forward the given request to `clangd`.
+  ///
+  /// This method calls `readyToHandleNextRequest` once the request has been
+  /// transmitted to `clangd` and another request can be safely transmitted to
+  /// `clangd` while guaranteeing ordering.
+  ///
+  /// The response of the request is  returned asynchronously as the return value.
+  func forwardRequestToClangd<R: RequestType>(_ request: R) async throws -> R.Response {
+    try await withCheckedThrowingContinuation { continuation in
+      _ = clangd.send(request, queue: clangdCommunicationQueue) { result in
+        switch result {
+        case .success(let response):
+          continuation.resume(returning: response)
+        case .failure(let error):
+          continuation.resume(throwing: error)
+        }
+      }
+    }
+    // FIXME: (async) Cancellation
+  }
+
   func _crash() {
     // Since `clangd` doesn't have a method to crash it, kill it.
 #if os(Windows)
@@ -540,12 +571,11 @@ extension ClangLanguageServerShim {
     forwardRequestToClangd(req)
   }
 
-  func foldingRange(_ req: Request<FoldingRangeRequest>) {
-    if self.capabilities?.foldingRangeProvider?.isSupported == true {
-      forwardRequestToClangd(req)
-    } else {
-      req.reply(.success(nil))
+  func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
+    guard self.capabilities?.foldingRangeProvider?.isSupported ?? false else {
+      return nil
     }
+    return try await forwardRequestToClangd(req)
   }
 
   func openInterface(_ request: Request<OpenInterfaceRequest>) {

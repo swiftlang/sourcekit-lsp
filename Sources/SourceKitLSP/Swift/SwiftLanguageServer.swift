@@ -984,13 +984,12 @@ extension SwiftLanguageServer {
     _ = handle
   }
 
-  public func foldingRange(_ req: Request<FoldingRangeRequest>) async {
+  public func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
     let foldingRangeCapabilities = capabilityRegistry.clientCapabilities.textDocument?.foldingRange
-    let uri = req.params.textDocument.uri
+    let uri = req.textDocument.uri
     guard var snapshot = self.documentManager.latestSnapshot(uri) else {
-      log("failed to find snapshot for url \(req.params.textDocument.uri)")
-      req.reply(nil)
-      return
+      log("failed to find snapshot for url \(req.textDocument.uri)")
+      return nil
     }
 
     // FIXME: (async) We might not have computed the syntax tree yet. Wait until we have a syntax tree.
@@ -1000,16 +999,14 @@ extension SwiftLanguageServer {
       if let newSnapshot = documentManager.latestSnapshot(uri) {
         snapshot = newSnapshot
       } else {
-        log("failed to find snapshot for url \(req.params.textDocument.uri)")
-        req.reply(nil)
-        return
+        log("failed to find snapshot for url \(req.textDocument.uri)")
+        return nil
       }
     }
 
     guard let sourceFile = snapshot.tokens.syntaxTree else {
-      log("no lexical structure available for url \(req.params.textDocument.uri)")
-      req.reply(nil)
-      return
+      log("no lexical structure available for url \(req.textDocument.uri)")
+      return nil
     }
 
     final class FoldingRangeFinder: SyntaxVisitor {
@@ -1205,10 +1202,11 @@ extension SwiftLanguageServer {
       }
     }
 
+    try Task.checkCancellation()
+
     // If the limit is less than one, do nothing.
     if let limit = foldingRangeCapabilities?.rangeLimit, limit <= 0 {
-      req.reply([])
-      return
+      return []
     }
 
     let rangeFinder = FoldingRangeFinder(
@@ -1218,7 +1216,7 @@ extension SwiftLanguageServer {
     rangeFinder.walk(sourceFile)
     let ranges = rangeFinder.finalize()
 
-    req.reply(ranges.sorted())
+    return ranges.sorted()
   }
 
   public func codeAction(_ req: Request<CodeActionRequest>) async {

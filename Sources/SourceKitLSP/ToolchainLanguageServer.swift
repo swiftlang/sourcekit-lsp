@@ -88,7 +88,7 @@ public protocol ToolchainLanguageServer: AnyObject {
   func declaration(_ request: Request<DeclarationRequest>) async -> Bool
 
   func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) async
-  func foldingRange(_ req: Request<FoldingRangeRequest>) async
+  func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]?
   func documentSymbol(_ req: Request<DocumentSymbolRequest>) async
   func documentColor(_ req: Request<DocumentColorRequest>) async
   func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) async

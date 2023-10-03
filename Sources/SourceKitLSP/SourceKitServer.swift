@@ -136,6 +136,16 @@ public actor SourceKitServer {
   /// The queue on which we communicate with the client.
   public let clientCommunicationQueue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
 
+  /// The queue on which all messages (notifications, requests, responses) are
+  /// handled.
+  ///
+  /// The queue is blocked until the message has been sufficiently handled to
+  /// avoid out-of-order handling of messages. For sourcekitd, this means that
+  /// a request has been sent to sourcekitd and for clangd, this means that we
+  /// have forwarded the request to clangd.
+  ///
+  /// The actual semantic handling of the message happens off this queue.
+  private let messageHandlingQueue = AsyncQueue(.concurrent)
 
   /// The connection to the editor.
   public let client: Connection
@@ -259,16 +269,32 @@ public actor SourceKitServer {
     await requestHandler(request, workspace, languageService)
   }
 
-
-  public func _handleUnknown<R>(_ req: Request<R>) {
-    if req.clientID == ObjectIdentifier(client) {
-      req.reply(.failure(ResponseError.methodNotFound(R.method)))
-      return
+  private func withLanguageServiceAndWorkspace<RequestType: TextDocumentRequest>(
+    for request: Request<RequestType>,
+    requestHandler: @escaping (RequestType, Workspace, ToolchainLanguageServer) async throws -> RequestType.Response,
+    fallback: RequestType.Response
+  ) async {
+    let doc = request.params.textDocument.uri
+    guard let workspace = await self.workspaceForDocument(uri: doc) else {
+      return request.reply(.failure(.workspaceNotOpen(doc)))
     }
 
-    // Unknown requests from a language server are passed on to the client.
-    sendRequestToClient(req.params, reply: req.reply)
+    guard let languageService = workspace.documentService[doc] else {
+      return request.reply(fallback)
+    }
+
+    do {
+      let result = try await requestHandler(request.params, workspace, languageService)
+      request.reply(.success(result))
+    } catch let error as ResponseError {
+      request.reply(.failure(error))
+    } catch is CancellationError {
+      request.reply(.failure(.cancelled))
+    } catch {
+      request.reply(.failure(.unknown("Unknown error: \(error)")))
+    }
   }
+
 
   /// Send the given notification to the editor.
   public func sendNotificationToClient(_ notification: some NotificationType) {
@@ -284,16 +310,6 @@ public actor SourceKitServer {
       reply(result)
     }
     // FIXME: (async) Handle cancellation
-  }
-
-  /// Handle an unknown notification.
-  public func _handleUnknown<N>(_ note: Notification<N>) {
-    if note.clientID == ObjectIdentifier(client) {
-      return
-    }
-
-    // Unknown notifications from a language server are passed on to the client.
-    client.send(note.params)
   }
 
   func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
@@ -462,116 +478,142 @@ public actor SourceKitServer {
 // MARK: - MessageHandler
 
 extension SourceKitServer: MessageHandler {
-  public func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) async {
-    let notification = Notification(params, clientID: clientID)
-    self._logNotification(notification)
+  public nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+    // All of the notifications sourcekit-lsp currently handles might modify the
+    // global state (eg. whether a document is open or its contents) in a way
+    // that changes the results of requsts before and after.
+    // We thus need to ensure that we handle the notifications in order, so they
+    // need to be dispatch barriers.
+    //
+    // Technically, we could optimize this further by having an `AsyncQueue` for
+    // each file, because edits on one file should not block requests on another
+    // file from executing but, at least in Swift, this would get us any real 
+    // benefits at the moment because sourcekitd only has a single, global queue,
+    // instead of a queue per file.
+    // Additionally, usually you are editing one file in a source editor, which
+    // means that concurrent requests to multiple files tend to be rare.
+    messageHandlingQueue.async(barrier: true) {
+      let notification = Notification(params, clientID: clientID)
+      await self._logNotification(notification)
 
-    switch notification {
-    case let notification as Notification<InitializedNotification>:
-      self.clientInitialized(notification)
-    case let notification as Notification<CancelRequestNotification>:
-      self.cancelRequest(notification)
-    case let notification as Notification<ExitNotification>:
-      await self.exit(notification)
-    case let notification as Notification<DidOpenTextDocumentNotification>:
-      await self.openDocument(notification)
-    case let notification as Notification<DidCloseTextDocumentNotification>:
-      await self.closeDocument(notification)
-    case let notification as Notification<DidChangeTextDocumentNotification>:
-      await self.changeDocument(notification)
-    case let notification as Notification<DidChangeWorkspaceFoldersNotification>:
-      await self.didChangeWorkspaceFolders(notification)
-    case let notification as Notification<DidChangeWatchedFilesNotification>:
-      await self.didChangeWatchedFiles(notification)
-    case let notification as Notification<WillSaveTextDocumentNotification>:
-      await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
-    case let notification as Notification<DidSaveTextDocumentNotification>:
-      await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.didSaveDocument)
-    default:
-      self._handleUnknown(notification)
-    }
-  }
-
-  public func handle<R: RequestType>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response >) -> Void) async {
-    let cancellationToken = CancellationToken()
-    let request = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: { [weak self] result in
-      reply(result)
-      if let self {
-        Task {
-          await self._logResponse(result, id: id, method: R.method)
-        }
+      switch notification {
+      case let notification as Notification<InitializedNotification>:
+        await self.clientInitialized(notification)
+      case let notification as Notification<CancelRequestNotification>:
+        await self.cancelRequest(notification)
+      case let notification as Notification<ExitNotification>:
+        await self.exit(notification)
+      case let notification as Notification<DidOpenTextDocumentNotification>:
+        await self.openDocument(notification)
+      case let notification as Notification<DidCloseTextDocumentNotification>:
+        await self.closeDocument(notification)
+      case let notification as Notification<DidChangeTextDocumentNotification>:
+        await self.changeDocument(notification)
+      case let notification as Notification<DidChangeWorkspaceFoldersNotification>:
+        await self.didChangeWorkspaceFolders(notification)
+      case let notification as Notification<DidChangeWatchedFilesNotification>:
+        await self.didChangeWatchedFiles(notification)
+      case let notification as Notification<WillSaveTextDocumentNotification>:
+        await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
+      case let notification as Notification<DidSaveTextDocumentNotification>:
+        await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.didSaveDocument)
+      default:
+        break
       }
-    })
-
-    self._logRequest(request)
-
-    switch request {
-    case let request as Request<InitializeRequest>:
-      await self.initialize(request)
-    case let request as Request<ShutdownRequest>:
-      await self.shutdown(request)
-    case let request as Request<WorkspaceSymbolsRequest>:
-      self.workspaceSymbols(request)
-    case let request as Request<PollIndexRequest>:
-      self.pollIndex(request)
-    case let request as Request<ExecuteCommandRequest>:
-      await self.executeCommand(request)
-    case let request as Request<CallHierarchyIncomingCallsRequest>:
-      await self.incomingCalls(request)
-    case let request as Request<CallHierarchyOutgoingCallsRequest>:
-      await self.outgoingCalls(request)
-    case let request as Request<TypeHierarchySupertypesRequest>:
-      await self.supertypes(request)
-    case let request as Request<TypeHierarchySubtypesRequest>:
-      await self.subtypes(request)
-    case let request as Request<CompletionRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.completion, fallback: CompletionList(isIncomplete: false, items: []))
-    case let request as Request<HoverRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.hover, fallback: nil)
-    case let request as Request<OpenInterfaceRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.openInterface, fallback: nil)
-    case let request as Request<DeclarationRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.declaration, fallback: nil)
-    case let request as Request<DefinitionRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.definition, fallback: .locations([]))
-    case let request as Request<ReferencesRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.references, fallback: [])
-    case let request as Request<ImplementationRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.implementation, fallback: .locations([]))
-    case let request as Request<CallHierarchyPrepareRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.prepareCallHierarchy, fallback: [])
-    case let request as Request<TypeHierarchyPrepareRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.prepareTypeHierarchy, fallback: [])
-    case let request as Request<SymbolInfoRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.symbolInfo, fallback: [])
-    case let request as Request<DocumentHighlightRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
-    case let request as Request<FoldingRangeRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.foldingRange, fallback: nil)
-    case let request as Request<DocumentSymbolRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSymbol, fallback: nil)
-    case let request as Request<DocumentColorRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentColor, fallback: [])
-    case let request as Request<DocumentSemanticTokensRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokens, fallback: nil)
-    case let request as Request<DocumentSemanticTokensDeltaRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokensDelta, fallback: nil)
-    case let request as Request<DocumentSemanticTokensRangeRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokensRange, fallback: nil)
-    case let request as Request<ColorPresentationRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.colorPresentation, fallback: [])
-    case let request as Request<CodeActionRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.codeAction, fallback: nil)
-    case let request as Request<InlayHintRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.inlayHint, fallback: [])
-    case let request as Request<DocumentDiagnosticsRequest>:
-      await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentDiagnostic, fallback: .full(.init(items: [])))
-    default:
-      self._handleUnknown(request)
     }
   }
 
-  private func _logRequest<R>(_ request: Request<R>) {
+  public nonisolated func handle<R: RequestType>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response >) -> Void) {
+    // All of the requests sourcekit-lsp do not modify global state or require
+    // the client to wait for the result before using the modified global state.
+    // For example
+    //  - `DeclarationRequest` does not modify global state
+    //  - `CodeCompletionRequest` modifies the state of the current code
+    //    completion session but it only makes sense for the client to request
+    //    more results for this completion session after it has received the
+    //    initial results.
+    messageHandlingQueue.async(barrier: false) {
+      let cancellationToken = CancellationToken()
+
+      let request = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: { [weak self] result in
+        reply(result)
+        if let self {
+          Task {
+            await self._logResponse(result, id: id, method: R.method)
+          }
+        }
+      })
+
+      self._logRequest(request)
+
+      switch request {
+      case let request as Request<InitializeRequest>:
+        await self.initialize(request)
+      case let request as Request<ShutdownRequest>:
+        await self.shutdown(request)
+      case let request as Request<WorkspaceSymbolsRequest>:
+        await self.workspaceSymbols(request)
+      case let request as Request<PollIndexRequest>:
+        await self.pollIndex(request)
+      case let request as Request<ExecuteCommandRequest>:
+        await self.executeCommand(request)
+      case let request as Request<CallHierarchyIncomingCallsRequest>:
+        await self.incomingCalls(request)
+      case let request as Request<CallHierarchyOutgoingCallsRequest>:
+        await self.outgoingCalls(request)
+      case let request as Request<TypeHierarchySupertypesRequest>:
+        await self.supertypes(request)
+      case let request as Request<TypeHierarchySubtypesRequest>:
+        await self.subtypes(request)
+      case let request as Request<CompletionRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.completion, fallback: CompletionList(isIncomplete: false, items: []))
+      case let request as Request<HoverRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.hover, fallback: nil)
+      case let request as Request<OpenInterfaceRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.openInterface, fallback: nil)
+      case let request as Request<DeclarationRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.declaration, fallback: nil)
+      case let request as Request<DefinitionRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.definition, fallback: .locations([]))
+      case let request as Request<ReferencesRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.references, fallback: [])
+      case let request as Request<ImplementationRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.implementation, fallback: .locations([]))
+      case let request as Request<CallHierarchyPrepareRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.prepareCallHierarchy, fallback: [])
+      case let request as Request<TypeHierarchyPrepareRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.prepareTypeHierarchy, fallback: [])
+      case let request as Request<SymbolInfoRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.symbolInfo, fallback: [])
+      case let request as Request<DocumentHighlightRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
+      case let request as Request<FoldingRangeRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.foldingRange, fallback: nil)
+      case let request as Request<DocumentSymbolRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSymbol, fallback: nil)
+      case let request as Request<DocumentColorRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentColor, fallback: [])
+      case let request as Request<DocumentSemanticTokensRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokens, fallback: nil)
+      case let request as Request<DocumentSemanticTokensDeltaRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokensDelta, fallback: nil)
+      case let request as Request<DocumentSemanticTokensRangeRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokensRange, fallback: nil)
+      case let request as Request<ColorPresentationRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.colorPresentation, fallback: [])
+      case let request as Request<CodeActionRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.codeAction, fallback: nil)
+      case let request as Request<InlayHintRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.inlayHint, fallback: [])
+      case let request as Request<DocumentDiagnosticsRequest>:
+        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentDiagnostic, fallback: .full(.init(items: [])))
+      default:
+        reply(.failure(ResponseError.methodNotFound(R.method)))
+      }
+    }
+  }
+
+  private nonisolated func _logRequest<R>(_ request: Request<R>) {
     logAsync { currentLevel in
       guard currentLevel >= LogLevel.debug else {
         return "\(type(of: self)): Request<\(R.method)(\(request.id))>"
@@ -1237,10 +1279,11 @@ extension SourceKitServer {
   }
 
   func foldingRange(
-    _ req: Request<FoldingRangeRequest>,
+    _ req: FoldingRangeRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer) async {
-    await languageService.foldingRange(req)
+    languageService: ToolchainLanguageServer
+  ) async throws -> [FoldingRange]? {
+    return try await languageService.foldingRange(req)
   }
 
   func documentSymbol(
@@ -1306,13 +1349,6 @@ extension SourceKitServer {
       return
     }
 
-    await self.fowardExecuteCommand(req, languageService: languageService)
-  }
-
-  func fowardExecuteCommand(
-    _ req: Request<ExecuteCommandRequest>,
-    languageService: ToolchainLanguageServer
-  ) async {
     let params = req.params
     let executeCommand = ExecuteCommandRequest(command: params.command,
                                                arguments: params.argumentsWithoutSourceKitMetadata)
