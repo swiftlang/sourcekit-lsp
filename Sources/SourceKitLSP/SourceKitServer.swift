@@ -1276,27 +1276,27 @@ extension SourceKitServer {
   }
 
   func documentSemanticTokens(
-    _ req: Request<DocumentSemanticTokensRequest>,
+    _ req: DocumentSemanticTokensRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.documentSemanticTokens(req)
+  ) async throws -> DocumentSemanticTokensResponse?{
+    return try await languageService.documentSemanticTokens(req)
   }
 
   func documentSemanticTokensDelta(
-    _ req: Request<DocumentSemanticTokensDeltaRequest>,
+    _ req: DocumentSemanticTokensDeltaRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.documentSemanticTokensDelta(req)
+  ) async throws -> DocumentSemanticTokensDeltaResponse?{
+    return try await languageService.documentSemanticTokensDelta(req)
   }
 
   func documentSemanticTokensRange(
-    _ req: Request<DocumentSemanticTokensRangeRequest>,
+    _ req: DocumentSemanticTokensRangeRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.documentSemanticTokensRange(req)
+  ) async throws -> DocumentSemanticTokensResponse?{
+    return try await languageService.documentSemanticTokensRange(req)
   }
 
   func colorPresentation(

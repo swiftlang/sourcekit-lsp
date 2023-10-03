@@ -538,16 +538,16 @@ extension ClangLanguageServerShim {
     return try await forwardRequestToClangd(req)
   }
 
-  func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) {
-    forwardRequestToClangd(req)
+  func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse? {
+    return try await forwardRequestToClangd(req)
   }
 
-  func documentSemanticTokensDelta(_ req: Request<DocumentSemanticTokensDeltaRequest>) {
-    forwardRequestToClangd(req)
+  func documentSemanticTokensDelta(_ req: DocumentSemanticTokensDeltaRequest) async throws -> DocumentSemanticTokensDeltaResponse? {
+    return try await forwardRequestToClangd(req)
   }
 
-  func documentSemanticTokensRange(_ req: Request<DocumentSemanticTokensRangeRequest>) {
-    forwardRequestToClangd(req)
+  func documentSemanticTokensRange(_ req: DocumentSemanticTokensRangeRequest) async throws -> DocumentSemanticTokensResponse? {
+    return try await forwardRequestToClangd(req)
   }
 
   func colorPresentation(_ req: Request<ColorPresentationRequest>) {

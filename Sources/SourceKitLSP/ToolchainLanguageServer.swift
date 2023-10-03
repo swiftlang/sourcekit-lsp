@@ -91,9 +91,9 @@ public protocol ToolchainLanguageServer: AnyObject {
   func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]?
   func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse?
   func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation]
-  func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) async
-  func documentSemanticTokensDelta(_ req: Request<DocumentSemanticTokensDeltaRequest>) async
-  func documentSemanticTokensRange(_ req: Request<DocumentSemanticTokensRangeRequest>) async
+  func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse?
+  func documentSemanticTokensDelta(_ req: DocumentSemanticTokensDeltaRequest) async throws -> DocumentSemanticTokensDeltaResponse?
+  func documentSemanticTokensRange(_ req: DocumentSemanticTokensRangeRequest) async throws -> DocumentSemanticTokensResponse?
   func colorPresentation(_ req: Request<ColorPresentationRequest>) async
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse?
   func inlayHint(_ req: Request<InlayHintRequest>) async

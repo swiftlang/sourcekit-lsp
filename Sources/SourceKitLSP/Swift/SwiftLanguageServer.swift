@@ -848,40 +848,37 @@ extension SwiftLanguageServer {
     return colorInformation(array: results)
   }
 
-  public func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) {
-    let uri = req.params.textDocument.uri
+  public func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse? {
+    let uri = req.textDocument.uri
 
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
       log("failed to find snapshot for uri \(uri)")
-      req.reply(DocumentSemanticTokensResponse(data: []))
-      return
+      return DocumentSemanticTokensResponse(data: [])
     }
 
     let tokens = snapshot.mergedAndSortedTokens()
     let encodedTokens = tokens.lspEncoded
 
-    req.reply(DocumentSemanticTokensResponse(data: encodedTokens))
+    return DocumentSemanticTokensResponse(data: encodedTokens)
   }
 
-  public func documentSemanticTokensDelta(_ req: Request<DocumentSemanticTokensDeltaRequest>) {
-    // FIXME: implement semantic tokens delta support.
-    req.reply(nil)
+  public func documentSemanticTokensDelta(_ req: DocumentSemanticTokensDeltaRequest) async throws -> DocumentSemanticTokensDeltaResponse? {
+    return nil
   }
 
-  public func documentSemanticTokensRange(_ req: Request<DocumentSemanticTokensRangeRequest>) {
-    let uri = req.params.textDocument.uri
-    let range = req.params.range
+  public func documentSemanticTokensRange(_ req: DocumentSemanticTokensRangeRequest) async throws -> DocumentSemanticTokensResponse? {
+    let uri = req.textDocument.uri
+    let range = req.range
 
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
       log("failed to find snapshot for uri \(uri)")
-      req.reply(DocumentSemanticTokensResponse(data: []))
-      return
+      return DocumentSemanticTokensResponse(data: [])
     }
 
     let tokens = snapshot.mergedAndSortedTokens(in: range)
     let encodedTokens = tokens.lspEncoded
 
-    req.reply(DocumentSemanticTokensResponse(data: encodedTokens))
+    return DocumentSemanticTokensResponse(data: encodedTokens)
   }
 
   public func colorPresentation(_ req: Request<ColorPresentationRequest>) {
