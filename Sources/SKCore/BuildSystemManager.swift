@@ -86,7 +86,9 @@ extension MainFileStatus {
 /// this class has a configurable `buildSettings` timeout which denotes the amount of time to give
 /// the build system before applying the fallback arguments.
 public actor BuildSystemManager {
-  /// The set of watched files, along with their main file and language.
+  /// The files for which the delegate has requested change notifications, ie.
+  /// the files for which the delegate wants to get `filesDependenciesUpdated`
+  /// callbacks if the file's build settings.
   var watchedFiles: [DocumentURI: (mainFile: DocumentURI, language: Language)] = [:]
 
   /// The underlying primary build system.
@@ -120,7 +122,6 @@ public actor BuildSystemManager {
 
   public func filesDidChange(_ events: [FileEvent]) async {
     await self.buildSystem?.filesDidChange(events)
-    self.fallbackBuildSystem?.filesDidChange(events)
   }
 }
 
@@ -182,31 +183,26 @@ extension BuildSystemManager {
     for document: DocumentURI,
     language: Language
   ) async -> (buildSettings: FileBuildSettings, isFallback: Bool)? {
-    if let mainFile = mainFilesProvider?.mainFilesContainingFile(document).first {
-      if let mainFileBuildSettings = await buildSettings(for: mainFile, language: language) {
-        return (
-          buildSettings: mainFileBuildSettings.buildSettings.patching(newFile: document.pseudoPath, originalFile: mainFile.pseudoPath),
-          isFallback: mainFileBuildSettings.isFallback
-        )
-      }
+    let mainFile = mainFile(for: document)
+    var buildSettings = await buildSettings(for: mainFile, language: language)
+    if mainFile != document, let settings = buildSettings?.buildSettings {
+      // If the main file isn't the file itself, we need to patch the build settings
+      // to reference `document` instead of `mainFile`.
+      buildSettings?.buildSettings = settings.patching(newFile: document.pseudoPath, originalFile: mainFile.pseudoPath)
     }
-    return await buildSettings(for: document, language: language)
+    return buildSettings
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
     log("registerForChangeNotifications(\(uri.pseudoPath))")
-    let mainFile: DocumentURI
+    let mainFile = mainFile(for: uri)
+    self.watchedFiles[uri] = (mainFile, language)
 
-    if let watchedFile = self.watchedFiles[uri] {
-      mainFile = watchedFile.mainFile
-    } else {
-      let mainFiles = self._mainFilesProvider?.mainFilesContainingFile(uri)
-      mainFile = chooseMainFile(for: uri, from: mainFiles ?? [])
-      self.watchedFiles[uri] = (mainFile, language)
-    }
-
+    // Register for change notifications of the main file in the underlying build
+    // system. That way, iff the main file changes, we will also notify the
+    // delegate about build setting changes of all header files that are based
+    // on that main file.
     await buildSystem?.registerForChangeNotifications(for: mainFile, language: language)
-    fallbackBuildSystem?.registerForChangeNotifications(for: mainFile, language: language)
   }
 
   /// Return settings for `file` based on  the `change` settings for `mainFile`.
@@ -233,14 +229,10 @@ extension BuildSystemManager {
       return
     }
     self.watchedFiles[uri] = nil
-    await self.checkUnreferencedMainFile(mainFile)
-  }
 
-  /// If the given main file is no longer referenced by any watched files,
-  /// remove it and unregister it at the underlying build system.
-  func checkUnreferencedMainFile(_ mainFile: DocumentURI) async {
-    if !self.watchedFiles.values.lazy.map({ $0.mainFile }).contains(mainFile) {
-      // This was the last reference to the main file. Remove it.
+    if watchedFilesReferencing(mainFiles: [mainFile]).isEmpty {
+      // Nobody is interested in this main file anymore.
+      // We are no longer interested in change notifications for it.
       await self.buildSystem?.unregisterForChangeNotifications(for: mainFile)
     }
   }
@@ -248,19 +240,27 @@ extension BuildSystemManager {
   public func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability {
     return max(
       await buildSystem?.fileHandlingCapability(for: uri) ?? .unhandled,
-      fallbackBuildSystem?.fileHandlingCapability(for: uri) ?? .unhandled
+      fallbackBuildSystem != nil ? .fallback : .unhandled
     )
   }
 }
 
 extension BuildSystemManager: BuildSystemDelegate {
-  public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
-    let changedWatchedFiles = changedFiles.flatMap({ mainFile in
-      self.watchedFiles.filter { $1.mainFile == mainFile }.keys
+  private func watchedFilesReferencing(mainFiles: Set<DocumentURI>) -> Set<DocumentURI> {
+    return Set(watchedFiles.compactMap { (watchedFile, mainFileAndLanguage) in
+      if mainFiles.contains(mainFileAndLanguage.mainFile) {
+        return watchedFile
+      } else {
+        return nil
+      }
     })
+  }
+
+  public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
+    let changedWatchedFiles = watchedFilesReferencing(mainFiles: changedFiles)
 
     if !changedWatchedFiles.isEmpty, let delegate = self._delegate {
-      await delegate.fileBuildSettingsChanged(Set(changedWatchedFiles))
+      await delegate.fileBuildSettingsChanged(changedWatchedFiles)
     }
   }
 
@@ -274,10 +274,9 @@ extension BuildSystemManager: BuildSystemDelegate {
     }
 
     // Need to map the changed main files back into changed watch files.
-    let changedWatchedFiles = self.watchedFiles.filter { changedFiles.contains($1.mainFile) }
-    let newChangedFiles = Set(changedWatchedFiles.map { $0.key })
-    if let delegate = self._delegate, !newChangedFiles.isEmpty {
-      await delegate.filesDependenciesUpdated(newChangedFiles)
+    let changedWatchedFiles = watchedFilesReferencing(mainFiles: changedFiles)
+    if let delegate, !changedWatchedFiles.isEmpty {
+      await delegate.filesDependenciesUpdated(changedWatchedFiles)
     }
   }
 
@@ -296,28 +295,63 @@ extension BuildSystemManager: BuildSystemDelegate {
 
 extension BuildSystemManager: MainFilesDelegate {
   // FIXME: Consider debouncing/limiting this, seems to trigger often during a build.
+  /// Checks if there are any files in `mainFileAssociations` where the main file
+  /// that we have stored has changed.
+  ///
+  /// For all of these files, re-associate the file with the new main file and
+  /// inform the delegate that the build settings for it might have changed.
   public func mainFilesChanged() async {
-    let origWatched = self.watchedFiles
-    self.watchedFiles = [:]
-    var buildSettingsChanges = Set<DocumentURI>()
-
-    for (uri, state) in origWatched {
-      let mainFiles = self._mainFilesProvider?.mainFilesContainingFile(uri) ?? []
-      let newMainFile = chooseMainFile(for: uri, previous: state.mainFile, from: mainFiles)
-      let language = state.language
-
-      self.watchedFiles[uri] = (newMainFile, language)
-
-      if state.mainFile != newMainFile {
-        log("main file for '\(uri)' changed old: '\(state.mainFile)' -> new: '\(newMainFile)'", level: .info)
-        await self.checkUnreferencedMainFile(state.mainFile)
-
-        buildSettingsChanges.insert(uri)
+    var changedMainFileAssociations: Set<DocumentURI> = []
+    for (file, (oldMainFile, language)) in self.watchedFiles {
+      let newMainFile = self.mainFile(for: file, useCache: false)
+      if newMainFile != oldMainFile {
+        self.watchedFiles[file] = (newMainFile, language)
+        changedMainFileAssociations.insert(file)
       }
     }
 
-    if let delegate = self._delegate, !buildSettingsChanges.isEmpty {
-      await delegate.fileBuildSettingsChanged(buildSettingsChanges)
+    for file in changedMainFileAssociations {
+      guard let language = watchedFiles[file]?.language else {
+        continue
+      }
+      // Re-register for notifications of this file within the build system.
+      // This is the easiest way to make sure we are watching for build setting
+      // changes of the new main file and stop watching for build setting
+      // changes in the old main file if no other watched file depends on it.
+      await self.unregisterForChangeNotifications(for: file)
+      await self.registerForChangeNotifications(for: file, language: language)
+    }
+
+    if let delegate, !changedMainFileAssociations.isEmpty {
+      await delegate.fileBuildSettingsChanged(changedMainFileAssociations)
+    }
+  }
+  
+  /// Return the main file that should be used to get build settings for `uri`.
+  ///
+  /// For Swift or normal C files, this will be the file itself. For header
+  /// files, we pick a main file that includes the header since header files 
+  /// don't have build settings by themselves.
+  private func mainFile(for uri: DocumentURI, useCache: Bool = true) -> DocumentURI {
+    if useCache, let mainFile = self.watchedFiles[uri]?.mainFile {
+      // Performance optimization: We did already compute the main file and have
+      // it cached. We can just return it.
+      return mainFile
+    }
+    guard let mainFilesProvider else {
+      return uri
+    }
+
+    let mainFiles = mainFilesProvider.mainFilesContainingFile(uri)
+    if mainFiles.contains(uri) {
+      // If the main files contain the file itself, prefer to use that one
+      return uri
+    } else if let mainFile = mainFiles.min(by: { $0.pseudoPath < $1.pseudoPath }) {
+      // Pick the lexicographically first main file if it exists. 
+      // This makes sure that picking a main file is deterministic.
+      return mainFile
+    } else {
+      return uri
     }
   }
 }
@@ -326,23 +360,6 @@ extension BuildSystemManager {
 
   /// *For Testing* Returns the main file used for `uri`, if this is a registered file.
   public func _cachedMainFile(for uri: DocumentURI) -> DocumentURI? {
-    watchedFiles[uri]?.mainFile
-  }
-}
-
-/// Choose a new main file for the given uri, preferring to use a previous main file if still
-/// available, to avoid thrashing the settings unnecessarily, and falling back to `uri` itself if
-/// there are no main files found at all.
-private func chooseMainFile(
-  for uri: DocumentURI,
-  previous: DocumentURI? = nil,
-  from mainFiles: Set<DocumentURI>) -> DocumentURI
-{
-  if let previous = previous, mainFiles.contains(previous) {
-    return previous
-  } else if mainFiles.isEmpty || mainFiles.contains(uri) {
-    return uri
-  } else {
-    return mainFiles.first!
+    return self.watchedFiles[uri]?.mainFile
   }
 }

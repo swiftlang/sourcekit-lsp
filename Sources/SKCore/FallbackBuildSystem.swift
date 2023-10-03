@@ -21,7 +21,7 @@ import class TSCBasic.Process
 import struct TSCBasic.AbsolutePath
 
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
-public final class FallbackBuildSystem: BuildSystem {
+public final class FallbackBuildSystem {
 
   let buildSetup: BuildSetup
 
@@ -59,13 +59,6 @@ public final class FallbackBuildSystem: BuildSystem {
     }
   }
 
-  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
-    // Fallback build systems never change.
-  }
-
-  /// We don't support change watching.
-  public func unregisterForChangeNotifications(for: DocumentURI) {}
-
   func settingsSwift(_ file: String) -> FileBuildSettings {
     var args: [String] = []
     args.append(contentsOf: self.buildSetup.flags.swiftCompilerFlags)
@@ -97,11 +90,5 @@ public final class FallbackBuildSystem: BuildSystem {
     }
     args.append(file)
     return FileBuildSettings(compilerArguments: args)
-  }
-
-  public func filesDidChange(_ events: [FileEvent]) {}
-
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    return .fallback
   }
 }
