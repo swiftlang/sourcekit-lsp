@@ -575,7 +575,7 @@ extension SourceKitServer: MessageHandler {
       case let request as Request<ExecuteCommandRequest>:
         await self.handleRequest(request, handler: self.executeCommand)
       case let request as Request<CallHierarchyIncomingCallsRequest>:
-        await self.incomingCalls(request)
+        await self.handleRequest(request, handler: self.incomingCalls)
       case let request as Request<CallHierarchyOutgoingCallsRequest>:
         await self.outgoingCalls(request)
       case let request as Request<TypeHierarchySupertypesRequest>:
@@ -1611,11 +1611,10 @@ extension SourceKitServer {
     )
   }
 
-  func incomingCalls(_ req: Request<CallHierarchyIncomingCallsRequest>) async {
-    guard let data = extractCallHierarchyItemData(req.params.item.data),
+  func incomingCalls(_ req: CallHierarchyIncomingCallsRequest) async throws -> [CallHierarchyIncomingCall]? {
+    guard let data = extractCallHierarchyItemData(req.item.data),
           let index = await self.workspaceForDocument(uri: data.uri)?.index else {
-      req.reply([])
-      return
+      return []
     }
     let occurs = index.occurrences(ofUSR: data.usr, roles: .calledBy)
     let calls = occurs.compactMap { occurrence -> CallHierarchyIncomingCall? in
@@ -1638,7 +1637,7 @@ extension SourceKitServer {
         fromRanges: [location.range]
       )
     }
-    req.reply(calls)
+    return calls
   }
 
   func outgoingCalls(_ req: Request<CallHierarchyOutgoingCallsRequest>) async {
