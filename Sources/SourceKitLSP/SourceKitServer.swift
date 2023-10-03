@@ -571,7 +571,7 @@ extension SourceKitServer: MessageHandler {
       case let request as Request<WorkspaceSymbolsRequest>:
         await self.handleRequest(request, handler: self.workspaceSymbols)
       case let request as Request<PollIndexRequest>:
-        await self.pollIndex(request)
+        await self.handleRequest(request, handler: self.pollIndex)
       case let request as Request<ExecuteCommandRequest>:
         await self.handleRequest(request, handler: self.executeCommand)
       case let request as Request<CallHierarchyIncomingCallsRequest>:
@@ -1841,11 +1841,11 @@ extension SourceKitServer {
     req.reply(types)
   }
 
-  func pollIndex(_ req: Request<PollIndexRequest>) {
+  func pollIndex(_ req: PollIndexRequest) async throws -> VoidResponse {
     for workspace in workspaces {
       workspace.index?.pollForUnitChangesAndWait()
     }
-    req.reply(VoidResponse())
+    return VoidResponse()
   }
 }
 
