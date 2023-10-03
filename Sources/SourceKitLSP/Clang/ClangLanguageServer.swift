@@ -47,9 +47,6 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
 
   /// The queue on which all messages that originate from clangd are handled.
   ///
-  /// This includes requests and notifications sent *from* clangd and does not
-  /// include replies from clangd.
-  ///
   /// These are requests and notifications sent *from* clangd, not replies from
   /// clangd.
   ///
@@ -320,6 +317,27 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     }
   }
   
+  /// Forward the given request to `clangd`.
+  ///
+  /// This method calls `readyToHandleNextRequest` once the request has been
+  /// transmitted to `clangd` and another request can be safely transmitted to
+  /// `clangd` while guaranteeing ordering.
+  ///
+  /// The response of the request is  returned asynchronously as the return value.
+  func forwardRequestToClangd<R: RequestType>(_ request: R) async throws -> R.Response {
+    try await withCheckedThrowingContinuation { continuation in
+      _ = clangd.send(request, queue: clangdCommunicationQueue) { result in
+        switch result {
+        case .success(let response):
+          continuation.resume(returning: response)
+        case .failure(let error):
+          continuation.resume(throwing: error)
+        }
+      }
+    }
+    // FIXME: (async) Cancellation
+  }
+
   func _crash() {
     // Since `clangd` doesn't have a method to crash it, kill it.
 #if os(Windows)
@@ -553,12 +571,11 @@ extension ClangLanguageServerShim {
     forwardRequestToClangd(req)
   }
 
-  func foldingRange(_ req: Request<FoldingRangeRequest>) {
-    if self.capabilities?.foldingRangeProvider?.isSupported == true {
-      forwardRequestToClangd(req)
-    } else {
-      req.reply(.success(nil))
+  func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
+    guard self.capabilities?.foldingRangeProvider?.isSupported ?? false else {
+      return nil
     }
+    return try await forwardRequestToClangd(req)
   }
 
   func openInterface(_ request: Request<OpenInterfaceRequest>) {
