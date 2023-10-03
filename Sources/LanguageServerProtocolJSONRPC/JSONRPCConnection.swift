@@ -31,16 +31,6 @@ public final class JSONRPCConnection {
   /// The queue on which we send data.
   let sendQueue: DispatchQueue = DispatchQueue(label: "jsonrpc-send-queue", qos: .userInitiated)
 
-  /// The queue on which all messages (notifications, requests, responses) are
-  /// handled.
-  ///
-  /// The queue is blocked until the message has been sufficiently handled to
-  /// avoid out-of-order handling of messages. For sourcekitd, this means that
-  /// a request has been sent to sourcekitd and for clangd, this means that we
-  /// have forwarded the request to clangd.
-  ///
-  /// The actual semantic handling of the message happens off this queue.
-  let messageHandlingQueue: AsyncQueue = AsyncQueue(.serial)
   let receiveIO: DispatchIO
   let sendIO: DispatchIO
   let messageRegistry: MessageRegistry
@@ -282,17 +272,14 @@ public final class JSONRPCConnection {
   func handle(_ message: JSONRPCMessage) {
     switch message {
     case .notification(let notification):
-      messageHandlingQueue.async {
-        await notification._handle(self.receiveHandler!, connection: self)
-      }
+      notification._handle(self.receiveHandler!, connection: self)
     case .request(let request, id: let id):
       let semaphore: DispatchSemaphore? = syncRequests ? .init(value: 0) : nil
-      messageHandlingQueue.async {
-        await request._handle(self.receiveHandler!, id: id, connection: self) { (response, id) in
-          self.sendReply(response, id: id)
-          semaphore?.signal()
-        }
+      request._handle(self.receiveHandler!, id: id, connection: self) { (response, id) in
+        self.sendReply(response, id: id)
+        semaphore?.signal()
       }
+
       semaphore?.wait()
 
     case .response(let response, id: let id):
