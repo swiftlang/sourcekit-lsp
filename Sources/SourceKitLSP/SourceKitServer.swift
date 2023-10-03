@@ -579,7 +579,7 @@ extension SourceKitServer: MessageHandler {
       case let request as Request<CallHierarchyOutgoingCallsRequest>:
         await self.handleRequest(request, handler: self.outgoingCalls)
       case let request as Request<TypeHierarchySupertypesRequest>:
-        await self.supertypes(request)
+        await self.handleRequest(request, handler: self.supertypes)
       case let request as Request<TypeHierarchySubtypesRequest>:
         await self.subtypes(request)
       case let request as Request<CompletionRequest>:
@@ -1766,11 +1766,10 @@ extension SourceKitServer {
     )
   }
 
-  func supertypes(_ req: Request<TypeHierarchySupertypesRequest>) async {
-    guard let data = extractTypeHierarchyItemData(req.params.item.data),
+  func supertypes(_ req: TypeHierarchySupertypesRequest) async throws -> [TypeHierarchyItem]? {
+    guard let data = extractTypeHierarchyItemData(req.item.data),
           let index = await self.workspaceForDocument(uri: data.uri)?.index else {
-      req.reply([])
-      return
+      return []
     }
 
     // Resolve base types
@@ -1804,7 +1803,7 @@ extension SourceKitServer {
         index: index
       )
     }
-    req.reply(types)
+    return types
   }
 
   func subtypes(_ req: Request<TypeHierarchySubtypesRequest>) async {
