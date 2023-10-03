@@ -1268,11 +1268,11 @@ extension SourceKitServer {
   }
 
   func documentColor(
-    _ req: Request<DocumentColorRequest>,
+    _ req: DocumentColorRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.documentColor(req)
+  ) async throws -> [ColorInformation]{
+    return try await languageService.documentColor(req)
   }
 
   func documentSemanticTokens(

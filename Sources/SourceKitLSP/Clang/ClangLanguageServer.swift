@@ -531,12 +531,11 @@ extension ClangLanguageServerShim {
     return try await forwardRequestToClangd(req)
   }
 
-  func documentColor(_ req: Request<DocumentColorRequest>) {
-    if self.capabilities?.colorProvider?.isSupported == true {
-      forwardRequestToClangd(req)
-    } else {
-      req.reply(.success([]))
+  func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
+    guard self.capabilities?.colorProvider?.isSupported ?? false else {
+      return []
     }
+    return try await forwardRequestToClangd(req)
   }
 
   func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) {

@@ -757,13 +757,12 @@ extension SwiftLanguageServer {
     return .documentSymbols(documentSymbols(array: results))
   }
 
-  public func documentColor(_ req: Request<DocumentColorRequest>) {
+  public func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
     let keys = self.keys
 
-    guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
-      log("failed to find snapshot for url \(req.params.textDocument.uri)")
-      req.reply([])
-      return
+    guard let snapshot = self.documentManager.latestSnapshot(req.textDocument.uri) else {
+      log("failed to find snapshot for url \(req.textDocument.uri)")
+      return []
     }
 
     let helperDocumentName = "DocumentColor:" + snapshot.document.uri.pseudoPath
@@ -773,90 +772,80 @@ extension SwiftLanguageServer {
     skreq[keys.sourcetext] = snapshot.text
     skreq[keys.syntactic_only] = 1
 
-    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
-      guard let self = self else { return }
-
-      defer {
-        let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-        closeHelperReq[keys.request] = self.requests.editor_close
-        closeHelperReq[keys.name] = helperDocumentName
-        _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
-      }
-
-      guard let dict = result.success else {
-        req.reply(.failure(ResponseError(result.failure!)))
-        return
-      }
-
-      guard let results: SKDResponseArray = dict[self.keys.substructure] else {
-        return req.reply([])
-      }
-
-      func colorInformation(dict: SKDResponseDictionary) -> ColorInformation? {
-        guard let kind: sourcekitd_uid_t = dict[self.keys.kind],
-              kind == self.values.expr_object_literal,
-              let name: String = dict[self.keys.name],
-              name == "colorLiteral",
-              let offset: Int = dict[self.keys.offset],
-              let start: Position = snapshot.positionOf(utf8Offset: offset),
-              let length: Int = dict[self.keys.length],
-              let end: Position = snapshot.positionOf(utf8Offset: offset + length),
-              let substructure: SKDResponseArray = dict[self.keys.substructure] else {
-          return nil
-        }
-        var red, green, blue, alpha: Double?
-        substructure.forEach{ (i: Int, value: SKDResponseDictionary) in
-          guard let name: String = value[self.keys.name],
-                let bodyoffset: Int = value[self.keys.bodyoffset],
-                let bodylength: Int = value[self.keys.bodylength] else {
-            return true
-          }
-          let view = snapshot.text.utf8
-          let bodyStart = view.index(view.startIndex, offsetBy: bodyoffset)
-          let bodyEnd = view.index(view.startIndex, offsetBy: bodyoffset+bodylength)
-          let value = String(view[bodyStart..<bodyEnd]).flatMap(Double.init)
-          switch name {
-            case "red":
-              red = value
-            case "green":
-              green = value
-            case "blue":
-              blue = value
-            case "alpha":
-              alpha = value
-            default:
-              break
-          }
-          return true
-        }
-        if let red = red,
-           let green = green,
-           let blue = blue,
-           let alpha = alpha {
-          let color = Color(red: red, green: green, blue: blue, alpha: alpha)
-          return ColorInformation(range: start..<end, color: color)
-        } else {
-          return nil
-        }
-      }
-
-      func colorInformation(array: SKDResponseArray) -> [ColorInformation] {
-        var result: [ColorInformation] = []
-        array.forEach { (i: Int, value: SKDResponseDictionary) in
-          if let documentSymbol = colorInformation(dict: value) {
-            result.append(documentSymbol)
-          } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
-            result += colorInformation(array: substructure)
-          }
-          return true
-        }
-        return result
-      }
-
-      req.reply(colorInformation(array: results))
+    let dict = try await self.sourcekitd.send(skreq)
+    defer {
+      let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+      closeHelperReq[keys.request] = self.requests.editor_close
+      closeHelperReq[keys.name] = helperDocumentName
+      _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
     }
-    // FIXME: cancellation
-    _ = handle
+
+    guard let results: SKDResponseArray = dict[self.keys.substructure] else {
+      return []
+    }
+
+    func colorInformation(dict: SKDResponseDictionary) -> ColorInformation? {
+      guard let kind: sourcekitd_uid_t = dict[self.keys.kind],
+            kind == self.values.expr_object_literal,
+            let name: String = dict[self.keys.name],
+            name == "colorLiteral",
+            let offset: Int = dict[self.keys.offset],
+            let start: Position = snapshot.positionOf(utf8Offset: offset),
+            let length: Int = dict[self.keys.length],
+            let end: Position = snapshot.positionOf(utf8Offset: offset + length),
+            let substructure: SKDResponseArray = dict[self.keys.substructure] else {
+        return nil
+      }
+      var red, green, blue, alpha: Double?
+      substructure.forEach{ (i: Int, value: SKDResponseDictionary) in
+        guard let name: String = value[self.keys.name],
+              let bodyoffset: Int = value[self.keys.bodyoffset],
+              let bodylength: Int = value[self.keys.bodylength] else {
+          return true
+        }
+        let view = snapshot.text.utf8
+        let bodyStart = view.index(view.startIndex, offsetBy: bodyoffset)
+        let bodyEnd = view.index(view.startIndex, offsetBy: bodyoffset+bodylength)
+        let value = String(view[bodyStart..<bodyEnd]).flatMap(Double.init)
+        switch name {
+          case "red":
+            red = value
+          case "green":
+            green = value
+          case "blue":
+            blue = value
+          case "alpha":
+            alpha = value
+          default:
+            break
+        }
+        return true
+      }
+      if let red = red,
+         let green = green,
+         let blue = blue,
+         let alpha = alpha {
+        let color = Color(red: red, green: green, blue: blue, alpha: alpha)
+        return ColorInformation(range: start..<end, color: color)
+      } else {
+        return nil
+      }
+    }
+
+    func colorInformation(array: SKDResponseArray) -> [ColorInformation] {
+      var result: [ColorInformation] = []
+      array.forEach { (i: Int, value: SKDResponseDictionary) in
+        if let documentSymbol = colorInformation(dict: value) {
+          result.append(documentSymbol)
+        } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
+          result += colorInformation(array: substructure)
+        }
+        return true
+      }
+      return result
+    }
+
+    return colorInformation(array: results)
   }
 
   public func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) {
