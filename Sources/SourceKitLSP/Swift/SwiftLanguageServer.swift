@@ -923,19 +923,17 @@ extension SwiftLanguageServer {
     req.reply([presentation])
   }
 
-  public func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) async {
+  public func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
     let keys = self.keys
 
-    guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
-      log("failed to find snapshot for url \(req.params.textDocument.uri)")
-      req.reply(nil)
-      return
+    guard let snapshot = self.documentManager.latestSnapshot(req.textDocument.uri) else {
+      log("failed to find snapshot for url \(req.textDocument.uri)")
+      return nil
     }
 
-    guard let offset = snapshot.utf8Offset(of: req.params.position) else {
-      log("invalid position \(req.params.position)")
-      req.reply(nil)
-      return
+    guard let offset = snapshot.utf8Offset(of: req.position) else {
+      log("invalid position \(req.position)")
+      return nil
     }
 
     let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
@@ -948,38 +946,31 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        req.reply(.failure(ResponseError(result.failure!)))
-        return
-      }
+    let dict = try await self.sourcekitd.send(skreq)
 
-      guard let results: SKDResponseArray = dict[self.keys.results] else {
-        return req.reply([])
-      }
-
-      var highlights: [DocumentHighlight] = []
-
-      results.forEach { _, value in
-        if let offset: Int = value[self.keys.offset],
-           let start: Position = snapshot.positionOf(utf8Offset: offset),
-           let length: Int = value[self.keys.length],
-           let end: Position = snapshot.positionOf(utf8Offset: offset + length)
-        {
-          highlights.append(DocumentHighlight(
-            range: start..<end,
-            kind: .read // unknown
-          ))
-        }
-        return true
-      }
-
-      req.reply(highlights)
+    guard let results: SKDResponseArray = dict[self.keys.results] else {
+      return []
     }
 
-    // FIXME: cancellation
-    _ = handle
+    try Task.checkCancellation()
+
+    var highlights: [DocumentHighlight] = []
+
+    results.forEach { _, value in
+      if let offset: Int = value[self.keys.offset],
+         let start: Position = snapshot.positionOf(utf8Offset: offset),
+         let length: Int = value[self.keys.length],
+         let end: Position = snapshot.positionOf(utf8Offset: offset + length)
+      {
+        highlights.append(DocumentHighlight(
+          range: start..<end,
+          kind: .read // unknown
+        ))
+      }
+      return true
+    }
+
+    return highlights
   }
 
   public func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {

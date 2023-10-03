@@ -1244,11 +1244,11 @@ extension SourceKitServer {
   }
 
   func documentSymbolHighlight(
-    _ req: Request<DocumentHighlightRequest>,
+    _ req: DocumentHighlightRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.documentSymbolHighlight(req)
+  ) async throws -> [DocumentHighlight]? {
+    return try await languageService.documentSymbolHighlight(req)
   }
 
   func foldingRange(

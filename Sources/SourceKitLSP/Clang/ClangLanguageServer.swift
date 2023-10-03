@@ -523,8 +523,8 @@ extension ClangLanguageServerShim {
     forwardRequestToClangd(req)
   }
 
-  func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
-    forwardRequestToClangd(req)
+  func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
+    return try await forwardRequestToClangd(req)
   }
 
   func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
