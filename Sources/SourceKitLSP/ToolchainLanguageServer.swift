@@ -97,7 +97,7 @@ public protocol ToolchainLanguageServer: AnyObject {
   func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation]
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse?
   func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint]
-  func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) async
+  func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport
 
   // MARK: - Other
 

@@ -1325,14 +1325,11 @@ extension SwiftLanguageServer {
     return Array(hints)
   }
 
-  public func documentDiagnostic(
-    _ uri: DocumentURI,
-    _ completion: @escaping (Result<[Diagnostic], ResponseError>) -> Void
-  ) async {
-    guard let snapshot = documentManager.latestSnapshot(uri) else {
-      let msg = "failed to find snapshot for url \(uri)"
+  public func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
+    guard let snapshot = documentManager.latestSnapshot(req.textDocument.uri) else {
+      let msg = "failed to find snapshot for url \(req.textDocument.uri)"
       log(msg)
-      return completion(.failure(.unknown(msg)))
+      throw ResponseError.unknown(msg)
     }
 
     let keys = self.keys
@@ -1343,45 +1340,22 @@ extension SwiftLanguageServer {
 
     // FIXME: SourceKit should probably cache this for us.
     let areFallbackBuildSettings: Bool
-    if let buildSettings = await self.buildSettings(for: uri) {
+    if let buildSettings = await self.buildSettings(for: req.textDocument.uri) {
       skreq[keys.compilerargs] = buildSettings.compilerArgs
       areFallbackBuildSettings = buildSettings.isFallback
     } else {
       areFallbackBuildSettings = true
     }
 
-    let handle = self.sourcekitd.send(skreq, self.queue) { response in
-      guard let dict = response.success else {
-        return completion(.failure(ResponseError(response.failure!)))
-      }
+    let dict = try await self.sourcekitd.send(skreq)
+    let diagnostics = self.registerDiagnostics(
+      sourcekitdDiagnostics: dict[keys.diagnostics],
+      snapshot: snapshot,
+      stage: .sema,
+      isFromFallbackBuildSettings: areFallbackBuildSettings
+    )
 
-      let diagnostics = self.registerDiagnostics(
-        sourcekitdDiagnostics: dict[keys.diagnostics],
-        snapshot: snapshot,
-        stage: .sema,
-        isFromFallbackBuildSettings: areFallbackBuildSettings
-      )
-
-      completion(.success(diagnostics))
-    }
-
-    // FIXME: cancellation
-    _ = handle
-  }
-
-  public func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) async {
-    let uri = req.params.textDocument.uri
-    await documentDiagnostic(req.params.textDocument.uri) { result in
-      switch result {
-        case .success(let diagnostics):
-          req.reply(.full(.init(items: diagnostics)))
-
-        case .failure(let error):
-          let message = "document diagnostic failed \(uri): \(error)"
-          log(message, level: .warning)
-          return req.reply(.failure(.unknown(message)))
-      }
-    }
+    return .full(RelatedFullDocumentDiagnosticReport(items: diagnostics))
   }
 
   public func executeCommand(_ req: Request<ExecuteCommandRequest>) async {

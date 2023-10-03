@@ -565,8 +565,8 @@ extension ClangLanguageServerShim {
     return try await forwardRequestToClangd(req)
   }
 
-  func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) {
-    forwardRequestToClangd(req)
+  func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
+    return try await forwardRequestToClangd(req)
   }
 
   func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {

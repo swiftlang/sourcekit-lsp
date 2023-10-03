@@ -1351,11 +1351,11 @@ extension SourceKitServer {
   }
 
   func documentDiagnostic(
-    _ req: Request<DocumentDiagnosticsRequest>,
+    _ req: DocumentDiagnosticsRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.documentDiagnostic(req)
+  ) async throws -> DocumentDiagnosticReport{
+    return try await languageService.documentDiagnostic(req)
   }
 
   /// Converts a location from the symbol index to an LSP location.
