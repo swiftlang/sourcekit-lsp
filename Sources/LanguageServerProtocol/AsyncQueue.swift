@@ -33,53 +33,93 @@ extension NSLock {
   }
 }
 
-/// A serial queue that allows the execution of asyncronous blocks of code.
+/// A queue that allows the execution of asyncronous blocks of code.
 public final class AsyncQueue {
-  /// Lock guarding `lastTask`.
-  private let lastTaskLock = NSLock()
+  public enum QueueKind {
+    /// A queue that allows concurrent execution of tasks.
+    case concurrent
 
-  /// The last scheduled task if it hasn't finished yet.
-  ///
-  /// Any newly scheduled tasks need to await this task to ensure that tasks are
-  /// executed syncronously.
-  ///
-  /// `id` is a unique value to identify the task. This allows us to set `lastTask`
-  /// to `nil` if the queue runs empty.
-  private var lastTask: (task: AnyTask, id: UUID)?
+    /// A queue that executes one task after the other.
+    case serial
+  }
 
-  public init() {
-    self.lastTaskLock.name = "AsyncQueue.lastTaskLock"
+  private struct PendingTask {
+    /// The task that is pending.
+    let task: any AnyTask
+
+    /// Whether the task needs to finish executing befoer any other task can
+    /// start in executing in the queue.
+    let isBarrier: Bool
+
+    /// A unique value used to identify the task. This allows tasks to get
+    /// removed from `pendingTasks` again after they finished executing.
+    let id: UUID
+  }
+
+  /// Whether the queue allows concurrent execution of tasks.
+  private let kind: QueueKind
+
+  ///  Lock guarding `pendingTasks`.
+  private let pendingTasksLock = NSLock()
+
+  /// Pending tasks that have not finished execution yet.
+  private var pendingTasks = [PendingTask]()
+
+  public init(_ kind: QueueKind) {
+    self.kind = kind
+    self.pendingTasksLock.name = "AsyncQueue"
   }
 
   /// Schedule a new closure to be executed on the queue.
   ///
-  /// All previously added tasks are guaranteed to finished executing before
-  /// this closure gets executed.
+  /// If this is a serial queue, all previously added tasks are guaranteed to
+  /// finished executing before this closure gets executed.
+  ///
+  /// If this is a barrier, all previously scheduled tasks are guaranteed to
+  /// finish execution before the barrier is executed and all tasks that are
+  /// added later will wait until the barrier finishes execution.
   @discardableResult
   public func async<Success: Sendable>(
     priority: TaskPriority? = nil,
+    barrier isBarrier: Bool = false,
     @_inheritActorContext operation: @escaping @Sendable () async -> Success
   ) -> Task<Success, Never> {
     let id = UUID()
 
-    return lastTaskLock.withLock {
-      let task = Task<Success, Never>(priority: priority) { [previousLastTask = lastTask] in
-        await previousLastTask?.task.waitForCompletion()
-
-        defer {
-          lastTaskLock.withLock {
-            // If we haven't queued a new task since enquing this one, we can clear
-            // last task.
-            if self.lastTask?.id == id {
-              self.lastTask = nil
-            }
-          }
-        }
-
-        return await operation()
+    return pendingTasksLock.withLock {
+      // Build the list of tasks that need to finishe exeuction before this one
+      // can be executed
+      let dependencies: [PendingTask]
+      switch (kind, isBarrier: isBarrier) {
+      case (.concurrent, isBarrier: true):
+        // Wait for all tasks after the last barrier.
+        let lastBarrierIndex = pendingTasks.lastIndex(where: { $0.isBarrier }) ?? pendingTasks.startIndex
+        dependencies = Array(pendingTasks[lastBarrierIndex...])
+      case (.concurrent, isBarrier: false):
+        // If there is a barrier, wait for it.
+        dependencies = [pendingTasks.last(where: { $0.isBarrier })].compactMap { $0 }
+      case (.serial, _):
+        // We are in a serial queue. The last pending task must finish for this one to start.
+        dependencies = [pendingTasks.last].compactMap { $0 }
       }
 
-      lastTask = (task, id)
+
+      // Schedule the task.
+      let task = Task {
+        for dependency in dependencies {
+          await dependency.task.waitForCompletion()
+        }
+
+        let result = await operation()
+
+        pendingTasksLock.withLock {
+          pendingTasks.removeAll(where: { $0.id == id })
+        }
+
+        return result
+      }
+
+      pendingTasks.append(PendingTask(task: task, isBarrier: isBarrier, id: id))
 
       return task
     }

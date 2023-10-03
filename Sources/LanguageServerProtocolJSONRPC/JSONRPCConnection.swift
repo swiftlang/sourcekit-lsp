@@ -40,7 +40,7 @@ public final class JSONRPCConnection {
   /// have forwarded the request to clangd.
   ///
   /// The actual semantic handling of the message happens off this queue.
-  let messageHandlingQueue: AsyncQueue = AsyncQueue()
+  let messageHandlingQueue: AsyncQueue = AsyncQueue(.serial)
   let receiveIO: DispatchIO
   let sendIO: DispatchIO
   let messageRegistry: MessageRegistry
