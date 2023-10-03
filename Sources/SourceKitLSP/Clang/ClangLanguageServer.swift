@@ -498,10 +498,9 @@ extension ClangLanguageServerShim {
 
 
   /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
-  public func definition(_ req: Request<DefinitionRequest>) -> Bool {
+  public func definition(_ req: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
     // We handle it to provide jump-to-header support for #import/#include.
-    self.forwardRequestToClangd(req)
-    return true
+    return try await self.forwardRequestToClangd(req)
   }
 
   public func declaration(_ req: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
@@ -516,8 +515,8 @@ extension ClangLanguageServerShim {
     return try await forwardRequestToClangd(req)
   }
 
-  func symbolInfo(_ req: Request<SymbolInfoRequest>) {
-    forwardRequestToClangd(req)
+  func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
+    return try await forwardRequestToClangd(req)
   }
 
   func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {

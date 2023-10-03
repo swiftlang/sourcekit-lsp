@@ -80,13 +80,13 @@ public protocol ToolchainLanguageServer: AnyObject {
 
   func completion(_ req: CompletionRequest) async throws -> CompletionList
   func hover(_ req: HoverRequest) async throws -> HoverResponse?
-  func symbolInfo(_ request: Request<SymbolInfoRequest>) async
+  func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
   func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails?
 
-  /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
-  func definition(_ request: Request<DefinitionRequest>) async -> Bool
-  func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse?
+  /// - Note: Only called as a fallback if the definition could not be found in the index.
+  func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse?
 
+  func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse?
   func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]?
   func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]?
   func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse?

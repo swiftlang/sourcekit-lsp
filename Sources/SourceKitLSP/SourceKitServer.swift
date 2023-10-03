@@ -591,17 +591,17 @@ extension SourceKitServer: MessageHandler {
       case let request as Request<DeclarationRequest>:
         await self.handleRequest(for: request, requestHandler: self.declaration, fallback: nil)
       case let request as Request<DefinitionRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.definition, fallback: .locations([]))
+        await self.handleRequest(for: request, requestHandler: self.definition, fallback: .locations([]))
       case let request as Request<ReferencesRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.references, fallback: [])
+        await self.handleRequest(for: request, requestHandler: self.references, fallback: [])
       case let request as Request<ImplementationRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.implementation, fallback: .locations([]))
+        await self.handleRequest(for: request, requestHandler: self.implementation, fallback: .locations([]))
       case let request as Request<CallHierarchyPrepareRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.prepareCallHierarchy, fallback: [])
+        await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy, fallback: [])
       case let request as Request<TypeHierarchyPrepareRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.prepareTypeHierarchy, fallback: [])
+        await self.handleRequest(for: request, requestHandler: self.prepareTypeHierarchy, fallback: [])
       case let request as Request<SymbolInfoRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.symbolInfo, fallback: [])
+        await self.handleRequest(for: request, requestHandler: self.symbolInfo, fallback: [])
       case let request as Request<DocumentHighlightRequest>:
         await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
       case let request as Request<FoldingRangeRequest>:
@@ -1250,11 +1250,11 @@ extension SourceKitServer {
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
   func symbolInfo(
-    _ req: Request<SymbolInfoRequest>,
+    _ req: SymbolInfoRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.symbolInfo(req)
+  ) async throws -> [SymbolDetails] {
+    return try await languageService.symbolInfo(req)
   }
 
   func documentSymbolHighlight(
@@ -1393,17 +1393,13 @@ extension SourceKitServer {
   ///   - extractOccurrences: A function fetching the occurrences by the desired roles given a usr from the index
   /// - Returns: The resolved symbol locations
   private func extractIndexedOccurrences(
-    result: LSPResult<SymbolInfoRequest.Response>,
+    symbols: [SymbolDetails],
     index: IndexStoreDB?,
     useLocalFallback: Bool = false,
     extractOccurrences: (String, IndexStoreDB) -> [SymbolOccurrence]
-  ) -> LSPResult<[(occurrence: SymbolOccurrence?, location: Location)]> {
-    guard case .success(let symbols) = result else {
-      return .failure(result.failure!)
-    }
-
+  ) -> [(occurrence: SymbolOccurrence?, location: Location)] {
     guard let symbol = symbols.first else {
-      return .success([])
+      return []
     }
 
     let fallback: [(occurrence: SymbolOccurrence?, location: Location)]
@@ -1414,7 +1410,7 @@ extension SourceKitServer {
     }
 
     guard let usr = symbol.usr, let index = index else {
-      return .success(fallback)
+      return fallback
     }
 
     let occurs = extractOccurrences(usr, index)
@@ -1424,7 +1420,7 @@ extension SourceKitServer {
       }
     }
 
-    return .success(resolved.isEmpty ? fallback : resolved)
+    return resolved.isEmpty ? fallback : resolved
   }
 
   func declaration(
@@ -1436,134 +1432,112 @@ extension SourceKitServer {
   }
 
   func definition(
-    _ req: Request<DefinitionRequest>,
+    _ req: DefinitionRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
-    let callback = { (result: LSPResult<SymbolInfoRequest.Response>) -> Void in
-      Task {
-        // If this symbol is a module then generate a textual interface
-        if case .success(let symbols) = result, let symbol = symbols.first, symbol.kind == .module, let name = symbol.name {
-          await self.respondWithInterface(req, moduleName: name, symbolUSR: nil, languageService: languageService)
-          return
-        }
-
-        let extractedResult = self.extractIndexedOccurrences(result: result, index: index, useLocalFallback: true) { (usr, index) in
-          log("performing indexed jump-to-def with usr \(usr)")
-          var occurs = index.occurrences(ofUSR: usr, roles: [.definition])
-          if occurs.isEmpty {
-            occurs = index.occurrences(ofUSR: usr, roles: [.declaration])
-          }
-          return occurs
-        }
-
-        switch extractedResult {
-        case .success(let resolved):
-          // if first resolved location is in `.swiftinterface` file. Use moduleName to return
-          // textual interface
-          if let firstResolved = resolved.first,
-             let moduleName = firstResolved.occurrence?.location.moduleName,
-             firstResolved.location.uri.fileURL?.pathExtension == "swiftinterface" {
-            await self.respondWithInterface(
-              req,
-              moduleName: moduleName,
-              symbolUSR: firstResolved.occurrence?.symbol.usr,
-              languageService: languageService
-            )
-            return
-          }
-          let locs = resolved.map(\.location)
-          // If we're unable to handle the definition request using our index, see if the
-          // language service can handle it (e.g. clangd can provide AST based definitions).
-          guard locs.isEmpty else {
-            req.reply(.locations(locs))
-            return
-          }
-          let handled = await languageService.definition(req)
-          guard !handled else { return }
-          req.reply(.locations([]))
-        case .failure(let error):
-          req.reply(.failure(error))
-        }
-      }
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    let symbols = try await languageService.symbolInfo(
+      SymbolInfoRequest(
+        textDocument: req.textDocument,
+        position: req.position
+      )
+    )
+    let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
+    // If this symbol is a module then generate a textual interface
+    if let symbol = symbols.first, symbol.kind == .module, let name = symbol.name {
+      return try await self.definitionInInterface(req, moduleName: name, symbolUSR: nil, languageService: languageService)
     }
-    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
-                          cancellation: req.cancellationToken, reply: callback)
-    await languageService.symbolInfo(request)
+
+    let resolved = self.extractIndexedOccurrences(symbols: symbols, index: index, useLocalFallback: true) { (usr, index) in
+      log("performing indexed jump-to-def with usr \(usr)")
+      var occurs = index.occurrences(ofUSR: usr, roles: [.definition])
+      if occurs.isEmpty {
+        occurs = index.occurrences(ofUSR: usr, roles: [.declaration])
+      }
+      return occurs
+    }
+
+    // if first resolved location is in `.swiftinterface` file. Use moduleName to return
+    // textual interface
+    if let firstResolved = resolved.first,
+       let moduleName = firstResolved.occurrence?.location.moduleName,
+       firstResolved.location.uri.fileURL?.pathExtension == "swiftinterface" {
+      return try await self.definitionInInterface(
+        req,
+        moduleName: moduleName,
+        symbolUSR: firstResolved.occurrence?.symbol.usr,
+        languageService: languageService
+      )
+    }
+    let locs = resolved.map(\.location)
+    // If we're unable to handle the definition request using our index, see if the
+    // language service can handle it (e.g. clangd can provide AST based definitions).
+    if locs.isEmpty {
+      return try await languageService.definition(req)
+    }
+    return .locations(locs)
   }
 
-  func respondWithInterface(
-    _ req: Request<DefinitionRequest>,
+  func definitionInInterface(
+    _ req: DefinitionRequest,
     moduleName: String,
     symbolUSR: String?,
     languageService: ToolchainLanguageServer
-  ) async {
-    // FIXME: (async) Remove the task when `definition` returns the value asynchronously.
-    Task {
-      let openInterface = OpenInterfaceRequest(textDocument: req.params.textDocument, name: moduleName, symbolUSR: symbolUSR)
-      do {
-        guard let interfaceDetails = try await languageService.openInterface(openInterface) else {
-          req.reply(.failure(.unknown("Could not generate Swift Interface for \(moduleName)")))
-          return
-        }
-        let position = interfaceDetails.position ?? Position(line: 0, utf16index: 0)
-        let loc = Location(uri: interfaceDetails.uri, range: Range(position))
-        req.reply(.locations([loc]))
-      } catch let error as ResponseError {
-        req.reply(.failure(error))
-      } catch {
-        req.reply(.failure(.unknown("Unknown error: \(error)")))
-      }
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    let openInterface = OpenInterfaceRequest(textDocument: req.textDocument, name: moduleName, symbolUSR: symbolUSR)
+    guard let interfaceDetails = try await languageService.openInterface(openInterface) else {
+      throw ResponseError.unknown("Could not generate Swift Interface for \(moduleName)")
     }
+    let position = interfaceDetails.position ?? Position(line: 0, utf16index: 0)
+    let loc = Location(uri: interfaceDetails.uri, range: Range(position))
+    return .locations([loc])
   }
 
   func implementation(
-    _ req: Request<ImplementationRequest>,
+    _ req: ImplementationRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
-    let callback = { (result: LSPResult<SymbolInfoRequest.Response>) in
-      let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
-        var occurs = index.occurrences(ofUSR: usr, roles: .baseOf)
-        if occurs.isEmpty {
-          occurs = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
-        }
-        return occurs
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    let symbols = try await languageService.symbolInfo(
+      SymbolInfoRequest(
+        textDocument: req.textDocument,
+        position: req.position
+      )
+    )
+    let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
+    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
+      var occurs = index.occurrences(ofUSR: usr, roles: .baseOf)
+      if occurs.isEmpty {
+        occurs = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
       }
-
-      req.reply(extractedResult.map { .locations($0.map(\.location)) })
+      return occurs
     }
-    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
-                          cancellation: req.cancellationToken, reply: callback)
-    await languageService.symbolInfo(request)
+
+    return .locations(extractedResult.map(\.location))
   }
 
   func references(
-    _ req: Request<ReferencesRequest>,
+    _ req: ReferencesRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
-    let callback = { (result: LSPResult<SymbolInfoRequest.Response>) in
-      let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
-        log("performing indexed jump-to-def with usr \(usr)")
-        var roles: SymbolRole = [.reference]
-        if req.params.context.includeDeclaration {
-          roles.formUnion([.declaration, .definition])
-        }
-        return index.occurrences(ofUSR: usr, roles: roles)
+  ) async throws -> [Location] {
+    let symbols = try await languageService.symbolInfo(
+      SymbolInfoRequest(
+        textDocument: req.textDocument,
+        position: req.position
+      )
+    )
+    let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
+    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
+      log("performing indexed jump-to-def with usr \(usr)")
+      var roles: SymbolRole = [.reference]
+      if req.context.includeDeclaration {
+        roles.formUnion([.declaration, .definition])
       }
-
-      req.reply(extractedResult.map { $0.map(\.location) })
+      return index.occurrences(ofUSR: usr, roles: roles)
     }
-    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
-                          cancellation: req.cancellationToken, reply: callback)
-    await languageService.symbolInfo(request)
+
+    return extractedResult.map(\.location)
   }
 
   private func indexToLSPCallHierarchyItem(
@@ -1588,35 +1562,32 @@ extension SourceKitServer {
   }
 
   func prepareCallHierarchy(
-    _ req: Request<CallHierarchyPrepareRequest>,
+    _ req: CallHierarchyPrepareRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
-    let callback = { (result: LSPResult<SymbolInfoRequest.Response>) in
-      // For call hierarchy preparation we only locate the definition
-      let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
-        index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
-      }
-      let items = extractedResult.map { resolved -> [CallHierarchyItem]? in
-        resolved.compactMap { info -> CallHierarchyItem? in
-          guard let occurrence = info.occurrence else {
-            return nil
-          }
-          let symbol = occurrence.symbol
-          return self.indexToLSPCallHierarchyItem(
-            symbol: symbol,
-            moduleName: occurrence.location.moduleName,
-            location: info.location
-          )
-        }
-      }
-      req.reply(items)
+  ) async throws -> [CallHierarchyItem]? {
+    let symbols = try await languageService.symbolInfo(
+      SymbolInfoRequest(
+        textDocument: req.textDocument,
+        position: req.position
+      )
+    )
+    let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
+    // For call hierarchy preparation we only locate the definition
+    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
+      index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
     }
-    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
-                          cancellation: req.cancellationToken, reply: callback)
-    await languageService.symbolInfo(request)
+    return extractedResult.compactMap { info -> CallHierarchyItem? in
+      guard let occurrence = info.occurrence else {
+        return nil
+      }
+      let symbol = occurrence.symbol
+      return self.indexToLSPCallHierarchyItem(
+        symbol: symbol,
+        moduleName: occurrence.location.moduleName,
+        location: info.location
+      )
+    }
   }
 
   /// Extracts our implementation-specific data about a call hierarchy
@@ -1746,39 +1717,34 @@ extension SourceKitServer {
   }
 
   func prepareTypeHierarchy(
-    _ req: Request<TypeHierarchyPrepareRequest>,
+    _ req: TypeHierarchyPrepareRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    guard let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index else {
-      req.reply([])
-      return
+  ) async throws -> [TypeHierarchyItem]? {
+    let symbols = try await languageService.symbolInfo(
+      SymbolInfoRequest(
+        textDocument: req.textDocument,
+        position: req.position
+      )
+    )
+    guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
+      return []
     }
-    let callback = { (result: LSPResult<SymbolInfoRequest.Response>) in
-      // For type hierarchy preparation we only locate the definition
-      let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
-        index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
-      }
-      let items = extractedResult.map { resolved -> [TypeHierarchyItem]? in
-        resolved.compactMap { info -> TypeHierarchyItem? in
-          guard let occurrence = info.occurrence else {
-            return nil
-          }
-          let symbol = occurrence.symbol
-          return self.indexToLSPTypeHierarchyItem(
-            symbol: symbol,
-            moduleName: occurrence.location.moduleName,
-            location: info.location,
-            index: index
-          )
-        }
-      }
-      req.reply(items)
+    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
+      index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
     }
-    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
-                          cancellation: req.cancellationToken, reply: callback)
-    await languageService.symbolInfo(request)
+    return extractedResult.compactMap { info -> TypeHierarchyItem? in
+      guard let occurrence = info.occurrence else {
+        return nil
+      }
+      let symbol = occurrence.symbol
+      return self.indexToLSPTypeHierarchyItem(
+        symbol: symbol,
+        moduleName: occurrence.location.moduleName,
+        location: info.location,
+        index: index
+      )
+    }
   }
 
   /// Extracts our implementation-specific data about a type hierarchy

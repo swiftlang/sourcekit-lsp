@@ -615,9 +615,8 @@ extension SwiftLanguageServer {
   // MARK: - Language features
 
   /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
-  public func definition(_ request: Request<DefinitionRequest>) -> Bool {
-    // We don't handle it.
-    return false
+  public func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
+    throw ResponseError.unknown("unsupported method")
   }
 
   public func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
@@ -658,23 +657,13 @@ extension SwiftLanguageServer {
     return HoverResponse(contents: .markupContent(MarkupContent(kind: .markdown, value: result)), range: nil)
   }
 
-  public func symbolInfo(_ req: Request<SymbolInfoRequest>) async {
-    let uri = req.params.textDocument.uri
-    let position = req.params.position
-    Task {
-      do {
-        guard let cursorInfo = try await cursorInfo(uri, position..<position) else {
-          return req.reply([])
-        }
-        req.reply([cursorInfo.symbolInfo])
-        // FIXME: (async) This error catching logic should no longer be necessary once
-        // retrieveRefactorCodeActions returns the result asynchronously.
-      } catch let error as ResponseError {
-        req.reply(.failure(error))
-      } catch {
-        req.reply(.failure(.unknown("Unknown error: \(error)")))
-      }
+  public func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
+    let uri = req.textDocument.uri
+    let position = req.position
+    guard let cursorInfo = try await cursorInfo(uri, position..<position) else {
+      return []
     }
+    return [cursorInfo.symbolInfo]
   }
 
   public func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
