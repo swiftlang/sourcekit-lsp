@@ -582,8 +582,8 @@ extension ClangLanguageServerShim {
 
   // MARK: - Other
 
-  func executeCommand(_ req: Request<ExecuteCommandRequest>) {
-    forwardRequestToClangd(req)
+  func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
+    return try await forwardRequestToClangd(req)
   }
 }
 

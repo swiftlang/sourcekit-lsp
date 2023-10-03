@@ -1358,63 +1358,32 @@ extension SwiftLanguageServer {
     return .full(RelatedFullDocumentDiagnosticReport(items: diagnostics))
   }
 
-  public func executeCommand(_ req: Request<ExecuteCommandRequest>) async {
-    let params = req.params
-    //TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
-    guard let swiftCommand = params.swiftCommand(ofType: SemanticRefactorCommand.self) else {
-      let message = "semantic refactoring: unknown command \(params.command)"
-      log(message, level: .warning)
-      return req.reply(.failure(.unknown(message)))
-    }
-    let uri = swiftCommand.textDocument.uri
-    await semanticRefactoring(swiftCommand) { result in
-      Task {
-        switch result {
-        case .success(let refactor):
-          let edit = refactor.edit
-          await self.applyEdit(label: refactor.title, edit: edit) { editResult in
-            switch editResult {
-            case .success:
-              req.reply(edit.encodeToLSPAny())
-            case .failure(let error):
-              req.reply(.failure(error))
-            }
-          }
-        case .failure(let error):
-          let message = "semantic refactoring failed \(uri): \(error)"
-          log(message, level: .warning)
-          return req.reply(.failure(.unknown(message)))
-        }
-      }
-    }
-  }
-
-  func applyEdit(label: String, edit: WorkspaceEdit, completion: @escaping (LSPResult<ApplyEditResponse>) -> Void) async {
-    let req = ApplyEditRequest(label: label, edit: edit)
+  public func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
+    // TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
     guard let sourceKitServer else {
       // `SourceKitServer` has been destructed. We are tearing down the language
       // server. Nothing left to do.
-      return completion(.failure(.unknown("Connection to the editor closed")))
+      throw ResponseError.unknown("Connection to the editor closed")
     }
-    await sourceKitServer.sendRequestToClient(req) { reply in
-      switch reply {
-      case .success(let response) where response.applied == false:
-        let reason: String
-        if let failureReason = response.failureReason {
-          reason = " reason: \(failureReason)"
-        } else {
-          reason = ""
-        }
-        log("client refused to apply edit for \(label)!\(reason)", level: .warning)
-      case .failure(let error):
-        log("applyEdit failed: \(error)", level: .warning)
-      default:
-        break
+    guard let swiftCommand = req.swiftCommand(ofType: SemanticRefactorCommand.self) else {
+      let message = "semantic refactoring: unknown command \(req.command)"
+      log(message, level: .warning)
+      throw ResponseError.unknown(message)
+    }
+    let refactor = try await semanticRefactoring(swiftCommand)
+    let edit = refactor.edit
+    let req = ApplyEditRequest(label: refactor.title, edit: edit)
+    let response = try await sourceKitServer.sendRequestToClient(req)
+    if !response.applied {
+      let reason: String
+      if let failureReason = response.failureReason {
+        reason = " reason: \(failureReason)"
+      } else {
+        reason = ""
       }
-      completion(reply)
+      log("client refused to apply edit for \(refactor.title)!\(reason)", level: .warning)
     }
-
-    // FIXME: (async) cancellation
+    return edit.encodeToLSPAny()
   }
 }
 

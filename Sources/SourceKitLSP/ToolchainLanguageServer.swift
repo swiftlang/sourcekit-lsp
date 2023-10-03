@@ -101,7 +101,7 @@ public protocol ToolchainLanguageServer: AnyObject {
 
   // MARK: - Other
 
-  func executeCommand(_ req: Request<ExecuteCommandRequest>) async
+  func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny?
 
   /// Crash the language server. Should be used for crash recovery testing only.
   func _crash() async

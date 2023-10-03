@@ -125,22 +125,21 @@ extension SwiftLanguageServer {
   ///   - command: The semantic refactor `Command` that triggered this request.
   ///   - completion: Completion block to asynchronously receive the SemanticRefactoring data, or error.
   func semanticRefactoring(
-    _ refactorCommand: SemanticRefactorCommand,
-    _ completion: @escaping (Result<SemanticRefactoring, SemanticRefactoringError>) -> Void) async
-  {
+    _ refactorCommand: SemanticRefactorCommand
+  ) async throws -> SemanticRefactoring {
     let keys = self.keys
 
     let uri = refactorCommand.textDocument.uri
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-      return completion(.failure(.unknownDocument(uri)))
+      throw SemanticRefactoringError.unknownDocument(uri)
     }
     guard let offsetRange = snapshot.utf8OffsetRange(of: refactorCommand.positionRange) else {
-      return completion(.failure(.failedToRetrieveOffset(refactorCommand.positionRange)))
+      throw SemanticRefactoringError.failedToRetrieveOffset(refactorCommand.positionRange)
     }
     let line = refactorCommand.positionRange.lowerBound.line
     let utf16Column = refactorCommand.positionRange.lowerBound.utf16index
     guard let utf8Column = snapshot.lineTable.utf8ColumnAt(line: line, utf16Column: utf16Column) else {
-      return completion(.failure(.invalidRange(refactorCommand.positionRange)))
+      throw SemanticRefactoringError.invalidRange(refactorCommand.positionRange)
     }
 
     let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
@@ -160,18 +159,10 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        return completion(.failure(.responseError(ResponseError(result.failure!))))
-      }
-      guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {
-        return completion(.failure(.noEditsNeeded(uri)))
-      }
-      completion(.success(refactor))
+    let dict = try await self.sourcekitd.send(skreq)
+    guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {
+      throw SemanticRefactoringError.noEditsNeeded(uri)
     }
-
-    // FIXME: cancellation
-    _ = handle
+    return refactor
   }
 }

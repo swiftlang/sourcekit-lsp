@@ -270,23 +270,9 @@ public actor SourceKitServer {
     await requestHandler(request, workspace, languageService)
   }
 
-  private func withLanguageServiceAndWorkspace<RequestType: TextDocumentRequest>(
-    for request: Request<RequestType>,
-    requestHandler: @escaping (RequestType, Workspace, ToolchainLanguageServer) async throws -> RequestType.Response,
-    fallback: RequestType.Response
-  ) async {
-    let doc = request.params.textDocument.uri
-    guard let workspace = await self.workspaceForDocument(uri: doc) else {
-      return request.reply(.failure(.workspaceNotOpen(doc)))
-    }
-
-    guard let languageService = workspace.documentService[doc] else {
-      return request.reply(fallback)
-    }
-
+  private func handleRequest<R: RequestType>(_ request: Request<R>, handler: (R) async throws -> R.Response) async {
     do {
-      let result = try await requestHandler(request.params, workspace, languageService)
-      request.reply(.success(result))
+      request.reply(try await handler(request.params))
     } catch let error as ResponseError {
       request.reply(.failure(error))
     } catch let error as SKDError {
@@ -295,6 +281,23 @@ public actor SourceKitServer {
       request.reply(.failure(.cancelled))
     } catch {
       request.reply(.failure(.unknown("Unknown error: \(error)")))
+    }
+  }
+
+  private func handleRequest<RequestType: TextDocumentRequest>(
+    for request: Request<RequestType>,
+    requestHandler: @escaping (RequestType, Workspace, ToolchainLanguageServer) async throws -> RequestType.Response,
+    fallback: RequestType.Response
+  ) async {
+    await handleRequest(request) { request in
+      let doc = request.textDocument.uri
+      guard let workspace = await self.workspaceForDocument(uri: request.textDocument.uri) else {
+        throw ResponseError.workspaceNotOpen(request.textDocument.uri)
+      }
+      guard let languageService = workspace.documentService[doc] else {
+        return fallback
+      }
+      return try await requestHandler(request, workspace, languageService)
     }
   }
 
@@ -308,11 +311,22 @@ public actor SourceKitServer {
   ///
   /// Return the result via the `reply` completion handler. `reply` is guaranteed
   /// to be called exactly once.
+  // FIXME: (async) Remove when all callers use the async version
   public func sendRequestToClient<R: RequestType>(_ request: R, reply: @escaping (LSPResult<R.Response>) -> Void) {
     _ = client.send(request, queue: clientCommunicationQueue) { result in
       reply(result)
     }
     // FIXME: (async) Handle cancellation
+  }
+
+  /// Send the given request to the editor.
+  public func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
+    try await withCheckedThrowingContinuation { continuation in
+      _ = client.send(request, queue: clientCommunicationQueue) { result in
+        continuation.resume(with: result)
+      }
+      // FIXME: (async) Handle cancellation
+    }
   }
 
   func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
@@ -559,7 +573,7 @@ extension SourceKitServer: MessageHandler {
       case let request as Request<PollIndexRequest>:
         await self.pollIndex(request)
       case let request as Request<ExecuteCommandRequest>:
-        await self.executeCommand(request)
+        await self.handleRequest(request, handler: self.executeCommand)
       case let request as Request<CallHierarchyIncomingCallsRequest>:
         await self.incomingCalls(request)
       case let request as Request<CallHierarchyOutgoingCallsRequest>:
@@ -569,11 +583,11 @@ extension SourceKitServer: MessageHandler {
       case let request as Request<TypeHierarchySubtypesRequest>:
         await self.subtypes(request)
       case let request as Request<CompletionRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.completion, fallback: CompletionList(isIncomplete: false, items: []))
+        await self.handleRequest(for: request, requestHandler: self.completion, fallback: CompletionList(isIncomplete: false, items: []))
       case let request as Request<HoverRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.hover, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.hover, fallback: nil)
       case let request as Request<OpenInterfaceRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.openInterface, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.openInterface, fallback: nil)
       case let request as Request<DeclarationRequest>:
         await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.declaration, fallback: nil)
       case let request as Request<DefinitionRequest>:
@@ -589,27 +603,27 @@ extension SourceKitServer: MessageHandler {
       case let request as Request<SymbolInfoRequest>:
         await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.symbolInfo, fallback: [])
       case let request as Request<DocumentHighlightRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
       case let request as Request<FoldingRangeRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.foldingRange, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.foldingRange, fallback: nil)
       case let request as Request<DocumentSymbolRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSymbol, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.documentSymbol, fallback: nil)
       case let request as Request<DocumentColorRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentColor, fallback: [])
+        await self.handleRequest(for: request, requestHandler: self.documentColor, fallback: [])
       case let request as Request<DocumentSemanticTokensRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokens, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.documentSemanticTokens, fallback: nil)
       case let request as Request<DocumentSemanticTokensDeltaRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokensDelta, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensDelta, fallback: nil)
       case let request as Request<DocumentSemanticTokensRangeRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokensRange, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensRange, fallback: nil)
       case let request as Request<ColorPresentationRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.colorPresentation, fallback: [])
+        await self.handleRequest(for: request, requestHandler: self.colorPresentation, fallback: [])
       case let request as Request<CodeActionRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.codeAction, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.codeAction, fallback: nil)
       case let request as Request<InlayHintRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.inlayHint, fallback: [])
+        await self.handleRequest(for: request, requestHandler: self.inlayHint, fallback: [])
       case let request as Request<DocumentDiagnosticsRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentDiagnostic, fallback: .full(.init(items: [])))
+        await self.handleRequest(for: request, requestHandler: self.documentDiagnostic, fallback: .full(.init(items: [])))
       default:
         reply(.failure(ResponseError.methodNotFound(R.method)))
       }
@@ -1307,30 +1321,23 @@ extension SourceKitServer {
     return try await languageService.colorPresentation(req)
   }
 
-  func executeCommand(_ req: Request<ExecuteCommandRequest>) async {
-    guard let uri = req.params.textDocument?.uri else {
+  func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
+    guard let uri = req.textDocument?.uri else {
       log("attempted to perform executeCommand request without an url!", level: .error)
-      req.reply(nil)
-      return
+      return nil
     }
     guard let workspace = await workspaceForDocument(uri: uri) else {
-      req.reply(.failure(.workspaceNotOpen(uri)))
-      return
+      throw ResponseError.workspaceNotOpen(uri)
     }
     guard let languageService = workspace.documentService[uri] else {
-      req.reply(nil)
-      return
+      return nil
     }
 
-    let params = req.params
-    let executeCommand = ExecuteCommandRequest(command: params.command,
-                                               arguments: params.argumentsWithoutSourceKitMetadata)
-    let callback = { (result: Result<ExecuteCommandRequest.Response, ResponseError>) in
-      req.reply(result)
-    }
-    let request = Request(executeCommand, id: req.id, clientID: ObjectIdentifier(self),
-                          cancellation: req.cancellationToken, reply: callback)
-    await languageService.executeCommand(request)
+    let executeCommand = ExecuteCommandRequest(
+      command: req.command,
+      arguments: req.argumentsWithoutSourceKitMetadata
+    )
+    return try await languageService.executeCommand(executeCommand)
   }
 
   func codeAction(
