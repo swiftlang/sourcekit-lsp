@@ -56,7 +56,9 @@ public final class SourceKitIndexDelegate: IndexDelegate {
   /// *Must be called on queue*.
   func _indexChanged() {
     for delegate in mainFilesDelegates {
-      delegate.mainFilesChanged()
+      Task {
+        await delegate.mainFilesChanged()
+      }
     }
   }
 

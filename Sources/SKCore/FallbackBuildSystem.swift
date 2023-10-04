@@ -21,7 +21,7 @@ import class TSCBasic.Process
 import struct TSCBasic.AbsolutePath
 
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
-public final class FallbackBuildSystem: BuildSystem {
+public final class FallbackBuildSystem {
 
   let buildSetup: BuildSetup
 
@@ -38,13 +38,17 @@ public final class FallbackBuildSystem: BuildSystem {
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate? = nil
 
+  public func setDelegate(_ delegate: BuildSystemDelegate?) async {
+    self.delegate = delegate
+  }
+
   public var indexStorePath: AbsolutePath? { return nil }
 
   public var indexDatabasePath: AbsolutePath? { return nil }
 
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
-  public func settings(for uri: DocumentURI, _ language: Language) -> FileBuildSettings? {
+  public func buildSettings(for uri: DocumentURI, language: Language) -> FileBuildSettings? {
     switch language {
     case .swift:
       return settingsSwift(uri.pseudoPath)
@@ -54,18 +58,6 @@ public final class FallbackBuildSystem: BuildSystem {
       return nil
     }
   }
-
-  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
-    guard let delegate = self.delegate else { return }
-
-    let settings = self.settings(for: uri, language)
-    DispatchQueue.global().async {
-      delegate.fileBuildSettingsChanged([uri: FileBuildSettingsChange(settings)])
-    }
-  }
-
-  /// We don't support change watching.
-  public func unregisterForChangeNotifications(for: DocumentURI) {}
 
   func settingsSwift(_ file: String) -> FileBuildSettings {
     var args: [String] = []
@@ -98,11 +90,5 @@ public final class FallbackBuildSystem: BuildSystem {
     }
     args.append(file)
     return FileBuildSettings(compilerArguments: args)
-  }
-
-  public func filesDidChange(_ events: [FileEvent]) {}
-
-  public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    return .fallback
   }
 }

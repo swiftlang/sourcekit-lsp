@@ -17,8 +17,7 @@ import Foundation
 
 extension SwiftLanguageServer {
 
-  /// Must be called on `queue`.
-  func _completion(_ req: Request<CompletionRequest>) {
+  public func completion(_ req: Request<CompletionRequest>) async {
     guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.uri) else {
       log("failed to find snapshot for url \(req.params.textDocument.uri)")
       req.reply(CompletionList(isIncomplete: true, items: []))
@@ -40,14 +39,13 @@ extension SwiftLanguageServer {
     let options = req.params.sourcekitlspOptions ?? serverOptions.completionOptions
 
     if options.serverSideFiltering {
-      _completionWithServerFiltering(offset: offset, completionPos: completionPos, snapshot: snapshot, request: req, options: options)
+      await _completionWithServerFiltering(offset: offset, completionPos: completionPos, snapshot: snapshot, request: req, options: options)
     } else {
-      _completionWithClientFiltering(offset: offset, completionPos: completionPos, snapshot: snapshot, request: req, options: options)
+      await _completionWithClientFiltering(offset: offset, completionPos: completionPos, snapshot: snapshot, request: req, options: options)
     }
   }
 
-  /// Must be called on `queue`.
-  func _completionWithServerFiltering(offset: Int, completionPos: Position, snapshot: DocumentSnapshot, request req: Request<CompletionRequest>, options: SKCompletionOptions) {
+  func _completionWithServerFiltering(offset: Int, completionPos: Position, snapshot: DocumentSnapshot, request req: Request<CompletionRequest>, options: SKCompletionOptions) async {
     guard let start = snapshot.indexOf(utf8Offset: offset),
           let end = snapshot.index(of: req.params.position) else {
       log("invalid completion position \(req.params.position)")
@@ -75,7 +73,7 @@ extension SwiftLanguageServer {
         snapshot: snapshot,
         utf8Offset: offset,
         position: completionPos,
-        compileCommand: commandsByFile[snapshot.document.uri])
+        compileCommand: await buildSettings(for: snapshot.document.uri))
 
       currentCompletionSession?.close()
       currentCompletionSession = session
@@ -84,8 +82,7 @@ extension SwiftLanguageServer {
     session.update(filterText: filterText, position: req.params.position, in: snapshot, options: options, completion: req.reply)
   }
 
-  /// Must be called on `queue`.
-  func _completionWithClientFiltering(offset: Int, completionPos: Position, snapshot: DocumentSnapshot, request req: Request<CompletionRequest>, options: SKCompletionOptions) {
+  func _completionWithClientFiltering(offset: Int, completionPos: Position, snapshot: DocumentSnapshot, request req: Request<CompletionRequest>, options: SKCompletionOptions) async {
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.codecomplete
     skreq[keys.offset] = offset
@@ -97,7 +94,7 @@ extension SwiftLanguageServer {
     skreq[keys.codecomplete_options] = skreqOptions
 
     // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = commandsByFile[snapshot.document.uri] {
+    if let compileCommand = await buildSettings(for: snapshot.document.uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
@@ -120,7 +117,7 @@ extension SwiftLanguageServer {
     _ = handle
   }
 
-  func completionsFromSKDResponse(
+  nonisolated func completionsFromSKDResponse(
     _ completions: SKDResponseArray,
     in snapshot: DocumentSnapshot,
     completionPos: Position,
@@ -220,7 +217,7 @@ extension SwiftLanguageServer {
     return Position(line: pos.line, utf16index: adjustedOffset)
   }
 
-  private func computeCompletionTextEdit(completionPos: Position, requestPosition: Position, utf8CodeUnitsToErase: Int, newText: String, snapshot: DocumentSnapshot) -> TextEdit {
+  private nonisolated func computeCompletionTextEdit(completionPos: Position, requestPosition: Position, utf8CodeUnitsToErase: Int, newText: String, snapshot: DocumentSnapshot) -> TextEdit {
     let textEditRangeStart: Position
 
     // Compute the TextEdit

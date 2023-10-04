@@ -16,8 +16,8 @@ import TSCBasic
 import XCTest
 
 final class TypeHierarchyTests: XCTestCase {
-  func testTypeHierarchy() throws {
-    let ws = try staticSourceKitTibsWorkspace(name: "TypeHierarchy")!
+  func testTypeHierarchy() async throws {
+    let ws = try await staticSourceKitTibsWorkspace(name: "TypeHierarchy")!
     try ws.buildAndIndex()
 
     try ws.openDocument(ws.testLoc("a.swift").url, language: .swift)

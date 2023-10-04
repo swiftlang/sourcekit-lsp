@@ -43,16 +43,24 @@ func executable(_ name: String) -> String {
 ///
 /// Provides build settings from a build server launched based on a
 /// `buildServer.json` configuration file provided in the repo root.
-public final class BuildServerBuildSystem: MessageHandler {
-  /// The handler's request queue. `delegate` will always be called on this queue.
-  public let queue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
-
+public actor BuildServerBuildSystem: MessageHandler {
   let projectRoot: AbsolutePath
   let buildFolder: AbsolutePath?
   let serverConfig: BuildServerConfig
   let requestQueue: DispatchQueue
 
   var buildServer: JSONRPCConnection?
+
+  /// The queue on which all messages that originate from the build server are
+  /// handled.
+  ///
+  /// These are requests and notifications sent *from* the build server,
+  /// not replies from the build server.
+  ///
+  /// This ensures that messages from the build server are handled in the order
+  /// they were received. Swift concurrency does not guarentee in-order
+  /// execution of tasks.
+  public let bspMessageHandlingQueue = AsyncQueue(.serial)
 
   let searchPaths: [AbsolutePath]
 
@@ -65,7 +73,15 @@ public final class BuildServerBuildSystem: MessageHandler {
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate?
 
-  public init(projectRoot: AbsolutePath, buildFolder: AbsolutePath?, fileSystem: FileSystem = localFileSystem) throws {
+  /// - Note: Needed to set the delegate from a different actor isolation context
+  public func setDelegate(_ delegate: BuildSystemDelegate?) async {
+    self.delegate = delegate
+  }
+
+  /// The build settings that have been received from the build server.
+  private var buildSettings: [DocumentURI: FileBuildSettings] = [:]
+
+  public init(projectRoot: AbsolutePath, buildFolder: AbsolutePath?, fileSystem: FileSystem = localFileSystem) async throws {
     let configPath = projectRoot.appending(component: "buildServer.json")
     let config = try loadBuildServerConfig(path: configPath, fileSystem: fileSystem)
 #if os(Windows)
@@ -87,12 +103,11 @@ public final class BuildServerBuildSystem: MessageHandler {
   /// Creates a build system using the Build Server Protocol config.
   ///
   /// - Returns: nil if `projectRoot` has no config or there is an error parsing it.
-  public convenience init?(projectRoot: AbsolutePath?, buildSetup: BuildSetup)
-  {
+  public init?(projectRoot: AbsolutePath?, buildSetup: BuildSetup) async {
     if projectRoot == nil { return nil }
 
     do {
-      try self.init(projectRoot: projectRoot!, buildFolder: buildSetup.path)
+      try await self.init(projectRoot: projectRoot!, buildFolder: buildSetup.path)
     } catch _ as FileSystemError {
       // config file was missing, no build server for this workspace
       return nil
@@ -163,12 +178,12 @@ public final class BuildServerBuildSystem: MessageHandler {
   /// the build server has sent us a notification.
   ///
   /// We need to notify the delegate about any updated build settings.
-  public func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
-    queue.async {
+  public nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+    bspMessageHandlingQueue.async {
       if let params = params as? BuildTargetsChangedNotification {
-        self.handleBuildTargetsChanged(Notification(params, clientID: clientID))
+        await self.handleBuildTargetsChanged(Notification(params, clientID: clientID))
       } else if let params = params as? FileOptionsChangedNotification {
-        self.handleFileOptionsChanged(Notification(params, clientID: clientID))
+        await self.handleFileOptionsChanged(Notification(params, clientID: clientID))
       }
     }
   }
@@ -176,26 +191,31 @@ public final class BuildServerBuildSystem: MessageHandler {
   /// Handler for requests received **from** the build server.
   ///
   /// We currently can't handle any requests sent from the build server to us.
-  public func handle<R: RequestType>(
+  public nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
-    queue.async {
-      reply(.failure(ResponseError.methodNotFound(R.method)))
-    }
+    reply(.failure(ResponseError.methodNotFound(R.method)))
   }
 
-  func handleBuildTargetsChanged(_ notification: LanguageServerProtocol.Notification<BuildTargetsChangedNotification>) {
-    self.delegate?.buildTargetsChanged(notification.params.changes)
+  func handleBuildTargetsChanged(_ notification: LanguageServerProtocol.Notification<BuildTargetsChangedNotification>) async {
+    await self.delegate?.buildTargetsChanged(notification.params.changes)
   }
 
-  func handleFileOptionsChanged(_ notification: LanguageServerProtocol.Notification<FileOptionsChangedNotification>) {
+  func handleFileOptionsChanged(_ notification: LanguageServerProtocol.Notification<FileOptionsChangedNotification>) async {
     let result = notification.params.updatedOptions
     let settings = FileBuildSettings(
         compilerArguments: result.options, workingDirectory: result.workingDirectory)
-    self.delegate?.fileBuildSettingsChanged([notification.params.uri: .modified(settings)])
+    await self.buildSettingsChanged(for: notification.params.uri, settings: settings)
+  }
+
+  /// Record the new build settings for the given document and inform the delegate
+  /// about the changed build settings.
+  private func buildSettingsChanged(for document: DocumentURI, settings: FileBuildSettings?) async {
+    buildSettings[document] = settings
+    await self.delegate?.fileBuildSettingsChanged([document])
   }
 }
 
@@ -208,29 +228,26 @@ private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
   return nil
 }
 
-extension BuildServerBuildSystem {
-  /// Exposed for *testing*.
-  public func _settings(for uri: DocumentURI) -> FileBuildSettings? {
-    if let response = try? self.buildServer?.sendSync(SourceKitOptions(uri: uri)) {
-      return FileBuildSettings(
-        compilerArguments: response.options,
-        workingDirectory: response.workingDirectory)
-    }
-    return nil
-  }
-}
-
 extension BuildServerBuildSystem: BuildSystem {
+  /// The build settings for the given file.
+  ///
+  /// Returns `nil` if no build settings have been received from the build
+  /// server yet or if no build settings are available for this file.
+  public func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
+    return buildSettings[document]
+  }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request, queue: requestQueue, reply: { result in
-      if let error = result.failure {
-        log("error registering \(uri): \(error)", level: .error)
-
-        // BuildServer registration failed, so tell our delegate that no build
-        // settings are available.
-        self.delegate?.fileBuildSettingsChanged([uri: .removedOrUnavailable])
+      Task {
+        if let error = result.failure {
+          log("error registering \(uri): \(error)", level: .error)
+          
+          // BuildServer registration failed, so tell our delegate that no build
+          // settings are available.
+          await self.buildSettingsChanged(for: uri, settings: nil)
+        }
       }
     })
   }

@@ -17,8 +17,8 @@ import SKCore
 import TSCBasic
 
 final class CompilationDatabaseTests: XCTestCase {
-  func testModifyCompilationDatabase() throws {
-    let ws = try mutableSourceKitTibsTestWorkspace(name: "ClangCrashRecoveryBuildSettings")!
+  func testModifyCompilationDatabase() async throws {
+    let ws = try await mutableSourceKitTibsTestWorkspace(name: "ClangCrashRecoveryBuildSettings")!
     let loc = ws.testLoc("loc")
 
     try ws.openDocument(loc.url, language: .cpp)
@@ -63,7 +63,7 @@ final class CompilationDatabaseTests: XCTestCase {
     var didReceiveCorrectHighlight = false
 
     // Updating the build settings takes a few seconds.
-    // Send code completion requests every second until we receive correct results.
+    // Send highlight requests every second until we receive correct results.
     for _ in 0..<30 {
       let postChangeHighlightResponse = try ws.sk.sendSync(highlightRequest)
 
@@ -71,7 +71,7 @@ final class CompilationDatabaseTests: XCTestCase {
         didReceiveCorrectHighlight = true
         break
       }
-      Thread.sleep(forTimeInterval: 1)
+      try await Task.sleep(nanoseconds: 1_000_000_000)
     }
 
     XCTAssert(didReceiveCorrectHighlight)

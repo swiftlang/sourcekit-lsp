@@ -42,9 +42,18 @@ extension Connection {
 public protocol MessageHandler: AnyObject {
 
   /// Handle a notification without a reply.
+  ///
+  /// The method should return as soon as the notification has been sufficiently
+  /// handled to avoid out-of-order requests, e.g. once the notification has
+  /// been forwarded to clangd.
   func handle(_ params: some NotificationType, from clientID: ObjectIdentifier)
 
   /// Handle a request and (asynchronously) receive a reply.
+  ///
+  /// The method should return as soon as the request has been sufficiently
+  /// handled to avoid out-of-order requests, e.g. once the corresponding
+  /// request has been sent to sourcekitd. The actual semantic computation
+  /// should occur after the method returns and report the result via `reply`.
   func handle<Request: RequestType>(_ params: Request, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<Request.Response>) -> Void)
 }
 
@@ -66,8 +75,9 @@ public final class LocalConnection {
     case ready, started, closed
   }
 
+  /// The queue guarding `_nextRequestID`.
   let queue: DispatchQueue = DispatchQueue(label: "local-connection-queue")
-
+  
   var _nextRequestID: Int = 0
 
   var state: State = .ready
@@ -104,22 +114,30 @@ public final class LocalConnection {
 
 extension LocalConnection: Connection {
   public func send<Notification>(_ notification: Notification) where Notification: NotificationType {
-    handler?.handle(notification, from: ObjectIdentifier(self))
+    self.handler?.handle(notification, from: ObjectIdentifier(self))
   }
 
-  public func send<Request>(_ request: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
+  public func send<Request: RequestType>(
+    _ request: Request,
+    queue: DispatchQueue,
+    reply: @escaping (LSPResult<Request.Response>) -> Void
+  ) -> RequestID {
     let id = nextRequestID()
-    guard let handler = handler else {
-      queue.async { reply(.failure(.serverCancelled)) }
+
+    guard let handler = self.handler else {
+      queue.async {
+        reply(.failure(.serverCancelled))
+      }
       return id
     }
 
-    precondition(state == .started)
+    precondition(self.state == .started)
     handler.handle(request, id: id, from: ObjectIdentifier(self)) { result in
       queue.async {
         reply(result)
       }
     }
+
     return id
   }
 }
