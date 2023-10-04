@@ -17,63 +17,6 @@ import Dispatch
 
 import struct TSCBasic.AbsolutePath
 
-/// Status for a given main file.
-enum MainFileStatus: Equatable {
-  /// Waiting for the `BuildSystem` to return settings.
-  case waiting
-
-  /// No response from `BuildSystem` yet, using arguments from the fallback build system.
-  case waitingUsingFallback(FileBuildSettings)
-
-  /// Two cases here:
-  /// - Primary build system gave us fallback arguments to use.
-  /// - Primary build system didn't handle the file, using arguments from the fallback build system.
-  /// No longer waiting.
-  case fallback(FileBuildSettings)
-
-  /// Using settings from the primary `BuildSystem`.
-  case primary(FileBuildSettings)
-
-  /// No settings provided by primary and fallback `BuildSystem`s.
-  case unsupported
-}
-
-extension MainFileStatus {
-  /// Whether fallback build settings are being used.
-  /// If no build settings are available, returns false.
-  var usingFallbackSettings: Bool {
-    switch self {
-    case .waiting: return false
-    case .unsupported: return false
-    case .waitingUsingFallback(_): return true
-    case .fallback(_): return true
-    case .primary(_): return false
-    }
-  }
-
-  /// The active build settings, if any.
-  var buildSettings: FileBuildSettings? {
-    switch self {
-    case .waiting: return nil
-    case .unsupported: return nil
-    case .waitingUsingFallback(let settings): return settings
-    case .fallback(let settings): return settings
-    case .primary(let settings): return settings
-    }
-  }
-
-  /// Corresponding change from this status, if any.
-  var buildSettingsChange: FileBuildSettingsChange? {
-    switch self {
-    case .waiting: return nil
-    case .unsupported: return .removedOrUnavailable
-    case .waitingUsingFallback(let settings): return .fallback(settings)
-    case .fallback(let settings): return .fallback(settings)
-    case .primary(let settings): return .modified(settings)
-    }
-  }
-}
-
 /// `BuildSystem` that integrates client-side information such as main-file lookup as well as providing
 ///  common functionality such as caching.
 ///

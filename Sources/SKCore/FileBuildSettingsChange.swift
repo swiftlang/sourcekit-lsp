@@ -22,36 +22,3 @@ public enum FileBuildSettingsChange {
   /// The `BuildSystem` is providing fallback arguments which may not be correct.
   case fallback(FileBuildSettings)
 }
-
-extension FileBuildSettingsChange {
-  public var newSettings: FileBuildSettings? {
-    switch self {
-    case .removedOrUnavailable:
-      return nil
-    case .modified(let settings):
-      return settings
-    case .fallback(let settings):
-      return settings
-    }
-  }
-
-  /// Whether the change represents fallback arguments.
-  public var isFallback: Bool {
-    switch self {
-    case .removedOrUnavailable:
-      return false
-    case .modified(_):
-      return false
-    case .fallback(_):
-      return true
-    }
-  }
-
-  public init(_ settings: FileBuildSettings?, fallback: Bool = false) {
-    if let settings = settings {
-      self = fallback ? .fallback(settings) : .modified(settings)
-    } else {
-      self = .removedOrUnavailable
-    }
-  }
-}

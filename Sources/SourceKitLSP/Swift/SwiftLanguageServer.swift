@@ -1501,14 +1501,3 @@ extension sourcekitd_uid_t {
     }
   }
 }
-
-extension TriviaPiece {
-  var isLineComment: Bool {
-    switch self {
-    case .lineComment, .docLineComment:
-      return true
-    default:
-      return false
-    }
-  }
-}

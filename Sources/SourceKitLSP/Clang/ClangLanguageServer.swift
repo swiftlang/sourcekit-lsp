@@ -303,20 +303,6 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
       }
     }
   }
-
-  /// Forwards a request to `clangd`, taking care of replying to the original request
-  /// and cancellation.
-  ///
-  /// The cancellation token from the original request is automatically linked to the forwarded
-  /// request such that cancelling the original request will cancel the forwarded request.
-  func forwardRequestToClangd<R>(_ request: Request<R>) {
-    let id = clangd.send(request.params) { result in
-      request.reply(result)
-    }
-    request.cancellationToken.addCancellationHandler {
-      self.clangd.send(CancelRequestNotification(id: id))
-    }
-  }
   
   /// Forward the given request to `clangd`.
   ///
