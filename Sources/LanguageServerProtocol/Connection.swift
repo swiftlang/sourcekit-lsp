@@ -157,9 +157,9 @@ extension Connection {
   ///   use the version with a completion handler.
   public func send<R: RequestType>(_ request: R) async throws -> R.Response {
     let requestIDWrapper = ThreadSafeBox<RequestID?>(initialValue: nil)
-    try Task.checkCancellation()
     return try await withTaskCancellationHandler {
-      try await withCheckedThrowingContinuation { continuation in
+      try Task.checkCancellation()
+      return try await withCheckedThrowingContinuation { continuation in
         let requestID = self.send(request) { result in
           continuation.resume(with: result)
         }

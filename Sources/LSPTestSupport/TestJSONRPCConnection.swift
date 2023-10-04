@@ -129,9 +129,7 @@ public final class TestMessageHandler: MessageHandler {
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
-    let cancellationToken = CancellationToken()
-
-    let request = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: reply)
+    let request = Request(params, id: id, clientID: clientID, reply: reply)
 
     guard !oneShotRequestHandlers.isEmpty else {
       fatalError("unexpected request \(request)")
@@ -179,14 +177,11 @@ public final class TestServer: MessageHandler {
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
-    let cancellationToken = CancellationToken()
-
     if let params = params as? EchoRequest {
       let req = Request(
         params,
         id: id,
         clientID: clientID,
-        cancellation: cancellationToken,
         reply: { result in
           reply(result.map({ $0 as! R.Response }))
         }
@@ -197,7 +192,6 @@ public final class TestServer: MessageHandler {
         params,
         id: id,
         clientID: clientID,
-        cancellation: cancellationToken,
         reply: { result in
           reply(result.map({ $0 as! R.Response }))
         }

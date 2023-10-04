@@ -703,13 +703,10 @@ extension SourceKitServer: MessageHandler {
   ) async {
     let startDate = Date()
 
-    let cancellationToken = CancellationToken()
-
     let request = Request(
       params,
       id: id,
       clientID: clientID,
-      cancellation: cancellationToken,
       reply: { [weak self] result in
         reply(result)
         let endDate = Date()

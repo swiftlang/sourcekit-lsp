@@ -298,7 +298,6 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
         params,
         id: id,
         clientID: clientID,
-        cancellation: CancellationToken(),
         reply: { result in
           reply(result)
         }
