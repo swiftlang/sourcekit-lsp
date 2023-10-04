@@ -604,14 +604,6 @@ private struct ClangBuildSettings: Equatable {
     self.isFallback = isFallback
   }
 
-  public init?(change: FileBuildSettingsChange, clangPath: AbsolutePath?) {
-    switch change {
-    case .fallback(let settings): self.init(settings, clangPath: clangPath, isFallback: true)
-    case .modified(let settings): self.init(settings, clangPath: clangPath, isFallback: false)
-    case .removedOrUnavailable: return nil
-    }
-  }
-
   public var compileCommand: ClangCompileCommand {
     return ClangCompileCommand(
         compilationCommand: self.compilerArgs, workingDirectory: self.workingDirectory)

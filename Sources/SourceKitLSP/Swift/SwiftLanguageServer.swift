@@ -84,14 +84,6 @@ public struct SwiftCompileCommand: Equatable {
     }
     self.isFallback = isFallback
   }
-
-  public init?(change: FileBuildSettingsChange) {
-    switch change {
-    case .fallback(let settings): self.init(settings, isFallback: true)
-    case .modified(let settings): self.init(settings, isFallback: false)
-    case .removedOrUnavailable: return nil
-    }
-  }
 }
 
 public actor SwiftLanguageServer: ToolchainLanguageServer {

@@ -148,24 +148,6 @@ extension BuildSystemManager {
     await buildSystem?.registerForChangeNotifications(for: mainFile, language: language)
   }
 
-  /// Return settings for `file` based on  the `change` settings for `mainFile`.
-  ///
-  /// This is used when inferring arguments for header files (e.g. main file is a `.m`  while file is  a` .h`).
-  nonisolated func convert(
-    change: FileBuildSettingsChange,
-    ofMainFile mainFile: DocumentURI,
-    to file: DocumentURI
-  ) -> FileBuildSettingsChange {
-    guard mainFile != file else { return change }
-    switch change {
-    case .removedOrUnavailable: return .removedOrUnavailable
-    case .fallback(let settings):
-      return .fallback(settings.patching(newFile: file.pseudoPath, originalFile: mainFile.pseudoPath))
-    case .modified(let settings):
-      return .modified(settings.patching(newFile: file.pseudoPath, originalFile: mainFile.pseudoPath))
-    }
-  }
-
   public func unregisterForChangeNotifications(for uri: DocumentURI) async {
     guard let mainFile = self.watchedFiles[uri]?.mainFile else {
       log("Unbalanced calls for registerForChangeNotifications and unregisterForChangeNotifications", level: .warning)
