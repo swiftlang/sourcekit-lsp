@@ -18,9 +18,9 @@ private protocol AnyTask: Sendable {
   func waitForCompletion() async
 }
 
-extension Task: AnyTask where Failure == Never {
+extension Task: AnyTask {
   func waitForCompletion() async {
-    _ = await value
+    _ = try? await value
   }
 }
 
@@ -84,6 +84,27 @@ public final class AsyncQueue {
     barrier isBarrier: Bool = false,
     @_inheritActorContext operation: @escaping @Sendable () async -> Success
   ) -> Task<Success, Never> {
+    let throwingTask = asyncThrowing(priority: priority, barrier: isBarrier, operation: operation)
+    return Task {
+      do {
+        return try await throwingTask.value
+      } catch {
+        // We know this can never happen because `operation` does not throw.
+        preconditionFailure("Executing a task threw an error even though the operation did not throw")
+      }
+    }
+  }
+
+  /// Same as ``AsyncQueue/async(priority:barrier:operation:)`` but allows the
+  /// operation to throw.
+  ///
+  /// - Important: The caller is responsible for handling any errors thrown from
+  ///   the operation by awaiting the result of the returned task.
+  public func asyncThrowing<Success: Sendable>(
+    priority: TaskPriority? = nil,
+    barrier isBarrier: Bool = false,
+    @_inheritActorContext operation: @escaping @Sendable () async throws -> Success
+  ) -> Task<Success, any Error> {
     let id = UUID()
 
     return pendingTasksLock.withLock {
@@ -106,11 +127,15 @@ public final class AsyncQueue {
 
       // Schedule the task.
       let task = Task {
+        // IMPORTANT: The only throwing call in here must be the call to
+        // operation. Otherwise the assumption that the task will never throw
+        // if `operation` does not throw, which we are making in `async` does
+        // not hold anymore.
         for dependency in dependencies {
           await dependency.task.waitForCompletion()
         }
 
-        let result = await operation()
+        let result = try await operation()
 
         pendingTasksLock.withLock {
           pendingTasks.removeAll(where: { $0.id == id })
