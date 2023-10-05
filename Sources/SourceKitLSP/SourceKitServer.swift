@@ -1151,11 +1151,11 @@ extension SourceKitServer {
   // MARK: - Language features
 
   func completion(
-    _ req: Request<CompletionRequest>,
+    _ req: CompletionRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.completion(req)
+  ) async throws -> CompletionList {
+    return try await languageService.completion(req)
   }
 
   func hover(

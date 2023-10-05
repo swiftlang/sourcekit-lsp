@@ -443,7 +443,7 @@ extension SwiftLanguageServer {
 
   public func shutdown() async {
     if let session = self.currentCompletionSession {
-      session.close()
+      await session.close()
       self.currentCompletionSession = nil
     }
     self.sourcekitd.removeNotificationHandler(self)

@@ -511,8 +511,8 @@ extension ClangLanguageServerShim {
     return true
   }
 
-  func completion(_ req: Request<CompletionRequest>) {
-    forwardRequestToClangd(req)
+  func completion(_ req: CompletionRequest) async throws -> CompletionList {
+    return try await forwardRequestToClangd(req)
   }
 
   func hover(_ req: HoverRequest) async throws -> HoverResponse? {
