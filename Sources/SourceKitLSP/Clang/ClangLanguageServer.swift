@@ -561,8 +561,8 @@ extension ClangLanguageServerShim {
     return try await forwardRequestToClangd(req)
   }
 
-  func inlayHint(_ req: Request<InlayHintRequest>) {
-    forwardRequestToClangd(req)
+  func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
+    return try await forwardRequestToClangd(req)
   }
 
   func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) {

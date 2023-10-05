@@ -1343,11 +1343,11 @@ extension SourceKitServer {
   }
 
   func inlayHint(
-    _ req: Request<InlayHintRequest>,
+    _ req: InlayHintRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.inlayHint(req)
+  ) async throws -> [InlayHint] {
+    return try await languageService.inlayHint(req)
   }
 
   func documentDiagnostic(

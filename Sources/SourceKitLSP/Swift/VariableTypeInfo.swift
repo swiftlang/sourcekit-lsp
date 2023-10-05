@@ -88,14 +88,12 @@ extension SwiftLanguageServer {
   ///
   /// - Parameters:
   ///   - url: Document URL in which to perform the request. Must be an open document.
-  ///   - completion: Completion block to asynchronously receive the VariableTypeInfos, or error.
   func variableTypeInfos(
     _ uri: DocumentURI,
-    _ range: Range<Position>? = nil,
-    _ completion: @escaping (Swift.Result<[VariableTypeInfo], VariableTypeInfoError>) -> Void
-  ) async {
+    _ range: Range<Position>? = nil
+  ) async throws -> [VariableTypeInfo] {
     guard var snapshot = documentManager.latestSnapshot(uri) else {
-      return completion(.failure(.unknownDocument(uri)))
+      throw VariableTypeInfoError.unknownDocument(uri)
     }
 
     // FIXME: (async) We might not have computed the syntax tree yet. Wait until we have a syntax tree.
@@ -105,7 +103,7 @@ extension SwiftLanguageServer {
       if let newSnapshot = documentManager.latestSnapshot(uri) {
         snapshot = newSnapshot
       } else {
-        return completion(.failure(.unknownDocument(uri)))
+        throw VariableTypeInfoError.unknownDocument(uri)
       }
     }
 
@@ -127,31 +125,23 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let handle = self.sourcekitd.send(skreq, self.queue) { result in
-      guard let dict = result.success else {
-        return completion(.failure(.responseError(ResponseError(result.failure!))))
-      }
-
-      guard let skVariableTypeInfos: SKDResponseArray = dict[keys.variable_type_list] else {
-        return completion(.success([]))
-      }
-
-      var variableTypeInfos: [VariableTypeInfo] = []
-      variableTypeInfos.reserveCapacity(skVariableTypeInfos.count)
-
-      skVariableTypeInfos.forEach { (_, skVariableTypeInfo) -> Bool in
-        guard let info = VariableTypeInfo(skVariableTypeInfo, in: snapshot) else {
-          assertionFailure("VariableTypeInfo failed to deserialize")
-          return true
-        }
-        variableTypeInfos.append(info)
-        return true
-      }
-
-      completion(.success(variableTypeInfos))
+    let dict = try await self.sourcekitd.send(skreq)
+    guard let skVariableTypeInfos: SKDResponseArray = dict[keys.variable_type_list] else {
+      return []
     }
 
-    // FIXME: cancellation
-    _ = handle
+    var variableTypeInfos: [VariableTypeInfo] = []
+    variableTypeInfos.reserveCapacity(skVariableTypeInfos.count)
+
+    skVariableTypeInfos.forEach { (_, skVariableTypeInfo) -> Bool in
+      guard let info = VariableTypeInfo(skVariableTypeInfo, in: snapshot) else {
+        assertionFailure("VariableTypeInfo failed to deserialize")
+        return true
+      }
+      variableTypeInfos.append(info)
+      return true
+    }
+
+    return variableTypeInfos
   }
 }

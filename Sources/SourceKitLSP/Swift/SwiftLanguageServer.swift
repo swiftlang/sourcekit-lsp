@@ -1299,38 +1299,30 @@ extension SwiftLanguageServer {
     return codeActions
   }
 
-  public func inlayHint(_ req: Request<InlayHintRequest>) async {
-    let uri = req.params.textDocument.uri
-    await variableTypeInfos(uri, req.params.range) { infosResult in
-      do {
-        let infos = try infosResult.get()
-        let hints = infos
-          .lazy
-          .filter { !$0.hasExplicitType }
-          .map { info -> InlayHint in
-            let position = info.range.upperBound
-            let label = ": \(info.printedType)"
-            let textEdits: [TextEdit]?
-            if info.canBeFollowedByTypeAnnotation {
-              textEdits = [TextEdit(range: position..<position, newText: label)]
-            } else {
-              textEdits = nil
-            }
-            return InlayHint(
-              position: position,
-              label: .string(label),
-              kind: .type,
-              textEdits: textEdits
-            )
-          }
-
-        req.reply(.success(Array(hints)))
-      } catch {
-        let message = "variable types for inlay hints failed for \(uri): \(error)"
-        log(message, level: .warning)
-        req.reply(.failure(.unknown(message)))
+  public func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
+    let uri = req.textDocument.uri
+    let infos = try await variableTypeInfos(uri, req.range)
+    let hints = infos
+      .lazy
+      .filter { !$0.hasExplicitType }
+      .map { info -> InlayHint in
+        let position = info.range.upperBound
+        let label = ": \(info.printedType)"
+        let textEdits: [TextEdit]?
+        if info.canBeFollowedByTypeAnnotation {
+          textEdits = [TextEdit(range: position..<position, newText: label)]
+        } else {
+          textEdits = nil
+        }
+        return InlayHint(
+          position: position,
+          label: .string(label),
+          kind: .type,
+          textEdits: textEdits
+        )
       }
-    }
+
+    return Array(hints)
   }
 
   public func documentDiagnostic(
