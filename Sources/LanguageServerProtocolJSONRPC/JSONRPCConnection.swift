@@ -113,7 +113,9 @@ public final class JSONRPCConnection {
     ioGroup.notify(queue: queue) { [weak self] in
       guard let self = self else { return }
       Task {
-        await self.closeHandler()
+        if self.closeHandler != nil {
+          await self.closeHandler()
+        }
         self.receiveHandler = nil // break retain cycle
       }
     }
