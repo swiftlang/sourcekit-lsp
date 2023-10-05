@@ -81,7 +81,7 @@ public protocol ToolchainLanguageServer: AnyObject {
   func completion(_ req: CompletionRequest) async throws -> CompletionList
   func hover(_ req: HoverRequest) async throws -> HoverResponse?
   func symbolInfo(_ request: Request<SymbolInfoRequest>) async
-  func openInterface(_ request: Request<OpenInterfaceRequest>) async
+  func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails?
 
   /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
   func definition(_ request: Request<DefinitionRequest>) async -> Bool

@@ -1167,11 +1167,11 @@ extension SourceKitServer {
   }
   
   func openInterface(
-    _ req: Request<OpenInterfaceRequest>,
+    _ req: OpenInterfaceRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.openInterface(req)
+  ) async throws -> InterfaceDetails? {
+    return try await languageService.openInterface(req)
   }
 
   /// Find all symbols in the workspace that include a string in their name.
@@ -1495,21 +1495,23 @@ extension SourceKitServer {
     symbolUSR: String?,
     languageService: ToolchainLanguageServer
   ) async {
+    // FIXME: (async) Remove the task when `definition` returns the value asynchronously.
+    Task {
       let openInterface = OpenInterfaceRequest(textDocument: req.params.textDocument, name: moduleName, symbolUSR: symbolUSR)
-      let request = Request(openInterface, id: req.id, clientID: ObjectIdentifier(self),
-                            cancellation: req.cancellationToken, reply: { (result: Result<OpenInterfaceRequest.Response, ResponseError>) in
-        switch result {
-        case .success(let interfaceDetails?):
-          let position = interfaceDetails.position ?? Position(line: 0, utf16index: 0)
-          let loc = Location(uri: interfaceDetails.uri, range: Range(position))
-          req.reply(.locations([loc]))
-        case .success(nil):
+      do {
+        guard let interfaceDetails = try await languageService.openInterface(openInterface) else {
           req.reply(.failure(.unknown("Could not generate Swift Interface for \(moduleName)")))
-        case .failure(let error):
-          req.reply(.failure(error))
+          return
         }
-      })
-      await languageService.openInterface(request)
+        let position = interfaceDetails.position ?? Position(line: 0, utf16index: 0)
+        let loc = Location(uri: interfaceDetails.uri, range: Range(position))
+        req.reply(.locations([loc]))
+      } catch let error as ResponseError {
+        req.reply(.failure(error))
+      } catch {
+        req.reply(.failure(.unknown("Unknown error: \(error)")))
+      }
+    }
   }
 
   func implementation(

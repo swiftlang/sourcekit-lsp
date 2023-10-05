@@ -578,8 +578,8 @@ extension ClangLanguageServerShim {
     return try await forwardRequestToClangd(req)
   }
 
-  func openInterface(_ request: Request<OpenInterfaceRequest>) {
-    request.reply(.failure(.unknown("unsupported method")))
+  func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails? {
+    throw ResponseError.unknown("unsupported method")
   }
 
   // MARK: - Other
