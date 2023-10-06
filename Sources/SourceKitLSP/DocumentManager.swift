@@ -21,16 +21,24 @@ import SKSupport
 /// data structure that is stored internally by the ``DocumentManager`` is a
 /// ``Document``. The purpose of a ``DocumentSnapshot`` is to be able to work
 /// with one version of a document without having to think about it changing.
-public struct DocumentSnapshot {
-  public let uri: DocumentURI
+public struct DocumentSnapshot: Identifiable {
+  /// An ID that uniquely identifies the version of the document stored in this 
+  /// snapshot.
+  public struct ID: Hashable {
+    public let uri: DocumentURI
+    public let version: Int
+  }
+
+  public let id: ID
   public let language: Language
-  public let version: Int
   public let lineTable: LineTable
   /// Syntax highlighting tokens for the document. Note that
   /// `uri` + `latestVersion` only uniquely identifies a snapshot's content,
   /// the tokens are updated independently and only used internally.
   public let tokens: DocumentTokens
 
+  public var uri: DocumentURI { id.uri }
+  public var version: Int { id.version }
   public var text: String { lineTable.content }
 
   public init(
@@ -40,9 +48,8 @@ public struct DocumentSnapshot {
     lineTable: LineTable,
     tokens: DocumentTokens
   ) {
-    self.uri = uri
+    self.id = ID(uri: uri, version: version)
     self.language = language
-    self.version = version
     self.lineTable = lineTable
     self.tokens = tokens
   }
