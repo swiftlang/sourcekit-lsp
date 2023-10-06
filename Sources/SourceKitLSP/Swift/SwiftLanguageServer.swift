@@ -640,7 +640,16 @@ extension SwiftLanguageServer {
       let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       closeHelperReq[self.keys.request] = self.requests.editor_close
       closeHelperReq[self.keys.name] = helperDocumentName
-      _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
+      // FIXME: (async) We might receive two concurrent document symbol requests for the 
+      // same document, in which race to open/close a document with the same name in 
+      // sourcekitd. The solution is to either
+      //  - Not open the helper document and instead rely on the document that is already 
+      //    open or
+      //  - Prefix the helper document with a UUID to make sure the two concurrent 
+      //    requests operate on different documents as far as sourcekitd is concerned.
+      Task {
+        _ = try await self.sourcekitd.send(closeHelperReq)
+      }
     }
 
     guard let results: SKDResponseArray = dict[self.keys.substructure] else {
@@ -720,7 +729,16 @@ extension SwiftLanguageServer {
       let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       closeHelperReq[keys.request] = self.requests.editor_close
       closeHelperReq[keys.name] = helperDocumentName
-      _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
+      // FIXME: (async) We might receive two concurrent document color requests for the 
+      // same document, in which race to open/close a document with the same name in 
+      // sourcekitd. The solution is to either
+      //  - Not open the helper document and instead rely on the document that is already 
+      //    open or
+      //  - Prefix the helper document with a UUID to make sure the two concurrent 
+      //    requests operate on different documents as far as sourcekitd is concerned.
+      Task {
+        _ = try? await self.sourcekitd.send(closeHelperReq)
+      }
     }
 
     guard let results: SKDResponseArray = dict[self.keys.substructure] else {
