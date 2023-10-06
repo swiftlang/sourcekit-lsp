@@ -22,11 +22,20 @@ import SKSupport
 /// ``Document``. The purpose of a ``DocumentSnapshot`` is to be able to work
 /// with one version of a document without having to think about it changing.
 public struct DocumentSnapshot: Identifiable {
-  /// An ID that uniquely identifies the version of the document stored in this 
+  /// An ID that uniquely identifies the version of the document stored in this
   /// snapshot.
-  public struct ID: Hashable {
+  public struct ID: Hashable, Comparable {
     public let uri: DocumentURI
     public let version: Int
+
+    /// Returns `true` if the snapshots reference the same document but rhs has a
+    /// later version than `lhs`.
+    ///
+    /// Snapshot IDs of different documents are not comparable to each other and
+    /// will always return `false`.
+    public static func < (lhs: DocumentSnapshot.ID, rhs: DocumentSnapshot.ID) -> Bool {
+      return lhs.uri == rhs.uri && lhs.version < rhs.version
+    }
   }
 
   public let id: ID
@@ -135,28 +144,31 @@ public final class DocumentManager {
 
   /// Applies the given edits to the document.
   ///
-  /// - parameter willEditDocument: Optional closure to call before each edit.
-  /// - parameter updateDocumentTokens: Optional closure to call after each edit.
-  /// - parameter before: The document contents *before* the edit is applied.
-  /// - parameter after: The document contents *after* the edit is applied.
-  /// - returns: The contents of the file after all the edits are applied.
-  /// - throws: Error.missingDocument if the document is not open.
+  /// - Parameters:
+  ///   - uri: The URI of the document to update
+  ///   - newVersion: The new version of the document. Must be greater than the
+  ///     latest version of the document.
+  ///   - edits: The edits to apply to the document
+  ///   - willEditDocument: Optional closure to call before each edit. Will be 
+  ///     called multiple times if there are multiple edits.
+  /// - Returns: The snapshot of the document before the edit and the snapshot
+  ///   of the document after the edit.
   @discardableResult
   public func edit(
     _ uri: DocumentURI,
     newVersion: Int,
     edits: [TextDocumentContentChangeEvent],
-    willEditDocument: ((_ before: DocumentSnapshot, TextDocumentContentChangeEvent) -> Void)? = nil,
-    updateDocumentTokens: ((_ after: DocumentSnapshot) -> DocumentTokens)? = nil
-  ) throws -> DocumentSnapshot {
+    willEditDocument: ((_ before: LineTable, TextDocumentContentChangeEvent) -> Void)? = nil
+  ) throws -> (preEditSnapshot: DocumentSnapshot, postEditSnapshot: DocumentSnapshot) {
     return try queue.sync {
       guard let document = documents[uri] else {
         throw Error.missingDocument(uri)
       }
+      let preEditSnapshot = document.latestSnapshot
 
       for edit in edits {
-        if let f = willEditDocument {
-          f(document.latestSnapshot, edit)
+        if let willEditDocument {
+          willEditDocument(document.latestLineTable, edit)
         }
 
         if let range = edit.range  {
@@ -184,14 +196,13 @@ public final class DocumentManager {
           document.latestLineTable = LineTable(edit.text)
           document.latestTokens = DocumentTokens()
         }
-
-        if let updateDocumentTokens {
-          document.latestTokens = updateDocumentTokens(document.latestSnapshot)
-        }
       }
 
+      if newVersion <= document.latestVersion {
+        log("Document version did not increase on edit from \(document.latestVersion) to \(newVersion)", level: .error)
+      }
       document.latestVersion = newVersion
-      return document.latestSnapshot
+      return (preEditSnapshot, document.latestSnapshot)
     }
   }
 
@@ -247,16 +258,14 @@ extension DocumentManager {
   @discardableResult
   func edit(
     _ note: DidChangeTextDocumentNotification,
-    willEditDocument: ((_ before: DocumentSnapshot, TextDocumentContentChangeEvent) -> Void)? = nil,
-    updateDocumentTokens: ((_ after: DocumentSnapshot) -> DocumentTokens)? = nil
-  ) -> DocumentSnapshot? {
+    willEditDocument: ((_ before: LineTable, TextDocumentContentChangeEvent) -> Void)? = nil
+  ) -> (preEditSnapshot: DocumentSnapshot, postEditSnapshot: DocumentSnapshot)? {
     return orLog("failed to edit document", level: .error) {
-      try edit(
+      return try edit(
         note.textDocument.uri,
         newVersion: note.textDocument.version,
         edits: note.contentChanges,
-        willEditDocument: willEditDocument,
-        updateDocumentTokens: updateDocumentTokens
+        willEditDocument: willEditDocument
       )
     }
   }

@@ -125,8 +125,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   var currentCompletionSession: CodeCompletionSession? = nil
 
-  /// *For Testing*
-  public var reusedNodeCallback: ReusedNodeCallback?
+  let syntaxTreeManager = SyntaxTreeManager()
 
   nonisolated var keys: sourcekitd_keys { return sourcekitd.keys }
   nonisolated var requests: sourcekitd_requests { return sourcekitd.requests }
@@ -170,6 +169,11 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
   }
 
+  /// - Important: For testing only
+  public func setReusedNodeCallback(_ callback: ReusedNodeCallback?) async {
+    await self.syntaxTreeManager.setReusedNodeCallback(callback)
+  }
+
   func buildSettings(for document: DocumentURI) async -> SwiftCompileCommand? {
     guard let sourceKitServer else {
       log("Cannot retrieve build settings because SourceKitServer is no longer alive", level: .error)
@@ -192,46 +196,6 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   public func addStateChangeHandler(handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void) {
     self.stateChangeHandlers.append(handler)
-  }
-
-  /// Updates the lexical tokens for the given `snapshot`.
-  private func updateSyntacticTokens(
-    for snapshot: DocumentSnapshot
-  ) {
-    let docTokens = updateSyntaxTree(for: snapshot)
-
-    do {
-      try documentManager.updateTokens(snapshot.uri, tokens: docTokens)
-    } catch {
-      log("Updating lexical and syntactic tokens failed: \(error)", level: .warning)
-    }
-  }
-
-  /// Returns the updated lexical tokens for the given `snapshot`.
-  ///
-  /// - Parameters:
-  ///   - edits: If we are in the context of editing the contents of a file, i.e. calling ``SwiftLanguageServer/changeDocument(_:)``, we should pass `edits` to enable incremental parse. Otherwise, `edits` should be `nil`.
-  private func updateSyntaxTree(
-    for snapshot: DocumentSnapshot,
-    with edits: ConcurrentEdits? = nil
-  ) -> DocumentTokens {
-    logExecutionTime(level: .debug) {
-      var docTokens = snapshot.tokens
-      
-      var parseTransition: IncrementalParseTransition? = nil
-      if let previousTree = snapshot.tokens.syntaxTree,
-         let lookaheadRanges = snapshot.tokens.lookaheadRanges,
-         let edits {
-        parseTransition = IncrementalParseTransition(previousTree: previousTree, edits: edits, lookaheadRanges: lookaheadRanges, reusedNodeCallback: reusedNodeCallback)
-      }
-      let (tree, nextLookaheadRanges) = Parser.parseIncrementally(
-        source: snapshot.text, parseTransition: parseTransition)
-
-      docTokens.syntaxTree = tree
-      docTokens.lookaheadRanges = nextLookaheadRanges
-
-      return docTokens
-    }
   }
 
   /// Updates the semantic tokens for the given `snapshot`.
@@ -477,7 +441,6 @@ extension SwiftLanguageServer {
       // Already logged failure.
       return
     }
-    self.updateSyntacticTokens(for: snapshot)
     await self.publishDiagnostics(
         response: dict, for: snapshot, compileCommand: compileCmd)
   }
@@ -528,7 +491,6 @@ extension SwiftLanguageServer {
       // Already logged failure.
       return
     }
-    self.updateSyntacticTokens(for: snapshot)
     await self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
   }
 
@@ -555,15 +517,15 @@ extension SwiftLanguageServer {
 
     var lastResponse: SKDResponseDictionary? = nil
 
-    let snapshot = self.documentManager.edit(note) {
-      (before: DocumentSnapshot, edit: TextDocumentContentChangeEvent) in
+    let editResult = self.documentManager.edit(note) {
+      (before: LineTable, edit: TextDocumentContentChangeEvent) in
       let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       req[keys.request] = self.requests.editor_replacetext
       req[keys.name] = note.textDocument.uri.pseudoPath
 
       if let range = edit.range {
-        guard let offset = before.utf8Offset(of: range.lowerBound),
-          let end = before.utf8Offset(of: range.upperBound)
+        guard let offset = before.utf8OffsetOf(line: range.lowerBound.line, utf16Column: range.lowerBound.utf16index),
+              let end = before.utf8OffsetOf(line: range.upperBound.line, utf16Column: range.upperBound.utf16index)
         else {
           fatalError("invalid edit \(range)")
         }
@@ -575,7 +537,7 @@ extension SwiftLanguageServer {
         edits.append(IncrementalEdit(offset: offset, length: length, replacementLength: edit.text.utf8.count))
       } else {
         // Full text
-        let length = before.text.utf8.count
+        let length = before.content.utf8.count
         req[keys.offset] = 0
         req[keys.length] = length
 
@@ -586,17 +548,15 @@ extension SwiftLanguageServer {
       lastResponse = try? self.sourcekitd.sendSync(req)
 
       self.adjustDiagnosticRanges(of: note.textDocument.uri, for: edit)
-    } updateDocumentTokens: { (after: DocumentSnapshot) in
-      if lastResponse != nil {
-        return self.updateSyntaxTree(for: after, with: ConcurrentEdits(fromSequential: edits))
-      } else {
-        return DocumentTokens()
-      }
     }
+    guard let (preEditSnapshot, postEditSnapshot) = editResult else {
+      return
+    }
+    await syntaxTreeManager.registerEdit(preEditSnapshot: preEditSnapshot, postEditSnapshot: postEditSnapshot, edits: ConcurrentEdits(fromSequential: edits))
 
-    if let dict = lastResponse, let snapshot = snapshot {
+    if let dict = lastResponse {
       let compileCommand = await self.buildSettings(for: note.textDocument.uri)
-      await self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
+      await self.publishDiagnostics(response: dict, for: postEditSnapshot, compileCommand: compileCommand)
     }
   }
 
@@ -840,7 +800,7 @@ extension SwiftLanguageServer {
       return DocumentSemanticTokensResponse(data: [])
     }
 
-    let tokens = snapshot.mergedAndSortedTokens()
+    let tokens = await mergedAndSortedTokens(for: snapshot)
     let encodedTokens = tokens.lspEncoded
 
     return DocumentSemanticTokensResponse(data: encodedTokens)
@@ -859,7 +819,7 @@ extension SwiftLanguageServer {
       return DocumentSemanticTokensResponse(data: [])
     }
 
-    let tokens = snapshot.mergedAndSortedTokens(in: range)
+    let tokens = await mergedAndSortedTokens(for: snapshot, in: range)
     let encodedTokens = tokens.lspEncoded
 
     return DocumentSemanticTokensResponse(data: encodedTokens)
@@ -928,27 +888,12 @@ extension SwiftLanguageServer {
   public func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
     let foldingRangeCapabilities = capabilityRegistry.clientCapabilities.textDocument?.foldingRange
     let uri = req.textDocument.uri
-    guard var snapshot = self.documentManager.latestSnapshot(uri) else {
+    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
       log("failed to find snapshot for url \(req.textDocument.uri)")
       return nil
     }
 
-    // FIXME: (async) We might not have computed the syntax tree yet. Wait until we have a syntax tree.
-    // Really, getting the syntax tree should be an async operation.
-    while snapshot.tokens.syntaxTree == nil {
-      try? await Task.sleep(nanoseconds: 1_000_000)
-      if let newSnapshot = documentManager.latestSnapshot(uri) {
-        snapshot = newSnapshot
-      } else {
-        log("failed to find snapshot for url \(req.textDocument.uri)")
-        return nil
-      }
-    }
-
-    guard let sourceFile = snapshot.tokens.syntaxTree else {
-      log("no lexical structure available for url \(req.textDocument.uri)")
-      return nil
-    }
+    let sourceFile = await syntaxTreeManager.syntaxTree(for: snapshot)
 
     final class FoldingRangeFinder: SyntaxVisitor {
       private let snapshot: DocumentSnapshot
