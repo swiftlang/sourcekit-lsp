@@ -792,39 +792,6 @@ extension SwiftLanguageServer {
     return colorInformation(array: results)
   }
 
-  public func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse? {
-    let uri = req.textDocument.uri
-
-    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-      log("failed to find snapshot for uri \(uri)")
-      return DocumentSemanticTokensResponse(data: [])
-    }
-
-    let tokens = await mergedAndSortedTokens(for: snapshot)
-    let encodedTokens = tokens.lspEncoded
-
-    return DocumentSemanticTokensResponse(data: encodedTokens)
-  }
-
-  public func documentSemanticTokensDelta(_ req: DocumentSemanticTokensDeltaRequest) async throws -> DocumentSemanticTokensDeltaResponse? {
-    return nil
-  }
-
-  public func documentSemanticTokensRange(_ req: DocumentSemanticTokensRangeRequest) async throws -> DocumentSemanticTokensResponse? {
-    let uri = req.textDocument.uri
-    let range = req.range
-
-    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-      log("failed to find snapshot for uri \(uri)")
-      return DocumentSemanticTokensResponse(data: [])
-    }
-
-    let tokens = await mergedAndSortedTokens(for: snapshot, in: range)
-    let encodedTokens = tokens.lspEncoded
-
-    return DocumentSemanticTokensResponse(data: encodedTokens)
-  }
-
   public func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
     let color = req.color
     // Empty string as a label breaks VSCode color picker
