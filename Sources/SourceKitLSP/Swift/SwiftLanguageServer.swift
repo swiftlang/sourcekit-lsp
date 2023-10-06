@@ -205,15 +205,14 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     for snapshot: DocumentSnapshot
   ) -> [SyntaxHighlightingToken]? {
     logExecutionTime(level: .debug) {
-      if let skTokens: SKDResponseArray = response[keys.annotations] {
-        let tokenParser = SyntaxHighlightingTokenParser(sourcekitd: sourcekitd)
-        var tokens: [SyntaxHighlightingToken] = []
-        tokenParser.parseTokens(skTokens, in: snapshot, into: &tokens)
-
-        return tokens
+      guard let skTokens: SKDResponseArray = response[keys.annotations] else {
+        return nil
       }
+      let tokenParser = SyntaxHighlightingTokenParser(sourcekitd: sourcekitd)
+      var tokens: [SyntaxHighlightingToken] = []
+      tokenParser.parseTokens(skTokens, in: snapshot, into: &tokens)
 
-      return nil
+      return tokens
     }
   }
 
