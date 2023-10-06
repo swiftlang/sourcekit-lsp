@@ -111,6 +111,10 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   let sourcekitd: SourceKitD
 
+  /// Queue on which notifications from sourcekitd are handled to ensure we are
+  /// handling them in-order.
+  let sourcekitdNotificationHandlingQueue = AsyncQueue(.serial)
+
   let capabilityRegistry: CapabilityRegistry
 
   let serverOptions: SourceKitServer.Options
@@ -1376,14 +1380,13 @@ extension SwiftLanguageServer {
 }
 
 extension SwiftLanguageServer: SKDNotificationHandler {
-  // FIXME: (async) Make this method isolated once `SKDNotificationHandler` has ben asyncified
   public nonisolated func notification(_ notification: SKDResponse) {
-    Task {
-      await notificationImpl(notification)
+    sourcekitdNotificationHandlingQueue.async {
+      await self.notificationImpl(notification)
     }
   }
 
-  public func notificationImpl(_ notification: SKDResponse) async {
+  private func notificationImpl(_ notification: SKDResponse) async {
     // Check if we need to update our `state` based on the contents of the notification.
     if notification.value?[self.keys.notification] == self.values.notification_sema_enabled {
       self.state = .connected
@@ -1402,7 +1405,7 @@ extension SwiftLanguageServer: SKDNotificationHandler {
       }
     }
 
-    if case .connectionInterrupted = notification.error {
+    if notification.error == .connectionInterrupted {
       self.state = .connectionInterrupted
 
       // We don't have any open documents anymore after sourcekitd crashed.

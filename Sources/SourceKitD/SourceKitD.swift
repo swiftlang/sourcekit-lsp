@@ -45,7 +45,7 @@ public protocol SourceKitD: AnyObject {
   func removeNotificationHandler(_ handler: SKDNotificationHandler)
 }
 
-public enum SKDError:Error {
+public enum SKDError: Error, Equatable {
   /// The service has crashed.
   case connectionInterrupted
 
