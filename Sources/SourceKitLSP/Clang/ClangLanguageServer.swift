@@ -299,7 +299,12 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
         return
       }
 
-      await sourceKitServer.sendRequestToClient(request.params, reply: request.reply)
+      do {
+        let result = try await sourceKitServer.sendRequestToClient(request.params)
+        request.reply(.success(result))
+      } catch {
+        request.reply(.failure(ResponseError(error)))
+      }
     }
   }
 

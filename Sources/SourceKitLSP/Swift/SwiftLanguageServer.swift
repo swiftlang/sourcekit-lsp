@@ -95,17 +95,6 @@ public struct SwiftCompileCommand: Equatable {
 }
 
 public actor SwiftLanguageServer: ToolchainLanguageServer {
-
-  // FIXME: (async) We can delete this after
-  // - CodeCompletionSession is an actor
-  // - sourcekitd.send is async
-  // - client.send is async
-  /// The queue on which we want to be called back. This includes
-  /// - Completion callback from sourcekitd
-  /// - Sending requests to the editor
-  /// - Guarding the state of `CodeCompletionSession`
-  public let queue: DispatchQueue = DispatchQueue(label: "swift-language-server-queue", qos: .userInitiated)
-
   /// The ``SourceKitServer`` instance that created this `ClangLanguageServerShim`.
   private weak var sourceKitServer: SourceKitServer?
 
@@ -227,8 +216,10 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
       return
     }
     if capabilityRegistry.clientHasSemanticTokenRefreshSupport {
-      _ = await sourceKitServer.sendRequestToClient(WorkspaceSemanticTokensRefreshRequest()) { result in
-        if let error = result.failure {
+      Task {
+        do {
+          _ = try await sourceKitServer.sendRequestToClient(WorkspaceSemanticTokensRefreshRequest())
+        } catch {
           log("refreshing tokens failed: \(error)", level: .warning)
         }
       }

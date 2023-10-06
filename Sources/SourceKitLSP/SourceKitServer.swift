@@ -249,14 +249,8 @@ public actor SourceKitServer {
   private func handleRequest<R: RequestType>(_ request: Request<R>, handler: (R) async throws -> R.Response) async {
     do {
       request.reply(try await handler(request.params))
-    } catch let error as ResponseError {
-      request.reply(.failure(error))
-    } catch let error as SKDError {
-      request.reply(.failure(ResponseError(error)))
-    } catch is CancellationError {
-      request.reply(.failure(.cancelled))
     } catch {
-      request.reply(.failure(.unknown("Unknown error: \(error)")))
+      request.reply(.failure(ResponseError(error)))
     }
   }
 
@@ -281,18 +275,6 @@ public actor SourceKitServer {
   /// Send the given notification to the editor.
   public func sendNotificationToClient(_ notification: some NotificationType) {
     client.send(notification)
-  }
-
-  /// Send the given request to the editor.
-  ///
-  /// Return the result via the `reply` completion handler. `reply` is guaranteed
-  /// to be called exactly once.
-  // FIXME: (async) Remove when all callers use the async version
-  public func sendRequestToClient<R: RequestType>(_ request: R, reply: @escaping (LSPResult<R.Response>) -> Void) {
-    _ = client.send(request, queue: clientCommunicationQueue) { result in
-      reply(result)
-    }
-    // FIXME: (async) Handle cancellation
   }
 
   /// Send the given request to the editor.

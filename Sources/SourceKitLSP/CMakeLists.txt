@@ -4,6 +4,7 @@ add_library(SourceKitLSP STATIC
   DocumentManager.swift
   IndexStoreDB+MainFilesProvider.swift
   RangeAdjuster.swift
+  ResponseError+Init.swift
   Sequence+AsyncMap.swift
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
