@@ -198,11 +198,10 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   private func updateSyntacticTokens(
     for snapshot: DocumentSnapshot
   ) {
-    let uri = snapshot.document.uri
     let docTokens = updateSyntaxTree(for: snapshot)
 
     do {
-      try documentManager.updateTokens(uri, tokens: docTokens)
+      try documentManager.updateTokens(snapshot.uri, tokens: docTokens)
     } catch {
       log("Updating lexical and syntactic tokens failed: \(error)", level: .warning)
     }
@@ -240,11 +239,10 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     response: SKDResponseDictionary,
     for snapshot: DocumentSnapshot
   ) {
-    let uri = snapshot.document.uri
     let docTokens = updatedSemanticTokens(response: response, for: snapshot)
 
     do {
-      try documentManager.updateTokens(uri, tokens: docTokens)
+      try documentManager.updateTokens(snapshot.uri, tokens: docTokens)
     } catch {
       log("Updating semantic tokens failed: \(error)", level: .warning)
     }
@@ -322,12 +320,12 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     }
 
     let result = mergeDiagnostics(
-      old: currentDiagnostics[snapshot.document.uri] ?? [],
+      old: currentDiagnostics[snapshot.uri] ?? [],
       new: newDiags,
       stage: stage,
       isFallback: isFromFallbackBuildSettings
     )
-    currentDiagnostics[snapshot.document.uri] = result
+    currentDiagnostics[snapshot.uri] = result
 
     return result.map(\.diagnostic)
 
@@ -340,7 +338,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     for snapshot: DocumentSnapshot,
     compileCommand: SwiftCompileCommand?
   ) async {
-    let documentUri = snapshot.document.uri
+    let documentUri = snapshot.uri
     guard diagnosticsEnabled(for: documentUri) else {
       log("Ignoring diagnostics for blacklisted file \(documentUri.pseudoPath)", level: .debug)
       return
@@ -460,8 +458,7 @@ extension SwiftLanguageServer {
 
   private func reopenDocument(_ snapshot: DocumentSnapshot, _ compileCmd: SwiftCompileCommand?) async {
     let keys = self.keys
-    let uri = snapshot.document.uri
-    let path = uri.pseudoPath
+    let path = snapshot.uri.pseudoPath
 
     let closeReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     closeReq[keys.request] = self.requests.editor_close
@@ -516,13 +513,12 @@ extension SwiftLanguageServer {
       return
     }
 
-    let uri = snapshot.document.uri
     let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     req[keys.request] = self.requests.editor_open
     req[keys.name] = note.textDocument.uri.pseudoPath
     req[keys.sourcetext] = snapshot.text
 
-    let compileCommand = await self.buildSettings(for: uri)
+    let compileCommand = await self.buildSettings(for: snapshot.uri)
 
     if let compilerArgs = compileCommand?.compilerArgs {
       req[keys.compilerargs] = compilerArgs
@@ -673,7 +669,7 @@ extension SwiftLanguageServer {
       throw ResponseError.unknown(msg)
     }
 
-    let helperDocumentName = "DocumentSymbols:" + snapshot.document.uri.pseudoPath
+    let helperDocumentName = "DocumentSymbols:" + snapshot.uri.pseudoPath
     let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     skreq[keys.request] = self.requests.editor_open
     skreq[keys.name] = helperDocumentName
@@ -753,7 +749,7 @@ extension SwiftLanguageServer {
       return []
     }
 
-    let helperDocumentName = "DocumentColor:" + snapshot.document.uri.pseudoPath
+    let helperDocumentName = "DocumentColor:" + snapshot.uri.pseudoPath
     let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     skreq[keys.request] = self.requests.editor_open
     skreq[keys.name] = helperDocumentName
@@ -895,10 +891,10 @@ extension SwiftLanguageServer {
     let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     skreq[keys.request] = self.requests.relatedidents
     skreq[keys.offset] = offset
-    skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
+    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
 
     // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = await self.buildSettings(for: snapshot.document.uri) {
+    if let compileCommand = await self.buildSettings(for: snapshot.uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
@@ -1117,7 +1113,7 @@ extension SwiftLanguageServer {
 
         guard let start: Position = snapshot.positionOf(utf8Offset: start),
               let end: Position = snapshot.positionOf(utf8Offset: end) else {
-          log("folding range failed to retrieve position of \(snapshot.document.uri): \(start)-\(end)", level: .warning)
+          log("folding range failed to retrieve position of \(snapshot.uri): \(start)-\(end)", level: .warning)
           return .visitChildren
         }
         let range: FoldingRange
@@ -1324,7 +1320,7 @@ extension SwiftLanguageServer {
 
     let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     skreq[keys.request] = requests.diagnostics
-    skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
+    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
 
     // FIXME: SourceKit should probably cache this for us.
     let areFallbackBuildSettings: Bool

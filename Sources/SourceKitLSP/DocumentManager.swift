@@ -22,7 +22,8 @@ import SKSupport
 /// ``Document``. The purpose of a ``DocumentSnapshot`` is to be able to work
 /// with one version of a document without having to think about it changing.
 public struct DocumentSnapshot {
-  public let document: Document
+  public let uri: DocumentURI
+  public let language: Language
   public let version: Int
   public let lineTable: LineTable
   /// Syntax highlighting tokens for the document. Note that
@@ -33,12 +34,14 @@ public struct DocumentSnapshot {
   public var text: String { lineTable.content }
 
   public init(
-    document: Document,
+    uri: DocumentURI,
+    language: Language,
     version: Int,
     lineTable: LineTable,
     tokens: DocumentTokens
   ) {
-    self.document = document
+    self.uri = uri
+    self.language = language
     self.version = version
     self.lineTable = lineTable
     self.tokens = tokens
@@ -67,7 +70,8 @@ public final class Document {
   /// **Not thread safe!** Use `DocumentManager.latestSnapshot` instead.
   fileprivate var latestSnapshot: DocumentSnapshot {
     DocumentSnapshot(
-      document: self,
+      uri: self.uri,
+      language: self.language,
       version: latestVersion,
       lineTable: latestLineTable,
       tokens: latestTokens

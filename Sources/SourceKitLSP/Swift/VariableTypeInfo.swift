@@ -111,7 +111,7 @@ extension SwiftLanguageServer {
 
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.variable_type
-    skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
+    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
 
     if let range = range,
        let start = snapshot.utf8Offset(of: range.lowerBound),

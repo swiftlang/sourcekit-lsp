@@ -41,7 +41,7 @@ actor CodeCompletionSession {
     case open
   }
 
-  nonisolated var uri: DocumentURI { snapshot.document.uri }
+  nonisolated var uri: DocumentURI { snapshot.uri }
 
   init(
     server: SwiftLanguageServer,
@@ -174,7 +174,7 @@ actor CodeCompletionSession {
     let keys = server.sourcekitd.keys
     req[keys.request] = server.sourcekitd.requests.codecomplete_close
     req[keys.offset] = self.utf8StartOffset
-    req[keys.name] = self.snapshot.document.uri.pseudoPath
+    req[keys.name] = self.snapshot.uri.pseudoPath
     log("\(Self.self) Closing: \(self)")
     _ = try? server.sourcekitd.sendSync(req)
   }
