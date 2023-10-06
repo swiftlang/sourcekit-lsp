@@ -498,77 +498,71 @@ extension ClangLanguageServerShim {
 
 
   /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
-  public func definition(_ req: Request<DefinitionRequest>) -> Bool {
+  public func definition(_ req: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
     // We handle it to provide jump-to-header support for #import/#include.
-    self.forwardRequestToClangd(req)
-    return true
+    return try await self.forwardRequestToClangd(req)
   }
 
-  /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
-  public func declaration(_ req: Request<DeclarationRequest>) -> Bool {
-    // We handle it to provide jump-to-header support for #import/#include.
-    forwardRequestToClangd(req)
-    return true
+  public func declaration(_ req: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
+    return try await forwardRequestToClangd(req)
   }
 
-  func completion(_ req: Request<CompletionRequest>) {
-    forwardRequestToClangd(req)
+  func completion(_ req: CompletionRequest) async throws -> CompletionList {
+    return try await forwardRequestToClangd(req)
   }
 
-  func hover(_ req: Request<HoverRequest>) {
-    forwardRequestToClangd(req)
+  func hover(_ req: HoverRequest) async throws -> HoverResponse? {
+    return try await forwardRequestToClangd(req)
   }
 
-  func symbolInfo(_ req: Request<SymbolInfoRequest>) {
-    forwardRequestToClangd(req)
+  func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
+    return try await forwardRequestToClangd(req)
   }
 
-  func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) {
-    forwardRequestToClangd(req)
+  func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
+    return try await forwardRequestToClangd(req)
   }
 
-  func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
-    forwardRequestToClangd(req)
+  func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
+    return try await forwardRequestToClangd(req)
   }
 
-  func documentColor(_ req: Request<DocumentColorRequest>) {
-    if self.capabilities?.colorProvider?.isSupported == true {
-      forwardRequestToClangd(req)
-    } else {
-      req.reply(.success([]))
+  func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
+    guard self.capabilities?.colorProvider?.isSupported ?? false else {
+      return []
     }
+    return try await forwardRequestToClangd(req)
   }
 
-  func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) {
-    forwardRequestToClangd(req)
+  func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse? {
+    return try await forwardRequestToClangd(req)
   }
 
-  func documentSemanticTokensDelta(_ req: Request<DocumentSemanticTokensDeltaRequest>) {
-    forwardRequestToClangd(req)
+  func documentSemanticTokensDelta(_ req: DocumentSemanticTokensDeltaRequest) async throws -> DocumentSemanticTokensDeltaResponse? {
+    return try await forwardRequestToClangd(req)
   }
 
-  func documentSemanticTokensRange(_ req: Request<DocumentSemanticTokensRangeRequest>) {
-    forwardRequestToClangd(req)
+  func documentSemanticTokensRange(_ req: DocumentSemanticTokensRangeRequest) async throws -> DocumentSemanticTokensResponse? {
+    return try await forwardRequestToClangd(req)
   }
 
-  func colorPresentation(_ req: Request<ColorPresentationRequest>) {
-    if self.capabilities?.colorProvider?.isSupported == true {
-      forwardRequestToClangd(req)
-    } else {
-      req.reply(.success([]))
+  func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
+    guard self.capabilities?.colorProvider?.isSupported ?? false else {
+      return []
     }
+    return try await forwardRequestToClangd(req)
   }
 
-  func codeAction(_ req: Request<CodeActionRequest>) {
-    forwardRequestToClangd(req)
+  func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
+    return try await forwardRequestToClangd(req)
   }
 
-  func inlayHint(_ req: Request<InlayHintRequest>) {
-    forwardRequestToClangd(req)
+  func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
+    return try await forwardRequestToClangd(req)
   }
 
-  func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) {
-    forwardRequestToClangd(req)
+  func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
+    return try await forwardRequestToClangd(req)
   }
 
   func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
@@ -578,14 +572,14 @@ extension ClangLanguageServerShim {
     return try await forwardRequestToClangd(req)
   }
 
-  func openInterface(_ request: Request<OpenInterfaceRequest>) {
-    request.reply(.failure(.unknown("unsupported method")))
+  func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails? {
+    throw ResponseError.unknown("unsupported method")
   }
 
   // MARK: - Other
 
-  func executeCommand(_ req: Request<ExecuteCommandRequest>) {
-    forwardRequestToClangd(req)
+  func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
+    return try await forwardRequestToClangd(req)
   }
 }
 

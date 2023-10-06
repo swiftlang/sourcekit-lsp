@@ -17,52 +17,55 @@ import Foundation
 
 extension SwiftLanguageServer {
 
-  public func completion(_ req: Request<CompletionRequest>) async {
-    guard let snapshot = documentManager.latestSnapshot(req.params.textDocument.uri) else {
-      log("failed to find snapshot for url \(req.params.textDocument.uri)")
-      req.reply(CompletionList(isIncomplete: true, items: []))
-      return
+  public func completion(_ req: CompletionRequest) async throws -> CompletionList {
+    guard let snapshot = documentManager.latestSnapshot(req.textDocument.uri) else {
+      log("failed to find snapshot for url \(req.textDocument.uri)")
+      return CompletionList(isIncomplete: true, items: [])
     }
 
-    guard let completionPos = adjustCompletionLocation(req.params.position, in: snapshot) else {
-      log("invalid completion position \(req.params.position)")
-      req.reply(CompletionList(isIncomplete: true, items: []))
-      return
+    guard let completionPos = adjustCompletionLocation(req.position, in: snapshot) else {
+      log("invalid completion position \(req.position)")
+      return CompletionList(isIncomplete: true, items: [])
     }
 
     guard let offset = snapshot.utf8Offset(of: completionPos) else {
-      log("invalid completion position \(req.params.position) (adjusted: \(completionPos)")
-      req.reply(CompletionList(isIncomplete: true, items: []))
-      return
+      log("invalid completion position \(req.position) (adjusted: \(completionPos)")
+      return CompletionList(isIncomplete: true, items: [])
     }
 
-    let options = req.params.sourcekitlspOptions ?? serverOptions.completionOptions
+    let options = req.sourcekitlspOptions ?? serverOptions.completionOptions
 
     if options.serverSideFiltering {
-      await _completionWithServerFiltering(offset: offset, completionPos: completionPos, snapshot: snapshot, request: req, options: options)
+      return try await completionWithServerFiltering(offset: offset, completionPos: completionPos, snapshot: snapshot, request: req, options: options)
     } else {
-      await _completionWithClientFiltering(offset: offset, completionPos: completionPos, snapshot: snapshot, request: req, options: options)
+      return try await completionWithClientFiltering(offset: offset, completionPos: completionPos, snapshot: snapshot, request: req, options: options)
     }
   }
 
-  func _completionWithServerFiltering(offset: Int, completionPos: Position, snapshot: DocumentSnapshot, request req: Request<CompletionRequest>, options: SKCompletionOptions) async {
+  private func completionWithServerFiltering(
+    offset: Int,
+    completionPos: Position,
+    snapshot: DocumentSnapshot,
+    request req: CompletionRequest,
+    options: SKCompletionOptions
+  ) async throws -> CompletionList {
     guard let start = snapshot.indexOf(utf8Offset: offset),
-          let end = snapshot.index(of: req.params.position) else {
-      log("invalid completion position \(req.params.position)")
-      return req.reply(CompletionList(isIncomplete: true, items: []))
+          let end = snapshot.index(of: req.position) else {
+      log("invalid completion position \(req.position)")
+      return CompletionList(isIncomplete: true, items: [])
     }
 
     let filterText = String(snapshot.text[start..<end])
 
     let session: CodeCompletionSession
-    if req.params.context?.triggerKind == .triggerFromIncompleteCompletions {
+    if req.context?.triggerKind == .triggerFromIncompleteCompletions {
       guard let currentSession = currentCompletionSession else {
         log("triggerFromIncompleteCompletions with no existing completion session", level: .warning)
-        return req.reply(.failure(.serverCancelled))
+        throw ResponseError.serverCancelled
       }
       guard currentSession.uri == snapshot.document.uri, currentSession.utf8StartOffset == offset else {
         log("triggerFromIncompleteCompletions with incompatible completion session; expected \(currentSession.uri)@\(currentSession.utf8StartOffset), but got \(snapshot.document.uri)@\(offset)", level: .warning)
-        return req.reply(.failure(.serverCancelled))
+        throw ResponseError.serverCancelled
       }
       session = currentSession
     } else {
@@ -75,14 +78,20 @@ extension SwiftLanguageServer {
         position: completionPos,
         compileCommand: await buildSettings(for: snapshot.document.uri))
 
-      currentCompletionSession?.close()
+      await currentCompletionSession?.close()
       currentCompletionSession = session
     }
 
-    session.update(filterText: filterText, position: req.params.position, in: snapshot, options: options, completion: req.reply)
+    return try await session.update(filterText: filterText, position: req.position, in: snapshot, options: options)
   }
 
-  func _completionWithClientFiltering(offset: Int, completionPos: Position, snapshot: DocumentSnapshot, request req: Request<CompletionRequest>, options: SKCompletionOptions) async {
+  private func completionWithClientFiltering(
+    offset: Int,
+    completionPos: Position,
+    snapshot: DocumentSnapshot,
+    request req: CompletionRequest,
+    options: SKCompletionOptions
+  ) async throws -> CompletionList {
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.codecomplete
     skreq[keys.offset] = offset
@@ -98,23 +107,15 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let handle = sourcekitd.send(skreq, queue) { [weak self] result in
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        req.reply(.failure(ResponseError(result.failure!)))
-        return
-      }
+    let dict = try await sourcekitd.send(skreq)
 
-      guard let completions: SKDResponseArray = dict[self.keys.results] else {
-        req.reply(CompletionList(isIncomplete: false, items: []))
-        return
-      }
-
-      req.reply(.success(self.completionsFromSKDResponse(completions, in: snapshot, completionPos: completionPos, requestPosition: req.params.position, isIncomplete: false)))
+    guard let completions: SKDResponseArray = dict[self.keys.results] else {
+      return CompletionList(isIncomplete: false, items: [])
     }
 
-    // FIXME: cancellation
-    _ = handle
+    try Task.checkCancellation()
+
+    return self.completionsFromSKDResponse(completions, in: snapshot, completionPos: completionPos, requestPosition: req.position, isIncomplete: false)
   }
 
   nonisolated func completionsFromSKDResponse(
@@ -187,7 +188,7 @@ extension SwiftLanguageServer {
   }
 
   /// Adjust completion position to the start of identifier characters.
-  func adjustCompletionLocation(_ pos: Position, in snapshot: DocumentSnapshot) -> Position? {
+  private func adjustCompletionLocation(_ pos: Position, in snapshot: DocumentSnapshot) -> Position? {
     guard pos.line < snapshot.lineTable.count else {
       // Line out of range.
       return nil

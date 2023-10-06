@@ -20,43 +20,32 @@ struct InterfaceInfo {
   var contents: String
 }
 
-struct FindUSRInfo {
-  let position: Position?
-}
-
 extension SwiftLanguageServer {
-  public func openInterface(_ request: LanguageServerProtocol.Request<LanguageServerProtocol.OpenInterfaceRequest>) async {
-    let uri = request.params.textDocument.uri
-    let moduleName = request.params.moduleName
-    let name = request.params.name
-    let symbol = request.params.symbolUSR
+  public func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails? {
+    let uri = request.textDocument.uri
+    let moduleName = request.moduleName
+    let name = request.name
+    let symbol = request.symbolUSR
     let interfaceFilePath = self.generatedInterfacesPath.appendingPathComponent("\(name).swiftinterface")
     let interfaceDocURI = DocumentURI(interfaceFilePath)
     // has interface already been generated
     if let snapshot = self.documentManager.latestSnapshot(interfaceDocURI) {
-      self._findUSRAndRespond(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
+      return await self.interfaceDetails(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
     } else {
       // generate interface
-      await self._openInterface(request: request, uri: uri, name: moduleName, interfaceURI: interfaceDocURI) { result in
-        switch result {
-        case .success(let interfaceInfo):
-          do {
-            // write to file
-            try interfaceInfo.contents.write(to: interfaceFilePath, atomically: true, encoding: String.Encoding.utf8)
-            // store snapshot
-            let snapshot = try self.documentManager.open(interfaceDocURI, language: .swift, version: 0, text: interfaceInfo.contents)
-            self._findUSRAndRespond(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
-          } catch {
-            request.reply(.failure(ResponseError.unknown(error.localizedDescription)))
-          }
-        case .failure(let error):
-          log("open interface failed: \(error)", level: .warning)
-          request.reply(.failure(ResponseError(error)))
-        }
+      let interfaceInfo = try await self.openInterface(request: request, uri: uri, name: moduleName, interfaceURI: interfaceDocURI)
+      do {
+        // write to file
+        try interfaceInfo.contents.write(to: interfaceFilePath, atomically: true, encoding: String.Encoding.utf8)
+        // store snapshot
+        let snapshot = try self.documentManager.open(interfaceDocURI, language: .swift, version: 0, text: interfaceInfo.contents)
+        return await self.interfaceDetails(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
+      } catch {
+        throw ResponseError.unknown(error.localizedDescription)
       }
     }
   }
-    
+
   /// Open the Swift interface for a module.
   ///
   /// - Parameters:
@@ -64,18 +53,18 @@ extension SwiftLanguageServer {
   ///   - uri: The document whose compiler arguments should be used to generate the interface.
   ///   - name: The name of the module whose interface should be generated.
   ///   - interfaceURI: The file where the generated interface should be written.
-  ///   - completion: Completion block to asynchronously receive the InterfaceInfo, or error.
-  private func _openInterface(request: LanguageServerProtocol.Request<LanguageServerProtocol.OpenInterfaceRequest>,
-                              uri: DocumentURI,
-                              name: String,
-                              interfaceURI: DocumentURI,
-                              completion: @escaping (Swift.Result<InterfaceInfo, SKDError>) -> Void) async {
+  private func openInterface(
+    request: OpenInterfaceRequest,
+    uri: DocumentURI,
+    name: String,
+    interfaceURI: DocumentURI
+  ) async throws -> InterfaceInfo {
     let keys = self.keys
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.editor_open_interface
     skreq[keys.modulename] = name
-    if request.params.groupNames.count > 0 {
-      skreq[keys.groupname] = request.params.groupNames
+    if request.groupNames.count > 0 {
+      skreq[keys.groupname] = request.groupNames
     }
     skreq[keys.name] = interfaceURI.pseudoPath
     skreq[keys.synthesizedextensions] = 1
@@ -83,73 +72,36 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
     
-    let handle = self.sourcekitd.send(skreq, self.queue) { result in
-      switch result {
-      case .success(let dict):
-        return completion(.success(InterfaceInfo(contents: dict[keys.sourcetext] ?? "")))
-      case .failure(let error):
-        return completion(.failure(error))
-      }
-    }
-    
-    if let handle = handle {
-      request.cancellationToken.addCancellationHandler { [weak self] in
-        self?.sourcekitd.cancel(handle)
-      }
-    }
+    let dict = try await self.sourcekitd.send(skreq)
+    return InterfaceInfo(contents: dict[keys.sourcetext] ?? "")
   }
   
-  private func _findUSRAndRespond(
-    request: LanguageServerProtocol.Request<LanguageServerProtocol.OpenInterfaceRequest>, 
-    uri: DocumentURI, 
+  private func interfaceDetails(
+    request: OpenInterfaceRequest,
+    uri: DocumentURI,
     snapshot: DocumentSnapshot,
     symbol: String?
-  ) {
-    self._findUSR(request: request, uri: uri, snapshot: snapshot, symbol: symbol) { result in
-      switch result {
-        case .success(let info):
-          request.reply(.success(InterfaceDetails(uri: uri, position: info.position)))
-        case .failure:
-          request.reply(.success(InterfaceDetails(uri: uri, position: nil)))
+  ) async -> InterfaceDetails {
+    do {
+      guard let symbol = symbol else {
+        return InterfaceDetails(uri: uri, position: nil)
       }
-    }
-  }
+      let keys = self.keys
+      let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
 
-  private func _findUSR(
-    request: LanguageServerProtocol.Request<LanguageServerProtocol.OpenInterfaceRequest>, 
-    uri: DocumentURI, 
-    snapshot: DocumentSnapshot,
-    symbol: String?,
-    completion: @escaping (Swift.Result<FindUSRInfo, SKDError>) -> Void
-  ) {
-    guard let symbol = symbol else {
-      return completion(.success(FindUSRInfo(position: nil)))
-    }
-    let keys = self.keys
-    let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
+      skreq[keys.request] = requests.find_usr
+      skreq[keys.sourcefile] = uri.pseudoPath
+      skreq[keys.usr] = symbol
 
-    skreq[keys.request] = requests.find_usr
-    skreq[keys.sourcefile] = uri.pseudoPath
-    skreq[keys.usr] = symbol
-    
-    let handle = self.sourcekitd.send(skreq, self.queue) { result in
-      switch result {
-      case .success(let dict):
-        if let offset: Int = dict[keys.offset],
-          let position = snapshot.positionOf(utf8Offset: offset) {
-            return completion(.success(FindUSRInfo(position: position)))
-        } else {
-          return completion(.success(FindUSRInfo(position: nil)))
-        } 
-      case .failure(let error):
-        return completion(.failure(error))
+      let dict = try await self.sourcekitd.send(skreq)
+      if let offset: Int = dict[keys.offset],
+         let position = snapshot.positionOf(utf8Offset: offset) {
+        return InterfaceDetails(uri: uri, position: position)
+      } else {
+        return InterfaceDetails(uri: uri, position: nil)
       }
-    }
-    
-    if let handle = handle {
-      request.cancellationToken.addCancellationHandler { [weak self] in
-        self?.sourcekitd.cancel(handle)
-      }
+    } catch {
+      return InterfaceDetails(uri: uri, position: nil)
     }
   }
 }

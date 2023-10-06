@@ -78,30 +78,30 @@ public protocol ToolchainLanguageServer: AnyObject {
 
   // MARK: - Text Document
 
-  func completion(_ req: Request<CompletionRequest>) async
-  func hover(_ req: Request<HoverRequest>) async
-  func symbolInfo(_ request: Request<SymbolInfoRequest>) async
-  func openInterface(_ request: Request<OpenInterfaceRequest>) async
+  func completion(_ req: CompletionRequest) async throws -> CompletionList
+  func hover(_ req: HoverRequest) async throws -> HoverResponse?
+  func symbolInfo(_ request: SymbolInfoRequest) async throws -> [SymbolDetails]
+  func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails?
 
-  /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
-  func definition(_ request: Request<DefinitionRequest>) async -> Bool
-  func declaration(_ request: Request<DeclarationRequest>) async -> Bool
+  /// - Note: Only called as a fallback if the definition could not be found in the index.
+  func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse?
 
-  func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) async
+  func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse?
+  func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]?
   func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]?
-  func documentSymbol(_ req: Request<DocumentSymbolRequest>) async
-  func documentColor(_ req: Request<DocumentColorRequest>) async
-  func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) async
-  func documentSemanticTokensDelta(_ req: Request<DocumentSemanticTokensDeltaRequest>) async
-  func documentSemanticTokensRange(_ req: Request<DocumentSemanticTokensRangeRequest>) async
-  func colorPresentation(_ req: Request<ColorPresentationRequest>) async
-  func codeAction(_ req: Request<CodeActionRequest>) async
-  func inlayHint(_ req: Request<InlayHintRequest>) async
-  func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) async
+  func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse?
+  func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation]
+  func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse?
+  func documentSemanticTokensDelta(_ req: DocumentSemanticTokensDeltaRequest) async throws -> DocumentSemanticTokensDeltaResponse?
+  func documentSemanticTokensRange(_ req: DocumentSemanticTokensRangeRequest) async throws -> DocumentSemanticTokensResponse?
+  func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation]
+  func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse?
+  func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint]
+  func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport
 
   // MARK: - Other
 
-  func executeCommand(_ req: Request<ExecuteCommandRequest>) async
+  func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny?
 
   /// Crash the language server. Should be used for crash recovery testing only.
   func _crash() async

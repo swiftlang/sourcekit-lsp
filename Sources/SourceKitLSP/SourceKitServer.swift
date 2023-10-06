@@ -18,6 +18,7 @@ import LanguageServerProtocol
 import LSPLogging
 import SKCore
 import SKSupport
+import SourceKitD
 
 import PackageLoading
 
@@ -228,10 +229,10 @@ public actor SourceKitServer {
   /// Execute `notificationHandler` with the request as well as the workspace
   /// and language that handle this document.
   private func withLanguageServiceAndWorkspace<NotificationType: TextDocumentNotification>(
-    for notification: Notification<NotificationType>,
-    notificationHandler: @escaping (Notification<NotificationType>, ToolchainLanguageServer) async -> Void
+    for notification: NotificationType,
+    notificationHandler: @escaping (NotificationType, ToolchainLanguageServer) async -> Void
   ) async {
-    let doc = notification.params.textDocument.uri
+    let doc = notification.textDocument.uri
     guard let workspace = await self.workspaceForDocument(uri: doc) else {
       return
     }
@@ -269,29 +270,34 @@ public actor SourceKitServer {
     await requestHandler(request, workspace, languageService)
   }
 
-  private func withLanguageServiceAndWorkspace<RequestType: TextDocumentRequest>(
-    for request: Request<RequestType>,
-    requestHandler: @escaping (RequestType, Workspace, ToolchainLanguageServer) async throws -> RequestType.Response,
-    fallback: RequestType.Response
-  ) async {
-    let doc = request.params.textDocument.uri
-    guard let workspace = await self.workspaceForDocument(uri: doc) else {
-      return request.reply(.failure(.workspaceNotOpen(doc)))
-    }
-
-    guard let languageService = workspace.documentService[doc] else {
-      return request.reply(fallback)
-    }
-
+  private func handleRequest<R: RequestType>(_ request: Request<R>, handler: (R) async throws -> R.Response) async {
     do {
-      let result = try await requestHandler(request.params, workspace, languageService)
-      request.reply(.success(result))
+      request.reply(try await handler(request.params))
     } catch let error as ResponseError {
       request.reply(.failure(error))
+    } catch let error as SKDError {
+      request.reply(.failure(ResponseError(error)))
     } catch is CancellationError {
       request.reply(.failure(.cancelled))
     } catch {
       request.reply(.failure(.unknown("Unknown error: \(error)")))
+    }
+  }
+
+  private func handleRequest<RequestType: TextDocumentRequest>(
+    for request: Request<RequestType>,
+    requestHandler: @escaping (RequestType, Workspace, ToolchainLanguageServer) async throws -> RequestType.Response,
+    fallback: RequestType.Response
+  ) async {
+    await handleRequest(request) { request in
+      let doc = request.textDocument.uri
+      guard let workspace = await self.workspaceForDocument(uri: request.textDocument.uri) else {
+        throw ResponseError.workspaceNotOpen(request.textDocument.uri)
+      }
+      guard let languageService = workspace.documentService[doc] else {
+        return fallback
+      }
+      return try await requestHandler(request, workspace, languageService)
     }
   }
 
@@ -305,11 +311,22 @@ public actor SourceKitServer {
   ///
   /// Return the result via the `reply` completion handler. `reply` is guaranteed
   /// to be called exactly once.
+  // FIXME: (async) Remove when all callers use the async version
   public func sendRequestToClient<R: RequestType>(_ request: R, reply: @escaping (LSPResult<R.Response>) -> Void) {
     _ = client.send(request, queue: clientCommunicationQueue) { result in
       reply(result)
     }
     // FIXME: (async) Handle cancellation
+  }
+
+  /// Send the given request to the editor.
+  public func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
+    try await withCheckedThrowingContinuation { continuation in
+      _ = client.send(request, queue: clientCommunicationQueue) { result in
+        continuation.resume(with: result)
+      }
+      // FIXME: (async) Handle cancellation
+    }
   }
 
   func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
@@ -496,26 +513,26 @@ extension SourceKitServer: MessageHandler {
       let notification = Notification(params, clientID: clientID)
       await self._logNotification(notification)
 
-      switch notification {
-      case let notification as Notification<InitializedNotification>:
+      switch notification.params {
+      case let notification as InitializedNotification:
         await self.clientInitialized(notification)
-      case let notification as Notification<CancelRequestNotification>:
+      case let notification as CancelRequestNotification:
         await self.cancelRequest(notification)
-      case let notification as Notification<ExitNotification>:
+      case let notification as ExitNotification:
         await self.exit(notification)
-      case let notification as Notification<DidOpenTextDocumentNotification>:
+      case let notification as DidOpenTextDocumentNotification:
         await self.openDocument(notification)
-      case let notification as Notification<DidCloseTextDocumentNotification>:
+      case let notification as DidCloseTextDocumentNotification:
         await self.closeDocument(notification)
-      case let notification as Notification<DidChangeTextDocumentNotification>:
+      case let notification as DidChangeTextDocumentNotification:
         await self.changeDocument(notification)
-      case let notification as Notification<DidChangeWorkspaceFoldersNotification>:
+      case let notification as DidChangeWorkspaceFoldersNotification:
         await self.didChangeWorkspaceFolders(notification)
-      case let notification as Notification<DidChangeWatchedFilesNotification>:
+      case let notification as DidChangeWatchedFilesNotification:
         await self.didChangeWatchedFiles(notification)
-      case let notification as Notification<WillSaveTextDocumentNotification>:
+      case let notification as WillSaveTextDocumentNotification:
         await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
-      case let notification as Notification<DidSaveTextDocumentNotification>:
+      case let notification as DidSaveTextDocumentNotification:
         await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.didSaveDocument)
       default:
         break
@@ -548,65 +565,65 @@ extension SourceKitServer: MessageHandler {
 
       switch request {
       case let request as Request<InitializeRequest>:
-        await self.initialize(request)
+        await self.handleRequest(request, handler: self.initialize)
       case let request as Request<ShutdownRequest>:
-        await self.shutdown(request)
+        await self.handleRequest(request, handler: self.shutdown)
       case let request as Request<WorkspaceSymbolsRequest>:
-        await self.workspaceSymbols(request)
+        await self.handleRequest(request, handler: self.workspaceSymbols)
       case let request as Request<PollIndexRequest>:
-        await self.pollIndex(request)
+        await self.handleRequest(request, handler: self.pollIndex)
       case let request as Request<ExecuteCommandRequest>:
-        await self.executeCommand(request)
+        await self.handleRequest(request, handler: self.executeCommand)
       case let request as Request<CallHierarchyIncomingCallsRequest>:
-        await self.incomingCalls(request)
+        await self.handleRequest(request, handler: self.incomingCalls)
       case let request as Request<CallHierarchyOutgoingCallsRequest>:
-        await self.outgoingCalls(request)
+        await self.handleRequest(request, handler: self.outgoingCalls)
       case let request as Request<TypeHierarchySupertypesRequest>:
-        await self.supertypes(request)
+        await self.handleRequest(request, handler: self.supertypes)
       case let request as Request<TypeHierarchySubtypesRequest>:
-        await self.subtypes(request)
+        await self.handleRequest(request, handler: self.subtypes)
       case let request as Request<CompletionRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.completion, fallback: CompletionList(isIncomplete: false, items: []))
+        await self.handleRequest(for: request, requestHandler: self.completion, fallback: CompletionList(isIncomplete: false, items: []))
       case let request as Request<HoverRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.hover, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.hover, fallback: nil)
       case let request as Request<OpenInterfaceRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.openInterface, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.openInterface, fallback: nil)
       case let request as Request<DeclarationRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.declaration, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.declaration, fallback: nil)
       case let request as Request<DefinitionRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.definition, fallback: .locations([]))
+        await self.handleRequest(for: request, requestHandler: self.definition, fallback: .locations([]))
       case let request as Request<ReferencesRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.references, fallback: [])
+        await self.handleRequest(for: request, requestHandler: self.references, fallback: [])
       case let request as Request<ImplementationRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.implementation, fallback: .locations([]))
+        await self.handleRequest(for: request, requestHandler: self.implementation, fallback: .locations([]))
       case let request as Request<CallHierarchyPrepareRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.prepareCallHierarchy, fallback: [])
+        await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy, fallback: [])
       case let request as Request<TypeHierarchyPrepareRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.prepareTypeHierarchy, fallback: [])
+        await self.handleRequest(for: request, requestHandler: self.prepareTypeHierarchy, fallback: [])
       case let request as Request<SymbolInfoRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.symbolInfo, fallback: [])
+        await self.handleRequest(for: request, requestHandler: self.symbolInfo, fallback: [])
       case let request as Request<DocumentHighlightRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
       case let request as Request<FoldingRangeRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.foldingRange, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.foldingRange, fallback: nil)
       case let request as Request<DocumentSymbolRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSymbol, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.documentSymbol, fallback: nil)
       case let request as Request<DocumentColorRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentColor, fallback: [])
+        await self.handleRequest(for: request, requestHandler: self.documentColor, fallback: [])
       case let request as Request<DocumentSemanticTokensRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokens, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.documentSemanticTokens, fallback: nil)
       case let request as Request<DocumentSemanticTokensDeltaRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokensDelta, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensDelta, fallback: nil)
       case let request as Request<DocumentSemanticTokensRangeRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentSemanticTokensRange, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensRange, fallback: nil)
       case let request as Request<ColorPresentationRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.colorPresentation, fallback: [])
+        await self.handleRequest(for: request, requestHandler: self.colorPresentation, fallback: [])
       case let request as Request<CodeActionRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.codeAction, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.codeAction, fallback: nil)
       case let request as Request<InlayHintRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.inlayHint, fallback: [])
+        await self.handleRequest(for: request, requestHandler: self.inlayHint, fallback: [])
       case let request as Request<DocumentDiagnosticsRequest>:
-        await self.withLanguageServiceAndWorkspace(for: request, requestHandler: self.documentDiagnostic, fallback: .full(.init(items: [])))
+        await self.handleRequest(for: request, requestHandler: self.documentDiagnostic, fallback: .full(.init(items: [])))
       default:
         reply(.failure(ResponseError.methodNotFound(R.method)))
       }
@@ -743,8 +760,8 @@ extension SourceKitServer {
     )
   }
 
-  func initialize(_ req: Request<InitializeRequest>) async {
-    if case .dictionary(let options) = req.params.initializationOptions {
+  func initialize(_ req: InitializeRequest) async throws -> InitializeResult {
+    if case .dictionary(let options) = req.initializationOptions {
       if case .bool(let listenToUnitEvents) = options["listenToUnitEvents"] {
         self.options.indexOptions.listenToUnitEvents = listenToUnitEvents
       }
@@ -765,15 +782,15 @@ extension SourceKitServer {
       }
     }
 
-    capabilityRegistry = CapabilityRegistry(clientCapabilities: req.params.capabilities)
+    capabilityRegistry = CapabilityRegistry(clientCapabilities: req.capabilities)
 
-    if let workspaceFolders = req.params.workspaceFolders {
+    if let workspaceFolders = req.workspaceFolders {
       self.workspaces += await workspaceFolders.asyncCompactMap { await self.createWorkspace(uri: $0.uri) }
-    } else if let uri = req.params.rootURI {
+    } else if let uri = req.rootURI {
       if let workspace = await self.createWorkspace(uri: uri) {
         self.workspaces.append(workspace)
       }
-    } else if let path = req.params.rootPath {
+    } else if let path = req.rootPath {
       if let workspace = await self.createWorkspace(uri: DocumentURI(URL(fileURLWithPath: path))) {
         self.workspaces.append(workspace)
       }
@@ -784,7 +801,7 @@ extension SourceKitServer {
 
       let workspace = await Workspace(
         documentManager: self.documentManager,
-        rootUri: req.params.rootURI,
+        rootUri: req.rootURI,
         capabilityRegistry: self.capabilityRegistry!,
         toolchainRegistry: self.toolchainRegistry,
         buildSetup: self.options.buildSetup,
@@ -807,8 +824,12 @@ extension SourceKitServer {
       await workspace.buildSystemManager.setDelegate(self)
     }
 
-    req.reply(InitializeResult(capabilities:
-      self.serverCapabilities(for: req.params.capabilities, registry: self.capabilityRegistry!)))
+    return InitializeResult(
+      capabilities: self.serverCapabilities(
+        for: req.capabilities,
+        registry: self.capabilityRegistry!
+      )
+    )
   }
 
   func serverCapabilities(
@@ -931,11 +952,11 @@ extension SourceKitServer {
     }
   }
 
-  func clientInitialized(_: Notification<InitializedNotification>) {
+  func clientInitialized(_: InitializedNotification) {
     // Nothing to do.
   }
 
-  func cancelRequest(_ notification: Notification<CancelRequestNotification>) {
+  func cancelRequest(_ notification: CancelRequestNotification) {
     // TODO: Implement cancellation
   }
 
@@ -963,7 +984,7 @@ extension SourceKitServer {
   }
 
 
-  func shutdown(_ request: Request<ShutdownRequest>) async {
+  func shutdown(_ request: ShutdownRequest) async throws -> VoidResponse {
     await prepareForExit()
 
     await withTaskGroup(of: Void.self) { taskGroup in
@@ -984,10 +1005,10 @@ extension SourceKitServer {
     // Otherwise we might terminate sourcekit-lsp while it still has open
     // connections to the toolchain servers, which could send messages to
     // sourcekit-lsp while it is being deallocated, causing crashes.
-    request.reply(VoidResponse())
+    return VoidResponse()
   }
 
-  func exit(_ notification: Notification<ExitNotification>) async {
+  func exit(_ notification: ExitNotification) async {
     // Should have been called in shutdown, but allow misbehaving clients.
     await prepareForExit()
 
@@ -1001,13 +1022,13 @@ extension SourceKitServer {
 
   // MARK: - Text synchronization
 
-  func openDocument(_ note: Notification<DidOpenTextDocumentNotification>) async {
-    let uri = note.params.textDocument.uri
+  func openDocument(_ notification: DidOpenTextDocumentNotification) async {
+    let uri = notification.textDocument.uri
     guard let workspace = await workspaceForDocument(uri: uri) else {
       log("received open notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
       return
     }
-    await openDocument(note.params, workspace: workspace)
+    await openDocument(notification, workspace: workspace)
   }
 
   private func openDocument(_ note: DidOpenTextDocumentNotification, workspace: Workspace) async {
@@ -1030,13 +1051,13 @@ extension SourceKitServer {
     await service.openDocument(note)
   }
 
-  func closeDocument(_ note: Notification<DidCloseTextDocumentNotification>) async {
-    let uri = note.params.textDocument.uri
+  func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
+    let uri = notification.textDocument.uri
     guard let workspace = await workspaceForDocument(uri: uri) else {
       log("received close notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
       return
     }
-    await self.closeDocument(note.params, workspace: workspace)
+    await self.closeDocument(notification, workspace: workspace)
   }
 
   func closeDocument(_ note: DidCloseTextDocumentNotification, workspace: Workspace) async {
@@ -1051,8 +1072,8 @@ extension SourceKitServer {
     await workspace.documentService[uri]?.closeDocument(note)
   }
 
-  func changeDocument(_ note: Notification<DidChangeTextDocumentNotification>) async {
-    let uri = note.params.textDocument.uri
+  func changeDocument(_ notification: DidChangeTextDocumentNotification) async {
+    let uri = notification.textDocument.uri
 
     guard let workspace = await workspaceForDocument(uri: uri) else {
       log("received change notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
@@ -1060,25 +1081,25 @@ extension SourceKitServer {
     }
 
     // If the document is ready, we can handle the change right now.
-    documentManager.edit(note.params)
-    await workspace.documentService[uri]?.changeDocument(note.params)
+    documentManager.edit(notification)
+    await workspace.documentService[uri]?.changeDocument(notification)
   }
 
   func willSaveDocument(
-    _ note: Notification<WillSaveTextDocumentNotification>,
+    _ notification: WillSaveTextDocumentNotification,
     languageService: ToolchainLanguageServer
   ) async {
-    await languageService.willSaveDocument(note.params)
+    await languageService.willSaveDocument(notification)
   }
 
   func didSaveDocument(
-    _ note: Notification<DidSaveTextDocumentNotification>,
+    _ note: DidSaveTextDocumentNotification,
     languageService: ToolchainLanguageServer
   ) async {
-    await languageService.didSaveDocument(note.params)
+    await languageService.didSaveDocument(note)
   }
 
-  func didChangeWorkspaceFolders(_ note: Notification<DidChangeWorkspaceFoldersNotification>) async {
+  func didChangeWorkspaceFolders(_ notification: DidChangeWorkspaceFoldersNotification) async {
     // There is a theoretical race condition here: While we await in this function,
     // the open documents or workspaces could have changed. Because of this,
     // we might close a document in a workspace that is no longer responsible
@@ -1093,14 +1114,14 @@ extension SourceKitServer {
     for docUri in self.documentManager.openDocuments {
       preChangeWorkspaces[docUri] = await self.workspaceForDocument(uri: docUri)
     }
-    if let removed = note.params.event.removed {
+    if let removed = notification.event.removed {
       self.workspaces.removeAll { workspace in
         return removed.contains(where: { workspaceFolder in
           workspace.rootUri == workspaceFolder.uri
         })
       }
     }
-    if let added = note.params.event.added {
+    if let added = notification.event.added {
       let newWorkspaces = await added.asyncCompactMap { await self.createWorkspace(uri: $0.uri) }
       for workspace in newWorkspaces {
         await workspace.buildSystemManager.setDelegate(self)
@@ -1134,41 +1155,41 @@ extension SourceKitServer {
     }
   }
 
-  func didChangeWatchedFiles(_ note: Notification<DidChangeWatchedFilesNotification>) async {
+  func didChangeWatchedFiles(_ notification: DidChangeWatchedFilesNotification) async {
     // We can't make any assumptions about which file changes a particular build
     // system is interested in. Just because it doesn't have build settings for
     // a file doesn't mean a file can't affect the build system's build settings
     // (e.g. Package.swift doesn't have build settings but affects build
     // settings). Inform the build system about all file changes.
     for workspace in workspaces {
-      await workspace.buildSystemManager.filesDidChange(note.params.changes)
+      await workspace.buildSystemManager.filesDidChange(notification.changes)
     }
   }
 
   // MARK: - Language features
 
   func completion(
-    _ req: Request<CompletionRequest>,
+    _ req: CompletionRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.completion(req)
+  ) async throws -> CompletionList {
+    return try await languageService.completion(req)
   }
 
   func hover(
-    _ req: Request<HoverRequest>,
+    _ req: HoverRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.hover(req)
+  ) async throws -> HoverResponse? {
+    return try await languageService.hover(req)
   }
   
   func openInterface(
-    _ req: Request<OpenInterfaceRequest>,
+    _ req: OpenInterfaceRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.openInterface(req)
+  ) async throws -> InterfaceDetails? {
+    return try await languageService.openInterface(req)
   }
 
   /// Find all symbols in the workspace that include a string in their name.
@@ -1207,9 +1228,9 @@ extension SourceKitServer {
 
   /// Handle a workspace/symbol request, returning the SymbolInformation.
   /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
-  func workspaceSymbols(_ req: Request<WorkspaceSymbolsRequest>) {
+  func workspaceSymbols(_ req: WorkspaceSymbolsRequest) async throws -> [WorkspaceSymbolItem]? {
     let symbols = findWorkspaceSymbols(
-      matching: req.params.query
+      matching: req.query
     ).map({symbolOccurrence -> WorkspaceSymbolItem in
       let symbolPosition = Position(
         line: symbolOccurrence.location.line - 1, // 1-based -> 0-based
@@ -1228,24 +1249,24 @@ extension SourceKitServer {
         containerName: symbolOccurrence.getContainerName()
       ))
     })
-    req.reply(symbols)
+    return symbols
   }
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
   func symbolInfo(
-    _ req: Request<SymbolInfoRequest>,
+    _ req: SymbolInfoRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.symbolInfo(req)
+  ) async throws -> [SymbolDetails] {
+    return try await languageService.symbolInfo(req)
   }
 
   func documentSymbolHighlight(
-    _ req: Request<DocumentHighlightRequest>,
+    _ req: DocumentHighlightRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.documentSymbolHighlight(req)
+  ) async throws -> [DocumentHighlight]? {
+    return try await languageService.documentSymbolHighlight(req)
   }
 
   func foldingRange(
@@ -1257,113 +1278,95 @@ extension SourceKitServer {
   }
 
   func documentSymbol(
-    _ req: Request<DocumentSymbolRequest>,
+    _ req: DocumentSymbolRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.documentSymbol(req)
+  ) async throws -> DocumentSymbolResponse?{
+    return try await languageService.documentSymbol(req)
   }
 
   func documentColor(
-    _ req: Request<DocumentColorRequest>,
+    _ req: DocumentColorRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.documentColor(req)
+  ) async throws -> [ColorInformation]{
+    return try await languageService.documentColor(req)
   }
 
   func documentSemanticTokens(
-    _ req: Request<DocumentSemanticTokensRequest>,
+    _ req: DocumentSemanticTokensRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.documentSemanticTokens(req)
+  ) async throws -> DocumentSemanticTokensResponse?{
+    return try await languageService.documentSemanticTokens(req)
   }
 
   func documentSemanticTokensDelta(
-    _ req: Request<DocumentSemanticTokensDeltaRequest>,
+    _ req: DocumentSemanticTokensDeltaRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.documentSemanticTokensDelta(req)
+  ) async throws -> DocumentSemanticTokensDeltaResponse?{
+    return try await languageService.documentSemanticTokensDelta(req)
   }
 
   func documentSemanticTokensRange(
-    _ req: Request<DocumentSemanticTokensRangeRequest>,
+    _ req: DocumentSemanticTokensRangeRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.documentSemanticTokensRange(req)
+  ) async throws -> DocumentSemanticTokensResponse?{
+    return try await languageService.documentSemanticTokensRange(req)
   }
 
   func colorPresentation(
-    _ req: Request<ColorPresentationRequest>,
+    _ req: ColorPresentationRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.colorPresentation(req)
+  ) async throws -> [ColorPresentation] {
+    return try await languageService.colorPresentation(req)
   }
 
-  func executeCommand(_ req: Request<ExecuteCommandRequest>) async {
-    guard let uri = req.params.textDocument?.uri else {
+  func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
+    guard let uri = req.textDocument?.uri else {
       log("attempted to perform executeCommand request without an url!", level: .error)
-      req.reply(nil)
-      return
+      return nil
     }
     guard let workspace = await workspaceForDocument(uri: uri) else {
-      req.reply(.failure(.workspaceNotOpen(uri)))
-      return
+      throw ResponseError.workspaceNotOpen(uri)
     }
     guard let languageService = workspace.documentService[uri] else {
-      req.reply(nil)
-      return
+      return nil
     }
 
-    let params = req.params
-    let executeCommand = ExecuteCommandRequest(command: params.command,
-                                               arguments: params.argumentsWithoutSourceKitMetadata)
-    let callback = { (result: Result<ExecuteCommandRequest.Response, ResponseError>) in
-      req.reply(result)
-    }
-    let request = Request(executeCommand, id: req.id, clientID: ObjectIdentifier(self),
-                          cancellation: req.cancellationToken, reply: callback)
-    await languageService.executeCommand(request)
+    let executeCommand = ExecuteCommandRequest(
+      command: req.command,
+      arguments: req.argumentsWithoutSourceKitMetadata
+    )
+    return try await languageService.executeCommand(executeCommand)
   }
 
   func codeAction(
-    _ req: Request<CodeActionRequest>,
+    _ req: CodeActionRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    let codeAction = CodeActionRequest(range: req.params.range, context: req.params.context,
-                                       textDocument: req.params.textDocument)
-    let callback = { (result: Result<CodeActionRequest.Response, ResponseError>) in
-      switch result {
-      case .success(let reply):
-        req.reply(req.params.injectMetadata(toResponse: reply))
-      default:
-        req.reply(result)
-      }
-    }
-    let request = Request(codeAction, id: req.id, clientID: ObjectIdentifier(self),
-                          cancellation: req.cancellationToken, reply: callback)
-    await languageService.codeAction(request)
+  ) async throws -> CodeActionRequestResponse? {
+    let response = try await languageService.codeAction(req)
+    return req.injectMetadata(toResponse: response)
   }
 
   func inlayHint(
-    _ req: Request<InlayHintRequest>,
+    _ req: InlayHintRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.inlayHint(req)
+  ) async throws -> [InlayHint] {
+    return try await languageService.inlayHint(req)
   }
 
   func documentDiagnostic(
-    _ req: Request<DocumentDiagnosticsRequest>,
+    _ req: DocumentDiagnosticsRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    await languageService.documentDiagnostic(req)
+  ) async throws -> DocumentDiagnosticReport{
+    return try await languageService.documentDiagnostic(req)
   }
 
   /// Converts a location from the symbol index to an LSP location.
@@ -1394,17 +1397,13 @@ extension SourceKitServer {
   ///   - extractOccurrences: A function fetching the occurrences by the desired roles given a usr from the index
   /// - Returns: The resolved symbol locations
   private func extractIndexedOccurrences(
-    result: LSPResult<SymbolInfoRequest.Response>,
+    symbols: [SymbolDetails],
     index: IndexStoreDB?,
     useLocalFallback: Bool = false,
     extractOccurrences: (String, IndexStoreDB) -> [SymbolOccurrence]
-  ) -> LSPResult<[(occurrence: SymbolOccurrence?, location: Location)]> {
-    guard case .success(let symbols) = result else {
-      return .failure(result.failure!)
-    }
-
+  ) -> [(occurrence: SymbolOccurrence?, location: Location)] {
     guard let symbol = symbols.first else {
-      return .success([])
+      return []
     }
 
     let fallback: [(occurrence: SymbolOccurrence?, location: Location)]
@@ -1415,7 +1414,7 @@ extension SourceKitServer {
     }
 
     guard let usr = symbol.usr, let index = index else {
-      return .success(fallback)
+      return fallback
     }
 
     let occurs = extractOccurrences(usr, index)
@@ -1425,146 +1424,124 @@ extension SourceKitServer {
       }
     }
 
-    return .success(resolved.isEmpty ? fallback : resolved)
+    return resolved.isEmpty ? fallback : resolved
   }
 
   func declaration(
-    _ req: Request<DeclarationRequest>,
+    _ req: DeclarationRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    guard await languageService.declaration(req) else {
-      return req.reply(.locations([]))
-    }
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    return try await languageService.declaration(req)
   }
 
   func definition(
-    _ req: Request<DefinitionRequest>,
+    _ req: DefinitionRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
-    let callback = { (result: LSPResult<SymbolInfoRequest.Response>) -> Void in
-      Task {
-        // If this symbol is a module then generate a textual interface
-        if case .success(let symbols) = result, let symbol = symbols.first, symbol.kind == .module, let name = symbol.name {
-          await self.respondWithInterface(req, moduleName: name, symbolUSR: nil, languageService: languageService)
-          return
-        }
-
-        let extractedResult = self.extractIndexedOccurrences(result: result, index: index, useLocalFallback: true) { (usr, index) in
-          log("performing indexed jump-to-def with usr \(usr)")
-          var occurs = index.occurrences(ofUSR: usr, roles: [.definition])
-          if occurs.isEmpty {
-            occurs = index.occurrences(ofUSR: usr, roles: [.declaration])
-          }
-          return occurs
-        }
-
-        switch extractedResult {
-        case .success(let resolved):
-          // if first resolved location is in `.swiftinterface` file. Use moduleName to return
-          // textual interface
-          if let firstResolved = resolved.first,
-             let moduleName = firstResolved.occurrence?.location.moduleName,
-             firstResolved.location.uri.fileURL?.pathExtension == "swiftinterface" {
-            await self.respondWithInterface(
-              req,
-              moduleName: moduleName,
-              symbolUSR: firstResolved.occurrence?.symbol.usr,
-              languageService: languageService
-            )
-            return
-          }
-          let locs = resolved.map(\.location)
-          // If we're unable to handle the definition request using our index, see if the
-          // language service can handle it (e.g. clangd can provide AST based definitions).
-          guard locs.isEmpty else {
-            req.reply(.locations(locs))
-            return
-          }
-          let handled = await languageService.definition(req)
-          guard !handled else { return }
-          req.reply(.locations([]))
-        case .failure(let error):
-          req.reply(.failure(error))
-        }
-      }
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    let symbols = try await languageService.symbolInfo(
+      SymbolInfoRequest(
+        textDocument: req.textDocument,
+        position: req.position
+      )
+    )
+    let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
+    // If this symbol is a module then generate a textual interface
+    if let symbol = symbols.first, symbol.kind == .module, let name = symbol.name {
+      return try await self.definitionInInterface(req, moduleName: name, symbolUSR: nil, languageService: languageService)
     }
-    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
-                          cancellation: req.cancellationToken, reply: callback)
-    await languageService.symbolInfo(request)
+
+    let resolved = self.extractIndexedOccurrences(symbols: symbols, index: index, useLocalFallback: true) { (usr, index) in
+      log("performing indexed jump-to-def with usr \(usr)")
+      var occurs = index.occurrences(ofUSR: usr, roles: [.definition])
+      if occurs.isEmpty {
+        occurs = index.occurrences(ofUSR: usr, roles: [.declaration])
+      }
+      return occurs
+    }
+
+    // if first resolved location is in `.swiftinterface` file. Use moduleName to return
+    // textual interface
+    if let firstResolved = resolved.first,
+       let moduleName = firstResolved.occurrence?.location.moduleName,
+       firstResolved.location.uri.fileURL?.pathExtension == "swiftinterface" {
+      return try await self.definitionInInterface(
+        req,
+        moduleName: moduleName,
+        symbolUSR: firstResolved.occurrence?.symbol.usr,
+        languageService: languageService
+      )
+    }
+    let locs = resolved.map(\.location)
+    // If we're unable to handle the definition request using our index, see if the
+    // language service can handle it (e.g. clangd can provide AST based definitions).
+    if locs.isEmpty {
+      return try await languageService.definition(req)
+    }
+    return .locations(locs)
   }
 
-  func respondWithInterface(
-    _ req: Request<DefinitionRequest>,
+  func definitionInInterface(
+    _ req: DefinitionRequest,
     moduleName: String,
     symbolUSR: String?,
     languageService: ToolchainLanguageServer
-  ) async {
-      let openInterface = OpenInterfaceRequest(textDocument: req.params.textDocument, name: moduleName, symbolUSR: symbolUSR)
-      let request = Request(openInterface, id: req.id, clientID: ObjectIdentifier(self),
-                            cancellation: req.cancellationToken, reply: { (result: Result<OpenInterfaceRequest.Response, ResponseError>) in
-        switch result {
-        case .success(let interfaceDetails?):
-          let position = interfaceDetails.position ?? Position(line: 0, utf16index: 0)
-          let loc = Location(uri: interfaceDetails.uri, range: Range(position))
-          req.reply(.locations([loc]))
-        case .success(nil):
-          req.reply(.failure(.unknown("Could not generate Swift Interface for \(moduleName)")))
-        case .failure(let error):
-          req.reply(.failure(error))
-        }
-      })
-      await languageService.openInterface(request)
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    let openInterface = OpenInterfaceRequest(textDocument: req.textDocument, name: moduleName, symbolUSR: symbolUSR)
+    guard let interfaceDetails = try await languageService.openInterface(openInterface) else {
+      throw ResponseError.unknown("Could not generate Swift Interface for \(moduleName)")
+    }
+    let position = interfaceDetails.position ?? Position(line: 0, utf16index: 0)
+    let loc = Location(uri: interfaceDetails.uri, range: Range(position))
+    return .locations([loc])
   }
 
   func implementation(
-    _ req: Request<ImplementationRequest>,
+    _ req: ImplementationRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
-    let callback = { (result: LSPResult<SymbolInfoRequest.Response>) in
-      let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
-        var occurs = index.occurrences(ofUSR: usr, roles: .baseOf)
-        if occurs.isEmpty {
-          occurs = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
-        }
-        return occurs
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    let symbols = try await languageService.symbolInfo(
+      SymbolInfoRequest(
+        textDocument: req.textDocument,
+        position: req.position
+      )
+    )
+    let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
+    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
+      var occurs = index.occurrences(ofUSR: usr, roles: .baseOf)
+      if occurs.isEmpty {
+        occurs = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
       }
-
-      req.reply(extractedResult.map { .locations($0.map(\.location)) })
+      return occurs
     }
-    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
-                          cancellation: req.cancellationToken, reply: callback)
-    await languageService.symbolInfo(request)
+
+    return .locations(extractedResult.map(\.location))
   }
 
   func references(
-    _ req: Request<ReferencesRequest>,
+    _ req: ReferencesRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
-    let callback = { (result: LSPResult<SymbolInfoRequest.Response>) in
-      let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
-        log("performing indexed jump-to-def with usr \(usr)")
-        var roles: SymbolRole = [.reference]
-        if req.params.context.includeDeclaration {
-          roles.formUnion([.declaration, .definition])
-        }
-        return index.occurrences(ofUSR: usr, roles: roles)
+  ) async throws -> [Location] {
+    let symbols = try await languageService.symbolInfo(
+      SymbolInfoRequest(
+        textDocument: req.textDocument,
+        position: req.position
+      )
+    )
+    let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
+    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
+      log("performing indexed jump-to-def with usr \(usr)")
+      var roles: SymbolRole = [.reference]
+      if req.context.includeDeclaration {
+        roles.formUnion([.declaration, .definition])
       }
-
-      req.reply(extractedResult.map { $0.map(\.location) })
+      return index.occurrences(ofUSR: usr, roles: roles)
     }
-    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
-                          cancellation: req.cancellationToken, reply: callback)
-    await languageService.symbolInfo(request)
+
+    return extractedResult.map(\.location)
   }
 
   private func indexToLSPCallHierarchyItem(
@@ -1589,35 +1566,32 @@ extension SourceKitServer {
   }
 
   func prepareCallHierarchy(
-    _ req: Request<CallHierarchyPrepareRequest>,
+    _ req: CallHierarchyPrepareRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index
-    let callback = { (result: LSPResult<SymbolInfoRequest.Response>) in
-      // For call hierarchy preparation we only locate the definition
-      let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
-        index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
-      }
-      let items = extractedResult.map { resolved -> [CallHierarchyItem]? in
-        resolved.compactMap { info -> CallHierarchyItem? in
-          guard let occurrence = info.occurrence else {
-            return nil
-          }
-          let symbol = occurrence.symbol
-          return self.indexToLSPCallHierarchyItem(
-            symbol: symbol,
-            moduleName: occurrence.location.moduleName,
-            location: info.location
-          )
-        }
-      }
-      req.reply(items)
+  ) async throws -> [CallHierarchyItem]? {
+    let symbols = try await languageService.symbolInfo(
+      SymbolInfoRequest(
+        textDocument: req.textDocument,
+        position: req.position
+      )
+    )
+    let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
+    // For call hierarchy preparation we only locate the definition
+    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
+      index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
     }
-    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
-                          cancellation: req.cancellationToken, reply: callback)
-    await languageService.symbolInfo(request)
+    return extractedResult.compactMap { info -> CallHierarchyItem? in
+      guard let occurrence = info.occurrence else {
+        return nil
+      }
+      let symbol = occurrence.symbol
+      return self.indexToLSPCallHierarchyItem(
+        symbol: symbol,
+        moduleName: occurrence.location.moduleName,
+        location: info.location
+      )
+    }
   }
 
   /// Extracts our implementation-specific data about a call hierarchy
@@ -1637,11 +1611,10 @@ extension SourceKitServer {
     )
   }
 
-  func incomingCalls(_ req: Request<CallHierarchyIncomingCallsRequest>) async {
-    guard let data = extractCallHierarchyItemData(req.params.item.data),
+  func incomingCalls(_ req: CallHierarchyIncomingCallsRequest) async throws -> [CallHierarchyIncomingCall]? {
+    guard let data = extractCallHierarchyItemData(req.item.data),
           let index = await self.workspaceForDocument(uri: data.uri)?.index else {
-      req.reply([])
-      return
+      return []
     }
     let occurs = index.occurrences(ofUSR: data.usr, roles: .calledBy)
     let calls = occurs.compactMap { occurrence -> CallHierarchyIncomingCall? in
@@ -1664,14 +1637,13 @@ extension SourceKitServer {
         fromRanges: [location.range]
       )
     }
-    req.reply(calls)
+    return calls
   }
 
-  func outgoingCalls(_ req: Request<CallHierarchyOutgoingCallsRequest>) async {
-    guard let data = extractCallHierarchyItemData(req.params.item.data),
+  func outgoingCalls(_ req: CallHierarchyOutgoingCallsRequest) async throws -> [CallHierarchyOutgoingCall]? {
+    guard let data = extractCallHierarchyItemData(req.item.data),
           let index = await self.workspaceForDocument(uri: data.uri)?.index else {
-      req.reply([])
-      return
+      return []
     }
     let occurs = index.occurrences(relatedToUSR: data.usr, roles: .calledBy)
     let calls = occurs.compactMap { occurrence -> CallHierarchyOutgoingCall? in
@@ -1693,7 +1665,7 @@ extension SourceKitServer {
         fromRanges: [location.range]
       )
     }
-    req.reply(calls)
+    return calls
   }
 
   private func indexToLSPTypeHierarchyItem(
@@ -1747,39 +1719,34 @@ extension SourceKitServer {
   }
 
   func prepareTypeHierarchy(
-    _ req: Request<TypeHierarchyPrepareRequest>,
+    _ req: TypeHierarchyPrepareRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async {
-    let symbolInfo = SymbolInfoRequest(textDocument: req.params.textDocument, position: req.params.position)
-    guard let index = await self.workspaceForDocument(uri: req.params.textDocument.uri)?.index else {
-      req.reply([])
-      return
+  ) async throws -> [TypeHierarchyItem]? {
+    let symbols = try await languageService.symbolInfo(
+      SymbolInfoRequest(
+        textDocument: req.textDocument,
+        position: req.position
+      )
+    )
+    guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
+      return []
     }
-    let callback = { (result: LSPResult<SymbolInfoRequest.Response>) in
-      // For type hierarchy preparation we only locate the definition
-      let extractedResult = self.extractIndexedOccurrences(result: result, index: index) { (usr, index) in
-        index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
-      }
-      let items = extractedResult.map { resolved -> [TypeHierarchyItem]? in
-        resolved.compactMap { info -> TypeHierarchyItem? in
-          guard let occurrence = info.occurrence else {
-            return nil
-          }
-          let symbol = occurrence.symbol
-          return self.indexToLSPTypeHierarchyItem(
-            symbol: symbol,
-            moduleName: occurrence.location.moduleName,
-            location: info.location,
-            index: index
-          )
-        }
-      }
-      req.reply(items)
+    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
+      index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
     }
-    let request = Request(symbolInfo, id: req.id, clientID: ObjectIdentifier(self),
-                          cancellation: req.cancellationToken, reply: callback)
-    await languageService.symbolInfo(request)
+    return extractedResult.compactMap { info -> TypeHierarchyItem? in
+      guard let occurrence = info.occurrence else {
+        return nil
+      }
+      let symbol = occurrence.symbol
+      return self.indexToLSPTypeHierarchyItem(
+        symbol: symbol,
+        moduleName: occurrence.location.moduleName,
+        location: info.location,
+        index: index
+      )
+    }
   }
 
   /// Extracts our implementation-specific data about a type hierarchy
@@ -1799,11 +1766,10 @@ extension SourceKitServer {
     )
   }
 
-  func supertypes(_ req: Request<TypeHierarchySupertypesRequest>) async {
-    guard let data = extractTypeHierarchyItemData(req.params.item.data),
+  func supertypes(_ req: TypeHierarchySupertypesRequest) async throws -> [TypeHierarchyItem]? {
+    guard let data = extractTypeHierarchyItemData(req.item.data),
           let index = await self.workspaceForDocument(uri: data.uri)?.index else {
-      req.reply([])
-      return
+      return []
     }
 
     // Resolve base types
@@ -1837,14 +1803,13 @@ extension SourceKitServer {
         index: index
       )
     }
-    req.reply(types)
+    return types
   }
 
-  func subtypes(_ req: Request<TypeHierarchySubtypesRequest>) async {
-    guard let data = extractTypeHierarchyItemData(req.params.item.data),
+  func subtypes(_ req: TypeHierarchySubtypesRequest) async throws -> [TypeHierarchyItem]? {
+    guard let data = extractTypeHierarchyItemData(req.item.data),
           let index = await self.workspaceForDocument(uri: data.uri)?.index else {
-      req.reply([])
-      return
+      return []
     }
 
     // Resolve child types and extensions
@@ -1869,14 +1834,14 @@ extension SourceKitServer {
         index: index
       )
     }
-    req.reply(types)
+    return types
   }
 
-  func pollIndex(_ req: Request<PollIndexRequest>) {
+  func pollIndex(_ req: PollIndexRequest) async throws -> VoidResponse {
     for workspace in workspaces {
       workspace.index?.pollForUnitChangesAndWait()
     }
-    req.reply(VoidResponse())
+    return VoidResponse()
   }
 }
 

@@ -25,23 +25,23 @@ import Dispatch
 ///
 /// At the sourcekitd level, this uses `codecomplete.open`, `codecomplete.update` and
 /// `codecomplete.close` requests.
-class CodeCompletionSession {
-  unowned let server: SwiftLanguageServer
-  let queue: DispatchQueue
-  let snapshot: DocumentSnapshot
+actor CodeCompletionSession {
+  private unowned let server: SwiftLanguageServer
+  /// The queue on which `update` and `close` are executed to ensure in-order
+  /// execution.
+  private let queue: AsyncQueue = AsyncQueue(.serial)
+  private let snapshot: DocumentSnapshot
   let utf8StartOffset: Int
-  let position: Position
-  let compileCommand: SwiftCompileCommand?
-  var state: State = .closed
+  private let position: Position
+  private let compileCommand: SwiftCompileCommand?
+  private var state: State = .closed
 
-  enum State {
+  private enum State {
     case closed
-    // FIXME: we should keep a real queue and cancel previous updates.
-    case opening(DispatchGroup)
     case open
   }
 
-  var uri: DocumentURI { snapshot.document.uri }
+  nonisolated var uri: DocumentURI { snapshot.document.uri }
 
   init(
     server: SwiftLanguageServer,
@@ -51,8 +51,6 @@ class CodeCompletionSession {
     compileCommand: SwiftCompileCommand?)
   {
     self.server = server
-    self.queue =
-      DispatchQueue(label: "\(Self.self)-queue", qos: .userInitiated, target: server.queue)
     self.snapshot = snapshot
     self.utf8StartOffset = utf8Offset
     self.position = position
@@ -68,45 +66,33 @@ class CodeCompletionSession {
   ///               in the resulting completions.
   ///   - snapshot: The current snapshot that the `TextEdit` replacement in results will be in.
   ///   - options: The completion options, such as the maximum number of results.
-  ///   - completion: Asynchronous callback to receive results or error response.
   func update(
     filterText: String,
     position: Position,
     in snapshot: DocumentSnapshot,
-    options: SKCompletionOptions,
-    completion: @escaping (LSPResult<CompletionList>) -> Void)
-  {
-    queue.async {
+    options: SKCompletionOptions
+  ) async throws -> CompletionList {
+    let task = queue.asyncThrowing {
       switch self.state {
       case .closed:
-        self._open(filterText: filterText, position: position, in: snapshot, options: options, completion: completion)
-      case .opening(let group):
-        group.notify(queue: self.queue) {
-          switch self.state {
-          case .closed, .opening(_):
-            // Don't try again.
-            completion(.failure(.serverCancelled))
-          case .open:
-            self._update(filterText: filterText, position: position, in: snapshot, options: options, completion: completion)
-          }
-        }
+        self.state = .open
+        return try await self.open(filterText: filterText, position: position, in: snapshot, options: options)
       case .open:
-        self._update(filterText: filterText, position: position, in: snapshot, options: options, completion: completion)
+        return try await self.updateImpl(filterText: filterText, position: position, in: snapshot, options: options)
       }
     }
+    return try await task.value
   }
 
-  func _open(
+  private func open(
     filterText: String,
     position: Position,
     in snapshot: DocumentSnapshot,
-    options: SKCompletionOptions,
-    completion: @escaping  (LSPResult<CompletionList>) -> Void)
-  {
+    options: SKCompletionOptions
+  ) async throws -> CompletionList {
     log("\(Self.self) Open: \(self) filter=\(filterText)")
     guard snapshot.version == self.snapshot.version else {
-        completion(.failure(ResponseError(code: .invalidRequest, message: "open must use the original snapshot")))
-        return
+      throw ResponseError(code: .invalidRequest, message: "open must use the original snapshot")
     }
 
     let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
@@ -121,47 +107,29 @@ class CodeCompletionSession {
       req[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let group = DispatchGroup()
-    group.enter()
+    let dict = try await server.sourcekitd.send(req)
 
-    state = .opening(group)
-
-    let handle = server.sourcekitd.send(req, queue) { result in
-      defer { group.leave() }
-
-      guard let dict = result.success else {
-        self.state = .closed
-        return completion(.failure(ResponseError(result.failure!)))
-      }
-      if case .closed = self.state {
-        return completion(.failure(.serverCancelled))
-      }
-
-      self.state = .open
-
-      guard let completions: SKDResponseArray = dict[keys.results] else {
-        return completion(.success(CompletionList(isIncomplete: false, items: [])))
-      }
-
-      let results = self.server.completionsFromSKDResponse(completions,
-                                                           in: snapshot,
-                                                           completionPos: self.position,
-                                                           requestPosition: position,
-                                                           isIncomplete: true)
-      completion(.success(results))
+    guard let completions: SKDResponseArray = dict[keys.results] else {
+      return CompletionList(isIncomplete: false, items: [])
     }
 
-    // FIXME: cancellation
-    _ = handle
+    try Task.checkCancellation()
+
+    return self.server.completionsFromSKDResponse(
+      completions,
+      in: snapshot,
+      completionPos: self.position,
+      requestPosition: position,
+      isIncomplete: true
+    )
   }
 
-  func _update(
+  private func updateImpl(
     filterText: String,
     position: Position,
     in snapshot: DocumentSnapshot,
-    options: SKCompletionOptions,
-    completion: @escaping  (LSPResult<CompletionList>) -> Void)
-  {
+    options: SKCompletionOptions
+  ) async throws -> CompletionList {
     // FIXME: Assertion for prefix of snapshot matching what we started with.
 
     log("\(Self.self) Update: \(self) filter=\(filterText)")
@@ -172,19 +140,12 @@ class CodeCompletionSession {
     req[keys.name] = uri.pseudoPath
     req[keys.codecomplete_options] = optionsDictionary(filterText: filterText, options: options)
 
-    let handle = server.sourcekitd.send(req, queue) { result in
-      guard let dict = result.success else {
-        return completion(.failure(ResponseError(result.failure!)))
-      }
-      guard let completions: SKDResponseArray = dict[keys.results] else {
-        return completion(.success(CompletionList(isIncomplete: false, items: [])))
-      }
-
-      completion(.success(self.server.completionsFromSKDResponse(completions, in: snapshot, completionPos: self.position, requestPosition: position, isIncomplete: true)))
+    let dict = try await server.sourcekitd.send(req)
+    guard let completions: SKDResponseArray = dict[keys.results] else {
+      return CompletionList(isIncomplete: false, items: [])
     }
 
-    // FIXME: cancellation
-    _ = handle
+    return self.server.completionsFromSKDResponse(completions, in: snapshot, completionPos: self.position, requestPosition: position, isIncomplete: true)
   }
 
   private func optionsDictionary(
@@ -208,7 +169,7 @@ class CodeCompletionSession {
     return dict
   }
 
-  private func _sendClose(_ server: SwiftLanguageServer) {
+  private func sendClose(_ server: SwiftLanguageServer) {
     let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
     let keys = server.sourcekitd.keys
     req[keys.request] = server.sourcekitd.requests.codecomplete_close
@@ -227,19 +188,8 @@ class CodeCompletionSession {
         case .closed:
           // Already closed, nothing to do.
           break
-        case .opening(let group):
-          group.notify(queue: self.queue) {
-            switch self.state {
-            case .closed, .opening(_):
-              // Don't try again.
-              break
-            case .open:
-              self._sendClose(server)
-              self.state = .closed
-            }
-          }
         case .open:
-          self._sendClose(server)
+          self.sendClose(server)
           self.state = .closed
       }
     }
@@ -247,7 +197,7 @@ class CodeCompletionSession {
 }
 
 extension CodeCompletionSession: CustomStringConvertible {
-  var description: String {
+  nonisolated var description: String {
     "\(uri.pseudoPath):\(position)"
   }
 }

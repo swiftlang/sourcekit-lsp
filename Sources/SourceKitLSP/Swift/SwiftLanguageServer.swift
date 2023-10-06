@@ -443,7 +443,7 @@ extension SwiftLanguageServer {
 
   public func shutdown() async {
     if let session = self.currentCompletionSession {
-      session.close()
+      await session.close()
       self.currentCompletionSession = nil
     }
     self.sourcekitd.removeNotificationHandler(self)
@@ -615,79 +615,62 @@ extension SwiftLanguageServer {
   // MARK: - Language features
 
   /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
-  public func definition(_ request: Request<DefinitionRequest>) -> Bool {
-    // We don't handle it.
-    return false
+  public func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
+    throw ResponseError.unknown("unsupported method")
   }
 
-  public func declaration(_ request: Request<DeclarationRequest>) -> Bool {
-    // We don't handle it.
-    return false
+  public func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
+    throw ResponseError.unknown("unsupported method")
   }
 
-  public func hover(_ req: Request<HoverRequest>) async {
-    let uri = req.params.textDocument.uri
-    let position = req.params.position
-    await cursorInfo(uri, position..<position) { result in
-      guard let cursorInfo: CursorInfo = result.success ?? nil else {
-        if let error = result.failure, error != .responseError(.serverCancelled) {
-          log("cursor info failed \(uri):\(position): \(error)", level: .warning)
-        }
-        return req.reply(nil)
-      }
+  public func hover(_ req: HoverRequest) async throws -> HoverResponse? {
+    let uri = req.textDocument.uri
+    let position = req.position
+    guard let cursorInfo = try await cursorInfo(uri, position..<position) else {
+      return nil
+    }
 
-      guard let name: String = cursorInfo.symbolInfo.name else {
-        // There is a cursor but we don't know how to deal with it.
-        req.reply(nil)
-        return
-      }
+    guard let name: String = cursorInfo.symbolInfo.name else {
+      // There is a cursor but we don't know how to deal with it.
+      return nil
+    }
 
-      /// Prepend backslash to `*` and `_`, to prevent them
-      /// from being interpreted as markdown.
-      func escapeNameMarkdown(_ str: String) -> String {
-        return String(str.flatMap({ ($0 == "*" || $0 == "_") ? ["\\", $0] : [$0] }))
-      }
+    /// Prepend backslash to `*` and `_`, to prevent them
+    /// from being interpreted as markdown.
+    func escapeNameMarkdown(_ str: String) -> String {
+      return String(str.flatMap({ ($0 == "*" || $0 == "_") ? ["\\", $0] : [$0] }))
+    }
 
-      var result = escapeNameMarkdown(name)
-      if let doc = cursorInfo.documentationXML {
-        result += """
+    var result = escapeNameMarkdown(name)
+    if let doc = cursorInfo.documentationXML {
+      result += """
 
         \(orLog { try xmlDocumentationToMarkdown(doc) } ?? doc)
         """
-      } else if let annotated: String = cursorInfo.annotatedDeclaration {
-        result += """
+    } else if let annotated: String = cursorInfo.annotatedDeclaration {
+      result += """
 
         \(orLog { try xmlDocumentationToMarkdown(annotated) } ?? annotated)
         """
-      }
-
-      req.reply(HoverResponse(contents: .markupContent(MarkupContent(kind: .markdown, value: result)), range: nil))
     }
+
+    return HoverResponse(contents: .markupContent(MarkupContent(kind: .markdown, value: result)), range: nil)
   }
 
-  public func symbolInfo(_ req: Request<SymbolInfoRequest>) async {
-    let uri = req.params.textDocument.uri
-    let position = req.params.position
-    await cursorInfo(uri, position..<position) { result in
-      guard let cursorInfo: CursorInfo = result.success ?? nil else {
-        if let error = result.failure {
-          log("cursor info failed \(uri):\(position): \(error)", level: .warning)
-        }
-        return req.reply([])
-      }
-
-      req.reply([cursorInfo.symbolInfo])
+  public func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
+    let uri = req.textDocument.uri
+    let position = req.position
+    guard let cursorInfo = try await cursorInfo(uri, position..<position) else {
+      return []
     }
+    return [cursorInfo.symbolInfo]
   }
 
-  public func documentSymbols(
-    _ uri: DocumentURI,
-    _ completion: @escaping (Result<[DocumentSymbol], ResponseError>) -> Void
-  ) {
-    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-      let msg = "failed to find snapshot for url \(uri)"
+  public func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
+    guard let snapshot = self.documentManager.latestSnapshot(req.textDocument.uri) else {
+      let msg = "failed to find snapshot for url \(req.textDocument.uri)"
       log(msg)
-      return completion(.failure(.unknown(msg)))
+      throw ResponseError.unknown(msg)
     }
 
     let helperDocumentName = "DocumentSymbols:" + snapshot.document.uri.pseudoPath
@@ -697,93 +680,77 @@ extension SwiftLanguageServer {
     skreq[keys.sourcetext] = snapshot.text
     skreq[keys.syntactic_only] = 1
 
-    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
-      guard let self = self else { return }
-
-      defer {
-        let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-        closeHelperReq[self.keys.request] = self.requests.editor_close
-        closeHelperReq[self.keys.name] = helperDocumentName
-        _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
-      }
-
-      guard let dict = result.success else {
-        return completion(.failure(ResponseError(result.failure!)))
-      }
-      guard let results: SKDResponseArray = dict[self.keys.substructure] else {
-        return completion(.success([]))
-      }
-
-      func documentSymbol(value: SKDResponseDictionary) -> DocumentSymbol? {
-        guard let name: String = value[self.keys.name],
-              let uid: sourcekitd_uid_t = value[self.keys.kind],
-              let kind: SymbolKind = uid.asSymbolKind(self.values),
-              let offset: Int = value[self.keys.offset],
-              let start: Position = snapshot.positionOf(utf8Offset: offset),
-              let length: Int = value[self.keys.length],
-              let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
-          return nil
-        }
-
-        let range = start..<end
-        let selectionRange: Range<Position>
-        if let nameOffset: Int = value[self.keys.nameoffset],
-            let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
-            let nameLength: Int = value[self.keys.namelength],
-            let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
-          selectionRange = nameStart..<nameEnd
-        } else {
-          selectionRange = range
-        }
-
-        let children: [DocumentSymbol]
-        if let substructure: SKDResponseArray = value[self.keys.substructure] {
-          children = documentSymbols(array: substructure)
-        } else {
-          children = []
-        }
-        return DocumentSymbol(name: name,
-                              detail: value[self.keys.typename] as String?,
-                              kind: kind,
-                              deprecated: nil,
-                              range: range,
-                              selectionRange: selectionRange,
-                              children: children)
-      }
-
-      func documentSymbols(array: SKDResponseArray) -> [DocumentSymbol] {
-        var result: [DocumentSymbol] = []
-        array.forEach { (i: Int, value: SKDResponseDictionary) in
-          if let documentSymbol = documentSymbol(value: value) {
-            result.append(documentSymbol)
-          } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
-            result += documentSymbols(array: substructure)
-          }
-          return true
-        }
-        return result
-      }
-
-      completion(.success(documentSymbols(array: results)))
+    let dict = try await self.sourcekitd.send(skreq)
+    defer {
+      let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+      closeHelperReq[self.keys.request] = self.requests.editor_close
+      closeHelperReq[self.keys.name] = helperDocumentName
+      _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
     }
 
-    // FIXME: cancellation
-    _ = handle
-  }
-
-  public func documentSymbol(_ req: Request<DocumentSymbolRequest>) {
-    documentSymbols(req.params.textDocument.uri) { result in
-      req.reply(result.map { .documentSymbols($0) })
+    guard let results: SKDResponseArray = dict[self.keys.substructure] else {
+      return .documentSymbols([])
     }
+
+    func documentSymbol(value: SKDResponseDictionary) -> DocumentSymbol? {
+      guard let name: String = value[self.keys.name],
+            let uid: sourcekitd_uid_t = value[self.keys.kind],
+            let kind: SymbolKind = uid.asSymbolKind(self.values),
+            let offset: Int = value[self.keys.offset],
+            let start: Position = snapshot.positionOf(utf8Offset: offset),
+            let length: Int = value[self.keys.length],
+            let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
+        return nil
+      }
+
+      let range = start..<end
+      let selectionRange: Range<Position>
+      if let nameOffset: Int = value[self.keys.nameoffset],
+          let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
+          let nameLength: Int = value[self.keys.namelength],
+          let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
+        selectionRange = nameStart..<nameEnd
+      } else {
+        selectionRange = range
+      }
+
+      let children: [DocumentSymbol]
+      if let substructure: SKDResponseArray = value[self.keys.substructure] {
+        children = documentSymbols(array: substructure)
+      } else {
+        children = []
+      }
+      return DocumentSymbol(name: name,
+                            detail: value[self.keys.typename] as String?,
+                            kind: kind,
+                            deprecated: nil,
+                            range: range,
+                            selectionRange: selectionRange,
+                            children: children)
+    }
+
+    func documentSymbols(array: SKDResponseArray) -> [DocumentSymbol] {
+      var result: [DocumentSymbol] = []
+      array.forEach { (i: Int, value: SKDResponseDictionary) in
+        if let documentSymbol = documentSymbol(value: value) {
+          result.append(documentSymbol)
+        } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
+          result += documentSymbols(array: substructure)
+        }
+        return true
+      }
+      return result
+    }
+
+    return .documentSymbols(documentSymbols(array: results))
   }
 
-  public func documentColor(_ req: Request<DocumentColorRequest>) {
+  public func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
     let keys = self.keys
 
-    guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
-      log("failed to find snapshot for url \(req.params.textDocument.uri)")
-      req.reply([])
-      return
+    guard let snapshot = self.documentManager.latestSnapshot(req.textDocument.uri) else {
+      log("failed to find snapshot for url \(req.textDocument.uri)")
+      return []
     }
 
     let helperDocumentName = "DocumentColor:" + snapshot.document.uri.pseudoPath
@@ -793,151 +760,136 @@ extension SwiftLanguageServer {
     skreq[keys.sourcetext] = snapshot.text
     skreq[keys.syntactic_only] = 1
 
-    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
-      guard let self = self else { return }
-
-      defer {
-        let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-        closeHelperReq[keys.request] = self.requests.editor_close
-        closeHelperReq[keys.name] = helperDocumentName
-        _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
-      }
-
-      guard let dict = result.success else {
-        req.reply(.failure(ResponseError(result.failure!)))
-        return
-      }
-
-      guard let results: SKDResponseArray = dict[self.keys.substructure] else {
-        return req.reply([])
-      }
-
-      func colorInformation(dict: SKDResponseDictionary) -> ColorInformation? {
-        guard let kind: sourcekitd_uid_t = dict[self.keys.kind],
-              kind == self.values.expr_object_literal,
-              let name: String = dict[self.keys.name],
-              name == "colorLiteral",
-              let offset: Int = dict[self.keys.offset],
-              let start: Position = snapshot.positionOf(utf8Offset: offset),
-              let length: Int = dict[self.keys.length],
-              let end: Position = snapshot.positionOf(utf8Offset: offset + length),
-              let substructure: SKDResponseArray = dict[self.keys.substructure] else {
-          return nil
-        }
-        var red, green, blue, alpha: Double?
-        substructure.forEach{ (i: Int, value: SKDResponseDictionary) in
-          guard let name: String = value[self.keys.name],
-                let bodyoffset: Int = value[self.keys.bodyoffset],
-                let bodylength: Int = value[self.keys.bodylength] else {
-            return true
-          }
-          let view = snapshot.text.utf8
-          let bodyStart = view.index(view.startIndex, offsetBy: bodyoffset)
-          let bodyEnd = view.index(view.startIndex, offsetBy: bodyoffset+bodylength)
-          let value = String(view[bodyStart..<bodyEnd]).flatMap(Double.init)
-          switch name {
-            case "red":
-              red = value
-            case "green":
-              green = value
-            case "blue":
-              blue = value
-            case "alpha":
-              alpha = value
-            default:
-              break
-          }
-          return true
-        }
-        if let red = red,
-           let green = green,
-           let blue = blue,
-           let alpha = alpha {
-          let color = Color(red: red, green: green, blue: blue, alpha: alpha)
-          return ColorInformation(range: start..<end, color: color)
-        } else {
-          return nil
-        }
-      }
-
-      func colorInformation(array: SKDResponseArray) -> [ColorInformation] {
-        var result: [ColorInformation] = []
-        array.forEach { (i: Int, value: SKDResponseDictionary) in
-          if let documentSymbol = colorInformation(dict: value) {
-            result.append(documentSymbol)
-          } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
-            result += colorInformation(array: substructure)
-          }
-          return true
-        }
-        return result
-      }
-
-      req.reply(colorInformation(array: results))
+    let dict = try await self.sourcekitd.send(skreq)
+    defer {
+      let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+      closeHelperReq[keys.request] = self.requests.editor_close
+      closeHelperReq[keys.name] = helperDocumentName
+      _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
     }
-    // FIXME: cancellation
-    _ = handle
+
+    guard let results: SKDResponseArray = dict[self.keys.substructure] else {
+      return []
+    }
+
+    func colorInformation(dict: SKDResponseDictionary) -> ColorInformation? {
+      guard let kind: sourcekitd_uid_t = dict[self.keys.kind],
+            kind == self.values.expr_object_literal,
+            let name: String = dict[self.keys.name],
+            name == "colorLiteral",
+            let offset: Int = dict[self.keys.offset],
+            let start: Position = snapshot.positionOf(utf8Offset: offset),
+            let length: Int = dict[self.keys.length],
+            let end: Position = snapshot.positionOf(utf8Offset: offset + length),
+            let substructure: SKDResponseArray = dict[self.keys.substructure] else {
+        return nil
+      }
+      var red, green, blue, alpha: Double?
+      substructure.forEach{ (i: Int, value: SKDResponseDictionary) in
+        guard let name: String = value[self.keys.name],
+              let bodyoffset: Int = value[self.keys.bodyoffset],
+              let bodylength: Int = value[self.keys.bodylength] else {
+          return true
+        }
+        let view = snapshot.text.utf8
+        let bodyStart = view.index(view.startIndex, offsetBy: bodyoffset)
+        let bodyEnd = view.index(view.startIndex, offsetBy: bodyoffset+bodylength)
+        let value = String(view[bodyStart..<bodyEnd]).flatMap(Double.init)
+        switch name {
+          case "red":
+            red = value
+          case "green":
+            green = value
+          case "blue":
+            blue = value
+          case "alpha":
+            alpha = value
+          default:
+            break
+        }
+        return true
+      }
+      if let red = red,
+         let green = green,
+         let blue = blue,
+         let alpha = alpha {
+        let color = Color(red: red, green: green, blue: blue, alpha: alpha)
+        return ColorInformation(range: start..<end, color: color)
+      } else {
+        return nil
+      }
+    }
+
+    func colorInformation(array: SKDResponseArray) -> [ColorInformation] {
+      var result: [ColorInformation] = []
+      array.forEach { (i: Int, value: SKDResponseDictionary) in
+        if let documentSymbol = colorInformation(dict: value) {
+          result.append(documentSymbol)
+        } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
+          result += colorInformation(array: substructure)
+        }
+        return true
+      }
+      return result
+    }
+
+    return colorInformation(array: results)
   }
 
-  public func documentSemanticTokens(_ req: Request<DocumentSemanticTokensRequest>) {
-    let uri = req.params.textDocument.uri
+  public func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse? {
+    let uri = req.textDocument.uri
 
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
       log("failed to find snapshot for uri \(uri)")
-      req.reply(DocumentSemanticTokensResponse(data: []))
-      return
+      return DocumentSemanticTokensResponse(data: [])
     }
 
     let tokens = snapshot.mergedAndSortedTokens()
     let encodedTokens = tokens.lspEncoded
 
-    req.reply(DocumentSemanticTokensResponse(data: encodedTokens))
+    return DocumentSemanticTokensResponse(data: encodedTokens)
   }
 
-  public func documentSemanticTokensDelta(_ req: Request<DocumentSemanticTokensDeltaRequest>) {
-    // FIXME: implement semantic tokens delta support.
-    req.reply(nil)
+  public func documentSemanticTokensDelta(_ req: DocumentSemanticTokensDeltaRequest) async throws -> DocumentSemanticTokensDeltaResponse? {
+    return nil
   }
 
-  public func documentSemanticTokensRange(_ req: Request<DocumentSemanticTokensRangeRequest>) {
-    let uri = req.params.textDocument.uri
-    let range = req.params.range
+  public func documentSemanticTokensRange(_ req: DocumentSemanticTokensRangeRequest) async throws -> DocumentSemanticTokensResponse? {
+    let uri = req.textDocument.uri
+    let range = req.range
 
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
       log("failed to find snapshot for uri \(uri)")
-      req.reply(DocumentSemanticTokensResponse(data: []))
-      return
+      return DocumentSemanticTokensResponse(data: [])
     }
 
     let tokens = snapshot.mergedAndSortedTokens(in: range)
     let encodedTokens = tokens.lspEncoded
 
-    req.reply(DocumentSemanticTokensResponse(data: encodedTokens))
+    return DocumentSemanticTokensResponse(data: encodedTokens)
   }
 
-  public func colorPresentation(_ req: Request<ColorPresentationRequest>) {
-    let color = req.params.color
+  public func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
+    let color = req.color
     // Empty string as a label breaks VSCode color picker
     let label = "Color Literal"
     let newText = "#colorLiteral(red: \(color.red), green: \(color.green), blue: \(color.blue), alpha: \(color.alpha))"
-    let textEdit = TextEdit(range: req.params.range, newText: newText)
+    let textEdit = TextEdit(range: req.range, newText: newText)
     let presentation = ColorPresentation(label: label, textEdit: textEdit, additionalTextEdits: nil)
-    req.reply([presentation])
+    return [presentation]
   }
 
-  public func documentSymbolHighlight(_ req: Request<DocumentHighlightRequest>) async {
+  public func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
     let keys = self.keys
 
-    guard let snapshot = self.documentManager.latestSnapshot(req.params.textDocument.uri) else {
-      log("failed to find snapshot for url \(req.params.textDocument.uri)")
-      req.reply(nil)
-      return
+    guard let snapshot = self.documentManager.latestSnapshot(req.textDocument.uri) else {
+      log("failed to find snapshot for url \(req.textDocument.uri)")
+      return nil
     }
 
-    guard let offset = snapshot.utf8Offset(of: req.params.position) else {
-      log("invalid position \(req.params.position)")
-      req.reply(nil)
-      return
+    guard let offset = snapshot.utf8Offset(of: req.position) else {
+      log("invalid position \(req.position)")
+      return nil
     }
 
     let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
@@ -950,38 +902,31 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let handle = self.sourcekitd.send(skreq, self.queue) { [weak self] result in
-      guard let self = self else { return }
-      guard let dict = result.success else {
-        req.reply(.failure(ResponseError(result.failure!)))
-        return
-      }
+    let dict = try await self.sourcekitd.send(skreq)
 
-      guard let results: SKDResponseArray = dict[self.keys.results] else {
-        return req.reply([])
-      }
-
-      var highlights: [DocumentHighlight] = []
-
-      results.forEach { _, value in
-        if let offset: Int = value[self.keys.offset],
-           let start: Position = snapshot.positionOf(utf8Offset: offset),
-           let length: Int = value[self.keys.length],
-           let end: Position = snapshot.positionOf(utf8Offset: offset + length)
-        {
-          highlights.append(DocumentHighlight(
-            range: start..<end,
-            kind: .read // unknown
-          ))
-        }
-        return true
-      }
-
-      req.reply(highlights)
+    guard let results: SKDResponseArray = dict[self.keys.results] else {
+      return []
     }
 
-    // FIXME: cancellation
-    _ = handle
+    try Task.checkCancellation()
+
+    var highlights: [DocumentHighlight] = []
+
+    results.forEach { _, value in
+      if let offset: Int = value[self.keys.offset],
+         let start: Position = snapshot.positionOf(utf8Offset: offset),
+         let length: Int = value[self.keys.length],
+         let end: Position = snapshot.positionOf(utf8Offset: offset + length)
+      {
+        highlights.append(DocumentHighlight(
+          range: start..<end,
+          kind: .read // unknown
+        ))
+      }
+      return true
+    }
+
+    return highlights
   }
 
   public func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
@@ -1219,47 +1164,34 @@ extension SwiftLanguageServer {
     return ranges.sorted()
   }
 
-  public func codeAction(_ req: Request<CodeActionRequest>) async {
+  public func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
       (retrieveRefactorCodeActions, .refactor),
       (retrieveQuickFixCodeActions, .quickFix)
     ]
-    let wantedActionKinds = req.params.context.only
+    let wantedActionKinds = req.context.only
     let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
     let codeActionCapabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
-    await retrieveCodeActions(req, providers: providers.map { $0.provider }) { result in
-      switch result {
-      case .success(let codeActions):
-        let response = CodeActionRequestResponse(codeActions: codeActions,
-                                                 clientCapabilities: codeActionCapabilities)
-        req.reply(response)
-      case .failure(let error):
-        req.reply(.failure(error))
-      }
-    }
+    let codeActions = try await retrieveCodeActions(req, providers: providers.map { $0.provider })
+    let response = CodeActionRequestResponse(
+      codeActions: codeActions,
+      clientCapabilities: codeActionCapabilities
+    )
+    return response
   }
 
-  func retrieveCodeActions(_ req: Request<CodeActionRequest>, providers: [CodeActionProvider], completion: @escaping CodeActionProviderCompletion) async {
+  func retrieveCodeActions(_ req: CodeActionRequest, providers: [CodeActionProvider]) async throws -> [CodeAction] {
     guard providers.isEmpty == false else {
-      completion(.success([]))
-      return
+      return []
     }
     let codeActions = await withTaskGroup(of: [CodeAction].self) { taskGroup in
       for provider in providers {
         taskGroup.addTask {
-          // FIXME: (async) Migrate `CodeActionProvider` to be async so that we
-          // don't need to do the `withCheckedContinuation` dance here.
-          await withCheckedContinuation { continuation in
-            Task {
-              await provider(req.params) {
-                switch $0 {
-                case .success(let actions):
-                  continuation.resume(returning: actions)
-                case .failure:
-                  continuation.resume(returning: [])
-                }
-              }
-            }
+          do {
+            return try await provider(req)
+          } catch {
+            // Ignore any providers that failed to provide refactoring actions.
+            return []
           }
         }
       }
@@ -1269,50 +1201,40 @@ extension SwiftLanguageServer {
       }
       return results
     }
-    completion(.success(codeActions))
+    return codeActions
   }
 
-  func retrieveRefactorCodeActions(_ params: CodeActionRequest, completion: @escaping CodeActionProviderCompletion) async {
+  func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
     let additionalCursorInfoParameters: ((SKDRequestDictionary) -> Void) = { skreq in
       skreq[self.keys.retrieve_refactor_actions] = 1
     }
 
-    await cursorInfo(
+    let cursorInfoResponse = try await cursorInfo(
       params.textDocument.uri,
       params.range,
       additionalParameters: additionalCursorInfoParameters)
-    { result in
-      guard let dict: CursorInfo = result.success ?? nil else {
-        if let failure = result.failure {
-          let message = "failed to find refactor actions: \(failure)"
-          log(message)
-          completion(.failure(.unknown(message)))
-        } else {
-          completion(.failure(.unknown("CursorInfo failed.")))
-        }
-        return
-      }
-      guard let refactorActions = dict.refactorActions else {
-        completion(.success([]))
-        return
-      }
-      let codeActions: [CodeAction] = refactorActions.compactMap {
-        do {
-          let lspCommand = try $0.asCommand()
-          return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
-        } catch {
-          log("Failed to convert SwiftCommand to Command type: \(error)", level: .error)
-          return nil
-        }
-      }
-      completion(.success(codeActions))
+
+    guard let cursorInfoResponse else {
+      throw ResponseError.unknown("CursorInfo failed.")
     }
+    guard let refactorActions = cursorInfoResponse.refactorActions else {
+      return []
+    }
+    let codeActions: [CodeAction] = refactorActions.compactMap {
+      do {
+        let lspCommand = try $0.asCommand()
+        return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
+      } catch {
+        log("Failed to convert SwiftCommand to Command type: \(error)", level: .error)
+        return nil
+      }
+    }
+    return codeActions
   }
 
-  func retrieveQuickFixCodeActions(_ params: CodeActionRequest, completion: @escaping CodeActionProviderCompletion) {
+  func retrieveQuickFixCodeActions(_ params: CodeActionRequest) -> [CodeAction] {
     guard let cachedDiags = currentDiagnostics[params.textDocument.uri] else {
-      completion(.success([]))
-      return
+      return []
     }
 
     let codeActions = cachedDiags.flatMap { (cachedDiag) -> [CodeAction] in
@@ -1362,51 +1284,40 @@ extension SwiftLanguageServer {
       })
     }
 
-    completion(.success(codeActions))
+    return codeActions
   }
 
-  public func inlayHint(_ req: Request<InlayHintRequest>) async {
-    let uri = req.params.textDocument.uri
-    await variableTypeInfos(uri, req.params.range) { infosResult in
-      do {
-        let infos = try infosResult.get()
-        let hints = infos
-          .lazy
-          .filter { !$0.hasExplicitType }
-          .map { info -> InlayHint in
-            let position = info.range.upperBound
-            let label = ": \(info.printedType)"
-            let textEdits: [TextEdit]?
-            if info.canBeFollowedByTypeAnnotation {
-              textEdits = [TextEdit(range: position..<position, newText: label)]
-            } else {
-              textEdits = nil
-            }
-            return InlayHint(
-              position: position,
-              label: .string(label),
-              kind: .type,
-              textEdits: textEdits
-            )
-          }
-
-        req.reply(.success(Array(hints)))
-      } catch {
-        let message = "variable types for inlay hints failed for \(uri): \(error)"
-        log(message, level: .warning)
-        req.reply(.failure(.unknown(message)))
+  public func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint] {
+    let uri = req.textDocument.uri
+    let infos = try await variableTypeInfos(uri, req.range)
+    let hints = infos
+      .lazy
+      .filter { !$0.hasExplicitType }
+      .map { info -> InlayHint in
+        let position = info.range.upperBound
+        let label = ": \(info.printedType)"
+        let textEdits: [TextEdit]?
+        if info.canBeFollowedByTypeAnnotation {
+          textEdits = [TextEdit(range: position..<position, newText: label)]
+        } else {
+          textEdits = nil
+        }
+        return InlayHint(
+          position: position,
+          label: .string(label),
+          kind: .type,
+          textEdits: textEdits
+        )
       }
-    }
+
+    return Array(hints)
   }
 
-  public func documentDiagnostic(
-    _ uri: DocumentURI,
-    _ completion: @escaping (Result<[Diagnostic], ResponseError>) -> Void
-  ) async {
-    guard let snapshot = documentManager.latestSnapshot(uri) else {
-      let msg = "failed to find snapshot for url \(uri)"
+  public func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
+    guard let snapshot = documentManager.latestSnapshot(req.textDocument.uri) else {
+      let msg = "failed to find snapshot for url \(req.textDocument.uri)"
       log(msg)
-      return completion(.failure(.unknown(msg)))
+      throw ResponseError.unknown(msg)
     }
 
     let keys = self.keys
@@ -1417,104 +1328,50 @@ extension SwiftLanguageServer {
 
     // FIXME: SourceKit should probably cache this for us.
     let areFallbackBuildSettings: Bool
-    if let buildSettings = await self.buildSettings(for: uri) {
+    if let buildSettings = await self.buildSettings(for: req.textDocument.uri) {
       skreq[keys.compilerargs] = buildSettings.compilerArgs
       areFallbackBuildSettings = buildSettings.isFallback
     } else {
       areFallbackBuildSettings = true
     }
 
-    let handle = self.sourcekitd.send(skreq, self.queue) { response in
-      guard let dict = response.success else {
-        return completion(.failure(ResponseError(response.failure!)))
-      }
+    let dict = try await self.sourcekitd.send(skreq)
+    let diagnostics = self.registerDiagnostics(
+      sourcekitdDiagnostics: dict[keys.diagnostics],
+      snapshot: snapshot,
+      stage: .sema,
+      isFromFallbackBuildSettings: areFallbackBuildSettings
+    )
 
-      let diagnostics = self.registerDiagnostics(
-        sourcekitdDiagnostics: dict[keys.diagnostics],
-        snapshot: snapshot,
-        stage: .sema,
-        isFromFallbackBuildSettings: areFallbackBuildSettings
-      )
-
-      completion(.success(diagnostics))
-    }
-
-    // FIXME: cancellation
-    _ = handle
+    return .full(RelatedFullDocumentDiagnosticReport(items: diagnostics))
   }
 
-  public func documentDiagnostic(_ req: Request<DocumentDiagnosticsRequest>) async {
-    let uri = req.params.textDocument.uri
-    await documentDiagnostic(req.params.textDocument.uri) { result in
-      switch result {
-        case .success(let diagnostics):
-          req.reply(.full(.init(items: diagnostics)))
-
-        case .failure(let error):
-          let message = "document diagnostic failed \(uri): \(error)"
-          log(message, level: .warning)
-          return req.reply(.failure(.unknown(message)))
-      }
-    }
-  }
-
-  public func executeCommand(_ req: Request<ExecuteCommandRequest>) async {
-    let params = req.params
-    //TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
-    guard let swiftCommand = params.swiftCommand(ofType: SemanticRefactorCommand.self) else {
-      let message = "semantic refactoring: unknown command \(params.command)"
-      log(message, level: .warning)
-      return req.reply(.failure(.unknown(message)))
-    }
-    let uri = swiftCommand.textDocument.uri
-    await semanticRefactoring(swiftCommand) { result in
-      Task {
-        switch result {
-        case .success(let refactor):
-          let edit = refactor.edit
-          await self.applyEdit(label: refactor.title, edit: edit) { editResult in
-            switch editResult {
-            case .success:
-              req.reply(edit.encodeToLSPAny())
-            case .failure(let error):
-              req.reply(.failure(error))
-            }
-          }
-        case .failure(let error):
-          let message = "semantic refactoring failed \(uri): \(error)"
-          log(message, level: .warning)
-          return req.reply(.failure(.unknown(message)))
-        }
-      }
-    }
-  }
-
-  func applyEdit(label: String, edit: WorkspaceEdit, completion: @escaping (LSPResult<ApplyEditResponse>) -> Void) async {
-    let req = ApplyEditRequest(label: label, edit: edit)
+  public func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
+    // TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
     guard let sourceKitServer else {
       // `SourceKitServer` has been destructed. We are tearing down the language
       // server. Nothing left to do.
-      return completion(.failure(.unknown("Connection to the editor closed")))
+      throw ResponseError.unknown("Connection to the editor closed")
     }
-    await sourceKitServer.sendRequestToClient(req) { reply in
-      switch reply {
-      case .success(let response) where response.applied == false:
-        let reason: String
-        if let failureReason = response.failureReason {
-          reason = " reason: \(failureReason)"
-        } else {
-          reason = ""
-        }
-        log("client refused to apply edit for \(label)!\(reason)", level: .warning)
-      case .failure(let error):
-        log("applyEdit failed: \(error)", level: .warning)
-      default:
-        break
+    guard let swiftCommand = req.swiftCommand(ofType: SemanticRefactorCommand.self) else {
+      let message = "semantic refactoring: unknown command \(req.command)"
+      log(message, level: .warning)
+      throw ResponseError.unknown(message)
+    }
+    let refactor = try await semanticRefactoring(swiftCommand)
+    let edit = refactor.edit
+    let req = ApplyEditRequest(label: refactor.title, edit: edit)
+    let response = try await sourceKitServer.sendRequestToClient(req)
+    if !response.applied {
+      let reason: String
+      if let failureReason = response.failureReason {
+        reason = " reason: \(failureReason)"
+      } else {
+        reason = ""
       }
-      completion(reply)
+      log("client refused to apply edit for \(refactor.title)!\(reason)", level: .warning)
     }
-
-    // FIXME: (async) cancellation
+    return edit.encodeToLSPAny()
   }
 }
 
