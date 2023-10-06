@@ -88,7 +88,6 @@ public final class TestClient: MessageHandler {
     self.server = server
   }
 
-  public var replyQueue: DispatchQueue = DispatchQueue(label: "testclient-reply-queue")
   var oneShotNotificationHandlers: [((Any) -> Void)] = []
   var oneShotRequestHandlers: [((Any) -> Void)] = []
 
@@ -157,13 +156,8 @@ extension TestClient: Connection {
   }
 
   /// Send a request to the language server and (asynchronously) receive a reply.
-  public func send<Request>(_ request: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
-    return server.send(request, queue: queue, reply: reply)
-  }
-
-  /// Convenience method to get reply on replyQueue.
   public func send<Request>(_ request: Request, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
-    return send(request, queue: replyQueue, reply: reply)
+    return server.send(request, reply: reply)
   }
 
 

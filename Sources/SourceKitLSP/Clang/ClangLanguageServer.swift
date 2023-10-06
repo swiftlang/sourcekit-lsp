@@ -41,10 +41,6 @@ extension NSLock {
 /// requests and notifications **from** clangd, not from the editor, and it will
 /// forward these requests and notifications to the editor.
 actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
-  // FIXME: (async) Remove once `Connection.send` has been asyncified.
-  /// The queue on which clangd calls us back.
-  public let clangdCommunicationQueue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
-
   /// The queue on which all messages that originate from clangd are handled.
   ///
   /// These are requests and notifications sent *from* clangd, not replies from
@@ -314,7 +310,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// The cancellation token from the original request is automatically linked to the forwarded
   /// request such that cancelling the original request will cancel the forwarded request.
   func forwardRequestToClangd<R>(_ request: Request<R>) {
-    let id = clangd.send(request.params, queue: clangdCommunicationQueue) { result in
+    let id = clangd.send(request.params) { result in
       request.reply(result)
     }
     request.cancellationToken.addCancellationHandler {
@@ -331,7 +327,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// The response of the request is  returned asynchronously as the return value.
   func forwardRequestToClangd<R: RequestType>(_ request: R) async throws -> R.Response {
     try await withCheckedThrowingContinuation { continuation in
-      _ = clangd.send(request, queue: clangdCommunicationQueue) { result in
+      _ = clangd.send(request) { result in
         switch result {
         case .success(let response):
           continuation.resume(returning: response)
@@ -423,7 +419,7 @@ extension ClangLanguageServerShim {
 
   public func shutdown() async {
     await withCheckedContinuation { continuation in
-      _ = clangd.send(ShutdownRequest(), queue: self.clangdCommunicationQueue) { [weak self] _ in
+      _ = clangd.send(ShutdownRequest()) { [weak self] _ in
         guard let self else { return }
         Task {
           await self.clangd.send(ExitNotification())

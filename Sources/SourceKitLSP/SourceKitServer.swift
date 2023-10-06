@@ -96,7 +96,7 @@ final actor WorkDoneProgressState {
     if state == .noProgress {
       state = .creating
       // Discard the handle. We don't support cancellation of the creation of a work done progress.
-      _ = server.client.send(CreateWorkDoneProgressRequest(token: token), queue: server.clientCommunicationQueue) { result in
+      _ = server.client.send(CreateWorkDoneProgressRequest(token: token)) { result in
         if result.success != nil {
           if self.activeTasks == 0 {
             // ActiveTasks might have been decreased while we created the `WorkDoneProgress`
@@ -133,10 +133,6 @@ final actor WorkDoneProgressState {
 /// and cross-language support. Requests may be dispatched to language-specific services or handled
 /// centrally, but this is transparent to the client.
 public actor SourceKitServer {
-  // FIXME: (async) We can remove this if we migrate client.send to be async and it thus doesn't take a queue anymore.
-  /// The queue on which we communicate with the client.
-  public let clientCommunicationQueue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
-
   /// The queue on which all messages (notifications, requests, responses) are
   /// handled.
   ///
@@ -280,7 +276,7 @@ public actor SourceKitServer {
   /// Send the given request to the editor.
   public func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
     try await withCheckedThrowingContinuation { continuation in
-      _ = client.send(request, queue: clientCommunicationQueue) { result in
+      _ = client.send(request) { result in
         continuation.resume(with: result)
       }
       // FIXME: (async) Handle cancellation
@@ -902,7 +898,7 @@ extension SourceKitServer {
     _ registry: CapabilityRegistry
   ) {
     let req = RegisterCapabilityRequest(registrations: [registration])
-    let _ = client.send(req, queue: clientCommunicationQueue) { result in
+    let _ = client.send(req) { result in
       if let error = result.failure {
         log("Failed to dynamically register for \(registration.method): \(error)", level: .error)
         registry.remove(registration: registration)
