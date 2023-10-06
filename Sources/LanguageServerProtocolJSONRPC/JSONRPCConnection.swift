@@ -62,7 +62,7 @@ public final class JSONRPCConnection {
 
   /// A handler that will be called asyncronously when the connection is being
   /// closed.
-  var closeHandler: (() async -> Void)! = nil
+  var closeHandler: (() async -> Void)? = nil
 
   public init(
     protocol messageRegistry: MessageRegistry,
@@ -113,7 +113,7 @@ public final class JSONRPCConnection {
     ioGroup.notify(queue: queue) { [weak self] in
       guard let self = self else { return }
       Task {
-        await self.closeHandler()
+        await self.closeHandler?()
         self.receiveHandler = nil // break retain cycle
       }
     }
