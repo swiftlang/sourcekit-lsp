@@ -41,10 +41,6 @@ public struct DocumentSnapshot: Identifiable {
   public let id: ID
   public let language: Language
   public let lineTable: LineTable
-  /// Syntax highlighting tokens for the document. Note that
-  /// `uri` + `latestVersion` only uniquely identifies a snapshot's content,
-  /// the tokens are updated independently and only used internally.
-  public let tokens: DocumentTokens
 
   public var uri: DocumentURI { id.uri }
   public var version: Int { id.version }
@@ -54,13 +50,11 @@ public struct DocumentSnapshot: Identifiable {
     uri: DocumentURI,
     language: Language,
     version: Int,
-    lineTable: LineTable,
-    tokens: DocumentTokens
+    lineTable: LineTable
   ) {
     self.id = ID(uri: uri, version: version)
     self.language = language
     self.lineTable = lineTable
-    self.tokens = tokens
   }
 
   func index(of pos: Position) -> String.Index? {
@@ -73,14 +67,12 @@ public final class Document {
   public let language: Language
   var latestVersion: Int
   var latestLineTable: LineTable
-  var latestTokens: DocumentTokens
 
   init(uri: DocumentURI, language: Language, version: Int, text: String) {
     self.uri = uri
     self.language = language
     self.latestVersion = version
     self.latestLineTable = LineTable(text)
-    self.latestTokens = DocumentTokens()
   }
 
   /// **Not thread safe!** Use `DocumentManager.latestSnapshot` instead.
@@ -89,8 +81,7 @@ public final class Document {
       uri: self.uri,
       language: self.language,
       version: latestVersion,
-      lineTable: latestLineTable,
-      tokens: latestTokens
+      lineTable: latestLineTable
     )
   }
 }
@@ -178,23 +169,9 @@ public final class DocumentManager {
             toLine: range.upperBound.line,
             utf16Offset: range.upperBound.utf16index,
             with: edit.text)
-          
-          // Remove all tokens in the updated range and shift later ones.
-          let rangeAdjuster = RangeAdjuster(edit: edit)!
-
-          document.latestTokens.semantic = document.latestTokens.semantic.compactMap {
-            var token = $0
-            if let adjustedRange = rangeAdjuster.adjust(token.range) {
-              token.range = adjustedRange
-              return token
-            } else {
-              return nil
-            }
-          }
         } else {
           // Full text replacement.
           document.latestLineTable = LineTable(edit.text)
-          document.latestTokens = DocumentTokens()
         }
       }
 
@@ -203,23 +180,6 @@ public final class DocumentManager {
       }
       document.latestVersion = newVersion
       return (preEditSnapshot, document.latestSnapshot)
-    }
-  }
-
-  /// Updates the tokens in a document.
-  ///
-  /// - parameter uri: The URI of the document to be updated
-  /// - parameter tokens: The new tokens for the document
-  @discardableResult
-  public func updateTokens(_ uri: DocumentURI, tokens: DocumentTokens) throws -> DocumentSnapshot {
-    return try queue.sync {
-      guard let document = documents[uri] else {
-        throw Error.missingDocument(uri)
-      }
-
-      document.latestTokens = tokens
-
-      return document.latestSnapshot
     }
   }
 

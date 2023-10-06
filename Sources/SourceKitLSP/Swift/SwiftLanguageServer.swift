@@ -126,6 +126,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   var currentCompletionSession: CodeCompletionSession? = nil
 
   let syntaxTreeManager = SyntaxTreeManager()
+  let semanticTokensManager = SemanticTokensManager()
 
   nonisolated var keys: sourcekitd_keys { return sourcekitd.keys }
   nonisolated var requests: sourcekitd_requests { return sourcekitd.requests }
@@ -198,37 +199,21 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     self.stateChangeHandlers.append(handler)
   }
 
-  /// Updates the semantic tokens for the given `snapshot`.
-  private func updateSemanticTokens(
-    response: SKDResponseDictionary,
+  /// Returns the semantic tokens in `response` for the given `snapshot`.
+  private func semanticTokens(
+    of response: SKDResponseDictionary,
     for snapshot: DocumentSnapshot
-  ) {
-    let docTokens = updatedSemanticTokens(response: response, for: snapshot)
-
-    do {
-      try documentManager.updateTokens(snapshot.uri, tokens: docTokens)
-    } catch {
-      log("Updating semantic tokens failed: \(error)", level: .warning)
-    }
-  }
-
-  /// Returns the updated semantic tokens for the given `snapshot`.
-  private func updatedSemanticTokens(
-    response: SKDResponseDictionary,
-    for snapshot: DocumentSnapshot
-  ) -> DocumentTokens {
+  ) -> [SyntaxHighlightingToken]? {
     logExecutionTime(level: .debug) {
-      var docTokens = snapshot.tokens
-
       if let skTokens: SKDResponseArray = response[keys.annotations] {
         let tokenParser = SyntaxHighlightingTokenParser(sourcekitd: sourcekitd)
         var tokens: [SyntaxHighlightingToken] = []
         tokenParser.parseTokens(skTokens, in: snapshot, into: &tokens)
 
-        docTokens.semantic = tokens
+        return tokens
       }
 
-      return docTokens
+      return nil
     }
   }
 
@@ -344,9 +329,9 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
     if let dict = try? self.sourcekitd.sendSync(req) {
       let isSemaStage = dict[keys.diagnostic_stage] as sourcekitd_uid_t? == sourcekitd.values.diag_stage_sema
-      if isSemaStage {
+      if isSemaStage, let semanticTokens = semanticTokens(of: dict, for: snapshot) {
         // Only update semantic tokens if the 0,0 replacetext request returned semantic information.
-        updateSemanticTokens(response: dict, for: snapshot)
+        await semanticTokensManager.setSemanticTokens(for: snapshot.id, semanticTokens: semanticTokens)
       }
       if enablePublishDiagnostics {
         await publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
@@ -494,7 +479,7 @@ extension SwiftLanguageServer {
     await self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
   }
 
-  public func closeDocument(_ note: DidCloseTextDocumentNotification) {
+  public func closeDocument(_ note: DidCloseTextDocumentNotification) async {
     let keys = self.keys
 
     self.documentManager.close(note)
@@ -509,6 +494,8 @@ extension SwiftLanguageServer {
     self.currentDiagnostics[uri] = nil
 
     _ = try? self.sourcekitd.sendSync(req)
+
+    await semanticTokensManager.discardSemanticTokens(for: note.textDocument.uri)
   }
 
   public func changeDocument(_ note: DidChangeTextDocumentNotification) async {
@@ -552,7 +539,16 @@ extension SwiftLanguageServer {
     guard let (preEditSnapshot, postEditSnapshot) = editResult else {
       return
     }
-    await syntaxTreeManager.registerEdit(preEditSnapshot: preEditSnapshot, postEditSnapshot: postEditSnapshot, edits: ConcurrentEdits(fromSequential: edits))
+    await syntaxTreeManager.registerEdit(
+      preEditSnapshot: preEditSnapshot,
+      postEditSnapshot: postEditSnapshot,
+      edits: ConcurrentEdits(fromSequential: edits)
+    )
+    await semanticTokensManager.registerEdit(
+      preEditSnapshot: preEditSnapshot.id,
+      postEditSnapshot: postEditSnapshot.id,
+      edits: note.contentChanges
+    )
 
     if let dict = lastResponse {
       let compileCommand = await self.buildSettings(for: note.textDocument.uri)
