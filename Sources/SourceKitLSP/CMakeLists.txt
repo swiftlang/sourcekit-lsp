@@ -2,7 +2,6 @@
 add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
   DocumentManager.swift
-  DocumentTokens.swift
   IndexStoreDB+MainFilesProvider.swift
   RangeAdjuster.swift
   Sequence+AsyncMap.swift
@@ -25,11 +24,14 @@ target_sources(SourceKitLSP PRIVATE
   Swift/OpenInterface.swift
   Swift/SemanticRefactorCommand.swift
   Swift/SemanticRefactoring.swift
+  Swift/SemanticTokens.swift
+  Swift/SemanticTokensManager.swift
   Swift/SourceKitD+ResponseError.swift
   Swift/SwiftCommand.swift
   Swift/SwiftLanguageServer.swift
   Swift/SyntaxHighlightingToken.swift
   Swift/SyntaxHighlightingTokenParser.swift
+  Swift/SyntaxTreeManager.swift
   Swift/VariableTypeInfo.swift)
 set_target_properties(SourceKitLSP PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})

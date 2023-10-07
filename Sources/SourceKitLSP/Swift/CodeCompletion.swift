@@ -63,8 +63,8 @@ extension SwiftLanguageServer {
         log("triggerFromIncompleteCompletions with no existing completion session", level: .warning)
         throw ResponseError.serverCancelled
       }
-      guard currentSession.uri == snapshot.document.uri, currentSession.utf8StartOffset == offset else {
-        log("triggerFromIncompleteCompletions with incompatible completion session; expected \(currentSession.uri)@\(currentSession.utf8StartOffset), but got \(snapshot.document.uri)@\(offset)", level: .warning)
+      guard currentSession.uri == snapshot.uri, currentSession.utf8StartOffset == offset else {
+        log("triggerFromIncompleteCompletions with incompatible completion session; expected \(currentSession.uri)@\(currentSession.utf8StartOffset), but got \(snapshot.uri)@\(offset)", level: .warning)
         throw ResponseError.serverCancelled
       }
       session = currentSession
@@ -76,7 +76,7 @@ extension SwiftLanguageServer {
         snapshot: snapshot,
         utf8Offset: offset,
         position: completionPos,
-        compileCommand: await buildSettings(for: snapshot.document.uri))
+        compileCommand: await buildSettings(for: snapshot.uri))
 
       await currentCompletionSession?.close()
       currentCompletionSession = session
@@ -95,7 +95,7 @@ extension SwiftLanguageServer {
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.codecomplete
     skreq[keys.offset] = offset
-    skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
+    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
     skreq[keys.sourcetext] = snapshot.text
 
     let skreqOptions = SKDRequestDictionary(sourcekitd: sourcekitd)
@@ -103,7 +103,7 @@ extension SwiftLanguageServer {
     skreq[keys.codecomplete_options] = skreqOptions
 
     // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = await buildSettings(for: snapshot.document.uri) {
+    if let compileCommand = await buildSettings(for: snapshot.uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 

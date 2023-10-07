@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2021 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2023 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -11,23 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
+import LSPLogging
 import SwiftSyntax
 import SwiftIDEUtils
 import SwiftParser
 
-/// Syntax highlighting tokens for a particular document.
-public struct DocumentTokens {
-  /// The syntax tree representing the entire document.
-  public var syntaxTree: SourceFileSyntax?
-  /// This information is used to determine whether a syntax node can be re-used in incremental parsing.
-  /// 
-  /// The property is not nil only after the document is parsed.
-  public var lookaheadRanges: LookaheadRanges?
-  /// Semantic tokens, e.g. variable references, type references, ...
-  public var semantic: [SyntaxHighlightingToken] = []
-}
-
-extension DocumentSnapshot {
+extension SwiftLanguageServer {
   /// Computes an array of syntax highlighting tokens from the syntax tree that
   /// have been merged with any semantic tokens from SourceKit. If the provided
   /// range is non-empty, this function restricts its output to only those
@@ -36,17 +25,52 @@ extension DocumentSnapshot {
   ///
   /// - Parameter range: The range of tokens to restrict this function to, if any.
   /// - Returns: An array of syntax highlighting tokens.
-  public func mergedAndSortedTokens(in range: Range<Position>? = nil) -> [SyntaxHighlightingToken] {
-    guard let tree = self.tokens.syntaxTree else {
-      return self.tokens.semantic
-    }
-    let range = range.flatMap({ $0.byteSourceRange(in: self) })
+  private func mergedAndSortedTokens(
+    for snapshot: DocumentSnapshot,
+    in range: Range<Position>? = nil
+  ) async -> [SyntaxHighlightingToken] {
+    let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let semanticTokens = await semanticTokensManager.semanticTokens(for: snapshot.id)
+    let range = range.flatMap({ $0.byteSourceRange(in: snapshot) })
              ?? ByteSourceRange(offset: 0, length: tree.totalLength.utf8Length)
     return tree
       .classifications(in: range)
-      .flatMap({ $0.highlightingTokens(in: self) })
-      .mergingTokens(with: self.tokens.semantic)
+      .flatMap({ $0.highlightingTokens(in: snapshot) })
+      .mergingTokens(with: semanticTokens ?? [])
       .sorted { $0.start < $1.start }
+  }
+
+  public func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse? {
+    let uri = req.textDocument.uri
+
+    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
+      log("failed to find snapshot for uri \(uri)")
+      return DocumentSemanticTokensResponse(data: [])
+    }
+
+    let tokens = await mergedAndSortedTokens(for: snapshot)
+    let encodedTokens = tokens.lspEncoded
+
+    return DocumentSemanticTokensResponse(data: encodedTokens)
+  }
+
+  public func documentSemanticTokensDelta(_ req: DocumentSemanticTokensDeltaRequest) async throws -> DocumentSemanticTokensDeltaResponse? {
+    return nil
+  }
+
+  public func documentSemanticTokensRange(_ req: DocumentSemanticTokensRangeRequest) async throws -> DocumentSemanticTokensResponse? {
+    let uri = req.textDocument.uri
+    let range = req.range
+
+    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
+      log("failed to find snapshot for uri \(uri)")
+      return DocumentSemanticTokensResponse(data: [])
+    }
+
+    let tokens = await mergedAndSortedTokens(for: snapshot, in: range)
+    let encodedTokens = tokens.lspEncoded
+
+    return DocumentSemanticTokensResponse(data: encodedTokens)
   }
 }
 

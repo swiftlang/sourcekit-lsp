@@ -374,7 +374,7 @@ public actor SourceKitServer {
       await self.closeDocument(closeNotification, workspace: workspace)
 
       let textDocument = TextDocumentItem(uri: documentUri,
-                                          language: snapshot.document.language,
+                                          language: snapshot.language,
                                           version: snapshot.version,
                                           text: snapshot.text)
       await self.openDocument(DidOpenTextDocumentNotification(textDocument: textDocument), workspace: workspace)
@@ -1146,7 +1146,7 @@ extension SourceKitServer {
         if let newWorkspace = newWorkspace {
           await self.openDocument(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
             uri: docUri,
-            language: snapshot.document.language,
+            language: snapshot.language,
             version: snapshot.version,
             text: snapshot.text
           )), workspace: newWorkspace)

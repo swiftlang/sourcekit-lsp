@@ -66,7 +66,7 @@ extension SwiftLanguageServer {
 
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.expression_type
-    skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
+    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
 
     // FIXME: SourceKit should probably cache this for us.
     if let compileCommand = await self.buildSettings(for: uri) {

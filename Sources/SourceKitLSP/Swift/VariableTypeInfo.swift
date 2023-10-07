@@ -55,7 +55,7 @@ struct VariableTypeInfo {
   /// source file.
   var canBeFollowedByTypeAnnotation: Bool
 
-  init?(_ dict: SKDResponseDictionary, in snapshot: DocumentSnapshot) {
+  init?(_ dict: SKDResponseDictionary, in snapshot: DocumentSnapshot, syntaxTree: SourceFileSyntax) {
     let keys = dict.sourcekitd.keys
 
     guard let offset: Int = dict[keys.variable_offset],
@@ -66,7 +66,7 @@ struct VariableTypeInfo {
           let hasExplicitType: Bool = dict[keys.variable_type_explicit] else {
       return nil
     }
-    let tokenAtOffset = snapshot.tokens.syntaxTree?.token(at: AbsolutePosition(utf8Offset: offset))
+    let tokenAtOffset = syntaxTree.token(at: AbsolutePosition(utf8Offset: offset))
 
     self.range = startIndex..<endIndex
     self.printedType = printedType
@@ -92,26 +92,15 @@ extension SwiftLanguageServer {
     _ uri: DocumentURI,
     _ range: Range<Position>? = nil
   ) async throws -> [VariableTypeInfo] {
-    guard var snapshot = documentManager.latestSnapshot(uri) else {
+    guard let snapshot = documentManager.latestSnapshot(uri) else {
       throw VariableTypeInfoError.unknownDocument(uri)
-    }
-
-    // FIXME: (async) We might not have computed the syntax tree yet. Wait until we have a syntax tree.
-    // Really, getting the syntax tree should be an async operation.
-    while snapshot.tokens.syntaxTree == nil {
-      try? await Task.sleep(nanoseconds: 1_000_000)
-      if let newSnapshot = documentManager.latestSnapshot(uri) {
-        snapshot = newSnapshot
-      } else {
-        throw VariableTypeInfoError.unknownDocument(uri)
-      }
     }
 
     let keys = self.keys
 
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.variable_type
-    skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
+    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
 
     if let range = range,
        let start = snapshot.utf8Offset(of: range.lowerBound),
@@ -133,8 +122,9 @@ extension SwiftLanguageServer {
     var variableTypeInfos: [VariableTypeInfo] = []
     variableTypeInfos.reserveCapacity(skVariableTypeInfos.count)
 
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     skVariableTypeInfos.forEach { (_, skVariableTypeInfo) -> Bool in
-      guard let info = VariableTypeInfo(skVariableTypeInfo, in: snapshot) else {
+      guard let info = VariableTypeInfo(skVariableTypeInfo, in: snapshot, syntaxTree: syntaxTree) else {
         assertionFailure("VariableTypeInfo failed to deserialize")
         return true
       }

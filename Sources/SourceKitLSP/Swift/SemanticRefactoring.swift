@@ -74,7 +74,7 @@ struct SemanticRefactoring {
     }
 
     self.title = title
-    self.edit = WorkspaceEdit(changes: [snapshot.document.uri: textEdits])
+    self.edit = WorkspaceEdit(changes: [snapshot.uri: textEdits])
   }
 }
 
@@ -155,7 +155,7 @@ extension SwiftLanguageServer {
     skreq[keys.actionuid] = self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!
 
     // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = await self.buildSettings(for: snapshot.document.uri) {
+    if let compileCommand = await self.buildSettings(for: snapshot.uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 

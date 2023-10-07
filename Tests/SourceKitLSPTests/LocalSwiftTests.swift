@@ -22,12 +22,6 @@ import SwiftParser
 // Workaround ambiguity with Foundation.
 typealias Notification = LanguageServerProtocol.Notification
 
-extension SwiftLanguageServer {
-  func setReusedNodeCallback(_ callback: ReusedNodeCallback?) {
-    self.reusedNodeCallback = callback
-  }
-}
-
 final class LocalSwiftTests: XCTestCase {
 
   /// Connection and lifetime management for the service.
@@ -1509,6 +1503,9 @@ final class LocalSwiftTests: XCTestCase {
     }, { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
       log("Received diagnostics for open - semantic")
     })
+
+    // Send a request that triggers a syntax tree to be built.
+    _ = try sk.sendSync(FoldingRangeRequest(textDocument: .init(uri)))
 
     sk.sendNoteSync(DidChangeTextDocumentNotification(textDocument: .init(uri, version: 1), contentChanges: [
       .init(range: Range(Position(line: 2, utf16index: 7)), text: "a"),

@@ -101,7 +101,7 @@ extension SwiftLanguageServer {
     if offsetRange.upperBound != offsetRange.lowerBound {
       skreq[keys.length] = offsetRange.count
     }
-    skreq[keys.sourcefile] = snapshot.document.uri.pseudoPath
+    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
 
     // FIXME: SourceKit should probably cache this for us.
     if let compileCommand = await self.buildSettings(for: uri) {

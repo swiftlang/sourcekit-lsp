@@ -65,7 +65,7 @@ extension CodeAction {
       title: title,
       kind: .quickFix,
       diagnostics: nil,
-      edit: WorkspaceEdit(changes: [snapshot.document.uri:edits]))
+      edit: WorkspaceEdit(changes: [snapshot.uri:edits]))
   }
 
   /// Describe a fixit's edit briefly.
@@ -257,7 +257,7 @@ extension DiagnosticRelatedInformation {
     }
 
     self.init(
-      location: Location(uri: snapshot.document.uri, range: Range(position!)),
+      location: Location(uri: snapshot.uri, range: Range(position!)),
       message: message,
       codeActions: actions)
   }
