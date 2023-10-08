@@ -408,7 +408,7 @@ extension JSONRPCConnection: Connection {
     }
   }
 
-  public func send<Request>(_ request: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
+  public func send<Request>(_ request: Request, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
 
     let id: RequestID = self.queue.sync {
       let id = nextRequestID()
@@ -423,10 +423,9 @@ extension JSONRPCConnection: Connection {
         responseType: Request.Response.self,
         queue: queue,
         replyHandler: { anyResult in
-          queue.async {
-            reply(anyResult.map { $0 as! Request.Response })
-          }
-      })
+          reply(anyResult.map { $0 as! Request.Response })
+        }
+      )
       return id
     }
 

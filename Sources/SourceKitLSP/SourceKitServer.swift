@@ -96,7 +96,7 @@ final actor WorkDoneProgressState {
     if state == .noProgress {
       state = .creating
       // Discard the handle. We don't support cancellation of the creation of a work done progress.
-      _ = server.client.send(CreateWorkDoneProgressRequest(token: token), queue: server.clientCommunicationQueue) { result in
+      _ = server.client.send(CreateWorkDoneProgressRequest(token: token)) { result in
         if result.success != nil {
           if self.activeTasks == 0 {
             // ActiveTasks might have been decreased while we created the `WorkDoneProgress`
@@ -133,10 +133,6 @@ final actor WorkDoneProgressState {
 /// and cross-language support. Requests may be dispatched to language-specific services or handled
 /// centrally, but this is transparent to the client.
 public actor SourceKitServer {
-  // FIXME: (async) We can remove this if we migrate client.send to be async and it thus doesn't take a queue anymore.
-  /// The queue on which we communicate with the client.
-  public let clientCommunicationQueue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
-
   /// The queue on which all messages (notifications, requests, responses) are
   /// handled.
   ///
@@ -246,41 +242,11 @@ public actor SourceKitServer {
     await notificationHandler(notification, languageService)
   }
 
-  /// Execute `requestHandler` with the request as well as the workspace
-  /// and language that handle this document.
-  ///
-  /// If no language service exists for the document mentioned in the request,
-  /// reply with `fallback`.
-  private func withLanguageServiceAndWorkspace<RequestType: TextDocumentRequest>(
-    for request: Request<RequestType>,
-    requestHandler: @escaping (Request<RequestType>, Workspace, ToolchainLanguageServer) async -> Void,
-    fallback: RequestType.Response
-  ) async {
-    let doc = request.params.textDocument.uri
-    guard let workspace = await self.workspaceForDocument(uri: doc) else {
-      return request.reply(.failure(.workspaceNotOpen(doc)))
-    }
-
-    // This should be created as soon as we receive an open call, even if the document
-    // isn't yet ready.
-    guard let languageService = workspace.documentService[doc] else {
-      return request.reply(fallback)
-    }
-
-    await requestHandler(request, workspace, languageService)
-  }
-
   private func handleRequest<R: RequestType>(_ request: Request<R>, handler: (R) async throws -> R.Response) async {
     do {
       request.reply(try await handler(request.params))
-    } catch let error as ResponseError {
-      request.reply(.failure(error))
-    } catch let error as SKDError {
-      request.reply(.failure(ResponseError(error)))
-    } catch is CancellationError {
-      request.reply(.failure(.cancelled))
     } catch {
-      request.reply(.failure(.unknown("Unknown error: \(error)")))
+      request.reply(.failure(ResponseError(error)))
     }
   }
 
@@ -308,21 +274,9 @@ public actor SourceKitServer {
   }
 
   /// Send the given request to the editor.
-  ///
-  /// Return the result via the `reply` completion handler. `reply` is guaranteed
-  /// to be called exactly once.
-  // FIXME: (async) Remove when all callers use the async version
-  public func sendRequestToClient<R: RequestType>(_ request: R, reply: @escaping (LSPResult<R.Response>) -> Void) {
-    _ = client.send(request, queue: clientCommunicationQueue) { result in
-      reply(result)
-    }
-    // FIXME: (async) Handle cancellation
-  }
-
-  /// Send the given request to the editor.
   public func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
     try await withCheckedThrowingContinuation { continuation in
-      _ = client.send(request, queue: clientCommunicationQueue) { result in
+      _ = client.send(request) { result in
         continuation.resume(with: result)
       }
       // FIXME: (async) Handle cancellation
@@ -944,7 +898,7 @@ extension SourceKitServer {
     _ registry: CapabilityRegistry
   ) {
     let req = RegisterCapabilityRequest(registrations: [registration])
-    let _ = client.send(req, queue: clientCommunicationQueue) { result in
+    let _ = client.send(req) { result in
       if let error = result.failure {
         log("Failed to dynamically register for \(registration.method): \(error)", level: .error)
         registry.remove(registration: registration)

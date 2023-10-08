@@ -19,7 +19,7 @@ public protocol Connection: AnyObject {
   func send<Notification>(_: Notification) where Notification: NotificationType
 
   /// Send a request and (asynchronously) receive a reply.
-  func send<Request>(_: Request, queue: DispatchQueue, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType
+  func send<Request>(_: Request, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType
 
   /// Send a request synchronously. **Use wisely**.
   func sendSync<Request>(_: Request) throws -> Request.Response where Request: RequestType
@@ -29,7 +29,7 @@ extension Connection {
   public func sendSync<Request>(_ request: Request) throws -> Request.Response where Request: RequestType {
     var result: LSPResult<Request.Response>? = nil
     let semaphore = DispatchSemaphore(value: 0)
-    _ = send(request, queue: DispatchQueue.global()) { _result in
+    _ = send(request) { _result in
       result = _result
       semaphore.signal()
     }
@@ -119,23 +119,18 @@ extension LocalConnection: Connection {
 
   public func send<Request: RequestType>(
     _ request: Request,
-    queue: DispatchQueue,
     reply: @escaping (LSPResult<Request.Response>) -> Void
   ) -> RequestID {
     let id = nextRequestID()
 
     guard let handler = self.handler else {
-      queue.async {
-        reply(.failure(.serverCancelled))
-      }
+      reply(.failure(.serverCancelled))
       return id
     }
 
     precondition(self.state == .started)
     handler.handle(request, id: id, from: ObjectIdentifier(self)) { result in
-      queue.async {
-        reply(result)
-      }
+      reply(result)
     }
 
     return id

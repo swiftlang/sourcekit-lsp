@@ -41,10 +41,6 @@ extension NSLock {
 /// requests and notifications **from** clangd, not from the editor, and it will
 /// forward these requests and notifications to the editor.
 actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
-  // FIXME: (async) Remove once `Connection.send` has been asyncified.
-  /// The queue on which clangd calls us back.
-  public let clangdCommunicationQueue: DispatchQueue = DispatchQueue(label: "language-server-queue", qos: .userInitiated)
-
   /// The queue on which all messages that originate from clangd are handled.
   ///
   /// These are requests and notifications sent *from* clangd, not replies from
@@ -299,21 +295,12 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
         return
       }
 
-      await sourceKitServer.sendRequestToClient(request.params, reply: request.reply)
-    }
-  }
-
-  /// Forwards a request to `clangd`, taking care of replying to the original request
-  /// and cancellation.
-  ///
-  /// The cancellation token from the original request is automatically linked to the forwarded
-  /// request such that cancelling the original request will cancel the forwarded request.
-  func forwardRequestToClangd<R>(_ request: Request<R>) {
-    let id = clangd.send(request.params, queue: clangdCommunicationQueue) { result in
-      request.reply(result)
-    }
-    request.cancellationToken.addCancellationHandler {
-      self.clangd.send(CancelRequestNotification(id: id))
+      do {
+        let result = try await sourceKitServer.sendRequestToClient(request.params)
+        request.reply(.success(result))
+      } catch {
+        request.reply(.failure(ResponseError(error)))
+      }
     }
   }
   
@@ -326,7 +313,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// The response of the request is  returned asynchronously as the return value.
   func forwardRequestToClangd<R: RequestType>(_ request: R) async throws -> R.Response {
     try await withCheckedThrowingContinuation { continuation in
-      _ = clangd.send(request, queue: clangdCommunicationQueue) { result in
+      _ = clangd.send(request) { result in
         switch result {
         case .success(let response):
           continuation.resume(returning: response)
@@ -418,7 +405,7 @@ extension ClangLanguageServerShim {
 
   public func shutdown() async {
     await withCheckedContinuation { continuation in
-      _ = clangd.send(ShutdownRequest(), queue: self.clangdCommunicationQueue) { [weak self] _ in
+      _ = clangd.send(ShutdownRequest()) { [weak self] _ in
         guard let self else { return }
         Task {
           await self.clangd.send(ExitNotification())
@@ -615,14 +602,6 @@ private struct ClangBuildSettings: Equatable {
     self.compilerArgs = arguments
     self.workingDirectory = settings.workingDirectory ?? ""
     self.isFallback = isFallback
-  }
-
-  public init?(change: FileBuildSettingsChange, clangPath: AbsolutePath?) {
-    switch change {
-    case .fallback(let settings): self.init(settings, clangPath: clangPath, isFallback: true)
-    case .modified(let settings): self.init(settings, clangPath: clangPath, isFallback: false)
-    case .removedOrUnavailable: return nil
-    }
   }
 
   public var compileCommand: ClangCompileCommand {

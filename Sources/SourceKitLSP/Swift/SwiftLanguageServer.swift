@@ -84,28 +84,9 @@ public struct SwiftCompileCommand: Equatable {
     }
     self.isFallback = isFallback
   }
-
-  public init?(change: FileBuildSettingsChange) {
-    switch change {
-    case .fallback(let settings): self.init(settings, isFallback: true)
-    case .modified(let settings): self.init(settings, isFallback: false)
-    case .removedOrUnavailable: return nil
-    }
-  }
 }
 
 public actor SwiftLanguageServer: ToolchainLanguageServer {
-
-  // FIXME: (async) We can delete this after
-  // - CodeCompletionSession is an actor
-  // - sourcekitd.send is async
-  // - client.send is async
-  /// The queue on which we want to be called back. This includes
-  /// - Completion callback from sourcekitd
-  /// - Sending requests to the editor
-  /// - Guarding the state of `CodeCompletionSession`
-  public let queue: DispatchQueue = DispatchQueue(label: "swift-language-server-queue", qos: .userInitiated)
-
   /// The ``SourceKitServer`` instance that created this `ClangLanguageServerShim`.
   private weak var sourceKitServer: SourceKitServer?
 
@@ -227,8 +208,10 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
       return
     }
     if capabilityRegistry.clientHasSemanticTokenRefreshSupport {
-      _ = await sourceKitServer.sendRequestToClient(WorkspaceSemanticTokensRefreshRequest()) { result in
-        if let error = result.failure {
+      Task {
+        do {
+          _ = try await sourceKitServer.sendRequestToClient(WorkspaceSemanticTokensRefreshRequest())
+        } catch {
           log("refreshing tokens failed: \(error)", level: .warning)
         }
       }
@@ -640,7 +623,16 @@ extension SwiftLanguageServer {
       let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       closeHelperReq[self.keys.request] = self.requests.editor_close
       closeHelperReq[self.keys.name] = helperDocumentName
-      _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
+      // FIXME: (async) We might receive two concurrent document symbol requests for the 
+      // same document, in which race to open/close a document with the same name in 
+      // sourcekitd. The solution is to either
+      //  - Not open the helper document and instead rely on the document that is already 
+      //    open or
+      //  - Prefix the helper document with a UUID to make sure the two concurrent 
+      //    requests operate on different documents as far as sourcekitd is concerned.
+      Task {
+        _ = try await self.sourcekitd.send(closeHelperReq)
+      }
     }
 
     guard let results: SKDResponseArray = dict[self.keys.substructure] else {
@@ -720,7 +712,16 @@ extension SwiftLanguageServer {
       let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       closeHelperReq[keys.request] = self.requests.editor_close
       closeHelperReq[keys.name] = helperDocumentName
-      _ = self.sourcekitd.send(closeHelperReq, .global(qos: .utility), reply: { _ in })
+      // FIXME: (async) We might receive two concurrent document color requests for the 
+      // same document, in which race to open/close a document with the same name in 
+      // sourcekitd. The solution is to either
+      //  - Not open the helper document and instead rely on the document that is already 
+      //    open or
+      //  - Prefix the helper document with a UUID to make sure the two concurrent 
+      //    requests operate on different documents as far as sourcekitd is concerned.
+      Task {
+        _ = try? await self.sourcekitd.send(closeHelperReq)
+      }
     }
 
     guard let results: SKDResponseArray = dict[self.keys.substructure] else {
@@ -1489,17 +1490,6 @@ extension sourcekitd_uid_t {
         return .module
       default:
         return nil
-    }
-  }
-}
-
-extension TriviaPiece {
-  var isLineComment: Bool {
-    switch self {
-    case .lineComment, .docLineComment:
-      return true
-    default:
-      return false
     }
   }
 }

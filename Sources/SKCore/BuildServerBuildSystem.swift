@@ -47,8 +47,7 @@ public actor BuildServerBuildSystem: MessageHandler {
   let projectRoot: AbsolutePath
   let buildFolder: AbsolutePath?
   let serverConfig: BuildServerConfig
-  let requestQueue: DispatchQueue
-
+  
   var buildServer: JSONRPCConnection?
 
   /// The queue on which all messages that originate from the build server are
@@ -95,7 +94,6 @@ public actor BuildServerBuildSystem: MessageHandler {
 #endif
     self.buildFolder = buildFolder
     self.projectRoot = projectRoot
-    self.requestQueue = DispatchQueue(label: "build_server_request_queue")
     self.serverConfig = config
     try self.initializeBuildServer()
   }
@@ -119,13 +117,13 @@ public actor BuildServerBuildSystem: MessageHandler {
 
   deinit {
     if let buildServer = self.buildServer {
-      _ = buildServer.send(ShutdownBuild(), queue: DispatchQueue.global(), reply: { result in
+      _ = buildServer.send(ShutdownBuild()) { result in
         if let error = result.failure {
           log("error shutting down build server: \(error)")
         }
         buildServer.send(ExitBuildNotification())
         buildServer.close()
-      })
+      }
     }
   }
 
@@ -239,7 +237,7 @@ extension BuildServerBuildSystem: BuildSystem {
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     let request = RegisterForChanges(uri: uri, action: .register)
-    _ = self.buildServer?.send(request, queue: requestQueue, reply: { result in
+    _ = self.buildServer?.send(request) { result in
       Task {
         if let error = result.failure {
           log("error registering \(uri): \(error)", level: .error)
@@ -249,18 +247,18 @@ extension BuildServerBuildSystem: BuildSystem {
           await self.buildSettingsChanged(for: uri, settings: nil)
         }
       }
-    })
+    }
   }
 
   /// Unregister the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
   public func unregisterForChangeNotifications(for uri: DocumentURI) {
     let request = RegisterForChanges(uri: uri, action: .unregister)
-    _ = self.buildServer?.send(request, queue: requestQueue, reply: { result in
+    _ = self.buildServer?.send(request) { result in
       if let error = result.failure {
         log("error unregistering \(uri): \(error)", level: .error)
       }
-    })
+    }
   }
 
   public func filesDidChange(_ events: [FileEvent]) {}
