@@ -92,7 +92,7 @@ final class BuildSystemTests: XCTestCase {
     // hackery to synchronously wait for a task to finish. This is very much an
     // anti-pattern because it can easily lead to priority inversions and should
     // thus not be copied to any non-test code.
-    let sema = DispatchSemaphore(value: 0)
+    let setUpCompleted = XCTestExpectation(description: "Waiting for set up")
     Task {
       haveClangd = ToolchainRegistry.shared.toolchains.contains { $0.clangd != nil }
       testServer = TestSourceKitServer()
@@ -123,9 +123,11 @@ final class BuildSystemTests: XCTestCase {
         capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
         workspaceFolders: nil))
-      sema.signal()
+      setUpCompleted.fulfill()
     }
-    sema.wait()
+    if XCTWaiter.wait(for: [setUpCompleted], timeout: defaultTimeout) != .completed {
+      XCTFail("Set up failed to complete")
+    }
   }
 
   override func tearDown() {
