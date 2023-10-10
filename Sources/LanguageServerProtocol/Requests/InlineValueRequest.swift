@@ -130,7 +130,11 @@ public enum InlineValue: ResponseType, Hashable {
     } else if let evaluatableExpression = try? InlineValueEvaluatableExpression(from: decoder) {
       self = .evaluatableExpression(evaluatableExpression)
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected InlineValueText, InlineValueEvaluatableExpression or InlineValueEvaluatableExpression")
+      let context = DecodingError.Context(
+        codingPath: decoder.codingPath,
+        debugDescription:
+          "Expected InlineValueText, InlineValueEvaluatableExpression or InlineValueEvaluatableExpression"
+      )
       throw DecodingError.dataCorrupted(context)
     }
   }

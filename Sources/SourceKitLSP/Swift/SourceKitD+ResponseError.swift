@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKitD
 import LanguageServerProtocol
+import SourceKitD
 
 extension ResponseError {
   public init(_ value: SKDError) {

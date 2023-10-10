@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import LSPTestSupport
+import LanguageServerProtocol
 import SKTestSupport
 import XCTest
 
@@ -29,18 +29,22 @@ final class PullDiagnosticsTests: XCTestCase {
   override func setUp() {
     connection = TestSourceKitServer()
     sk = connection.client
-    _ = try! sk.sendSync(InitializeRequest(
-      processId: nil,
-      rootPath: nil,
-      rootURI: nil,
-      initializationOptions: nil,
-      capabilities: ClientCapabilities(
-        workspace: nil,
-        textDocument: .init(codeAction: .init(codeActionLiteralSupport: .init(codeActionKind: .init(valueSet: [.quickFix]))))
-      ),
-      trace: .off,
-      workspaceFolders: nil
-    ))
+    _ = try! sk.sendSync(
+      InitializeRequest(
+        processId: nil,
+        rootPath: nil,
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(
+          workspace: nil,
+          textDocument: .init(
+            codeAction: .init(codeActionLiteralSupport: .init(codeActionKind: .init(valueSet: [.quickFix])))
+          )
+        ),
+        trace: .off,
+        workspaceFolders: nil
+      )
+    )
   }
 
   override func tearDown() {
@@ -51,12 +55,16 @@ final class PullDiagnosticsTests: XCTestCase {
   func performDiagnosticRequest(text: String) throws -> [Diagnostic] {
     let url = URL(fileURLWithPath: "/PullDiagnostics/\(UUID()).swift")
 
-    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: DocumentURI(url),
-      language: .swift,
-      version: 17,
-      text: text
-    )))
+    sk.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: DocumentURI(url),
+          language: .swift,
+          version: 17,
+          text: text
+        )
+      )
+    )
 
     let request = DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(url))
 
@@ -75,11 +83,13 @@ final class PullDiagnosticsTests: XCTestCase {
   }
 
   func testUnknownIdentifierDiagnostic() throws {
-    let diagnostics = try performDiagnosticRequest(text: """
-    func foo() {
-      invalid
-    }
-    """)
+    let diagnostics = try performDiagnosticRequest(
+      text: """
+        func foo() {
+          invalid
+        }
+        """
+    )
     XCTAssertEqual(diagnostics.count, 1)
     let diagnostic = try XCTUnwrap(diagnostics.first)
     XCTAssertEqual(diagnostic.range, Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9))
@@ -87,13 +97,15 @@ final class PullDiagnosticsTests: XCTestCase {
 
   /// Test that we can get code actions for pulled diagnostics (https://github.com/apple/sourcekit-lsp/issues/776)
   func testCodeActions() throws {
-    let diagnostics = try performDiagnosticRequest(text: """
-    protocol MyProtocol {
-      func bar()
-    }
+    let diagnostics = try performDiagnosticRequest(
+      text: """
+        protocol MyProtocol {
+          func bar()
+        }
 
-    struct Test: MyProtocol {}
-    """)
+        struct Test: MyProtocol {}
+        """
+    )
     XCTAssertEqual(diagnostics.count, 1)
     let diagnostic = try XCTUnwrap(diagnostics.first)
     XCTAssertEqual(diagnostic.range, Position(line: 4, utf16index: 7)..<Position(line: 4, utf16index: 7))
@@ -101,15 +113,17 @@ final class PullDiagnosticsTests: XCTestCase {
     XCTAssertEqual(note.location.range, Position(line: 4, utf16index: 7)..<Position(line: 4, utf16index: 7))
     XCTAssertEqual(note.codeActions?.count ?? 0, 1)
 
-    let response = try sk.sendSync(CodeActionRequest(
-      range: note.location.range,
-      context: CodeActionContext(
-        diagnostics: diagnostics,
-        only: [.quickFix],
-        triggerKind: .invoked
-      ),
-      textDocument: TextDocumentIdentifier(note.location.uri)
-    ))
+    let response = try sk.sendSync(
+      CodeActionRequest(
+        range: note.location.range,
+        context: CodeActionContext(
+          diagnostics: diagnostics,
+          only: [.quickFix],
+          triggerKind: .invoked
+        ),
+        textDocument: TextDocumentIdentifier(note.location.uri)
+      )
+    )
 
     guard case .codeActions(let actions) = response else {
       XCTFail("Expected codeActions response")

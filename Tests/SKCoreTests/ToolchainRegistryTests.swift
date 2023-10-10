@@ -43,7 +43,9 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     let a = Toolchain(identifier: "a", displayName: "a", path: nil)
     try tr.registerToolchain(a)
-    try tr.registerToolchain(Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier, displayName: "a", path: nil))
+    try tr.registerToolchain(
+      Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier, displayName: "a", path: nil)
+    )
     XCTAssertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
     tr.default = a
     XCTAssertEqual(tr.default?.identifier, "a")
@@ -68,8 +70,8 @@ final class ToolchainRegistryTests: XCTestCase {
   }
 
   func testSearchDarwin() throws {
-// FIXME: requires PropertyListEncoder
-#if os(macOS)
+    // FIXME: requires PropertyListEncoder
+    #if os(macOS)
     let fs = InMemoryFileSystem()
     let tr1 = ToolchainRegistry(fs)
     tr1.darwinToolchainOverride = nil
@@ -80,8 +82,10 @@ final class ToolchainRegistryTests: XCTestCase {
     try makeXCToolchain(
       identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
       opensource: false,
-      toolchains.appending(component: "XcodeDefault.xctoolchain"), fs,
-      sourcekitd: true)
+      toolchains.appending(component: "XcodeDefault.xctoolchain"),
+      fs,
+      sourcekitd: true
+    )
 
     XCTAssertNil(tr1.default)
     XCTAssert(tr1.toolchains.isEmpty)
@@ -108,13 +112,17 @@ final class ToolchainRegistryTests: XCTestCase {
     try makeXCToolchain(
       identifier: "com.apple.fake.A",
       opensource: false,
-      toolchains.appending(component: "A.xctoolchain"), fs,
-      sourcekitd: true)
+      toolchains.appending(component: "A.xctoolchain"),
+      fs,
+      sourcekitd: true
+    )
     try makeXCToolchain(
       identifier: "com.apple.fake.B",
       opensource: false,
-      toolchains.appending(component: "B.xctoolchain"), fs,
-      sourcekitd: true)
+      toolchains.appending(component: "B.xctoolchain"),
+      fs,
+      sourcekitd: true
+    )
 
     tr.scanForToolchains(fs)
     XCTAssertEqual(tr.toolchains.count, 3)
@@ -122,13 +130,17 @@ final class ToolchainRegistryTests: XCTestCase {
     try makeXCToolchain(
       identifier: "com.apple.fake.C",
       opensource: false,
-      toolchains.appending(component: "C.wrong_extension"), fs,
-      sourcekitd: true)
+      toolchains.appending(component: "C.wrong_extension"),
+      fs,
+      sourcekitd: true
+    )
     try makeXCToolchain(
       identifier: "com.apple.fake.D",
       opensource: false,
-      toolchains.appending(component: "D_no_extension"), fs,
-      sourcekitd: true)
+      toolchains.appending(component: "D_no_extension"),
+      fs,
+      sourcekitd: true
+    )
 
     tr.scanForToolchains(fs)
     XCTAssertEqual(tr.toolchains.count, 3)
@@ -136,8 +148,10 @@ final class ToolchainRegistryTests: XCTestCase {
     try makeXCToolchain(
       identifier: "com.apple.fake.A",
       opensource: false,
-      toolchains.appending(component: "E.xctoolchain"), fs,
-      sourcekitd: true)
+      toolchains.appending(component: "E.xctoolchain"),
+      fs,
+      sourcekitd: true
+    )
 
     tr.scanForToolchains(fs)
     XCTAssertEqual(tr.toolchains.count, 3)
@@ -145,13 +159,17 @@ final class ToolchainRegistryTests: XCTestCase {
     try makeXCToolchain(
       identifier: "org.fake.global.A",
       opensource: true,
-      try AbsolutePath(validating: "/Library/Developer/Toolchains/A.xctoolchain"), fs,
-      sourcekitd: true)
+      try AbsolutePath(validating: "/Library/Developer/Toolchains/A.xctoolchain"),
+      fs,
+      sourcekitd: true
+    )
     try makeXCToolchain(
       identifier: "org.fake.global.B",
       opensource: true,
-      try AbsolutePath(expandingTilde: "~/Library/Developer/Toolchains/B.xctoolchain"), fs,
-      sourcekitd: true)
+      try AbsolutePath(expandingTilde: "~/Library/Developer/Toolchains/B.xctoolchain"),
+      fs,
+      sourcekitd: true
+    )
 
     tr.scanForToolchains(fs)
     XCTAssertEqual(tr.toolchains.count, 5)
@@ -160,8 +178,10 @@ final class ToolchainRegistryTests: XCTestCase {
     try makeXCToolchain(
       identifier: "org.fake.explicit",
       opensource: false,
-      toolchains.appending(component: "Explicit.xctoolchain"), fs,
-      sourcekitd: true)
+      toolchains.appending(component: "Explicit.xctoolchain"),
+      fs,
+      sourcekitd: true
+    )
 
     let tc = Toolchain(path, fs)
     XCTAssertNotNil(tc)
@@ -173,9 +193,15 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertEqual(tc?.path, tcBin?.path)
     XCTAssertEqual(tc?.displayName, tcBin?.displayName)
 
-
     let trInstall = ToolchainRegistry()
-    trInstall.scanForToolchains(installPath: path.appending(components: "usr", "bin"), environmentVariables: [], xcodes: [], xctoolchainSearchPaths: [], pathVariables: [], fs)
+    trInstall.scanForToolchains(
+      installPath: path.appending(components: "usr", "bin"),
+      environmentVariables: [],
+      xcodes: [],
+      xctoolchainSearchPaths: [],
+      pathVariables: [],
+      fs
+    )
     XCTAssertEqual(trInstall.default?.identifier, "org.fake.explicit")
     XCTAssertEqual(trInstall.default?.path, path)
 
@@ -187,7 +213,7 @@ final class ToolchainRegistryTests: XCTestCase {
     let checkByDir = ToolchainRegistry()
     checkByDir.scanForToolchains(xctoolchainSearchPath: toolchains, fs)
     XCTAssertEqual(checkByDir.toolchains.count, 4)
-#endif
+    #endif
   }
 
   func testSearchPATH() throws {
@@ -199,13 +225,16 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tr.default)
     XCTAssert(tr.toolchains.isEmpty)
 
-#if os(Windows)
+    #if os(Windows)
     let separator: String = ";"
-#else
+    #else
     let separator: String = ":"
-#endif
+    #endif
 
-    try ProcessEnv.setVar("SOURCEKIT_PATH", value: ["/bogus", binPath.pathString, "/bogus2"].joined(separator: separator))
+    try ProcessEnv.setVar(
+      "SOURCEKIT_PATH",
+      value: ["/bogus", binPath.pathString, "/bogus2"].joined(separator: separator)
+    )
     defer { try! ProcessEnv.setVar("SOURCEKIT_PATH", value: "") }
 
     tr.scanForToolchains(fs)
@@ -224,7 +253,10 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tc.libIndexStore)
 
     let binPath2 = try AbsolutePath(validating: "/other/my_toolchain/bin")
-    try ProcessEnv.setVar("SOME_TEST_ENV_PATH", value: ["/bogus", binPath2.pathString, "bogus2"].joined(separator: separator))
+    try ProcessEnv.setVar(
+      "SOME_TEST_ENV_PATH",
+      value: ["/bogus", binPath2.pathString, "bogus2"].joined(separator: separator)
+    )
     try makeToolchain(binPath: binPath2, fs, sourcekitd: true)
     tr.scanForToolchains(pathVariables: ["NOPE", "SOME_TEST_ENV_PATH", "MORE_NOPE"], fs)
 
@@ -279,7 +311,8 @@ final class ToolchainRegistryTests: XCTestCase {
     tr.scanForToolchains(
       environmentVariables: ["TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2"],
       setDefault: false,
-      fs)
+      fs
+    )
 
     guard let tc = tr.toolchains.first(where: { tc in tc.path == binPath.parentDirectory }) else {
       XCTFail("couldn't find expected toolchain")
@@ -300,30 +333,32 @@ final class ToolchainRegistryTests: XCTestCase {
     try withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
       let path = tempDir.appending(components: "A.xctoolchain", "usr")
       try makeToolchain(
-        binPath: path.appending(component: "bin"), fs,
+        binPath: path.appending(component: "bin"),
+        fs,
         clang: true,
         clangd: true,
         swiftc: true,
         shouldChmod: false,
-        sourcekitd: true)
+        sourcekitd: true
+      )
 
-      try fs.writeFileContents(path.appending(components: "bin", "other") , bytes: "")
+      try fs.writeFileContents(path.appending(components: "bin", "other"), bytes: "")
 
       let t1 = Toolchain(path.parentDirectory, fs)!
       XCTAssertNotNil(t1.sourcekitd)
-#if os(Windows)
+      #if os(Windows)
       // Windows does not have file permissions but rather checks the contents
       // which have been written out.
       XCTAssertNotNil(t1.clang)
       XCTAssertNotNil(t1.clangd)
       XCTAssertNotNil(t1.swiftc)
-#else
+      #else
       XCTAssertNil(t1.clang)
       XCTAssertNil(t1.clangd)
       XCTAssertNil(t1.swiftc)
-#endif
+      #endif
 
-#if !os(Windows)
+      #if !os(Windows)
       func chmodRX(_ path: AbsolutePath) {
         XCTAssertEqual(chmod(path.pathString, S_IRUSR | S_IXUSR), 0)
       }
@@ -332,7 +367,7 @@ final class ToolchainRegistryTests: XCTestCase {
       chmodRX(path.appending(components: "bin", "clangd"))
       chmodRX(path.appending(components: "bin", "swiftc"))
       chmodRX(path.appending(components: "bin", "other"))
-#endif
+      #endif
 
       let t2 = Toolchain(path.parentDirectory, fs)!
       XCTAssertNotNil(t2.sourcekitd)
@@ -383,8 +418,10 @@ final class ToolchainRegistryTests: XCTestCase {
     let tr = ToolchainRegistry()
     let toolchain = Toolchain(identifier: "a", displayName: "a", path: nil)
     try tr.registerToolchain(toolchain)
-    XCTAssertThrowsError(try tr.registerToolchain(toolchain),
-                         "Expected error registering toolchain twice") { e in
+    XCTAssertThrowsError(
+      try tr.registerToolchain(toolchain),
+      "Expected error registering toolchain twice"
+    ) { e in
       guard let error = e as? ToolchainRegistry.Error, error == .duplicateToolchainIdentifier else {
         XCTFail("Expected .duplicateToolchainIdentifier not \(e)")
         return
@@ -398,8 +435,10 @@ final class ToolchainRegistryTests: XCTestCase {
     let first = Toolchain(identifier: "a", displayName: "a", path: path)
     let second = Toolchain(identifier: "b", displayName: "b", path: path)
     try tr.registerToolchain(first)
-    XCTAssertThrowsError(try tr.registerToolchain(second),
-                         "Expected error registering toolchain twice") { e in
+    XCTAssertThrowsError(
+      try tr.registerToolchain(second),
+      "Expected error registering toolchain twice"
+    ) { e in
       guard let error = e as? ToolchainRegistry.Error, error == .duplicateToolchainPath else {
         XCTFail("Error mismatch: expected duplicateToolchainPath not \(e)")
         return
@@ -409,12 +448,16 @@ final class ToolchainRegistryTests: XCTestCase {
 
   func testDuplicateXcodeError() throws {
     let tr = ToolchainRegistry()
-    let xcodeToolchain = Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
-                                   displayName: "a",
-                                   path: try AbsolutePath(validating: "/versionA"))
+    let xcodeToolchain = Toolchain(
+      identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
+      displayName: "a",
+      path: try AbsolutePath(validating: "/versionA")
+    )
     try tr.registerToolchain(xcodeToolchain)
-    XCTAssertThrowsError(try tr.registerToolchain(xcodeToolchain),
-                         "Expected error registering toolchain twice") { e in
+    XCTAssertThrowsError(
+      try tr.registerToolchain(xcodeToolchain),
+      "Expected error registering toolchain twice"
+    ) { e in
       guard let error = e as? ToolchainRegistry.Error, error == .duplicateToolchainPath else {
         XCTFail("Error mismatch: expected duplicateToolchainPath not \(e)")
         return
@@ -425,13 +468,17 @@ final class ToolchainRegistryTests: XCTestCase {
   func testMultipleXcodes() throws {
     let tr = ToolchainRegistry()
     let pathA = try AbsolutePath(validating: "/versionA")
-    let xcodeA = Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
-                           displayName: "a",
-                           path: pathA)
+    let xcodeA = Toolchain(
+      identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
+      displayName: "a",
+      path: pathA
+    )
     let pathB = try AbsolutePath(validating: "/versionB")
-    let xcodeB = Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
-                           displayName: "b",
-                           path: pathB)
+    let xcodeB = Toolchain(
+      identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
+      displayName: "b",
+      path: pathB
+    )
     try tr.registerToolchain(xcodeA)
     try tr.registerToolchain(xcodeB)
     XCTAssert(tr.toolchain(path: pathA) === xcodeA)
@@ -466,7 +513,11 @@ final class ToolchainRegistryTests: XCTestCase {
     try ProcessEnv.setVar("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: "/t2/bin")
 
     let tr = ToolchainRegistry()
-    tr.scanForToolchains(installPath: try AbsolutePath(validating: "/t1/bin"), environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"], fs)
+    tr.scanForToolchains(
+      installPath: try AbsolutePath(validating: "/t1/bin"),
+      environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"],
+      fs
+    )
     XCTAssertEqual(tr.toolchains.count, 2)
 
     // Env variable wins.
@@ -483,7 +534,7 @@ private func makeXCToolchain(
   clang: Bool = false,
   clangd: Bool = false,
   swiftc: Bool = false,
-  shouldChmod: Bool = true, // whether to mark exec
+  shouldChmod: Bool = true,  // whether to mark exec
   sourcekitd: Bool = false,
   sourcekitdInProc: Bool = false,
   libIndexStore: Bool = false
@@ -491,10 +542,14 @@ private func makeXCToolchain(
   try fs.createDirectory(path, recursive: true)
   let infoPlistPath = path.appending(component: opensource ? "Info.plist" : "ToolchainInfo.plist")
   let infoPlist = try PropertyListEncoder().encode(
-    XCToolchainPlist(identifier: identifier, displayName: "name-\(identifier)"))
-  try fs.writeFileContents(infoPlistPath, body: { stream in
-    stream.write(infoPlist)
-  })
+    XCToolchainPlist(identifier: identifier, displayName: "name-\(identifier)")
+  )
+  try fs.writeFileContents(
+    infoPlistPath,
+    body: { stream in
+      stream.write(infoPlist)
+    }
+  )
 
   try makeToolchain(
     binPath: path.appending(components: "usr", "bin"),
@@ -505,7 +560,8 @@ private func makeXCToolchain(
     shouldChmod: shouldChmod,
     sourcekitd: sourcekitd,
     sourcekitdInProc: sourcekitdInProc,
-    libIndexStore: libIndexStore)
+    libIndexStore: libIndexStore
+  )
 }
 #endif
 
@@ -515,13 +571,15 @@ private func makeToolchain(
   clang: Bool = false,
   clangd: Bool = false,
   swiftc: Bool = false,
-  shouldChmod: Bool = true, // whether to mark exec
+  shouldChmod: Bool = true,  // whether to mark exec
   sourcekitd: Bool = false,
   sourcekitdInProc: Bool = false,
   libIndexStore: Bool = false
 ) throws {
-  precondition(!clang && !swiftc && !clangd || !shouldChmod,
-    "Cannot make toolchain binaries exectuable with InMemoryFileSystem")
+  precondition(
+    !clang && !swiftc && !clangd || !shouldChmod,
+    "Cannot make toolchain binaries exectuable with InMemoryFileSystem"
+  )
 
   // tiny PE binary from: https://archive.is/w01DO
   let contents: [UInt8] = [
@@ -533,7 +591,7 @@ private func makeToolchain(
     0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x68, 0x00, 0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x02
+    0x02,
   ]
 
   let libPath = binPath.parentDirectory.appending(component: "lib")
@@ -542,11 +600,11 @@ private func makeToolchain(
 
   let makeExec = { (path: AbsolutePath) in
     try fs.writeFileContents(path, bytes: ByteString(contents))
-#if !os(Windows)
+    #if !os(Windows)
     if shouldChmod {
       XCTAssertEqual(chmod(path.pathString, S_IRUSR | S_IXUSR), 0)
     }
-#endif
+    #endif
   }
 
   let execExt = Platform.current?.executableExtension ?? ""
@@ -565,21 +623,21 @@ private func makeToolchain(
 
   if sourcekitd {
     try fs.createDirectory(libPath.appending(component: "sourcekitd.framework"))
-    try fs.writeFileContents(libPath.appending(components: "sourcekitd.framework", "sourcekitd") , bytes: "")
+    try fs.writeFileContents(libPath.appending(components: "sourcekitd.framework", "sourcekitd"), bytes: "")
   }
   if sourcekitdInProc {
-#if os(Windows)
-    try fs.writeFileContents(binPath.appending(component: "sourcekitdInProc\(dylibSuffix)") , bytes: "")
-#else
-    try fs.writeFileContents(libPath.appending(component: "libsourcekitdInProc\(dylibSuffix)") , bytes: "")
-#endif
+    #if os(Windows)
+    try fs.writeFileContents(binPath.appending(component: "sourcekitdInProc\(dylibSuffix)"), bytes: "")
+    #else
+    try fs.writeFileContents(libPath.appending(component: "libsourcekitdInProc\(dylibSuffix)"), bytes: "")
+    #endif
   }
   if libIndexStore {
-#if os(Windows)
+    #if os(Windows)
     // Windows has a prefix of `lib` on this particular library ...
-    try fs.writeFileContents(binPath.appending(component: "libIndexStore\(dylibSuffix)") , bytes: "")
-#else
-    try fs.writeFileContents(libPath.appending(component: "libIndexStore\(dylibSuffix)") , bytes: "")
-#endif
+    try fs.writeFileContents(binPath.appending(component: "libIndexStore\(dylibSuffix)"), bytes: "")
+    #else
+    try fs.writeFileContents(libPath.appending(component: "libIndexStore\(dylibSuffix)"), bytes: "")
+    #endif
   }
 }

@@ -33,7 +33,6 @@ public struct SemanticTokensLegend: Codable, Hashable {
   }
 }
 
-
 /// The encoding format for semantic tokens. Currently only `relative` is supported.
 public struct TokenFormat: RawRepresentable, Codable, Hashable {
   public var rawValue: String

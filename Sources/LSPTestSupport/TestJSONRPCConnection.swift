@@ -12,8 +12,9 @@
 
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import class Foundation.Pipe
 import XCTest
+
+import class Foundation.Pipe
 
 // Workaround ambiguity with Foundation.
 public typealias Notification = LanguageServerProtocol.Notification
@@ -135,7 +136,12 @@ public final class TestClient: MessageHandler {
     handler(notification)
   }
 
-  public func handle<R: RequestType>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response>) -> Void) {
+  public func handle<R: RequestType>(
+    _ params: R,
+    id: RequestID,
+    from clientID: ObjectIdentifier,
+    reply: @escaping (LSPResult<R.Response>) -> Void
+  ) {
     let cancellationToken = CancellationToken()
 
     let request = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: reply)
@@ -156,14 +162,19 @@ extension TestClient: Connection {
   }
 
   /// Send a request to the language server and (asynchronously) receive a reply.
-  public func send<Request>(_ request: Request, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
+  public func send<Request: RequestType>(
+    _ request: Request,
+    reply: @escaping (LSPResult<Request.Response>) -> Void
+  ) -> RequestID {
     return server.send(request, reply: reply)
   }
 
-
   /// Send a notification and expect a notification in reply synchronously.
   /// For testing notifications that behave like requests  - e.g. didChange & publishDiagnostics.
-  public func sendNoteSync<NSend, NReply>(_ notification: NSend, _ handler: @escaping (Notification<NReply>) -> Void) where NSend: NotificationType {
+  public func sendNoteSync<NReply>(
+    _ notification: some NotificationType,
+    _ handler: @escaping (Notification<NReply>) -> Void
+  ) {
 
     let expectation = XCTestExpectation(description: "sendNoteSync - note received")
 
@@ -227,18 +238,35 @@ public final class TestServer: MessageHandler {
     }
   }
 
-  public func handle<R: RequestType>(_ params: R, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<R.Response >) -> Void) {
+  public func handle<R: RequestType>(
+    _ params: R,
+    id: RequestID,
+    from clientID: ObjectIdentifier,
+    reply: @escaping (LSPResult<R.Response>) -> Void
+  ) {
     let cancellationToken = CancellationToken()
 
     if let params = params as? EchoRequest {
-      let req = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: { result in
-        reply(result.map({ $0 as! R.Response }))
-      })
+      let req = Request(
+        params,
+        id: id,
+        clientID: clientID,
+        cancellation: cancellationToken,
+        reply: { result in
+          reply(result.map({ $0 as! R.Response }))
+        }
+      )
       req.reply(req.params.string)
     } else if let params = params as? EchoError {
-      let req = Request(params, id: id, clientID: clientID, cancellation: cancellationToken, reply: { result in
-        reply(result.map({ $0 as! R.Response }))
-      })
+      let req = Request(
+        params,
+        id: id,
+        clientID: clientID,
+        cancellation: cancellationToken,
+        reply: { result in
+          reply(result.map({ $0 as! R.Response }))
+        }
+      )
       if let code = req.params.code {
         req.reply(.failure(ResponseError(code: code, message: req.params.message!)))
       } else {
@@ -254,7 +282,8 @@ public final class TestServer: MessageHandler {
 
 private let testMessageRegistry = MessageRegistry(
   requests: [EchoRequest.self, EchoError.self],
-  notifications: [EchoNotification.self])
+  notifications: [EchoNotification.self]
+)
 
 extension String: ResponseType {}
 

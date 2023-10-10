@@ -22,12 +22,12 @@ public struct Language: RawRepresentable, Codable, Equatable, Hashable {
   /// Clang-compatible language name suitable for use with `-x <language>`.
   public var xflag: String? {
     switch self {
-      case .swift: return "swift"
-      case .c: return "c"
-      case .cpp: return "c++"
-      case .objective_c: return "objective-c"
-      case .objective_cpp: return "objective-c++"
-      default: return nil
+    case .swift: return "swift"
+    case .c: return "c"
+    case .cpp: return "c++"
+    case .objective_c: return "objective-c"
+    case .objective_cpp: return "objective-c++"
+    default: return nil
     }
   }
 
@@ -106,12 +106,12 @@ extension Language: CustomStringConvertible, CustomDebugStringConvertible {
 
 public extension Language {
   static let abap = Language(rawValue: "abap")
-  static let bat = Language(rawValue: "bat") // Windows Bat
+  static let bat = Language(rawValue: "bat")  // Windows Bat
   static let bibtex = Language(rawValue: "bibtex")
   static let clojure = Language(rawValue: "clojure")
   static let coffeescript = Language(rawValue: "coffeescript")
   static let c = Language(rawValue: "c")
-  static let cpp = Language(rawValue: "cpp") // C++, not C preprocessor
+  static let cpp = Language(rawValue: "cpp")  // C++, not C preprocessor
   static let csharp = Language(rawValue: "csharp")
   static let css = Language(rawValue: "css")
   static let diff = Language(rawValue: "diff")
@@ -143,20 +143,20 @@ public extension Language {
   static let jade = Language(rawValue: "jade")
   static let python = Language(rawValue: "python")
   static let r = Language(rawValue: "r")
-  static let razor = Language(rawValue: "razor") // Razor (cshtml)
+  static let razor = Language(rawValue: "razor")  // Razor (cshtml)
   static let ruby = Language(rawValue: "ruby")
   static let rust = Language(rawValue: "rust")
-  static let scss = Language(rawValue: "scss") // SCSS (syntax using curly brackets)
-  static let sass = Language(rawValue: "sass") // SCSS (indented syntax)
+  static let scss = Language(rawValue: "scss")  // SCSS (syntax using curly brackets)
+  static let sass = Language(rawValue: "sass")  // SCSS (indented syntax)
   static let scala = Language(rawValue: "scala")
   static let shaderLab = Language(rawValue: "shaderlab")
-  static let shellScript = Language(rawValue: "shellscript") // Shell Script (Bash)
+  static let shellScript = Language(rawValue: "shellscript")  // Shell Script (Bash)
   static let sql = Language(rawValue: "sql")
   static let swift = Language(rawValue: "swift")
   static let typeScript = Language(rawValue: "typescript")
-  static let typeScriptReact = Language(rawValue: "typescriptreact") // TypeScript React
+  static let typeScriptReact = Language(rawValue: "typescriptreact")  // TypeScript React
   static let tex = Language(rawValue: "tex")
-  static let vb = Language(rawValue: "vb") // Visual Basic
+  static let vb = Language(rawValue: "vb")  // Visual Basic
   static let xml = Language(rawValue: "xml")
   static let xsl = Language(rawValue: "xsl")
   static let yaml = Language(rawValue: "yaml")

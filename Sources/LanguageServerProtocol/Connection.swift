@@ -19,7 +19,10 @@ public protocol Connection: AnyObject {
   func send<Notification>(_: Notification) where Notification: NotificationType
 
   /// Send a request and (asynchronously) receive a reply.
-  func send<Request>(_: Request, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType
+  func send<Request: RequestType>(
+    _: Request,
+    reply: @escaping (LSPResult<Request.Response>) -> Void
+  ) -> RequestID
 
   /// Send a request synchronously. **Use wisely**.
   func sendSync<Request>(_: Request) throws -> Request.Response where Request: RequestType
@@ -54,7 +57,12 @@ public protocol MessageHandler: AnyObject {
   /// handled to avoid out-of-order requests, e.g. once the corresponding
   /// request has been sent to sourcekitd. The actual semantic computation
   /// should occur after the method returns and report the result via `reply`.
-  func handle<Request: RequestType>(_ params: Request, id: RequestID, from clientID: ObjectIdentifier, reply: @escaping (LSPResult<Request.Response>) -> Void)
+  func handle<Request: RequestType>(
+    _ params: Request,
+    id: RequestID,
+    from clientID: ObjectIdentifier,
+    reply: @escaping (LSPResult<Request.Response>) -> Void
+  )
 }
 
 /// A connection between two message handlers in the same process.
@@ -77,7 +85,7 @@ public final class LocalConnection {
 
   /// The queue guarding `_nextRequestID`.
   let queue: DispatchQueue = DispatchQueue(label: "local-connection-queue")
-  
+
   var _nextRequestID: Int = 0
 
   var state: State = .ready

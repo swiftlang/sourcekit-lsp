@@ -12,9 +12,10 @@
 
 import Foundation
 
-import protocol TSCBasic.FileSystem
 import struct TSCBasic.AbsolutePath
+import protocol TSCBasic.FileSystem
 import var TSCBasic.localFileSystem
+
 #if os(macOS)
 import struct TSCBasic.RelativePath
 import struct TSCBasic.FileSystemError
@@ -47,10 +48,10 @@ extension XCToolchainPlist {
   /// - parameter path: The directory to search.
   /// - throws: If there is not plist file or it cannot be read.
   init(fromDirectory path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
-#if os(macOS)
+    #if os(macOS)
     let plistNames = [
-      try RelativePath(validating: "ToolchainInfo.plist"), // Xcode
-      try RelativePath(validating: "Info.plist"), // Swift.org
+      try RelativePath(validating: "ToolchainInfo.plist"),  // Xcode
+      try RelativePath(validating: "Info.plist"),  // Swift.org
     ]
 
     var missingPlistPath: AbsolutePath?
@@ -64,25 +65,25 @@ extension XCToolchainPlist {
     }
 
     throw FileSystemError(.noEntry, missingPlistPath)
-#else
+    #else
     throw Error.unsupportedPlatform
-#endif
+    #endif
   }
 
   /// Returns the plist contents from the xctoolchain at `path`.
   ///
   /// - parameter path: The directory to search.
   init(path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
-#if os(macOS)
+    #if os(macOS)
     let bytes = try fileSystem.readFileContents(path)
     self = try bytes.withUnsafeData { data in
       let decoder = PropertyListDecoder()
       var format = PropertyListSerialization.PropertyListFormat.binary
       return try decoder.decode(XCToolchainPlist.self, from: data, format: &format)
     }
-#else
+    #else
     throw Error.unsupportedPlatform
-#endif
+    #endif
   }
 }
 

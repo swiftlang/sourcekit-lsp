@@ -20,8 +20,10 @@ public enum EditorPlaceholder: Hashable {
   static let placeholderSuffix: String = "#>"
 
   public init?(_ skPlaceholder: String) {
-    guard skPlaceholder.hasPrefix(EditorPlaceholder.placeholderPrefix) &&
-          skPlaceholder.hasSuffix(EditorPlaceholder.placeholderSuffix) else {
+    guard
+      skPlaceholder.hasPrefix(EditorPlaceholder.placeholderPrefix)
+        && skPlaceholder.hasSuffix(EditorPlaceholder.placeholderSuffix)
+    else {
       return nil
     }
     var skPlaceholder = skPlaceholder.dropFirst(2).dropLast(2)

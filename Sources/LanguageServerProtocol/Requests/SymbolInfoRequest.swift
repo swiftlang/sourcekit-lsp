@@ -86,8 +86,8 @@ public struct SymbolDetails: ResponseType, Hashable {
     containerName: String? = nil,
     usr: String?,
     bestLocalDeclaration: Location? = nil,
-    kind: SymbolKind? = nil)
-  {
+    kind: SymbolKind? = nil
+  ) {
     self.name = name
     self.containerName = containerName
     self.usr = usr

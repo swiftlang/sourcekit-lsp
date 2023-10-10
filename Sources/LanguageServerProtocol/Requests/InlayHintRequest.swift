@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Request for inline annotations to be displayed in the editor.
-/// 
+///
 /// - Parameters:
 ///   - textDocument: The document for which to provide the inlay hints.
 ///

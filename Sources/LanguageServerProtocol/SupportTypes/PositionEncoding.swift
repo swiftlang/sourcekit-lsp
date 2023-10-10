@@ -27,10 +27,10 @@ public struct PositionEncodingKind: RawRepresentable, Codable, Hashable {
   /// by servers
   public static let utf16: PositionEncodingKind = PositionEncodingKind(rawValue: "utf-16")
 
-   /// Character offsets count UTF-32 code units.
-   ///
-   /// Implementation note: these are the same as Unicode code points,
-   /// so this `PositionEncodingKind` may also be used for an
-   /// encoding-agnostic representation of character offsets.
+  /// Character offsets count UTF-32 code units.
+  ///
+  /// Implementation note: these are the same as Unicode code points,
+  /// so this `PositionEncodingKind` may also be used for an
+  /// encoding-agnostic representation of character offsets.
   public static let utf32: PositionEncodingKind = PositionEncodingKind(rawValue: "utf-32")
 }

@@ -35,12 +35,19 @@ final class ImplementationTests: XCTestCase {
     }
     func testLoc(_ name: String) -> TestLocation {
       ws.testLoc(name)
-    }  
+    }
     func loc(_ name: String) throws -> Location {
       let location: TestLocation = ws.testLoc(name)
-      return Location(badUTF16: TestLocation(url: try location.docUri.nativeURI.fileURL!, line: location.line, utf8Column: location.utf8Column, utf16Column: location.utf16Column))
+      return Location(
+        badUTF16: TestLocation(
+          url: try location.docUri.nativeURI.fileURL!,
+          line: location.line,
+          utf8Column: location.utf8Column,
+          utf16Column: location.utf16Column
+        )
+      )
     }
-    
+
     try XCTAssertEqual(impls(at: testLoc("Protocol")), [loc("StructConformance")])
     try XCTAssertEqual(impls(at: testLoc("ProtocolStaticVar")), [loc("StructStaticVar")])
     try XCTAssertEqual(impls(at: testLoc("ProtocolStaticFunction")), [loc("StructStaticFunction")])
@@ -52,18 +59,33 @@ final class ImplementationTests: XCTestCase {
     try XCTAssertEqual(impls(at: testLoc("ClassVariable")), [loc("SubclassVariable")])
     try XCTAssertEqual(impls(at: testLoc("ClassFunction")), [loc("SubclassFunction")])
 
-    try XCTAssertEqual(impls(at: testLoc("Sepulcidae")), [loc("ParapamphiliinaeConformance"), loc("XyelulinaeConformance"), loc("TrematothoracinaeConformance")])
-    try XCTAssertEqual(impls(at: testLoc("Parapamphiliinae")), [loc("MicramphiliusConformance"), loc("PamparaphiliusConformance")])
+    try XCTAssertEqual(
+      impls(at: testLoc("Sepulcidae")),
+      [loc("ParapamphiliinaeConformance"), loc("XyelulinaeConformance"), loc("TrematothoracinaeConformance")]
+    )
+    try XCTAssertEqual(
+      impls(at: testLoc("Parapamphiliinae")),
+      [loc("MicramphiliusConformance"), loc("PamparaphiliusConformance")]
+    )
     try XCTAssertEqual(impls(at: testLoc("Xyelulinae")), [loc("XyelulaConformance")])
     try XCTAssertEqual(impls(at: testLoc("Trematothoracinae")), [])
 
     try XCTAssertEqual(impls(at: testLoc("Prozaiczne")), [loc("MurkwiaConformance2"), loc("SepulkaConformance1")])
-    try XCTAssertEqual(impls(at: testLoc("Sepulkowate")), [loc("MurkwiaConformance1"), loc("SepulkaConformance2"), loc("PćmaŁagodnaConformance"), loc("PćmaZwyczajnaConformance")])
+    try XCTAssertEqual(
+      impls(at: testLoc("Sepulkowate")),
+      [
+        loc("MurkwiaConformance1"), loc("SepulkaConformance2"), loc("PćmaŁagodnaConformance"),
+        loc("PćmaZwyczajnaConformance"),
+      ]
+    )
     // FIXME: sourcekit returns wrong locations for the function (subclasses that don't override it, and extensions that don't implement it)
     // try XCTAssertEqual(impls(at: testLoc("rozpocznijSepulenie")), [loc("MurkwiaFunc"), loc("SepulkaFunc"), loc("PćmaŁagodnaFunc"), loc("PćmaZwyczajnaFunc")])
     try XCTAssertEqual(impls(at: testLoc("Murkwia")), [])
     try XCTAssertEqual(impls(at: testLoc("MurkwiaFunc")), [])
-    try XCTAssertEqual(impls(at: testLoc("Sepulka")), [loc("SepulkaDwuusznaConformance"), loc("SepulkaPrzechylnaConformance")])
+    try XCTAssertEqual(
+      impls(at: testLoc("Sepulka")),
+      [loc("SepulkaDwuusznaConformance"), loc("SepulkaPrzechylnaConformance")]
+    )
     try XCTAssertEqual(impls(at: testLoc("SepulkaVar")), [loc("SepulkaDwuusznaVar"), loc("SepulkaPrzechylnaVar")])
     try XCTAssertEqual(impls(at: testLoc("SepulkaFunc")), [])
   }

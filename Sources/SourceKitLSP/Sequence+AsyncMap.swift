@@ -40,4 +40,3 @@ extension Sequence {
     return result
   }
 }
-

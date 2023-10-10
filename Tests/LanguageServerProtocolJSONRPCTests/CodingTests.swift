@@ -10,213 +10,335 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPTestSupport
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import LSPTestSupport
 import XCTest
 
 final class CodingTests: XCTestCase {
 
   func testMessageCoding() {
-    checkMessageCoding(InitializeRequest(processId: 1, clientInfo: InitializeRequest.ClientInfo(name: "dummy-client", version: "1.0"), locale: "en-US", rootPath: "/foo", rootURI: nil, initializationOptions: nil, capabilities: ClientCapabilities(workspace: nil, textDocument: nil), trace: .off, workspaceFolders: nil), id: .number(2), json: """
-    {
-      "id" : 2,
-      "jsonrpc" : "2.0",
-      "method" : "initialize",
-      "params" : {
-        "capabilities" : {
+    checkMessageCoding(
+      InitializeRequest(
+        processId: 1,
+        clientInfo: InitializeRequest.ClientInfo(name: "dummy-client", version: "1.0"),
+        locale: "en-US",
+        rootPath: "/foo",
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
+        trace: .off,
+        workspaceFolders: nil
+      ),
+      id: .number(2),
+      json: """
+        {
+          "id" : 2,
+          "jsonrpc" : "2.0",
+          "method" : "initialize",
+          "params" : {
+            "capabilities" : {
 
-        },
-        "clientInfo" : {
-          "name" : "dummy-client",
-          "version" : "1.0"
-        },
-        "locale" : "en-US",
-        "processId" : 1,
-        "rootPath" : "\\/foo",
-        "trace" : "off"
-      }
-    }
-    """)
-
-    checkMessageCoding(InitializeRequest(processId: 1, rootPath: "/foo", rootURI: nil, initializationOptions: nil, capabilities: ClientCapabilities(workspace: nil, textDocument: nil), trace: .off, workspaceFolders: nil), id: .string("3"), json: """
-    {
-      "id" : "3",
-      "jsonrpc" : "2.0",
-      "method" : "initialize",
-      "params" : {
-        "capabilities" : {
-
-        },
-        "processId" : 1,
-        "rootPath" : "\\/foo",
-        "trace" : "off"
-      }
-    }
-    """)
-
-    checkMessageCoding(CancelRequestNotification(id: .number(1)), json: """
-    {
-      "jsonrpc" : "2.0",
-      "method" : "$\\/cancelRequest",
-      "params" : {
-        "id" : 1
-      }
-    }
-    """)
-
-    checkMessageCoding(InitializedNotification(), json: """
-    {
-      "jsonrpc" : "2.0",
-      "method" : "initialized",
-      "params" : {
-
-      }
-    }
-    """)
-
-    checkMessageCoding(InitializeResult(capabilities: ServerCapabilities(
-      textDocumentSync: .options(TextDocumentSyncOptions(
-        openClose: true,
-        change: .incremental,
-        willSave: true,
-        willSaveWaitUntil: false,
-        save: .value(TextDocumentSyncOptions.SaveOptions(includeText: false))
-      )),
-      completionProvider: CompletionOptions(
-        resolveProvider: false,
-        triggerCharacters: ["."]))), id: .number(2), json: """
-    {
-      "id" : 2,
-      "jsonrpc" : "2.0",
-      "result" : {
-        "capabilities" : {
-          "completionProvider" : {
-            "resolveProvider" : false,
-            "triggerCharacters" : [
-              "."
-            ]
-          },
-          "textDocumentSync" : {
-            "change" : 2,
-            "openClose" : true,
-            "save" : {
-              "includeText" : false
             },
-            "willSave" : true,
-            "willSaveWaitUntil" : false
+            "clientInfo" : {
+              "name" : "dummy-client",
+              "version" : "1.0"
+            },
+            "locale" : "en-US",
+            "processId" : 1,
+            "rootPath" : "\\/foo",
+            "trace" : "off"
           }
         }
-      }
-    }
-    """)
+        """
+    )
 
-    checkMessageCoding(ResponseError.cancelled, id: .number(2), json: """
-    {
-      "error" : {
-        "code" : -32800,
-        "message" : "request cancelled by client"
-      },
-      "id" : 2,
-      "jsonrpc" : "2.0"
-    }
-    """)
+    checkMessageCoding(
+      InitializeRequest(
+        processId: 1,
+        rootPath: "/foo",
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
+        trace: .off,
+        workspaceFolders: nil
+      ),
+      id: .string("3"),
+      json: """
+        {
+          "id" : "3",
+          "jsonrpc" : "2.0",
+          "method" : "initialize",
+          "params" : {
+            "capabilities" : {
 
-    checkMessageCoding(ResponseError.methodNotFound("asdf"), id: .number(2), json: """
-    {
-      "error" : {
-        "code" : -32601,
-        "message" : "method not found: asdf"
-      },
-      "id" : 2,
-      "jsonrpc" : "2.0"
-    }
-    """)
+            },
+            "processId" : 1,
+            "rootPath" : "\\/foo",
+            "trace" : "off"
+          }
+        }
+        """
+    )
 
-    checkMessageCoding(ResponseError.cancelled, id: nil, json: """
-    {
-      "error" : {
-        "code" : -32800,
-        "message" : "request cancelled by client"
-      },
-      "id" : null,
-      "jsonrpc" : "2.0"
-    }
-    """)
+    checkMessageCoding(
+      CancelRequestNotification(id: .number(1)),
+      json: """
+        {
+          "jsonrpc" : "2.0",
+          "method" : "$\\/cancelRequest",
+          "params" : {
+            "id" : 1
+          }
+        }
+        """
+    )
+
+    checkMessageCoding(
+      InitializedNotification(),
+      json: """
+        {
+          "jsonrpc" : "2.0",
+          "method" : "initialized",
+          "params" : {
+
+          }
+        }
+        """
+    )
+
+    checkMessageCoding(
+      InitializeResult(
+        capabilities: ServerCapabilities(
+          textDocumentSync: .options(
+            TextDocumentSyncOptions(
+              openClose: true,
+              change: .incremental,
+              willSave: true,
+              willSaveWaitUntil: false,
+              save: .value(TextDocumentSyncOptions.SaveOptions(includeText: false))
+            )
+          ),
+          completionProvider: CompletionOptions(
+            resolveProvider: false,
+            triggerCharacters: ["."]
+          )
+        )
+      ),
+      id: .number(2),
+      json: """
+        {
+          "id" : 2,
+          "jsonrpc" : "2.0",
+          "result" : {
+            "capabilities" : {
+              "completionProvider" : {
+                "resolveProvider" : false,
+                "triggerCharacters" : [
+                  "."
+                ]
+              },
+              "textDocumentSync" : {
+                "change" : 2,
+                "openClose" : true,
+                "save" : {
+                  "includeText" : false
+                },
+                "willSave" : true,
+                "willSaveWaitUntil" : false
+              }
+            }
+          }
+        }
+        """
+    )
+
+    checkMessageCoding(
+      ResponseError.cancelled,
+      id: .number(2),
+      json: """
+        {
+          "error" : {
+            "code" : -32800,
+            "message" : "request cancelled by client"
+          },
+          "id" : 2,
+          "jsonrpc" : "2.0"
+        }
+        """
+    )
+
+    checkMessageCoding(
+      ResponseError.methodNotFound("asdf"),
+      id: .number(2),
+      json: """
+        {
+          "error" : {
+            "code" : -32601,
+            "message" : "method not found: asdf"
+          },
+          "id" : 2,
+          "jsonrpc" : "2.0"
+        }
+        """
+    )
+
+    checkMessageCoding(
+      ResponseError.cancelled,
+      id: nil,
+      json: """
+        {
+          "error" : {
+            "code" : -32800,
+            "message" : "request cancelled by client"
+          },
+          "id" : null,
+          "jsonrpc" : "2.0"
+        }
+        """
+    )
   }
 
   func testMessageDecodingError() {
     // Note: JSON parsing errors are caught at a higher level.
 
-    checkMessageDecodingError(MessageDecodingError.invalidRequest("jsonrpc version must be 2.0"), json: """
-    {}
-    """)
+    checkMessageDecodingError(
+      MessageDecodingError.invalidRequest("jsonrpc version must be 2.0"),
+      json: """
+        {}
+        """
+    )
 
-    checkMessageDecodingError(MessageDecodingError.invalidRequest("message not recognized as request, response or notification"), json: """
-    {"jsonrpc":"2.0"}
-    """)
+    checkMessageDecodingError(
+      MessageDecodingError.invalidRequest("message not recognized as request, response or notification"),
+      json: """
+        {"jsonrpc":"2.0"}
+        """
+    )
 
-    checkMessageDecodingError(MessageDecodingError.invalidRequest("message not recognized as request, response or notification"), json: """
-    {"jsonrpc":"2.0","params":{}}
-    """)
+    checkMessageDecodingError(
+      MessageDecodingError.invalidRequest("message not recognized as request, response or notification"),
+      json: """
+        {"jsonrpc":"2.0","params":{}}
+        """
+    )
 
-    checkMessageDecodingError(MessageDecodingError.invalidRequest("message not recognized as request, response or notification"), json: """
-    {"jsonrpc":"2.0","result":{}}
-    """)
+    checkMessageDecodingError(
+      MessageDecodingError.invalidRequest("message not recognized as request, response or notification"),
+      json: """
+        {"jsonrpc":"2.0","result":{}}
+        """
+    )
 
-    checkMessageDecodingError(MessageDecodingError.methodNotFound("unknown", messageKind: .notification), json: """
-    {"jsonrpc":"2.0","method":"unknown"}
-    """)
+    checkMessageDecodingError(
+      MessageDecodingError.methodNotFound("unknown", messageKind: .notification),
+      json: """
+        {"jsonrpc":"2.0","method":"unknown"}
+        """
+    )
 
-    checkMessageDecodingError(MessageDecodingError.methodNotFound("unknown", id: .number(2), messageKind: .request), json: """
-    {"jsonrpc":"2.0","id":2,"method":"unknown"}
-    """)
+    checkMessageDecodingError(
+      MessageDecodingError.methodNotFound("unknown", id: .number(2), messageKind: .request),
+      json: """
+        {"jsonrpc":"2.0","id":2,"method":"unknown"}
+        """
+    )
 
-    checkMessageDecodingError(MessageDecodingError.methodNotFound("initialized", id: .number(2), messageKind: .request), json: """
-    {"jsonrpc":"2.0","id":2,"method":"initialized"}
-    """)
+    checkMessageDecodingError(
+      MessageDecodingError.methodNotFound("initialized", id: .number(2), messageKind: .request),
+      json: """
+        {"jsonrpc":"2.0","id":2,"method":"initialized"}
+        """
+    )
 
-    checkMessageDecodingError(MessageDecodingError.methodNotFound("initialize", messageKind: .notification), json: """
-    {"jsonrpc":"2.0","method":"initialize"}
-    """)
+    checkMessageDecodingError(
+      MessageDecodingError.methodNotFound("initialize", messageKind: .notification),
+      json: """
+        {"jsonrpc":"2.0","method":"initialize"}
+        """
+    )
 
-    checkMessageDecodingError(MessageDecodingError.invalidParams("missing expected parameter: params", messageKind: .notification), json: """
-    {"jsonrpc":"2.0","method":"$/cancelRequest"}
-    """)
+    checkMessageDecodingError(
+      MessageDecodingError.invalidParams("missing expected parameter: params", messageKind: .notification),
+      json: """
+        {"jsonrpc":"2.0","method":"$/cancelRequest"}
+        """
+    )
 
-    checkMessageDecodingError(MessageDecodingError.invalidParams("type mismatch at params :", messageKind: .notification), json: """
-    {"jsonrpc":"2.0","method":"$/cancelRequest","params":2}
-    """)
+    checkMessageDecodingError(
+      MessageDecodingError.invalidParams("type mismatch at params :", messageKind: .notification),
+      json: """
+        {"jsonrpc":"2.0","method":"$/cancelRequest","params":2}
+        """
+    )
 
-    checkMessageDecodingError(MessageDecodingError.invalidParams("missing expected parameter: id", messageKind: .notification), json: """
-    {"jsonrpc":"2.0","method":"$/cancelRequest","params":{}}
-    """)
+    checkMessageDecodingError(
+      MessageDecodingError.invalidParams("missing expected parameter: id", messageKind: .notification),
+      json: """
+        {"jsonrpc":"2.0","method":"$/cancelRequest","params":{}}
+        """
+    )
 
     let responseTypeCallback: JSONRPCMessage.ResponseTypeCallback = {
       return $0 == .string("unknown") ? nil : InitializeResult.self
     }
 
-    let info = defaultCodingInfo.merging([CodingUserInfoKey.responseTypeCallbackKey: responseTypeCallback]) { (_, new) in new }
+    let info = defaultCodingInfo.merging([CodingUserInfoKey.responseTypeCallbackKey: responseTypeCallback]) {
+      (_, new) in new
+    }
 
-    checkMessageDecodingError(MessageDecodingError.invalidRequest("message not recognized as request, response or notification", id: .number(2)), json: """
-    {"jsonrpc":"2.0","id":2,"params":{}}
-    """, userInfo: info)
+    checkMessageDecodingError(
+      MessageDecodingError.invalidRequest(
+        "message not recognized as request, response or notification",
+        id: .number(2)
+      ),
+      json: """
+        {"jsonrpc":"2.0","id":2,"params":{}}
+        """,
+      userInfo: info
+    )
 
-    checkMessageDecodingError(MessageDecodingError.invalidRequest("message not recognized as request, response or notification"), json: """
-    {"jsonrpc":"2.0","params":{}}
-    """, userInfo: info)
+    checkMessageDecodingError(
+      MessageDecodingError.invalidRequest("message not recognized as request, response or notification"),
+      json: """
+        {"jsonrpc":"2.0","params":{}}
+        """,
+      userInfo: info
+    )
 
-    checkMessageDecodingError(MessageDecodingError.invalidRequest("message not recognized as request, response or notification", id: .string("3")), json: """
-    {"jsonrpc":"2.0","id":"3","params":{}}
-    """, userInfo: info)
+    checkMessageDecodingError(
+      MessageDecodingError.invalidRequest(
+        "message not recognized as request, response or notification",
+        id: .string("3")
+      ),
+      json: """
+        {"jsonrpc":"2.0","id":"3","params":{}}
+        """,
+      userInfo: info
+    )
 
-    checkMessageDecodingError(MessageDecodingError.invalidRequest("message not recognized as request, response or notification", id: .string("unknown")), json: """
-    {"jsonrpc":"2.0","id":"unknown","params":{}}
-    """, userInfo: info)
+    checkMessageDecodingError(
+      MessageDecodingError.invalidRequest(
+        "message not recognized as request, response or notification",
+        id: .string("unknown")
+      ),
+      json: """
+        {"jsonrpc":"2.0","id":"unknown","params":{}}
+        """,
+      userInfo: info
+    )
 
-    checkMessageDecodingError(MessageDecodingError.invalidParams("missing expected parameter: capabilities", id: .number(2), messageKind: .response), json: """
-    {"jsonrpc":"2.0","id":2,"result":{}}
-    """, userInfo: info)
+    checkMessageDecodingError(
+      MessageDecodingError.invalidParams(
+        "missing expected parameter: capabilities",
+        id: .number(2),
+        messageKind: .response
+      ),
+      json: """
+        {"jsonrpc":"2.0","id":2,"result":{}}
+        """,
+      userInfo: info
+    )
   }
 
   // SR-16095
@@ -233,7 +355,9 @@ final class CodingTests: XCTestCase {
     decoder.userInfo = defaultCodingInfo
     let decodedValue = try decoder.decode(JSONRPCMessage.self, from: json.data(using: .utf8)!)
 
-    guard case JSONRPCMessage.request(let decodedValueOpaque, let decodedID) = decodedValue, let decodedRequest = decodedValueOpaque as? ShutdownRequest else {
+    guard case JSONRPCMessage.request(let decodedValueOpaque, let decodedID) = decodedValue,
+      let decodedRequest = decodedValueOpaque as? ShutdownRequest
+    else {
       XCTFail("decodedValue \(decodedValue) is not a ShutdownRequest")
       return
     }
@@ -243,12 +367,19 @@ final class CodingTests: XCTestCase {
   }
 }
 
-let defaultCodingInfo: [CodingUserInfoKey: Any] = [CodingUserInfoKey.messageRegistryKey:MessageRegistry.lspProtocol]
+let defaultCodingInfo: [CodingUserInfoKey: Any] = [CodingUserInfoKey.messageRegistryKey: MessageRegistry.lspProtocol]
 
-private func checkMessageCoding<Request>(_ value: Request, id: RequestID, json: String, file: StaticString = #filePath, line: UInt = #line) where Request: RequestType & Equatable {
+private func checkMessageCoding<Request: RequestType & Equatable>(
+  _ value: Request,
+  id: RequestID,
+  json: String,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
   checkCoding(JSONRPCMessage.request(value, id: id), json: json, userInfo: defaultCodingInfo, file: file, line: line) {
-
-    guard case JSONRPCMessage.request(let decodedValueOpaque, let decodedID) = $0, let decodedValue = decodedValueOpaque as? Request else {
+    guard case JSONRPCMessage.request(let decodedValueOpaque, let decodedID) = $0,
+      let decodedValue = decodedValueOpaque as? Request
+    else {
       XCTFail("decodedValue \($0) does not match expected \(value)", file: file, line: line)
       return
     }
@@ -258,10 +389,16 @@ private func checkMessageCoding<Request>(_ value: Request, id: RequestID, json: 
   }
 }
 
-private func checkMessageCoding<Notification>(_ value: Notification, json: String, file: StaticString = #filePath, line: UInt = #line) where Notification: NotificationType & Equatable {
+private func checkMessageCoding<Notification: NotificationType & Equatable>(
+  _ value: Notification,
+  json: String,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
   checkCoding(JSONRPCMessage.notification(value), json: json, userInfo: defaultCodingInfo, file: file, line: line) {
-
-    guard case JSONRPCMessage.notification(let decodedValueOpaque) = $0, let decodedValue = decodedValueOpaque as? Notification else {
+    guard case JSONRPCMessage.notification(let decodedValueOpaque) = $0,
+      let decodedValue = decodedValueOpaque as? Notification
+    else {
       XCTFail("decodedValue \($0) does not match expected \(value)", file: file, line: line)
       return
     }
@@ -270,8 +407,13 @@ private func checkMessageCoding<Notification>(_ value: Notification, json: Strin
   }
 }
 
-private func checkMessageCoding<Response>(_ value: Response, id: RequestID, json: String, file: StaticString = #filePath, line: UInt = #line) where Response: ResponseType & Equatable {
-
+private func checkMessageCoding<Response: ResponseType & Equatable>(
+  _ value: Response,
+  id: RequestID,
+  json: String,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
   let callback: JSONRPCMessage.ResponseTypeCallback = {
     return $0 == .string("unknown") ? nil : Response.self
   }
@@ -281,7 +423,9 @@ private func checkMessageCoding<Response>(_ value: Response, id: RequestID, json
 
   checkCoding(JSONRPCMessage.response(value, id: id), json: json, userInfo: codingInfo, file: file, line: line) {
 
-    guard case JSONRPCMessage.response(let decodedValueOpaque, let decodedID) = $0, let decodedValue = decodedValueOpaque as? Response else {
+    guard case JSONRPCMessage.response(let decodedValueOpaque, let decodedID) = $0,
+      let decodedValue = decodedValueOpaque as? Response
+    else {
       XCTFail("decodedValue \($0) does not match expected \(value)", file: file, line: line)
       return
     }
@@ -291,8 +435,20 @@ private func checkMessageCoding<Response>(_ value: Response, id: RequestID, json
   }
 }
 
-private func checkMessageCoding(_ value: ResponseError, id: RequestID?, json: String, file: StaticString = #filePath, line: UInt = #line) {
-  checkCoding(JSONRPCMessage.errorResponse(value, id: id), json: json, userInfo: defaultCodingInfo, file: file, line: line) {
+private func checkMessageCoding(
+  _ value: ResponseError,
+  id: RequestID?,
+  json: String,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
+  checkCoding(
+    JSONRPCMessage.errorResponse(value, id: id),
+    json: json,
+    userInfo: defaultCodingInfo,
+    file: file,
+    line: line
+  ) {
 
     guard case JSONRPCMessage.errorResponse(let decodedValue, let decodedID) = $0 else {
       XCTFail("decodedValue \($0) does not match expected \(value)", file: file, line: line)
@@ -304,7 +460,13 @@ private func checkMessageCoding(_ value: ResponseError, id: RequestID?, json: St
   }
 }
 
-private func checkMessageDecodingError(_ expected: MessageDecodingError, json: String, userInfo: [CodingUserInfoKey: Any] = defaultCodingInfo, file: StaticString = #filePath, line: UInt = #line) {
+private func checkMessageDecodingError(
+  _ expected: MessageDecodingError,
+  json: String,
+  userInfo: [CodingUserInfoKey: Any] = defaultCodingInfo,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
   let data = json.data(using: .utf8)!
   let decoder = JSONDecoder()
   decoder.userInfo = userInfo
@@ -315,8 +477,12 @@ private func checkMessageDecodingError(_ expected: MessageDecodingError, json: S
   } catch let error as MessageDecodingError {
     XCTAssertEqual(expected.code, error.code, file: file, line: line)
     XCTAssertEqual(expected.id, error.id, file: file, line: line)
-    XCTAssertTrue(error.message.hasPrefix(expected.message),
-      "message expected to start with \(expected.message); got \(error.message)", file: file, line: line)
+    XCTAssertTrue(
+      error.message.hasPrefix(expected.message),
+      "message expected to start with \(expected.message); got \(error.message)",
+      file: file,
+      line: line
+    )
   } catch {
     XCTFail("incorrect error seen \(error)", file: file, line: line)
   }

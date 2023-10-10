@@ -32,7 +32,6 @@ public struct SignatureHelpRequest: TextDocumentRequest {
   }
 }
 
-
 /// How a signature help was triggered.
 public struct SignatureHelpTriggerKind: RawRepresentable, Codable, Hashable {
   public var rawValue: Int
@@ -77,7 +76,12 @@ public struct SignatureHelpContext: Codable, Hashable {
   /// updated based on the user navigating through available signatures.
   public var activeSignatureHelp: SignatureHelp?
 
-  public init(triggerKind: SignatureHelpTriggerKind, triggerCharacter: String? = nil, isRetrigger: Bool, activeSignatureHelp: SignatureHelp? = nil) {
+  public init(
+    triggerKind: SignatureHelpTriggerKind,
+    triggerCharacter: String? = nil,
+    isRetrigger: Bool,
+    activeSignatureHelp: SignatureHelp? = nil
+  ) {
     self.triggerKind = triggerKind
     self.triggerCharacter = triggerCharacter
     self.isRetrigger = isRetrigger
@@ -140,7 +144,12 @@ public struct SignatureInformation: Codable, Hashable {
   /// If provided, this is used in place of `SignatureHelp.activeParameter`.
   public var activeParameter: Int?
 
-  public init(label: String, documentation: StringOrMarkupContent? = nil, parameters: [ParameterInformation]? = nil, activeParameter: Int? = nil) {
+  public init(
+    label: String,
+    documentation: StringOrMarkupContent? = nil,
+    parameters: [ParameterInformation]? = nil,
+    activeParameter: Int? = nil
+  ) {
     self.label = label
     self.documentation = documentation
     self.parameters = parameters
@@ -161,7 +170,10 @@ public struct ParameterInformation: Codable, Hashable {
       } else if let offsets = try? Array<Int>(from: decoder), offsets.count == 2 {
         self = .offsets(start: offsets[0], end: offsets[1])
       } else {
-        let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected String or an array containing two integers")
+        let context = DecodingError.Context(
+          codingPath: decoder.codingPath,
+          debugDescription: "Expected String or an array containing two integers"
+        )
         throw DecodingError.dataCorrupted(context)
       }
     }

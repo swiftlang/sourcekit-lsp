@@ -23,39 +23,57 @@ final class SwiftPMIntegrationTests: XCTestCase {
     let call = ws.testLoc("Lib.foo:call")
     let def = ws.testLoc("Lib.foo:def")
     try ws.openDocument(call.url, language: .swift)
-    let refs = try ws.sk.sendSync(ReferencesRequest(textDocument: call.docIdentifier, position: call.position, context: ReferencesContext(includeDeclaration: true)))
+    let refs = try ws.sk.sendSync(
+      ReferencesRequest(
+        textDocument: call.docIdentifier,
+        position: call.position,
+        context: ReferencesContext(includeDeclaration: true)
+      )
+    )
 
-    XCTAssertEqual(Set(refs), [
-      Location(call),
-      Location(def),
-    ])
+    XCTAssertEqual(
+      Set(refs),
+      [
+        Location(call),
+        Location(def),
+      ]
+    )
 
     let completions = try withExtendedLifetime(ws) {
-        try ws.sk.sendSync(CompletionRequest(textDocument: call.docIdentifier, position: call.position))
+      try ws.sk.sendSync(CompletionRequest(textDocument: call.docIdentifier, position: call.position))
     }
 
-    XCTAssertEqual(completions.items, [
-      CompletionItem(
-        label: "foo()",
-        kind: .method,
-        detail: "Void",
-        deprecated: false,
-        sortText: nil,
-        filterText: "foo()",
-        insertText: "foo()",
-        insertTextFormat: .plain,
-        textEdit: .textEdit(TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "foo()"))),
-      CompletionItem(
-        label: "self",
-        kind: .keyword,
-        detail: "Lib",
-        deprecated: false,
-        sortText: nil,
-        filterText: "self",
-        insertText: "self",
-        insertTextFormat: .plain,
-        textEdit: .textEdit(TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "self"))),
-    ])
+    XCTAssertEqual(
+      completions.items,
+      [
+        CompletionItem(
+          label: "foo()",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          sortText: nil,
+          filterText: "foo()",
+          insertText: "foo()",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "foo()")
+          )
+        ),
+        CompletionItem(
+          label: "self",
+          kind: .keyword,
+          detail: "Lib",
+          deprecated: false,
+          sortText: nil,
+          filterText: "self",
+          insertText: "self",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "self")
+          )
+        ),
+      ]
+    )
   }
 
   func testAddFile() async throws {
@@ -69,10 +87,10 @@ final class SwiftPMIntegrationTests: XCTestCase {
         .appendingPathComponent("lib")
         .appendingPathComponent("other.swift")
       let otherFileContents = """
-      func baz(l: Lib)  {
-        l . /*newFile:call*/foo()
-      }
-      """
+        func baz(l: Lib)  {
+          l . /*newFile:call*/foo()
+        }
+        """
       builder.write(otherFileContents, to: otherFile)
     }
 
@@ -90,37 +108,48 @@ final class SwiftPMIntegrationTests: XCTestCase {
     ws.closeDocument(newFile.url)
 
     // Send a `DidChangeWatchedFilesNotification` and verify that we now get cross-file code completion.
-    ws.sk.send(DidChangeWatchedFilesNotification(changes: [
-      FileEvent(uri: newFile.docUri, type: .created)
-    ]))
+    ws.sk.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: newFile.docUri, type: .created)
+      ])
+    )
     try ws.openDocument(newFile.url, language: .swift)
-    
+
     let completions = try withExtendedLifetime(ws) {
       try ws.sk.sendSync(CompletionRequest(textDocument: newFile.docIdentifier, position: newFile.position))
     }
 
-    XCTAssertEqual(completions.items, [
-      CompletionItem(
-        label: "foo()",
-        kind: .method,
-        detail: "Void",
-        deprecated: false,
-        sortText: nil,
-        filterText: "foo()",
-        insertText: "foo()",
-        insertTextFormat: .plain,
-        textEdit: .textEdit(TextEdit(range: Position(line: 1, utf16index: 22)..<Position(line: 1, utf16index: 22), newText: "foo()"))),
-      CompletionItem(
-        label: "self",
-        kind: .keyword,
-        detail: "Lib",
-        deprecated: false,
-        sortText: nil,
-        filterText: "self",
-        insertText: "self",
-        insertTextFormat: .plain,
-        textEdit: .textEdit(TextEdit(range: Position(line: 1, utf16index: 22)..<Position(line: 1, utf16index: 22), newText: "self"))),
-    ])
+    XCTAssertEqual(
+      completions.items,
+      [
+        CompletionItem(
+          label: "foo()",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          sortText: nil,
+          filterText: "foo()",
+          insertText: "foo()",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Position(line: 1, utf16index: 22)..<Position(line: 1, utf16index: 22), newText: "foo()")
+          )
+        ),
+        CompletionItem(
+          label: "self",
+          kind: .keyword,
+          detail: "Lib",
+          deprecated: false,
+          sortText: nil,
+          filterText: "self",
+          insertText: "self",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Position(line: 1, utf16index: 22)..<Position(line: 1, utf16index: 22), newText: "self")
+          )
+        ),
+      ]
+    )
 
     // Check that we get code completion for `baz` (defined in the new file) in the old file.
     // I.e. check that the existing file's build settings have been updated to include the new file.
@@ -128,17 +157,23 @@ final class SwiftPMIntegrationTests: XCTestCase {
     let oldFileCompletions = try withExtendedLifetime(ws) {
       try ws.sk.sendSync(CompletionRequest(textDocument: oldFile.docIdentifier, position: oldFile.position))
     }
-    XCTAssert(oldFileCompletions.items.contains(CompletionItem(
-      label: "baz(l: Lib)",
-      kind: .function,
-      detail: "Void",
-      documentation: nil,
-      deprecated: false,
-      sortText: nil,
-      filterText: "baz(l:)",
-      insertText: "baz(l: )",
-      insertTextFormat: .plain,
-      textEdit: .textEdit(TextEdit(range: Position(line: 7, utf16index: 31)..<Position(line: 7, utf16index: 31), newText: "baz(l: )"))))
+    XCTAssert(
+      oldFileCompletions.items.contains(
+        CompletionItem(
+          label: "baz(l: Lib)",
+          kind: .function,
+          detail: "Void",
+          documentation: nil,
+          deprecated: false,
+          sortText: nil,
+          filterText: "baz(l:)",
+          insertText: "baz(l: )",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Position(line: 7, utf16index: 31)..<Position(line: 7, utf16index: 31), newText: "baz(l: )")
+          )
+        )
+      )
     )
   }
 
@@ -163,40 +198,53 @@ final class SwiftPMIntegrationTests: XCTestCase {
         .appendingPathComponent("Package.swift")
       var packageManifestContents = try String(contentsOf: packageManifest, encoding: .utf8)
       let targetMarkerRange = packageManifestContents.range(of: "/*Package.swift:targets*/")!
-      packageManifestContents.replaceSubrange(targetMarkerRange, with: """
-      .target(
-         name: "otherlib",
-         dependencies: ["lib"]
-      ),
-      /*Package.swift:targets*/
-      """)
+      packageManifestContents.replaceSubrange(
+        targetMarkerRange,
+        with: """
+          .target(
+             name: "otherlib",
+             dependencies: ["lib"]
+          ),
+          /*Package.swift:targets*/
+          """
+      )
       builder.write(packageManifestContents, to: packageManifest)
     }
 
     // Send a `DidChangeWatchedFilesNotification` and verify that we now get cross-file code completion.
-    ws.sk.send(DidChangeWatchedFilesNotification(changes: [
-      FileEvent(uri: packageTargets.docUri, type: .changed)
-    ]))
+    ws.sk.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: packageTargets.docUri, type: .changed)
+      ])
+    )
 
     let expectedCompletions = [
       CompletionItem(
         label: "foo()",
         kind: .method,
         detail: "Void",
-        deprecated: false, sortText: nil,
+        deprecated: false,
+        sortText: nil,
         filterText: "foo()",
         insertText: "foo()",
         insertTextFormat: .plain,
-        textEdit: .textEdit(TextEdit(range: Position(line: 3, utf16index: 47)..<Position(line: 3, utf16index: 47), newText: "foo()"))),
+        textEdit: .textEdit(
+          TextEdit(range: Position(line: 3, utf16index: 47)..<Position(line: 3, utf16index: 47), newText: "foo()")
+        )
+      ),
       CompletionItem(
         label: "self",
         kind: .keyword,
         detail: "Lib",
-        deprecated: false, sortText: nil,
+        deprecated: false,
+        sortText: nil,
         filterText: "self",
         insertText: "self",
         insertTextFormat: .plain,
-        textEdit: .textEdit(TextEdit(range: Position(line: 3, utf16index: 47)..<Position(line: 3, utf16index: 47), newText: "self"))),
+        textEdit: .textEdit(
+          TextEdit(range: Position(line: 3, utf16index: 47)..<Position(line: 3, utf16index: 47), newText: "self")
+        )
+      ),
     ]
 
     var didReceiveCorrectCompletions = false

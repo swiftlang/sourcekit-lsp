@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKitLSP
 import SKCore
+import SourceKitLSP
 import XCTest
 
 final class SwiftCompileCommandsTest: XCTestCase {

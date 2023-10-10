@@ -26,9 +26,11 @@ public struct WorkspaceEdit: Hashable, ResponseType {
   /// `workspace.changeAnnotationSupport`.
   public var changeAnnotations: [ChangeAnnotationIdentifier: ChangeAnnotation]?
 
-  public init(changes: [DocumentURI: [TextEdit]]? = nil,
-              documentChanges: [WorkspaceEditDocumentChange]? = nil,
-              changeAnnotation: [ChangeAnnotationIdentifier: ChangeAnnotation]? = nil) {
+  public init(
+    changes: [DocumentURI: [TextEdit]]? = nil,
+    documentChanges: [WorkspaceEditDocumentChange]? = nil,
+    changeAnnotation: [ChangeAnnotationIdentifier: ChangeAnnotation]? = nil
+  ) {
     self.changes = changes
     self.documentChanges = documentChanges
     self.changeAnnotations = changeAnnotation
@@ -86,7 +88,10 @@ public enum WorkspaceEditDocumentChange: Codable, Hashable {
     } else if let deleteFile = try? DeleteFile(from: decoder) {
       self = .deleteFile(deleteFile)
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected TextDocumentEdit, CreateFile, RenameFile, or DeleteFile")
+      let context = DecodingError.Context(
+        codingPath: decoder.codingPath,
+        debugDescription: "Expected TextDocumentEdit, CreateFile, RenameFile, or DeleteFile"
+      )
       throw DecodingError.dataCorrupted(context)
     }
   }
@@ -105,11 +110,11 @@ public enum WorkspaceEditDocumentChange: Codable, Hashable {
   }
 }
 
- /// Options to create a file.
+/// Options to create a file.
 public struct CreateFileOptions: Codable, Hashable {
-   /// Overwrite existing file. Overwrite wins over `ignoreIfExists`
+  /// Overwrite existing file. Overwrite wins over `ignoreIfExists`
   public var overwrite: Bool?
-   /// Ignore if exists.
+  /// Ignore if exists.
   public var ignoreIfExists: Bool?
 
   public init(overwrite: Bool? = nil, ignoreIfExists: Bool? = nil) {
@@ -118,11 +123,11 @@ public struct CreateFileOptions: Codable, Hashable {
   }
 }
 
- /// Create file operation
+/// Create file operation
 public struct CreateFile: Codable, Hashable {
-   /// The resource to create.
+  /// The resource to create.
   public var uri: DocumentURI
-   /// Additional options
+  /// Additional options
   public var options: CreateFileOptions?
   /// An optional annotation identifier describing the operation.
   public var annotationId: ChangeAnnotationIdentifier?
@@ -146,7 +151,11 @@ public struct CreateFile: Codable, Hashable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let kind = try container.decode(String.self, forKey: .kind)
     guard kind == "create" else {
-      throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "Kind of CreateFile is not 'create'")
+      throw DecodingError.dataCorruptedError(
+        forKey: .kind,
+        in: container,
+        debugDescription: "Kind of CreateFile is not 'create'"
+      )
     }
     self.uri = try container.decode(DocumentURI.self, forKey: .uri)
     self.options = try container.decodeIfPresent(CreateFileOptions.self, forKey: .options)
@@ -162,11 +171,11 @@ public struct CreateFile: Codable, Hashable {
   }
 }
 
- /// Rename file options
+/// Rename file options
 public struct RenameFileOptions: Codable, Hashable {
-   /// Overwrite target if existing. Overwrite wins over `ignoreIfExists`
+  /// Overwrite target if existing. Overwrite wins over `ignoreIfExists`
   public var overwrite: Bool?
-   /// Ignores if target exists.
+  /// Ignores if target exists.
   public var ignoreIfExists: Bool?
 
   public init(overwrite: Bool? = nil, ignoreIfExists: Bool? = nil) {
@@ -175,18 +184,23 @@ public struct RenameFileOptions: Codable, Hashable {
   }
 }
 
- /// Rename file operation
+/// Rename file operation
 public struct RenameFile: Codable, Hashable {
-   /// The old (existing) location.
+  /// The old (existing) location.
   public var oldUri: DocumentURI
-   /// The new location.
+  /// The new location.
   public var newUri: DocumentURI
-   /// Rename options.
+  /// Rename options.
   public var options: RenameFileOptions?
   /// An optional annotation identifier describing the operation.
   public var annotationId: ChangeAnnotationIdentifier?
 
-  public init(oldUri: DocumentURI, newUri: DocumentURI, options: RenameFileOptions? = nil, annotationId: ChangeAnnotationIdentifier? = nil) {
+  public init(
+    oldUri: DocumentURI,
+    newUri: DocumentURI,
+    options: RenameFileOptions? = nil,
+    annotationId: ChangeAnnotationIdentifier? = nil
+  ) {
     self.oldUri = oldUri
     self.newUri = newUri
     self.options = options
@@ -207,7 +221,11 @@ public struct RenameFile: Codable, Hashable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let kind = try container.decode(String.self, forKey: .kind)
     guard kind == "rename" else {
-      throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "Kind of RenameFile is not 'rename'")
+      throw DecodingError.dataCorruptedError(
+        forKey: .kind,
+        in: container,
+        debugDescription: "Kind of RenameFile is not 'rename'"
+      )
     }
     self.oldUri = try container.decode(DocumentURI.self, forKey: .oldUri)
     self.newUri = try container.decode(DocumentURI.self, forKey: .newUri)
@@ -225,11 +243,11 @@ public struct RenameFile: Codable, Hashable {
   }
 }
 
- /// Delete file options
+/// Delete file options
 public struct DeleteFileOptions: Codable, Hashable {
-   /// Delete the content recursively if a folder is denoted.
+  /// Delete the content recursively if a folder is denoted.
   public var recursive: Bool?
-   /// Ignore the operation if the file doesn't exist.
+  /// Ignore the operation if the file doesn't exist.
   public var ignoreIfNotExists: Bool?
 
   public init(recursive: Bool? = nil, ignoreIfNotExists: Bool? = nil) {
@@ -238,11 +256,11 @@ public struct DeleteFileOptions: Codable, Hashable {
   }
 }
 
- /// Delete file operation
+/// Delete file operation
 public struct DeleteFile: Codable, Hashable {
-   /// The file to delete.
+  /// The file to delete.
   public var uri: DocumentURI
-   /// Delete options.
+  /// Delete options.
   public var options: DeleteFileOptions?
   /// An optional annotation identifier describing the operation.
   public var annotationId: ChangeAnnotationIdentifier?
@@ -266,7 +284,11 @@ public struct DeleteFile: Codable, Hashable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let kind = try container.decode(String.self, forKey: .kind)
     guard kind == "delete" else {
-      throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "Kind of DeleteFile is not 'delete'")
+      throw DecodingError.dataCorruptedError(
+        forKey: .kind,
+        in: container,
+        debugDescription: "Kind of DeleteFile is not 'delete'"
+      )
     }
     self.uri = try container.decode(DocumentURI.self, forKey: .uri)
     self.options = try container.decodeIfPresent(DeleteFileOptions.self, forKey: .options)
@@ -283,7 +305,7 @@ public struct DeleteFile: Codable, Hashable {
 }
 
 extension WorkspaceEdit: LSPAnyCodable {
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard case .dictionary(let lspDict) = dictionary[CodingKeys.changes.stringValue] else {
       return nil
     }

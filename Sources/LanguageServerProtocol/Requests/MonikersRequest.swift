@@ -71,8 +71,6 @@ public struct Moniker: ResponseType, Hashable {
     public static let local = Kind(rawValue: "local")
   }
 
-
-
   /// The scheme of the moniker. For example tsc or .Net
   public var scheme: String
 

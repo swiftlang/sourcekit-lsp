@@ -10,15 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
 import Dispatch
 import Foundation
+import SKSupport
 
-import func TSCBasic.getEnvSearchPaths
+import struct TSCBasic.AbsolutePath
+import protocol TSCBasic.FileSystem
 import class TSCBasic.Process
 import enum TSCBasic.ProcessEnv
-import protocol TSCBasic.FileSystem
-import struct TSCBasic.AbsolutePath
+import func TSCBasic.getEnvSearchPaths
 import var TSCBasic.localFileSystem
 
 /// Set of known toolchains.
@@ -84,7 +84,7 @@ extension ToolchainRegistry {
   /// tr.scanForToolchains()
   /// ```
   public convenience init(
-    installPath: AbsolutePath? = nil, 
+    installPath: AbsolutePath? = nil,
     _ fileSystem: FileSystem
   ) {
     self.init()
@@ -121,8 +121,10 @@ extension ToolchainRegistry {
           _default = nil
           return
         }
-        precondition(_toolchains.contains { $0 === toolchain },
-                     "default toolchain must be registered first")
+        precondition(
+          _toolchains.contains { $0 === toolchain },
+          "default toolchain must be registered first"
+        )
         _default = toolchain
       }
     }
@@ -210,8 +212,8 @@ extension ToolchainRegistry {
   ///   already been seen.
   public func registerToolchain(
     _ path: AbsolutePath,
-    _ fileSystem: FileSystem = localFileSystem) throws -> Toolchain
-  {
+    _ fileSystem: FileSystem = localFileSystem
+  ) throws -> Toolchain {
     return try queue.sync { try _registerToolchain(path, fileSystem) }
   }
 
@@ -238,15 +240,16 @@ extension ToolchainRegistry {
   public func scanForToolchains(
     installPath: AbsolutePath? = nil,
     environmentVariables: [String] = ["SOURCEKIT_TOOLCHAIN_PATH"],
-    xcodes: [AbsolutePath] = [currentXcodeDeveloperPath].compactMap({$0}),
+    xcodes: [AbsolutePath] = [currentXcodeDeveloperPath].compactMap({ $0 }),
     xctoolchainSearchPaths: [AbsolutePath]? = nil,
     pathVariables: [String] = ["SOURCEKIT_PATH", "PATH", "Path"],
     _ fileSystem: FileSystem
   ) {
-    let xctoolchainSearchPaths = try! xctoolchainSearchPaths ?? [
-      AbsolutePath(expandingTilde: "~/Library/Developer/Toolchains"),
-      AbsolutePath(validating: "/Library/Developer/Toolchains"),
-    ]
+    let xctoolchainSearchPaths =
+      try! xctoolchainSearchPaths ?? [
+        AbsolutePath(expandingTilde: "~/Library/Developer/Toolchains"),
+        AbsolutePath(validating: "/Library/Developer/Toolchains"),
+      ]
 
     queue.sync {
       _scanForToolchains(environmentVariables: environmentVariables, setDefault: true, fileSystem)
@@ -271,27 +274,28 @@ extension ToolchainRegistry {
   public func scanForToolchains(
     environmentVariables: [String],
     setDefault: Bool,
-    _ fileSystem: FileSystem = localFileSystem)
-  {
+    _ fileSystem: FileSystem = localFileSystem
+  ) {
     queue.sync {
       _scanForToolchains(
         environmentVariables: environmentVariables,
         setDefault: setDefault,
-        fileSystem)
+        fileSystem
+      )
     }
   }
 
   func _scanForToolchains(
     environmentVariables: [String],
     setDefault: Bool,
-    _ fileSystem: FileSystem)
-  {
+    _ fileSystem: FileSystem
+  ) {
     var shouldSetDefault = setDefault
     for envVar in environmentVariables {
       if let pathStr = ProcessEnv.vars[envVar],
-         let path = try? AbsolutePath(validating: pathStr),
-         let toolchain = try? _registerToolchain(path, fileSystem),
-         shouldSetDefault
+        let path = try? AbsolutePath(validating: pathStr),
+        let toolchain = try? _registerToolchain(path, fileSystem),
+        shouldSetDefault
       {
         shouldSetDefault = false
         _default = toolchain
@@ -305,7 +309,8 @@ extension ToolchainRegistry {
   ///   - pathVariables: A list of PATH-like environment variable names to search.
   ///   - setDefault: If true, the first toolchain found will be set as the default.
   public
-  func scanForToolchains(pathVariables: [String], _ fileSystem: FileSystem = localFileSystem) {
+    func scanForToolchains(pathVariables: [String], _ fileSystem: FileSystem = localFileSystem)
+  {
     queue.sync { _scanForToolchains(pathVariables: pathVariables, fileSystem) }
   }
 
@@ -339,12 +344,12 @@ extension ToolchainRegistry {
   /// - parameter toolchains: Directory containing xctoolchains, e.g. /Library/Developer/Toolchains
   public func scanForToolchains(
     xctoolchainSearchPath searchPath: AbsolutePath,
-    _ fileSystem: FileSystem = localFileSystem)
-  {
+    _ fileSystem: FileSystem = localFileSystem
+  ) {
     queue.sync { _scanForToolchains(xctoolchainSearchPath: searchPath, fileSystem) }
   }
 
-  func _scanForToolchains(xctoolchainSearchPath searchPath: AbsolutePath, _ fileSystem: FileSystem){
+  func _scanForToolchains(xctoolchainSearchPath searchPath: AbsolutePath, _ fileSystem: FileSystem) {
     guard let direntries = try? fileSystem.getDirectoryContents(searchPath) else { return }
     for name in direntries {
       let path = searchPath.appending(component: name)

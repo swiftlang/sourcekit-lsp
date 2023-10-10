@@ -241,7 +241,12 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     /// Whether the client supports the did-save notification.
     public var didSave: Bool? = nil
 
-    public init(dynamicRegistration: Bool? = nil, willSave: Bool? = nil, willSaveWaitUntil: Bool? = nil, didSave: Bool? = nil) {
+    public init(
+      dynamicRegistration: Bool? = nil,
+      willSave: Bool? = nil,
+      willSaveWaitUntil: Bool? = nil,
+      didSave: Bool? = nil
+    ) {
       self.dynamicRegistration = dynamicRegistration
       self.willSave = willSave
       self.willSaveWaitUntil = willSaveWaitUntil
@@ -270,7 +275,13 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
       /// Whether the client supports the `preselect` property on a CompletionItem.
       public var preselectSupport: Bool? = nil
 
-      public init(snippetSupport: Bool? = nil, commitCharactersSupport: Bool? = nil, documentationFormat: [MarkupKind]? = nil, deprecatedSupport: Bool? = nil, preselectSupport: Bool? = nil) {
+      public init(
+        snippetSupport: Bool? = nil,
+        commitCharactersSupport: Bool? = nil,
+        documentationFormat: [MarkupKind]? = nil,
+        deprecatedSupport: Bool? = nil,
+        preselectSupport: Bool? = nil
+      ) {
         self.snippetSupport = snippetSupport
         self.commitCharactersSupport = commitCharactersSupport
         self.documentationFormat = documentationFormat
@@ -306,7 +317,12 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     /// Whether the client supports sending context information in a `textDocument/completion` request.
     public var contextSupport: Bool? = nil
 
-    public init(dynamicRegistration: Bool? = nil, completionItem: CompletionItem? = nil, completionItemKind: CompletionItemKind? = nil, contextSupport: Bool? = nil) {
+    public init(
+      dynamicRegistration: Bool? = nil,
+      completionItem: CompletionItem? = nil,
+      completionItemKind: CompletionItemKind? = nil,
+      contextSupport: Bool? = nil
+    ) {
       self.dynamicRegistration = dynamicRegistration
       self.completionItem = completionItem
       self.completionItemKind = completionItemKind
@@ -390,7 +406,11 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
     public var hierarchicalDocumentSymbolSupport: Bool? = nil
 
-    public init(dynamicRegistration: Bool? = nil, symbolKind: SymbolKind? = nil, hierarchicalDocumentSymbolSupport: Bool? = nil) {
+    public init(
+      dynamicRegistration: Bool? = nil,
+      symbolKind: SymbolKind? = nil,
+      hierarchicalDocumentSymbolSupport: Bool? = nil
+    ) {
       self.dynamicRegistration = dynamicRegistration
       self.symbolKind = symbolKind
       self.hierarchicalDocumentSymbolSupport = hierarchicalDocumentSymbolSupport
@@ -472,9 +492,11 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     /// Whether the client supports a `codeDescription` property.
     public var codeDescriptionSupport: Bool? = nil
 
-    public init(relatedInformation: Bool? = nil,
-                codeActionsInline: Bool? = nil,
-                codeDescriptionSupport: Bool? = nil) {
+    public init(
+      relatedInformation: Bool? = nil,
+      codeActionsInline: Bool? = nil,
+      codeDescriptionSupport: Bool? = nil
+    ) {
       self.relatedInformation = relatedInformation
       self.codeActionsInline = codeActionsInline
       self.codeDescriptionSupport = codeDescriptionSupport
@@ -672,7 +694,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   public var inlineValue: DynamicRegistrationCapability? = nil
 
   public var inlayHint: InlayHint? = nil
-  
+
   public var diagnostic: Diagnostic? = nil
 
   public init(
@@ -769,7 +791,6 @@ public struct NotebookDocumentClientCapabilities: Hashable, Codable {
   }
 }
 
-
 /// Window specific client capabilities.
 public struct WindowClientCapabilities: Hashable, Codable {
   /// Show message request client capabilities
@@ -785,7 +806,7 @@ public struct WindowClientCapabilities: Hashable, Codable {
       }
     }
 
-     /// Capabilities specific to the `MessageActionItem` type.
+    /// Capabilities specific to the `MessageActionItem` type.
     public var messageActionItem: MessageActionItem?
 
     public init(messageActionItem: MessageActionItem? = nil) {
@@ -829,13 +850,12 @@ public struct WindowClientCapabilities: Hashable, Codable {
   }
 }
 
-
 /// General client capabilities.
 public struct GeneralClientCapabilities: Hashable, Codable {
   public struct StaleRequestSupport: Hashable, Codable {
     /// The client will actively cancel the request.
     public var cancel: Bool
-    
+
     /// The list of requests for which the client
     /// will retry the request if it receives a
     /// response with error code `ContentModified``
@@ -879,24 +899,24 @@ public struct GeneralClientCapabilities: Hashable, Codable {
     }
   }
 
-   /// A type indicating how positions are encoded,
-   /// specifically what column offsets mean.
-   public enum PositionEncodingKind: String, Hashable, Codable {
+  /// A type indicating how positions are encoded,
+  /// specifically what column offsets mean.
+  public enum PositionEncodingKind: String, Hashable, Codable {
 
-     /// Character offsets count UTF-8 code units (e.g bytes).
+    /// Character offsets count UTF-8 code units (e.g bytes).
     case utf8 = "utf-8"
 
-     /// Character offsets count UTF-16 code units.
-     ///
-     /// This is the default and must always be supported
-     /// by servers
+    /// Character offsets count UTF-16 code units.
+    ///
+    /// This is the default and must always be supported
+    /// by servers
     case utf16 = "utf-16"
 
-     /// Character offsets count UTF-32 code units.
-     ///
-     /// Implementation note: these are the same as Unicode code points,
-     /// so this `PositionEncodingKind` may also be used for an
-     /// encoding-agnostic representation of character offsets.
+    /// Character offsets count UTF-32 code units.
+    ///
+    /// Implementation note: these are the same as Unicode code points,
+    /// so this `PositionEncodingKind` may also be used for an
+    /// encoding-agnostic representation of character offsets.
     case utf32 = "utf-32"
   }
 
@@ -905,10 +925,10 @@ public struct GeneralClientCapabilities: Hashable, Codable {
   /// for which the client will not process the response
   /// anymore since the information is outdated).
   public var staleRequestSupport: StaleRequestSupport?
-  
+
   /// Client capabilities specific to regular expressions.
   public var regularExpressions: RegularExpressions?
-  
+
   /// Client capabilities specific to the client's markdown parser.
   public var markdown: Markdown?
 

@@ -12,32 +12,31 @@
 
 import BuildServerProtocol
 import Foundation
+import LSPLogging
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import LSPLogging
 import SKSupport
 
+import struct TSCBasic.AbsolutePath
+import protocol TSCBasic.FileSystem
+import struct TSCBasic.FileSystemError
 import func TSCBasic.getEnvSearchPaths
+import var TSCBasic.localFileSystem
 import func TSCBasic.lookupExecutablePath
 import func TSCBasic.resolveSymlinks
-import protocol TSCBasic.FileSystem
-import struct TSCBasic.AbsolutePath
-import struct TSCBasic.FileSystemError
-import var TSCBasic.localFileSystem
 
 enum BuildServerTestError: Error {
-    case executableNotFound(String)
+  case executableNotFound(String)
 }
 
 func executable(_ name: String) -> String {
-#if os(Windows)
+  #if os(Windows)
   guard !name.hasSuffix(".exe") else { return name }
   return "\(name).exe"
-#else
+  #else
   return name
-#endif
+  #endif
 }
-
 
 /// A `BuildSystem` based on communicating with a build server
 ///
@@ -47,7 +46,7 @@ public actor BuildServerBuildSystem: MessageHandler {
   let projectRoot: AbsolutePath
   let buildFolder: AbsolutePath?
   let serverConfig: BuildServerConfig
-  
+
   var buildServer: JSONRPCConnection?
 
   /// The queue on which all messages that originate from the build server are
@@ -80,18 +79,26 @@ public actor BuildServerBuildSystem: MessageHandler {
   /// The build settings that have been received from the build server.
   private var buildSettings: [DocumentURI: FileBuildSettings] = [:]
 
-  public init(projectRoot: AbsolutePath, buildFolder: AbsolutePath?, fileSystem: FileSystem = localFileSystem) async throws {
+  public init(
+    projectRoot: AbsolutePath,
+    buildFolder: AbsolutePath?,
+    fileSystem: FileSystem = localFileSystem
+  ) async throws {
     let configPath = projectRoot.appending(component: "buildServer.json")
     let config = try loadBuildServerConfig(path: configPath, fileSystem: fileSystem)
-#if os(Windows)
+    #if os(Windows)
     self.searchPaths =
-        getEnvSearchPaths(pathString: ProcessInfo.processInfo.environment["Path"],
-                          currentWorkingDirectory: fileSystem.currentWorkingDirectory)
-#else
+      getEnvSearchPaths(
+        pathString: ProcessInfo.processInfo.environment["Path"],
+        currentWorkingDirectory: fileSystem.currentWorkingDirectory
+      )
+    #else
     self.searchPaths =
-        getEnvSearchPaths(pathString: ProcessInfo.processInfo.environment["PATH"],
-                          currentWorkingDirectory: fileSystem.currentWorkingDirectory)
-#endif
+      getEnvSearchPaths(
+        pathString: ProcessInfo.processInfo.environment["PATH"],
+        currentWorkingDirectory: fileSystem.currentWorkingDirectory
+      )
+    #endif
     self.buildFolder = buildFolder
     self.projectRoot = projectRoot
     self.serverConfig = config
@@ -132,11 +139,17 @@ public actor BuildServerBuildSystem: MessageHandler {
     var flags = Array(serverConfig.argv[1...])
     if serverPath.suffix == ".py" {
       flags = [serverPath.pathString] + flags
-      guard let interpreterPath =
-          lookupExecutablePath(filename: executable("python3"),
-                               searchPaths: searchPaths) ??
-          lookupExecutablePath(filename: executable("python"),
-                               searchPaths: searchPaths) else {
+      guard
+        let interpreterPath =
+          lookupExecutablePath(
+            filename: executable("python3"),
+            searchPaths: searchPaths
+          )
+          ?? lookupExecutablePath(
+            filename: executable("python"),
+            searchPaths: searchPaths
+          )
+      else {
         throw BuildServerTestError.executableNotFound("python3")
       }
 
@@ -155,7 +168,8 @@ public actor BuildServerBuildSystem: MessageHandler {
       version: "1.0",
       bspVersion: "2.0",
       rootUri: URI(self.projectRoot.asURL),
-      capabilities: BuildClientCapabilities(languageIds: languages))
+      capabilities: BuildClientCapabilities(languageIds: languages)
+    )
 
     let buildServer = try makeJSONRPCBuildServer(client: self, serverPath: serverPath, serverFlags: flags)
     let response = try buildServer.sendSync(initializeRequest)
@@ -198,14 +212,20 @@ public actor BuildServerBuildSystem: MessageHandler {
     reply(.failure(ResponseError.methodNotFound(R.method)))
   }
 
-  func handleBuildTargetsChanged(_ notification: LanguageServerProtocol.Notification<BuildTargetsChangedNotification>) async {
+  func handleBuildTargetsChanged(
+    _ notification: LanguageServerProtocol.Notification<BuildTargetsChangedNotification>
+  ) async {
     await self.delegate?.buildTargetsChanged(notification.params.changes)
   }
 
-  func handleFileOptionsChanged(_ notification: LanguageServerProtocol.Notification<FileOptionsChangedNotification>) async {
+  func handleFileOptionsChanged(
+    _ notification: LanguageServerProtocol.Notification<FileOptionsChangedNotification>
+  ) async {
     let result = notification.params.updatedOptions
     let settings = FileBuildSettings(
-        compilerArguments: result.options, workingDirectory: result.workingDirectory)
+      compilerArguments: result.options,
+      workingDirectory: result.workingDirectory
+    )
     await self.buildSettingsChanged(for: notification.params.uri, settings: settings)
   }
 
@@ -219,7 +239,8 @@ public actor BuildServerBuildSystem: MessageHandler {
 
 private func readReponseDataKey(data: LSPAny?, key: String) -> String? {
   if case .dictionary(let dataDict)? = data,
-    case .string(let stringVal)? = dataDict[key] {
+    case .string(let stringVal)? = dataDict[key]
+  {
     return stringVal
   }
 
@@ -241,7 +262,7 @@ extension BuildServerBuildSystem: BuildSystem {
       Task {
         if let error = result.failure {
           log("error registering \(uri): \(error)", level: .error)
-          
+
           // BuildServer registration failed, so tell our delegate that no build
           // settings are available.
           await self.buildSettingsChanged(for: uri, settings: nil)
@@ -264,16 +285,16 @@ extension BuildServerBuildSystem: BuildSystem {
   public func filesDidChange(_ events: [FileEvent]) {}
 
   public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    guard 
-      let fileUrl = uri.fileURL, 
-      let path = try? AbsolutePath(validating: fileUrl.path) 
+    guard
+      let fileUrl = uri.fileURL,
+      let path = try? AbsolutePath(validating: fileUrl.path)
     else {
       return .unhandled
     }
 
     // FIXME: We should not make any assumptions about which files the build server can handle.
     // Instead we should query the build server which files it can handle (#492).
-    
+
     if projectRoot.isAncestorOfOrEqual(to: path) {
       return .handled
     }
@@ -309,7 +330,11 @@ struct BuildServerConfig: Codable {
   let argv: [String]
 }
 
-private func makeJSONRPCBuildServer(client: MessageHandler, serverPath: AbsolutePath, serverFlags: [String]?) throws -> JSONRPCConnection {
+private func makeJSONRPCBuildServer(
+  client: MessageHandler,
+  serverPath: AbsolutePath,
+  serverFlags: [String]?
+) throws -> JSONRPCConnection {
   let clientToServer = Pipe()
   let serverToClient = Pipe()
 

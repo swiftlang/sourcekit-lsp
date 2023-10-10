@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import LSPLogging
-import SourceKitD
 import Dispatch
+import LSPLogging
+import LanguageServerProtocol
+import SourceKitD
 
 /// Represents a code-completion session for a given source location that can be efficiently
 /// re-filtered by calling `update()`.
@@ -48,8 +48,8 @@ actor CodeCompletionSession {
     snapshot: DocumentSnapshot,
     utf8Offset: Int,
     position: Position,
-    compileCommand: SwiftCompileCommand?)
-  {
+    compileCommand: SwiftCompileCommand?
+  ) {
     self.server = server
     self.snapshot = snapshot
     self.utf8StartOffset = utf8Offset
@@ -145,7 +145,13 @@ actor CodeCompletionSession {
       return CompletionList(isIncomplete: false, items: [])
     }
 
-    return self.server.completionsFromSKDResponse(completions, in: snapshot, completionPos: self.position, requestPosition: position, isIncomplete: true)
+    return self.server.completionsFromSKDResponse(
+      completions,
+      in: snapshot,
+      completionPos: self.position,
+      requestPosition: position,
+      isIncomplete: true
+    )
   }
 
   private func optionsDictionary(
@@ -185,12 +191,12 @@ actor CodeCompletionSession {
 
     queue.async {
       switch self.state {
-        case .closed:
-          // Already closed, nothing to do.
-          break
-        case .open:
-          self.sendClose(server)
-          self.state = .closed
+      case .closed:
+        // Already closed, nothing to do.
+        break
+      case .open:
+        self.sendClose(server)
+        self.state = .closed
       }
     }
   }

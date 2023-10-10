@@ -21,7 +21,9 @@ public enum JSONRPCMessage {
 }
 
 extension CodingUserInfoKey {
-  public static let responseTypeCallbackKey: CodingUserInfoKey = CodingUserInfoKey(rawValue: "lsp.jsonrpc.responseTypeCallback")!
+  public static let responseTypeCallbackKey: CodingUserInfoKey = CodingUserInfoKey(
+    rawValue: "lsp.jsonrpc.responseTypeCallback"
+  )!
   public static let messageRegistryKey: CodingUserInfoKey = CodingUserInfoKey(rawValue: "lsp.jsonrpc.messageRegistry")!
 }
 
@@ -78,7 +80,7 @@ extension JSONRPCMessage: Codable {
         }
 
         let params = try messageType.init(from: container.superDecoder(forKey: .params))
-        
+
         self = .request(params, id: id)
 
       case (let id?, nil, true, nil):
@@ -111,14 +113,26 @@ extension JSONRPCMessage: Codable {
       throw error
 
     } catch DecodingError.keyNotFound(let key, _) {
-      throw MessageDecodingError.invalidParams("missing expected parameter: \(key.stringValue)", id: id, messageKind: msgKind)
+      throw MessageDecodingError.invalidParams(
+        "missing expected parameter: \(key.stringValue)",
+        id: id,
+        messageKind: msgKind
+      )
 
     } catch DecodingError.valueNotFound(_, let context) {
-      throw MessageDecodingError.invalidParams("missing expected parameter: \(context.codingPath.last?.stringValue ?? "unknown")", id: id, messageKind: msgKind)
+      throw MessageDecodingError.invalidParams(
+        "missing expected parameter: \(context.codingPath.last?.stringValue ?? "unknown")",
+        id: id,
+        messageKind: msgKind
+      )
 
     } catch DecodingError.typeMismatch(_, let context) {
       let path = context.codingPath.map { $0.stringValue }.joined(separator: ".")
-      throw MessageDecodingError.invalidParams("type mismatch at \(path) : \(context.debugDescription)", id: id, messageKind: msgKind)
+      throw MessageDecodingError.invalidParams(
+        "type mismatch at \(path) : \(context.debugDescription)",
+        id: id,
+        messageKind: msgKind
+      )
 
     } catch {
       throw MessageDecodingError.parseError(error.localizedDescription, id: id, messageKind: msgKind)

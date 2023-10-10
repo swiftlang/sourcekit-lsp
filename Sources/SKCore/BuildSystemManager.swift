@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import BuildServerProtocol
-import LSPLogging
 import Dispatch
+import LSPLogging
+import LanguageServerProtocol
 
 import struct TSCBasic.AbsolutePath
 
@@ -52,8 +52,12 @@ public actor BuildSystemManager {
 
   /// Create a BuildSystemManager that wraps the given build system. The new
   /// manager will modify the delegate of the underlying build system.
-  public init(buildSystem: BuildSystem?, fallbackBuildSystem: FallbackBuildSystem?,
-              mainFilesProvider: MainFilesProvider?, fallbackSettingsTimeout: DispatchTimeInterval = .seconds(3)) async {
+  public init(
+    buildSystem: BuildSystem?,
+    fallbackBuildSystem: FallbackBuildSystem?,
+    mainFilesProvider: MainFilesProvider?,
+    fallbackSettingsTimeout: DispatchTimeInterval = .seconds(3)
+  ) async {
     let buildSystemHasDelegate = await buildSystem?.delegate != nil
     precondition(!buildSystemHasDelegate)
     self.buildSystem = buildSystem
@@ -80,7 +84,7 @@ extension BuildSystemManager {
   }
 
   public var mainFilesProvider: MainFilesProvider? {
-    get { _mainFilesProvider}
+    get { _mainFilesProvider }
     set { _mainFilesProvider = newValue }
   }
 
@@ -172,13 +176,15 @@ extension BuildSystemManager {
 
 extension BuildSystemManager: BuildSystemDelegate {
   private func watchedFilesReferencing(mainFiles: Set<DocumentURI>) -> Set<DocumentURI> {
-    return Set(watchedFiles.compactMap { (watchedFile, mainFileAndLanguage) in
-      if mainFiles.contains(mainFileAndLanguage.mainFile) {
-        return watchedFile
-      } else {
-        return nil
+    return Set(
+      watchedFiles.compactMap { (watchedFile, mainFileAndLanguage) in
+        if mainFiles.contains(mainFileAndLanguage.mainFile) {
+          return watchedFile
+        } else {
+          return nil
+        }
       }
-    })
+    )
   }
 
   public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
@@ -251,11 +257,11 @@ extension BuildSystemManager: MainFilesDelegate {
       await delegate.fileBuildSettingsChanged(changedMainFileAssociations)
     }
   }
-  
+
   /// Return the main file that should be used to get build settings for `uri`.
   ///
   /// For Swift or normal C files, this will be the file itself. For header
-  /// files, we pick a main file that includes the header since header files 
+  /// files, we pick a main file that includes the header since header files
   /// don't have build settings by themselves.
   private func mainFile(for uri: DocumentURI, useCache: Bool = true) -> DocumentURI {
     if useCache, let mainFile = self.watchedFiles[uri]?.mainFile {
@@ -272,7 +278,7 @@ extension BuildSystemManager: MainFilesDelegate {
       // If the main files contain the file itself, prefer to use that one
       return uri
     } else if let mainFile = mainFiles.min(by: { $0.pseudoPath < $1.pseudoPath }) {
-      // Pick the lexicographically first main file if it exists. 
+      // Pick the lexicographically first main file if it exists.
       // This makes sure that picking a main file is deterministic.
       return mainFile
     } else {

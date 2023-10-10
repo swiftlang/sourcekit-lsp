@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import LSPTestSupport
+import LanguageServerProtocol
 import SKCore
 import SKTestSupport
 import XCTest
@@ -19,7 +19,7 @@ import XCTest
 final class LocalClangTests: XCTestCase {
 
   /// Whether to fail tests if clangd cannot be found.
-  static let requireClangd: Bool = false // Note: Swift CI doesn't build clangd on all jobs
+  static let requireClangd: Bool = false  // Note: Swift CI doesn't build clangd on all jobs
 
   /// Whether clangd exists in the toolchain.
   var haveClangd: Bool = false
@@ -44,14 +44,17 @@ final class LocalClangTests: XCTestCase {
       hierarchicalDocumentSymbolSupport: true
     )
     let textDocument = TextDocumentClientCapabilities(documentSymbol: documentSymbol)
-    _ = try! sk.sendSync(InitializeRequest(
+    _ = try! sk.sendSync(
+      InitializeRequest(
         processId: nil,
         rootPath: nil,
         rootURI: nil,
         initializationOptions: nil,
         capabilities: ClientCapabilities(workspace: nil, textDocument: textDocument),
         trace: .off,
-        workspaceFolders: nil))
+        workspaceFolders: nil
+      )
+    )
   }
 
   override func tearDown() {
@@ -63,28 +66,36 @@ final class LocalClangTests: XCTestCase {
 
   func testSymbolInfo() throws {
     guard haveClangd else { return }
-#if os(Windows)
+    #if os(Windows)
     let url = URL(fileURLWithPath: "C:/a.cpp")
-#else
+    #else
     let url = URL(fileURLWithPath: "/a.cpp")
-#endif
+    #endif
 
-    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: DocumentURI(url),
-      language: .cpp,
-      version: 1,
-      text: """
-      struct S {
-        void foo() {
-          int local = 1;
-        }
-      };
-      """)))
+    sk.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: DocumentURI(url),
+          language: .cpp,
+          version: 1,
+          text: """
+            struct S {
+              void foo() {
+                int local = 1;
+              }
+            };
+            """
+        )
+      )
+    )
 
     do {
-      let resp = try sk.sendSync(SymbolInfoRequest(
-        textDocument: TextDocumentIdentifier(url),
-        position: Position(line: 0, utf16index: 7)))
+      let resp = try sk.sendSync(
+        SymbolInfoRequest(
+          textDocument: TextDocumentIdentifier(url),
+          position: Position(line: 0, utf16index: 7)
+        )
+      )
 
       XCTAssertEqual(resp.count, 1)
       if let sym = resp.first {
@@ -95,9 +106,12 @@ final class LocalClangTests: XCTestCase {
     }
 
     do {
-      let resp = try sk.sendSync(SymbolInfoRequest(
-        textDocument: TextDocumentIdentifier(url),
-        position: Position(line: 1, utf16index: 7)))
+      let resp = try sk.sendSync(
+        SymbolInfoRequest(
+          textDocument: TextDocumentIdentifier(url),
+          position: Position(line: 1, utf16index: 7)
+        )
+      )
 
       XCTAssertEqual(resp.count, 1)
       if let sym = resp.first {
@@ -108,9 +122,12 @@ final class LocalClangTests: XCTestCase {
     }
 
     do {
-      let resp = try sk.sendSync(SymbolInfoRequest(
-        textDocument: TextDocumentIdentifier(url),
-        position: Position(line: 2, utf16index: 8)))
+      let resp = try sk.sendSync(
+        SymbolInfoRequest(
+          textDocument: TextDocumentIdentifier(url),
+          position: Position(line: 2, utf16index: 8)
+        )
+      )
 
       XCTAssertEqual(resp.count, 1)
       if let sym = resp.first {
@@ -121,9 +138,12 @@ final class LocalClangTests: XCTestCase {
     }
 
     do {
-      let resp = try sk.sendSync(SymbolInfoRequest(
-        textDocument: TextDocumentIdentifier(url),
-        position: Position(line: 3, utf16index: 0)))
+      let resp = try sk.sendSync(
+        SymbolInfoRequest(
+          textDocument: TextDocumentIdentifier(url),
+          position: Position(line: 3, utf16index: 0)
+        )
+      )
 
       XCTAssertEqual(resp.count, 0)
     }
@@ -131,52 +151,65 @@ final class LocalClangTests: XCTestCase {
 
   func testFoldingRange() throws {
     guard haveClangd else { return }
-#if os(Windows)
+    #if os(Windows)
     let url = URL(fileURLWithPath: "C:/a.cpp")
-#else
+    #else
     let url = URL(fileURLWithPath: "/a.cpp")
-#endif
+    #endif
 
-    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: DocumentURI(url),
-      language: .cpp,
-      version: 1,
-      text: """
-      struct S {
-        void foo() {
-          int local = 1;
-        }
-      };
-      """)))
+    sk.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: DocumentURI(url),
+          language: .cpp,
+          version: 1,
+          text: """
+            struct S {
+              void foo() {
+                int local = 1;
+              }
+            };
+            """
+        )
+      )
+    )
 
     let resp = try sk.sendSync(FoldingRangeRequest(textDocument: TextDocumentIdentifier(url)))
     if let resp = resp {
-      XCTAssertEqual(resp, [
-        FoldingRange(startLine: 0, startUTF16Index: 10, endLine: 4, kind: .region),
-        FoldingRange(startLine: 1, startUTF16Index: 14, endLine: 3, endUTF16Index: 2, kind: .region),
-      ])
+      XCTAssertEqual(
+        resp,
+        [
+          FoldingRange(startLine: 0, startUTF16Index: 10, endLine: 4, kind: .region),
+          FoldingRange(startLine: 1, startUTF16Index: 14, endLine: 3, endUTF16Index: 2, kind: .region),
+        ]
+      )
     }
   }
 
   func testDocumentSymbols() throws {
     guard haveClangd else { return }
-#if os(Windows)
+    #if os(Windows)
     let url = URL(fileURLWithPath: "C:/a.cpp")
-#else
+    #else
     let url = URL(fileURLWithPath: "/a.cpp")
-#endif
+    #endif
 
-    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: DocumentURI(url),
-      language: .cpp,
-      version: 1,
-      text: """
-      struct S {
-        void foo() {
-          int local = 1;
-        }
-      };
-      """)))
+    sk.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: DocumentURI(url),
+          language: .cpp,
+          version: 1,
+          text: """
+            struct S {
+              void foo() {
+                int local = 1;
+              }
+            };
+            """
+        )
+      )
+    )
 
     guard let resp = try sk.sendSync(DocumentSymbolRequest(textDocument: TextDocumentIdentifier(url))) else {
       XCTFail("Invalid document symbol response")
@@ -204,9 +237,10 @@ final class LocalClangTests: XCTestCase {
       let diagnostics = note.params.diagnostics
       // It seems we either get no diagnostics or a `-Wswitch` warning. Either is fine
       // as long as our code action works properly.
-      XCTAssert(diagnostics.isEmpty ||
-                  (diagnostics.count == 1 && diagnostics.first?.code == .string("-Wswitch")),
-                "Unexpected diagnostics \(diagnostics)")
+      XCTAssert(
+        diagnostics.isEmpty || (diagnostics.count == 1 && diagnostics.first?.code == .string("-Wswitch")),
+        "Unexpected diagnostics \(diagnostics)"
+      )
       expectation.fulfill()
     }
 
@@ -241,7 +275,9 @@ final class LocalClangTests: XCTestCase {
     }
 
     let executeCommand = ExecuteCommandRequest(
-      command: command.command, arguments: command.arguments)
+      command: command.command,
+      arguments: command.arguments
+    )
     _ = try ws.sk.sendSync(executeCommand)
 
     try await fulfillmentOfOrThrow([applyEdit])
@@ -258,8 +294,10 @@ final class LocalClangTests: XCTestCase {
     ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
       // Don't use exact equality because of differences in recent clang.
       XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual(note.params.diagnostics.first?.range,
-        Position(loc) ..< Position(ws.testLoc("unused_b:end")))
+      XCTAssertEqual(
+        note.params.diagnostics.first?.range,
+        Position(loc)..<Position(ws.testLoc("unused_b:end"))
+      )
       XCTAssertEqual(note.params.diagnostics.first?.severity, .warning)
       XCTAssertEqual(note.params.diagnostics.first?.message, "Unused variable 'b'")
       expectation.fulfill()
@@ -311,8 +349,10 @@ final class LocalClangTests: XCTestCase {
       XCTAssertNotNil(reply)
     } catch let e {
       if let error = e as? ResponseError {
-        try XCTSkipIf(error.code == ErrorCode.methodNotFound,
-                  "clangd does not support semantic tokens")
+        try XCTSkipIf(
+          error.code == ErrorCode.methodNotFound,
+          "clangd does not support semantic tokens"
+        )
       }
       throw e
     }
@@ -350,7 +390,11 @@ final class LocalClangTests: XCTestCase {
       updatedNotificationsReceived.fulfill()
     })
 
-    let clangdServer = await ws.testServer.server!._languageService(for: cFileLoc.docUri, .cpp, in: ws.testServer.server!.workspaceForDocument(uri: cFileLoc.docUri)!)!
+    let clangdServer = await ws.testServer.server!._languageService(
+      for: cFileLoc.docUri,
+      .cpp,
+      in: ws.testServer.server!.workspaceForDocument(uri: cFileLoc.docUri)!
+    )!
 
     await clangdServer.documentDependenciesUpdated(cFileLoc.docUri)
 

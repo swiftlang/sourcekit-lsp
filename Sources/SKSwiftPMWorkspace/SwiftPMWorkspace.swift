@@ -10,30 +10,30 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(SPMBuildCore)
-import SPMBuildCore
-#endif
 import Basics
 import Build
 import BuildServerProtocol
-import LanguageServerProtocol
+import Dispatch
 import LSPLogging
+import LanguageServerProtocol
 import PackageGraph
 import PackageLoading
 import PackageModel
-import SourceControl
 import SKCore
 import SKSupport
+import SourceControl
 import Workspace
-import Dispatch
-import struct Foundation.URL
 
 import struct Basics.AbsolutePath
 import struct Basics.TSCAbsolutePath
-
-import func TSCBasic.resolveSymlinks
+import struct Foundation.URL
 import protocol TSCBasic.FileSystem
 import var TSCBasic.localFileSystem
+import func TSCBasic.resolveSymlinks
+
+#if canImport(SPMBuildCore)
+import SPMBuildCore
+#endif
 
 /// Parameter of `reloadPackageStatusCallback` in ``SwiftPMWorkspace``.
 ///
@@ -85,7 +85,6 @@ public actor SwiftPMWorkspace {
   /// This callback is informed when `reloadPackage` starts and ends executing.
   var reloadPackageStatusCallback: (ReloadPackageStatus) async -> Void
 
-
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
   /// - Parameters:
@@ -111,28 +110,29 @@ public actor SwiftPMWorkspace {
     self.packageRoot = try resolveSymlinks(packageRoot)
 
     guard let destinationToolchainBinDir = toolchainRegistry.default?.swiftc?.parentDirectory else {
-        throw Error.cannotDetermineHostToolchain
+      throw Error.cannotDetermineHostToolchain
     }
 
     let swiftSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(destinationToolchainBinDir))
     let toolchain = try UserToolchain(swiftSDK: swiftSDK)
 
     var location = try Workspace.Location(
-        forRootPackage: AbsolutePath(packageRoot),
-        fileSystem: fileSystem
+      forRootPackage: AbsolutePath(packageRoot),
+      fileSystem: fileSystem
     )
     if let scratchDirectory = buildSetup.path {
-        location.scratchDirectory = AbsolutePath(scratchDirectory)
+      location.scratchDirectory = AbsolutePath(scratchDirectory)
     }
 
     var configuration = WorkspaceConfiguration.default
     configuration.skipDependenciesUpdates = true
 
     self.workspace = try Workspace(
-        fileSystem: fileSystem,
-        location: location,
-        configuration: configuration,
-        customHostToolchain: toolchain)
+      fileSystem: fileSystem,
+      location: location,
+      configuration: configuration,
+      customHostToolchain: toolchain
+    )
 
     let buildConfiguration: PackageModel.BuildConfiguration
     switch buildSetup.configuration {
@@ -143,10 +143,10 @@ public actor SwiftPMWorkspace {
     }
 
     self.buildParameters = try BuildParameters(
-        dataPath: location.scratchDirectory.appending(component: toolchain.targetTriple.platformBuildPathComponent),
-        configuration: buildConfiguration,
-        toolchain: toolchain,
-        flags: buildSetup.flags
+      dataPath: location.scratchDirectory.appending(component: toolchain.targetTriple.platformBuildPathComponent),
+      configuration: buildConfiguration,
+      toolchain: toolchain,
+      flags: buildSetup.flags
     )
 
     self.packageGraph = try PackageGraph(rootPackages: [], dependencies: [], binaryArtifacts: [:])
@@ -156,7 +156,7 @@ public actor SwiftPMWorkspace {
   }
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
-  /// 
+  ///
   /// - Parameters:
   ///   - reloadPackageStatusCallback: Will be informed when `reloadPackage` starts and ends executing.
   /// - Returns: nil if `workspacePath` is not part of a package or there is an error.
@@ -192,7 +192,7 @@ extension SwiftPMWorkspace {
     await reloadPackageStatusCallback(.start)
 
     let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
-        log(diagnostic.description, level: diagnostic.severity.asLogLevel)
+      log(diagnostic.description, level: diagnostic.severity.asLogLevel)
     })
 
     let packageGraph = try self.workspace.loadPackageGraph(
@@ -221,10 +221,12 @@ extension SwiftPMWorkspace {
           }
           return (key: $0, value: td)
         }
-      }, uniquingKeysWith: { td, _ in
+      },
+      uniquingKeysWith: { td, _ in
         // FIXME: is there  a preferred target?
         return td
-    })
+      }
+    )
 
     self.sourceDirToTarget = [AbsolutePath: TargetBuildDescription](
       packageGraph.allTargets.compactMap { target in
@@ -232,10 +234,12 @@ extension SwiftPMWorkspace {
           return nil
         }
         return (key: target.sources.root, value: td)
-      }, uniquingKeysWith: { td, _ in
+      },
+      uniquingKeysWith: { td, _ in
         // FIXME: is there  a preferred target?
         return td
-    })
+      }
+    )
 
     guard let delegate = self.delegate else {
       await reloadPackageStatusCallback(.end)
@@ -267,8 +271,8 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
   /// **Public for testing only**
   public func _settings(
     for uri: DocumentURI,
-    _ language: Language) throws -> FileBuildSettings?
-  {
+    _ language: Language
+  ) throws -> FileBuildSettings? {
     try self.buildSettings(for: uri, language: language)
   }
 
@@ -334,12 +338,12 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
       }
 
       return self.workspace.fileAffectsSwiftOrClangBuildSettings(
-        filePath: path, 
+        filePath: path,
         packageGraph: self.packageGraph
       )
     case .changed:
       return fileURL.lastPathComponent == "Package.swift"
-    default: // Unknown file change type
+    default:  // Unknown file change type
       return false
     }
   }
@@ -373,8 +377,8 @@ extension SwiftPMWorkspace {
   public func settings(
     for path: AbsolutePath,
     _ language: Language,
-    _ td: TargetBuildDescription) throws -> FileBuildSettings?
-  {
+    _ td: TargetBuildDescription
+  ) throws -> FileBuildSettings? {
     switch (td, language) {
     case (.swift(let td), .swift):
       return try settings(forSwiftFile: path, td)
@@ -429,8 +433,8 @@ extension SwiftPMWorkspace {
   /// Retrieve settings for the given swift file, which is part of a known target build description.
   public func settings(
     forSwiftFile path: AbsolutePath,
-    _ td: SwiftTargetBuildDescription) throws -> FileBuildSettings
-  {
+    _ td: SwiftTargetBuildDescription
+  ) throws -> FileBuildSettings {
     // FIXME: this is re-implementing llbuild's constructCommandLineArgs.
     var args: [String] = [
       "-module-name",
@@ -439,7 +443,7 @@ extension SwiftPMWorkspace {
       "-emit-dependencies",
       "-emit-module",
       "-emit-module-path",
-      buildPath.appending(component: "\(td.target.c99name).swiftmodule").pathString
+      buildPath.appending(component: "\(td.target.c99name).swiftmodule").pathString,
       // -output-file-map <path>
     ]
     if td.target.type == .library || td.target.type == .test {
@@ -452,7 +456,8 @@ extension SwiftPMWorkspace {
 
     return FileBuildSettings(
       compilerArguments: args,
-      workingDirectory: workspacePath.pathString)
+      workingDirectory: workspacePath.pathString
+    )
   }
 
   /// Retrieve settings for the given C-family language file, which is part of a known target build
@@ -462,16 +467,16 @@ extension SwiftPMWorkspace {
   public func settings(
     forClangFile path: AbsolutePath,
     _ language: Language,
-    _ td: ClangTargetBuildDescription) throws -> FileBuildSettings
-  {
+    _ td: ClangTargetBuildDescription
+  ) throws -> FileBuildSettings {
     // FIXME: this is re-implementing things from swiftpm's createClangCompileTarget
 
     var args = try td.basicArguments()
 
     let nativePath: AbsolutePath =
-        try URL(fileURLWithPath: path.pathString).withUnsafeFileSystemRepresentation {
-          try AbsolutePath(validating: String(cString: $0!))
-        }
+      try URL(fileURLWithPath: path.pathString).withUnsafeFileSystemRepresentation {
+        try AbsolutePath(validating: String(cString: $0!))
+      }
     let compilePath = try td.compilePaths().first(where: { $0.source == nativePath })
     if let compilePath = compilePath {
       args += [
@@ -501,7 +506,7 @@ extension SwiftPMWorkspace {
         "-c",
         compilePath.source.pathString,
         "-o",
-        compilePath.object.pathString
+        compilePath.object.pathString,
       ]
     } else if path.extension == "h" {
       args += ["-c"]
@@ -518,14 +523,16 @@ extension SwiftPMWorkspace {
 
     return FileBuildSettings(
       compilerArguments: args,
-      workingDirectory: workspacePath.pathString)
+      workingDirectory: workspacePath.pathString
+    )
   }
 }
 
 /// Find a Swift Package root directory that contains the given path, if any.
 private func findPackageDirectory(
   containing path: TSCAbsolutePath,
-  _ fileSystem: FileSystem) -> TSCAbsolutePath? {
+  _ fileSystem: FileSystem
+) -> TSCAbsolutePath? {
   var path = path
   while true {
     let packagePath = path.appending(component: "Package.swift")

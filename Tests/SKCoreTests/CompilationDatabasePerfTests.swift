@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import LSPTestSupport
+import LanguageServerProtocol
 import SKCore
 import TSCBasic
 import XCTest
@@ -24,7 +24,7 @@ final class CompilationDatabasePerfTests: PerfTestCase {
         input += " \"foo\(i) \""
       } else if i % 10 == 6 {
         input += " fo\'o\(i) \'"
-      } else if i % 3 == 0{
+      } else if i % 3 == 0 {
         input += " foo\(i)-------a-long--string-of---------stuff"
       } else {
         input += " foo\(i)"

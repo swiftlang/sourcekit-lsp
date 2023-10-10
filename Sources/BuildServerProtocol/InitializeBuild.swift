@@ -44,7 +44,13 @@ public struct InitializeBuild: RequestType, Hashable {
   /// The capabilities of the client
   public var capabilities: BuildClientCapabilities
 
-  public init(displayName: String, version: String, bspVersion: String, rootUri: URI, capabilities: BuildClientCapabilities) {
+  public init(
+    displayName: String,
+    version: String,
+    bspVersion: String,
+    rootUri: URI,
+    capabilities: BuildClientCapabilities
+  ) {
     self.displayName = displayName
     self.version = version
     self.bspVersion = bspVersion
@@ -66,22 +72,28 @@ public struct BuildClientCapabilities: Codable, Hashable {
 }
 
 public struct InitializeBuildResult: ResponseType, Hashable {
-  /// Name of the server 
+  /// Name of the server
   public var displayName: String
 
-  /// The version of the server 
+  /// The version of the server
   public var version: String
 
-  /// The BSP version that the server speaks 
+  /// The BSP version that the server speaks
   public var bspVersion: String
 
-  /// The capabilities of the build server 
+  /// The capabilities of the build server
   public var capabilities: BuildServerCapabilities
 
   /// Optional metadata about the server
   public var data: LSPAny?
 
-  public init(displayName: String, version: String, bspVersion: String, capabilities: BuildServerCapabilities, data: LSPAny? = nil) {
+  public init(
+    displayName: String,
+    version: String,
+    bspVersion: String,
+    capabilities: BuildServerCapabilities,
+    data: LSPAny? = nil
+  ) {
     self.displayName = displayName
     self.version = version
     self.bspVersion = bspVersion

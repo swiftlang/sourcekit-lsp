@@ -27,10 +27,10 @@ public struct TextEdit: ResponseType, Hashable {
 }
 
 extension TextEdit: LSPAnyCodable {
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard case .dictionary(let rangeDict) = dictionary[CodingKeys.range.stringValue],
-          case .string(let newText) = dictionary[CodingKeys.newText.stringValue] else
-    {
+      case .string(let newText) = dictionary[CodingKeys.newText.stringValue]
+    else {
       return nil
     }
     guard let range = Range<Position>(fromLSPDictionary: rangeDict) else {
@@ -43,7 +43,7 @@ extension TextEdit: LSPAnyCodable {
   public func encodeToLSPAny() -> LSPAny {
     return .dictionary([
       CodingKeys.range.stringValue: range.encodeToLSPAny(),
-      CodingKeys.newText.stringValue: .string(newText)
+      CodingKeys.newText.stringValue: .string(newText),
     ])
   }
 }
@@ -68,7 +68,6 @@ public struct ChangeAnnotation: Codable, Hashable {
     self.description = description
   }
 }
-
 
 /// An identifier referring to a change annotation managed by a workspace
 /// edit.

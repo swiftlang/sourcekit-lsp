@@ -33,78 +33,104 @@ final class FallbackBuildSystemTests: XCTestCase {
     XCTAssertNil(settings.workingDirectory)
 
     let args = settings.compilerArguments
-    XCTAssertEqual(args, [
-      "-sdk",
-      sdk.pathString,
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      args,
+      [
+        "-sdk",
+        sdk.pathString,
+        source.pathString,
+      ]
+    )
 
     bs.sdkpath = nil
 
-    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .swift)?.compilerArguments, [
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      bs.buildSettings(for: source.asURI, language: .swift)?.compilerArguments,
+      [
+        source.pathString
+      ]
+    )
   }
 
   func testSwiftWithCustomFlags() throws {
     let sdk = try AbsolutePath(validating: "/my/sdk")
     let source = try AbsolutePath(validating: "/my/source.swift")
 
-    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(swiftCompilerFlags: [
-      "-Xfrontend",
-      "-debug-constraints"
-    ]))
+    let buildSetup = BuildSetup(
+      configuration: .debug,
+      path: nil,
+      flags: BuildFlags(swiftCompilerFlags: [
+        "-Xfrontend",
+        "-debug-constraints",
+      ])
+    )
     let bs = FallbackBuildSystem(buildSetup: buildSetup)
     bs.sdkpath = sdk
 
     let args = bs.buildSettings(for: source.asURI, language: .swift)?.compilerArguments
-    XCTAssertEqual(args, [
-      "-Xfrontend",
-      "-debug-constraints",
-      "-sdk",
-      sdk.pathString,
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      args,
+      [
+        "-Xfrontend",
+        "-debug-constraints",
+        "-sdk",
+        sdk.pathString,
+        source.pathString,
+      ]
+    )
 
     bs.sdkpath = nil
 
-    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .swift)?.compilerArguments, [
-      "-Xfrontend",
-      "-debug-constraints",
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      bs.buildSettings(for: source.asURI, language: .swift)?.compilerArguments,
+      [
+        "-Xfrontend",
+        "-debug-constraints",
+        source.pathString,
+      ]
+    )
   }
 
   func testSwiftWithCustomSDKFlag() throws {
     let sdk = try AbsolutePath(validating: "/my/sdk")
     let source = try AbsolutePath(validating: "/my/source.swift")
 
-    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(swiftCompilerFlags: [
-      "-sdk",
-      "/some/custom/sdk",
-      "-Xfrontend",
-      "-debug-constraints",
-    ]))
+    let buildSetup = BuildSetup(
+      configuration: .debug,
+      path: nil,
+      flags: BuildFlags(swiftCompilerFlags: [
+        "-sdk",
+        "/some/custom/sdk",
+        "-Xfrontend",
+        "-debug-constraints",
+      ])
+    )
     let bs = FallbackBuildSystem(buildSetup: buildSetup)
     bs.sdkpath = sdk
 
-    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .swift)!.compilerArguments, [
-      "-sdk",
-      "/some/custom/sdk",
-      "-Xfrontend",
-      "-debug-constraints",
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      bs.buildSettings(for: source.asURI, language: .swift)!.compilerArguments,
+      [
+        "-sdk",
+        "/some/custom/sdk",
+        "-Xfrontend",
+        "-debug-constraints",
+        source.pathString,
+      ]
+    )
 
     bs.sdkpath = nil
 
-    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .swift)!.compilerArguments, [
-      "-sdk",
-      "/some/custom/sdk",
-      "-Xfrontend",
-      "-debug-constraints",
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      bs.buildSettings(for: source.asURI, language: .swift)!.compilerArguments,
+      [
+        "-sdk",
+        "/some/custom/sdk",
+        "-Xfrontend",
+        "-debug-constraints",
+        source.pathString,
+      ]
+    )
   }
 
   func testCXX() throws {
@@ -118,112 +144,154 @@ final class FallbackBuildSystemTests: XCTestCase {
     XCTAssertNil(settings.workingDirectory)
 
     let args = settings.compilerArguments
-    XCTAssertEqual(args, [
-      "-isysroot",
-      sdk.pathString,
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      args,
+      [
+        "-isysroot",
+        sdk.pathString,
+        source.pathString,
+      ]
+    )
 
     bs.sdkpath = nil
 
-    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments, [
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments,
+      [
+        source.pathString
+      ]
+    )
   }
 
   func testCXXWithCustomFlags() throws {
     let sdk = try AbsolutePath(validating: "/my/sdk")
     let source = try AbsolutePath(validating: "/my/source.cpp")
 
-    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(cxxCompilerFlags: [
-      "-v"
-    ]))
+    let buildSetup = BuildSetup(
+      configuration: .debug,
+      path: nil,
+      flags: BuildFlags(cxxCompilerFlags: [
+        "-v"
+      ])
+    )
     let bs = FallbackBuildSystem(buildSetup: buildSetup)
     bs.sdkpath = sdk
 
-    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments, [
-      "-v",
-      "-isysroot",
-      sdk.pathString,
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments,
+      [
+        "-v",
+        "-isysroot",
+        sdk.pathString,
+        source.pathString,
+      ]
+    )
 
     bs.sdkpath = nil
 
-    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments, [
-      "-v",
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments,
+      [
+        "-v",
+        source.pathString,
+      ]
+    )
   }
 
   func testCXXWithCustomIsysroot() throws {
     let sdk = try AbsolutePath(validating: "/my/sdk")
     let source = try AbsolutePath(validating: "/my/source.cpp")
 
-    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(cxxCompilerFlags: [
-      "-isysroot",
-      "/my/custom/sdk",
-      "-v"
-    ]))
+    let buildSetup = BuildSetup(
+      configuration: .debug,
+      path: nil,
+      flags: BuildFlags(cxxCompilerFlags: [
+        "-isysroot",
+        "/my/custom/sdk",
+        "-v",
+      ])
+    )
     let bs = FallbackBuildSystem(buildSetup: buildSetup)
     bs.sdkpath = sdk
 
-    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments, [
-      "-isysroot",
-      "/my/custom/sdk",
-      "-v",
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments,
+      [
+        "-isysroot",
+        "/my/custom/sdk",
+        "-v",
+        source.pathString,
+      ]
+    )
 
     bs.sdkpath = nil
 
-    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments, [
-      "-isysroot",
-      "/my/custom/sdk",
-      "-v",
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      bs.buildSettings(for: source.asURI, language: .cpp)?.compilerArguments,
+      [
+        "-isysroot",
+        "/my/custom/sdk",
+        "-v",
+        source.pathString,
+      ]
+    )
   }
 
   func testC() throws {
     let source = try AbsolutePath(validating: "/my/source.c")
     let bs = FallbackBuildSystem(buildSetup: .default)
     bs.sdkpath = nil
-    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .c)?.compilerArguments, [
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      bs.buildSettings(for: source.asURI, language: .c)?.compilerArguments,
+      [
+        source.pathString
+      ]
+    )
   }
 
   func testCWithCustomFlags() throws {
     let source = try AbsolutePath(validating: "/my/source.c")
 
-    let buildSetup = BuildSetup(configuration: .debug, path: nil, flags: BuildFlags(cCompilerFlags: [
-      "-v"
-    ]))
+    let buildSetup = BuildSetup(
+      configuration: .debug,
+      path: nil,
+      flags: BuildFlags(cCompilerFlags: [
+        "-v"
+      ])
+    )
     let bs = FallbackBuildSystem(buildSetup: buildSetup)
     bs.sdkpath = nil
-    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .c)?.compilerArguments, [
-      "-v",
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      bs.buildSettings(for: source.asURI, language: .c)?.compilerArguments,
+      [
+        "-v",
+        source.pathString,
+      ]
+    )
   }
 
   func testObjC() throws {
     let source = try AbsolutePath(validating: "/my/source.m")
     let bs = FallbackBuildSystem(buildSetup: .default)
     bs.sdkpath = nil
-    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .objective_c)?.compilerArguments, [
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      bs.buildSettings(for: source.asURI, language: .objective_c)?.compilerArguments,
+      [
+        source.pathString
+      ]
+    )
   }
 
   func testObjCXX() throws {
     let source = try AbsolutePath(validating: "/my/source.mm")
     let bs = FallbackBuildSystem(buildSetup: .default)
     bs.sdkpath = nil
-    XCTAssertEqual(bs.buildSettings(for: source.asURI, language: .objective_cpp)?.compilerArguments, [
-      source.pathString,
-    ])
+    XCTAssertEqual(
+      bs.buildSettings(for: source.asURI, language: .objective_cpp)?.compilerArguments,
+      [
+        source.pathString
+      ]
+    )
   }
 
   func testUnknown() throws {

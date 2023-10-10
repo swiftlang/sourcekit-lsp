@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import LSPLogging
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import LSPLogging
 import SKCore
 import SKSupport
 
@@ -64,10 +64,10 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
 
   /// Path to the clang binary.
   let clangPath: AbsolutePath?
-  
+
   /// Path to the `clangd` binary.
   let clangdPath: AbsolutePath
-  
+
   let clangdOptions: [String]
 
   /// The current state of the `clangd` language server.
@@ -79,17 +79,17 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
       }
     }
   }
-  
+
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
-  
+
   /// The date at which `clangd` was last restarted.
   /// Used to delay restarting in case of a crash loop.
   private var lastClangdRestart: Date?
-  
+
   /// Whether or not a restart of `clangd` has been scheduled.
   /// Used to make sure we are not restarting `clangd` twice.
   private var clangRestartScheduled = false
-  
+
   /// The `InitializeRequest` with which `clangd` was originally initialized.
   /// Stored so we can replay the initialization when clangd crashes.
   private var initializeRequest: InitializeRequest?
@@ -104,11 +104,11 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   private var openDocuments: [DocumentURI: Language] = [:]
 
   /// While `clangd` is running, its PID.
-#if os(Windows)
+  #if os(Windows)
   private var hClangd: HANDLE = INVALID_HANDLE_VALUE
-#else
+  #else
   private var clangdPid: Int32?
-#endif
+  #endif
 
   /// Creates a language server for the given client referencing the clang binary specified in `toolchain`.
   /// Returns `nil` if `clangd` can't be found.
@@ -134,7 +134,11 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     guard let workspace = workspace.value, let language = openDocuments[document] else {
       return nil
     }
-    guard let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(for: document, language: language) else {
+    let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
+      for: document,
+      language: language
+    )
+    guard let settings else {
       return nil
     }
     return ClangBuildSettings(settings.buildSettings, clangPath: clangdPath, isFallback: settings.isFallback)
@@ -155,11 +159,11 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   ///
   /// - Parameter terminationStatus: The exit code of `clangd`.
   private func handleClangdTermination(terminationStatus: Int32) {
-#if os(Windows)
+    #if os(Windows)
     self.hClangd = INVALID_HANDLE_VALUE
-#else
+    #else
     self.clangdPid = nil
-#endif
+    #endif
     if terminationStatus != 0 {
       self.state = .connectionInterrupted
       self.restartClangd()
@@ -189,11 +193,12 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
 
     let process = Foundation.Process()
     process.executableURL = clangdPath.asURL
-    process.arguments = [
-      "-compile_args_from=lsp",   // Provide compiler args programmatically.
-      "-background-index=false",  // Disable clangd indexing, we use the build
-      "-index=false"             // system index store instead.
-    ] + clangdOptions
+    process.arguments =
+      [
+        "-compile_args_from=lsp",  // Provide compiler args programmatically.
+        "-background-index=false",  // Disable clangd indexing, we use the build
+        "-index=false",  // system index store instead.
+      ] + clangdOptions
 
     process.standardOutput = clangdToUs
     process.standardInput = usToClangd
@@ -206,11 +211,11 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
       }
     }
     try process.run()
-#if os(Windows)
+    #if os(Windows)
     self.hClangd = process.processHandle
-#else
+    #else
     self.clangdPid = process.processIdentifier
-#endif
+    #endif
   }
 
   /// Restart `clangd` after it has crashed.
@@ -228,7 +233,10 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
 
     let restartDelay: Int
     if let lastClangdRestart = self.lastClangdRestart, Date().timeIntervalSince(lastClangdRestart) < 30 {
-      log("clangd has already been restarted in the last 30 seconds. Delaying another restart by 10 seconds.", level: .info)
+      log(
+        "clangd has already been restarted in the last 30 seconds. Delaying another restart by 10 seconds.",
+        level: .info
+      )
       restartDelay = 10
     } else {
       restartDelay = 0
@@ -254,7 +262,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
       } catch {
         log("Failed to restart clangd after a crash.", level: .error)
       }
-      }
+    }
   }
 
   /// Handler for notifications received **from** clangd, ie. **clangd** is
@@ -285,9 +293,15 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
     clangdMessageHandlingQueue.async {
-      let request = Request(params, id: id, clientID: clientID, cancellation: CancellationToken(), reply: { result in
-        reply(result)
-      })
+      let request = Request(
+        params,
+        id: id,
+        clientID: clientID,
+        cancellation: CancellationToken(),
+        reply: { result in
+          reply(result)
+        }
+      )
       guard let sourceKitServer = await self.sourceKitServer else {
         // `SourceKitServer` has been destructed. We are tearing down the language
         // server. Nothing left to do.
@@ -303,7 +317,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
       }
     }
   }
-  
+
   /// Forward the given request to `clangd`.
   ///
   /// This method calls `readyToHandleNextRequest` once the request has been
@@ -327,7 +341,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
 
   func _crash() {
     // Since `clangd` doesn't have a method to crash it, kill it.
-#if os(Windows)
+    #if os(Windows)
     if self.hClangd != INVALID_HANDLE_VALUE {
       // FIXME(compnerd) this is a bad idea - we can potentially deadlock the
       // process if a kobject is a pending state.  Unfortunately, the
@@ -338,11 +352,11 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
       // deadlock and resource leaks.
       _ = TerminateProcess(self.hClangd, 0)
     }
-#else
+    #else
     if let pid = self.clangdPid {
       kill(pid, SIGKILL)
     }
-#endif
+    #endif
   }
 }
 
@@ -459,13 +473,15 @@ extension ClangLanguageServerShim {
 
     // The compile command changed, send over the new one.
     // FIXME: what should we do if we no longer have valid build settings?
-    if 
-      let compileCommand = clangBuildSettings?.compileCommand,
-      let pathString = (try? AbsolutePath(validating: url.path))?.pathString 
+    if let compileCommand = clangBuildSettings?.compileCommand,
+      let pathString = (try? AbsolutePath(validating: url.path))?.pathString
     {
-      let note = DidChangeConfigurationNotification(settings: .clangd(
-        ClangWorkspaceSettings(
-          compilationDatabaseChanges: [pathString: compileCommand])))
+      let note = DidChangeConfigurationNotification(
+        settings: .clangd(
+          ClangWorkspaceSettings(
+            compilationDatabaseChanges: [pathString: compileCommand])
+        )
+      )
       clangd.send(note)
     }
   }
@@ -477,12 +493,12 @@ extension ClangLanguageServerShim {
     let note = DidChangeTextDocumentNotification(
       textDocument: VersionedTextDocumentIdentifier(uri, version: 0),
       contentChanges: [],
-      forceRebuild: true)
+      forceRebuild: true
+    )
     clangd.send(note)
   }
 
   // MARK: - Text Document
-
 
   /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
   public func definition(_ req: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
@@ -525,11 +541,15 @@ extension ClangLanguageServerShim {
     return try await forwardRequestToClangd(req)
   }
 
-  func documentSemanticTokensDelta(_ req: DocumentSemanticTokensDeltaRequest) async throws -> DocumentSemanticTokensDeltaResponse? {
+  func documentSemanticTokensDelta(
+    _ req: DocumentSemanticTokensDeltaRequest
+  ) async throws -> DocumentSemanticTokensDeltaResponse? {
     return try await forwardRequestToClangd(req)
   }
 
-  func documentSemanticTokensRange(_ req: DocumentSemanticTokensRangeRequest) async throws -> DocumentSemanticTokensResponse? {
+  func documentSemanticTokensRange(
+    _ req: DocumentSemanticTokensRangeRequest
+  ) async throws -> DocumentSemanticTokensResponse? {
     return try await forwardRequestToClangd(req)
   }
 
@@ -587,7 +607,7 @@ private struct ClangBuildSettings: Equatable {
     if arguments.contains("-fmodules") {
       // Clangd is not built with support for the 'obj' format.
       arguments.append(contentsOf: [
-        "-Xclang", "-fmodule-format=raw"
+        "-Xclang", "-fmodule-format=raw",
       ])
     }
     if let workingDirectory = settings.workingDirectory {
@@ -595,7 +615,7 @@ private struct ClangBuildSettings: Equatable {
       // database's "directory" field for relative -fmodules-cache-path.
       // rdar://63984913
       arguments.append(contentsOf: [
-        "-working-directory", workingDirectory
+        "-working-directory", workingDirectory,
       ])
     }
 
@@ -606,6 +626,8 @@ private struct ClangBuildSettings: Equatable {
 
   public var compileCommand: ClangCompileCommand {
     return ClangCompileCommand(
-        compilationCommand: self.compilerArgs, workingDirectory: self.workingDirectory)
+      compilationCommand: self.compilerArgs,
+      workingDirectory: self.workingDirectory
+    )
   }
 }

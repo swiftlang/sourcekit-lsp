@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import LSPLogging
+import LanguageServerProtocol
 import SKSupport
 import SourceKitD
 
@@ -44,10 +44,10 @@ extension CodeAction {
       title = fromNote
     } else {
       guard let startIndex = snapshot.index(of: edits[0].range.lowerBound),
-            let endIndex = snapshot.index(of: edits[0].range.upperBound),
-            startIndex <= endIndex,
-            snapshot.text.indices.contains(startIndex),
-            endIndex <= snapshot.text.endIndex
+        let endIndex = snapshot.index(of: edits[0].range.upperBound),
+        startIndex <= endIndex,
+        snapshot.text.indices.contains(startIndex),
+        endIndex <= snapshot.text.endIndex
       else {
         logAssertionFailure("position mapped, but indices failed for edit range \(edits[0])")
         return nil
@@ -65,7 +65,8 @@ extension CodeAction {
       title: title,
       kind: .quickFix,
       diagnostics: nil,
-      edit: WorkspaceEdit(changes: [snapshot.uri:edits]))
+      edit: WorkspaceEdit(changes: [snapshot.uri: edits])
+    )
   }
 
   /// Describe a fixit's edit briefly.
@@ -91,15 +92,18 @@ extension TextEdit {
   init?(fixit: SKDResponseDictionary, in snapshot: DocumentSnapshot) {
     let keys = fixit.sourcekitd.keys
     if let utf8Offset: Int = fixit[keys.offset],
-       let length: Int = fixit[keys.length],
-       let replacement: String = fixit[keys.sourcetext],
-       let position = snapshot.positionOf(utf8Offset: utf8Offset),
-       let endPosition = snapshot.positionOf(utf8Offset: utf8Offset + length),
-       length > 0 || !replacement.isEmpty
+      let length: Int = fixit[keys.length],
+      let replacement: String = fixit[keys.sourcetext],
+      let position = snapshot.positionOf(utf8Offset: utf8Offset),
+      let endPosition = snapshot.positionOf(utf8Offset: utf8Offset + length),
+      length > 0 || !replacement.isEmpty
     {
       // Snippets are only suppored in code completion.
       // Remove SourceKit placeholders from Fix-Its because they can't be represented in the editor properly.
-      let replacementWithoutPlaceholders = rewriteSourceKitPlaceholders(inString: replacement, clientSupportsSnippets: false)
+      let replacementWithoutPlaceholders = rewriteSourceKitPlaceholders(
+        inString: replacement,
+        clientSupportsSnippets: false
+      )
 
       // If both the replacement without placeholders and the fixit are empty, no TextEdit should be created.
       if (replacementWithoutPlaceholders.isEmpty && length == 0) {
@@ -116,9 +120,11 @@ extension TextEdit {
 extension Diagnostic {
 
   /// Creates a diagnostic from a sourcekitd response dictionary.
-  init?(_ diag: SKDResponseDictionary,
-        in snapshot: DocumentSnapshot,
-        useEducationalNoteAsCode: Bool) {
+  init?(
+    _ diag: SKDResponseDictionary,
+    in snapshot: DocumentSnapshot,
+    useEducationalNoteAsCode: Bool
+  ) {
     // FIXME: this assumes that the diagnostics are all in the same file.
 
     let keys = diag.sourcekitd.keys
@@ -128,8 +134,8 @@ extension Diagnostic {
 
     var range: Range<Position>? = nil
     if let line: Int = diag[keys.line],
-       let utf8Column: Int = diag[keys.column],
-       line > 0, utf8Column > 0
+      let utf8Column: Int = diag[keys.column],
+      line > 0, utf8Column > 0
     {
       range = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: utf8Column - 1).map(Range.init)
     } else if let utf8Offset: Int = diag[keys.offset] {
@@ -139,10 +145,10 @@ extension Diagnostic {
     // If the diagnostic has a range associated with it that starts at the same location as the diagnostics position, use it to retrieve a proper range for the diagnostic, instead of just reporting a zero-length range.
     (diag[keys.ranges] as SKDResponseArray?)?.forEach { index, skRange in
       if let utf8Offset: Int = skRange[keys.offset],
-         let start = snapshot.positionOf(utf8Offset: utf8Offset),
-         start == range?.lowerBound,
-         let length: Int = skRange[keys.length],
-         let end = snapshot.positionOf(utf8Offset: utf8Offset + length)
+        let start = snapshot.positionOf(utf8Offset: utf8Offset),
+        start == range?.lowerBound,
+        let length: Int = skRange[keys.length],
+        let end = snapshot.positionOf(utf8Offset: utf8Offset + length)
       {
         range = start..<end
         return false
@@ -174,9 +180,9 @@ extension Diagnostic {
     // description. `useEducationalNoteAsCode` ensures a note name is only used
     // as a code if the cline supports an extended code description.
     if useEducationalNoteAsCode,
-       let educationalNotePaths: SKDResponseArray = diag[keys.educational_note_paths],
-       educationalNotePaths.count > 0,
-       let primaryPath = educationalNotePaths[0]
+      let educationalNotePaths: SKDResponseArray = diag[keys.educational_note_paths],
+      educationalNotePaths.count > 0,
+      let primaryPath = educationalNotePaths[0]
     {
       let url = URL(fileURLWithPath: primaryPath)
       let name = url.deletingPathExtension().lastPathComponent
@@ -186,7 +192,8 @@ extension Diagnostic {
 
     var actions: [CodeAction]? = nil
     if let skfixits: SKDResponseArray = diag[keys.fixits],
-       let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: nil) {
+      let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: nil)
+    {
       actions = [action]
     }
 
@@ -224,7 +231,8 @@ extension Diagnostic {
       message: message,
       tags: tags,
       relatedInformation: notes,
-      codeActions: actions)
+      codeActions: actions
+    )
   }
 }
 
@@ -236,8 +244,8 @@ extension DiagnosticRelatedInformation {
 
     var position: Position? = nil
     if let line: Int = diag[keys.line],
-       let utf8Column: Int = diag[keys.column],
-       line > 0, utf8Column > 0
+      let utf8Column: Int = diag[keys.column],
+      line > 0, utf8Column > 0
     {
       position = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: utf8Column - 1)
     } else if let utf8Offset: Int = diag[keys.offset] {
@@ -252,14 +260,16 @@ extension DiagnosticRelatedInformation {
 
     var actions: [CodeAction]? = nil
     if let skfixits: SKDResponseArray = diag[keys.fixits],
-       let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: message) {
+      let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: message)
+    {
       actions = [action]
     }
 
     self.init(
       location: Location(uri: snapshot.uri, range: Range(position!)),
       message: message,
-      codeActions: actions)
+      codeActions: actions
+    )
   }
 }
 
@@ -284,13 +294,19 @@ struct CachedDiagnostic {
 }
 
 extension CachedDiagnostic {
-  init?(_ diag: SKDResponseDictionary,
-        in snapshot: DocumentSnapshot,
-        useEducationalNoteAsCode: Bool) {
+  init?(
+    _ diag: SKDResponseDictionary,
+    in snapshot: DocumentSnapshot,
+    useEducationalNoteAsCode: Bool
+  ) {
     let sk = diag.sourcekitd
-    guard let diagnostic = Diagnostic(diag,
-                                      in: snapshot,
-                                      useEducationalNoteAsCode: useEducationalNoteAsCode) else {
+    guard
+      let diagnostic = Diagnostic(
+        diag,
+        in: snapshot,
+        useEducationalNoteAsCode: useEducationalNoteAsCode
+      )
+    else {
       return nil
     }
     self.diagnostic = diagnostic
@@ -317,11 +333,11 @@ func mergeDiagnostics(
     return isFallback ? old.filter { $0.stage == .parse } : new
   }
 
-#if DEBUG
+  #if DEBUG
   if let sema = new.first(where: { $0.stage == .sema }) {
     log("unexpected semantic diagnostic in parse diagnostics \(sema.diagnostic)", level: .warning)
   }
-#endif
+  #endif
   return new.filter { $0.stage == .parse } + old.filter { $0.stage == .sema }
 }
 
@@ -334,14 +350,14 @@ enum DiagnosticStage: Hashable {
 extension DiagnosticStage {
   init?(_ uid: sourcekitd_uid_t, sourcekitd: SourceKitD) {
     switch uid {
-      case sourcekitd.values.diag_stage_parse:
-        self = .parse
-      case sourcekitd.values.diag_stage_sema:
-        self = .sema
-      default:
-        let desc = sourcekitd.api.uid_get_string_ptr(uid).map { String(cString: $0) }
-        log("unknown diagnostic stage \(desc ?? "nil")", level: .warning)
-        return nil
+    case sourcekitd.values.diag_stage_parse:
+      self = .parse
+    case sourcekitd.values.diag_stage_sema:
+      self = .sema
+    default:
+      let desc = sourcekitd.api.uid_get_string_ptr(uid).map { String(cString: $0) }
+      log("unknown diagnostic stage \(desc ?? "nil")", level: .warning)
+      return nil
     }
   }
 }

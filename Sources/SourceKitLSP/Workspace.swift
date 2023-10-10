@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import IndexStoreDB
-import LanguageServerProtocol
 import LSPLogging
+import LanguageServerProtocol
 import SKCore
 import SKSupport
 import SKSwiftPMWorkspace
@@ -27,7 +27,10 @@ fileprivate func firstNonNil<T>(_ optional: T?, _ defaultValue: @autoclosure () 
   return try await defaultValue()
 }
 
-fileprivate func firstNonNil<T>(_ optional: T?, _ defaultValue: @autoclosure () async throws -> T?) async rethrows -> T? {
+fileprivate func firstNonNil<T>(
+  _ optional: T?,
+  _ defaultValue: @autoclosure () async throws -> T?
+) async rethrows -> T? {
   if let optional {
     return optional
   }
@@ -82,7 +85,8 @@ public final class Workspace {
     self.buildSystemManager = await BuildSystemManager(
       buildSystem: underlyingBuildSystem,
       fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
-      mainFilesProvider: index)
+      mainFilesProvider: index
+    )
     indexDelegate?.registerMainFileChanged(buildSystemManager)
   }
 
@@ -125,20 +129,22 @@ public final class Workspace {
     var indexDelegate: SourceKitIndexDelegate? = nil
 
     if let storePath = await firstNonNil(indexOptions.indexStorePath, await buildSystem?.indexStorePath),
-       let dbPath = await firstNonNil(indexOptions.indexDatabasePath, await buildSystem?.indexDatabasePath),
-       let libPath = toolchainRegistry.default?.libIndexStore
+      let dbPath = await firstNonNil(indexOptions.indexDatabasePath, await buildSystem?.indexDatabasePath),
+      let libPath = toolchainRegistry.default?.libIndexStore
     {
       do {
         let lib = try IndexStoreLibrary(dylibPath: libPath.pathString)
         indexDelegate = SourceKitIndexDelegate()
-        let prefixMappings = await firstNonNil(indexOptions.indexPrefixMappings, await buildSystem?.indexPrefixMappings) ?? []
+        let prefixMappings =
+          await firstNonNil(indexOptions.indexPrefixMappings, await buildSystem?.indexPrefixMappings) ?? []
         index = try IndexStoreDB(
           storePath: storePath.pathString,
           databasePath: dbPath.pathString,
           library: lib,
           delegate: indexDelegate,
           listenToUnitEvents: indexOptions.listenToUnitEvents,
-          prefixMappings: prefixMappings.map { PathMapping(original: $0.original, replacement: $0.replacement) })
+          prefixMappings: prefixMappings.map { PathMapping(original: $0.original, replacement: $0.replacement) }
+        )
         log("opened IndexStoreDB at \(dbPath) with store path \(storePath)")
       } catch {
         log("failed to open IndexStoreDB: \(error.localizedDescription)", level: .error)
@@ -153,7 +159,8 @@ public final class Workspace {
       buildSetup: buildSetup,
       underlyingBuildSystem: buildSystem,
       index: index,
-      indexDelegate: indexDelegate)
+      indexDelegate: indexDelegate
+    )
   }
 }
 

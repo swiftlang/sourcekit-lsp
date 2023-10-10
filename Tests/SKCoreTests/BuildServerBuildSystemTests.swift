@@ -12,8 +12,8 @@
 
 import BuildServerProtocol
 import Foundation
-import LanguageServerProtocol
 import LSPTestSupport
+import LanguageServerProtocol
 import SKCore
 import SKTestSupport
 import TSCBasic
@@ -22,9 +22,11 @@ import XCTest
 final class BuildServerBuildSystemTests: XCTestCase {
 
   var root: AbsolutePath {
-    try! AbsolutePath(validating: XCTestCase.sklspInputsDirectory
-      .appendingPathComponent(testDirectoryName, isDirectory: true).path)
-  } 
+    try! AbsolutePath(
+      validating: XCTestCase.sklspInputsDirectory
+        .appendingPathComponent(testDirectoryName, isDirectory: true).path
+    )
+  }
   let buildFolder = try! AbsolutePath(validating: NSTemporaryDirectory())
 
   func testServerInitialize() async throws {
@@ -63,9 +65,11 @@ final class BuildServerBuildSystemTests: XCTestCase {
     let expectation = XCTestExpectation(description: "target changed")
     let targetIdentifier = BuildTargetIdentifier(uri: DocumentURI(string: "build://target/a"))
     let buildSystemDelegate = TestDelegate(targetExpectations: [
-      BuildTargetEvent(target: targetIdentifier,
+      BuildTargetEvent(
+        target: targetIdentifier,
         kind: .created,
-        data: .dictionary(["key": "value"])): expectation,
+        data: .dictionary(["key": "value"])
+      ): expectation
     ])
     defer {
       // BuildSystemManager has a weak reference to delegate. Keep it alive.
@@ -81,12 +85,14 @@ final class BuildServerBuildSystemTests: XCTestCase {
 final class TestDelegate: BuildSystemDelegate {
 
   let settingsExpectations: [DocumentURI: XCTestExpectation]
-  let targetExpectations: [BuildTargetEvent:XCTestExpectation]
-  let dependenciesUpdatedExpectations: [DocumentURI:XCTestExpectation]
+  let targetExpectations: [BuildTargetEvent: XCTestExpectation]
+  let dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation]
 
-  public init(settingsExpectations: [DocumentURI:XCTestExpectation] = [:],
-              targetExpectations: [BuildTargetEvent:XCTestExpectation] = [:],
-              dependenciesUpdatedExpectations: [DocumentURI:XCTestExpectation] = [:]) {
+  public init(
+    settingsExpectations: [DocumentURI: XCTestExpectation] = [:],
+    targetExpectations: [BuildTargetEvent: XCTestExpectation] = [:],
+    dependenciesUpdatedExpectations: [DocumentURI: XCTestExpectation] = [:]
+  ) {
     self.settingsExpectations = settingsExpectations
     self.targetExpectations = targetExpectations
     self.dependenciesUpdatedExpectations = dependenciesUpdatedExpectations

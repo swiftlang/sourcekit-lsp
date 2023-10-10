@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import LSPLogging
+import LanguageServerProtocol
 
 /// Handler responsible for registering a capability with the client.
 public typealias ClientRegistrationHandler = (CapabilityRegistration) -> Void
@@ -31,7 +31,7 @@ public final class CapabilityRegistry {
 
   /// Dynamically registered inlay hint options.
   private var inlayHint: [CapabilityRegistration: InlayHintRegistrationOptions] = [:]
-  
+
   /// Dynamically registered pull diagnostics options.
   private var pullDiagnostics: [CapabilityRegistration: DiagnosticRegistrationOptions] = [:]
 
@@ -66,7 +66,7 @@ public final class CapabilityRegistry {
   public var clientHasDynamicDocumentDiagnosticsRegistration: Bool {
     clientCapabilities.textDocument?.diagnostic?.dynamicRegistration == true
   }
-  
+
   public var clientHasDynamicExecuteCommandRegistration: Bool {
     clientCapabilities.workspace?.executeCommand?.dynamicRegistration == true
   }
@@ -94,17 +94,24 @@ public final class CapabilityRegistry {
     guard clientHasDynamicCompletionRegistration else { return }
     if let registration = registration(for: languages, in: completion) {
       if options != registration.completionOptions {
-        log("Unable to register new completion options \(options) for " +
-            "\(languages) due to pre-existing options \(registration.completionOptions)", level: .warning)
+        log(
+          """
+          Unable to register new completion options \(options) for \
+          "\(languages) due to pre-existing options \(registration.completionOptions)
+          """,
+          level: .warning
+        )
       }
       return
     }
     let registrationOptions = CompletionRegistrationOptions(
       documentSelector: self.documentSelector(for: languages),
-      completionOptions: options)
+      completionOptions: options
+    )
     let registration = CapabilityRegistration(
       method: CompletionRequest.method,
-      registerOptions: self.encode(registrationOptions))
+      registerOptions: self.encode(registrationOptions)
+    )
 
     self.completion[registration] = registrationOptions
 
@@ -118,15 +125,20 @@ public final class CapabilityRegistry {
     guard clientHasDynamicDidChangeWatchedFilesRegistration else { return }
     if let registration = didChangeWatchedFiles {
       if watchers != registration.watchers {
-        log("Unable to register new file system watchers \(watchers) due to pre-existing options \(registration.watchers)", level: .warning)
+        log(
+          "Unable to register new file system watchers \(watchers) due to pre-existing options \(registration.watchers)",
+          level: .warning
+        )
       }
       return
     }
     let registrationOptions = DidChangeWatchedFilesRegistrationOptions(
-      watchers: watchers)
+      watchers: watchers
+    )
     let registration = CapabilityRegistration(
       method: DidChangeWatchedFilesNotification.method,
-      registerOptions: self.encode(registrationOptions))
+      registerOptions: self.encode(registrationOptions)
+    )
 
     self.didChangeWatchedFiles = registrationOptions
 
@@ -144,17 +156,24 @@ public final class CapabilityRegistry {
     guard clientHasDynamicFoldingRangeRegistration else { return }
     if let registration = registration(for: languages, in: foldingRange) {
       if options != registration.foldingRangeOptions {
-        log("Unable to register new folding range options \(options) for " +
-            "\(languages) due to pre-existing options \(registration.foldingRangeOptions)", level: .warning)
+        log(
+          """
+          Unable to register new folding range options \(options) for \
+          \(languages) due to pre-existing options \(registration.foldingRangeOptions)
+          """,
+          level: .warning
+        )
       }
       return
     }
     let registrationOptions = FoldingRangeRegistrationOptions(
       documentSelector: self.documentSelector(for: languages),
-      foldingRangeOptions: options)
+      foldingRangeOptions: options
+    )
     let registration = CapabilityRegistration(
       method: FoldingRangeRequest.method,
-      registerOptions: self.encode(registrationOptions))
+      registerOptions: self.encode(registrationOptions)
+    )
 
     self.foldingRange[registration] = registrationOptions
 
@@ -172,17 +191,24 @@ public final class CapabilityRegistry {
     guard clientHasDynamicSemanticTokensRegistration else { return }
     if let registration = registration(for: languages, in: semanticTokens) {
       if options != registration.semanticTokenOptions {
-        log("Unable to register new semantic tokens options \(options) for " +
-            "\(languages) due to pre-existing options \(registration.semanticTokenOptions)", level: .warning)
+        log(
+          """
+          Unable to register new semantic tokens options \(options) for \
+          \(languages) due to pre-existing options \(registration.semanticTokenOptions)
+          """,
+          level: .warning
+        )
       }
       return
     }
     let registrationOptions = SemanticTokensRegistrationOptions(
       documentSelector: self.documentSelector(for: languages),
-      semanticTokenOptions: options)
+      semanticTokenOptions: options
+    )
     let registration = CapabilityRegistration(
       method: SemanticTokensRegistrationOptions.method,
-      registerOptions: self.encode(registrationOptions))
+      registerOptions: self.encode(registrationOptions)
+    )
 
     self.semanticTokens[registration] = registrationOptions
 
@@ -200,18 +226,25 @@ public final class CapabilityRegistry {
     guard clientHasDynamicInlayHintRegistration else { return }
     if let registration = registration(for: languages, in: inlayHint) {
       if options != registration.inlayHintOptions {
-        log("Unable to register new inlay hint options \(options) for " +
-            "\(languages) due to pre-existing options \(registration.inlayHintOptions)", level: .warning)
+        log(
+          """
+          Unable to register new inlay hint options \(options) for \
+          \(languages) due to pre-existing options \(registration.inlayHintOptions)
+          """,
+          level: .warning
+        )
       }
       return
     }
     let registrationOptions = InlayHintRegistrationOptions(
       documentSelector: self.documentSelector(for: languages),
-      inlayHintOptions: options)
+      inlayHintOptions: options
+    )
     let registration = CapabilityRegistration(
       method: InlayHintRequest.method,
-      registerOptions: self.encode(registrationOptions))
-    
+      registerOptions: self.encode(registrationOptions)
+    )
+
     self.inlayHint[registration] = registrationOptions
 
     registerOnClient(registration)
@@ -227,18 +260,25 @@ public final class CapabilityRegistry {
     guard clientHasDynamicDocumentDiagnosticsRegistration else { return }
     if let registration = registration(for: languages, in: pullDiagnostics) {
       if options != registration.diagnosticOptions {
-        log("Unable to register new pull diagnostics options \(options) for " +
-            "\(languages) due to pre-existing options \(registration.diagnosticOptions)", level: .warning)
+        log(
+          """
+          Unable to register new pull diagnostics options \(options) for \
+          \(languages) due to pre-existing options \(registration.diagnosticOptions)
+          """,
+          level: .warning
+        )
       }
       return
     }
     let registrationOptions = DiagnosticRegistrationOptions(
       documentSelector: self.documentSelector(for: languages),
-      diagnosticOptions: options)
+      diagnosticOptions: options
+    )
     let registration = CapabilityRegistration(
       method: DocumentDiagnosticsRequest.method,
-      registerOptions: self.encode(registrationOptions))
-    
+      registerOptions: self.encode(registrationOptions)
+    )
+
     self.pullDiagnostics[registration] = registrationOptions
 
     registerOnClient(registration)
@@ -263,7 +303,8 @@ public final class CapabilityRegistry {
     let registrationOptions = ExecuteCommandRegistrationOptions(commands: Array(newCommands))
     let registration = CapabilityRegistration(
       method: ExecuteCommandRequest.method,
-      registerOptions: self.encode(registrationOptions))
+      registerOptions: self.encode(registrationOptions)
+    )
 
     registerOnClient(registration)
   }

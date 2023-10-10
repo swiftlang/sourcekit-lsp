@@ -50,7 +50,9 @@ extension RandomAccessCollection where Element == UInt8 {
 
       if key.elementsEqual(JSONRPCMessageHeader.contentLengthKey) {
         guard let count = Int(ascii: value) else {
-          throw MessageDecodingError.parseError("expected integer value in \(String(bytes: value, encoding: .utf8) ?? "<invalid>")")
+          throw MessageDecodingError.parseError(
+            "expected integer value in \(String(bytes: value, encoding: .utf8) ?? "<invalid>")"
+          )
         }
         header.contentLength = count
       }
@@ -73,7 +75,7 @@ extension RandomAccessCollection where Element == UInt8 {
     if self[keyEnd] != JSONRPCMessageHeader.colon {
       throw MessageDecodingError.parseError("expected ':' in message header")
     }
-    let valueStart = index(after:keyEnd)
+    let valueStart = index(after: keyEnd)
     guard let valueEnd = self[valueStart...].firstIndex(of: JSONRPCMessageHeader.separator) else {
       return nil
     }
@@ -86,7 +88,7 @@ extension RandomAccessCollection where Element: Equatable {
 
   /// Returns the first index where the specified subsequence appears or nil.
   @inlinable
-  public func firstIndex<Pattern>(of pattern: Pattern) -> Index? where Pattern: RandomAccessCollection, Pattern.Element == Element {
+  public func firstIndex(of pattern: some RandomAccessCollection<Element>) -> Index? {
 
     if pattern.isEmpty {
       return startIndex
@@ -97,7 +99,7 @@ extension RandomAccessCollection where Element: Equatable {
 
     // FIXME: use a better algorithm (e.g. Boyer-Moore-Horspool).
     var i = startIndex
-    for _ in 0 ..< (count - pattern.count + 1) {
+    for _ in 0..<(count - pattern.count + 1) {
       if self[i...].starts(with: pattern) {
         return i
       }
@@ -112,7 +114,7 @@ extension UInt8 {
   @inlinable
   public var isSpace: Bool {
     switch self {
-    case UInt8(ascii: " "), UInt8(ascii: "\t"), /*LF*/0xa, /*VT*/0xb, /*FF*/0xc, /*CR*/0xd:
+    case UInt8(ascii: " "), UInt8(ascii: "\t"), /*LF*/ 0xa, /*VT*/ 0xb, /*FF*/ 0xc, /*CR*/ 0xd:
       return true
     default:
       return false

@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 import LanguageServerProtocol
 
-
 /// The register for changes request is sent from the language
 /// server to the build server to register or unregister for
 /// changes in file options or dependencies. On changes a

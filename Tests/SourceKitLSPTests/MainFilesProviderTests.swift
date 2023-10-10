@@ -10,12 +10,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKitLSP
+import IndexStoreDB
+import LSPTestSupport
+import LanguageServerProtocol
 import SKCore
 import SKTestSupport
-import LanguageServerProtocol
-import LSPTestSupport
-import IndexStoreDB
+import SourceKitLSP
 import XCTest
 
 final class MainFilesProviderTests: XCTestCase {
@@ -65,15 +65,21 @@ final class MainFilesProviderTests: XCTestCase {
     try await fulfillmentOfOrThrow([mainFilesDelegate.expectation])
 
     try ws.edit { changes, _ in
-      changes.write("""
+      changes.write(
+        """
         #include "bridging.h"
         void d_new(void) { bridging(); }
-        """, to: d.fileURL!)
+        """,
+        to: d.fileURL!
+      )
 
-      changes.write("""
-      #include "unique.h"
-      void c_new(void) { unique(); }
-      """, to: c.fileURL!)
+      changes.write(
+        """
+        #include "unique.h"
+        void c_new(void) { unique(); }
+        """,
+        to: c.fileURL!
+      )
     }
 
     mainFilesDelegate.expectation = expectation(description: "main files changed after edit")

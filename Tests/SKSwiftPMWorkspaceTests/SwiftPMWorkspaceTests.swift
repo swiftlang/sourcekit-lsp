@@ -10,10 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#if canImport(SPMBuildCore)
-import SPMBuildCore
-#endif
 import Build
+import LSPTestSupport
 import LanguageServerProtocol
 import PackageModel
 import SKCore
@@ -21,67 +19,88 @@ import SKSwiftPMWorkspace
 import SKTestSupport
 import TSCBasic
 import XCTest
-import LSPTestSupport
 
 import struct PackageModel.BuildFlags
+
+#if canImport(SPMBuildCore)
+import SPMBuildCore
+#endif
 
 final class SwiftPMWorkspaceTests: XCTestCase {
 
   func testNoPackage() async throws {
     let fs = InMemoryFileSystem()
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg/Sources/lib/a.swift": "",
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": ""
+        ]
+      )
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.shared
-      await assertThrowsError(try await SwiftPMWorkspace(
-        workspacePath: packageRoot,
-        toolchainRegistry: tr,
-        fileSystem: fs,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup))
+      await assertThrowsError(
+        try await SwiftPMWorkspace(
+          workspacePath: packageRoot,
+          toolchainRegistry: tr,
+          fileSystem: fs,
+          buildSetup: TestSourceKitServer.serverOptions.buildSetup
+        )
+      )
     }
   }
 
   func testUnparsablePackage() async throws {
     let fs = localFileSystem
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg/Sources/lib/a.swift": "",
-        "pkg/Package.swift": """
-            // swift-tools-version:4.2
-            import PackageDescription
-            let pack
-            """
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let pack
+          """,
+        ]
+      )
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.shared
-      await assertThrowsError(try await SwiftPMWorkspace(
-        workspacePath: packageRoot,
-        toolchainRegistry: tr,
-        fileSystem: fs,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup))
+      await assertThrowsError(
+        try await SwiftPMWorkspace(
+          workspacePath: packageRoot,
+          toolchainRegistry: tr,
+          fileSystem: fs,
+          buildSetup: TestSourceKitServer.serverOptions.buildSetup
+        )
+      )
     }
   }
 
   func testNoToolchain() async throws {
     let fs = localFileSystem
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg/Sources/lib/a.swift": "",
-        "pkg/Package.swift": """
-            // swift-tools-version:4.2
-            import PackageDescription
-            let package = Package(name: "a", products: [], dependencies: [],
-              targets: [.target(name: "lib", dependencies: [])])
-            """
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+            targets: [.target(name: "lib", dependencies: [])])
+          """,
+        ]
+      )
       let packageRoot = tempDir.appending(component: "pkg")
-      await assertThrowsError(try await SwiftPMWorkspace(
-        workspacePath: packageRoot,
-        toolchainRegistry: ToolchainRegistry(),
-        fileSystem: fs,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup))
+      await assertThrowsError(
+        try await SwiftPMWorkspace(
+          workspacePath: packageRoot,
+          toolchainRegistry: ToolchainRegistry(),
+          fileSystem: fs,
+          buildSetup: TestSourceKitServer.serverOptions.buildSetup
+        )
+      )
     }
   }
 
@@ -89,22 +108,26 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg/Sources/lib/a.swift": "",
-        "pkg/Package.swift": """
-            // swift-tools-version:4.2
-            import PackageDescription
-            let package = Package(name: "a", products: [], dependencies: [],
-              targets: [.target(name: "lib", dependencies: [])])
-            """
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+            targets: [.target(name: "lib", dependencies: [])])
+          """,
+        ]
+      )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup
+      )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = await ws.buildParameters.targetTriple
@@ -115,19 +138,25 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let arguments = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
 
       check(
-        "-module-name", "lib", "-incremental", "-emit-dependencies",
-        "-emit-module", "-emit-module-path", arguments: arguments)
+        "-module-name",
+        "lib",
+        "-incremental",
+        "-emit-dependencies",
+        "-emit-module",
+        "-emit-module-path",
+        arguments: arguments
+      )
       check("-parse-as-library", "-c", arguments: arguments)
 
-      check("-target", arguments: arguments) // Only one!
-  #if os(macOS)
+      check("-target", arguments: arguments)  // Only one!
+      #if os(macOS)
       let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
       check("-target", hostTriple.tripleString(forPlatformVersion: versionString), arguments: arguments)
       check("-sdk", arguments: arguments)
       check("-F", arguments: arguments, allowMultiple: true)
-  #else
+      #else
       check("-target", hostTriple.tripleString, arguments: arguments)
-  #endif
+      #endif
 
       check("-I", build.pathString, arguments: arguments)
 
@@ -139,28 +168,33 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg/Sources/lib/a.swift": "",
-        "pkg/Package.swift": """
-            // swift-tools-version:4.2
-            import PackageDescription
-            let package = Package(name: "a", products: [], dependencies: [],
-              targets: [.target(name: "lib", dependencies: [])])
-            """
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+            targets: [.target(name: "lib", dependencies: [])])
+          """,
+        ]
+      )
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.shared
 
       let config = BuildSetup(
-          configuration: .release,
-          path: packageRoot.appending(component: "non_default_build_path"),
-          flags: BuildFlags(cCompilerFlags: ["-m32"], swiftCompilerFlags: ["-typecheck"]))
+        configuration: .release,
+        path: packageRoot.appending(component: "non_default_build_path"),
+        flags: BuildFlags(cCompilerFlags: ["-m32"], swiftCompilerFlags: ["-typecheck"])
+      )
 
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: config)
+        buildSetup: config
+      )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = await ws.buildParameters.targetTriple
@@ -179,22 +213,26 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg/Sources/lib/a.swift": "",
-        "pkg/Package.swift": """
-            // swift-tools-version:4.2
-            import PackageDescription
-            let package = Package(name: "a", products: [], dependencies: [],
-              targets: [.target(name: "lib", dependencies: [])])
-            """
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+            targets: [.target(name: "lib", dependencies: [])])
+          """,
+        ]
+      )
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup
+      )
 
       let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
       let arguments = try await ws._settings(for: source.asURI, .swift)!.compilerArguments
@@ -208,23 +246,27 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg/Sources/lib/a.swift": "",
-        "pkg/Sources/lib/b.swift": "",
-        "pkg/Package.swift": """
-            // swift-tools-version:4.2
-            import PackageDescription
-            let package = Package(name: "a", products: [], dependencies: [],
-              targets: [.target(name: "lib", dependencies: [])])
-            """
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Sources/lib/b.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+            targets: [.target(name: "lib", dependencies: [])])
+          """,
+        ]
+      )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup
+      )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
@@ -242,29 +284,33 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg/Sources/libA/a.swift": "",
-        "pkg/Sources/libB/b.swift": "",
-        "pkg/Sources/libC/include/libC.h": "",
-        "pkg/Sources/libC/libC.c": "",
-        "pkg/Package.swift": """
-            // swift-tools-version:4.2
-            import PackageDescription
-            let package = Package(name: "a", products: [], dependencies: [],
-              targets: [
-                .target(name: "libA", dependencies: ["libB", "libC"]),
-                .target(name: "libB", dependencies: []),
-                .target(name: "libC", dependencies: []),
-              ])
-            """
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/libA/a.swift": "",
+          "pkg/Sources/libB/b.swift": "",
+          "pkg/Sources/libC/include/libC.h": "",
+          "pkg/Sources/libC/libC.c": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+            targets: [
+              .target(name: "libA", dependencies: ["libB", "libC"]),
+              .target(name: "libB", dependencies: []),
+              .target(name: "libC", dependencies: []),
+            ])
+          """,
+        ]
+      )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup
+      )
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -275,20 +321,28 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       // as a result of fix for SR-12050.  Can be removed when that fix has been merged.
       if arguments.joined(separator: " ").contains("-Xcc -I -Xcc") {
         check(
-          "-Xcc", "-I", "-Xcc", packageRoot.appending(components: "Sources", "libC", "include").pathString,
-          arguments: arguments)
-      }
-      else {
+          "-Xcc",
+          "-I",
+          "-Xcc",
+          packageRoot.appending(components: "Sources", "libC", "include").pathString,
+          arguments: arguments
+        )
+      } else {
         check(
-          "-I", packageRoot.appending(components: "Sources", "libC", "include").pathString,
-          arguments: arguments)
+          "-I",
+          packageRoot.appending(components: "Sources", "libC", "include").pathString,
+          arguments: arguments
+        )
       }
 
       let argumentsB = try await ws._settings(for: bswift.asURI, .swift)!.compilerArguments
       check(bswift.pathString, arguments: argumentsB)
       checkNot(aswift.pathString, arguments: argumentsB)
-      checkNot("-I", packageRoot.appending(components: "Sources", "libC", "include").pathString,
-        arguments: argumentsB)
+      checkNot(
+        "-I",
+        packageRoot.appending(components: "Sources", "libC", "include").pathString,
+        arguments: argumentsB
+      )
     }
   }
 
@@ -296,25 +350,29 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg/Sources/libA/a.swift": "",
-        "pkg/Sources/libB/b.swift": "",
-        "pkg/Package.swift": """
-            // swift-tools-version:4.2
-            import PackageDescription
-            let package = Package(name: "a", products: [], dependencies: [],
-              targets: [
-                .target(name: "libA", dependencies: []),
-              ])
-            """
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/libA/a.swift": "",
+          "pkg/Sources/libB/b.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+            targets: [
+              .target(name: "libA", dependencies: []),
+            ])
+          """,
+        ]
+      )
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup
+      )
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -328,25 +386,29 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg/Sources/lib/a.cpp": "",
-        "pkg/Sources/lib/b.cpp": "",
-        "pkg/Sources/lib/include/a.h": "",
-        "pkg/Package.swift": """
-            // swift-tools-version:4.2
-            import PackageDescription
-            let package = Package(name: "a", products: [], dependencies: [],
-              targets: [.target(name: "lib", dependencies: [])],
-              cxxLanguageStandard: .cxx14)
-            """
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.cpp": "",
+          "pkg/Sources/lib/b.cpp": "",
+          "pkg/Sources/lib/include/a.h": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+            targets: [.target(name: "lib", dependencies: [])],
+            cxxLanguageStandard: .cxx14)
+          """,
+        ]
+      )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup
+      )
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
@@ -360,19 +422,25 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         check("-std=c++14", arguments: arguments)
 
         checkNot("-arch", arguments: arguments)
-        check("-target", arguments: arguments) // Only one!
-    #if os(macOS)
+        check("-target", arguments: arguments)  // Only one!
+        #if os(macOS)
         let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
-        check("-target",
-          hostTriple.tripleString(forPlatformVersion: versionString), arguments: arguments)
+        check(
+          "-target",
+          hostTriple.tripleString(forPlatformVersion: versionString),
+          arguments: arguments
+        )
         check("-isysroot", arguments: arguments)
         check("-F", arguments: arguments, allowMultiple: true)
-    #else
+        #else
         check("-target", hostTriple.tripleString, arguments: arguments)
-    #endif
+        #endif
 
-        check("-I", packageRoot.appending(components: "Sources", "lib", "include").pathString,
-          arguments: arguments)
+        check(
+          "-I",
+          packageRoot.appending(components: "Sources", "lib", "include").pathString,
+          arguments: arguments
+        )
         checkNot("-I", build.pathString, arguments: arguments)
         checkNot(bcxx.pathString, arguments: arguments)
       }
@@ -381,25 +449,30 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       checkArgsCommon(args)
 
       URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.d").pathString)
-          .withUnsafeFileSystemRepresentation {
-        check("-MD", "-MT", "dependencies", "-MF", String(cString: $0!), arguments: args)
-      }
+        .withUnsafeFileSystemRepresentation {
+          check("-MD", "-MT", "dependencies", "-MF", String(cString: $0!), arguments: args)
+        }
 
       URL(fileURLWithPath: acxx.pathString).withUnsafeFileSystemRepresentation {
         check("-c", String(cString: $0!), arguments: args)
       }
 
       URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.o").pathString)
-          .withUnsafeFileSystemRepresentation {
-        check("-o", String(cString: $0!), arguments: args)
-      }
+        .withUnsafeFileSystemRepresentation {
+          check("-o", String(cString: $0!), arguments: args)
+        }
 
       let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
       let headerArgs = try await ws._settings(for: header.asURI, .cpp)!.compilerArguments
       checkArgsCommon(headerArgs)
 
-      check("-c", "-x", "c++-header", try AbsolutePath(validating: URL(fileURLWithPath: header.pathString).path).pathString,
-            arguments: headerArgs)
+      check(
+        "-c",
+        "-x",
+        "c++-header",
+        try AbsolutePath(validating: URL(fileURLWithPath: header.pathString).path).pathString,
+        arguments: headerArgs
+      )
     }
   }
 
@@ -407,34 +480,41 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg/Sources/lib/a.swift": "",
-        "pkg/Package.swift": """
-            // swift-tools-version:5.0
-            import PackageDescription
-            let package = Package(name: "a",
-              platforms: [.macOS(.v10_13)],
-              products: [], dependencies: [],
-              targets: [.target(name: "lib", dependencies: [])])
-            """
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:5.0
+          import PackageDescription
+          let package = Package(name: "a",
+            platforms: [.macOS(.v10_13)],
+            products: [], dependencies: [],
+            targets: [.target(name: "lib", dependencies: [])])
+          """,
+        ]
+      )
       let packageRoot = tempDir.appending(component: "pkg")
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: ToolchainRegistry.shared,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup
+      )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
-      check("-target", arguments: arguments) // Only one!
+      check("-target", arguments: arguments)  // Only one!
       let hostTriple = await ws.buildParameters.targetTriple
 
       #if os(macOS)
-        check("-target",
-          hostTriple.tripleString(forPlatformVersion: "10.13"), arguments: arguments)
+      check(
+        "-target",
+        hostTriple.tripleString(forPlatformVersion: "10.13"),
+        arguments: arguments
+      )
       #else
-        check("-target", hostTriple.tripleString, arguments: arguments)
+      check("-target", hostTriple.tripleString, arguments: arguments)
       #endif
     }
   }
@@ -443,30 +523,36 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg_real/Sources/lib/a.swift": "",
-        "pkg_real/Package.swift": """
-        // swift-tools-version:4.2
-        import PackageDescription
-        let package = Package(name: "a", products: [], dependencies: [],
-        targets: [.target(name: "lib", dependencies: [])])
-        """
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg_real/Sources/lib/a.swift": "",
+          "pkg_real/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+          targets: [.target(name: "lib", dependencies: [])])
+          """,
+        ]
+      )
       let packageRoot = tempDir.appending(component: "pkg")
 
       try FileManager.default.createSymbolicLink(
         at: URL(fileURLWithPath: packageRoot.pathString),
-        withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString))
+        withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString)
+      )
 
       let tr = ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup
+      )
 
       let aswift1 = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let aswift2 = tempDir
+      let aswift2 =
+        tempDir
         .appending(component: "pkg_real")
         .appending(components: "Sources", "lib", "a.swift")
       let manifest = packageRoot.appending(components: "Package.swift")
@@ -492,31 +578,36 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg_real/Sources/lib/a.cpp": "",
-        "pkg_real/Sources/lib/b.cpp": "",
-        "pkg_real/Sources/lib/include/a.h": "",
-        "pkg_real/Package.swift": """
-            // swift-tools-version:4.2
-            import PackageDescription
-            let package = Package(name: "a", products: [], dependencies: [],
-              targets: [.target(name: "lib", dependencies: [])],
-              cxxLanguageStandard: .cxx14)
-            """
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg_real/Sources/lib/a.cpp": "",
+          "pkg_real/Sources/lib/b.cpp": "",
+          "pkg_real/Sources/lib/include/a.h": "",
+          "pkg_real/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+            targets: [.target(name: "lib", dependencies: [])],
+            cxxLanguageStandard: .cxx14)
+          """,
+        ]
+      )
 
       let packageRoot = tempDir.appending(component: "pkg")
 
       try FileManager.default.createSymbolicLink(
         at: URL(fileURLWithPath: packageRoot.pathString),
-        withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString))
+        withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString)
+      )
 
       let tr = ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup
+      )
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let ah = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
@@ -537,56 +628,67 @@ final class SwiftPMWorkspaceTests: XCTestCase {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg/Sources/lib/a.swift": "",
-        "pkg/Sources/lib/a.txt": "",
-        "pkg/Package.swift": """
-            // swift-tools-version:5.3
-            import PackageDescription
-            let package = Package(name: "a", products: [], dependencies: [],
-              targets: [
-                .target(
-                  name: "lib",
-                  dependencies: [],
-                  resources: [.copy("a.txt")])])
-            """
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/a.swift": "",
+          "pkg/Sources/lib/a.txt": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:5.3
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+            targets: [
+              .target(
+                name: "lib",
+                dependencies: [],
+                resources: [.copy("a.txt")])])
+          """,
+        ]
+      )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup
+      )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
       check(aswift.pathString, arguments: arguments)
-      XCTAssertNotNil(arguments.firstIndex(where: {
+      XCTAssertNotNil(
+        arguments.firstIndex(where: {
           $0.hasSuffix(".swift") && $0.contains("DerivedSources")
-        }), "missing resource_bundle_accessor.swift from \(arguments)")
+        }),
+        "missing resource_bundle_accessor.swift from \(arguments)"
+      )
     }
   }
 
   func testNestedInvalidPackageSwift() async throws {
     let fs = InMemoryFileSystem()
     try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
-      try fs.createFiles(root: tempDir, files: [
-        "pkg/Sources/lib/Package.swift": "// not a valid package",
-        "pkg/Package.swift": """
-        // swift-tools-version:4.2
-        import PackageDescription
-        let package = Package(name: "a", products: [], dependencies: [],
-        targets: [.target(name: "lib", dependencies: [])])
-        """
-      ])
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Sources/lib/Package.swift": "// not a valid package",
+          "pkg/Package.swift": """
+          // swift-tools-version:4.2
+          import PackageDescription
+          let package = Package(name: "a", products: [], dependencies: [],
+          targets: [.target(name: "lib", dependencies: [])])
+          """,
+        ]
+      )
       let packageRoot = try resolveSymlinks(tempDir.appending(components: "pkg", "Sources", "lib"))
       let tr = ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup)
+        buildSetup: TestSourceKitServer.serverOptions.buildSetup
+      )
 
       assertEqual(await ws._packageRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
     }
@@ -597,12 +699,14 @@ private func checkNot(
   _ pattern: String...,
   arguments: [String],
   file: StaticString = #filePath,
-  line: UInt = #line)
-{
+  line: UInt = #line
+) {
   if let index = arguments.firstIndex(of: pattern) {
     XCTFail(
       "not-pattern \(pattern) unexpectedly found at \(index) in arguments \(arguments)",
-      file: file, line: line)
+      file: file,
+      line: line
+    )
     return
   }
 }
@@ -612,25 +716,27 @@ private func check(
   arguments: [String],
   allowMultiple: Bool = false,
   file: StaticString = #filePath,
-  line: UInt = #line)
-{
+  line: UInt = #line
+) {
   guard let index = arguments.firstIndex(of: pattern) else {
     XCTFail("pattern \(pattern) not found in arguments \(arguments)", file: file, line: line)
     return
   }
 
-  if !allowMultiple, let index2 = arguments[(index+1)...].firstIndex(of: pattern) {
+  if !allowMultiple, let index2 = arguments[(index + 1)...].firstIndex(of: pattern) {
     XCTFail(
       "pattern \(pattern) found twice (\(index), \(index2)) in \(arguments)",
-      file: file, line: line)
+      file: file,
+      line: line
+    )
   }
 }
 
 private func buildPath(
   root: AbsolutePath,
   config: BuildSetup = TestSourceKitServer.serverOptions.buildSetup,
-  platform: String) -> AbsolutePath
-{
+  platform: String
+) -> AbsolutePath {
   let buildPath = config.path ?? root.appending(component: ".build")
   return buildPath.appending(components: platform, "\(config.configuration)")
 }

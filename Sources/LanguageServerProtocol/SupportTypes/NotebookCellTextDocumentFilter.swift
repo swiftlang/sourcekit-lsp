@@ -41,7 +41,10 @@ public struct NotebookCellTextDocumentFilter: Codable, Hashable {
       } else if let filter = try? NotebookDocumentFilter(from: decoder) {
         self = .notebookDocumentFilter(filter)
       } else {
-        let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "NotebookFilter must be either a String or NotebookDocumentFilter")
+        let context = DecodingError.Context(
+          codingPath: decoder.codingPath,
+          debugDescription: "NotebookFilter must be either a String or NotebookDocumentFilter"
+        )
         throw DecodingError.dataCorrupted(context)
       }
     }

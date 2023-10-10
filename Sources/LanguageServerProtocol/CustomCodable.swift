@@ -103,7 +103,11 @@ extension KeyedEncodingContainer {
     _ value: CustomCodable<Optional<T>>,
     forKey key: Key
   ) throws {
-    try encodeIfPresent(value.wrappedValue.map {
-      type(of: value).CustomCoder(wrappedValue: $0) }, forKey: key)
+    try encodeIfPresent(
+      value.wrappedValue.map {
+        type(of: value).CustomCoder(wrappedValue: $0)
+      },
+      forKey: key
+    )
   }
 }

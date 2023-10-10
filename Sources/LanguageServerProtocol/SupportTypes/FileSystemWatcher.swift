@@ -26,7 +26,7 @@ public struct FileSystemWatcher: Codable, Hashable {
 }
 
 extension FileSystemWatcher: LSPAnyCodable {
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard let globPatternAny = dictionary[CodingKeys.globPattern.stringValue] else { return nil }
     guard case .string(let globPattern) = globPatternAny else { return nil }
     self.globPattern = globPattern

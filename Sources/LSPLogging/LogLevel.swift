@@ -65,7 +65,7 @@ extension LogLevel {
 
       if let level = LogLevel(rawValue: value) {
         self = level
-      } else if value > LogLevel.debug.rawValue  {
+      } else if value > LogLevel.debug.rawValue {
         self = .debug
       } else {
         return nil

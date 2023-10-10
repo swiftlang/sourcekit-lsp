@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 /// The kind of markup (plaintext or markdown).
 ///
 /// In LSP, this is a string, so we don't use a closed set.

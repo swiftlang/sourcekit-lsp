@@ -22,7 +22,7 @@ public struct TextDocumentIdentifier: Hashable, Codable {
 }
 
 extension TextDocumentIdentifier: LSPAnyCodable {
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard case .string(let uriString)? = dictionary[CodingKeys.uri.stringValue] else {
       return nil
     }

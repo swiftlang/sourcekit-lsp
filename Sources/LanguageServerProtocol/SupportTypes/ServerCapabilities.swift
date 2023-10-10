@@ -161,8 +161,7 @@ public struct ServerCapabilities: Codable, Hashable {
     monikerProvider: ValueOrBool<MonikerOptions>? = nil,
     inlineValueProvider: ValueOrBool<TextDocumentAndStaticRegistrationOptions>? = nil,
     experimental: LSPAny? = nil
-  )
-  {
+  ) {
     self.positionEncoding = positionEncoding
     self.textDocumentSync = textDocumentSync
     self.notebookDocumentSync = notebookDocumentSync
@@ -221,7 +220,10 @@ public enum ValueOrBool<ValueType: Codable>: Codable, Hashable where ValueType: 
     } else if let value = try? ValueType(from: decoder) {
       self = .value(value)
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected Bool or \(ValueType.self)")
+      let context = DecodingError.Context(
+        codingPath: decoder.codingPath,
+        debugDescription: "Expected Bool or \(ValueType.self)"
+      )
       throw DecodingError.dataCorrupted(context)
     }
   }
@@ -246,7 +248,10 @@ public enum TextDocumentSync: Codable, Hashable {
     } else if let kind = try? TextDocumentSyncKind(from: decoder) {
       self = .kind(kind)
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected TextDocumentSyncOptions or TextDocumentSyncKind")
+      let context = DecodingError.Context(
+        codingPath: decoder.codingPath,
+        debugDescription: "Expected TextDocumentSyncOptions or TextDocumentSyncKind"
+      )
       throw DecodingError.dataCorrupted(context)
     }
   }
@@ -298,11 +303,13 @@ public struct TextDocumentSyncOptions: Codable, Hashable {
   /// Whether save notifications should be sent to the server.
   public var save: ValueOrBool<SaveOptions>?
 
-  public init(openClose: Bool? = true,
-              change: TextDocumentSyncKind? = .incremental,
-              willSave: Bool? = true,
-              willSaveWaitUntil: Bool? = false,
-              save: ValueOrBool<SaveOptions>? = .value(SaveOptions(includeText: false))) {
+  public init(
+    openClose: Bool? = true,
+    change: TextDocumentSyncKind? = .incremental,
+    willSave: Bool? = true,
+    willSaveWaitUntil: Bool? = false,
+    save: ValueOrBool<SaveOptions>? = .value(SaveOptions(includeText: false))
+  ) {
     self.openClose = openClose
     self.change = change
     self.willSave = willSave
@@ -325,7 +332,10 @@ public struct TextDocumentSyncOptions: Codable, Hashable {
       self.change = try TextDocumentSyncKind(from: decoder)
       return
     } catch {}
-    let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected TextDocumentSyncOptions or TextDocumentSyncKind")
+    let context = DecodingError.Context(
+      codingPath: decoder.codingPath,
+      debugDescription: "Expected TextDocumentSyncOptions or TextDocumentSyncKind"
+    )
     throw DecodingError.dataCorrupted(context)
   }
 }
@@ -353,7 +363,10 @@ public enum NotebookFilter: Codable, Hashable {
     } else if let documentFilter = try? DocumentFilter(from: decoder) {
       self = .documentFilter(documentFilter)
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected String or DocumentFilter")
+      let context = DecodingError.Context(
+        codingPath: decoder.codingPath,
+        debugDescription: "Expected String or DocumentFilter"
+      )
       throw DecodingError.dataCorrupted(context)
     }
   }
@@ -392,7 +405,7 @@ public struct NotebookDocumentSyncAndStaticRegistrationOptions: Codable, Hashabl
 }
 
 public protocol WorkDoneProgressOptions {
-  var workDoneProgress: Bool?  { get }
+  var workDoneProgress: Bool? { get }
 }
 
 public struct HoverOptions: WorkDoneProgressOptions, Codable, Hashable {
@@ -642,9 +655,11 @@ public enum CodeActionServerCapabilities: Codable, Hashable {
   case supportsCodeActionRequests(Bool)
   case supportsCodeActionRequestsWithLiterals(CodeActionOptions)
 
-  public init(clientCapabilities: TextDocumentClientCapabilities.CodeAction?,
-              codeActionOptions: CodeActionOptions,
-              supportsCodeActions: Bool) {
+  public init(
+    clientCapabilities: TextDocumentClientCapabilities.CodeAction?,
+    codeActionOptions: CodeActionOptions,
+    supportsCodeActions: Bool
+  ) {
     if clientCapabilities?.codeActionLiteralSupport != nil {
       self = .supportsCodeActionRequestsWithLiterals(codeActionOptions)
     } else {

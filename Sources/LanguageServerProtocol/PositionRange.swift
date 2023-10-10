@@ -14,7 +14,7 @@ extension Range where Bound == Position {
 
   /// Create a range for a single position.
   public init(_ pos: Position) {
-    self = pos ..< pos
+    self = pos..<pos
   }
 }
 
@@ -74,12 +74,12 @@ public struct PositionRangeArray: CustomCodableWrapper {
 }
 
 extension Range: LSPAnyCodable where Bound == Position {
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard case .dictionary(let start)? = dictionary[PositionRange.CodingKeys.lowerBound.stringValue],
-          let startPosition = Position(fromLSPDictionary: start),
-          case .dictionary(let end)? = dictionary[PositionRange.CodingKeys.upperBound.stringValue],
-          let endPosition = Position(fromLSPDictionary: end) else
-    {
+      let startPosition = Position(fromLSPDictionary: start),
+      case .dictionary(let end)? = dictionary[PositionRange.CodingKeys.upperBound.stringValue],
+      let endPosition = Position(fromLSPDictionary: end)
+    else {
       return nil
     }
     self = startPosition..<endPosition
@@ -88,7 +88,7 @@ extension Range: LSPAnyCodable where Bound == Position {
   public func encodeToLSPAny() -> LSPAny {
     return .dictionary([
       PositionRange.CodingKeys.lowerBound.stringValue: lowerBound.encodeToLSPAny(),
-      PositionRange.CodingKeys.upperBound.stringValue: upperBound.encodeToLSPAny()
+      PositionRange.CodingKeys.upperBound.stringValue: upperBound.encodeToLSPAny(),
     ])
   }
 }

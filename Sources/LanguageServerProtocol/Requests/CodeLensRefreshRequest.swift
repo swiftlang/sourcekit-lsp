@@ -15,5 +15,5 @@ public struct CodeLensRefreshRequest: RequestType {
 
   public typealias Response = VoidResponse
 
-  public init() { }
+  public init() {}
 }

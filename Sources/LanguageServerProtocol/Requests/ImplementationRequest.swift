@@ -10,11 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// The go to implementation request is sent from the client to the server 
-/// to resolve the implementation location of a symbol at a given 
+/// The go to implementation request is sent from the client to the server
+/// to resolve the implementation location of a symbol at a given
 /// text document position.
 ///
-/// Servers that provide Goto Implementation support should set 
+/// Servers that provide Goto Implementation support should set
 /// the `implementationProvider` server capability.
 ///
 /// - Parameters:

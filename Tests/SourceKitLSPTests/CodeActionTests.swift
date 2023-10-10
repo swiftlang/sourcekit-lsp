@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import LSPTestSupport
+import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
 import XCTest
@@ -48,32 +48,36 @@ final class CodeActionTests: XCTestCase {
     var data: Data
     var response: CodeActionRequestResponse
     capabilityJson =
-    """
-     {
-       "dynamicRegistration": true,
-       "codeActionLiteralSupport" : {
-         "codeActionKind": {
-           "valueSet": []
+      """
+       {
+         "dynamicRegistration": true,
+         "codeActionLiteralSupport" : {
+           "codeActionKind": {
+             "valueSet": []
+           }
          }
        }
-     }
-    """
+      """
     data = capabilityJson.data(using: .utf8)!
-    capabilities = try JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
-                                             from: data)
+    capabilities = try JSONDecoder().decode(
+      TextDocumentClientCapabilities.CodeAction.self,
+      from: data
+    )
     response = .init(codeActions: [codeAction, codeAction2], clientCapabilities: capabilities)
     let actions = try JSONDecoder().decode([CodeAction].self, from: JSONEncoder().encode(response))
     XCTAssertEqual(actions, [codeAction, codeAction2])
 
     capabilityJson =
-    """
-    {
-      "dynamicRegistration": true
-    }
-    """
+      """
+      {
+        "dynamicRegistration": true
+      }
+      """
     data = capabilityJson.data(using: .utf8)!
-    capabilities = try JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
-                                             from: data)
+    capabilities = try JSONDecoder().decode(
+      TextDocumentClientCapabilities.CodeAction.self,
+      from: data
+    )
     response = .init(codeActions: [codeAction, codeAction2], clientCapabilities: capabilities)
     let commands = try JSONDecoder().decode([Command].self, from: JSONEncoder().encode(response))
     XCTAssertEqual(commands, [command])
@@ -95,37 +99,41 @@ final class CodeActionTests: XCTestCase {
     var data: Data
     var response: CodeActionRequestResponse
     capabilityJson =
-    """
-    {
-      "dynamicRegistration": true,
-      "codeActionLiteralSupport" : {
-        "codeActionKind": {
-          "valueSet": ["refactor"]
+      """
+      {
+        "dynamicRegistration": true,
+        "codeActionLiteralSupport" : {
+          "codeActionKind": {
+            "valueSet": ["refactor"]
+          }
         }
       }
-    }
-    """
+      """
     data = capabilityJson.data(using: .utf8)!
-    capabilities = try JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
-                                             from: data)
+    capabilities = try JSONDecoder().decode(
+      TextDocumentClientCapabilities.CodeAction.self,
+      from: data
+    )
 
     response = .init(codeActions: actions, clientCapabilities: capabilities)
     XCTAssertEqual(response, .codeActions([unspecifiedAction, refactorAction, quickfixAction]))
 
     capabilityJson =
-    """
-    {
-      "dynamicRegistration": true,
-      "codeActionLiteralSupport" : {
-        "codeActionKind": {
-          "valueSet": []
+      """
+      {
+        "dynamicRegistration": true,
+        "codeActionLiteralSupport" : {
+          "codeActionKind": {
+            "valueSet": []
+          }
         }
       }
-    }
-    """
+      """
     data = capabilityJson.data(using: .utf8)!
-    capabilities = try JSONDecoder().decode(TextDocumentClientCapabilities.CodeAction.self,
-                                             from: data)
+    capabilities = try JSONDecoder().decode(
+      TextDocumentClientCapabilities.CodeAction.self,
+      from: data
+    )
 
     response = .init(codeActions: actions, clientCapabilities: capabilities)
     XCTAssertEqual(response, .codeActions([unspecifiedAction, refactorAction, quickfixAction]))
@@ -143,25 +151,36 @@ final class CodeActionTests: XCTestCase {
     let command = Command(title: "Title", command: "Command", arguments: [1, "text", 2.2, nil])
     let codeAction = CodeAction(title: "1")
     let codeAction2 = CodeAction(title: "2", command: command)
-    let request = CodeActionRequest(range: Position(line: 0, utf16index: 0)..<Position(line: 1, utf16index: 1),
-                                    context: .init(diagnostics: [], only: nil),
-                                    textDocument: textDocument)
+    let request = CodeActionRequest(
+      range: Position(line: 0, utf16index: 0)..<Position(line: 1, utf16index: 1),
+      context: .init(diagnostics: [], only: nil),
+      textDocument: textDocument
+    )
     var response = request.injectMetadata(toResponse: .commands([command]))
-    XCTAssertEqual(response,
-          .commands([
-            Command(title: command.title,
-                    command: command.command,
-                    arguments: command.arguments! + [expectedMetadata])
-          ])
+    XCTAssertEqual(
+      response,
+      .commands([
+        Command(
+          title: command.title,
+          command: command.command,
+          arguments: command.arguments! + [expectedMetadata]
+        )
+      ])
     )
     response = request.injectMetadata(toResponse: .codeActions([codeAction, codeAction2]))
-    XCTAssertEqual(response,
-          .codeActions([codeAction,
-            CodeAction(title: codeAction2.title,
-                       command: Command(title: command.title,
-                                        command: command.command,
-                                        arguments: command.arguments! + [expectedMetadata]))
-          ])
+    XCTAssertEqual(
+      response,
+      .codeActions([
+        codeAction,
+        CodeAction(
+          title: codeAction2.title,
+          command: Command(
+            title: command.title,
+            command: command.command,
+            arguments: command.arguments! + [expectedMetadata]
+          )
+        ),
+      ])
     )
     response = request.injectMetadata(toResponse: nil)
     XCTAssertNil(response)
@@ -169,7 +188,7 @@ final class CodeActionTests: XCTestCase {
 
   func testCommandEncoding() throws {
     let dictionary: LSPAny = ["1": [nil, 2], "2": "text", "3": ["4": [1, 2]]]
-    let array: LSPAny = [1, [2,"string"], dictionary]
+    let array: LSPAny = [1, [2, "string"], dictionary]
     let arguments: LSPAny = [1, 2.2, "text", nil, array, dictionary]
     let command = Command(title: "Command", command: "command.id", arguments: [arguments, arguments])
     let decoded = try JSONDecoder().decode(Command.self, from: JSONEncoder().encode(command))
@@ -212,15 +231,24 @@ final class CodeActionTests: XCTestCase {
     let request = CodeActionRequest(range: loc.position..<loc.position, context: .init(), textDocument: textDocument)
     let result = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
 
-    let expectedCommandArgs: LSPAny = ["actionString": "source.refactoring.kind.localize.string", "positionRange": ["start": ["character": 43, "line": 1], "end": ["character": 43, "line": 1]], "title": "Localize String", "textDocument": ["uri": .string(loc.url.absoluteString)]]
+    let expectedCommandArgs: LSPAny = [
+      "actionString": "source.refactoring.kind.localize.string",
+      "positionRange": ["start": ["character": 43, "line": 1], "end": ["character": 43, "line": 1]],
+      "title": "Localize String",
+      "textDocument": ["uri": .string(loc.url.absoluteString)],
+    ]
 
     let metadataArguments: LSPAny = ["sourcekitlsp_textDocument": ["uri": .string(loc.url.absoluteString)]]
-    let expectedCommand = Command(title: "Localize String",
-                                  command: "semantic.refactor.command",
-                                  arguments: [expectedCommandArgs] + [metadataArguments])
-    let expectedCodeAction = CodeAction(title: "Localize String",
-                                        kind: .refactor,
-                                        command: expectedCommand)
+    let expectedCommand = Command(
+      title: "Localize String",
+      command: "semantic.refactor.command",
+      arguments: [expectedCommandArgs] + [metadataArguments]
+    )
+    let expectedCodeAction = CodeAction(
+      title: "Localize String",
+      kind: .refactor,
+      command: expectedCommand
+    )
 
     XCTAssertEqual(result, .codeActions([expectedCodeAction]))
   }
@@ -234,17 +262,30 @@ final class CodeActionTests: XCTestCase {
     XCTAssertEqual(rangeStartLoc.url, rangeEndLoc.url)
 
     let textDocument = TextDocumentIdentifier(rangeStartLoc.url)
-    let request = CodeActionRequest(range: rangeStartLoc.position..<rangeEndLoc.position, context: .init(), textDocument: textDocument)
+    let request = CodeActionRequest(
+      range: rangeStartLoc.position..<rangeEndLoc.position,
+      context: .init(),
+      textDocument: textDocument
+    )
     let result = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
 
-    let expectedCommandArgs: LSPAny = ["actionString": "source.refactoring.kind.extract.function", "positionRange": ["start": ["character": 21, "line": 1], "end": ["character": 27, "line": 2]], "title": "Extract Method", "textDocument": ["uri": .string(rangeStartLoc.url.absoluteString)]]
+    let expectedCommandArgs: LSPAny = [
+      "actionString": "source.refactoring.kind.extract.function",
+      "positionRange": ["start": ["character": 21, "line": 1], "end": ["character": 27, "line": 2]],
+      "title": "Extract Method",
+      "textDocument": ["uri": .string(rangeStartLoc.url.absoluteString)],
+    ]
     let metadataArguments: LSPAny = ["sourcekitlsp_textDocument": ["uri": .string(rangeStartLoc.url.absoluteString)]]
-    let expectedCommand = Command(title: "Extract Method",
-                                  command: "semantic.refactor.command",
-                                  arguments: [expectedCommandArgs] + [metadataArguments])
-    let expectedCodeAction = CodeAction(title: "Extract Method",
-                                        kind: .refactor,
-                                        command: expectedCommand)
+    let expectedCommand = Command(
+      title: "Extract Method",
+      command: "semantic.refactor.command",
+      arguments: [expectedCommandArgs] + [metadataArguments]
+    )
+    let expectedCodeAction = CodeAction(
+      title: "Extract Method",
+      kind: .refactor,
+      command: expectedCommand
+    )
 
     XCTAssertEqual(result, .codeActions([expectedCodeAction]))
   }
@@ -260,7 +301,7 @@ final class CodeActionTests: XCTestCase {
     let syntacticDiagnosticsReceived = self.expectation(description: "Syntactic diagnotistics received")
     let semanticDiagnosticsReceived = self.expectation(description: "Semantic diagnotistics received")
 
-    ws.sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+    ws.sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
       // syntactic diagnostics
       XCTAssertEqual(note.params.uri, def.docUri)
       XCTAssertEqual(note.params.diagnostics, [])
@@ -268,7 +309,7 @@ final class CodeActionTests: XCTestCase {
     }
 
     var diags: [Diagnostic]! = nil
-    ws.sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+    ws.sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
       // semantic diagnostics
       XCTAssertEqual(note.params.uri, def.docUri)
       XCTAssertEqual(note.params.diagnostics.count, 1)
@@ -279,7 +320,11 @@ final class CodeActionTests: XCTestCase {
     try await fulfillmentOfOrThrow([syntacticDiagnosticsReceived, semanticDiagnosticsReceived])
 
     let textDocument = TextDocumentIdentifier(def.url)
-    let actionsRequest = CodeActionRequest(range: def.position..<def.position, context: .init(diagnostics: diags), textDocument: textDocument)
+    let actionsRequest = CodeActionRequest(
+      range: def.position..<def.position,
+      context: .init(diagnostics: diags),
+      textDocument: textDocument
+    )
     let actionResult = try ws.sk.sendSync(actionsRequest)
 
     guard case .codeActions(let codeActions) = actionResult else {
@@ -294,13 +339,16 @@ final class CodeActionTests: XCTestCase {
     guard let change = quickFixAction.edit?.changes?[def.docUri]?.spm_only else {
       return XCTFail("Expected exactly one change")
     }
-    XCTAssertEqual(change.newText.trimmingTrailingWhitespace(), """
+    XCTAssertEqual(
+      change.newText.trimmingTrailingWhitespace(),
+      """
 
-        func foo() {
+          func foo() {
 
-        }
+          }
 
-    """)
+      """
+    )
 
     // Check that the refactor action contains snippets
     guard let refactorAction = codeActions.filter({ $0.kind == .refactor }).spm_only else {
@@ -319,13 +367,16 @@ final class CodeActionTests: XCTestCase {
       guard let change = request.params.edit.changes?[def.docUri]?.spm_only else {
         return XCTFail("Expected exactly one edit")
       }
-      XCTAssertEqual(change.newText.trimmingTrailingWhitespace(), """
+      XCTAssertEqual(
+        change.newText.trimmingTrailingWhitespace(),
+        """
 
-          func foo() {
+            func foo() {
 
-          }
+            }
 
-      """)
+        """
+      )
       request.reply(ApplyEditResponse(applied: true, failureReason: nil))
     }
     _ = try ws.sk.sendSync(ExecuteCommandRequest(command: command.command, arguments: command.arguments))

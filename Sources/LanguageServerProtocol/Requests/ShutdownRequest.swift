@@ -20,7 +20,7 @@ public struct ShutdownRequest: RequestType, Hashable {
   public static let method: String = "shutdown"
   public typealias Response = VoidResponse
 
-  public init() { }
+  public init() {}
 }
 
 @available(*, deprecated, renamed: "ShutdownRequest")

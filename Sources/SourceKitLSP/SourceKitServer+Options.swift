@@ -12,8 +12,9 @@
 
 import LanguageServerProtocol
 import SKCore
-import struct TSCBasic.AbsolutePath
 import SKSupport
+
+import struct TSCBasic.AbsolutePath
 
 extension SourceKitServer {
 
@@ -32,7 +33,7 @@ extension SourceKitServer {
 
     /// Options for code-completion.
     public var completionOptions: SKCompletionOptions
-    
+
     /// Override the default directory where generated interfaces will be stored
     public var generatedInterfacesPath: AbsolutePath
 
@@ -41,8 +42,8 @@ extension SourceKitServer {
       clangdOptions: [String] = [],
       indexOptions: IndexOptions = .init(),
       completionOptions: SKCompletionOptions = .init(),
-      generatedInterfacesPath: AbsolutePath = defaultDirectoryForGeneratedInterfaces)
-    {
+      generatedInterfacesPath: AbsolutePath = defaultDirectoryForGeneratedInterfaces
+    ) {
       self.buildSetup = buildSetup
       self.clangdOptions = clangdOptions
       self.indexOptions = indexOptions

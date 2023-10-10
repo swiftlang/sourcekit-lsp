@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
-import LanguageServerProtocol
 import LSPLogging
+import LanguageServerProtocol
 import SKSupport
 
 /// An immutable snapshot of a document at a given time.
@@ -140,7 +140,7 @@ public final class DocumentManager {
   ///   - newVersion: The new version of the document. Must be greater than the
   ///     latest version of the document.
   ///   - edits: The edits to apply to the document
-  ///   - willEditDocument: Optional closure to call before each edit. Will be 
+  ///   - willEditDocument: Optional closure to call before each edit. Will be
   ///     called multiple times if there are multiple edits.
   /// - Returns: The snapshot of the document before the edit and the snapshot
   ///   of the document after the edit.
@@ -162,13 +162,14 @@ public final class DocumentManager {
           willEditDocument(document.latestLineTable, edit)
         }
 
-        if let range = edit.range  {
+        if let range = edit.range {
           document.latestLineTable.replace(
             fromLine: range.lowerBound.line,
             utf16Offset: range.lowerBound.utf16index,
             toLine: range.upperBound.line,
             utf16Offset: range.upperBound.utf16index,
-            with: edit.text)
+            with: edit.text
+          )
         } else {
           // Full text replacement.
           document.latestLineTable = LineTable(edit.text)

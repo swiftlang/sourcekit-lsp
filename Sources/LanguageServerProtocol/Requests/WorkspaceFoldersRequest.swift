@@ -18,6 +18,6 @@
 /// - Returns: The set of currently open workspace folders. Returns nil if only a single file is
 ///   open. Returns an empty array if a workspace is open but no folders are configured.
 public struct WorkspaceFoldersRequest: RequestType, Hashable {
-    public static let method: String = "workspace/workspaceFolders"
-    public typealias Response = [WorkspaceFolder]?
+  public static let method: String = "workspace/workspaceFolders"
+  public typealias Response = [WorkspaceFolder]?
 }

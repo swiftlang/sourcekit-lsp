@@ -12,9 +12,9 @@
 
 import Foundation
 import LanguageServerProtocol
-import XCTest
 import SKCore
 import TSCBasic
+import XCTest
 
 final class CompilationDatabaseTests: XCTestCase {
   func testModifyCompilationDatabase() async throws {
@@ -25,12 +25,18 @@ final class CompilationDatabaseTests: XCTestCase {
 
     // Do a sanity check and verify that we get the expected result from a hover response before modifing the compile commands.
 
-    let highlightRequest = DocumentHighlightRequest(textDocument: loc.docIdentifier, position: Position(line: 9, utf16index: 3))
+    let highlightRequest = DocumentHighlightRequest(
+      textDocument: loc.docIdentifier,
+      position: Position(line: 9, utf16index: 3)
+    )
     let preChangeHighlightResponse = try ws.sk.sendSync(highlightRequest)
-    XCTAssertEqual(preChangeHighlightResponse, [
-      DocumentHighlight(range: Position(line: 3, utf16index: 5)..<Position(line: 3, utf16index: 8), kind: .text),
-      DocumentHighlight(range: Position(line: 9, utf16index: 2)..<Position(line: 9, utf16index: 5), kind: .text)
-    ])
+    XCTAssertEqual(
+      preChangeHighlightResponse,
+      [
+        DocumentHighlight(range: Position(line: 3, utf16index: 5)..<Position(line: 3, utf16index: 8), kind: .text),
+        DocumentHighlight(range: Position(line: 9, utf16index: 2)..<Position(line: 9, utf16index: 5), kind: .text),
+      ]
+    )
 
     // Remove -DFOO from the compile commands.
 
@@ -38,7 +44,8 @@ final class CompilationDatabaseTests: XCTestCase {
 
     _ = try ws.sources.edit({ builder in
       let compilationDatabase = try JSONCompilationDatabase(file: AbsolutePath(validating: compilationDatabaseUrl.path))
-      let newCommands = compilationDatabase.allCommands.map { (command: CompilationDatabaseCompileCommand) -> CompilationDatabaseCompileCommand in
+      let newCommands = compilationDatabase.allCommands.map {
+        (command: CompilationDatabaseCompileCommand) -> CompilationDatabaseCompileCommand in
         var command = command
         command.commandLine.removeAll(where: { $0 == "-DFOO" })
         return command
@@ -49,15 +56,17 @@ final class CompilationDatabaseTests: XCTestCase {
       builder.write(newCompilationDatabaseStr, to: compilationDatabaseUrl)
     })
 
-    ws.sk.send(DidChangeWatchedFilesNotification(changes: [
-      FileEvent(uri: DocumentURI(compilationDatabaseUrl), type: .changed)
-    ]))
+    ws.sk.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: DocumentURI(compilationDatabaseUrl), type: .changed)
+      ])
+    )
 
     // DocumentHighlight should now point to the definition in the `#else` block.
 
     let expectedPostEditHighlight = [
       DocumentHighlight(range: Position(line: 5, utf16index: 5)..<Position(line: 5, utf16index: 8), kind: .text),
-      DocumentHighlight(range: Position(line: 9, utf16index: 2)..<Position(line: 9, utf16index: 5), kind: .text)
+      DocumentHighlight(range: Position(line: 9, utf16index: 2)..<Position(line: 9, utf16index: 5), kind: .text),
     ]
 
     var didReceiveCorrectHighlight = false

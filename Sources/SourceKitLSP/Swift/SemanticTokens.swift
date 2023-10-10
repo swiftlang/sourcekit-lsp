@@ -10,11 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import LSPLogging
-import SwiftSyntax
+import LanguageServerProtocol
 import SwiftIDEUtils
 import SwiftParser
+import SwiftSyntax
 
 extension SwiftLanguageServer {
   /// Computes an array of syntax highlighting tokens from the syntax tree that
@@ -31,16 +31,20 @@ extension SwiftLanguageServer {
   ) async -> [SyntaxHighlightingToken] {
     let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
     let semanticTokens = await semanticTokensManager.semanticTokens(for: snapshot.id)
-    let range = range.flatMap({ $0.byteSourceRange(in: snapshot) })
-             ?? ByteSourceRange(offset: 0, length: tree.totalLength.utf8Length)
-    return tree
+    let range =
+      range.flatMap({ $0.byteSourceRange(in: snapshot) })
+      ?? ByteSourceRange(offset: 0, length: tree.totalLength.utf8Length)
+    return
+      tree
       .classifications(in: range)
       .flatMap({ $0.highlightingTokens(in: snapshot) })
       .mergingTokens(with: semanticTokens ?? [])
       .sorted { $0.start < $1.start }
   }
 
-  public func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse? {
+  public func documentSemanticTokens(
+    _ req: DocumentSemanticTokensRequest
+  ) async throws -> DocumentSemanticTokensResponse? {
     let uri = req.textDocument.uri
 
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
@@ -54,11 +58,15 @@ extension SwiftLanguageServer {
     return DocumentSemanticTokensResponse(data: encodedTokens)
   }
 
-  public func documentSemanticTokensDelta(_ req: DocumentSemanticTokensDeltaRequest) async throws -> DocumentSemanticTokensDeltaResponse? {
+  public func documentSemanticTokensDelta(
+    _ req: DocumentSemanticTokensDeltaRequest
+  ) async throws -> DocumentSemanticTokensDeltaResponse? {
     return nil
   }
 
-  public func documentSemanticTokensRange(_ req: DocumentSemanticTokensRangeRequest) async throws -> DocumentSemanticTokensResponse? {
+  public func documentSemanticTokensRange(
+    _ req: DocumentSemanticTokensRangeRequest
+  ) async throws -> DocumentSemanticTokensResponse? {
     let uri = req.textDocument.uri
     let range = req.range
 

@@ -35,10 +35,15 @@ struct CursorInfo {
   /// The refactor actions available at this position.
   var refactorActions: [SemanticRefactorCommand]? = nil
 
-  init(_ symbolInfo: SymbolDetails, annotatedDeclaration: String?, documentationXML: String?, refactorActions: [SemanticRefactorCommand]? = nil) {
+  init(
+    _ symbolInfo: SymbolDetails,
+    annotatedDeclaration: String?,
+    documentationXML: String?,
+    refactorActions: [SemanticRefactorCommand]? = nil
+  ) {
     self.symbolInfo = symbolInfo
     self.annotatedDeclaration = annotatedDeclaration
-    self.documentationXML =  documentationXML
+    self.documentationXML = documentationXML
     self.refactorActions = refactorActions
   }
 }
@@ -86,8 +91,8 @@ extension SwiftLanguageServer {
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil
   ) async throws -> CursorInfo? {
     guard let snapshot = documentManager.latestSnapshot(uri) else {
-       throw CursorInfoError.unknownDocument(uri)
-     }
+      throw CursorInfoError.unknownDocument(uri)
+    }
 
     guard let offsetRange = snapshot.utf8OffsetRange(of: range) else {
       throw CursorInfoError.invalidRange(range)
@@ -119,8 +124,8 @@ extension SwiftLanguageServer {
 
     var location: Location? = nil
     if let filepath: String = dict[keys.filepath],
-       let offset: Int = dict[keys.offset],
-       let pos = snapshot.positionOf(utf8Offset: offset)
+      let offset: Int = dict[keys.offset],
+      let pos = snapshot.positionOf(utf8Offset: offset)
     {
       location = Location(uri: DocumentURI(URL(fileURLWithPath: filepath)), range: Range(pos))
     }

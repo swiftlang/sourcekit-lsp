@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import LSPTestSupport
+import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
 import XCTest
@@ -32,42 +32,57 @@ final class DocumentColorTests: XCTestCase {
     connection = TestSourceKitServer()
     sk = connection.client
     let documentCapabilities = TextDocumentClientCapabilities()
-    _ = try sk.sendSync(InitializeRequest(
-      processId: nil,
-      rootPath: nil,
-      rootURI: nil,
-      initializationOptions: nil,
-      capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
-      trace: .off,
-      workspaceFolders: nil))
+    _ = try sk.sendSync(
+      InitializeRequest(
+        processId: nil,
+        rootPath: nil,
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
+        trace: .off,
+        workspaceFolders: nil
+      )
+    )
   }
 
   func performDocumentColorRequest(text: String) throws -> [ColorInformation] {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
 
-    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: DocumentURI(url),
-      language: .swift,
-      version: 12,
-      text: text)))
+    sk.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: DocumentURI(url),
+          language: .swift,
+          version: 12,
+          text: text
+        )
+      )
+    )
 
     let request = DocumentColorRequest(textDocument: TextDocumentIdentifier(url))
     return try sk.sendSync(request)
   }
 
-  func performColorPresentationRequest(text: String, color: Color, range: Range<Position>) throws -> [ColorPresentation] {
+  func performColorPresentationRequest(text: String, color: Color, range: Range<Position>) throws -> [ColorPresentation]
+  {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
 
-    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: DocumentURI(url),
-      language: .swift,
-      version: 12,
-      text: text)))
+    sk.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: DocumentURI(url),
+          language: .swift,
+          version: 12,
+          text: text
+        )
+      )
+    )
 
     let request = ColorPresentationRequest(
-      textDocument: TextDocumentIdentifier(url), 
-      color: color, 
-      range: range)
+      textDocument: TextDocumentIdentifier(url),
+      color: color,
+      range: range
+    )
     return try sk.sendSync(request)
   }
 
@@ -80,57 +95,66 @@ final class DocumentColorTests: XCTestCase {
   func testSimple() throws {
     try initialize()
     let text = #"""
-    #colorLiteral(red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4)
-    """#
+      #colorLiteral(red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4)
+      """#
     let colors = try performDocumentColorRequest(text: text)
 
-    XCTAssertEqual(colors, [
-      ColorInformation(
-        range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 58), 
-        color: Color(red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4))
-    ])
+    XCTAssertEqual(
+      colors,
+      [
+        ColorInformation(
+          range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 58),
+          color: Color(red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4)
+        )
+      ]
+    )
   }
 
   func testWeirdWhitespace() throws {
     try initialize()
     let text = #"""
-      let x = #colorLiteral(red:0.5,green:0.5,blue:0.5,alpha:0.5)
-      let y = #colorLiteral(
-      red
-      :
-      000000000000000000.5
-      ,
-      green
-      :
-    0.5
+        let x = #colorLiteral(red:0.5,green:0.5,blue:0.5,alpha:0.5)
+        let y = #colorLiteral(
+        red
+        :
+        000000000000000000.5
         ,
-            blue
-        
-        :       \#t0.5,       alpha:0.5   
-        )
-    """#
+        green
+        :
+      0.5
+          ,
+              blue
+          
+          :       \#t0.5,       alpha:0.5   
+          )
+      """#
     let colors = try performDocumentColorRequest(text: text)
 
-    XCTAssertEqual(colors, [
-      ColorInformation(
-        range: Position(line: 0, utf16index: 10)..<Position(line: 0, utf16index: 61), 
-        color: Color(red: 0.5, green: 0.5, blue: 0.5, alpha: 0.5)),
-      ColorInformation(
-        range: Position(line: 1, utf16index: 10)..<Position(line: 13, utf16index: 5), 
-        color: Color(red: 0.5, green: 0.5, blue: 0.5, alpha: 0.5)),
-    ])
+    XCTAssertEqual(
+      colors,
+      [
+        ColorInformation(
+          range: Position(line: 0, utf16index: 10)..<Position(line: 0, utf16index: 61),
+          color: Color(red: 0.5, green: 0.5, blue: 0.5, alpha: 0.5)
+        ),
+        ColorInformation(
+          range: Position(line: 1, utf16index: 10)..<Position(line: 13, utf16index: 5),
+          color: Color(red: 0.5, green: 0.5, blue: 0.5, alpha: 0.5)
+        ),
+      ]
+    )
   }
 
   func testPresentation() throws {
     try initialize()
     let text = """
-    let x = #colorLiteral(red: 0.5, green: 0.5, blue: 0.5, alpha: 0.5);
-    """
+      let x = #colorLiteral(red: 0.5, green: 0.5, blue: 0.5, alpha: 0.5);
+      """
     let color = Color(red: 0, green: 1, blue: 4 - .pi, alpha: 0.3)
     let range = Position(line: 0, utf16index: 8)..<Position(line: 0, utf16index: 58)
     let newText = """
-    #colorLiteral(red: \(color.red), green: \(color.green), blue: \(color.blue), alpha: \(color.alpha))
-    """
+      #colorLiteral(red: \(color.red), green: \(color.green), blue: \(color.blue), alpha: \(color.alpha))
+      """
     let presentations = try performColorPresentationRequest(text: text, color: color, range: range)
     XCTAssertEqual(presentations.count, 1)
     let presentation = presentations[0]

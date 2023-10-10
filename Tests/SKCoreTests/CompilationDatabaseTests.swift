@@ -10,15 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import LSPTestSupport
+import LanguageServerProtocol
 import SKCore
 import TSCBasic
 import XCTest
 
 final class CompilationDatabaseTests: XCTestCase {
   func testSplitShellEscapedCommand() {
-    func check(_ str: String, _ expected: [String], file: StaticString=#filePath, line: UInt=#line) {
+    func check(_ str: String, _ expected: [String], file: StaticString = #filePath, line: UInt = #line) {
       XCTAssertEqual(splitShellEscapedCommand(str), expected, file: file, line: line)
     }
 
@@ -60,28 +60,45 @@ final class CompilationDatabaseTests: XCTestCase {
 
   func testEncodeCompDBCommand() throws {
     // Requires JSONEncoder.OutputFormatting.sortedKeys
-    func check(_ cmd: CompilationDatabase.Command, _ expected: String, file: StaticString = #filePath, line: UInt = #line) throws {
+    func check(
+      _ cmd: CompilationDatabase.Command,
+      _ expected: String,
+      file: StaticString = #filePath,
+      line: UInt = #line
+    ) throws {
       let encoder = JSONEncoder()
       encoder.outputFormatting.insert(.sortedKeys)
       let encodedString = try String(data: encoder.encode(cmd), encoding: .utf8)
       XCTAssertEqual(encodedString, expected, file: file, line: line)
     }
 
-    try check(.init(directory: "a", filename: "b", commandLine: [], output: "c"), """
+    try check(
+      .init(directory: "a", filename: "b", commandLine: [], output: "c"),
+      """
       {"arguments":[],"directory":"a","file":"b","output":"c"}
-      """)
-    try check(.init(directory: "a", filename: "b", commandLine: ["c", "d"], output: nil), """
+      """
+    )
+    try check(
+      .init(directory: "a", filename: "b", commandLine: ["c", "d"], output: nil),
+      """
       {"arguments":["c","d"],"directory":"a","file":"b"}
-      """)
+      """
+    )
   }
 
   func testDecodeCompDBCommand() throws {
-    func check(_ str: String, _ expected: CompilationDatabase.Command, file: StaticString = #filePath, line: UInt = #line) throws {
+    func check(
+      _ str: String,
+      _ expected: CompilationDatabase.Command,
+      file: StaticString = #filePath,
+      line: UInt = #line
+    ) throws {
       let cmd = try JSONDecoder().decode(CompilationDatabase.Command.self, from: str.data(using: .utf8)!)
       XCTAssertEqual(cmd, expected, file: file, line: line)
     }
 
-    try check("""
+    try check(
+      """
       {
         "arguments" : [
 
@@ -90,8 +107,11 @@ final class CompilationDatabaseTests: XCTestCase {
         "file" : "b",
         "output" : "c"
       }
-      """, .init(directory: "a", filename: "b", commandLine: [], output: "c"))
-    try check("""
+      """,
+      .init(directory: "a", filename: "b", commandLine: [], output: "c")
+    )
+    try check(
+      """
       {
         "arguments" : [
           "c",
@@ -100,15 +120,19 @@ final class CompilationDatabaseTests: XCTestCase {
         "directory" : "a",
         "file" : "b"
       }
-      """, .init(directory: "a", filename: "b", commandLine: ["c", "d"], output: nil))
+      """,
+      .init(directory: "a", filename: "b", commandLine: ["c", "d"], output: nil)
+    )
 
-    try check("""
+    try check(
+      """
       {
         "directory":"a",
         "file":"b.cpp",
         "command": "/usr/bin/clang++ -std=c++11 -DFOO b.cpp"
       }
-      """, .init(
+      """,
+      .init(
         directory: "a",
         filename: "b.cpp",
         commandLine: [
@@ -118,41 +142,53 @@ final class CompilationDatabaseTests: XCTestCase {
           "b.cpp",
         ],
         output: nil
-    ))
+      )
+    )
 
-    XCTAssertThrowsError(try JSONDecoder().decode(CompilationDatabase.Command.self, from: """
-      {"directory":"a","file":"b"}
-    """.data(using: .utf8)!))
+    XCTAssertThrowsError(
+      try JSONDecoder().decode(
+        CompilationDatabase.Command.self,
+        from: """
+            {"directory":"a","file":"b"}
+          """.data(using: .utf8)!
+      )
+    )
   }
 
   func testJSONCompilationDatabaseCoding() {
-    checkCoding(JSONCompilationDatabase([]), json: """
-      [
+    checkCoding(
+      JSONCompilationDatabase([]),
+      json: """
+        [
 
-      ]
-      """)
+        ]
+        """
+    )
     let db = JSONCompilationDatabase([
       .init(directory: "a", filename: "b", commandLine: [], output: nil),
       .init(directory: "c", filename: "b", commandLine: [], output: nil),
-      ])
-    checkCoding(db, json: """
-      [
-        {
-          "arguments" : [
+    ])
+    checkCoding(
+      db,
+      json: """
+        [
+          {
+            "arguments" : [
 
-          ],
-          "directory" : "a",
-          "file" : "b"
-        },
-        {
-          "arguments" : [
+            ],
+            "directory" : "a",
+            "file" : "b"
+          },
+          {
+            "arguments" : [
 
-          ],
-          "directory" : "c",
-          "file" : "b"
-        }
-      ]
-      """)
+            ],
+            "directory" : "c",
+            "file" : "b"
+          }
+        ]
+        """
+    )
   }
 
   func testJSONCompilationDatabaseLookup() {
@@ -172,15 +208,18 @@ final class CompilationDatabaseTests: XCTestCase {
     try fs.createDirectory(AbsolutePath(validating: "/a"))
     XCTAssertNil(tryLoadCompilationDatabase(directory: try AbsolutePath(validating: "/a"), fs))
 
-    try fs.writeFileContents(AbsolutePath(validating: "/a/compile_commands.json"), bytes: """
-      [
-        {
-          "file": "/a/a.swift",
-          "directory": "/a",
-          "arguments": ["swiftc", "/a/a.swift"]
-        }
-      ]
-      """)
+    try fs.writeFileContents(
+      AbsolutePath(validating: "/a/compile_commands.json"),
+      bytes: """
+        [
+          {
+            "file": "/a/a.swift",
+            "directory": "/a",
+            "arguments": ["swiftc", "/a/a.swift"]
+          }
+        ]
+        """
+    )
 
     XCTAssertNotNil(tryLoadCompilationDatabase(directory: try AbsolutePath(validating: "/a"), fs))
   }
@@ -190,34 +229,47 @@ final class CompilationDatabaseTests: XCTestCase {
     try fs.createDirectory(try AbsolutePath(validating: "/a"))
     XCTAssertNil(tryLoadCompilationDatabase(directory: try AbsolutePath(validating: "/a"), fs))
 
-    try fs.writeFileContents(try AbsolutePath(validating: "/a/compile_flags.txt"), bytes: """
-      -xc++
-      -I
-      libwidget/include/
-      """)
+    try fs.writeFileContents(
+      try AbsolutePath(validating: "/a/compile_flags.txt"),
+      bytes: """
+        -xc++
+        -I
+        libwidget/include/
+        """
+    )
 
     let db = tryLoadCompilationDatabase(directory: try AbsolutePath(validating: "/a"), fs)
     XCTAssertNotNil(db)
 
-    XCTAssertEqual(db![URL(fileURLWithPath: "/a/b")], [
-      CompilationDatabase.Command(directory: try AbsolutePath(validating: "/a").pathString,
-                                  filename: "/a/b",
-                                  commandLine: ["clang", "-xc++", "-I", "libwidget/include/", "/a/b"],
-                                  output: nil)
-    ])
+    XCTAssertEqual(
+      db![URL(fileURLWithPath: "/a/b")],
+      [
+        CompilationDatabase.Command(
+          directory: try AbsolutePath(validating: "/a").pathString,
+          filename: "/a/b",
+          commandLine: ["clang", "-xc++", "-I", "libwidget/include/", "/a/b"],
+          output: nil
+        )
+      ]
+    )
   }
 
   func testCompilationDatabaseBuildSystem() async throws {
-    try await checkCompilationDatabaseBuildSystem("""
-    [
-      {
-        "file": "/a/a.swift",
-        "directory": "/a",
-        "arguments": ["swiftc", "-swift-version", "4", "/a/a.swift"]
-      }
-    ]
-    """) { buildSystem in
-      let settings = await buildSystem.buildSettings(for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")), language: .swift)
+    try await checkCompilationDatabaseBuildSystem(
+      """
+      [
+        {
+          "file": "/a/a.swift",
+          "directory": "/a",
+          "arguments": ["swiftc", "-swift-version", "4", "/a/a.swift"]
+        }
+      ]
+      """
+    ) { buildSystem in
+      let settings = await buildSystem.buildSettings(
+        for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")),
+        language: .swift
+      )
       XCTAssertNotNil(settings)
       XCTAssertEqual(settings?.workingDirectory, "/a")
       XCTAssertEqual(settings?.compilerArguments, ["-swift-version", "4", "/a/a.swift"])
@@ -233,99 +285,112 @@ final class CompilationDatabaseTests: XCTestCase {
   }
 
   func testCompilationDatabaseBuildSystemIndexStoreSwift1() async throws {
-    try await checkCompilationDatabaseBuildSystem("""
-    [
-      {
-        "file": "/a/a.swift",
-        "directory": "/a",
-        "arguments": ["swiftc", "-swift-version", "4", "/a/a.swift", "-index-store-path", "/b"]
-      }
-    ]
-    """) { buildSystem in
+    try await checkCompilationDatabaseBuildSystem(
+      """
+      [
+        {
+          "file": "/a/a.swift",
+          "directory": "/a",
+          "arguments": ["swiftc", "-swift-version", "4", "/a/a.swift", "-index-store-path", "/b"]
+        }
+      ]
+      """
+    ) { buildSystem in
       assertEqual(URL(fileURLWithPath: await buildSystem.indexStorePath?.pathString ?? "").path, "/b")
       assertEqual(URL(fileURLWithPath: await buildSystem.indexDatabasePath?.pathString ?? "").path, "/IndexDatabase")
     }
   }
 
   func testCompilationDatabaseBuildSystemIndexStoreSwift2() async throws {
-    try await checkCompilationDatabaseBuildSystem("""
-    [
-      {
-        "file": "/a/a.swift",
-        "directory": "/a",
-        "arguments": ["swiftc", "-swift-version", "4", "/a/a.swift"]
-      },
-      {
-        "file": "/a/b.swift",
-        "directory": "/a",
-        "arguments": ["swiftc", "-swift-version", "4", "/a/b.swift"]
-      },
-      {
-        "file": "/a/c.swift",
-        "directory": "/a",
-        "arguments": ["swiftc", "-swift-version", "4", "/a/c.swift", "-index-store-path", "/b"]
-      }
-    ]
-    """) { buildSystem in
+    try await checkCompilationDatabaseBuildSystem(
+      """
+      [
+        {
+          "file": "/a/a.swift",
+          "directory": "/a",
+          "arguments": ["swiftc", "-swift-version", "4", "/a/a.swift"]
+        },
+        {
+          "file": "/a/b.swift",
+          "directory": "/a",
+          "arguments": ["swiftc", "-swift-version", "4", "/a/b.swift"]
+        },
+        {
+          "file": "/a/c.swift",
+          "directory": "/a",
+          "arguments": ["swiftc", "-swift-version", "4", "/a/c.swift", "-index-store-path", "/b"]
+        }
+      ]
+      """
+    ) { buildSystem in
       await assertEqual(buildSystem.indexStorePath, try AbsolutePath(validating: "/b"))
     }
   }
 
   func testCompilationDatabaseBuildSystemIndexStoreSwift3() async throws {
-    try await checkCompilationDatabaseBuildSystem("""
-    [
-      {
-        "file": "/a/a.swift",
-        "directory": "/a",
-        "arguments": ["swiftc", "-index-store-path", "/b", "-swift-version", "4", "/a/a.swift"]
-      }
-    ]
-    """) { buildSystem in
+    try await checkCompilationDatabaseBuildSystem(
+      """
+      [
+        {
+          "file": "/a/a.swift",
+          "directory": "/a",
+          "arguments": ["swiftc", "-index-store-path", "/b", "-swift-version", "4", "/a/a.swift"]
+        }
+      ]
+      """
+    ) { buildSystem in
       assertEqual(await buildSystem.indexStorePath, try AbsolutePath(validating: "/b"))
     }
   }
 
   func testCompilationDatabaseBuildSystemIndexStoreSwift4() async throws {
-    try await checkCompilationDatabaseBuildSystem("""
-    [
-      {
-        "file": "/a/a.swift",
-        "directory": "/a",
-        "arguments": ["swiftc", "-swift-version", "4", "/a/c.swift", "-index-store-path"]
-      }
-    ]
-    """) { buildSystem in
+    try await checkCompilationDatabaseBuildSystem(
+      """
+      [
+        {
+          "file": "/a/a.swift",
+          "directory": "/a",
+          "arguments": ["swiftc", "-swift-version", "4", "/a/c.swift", "-index-store-path"]
+        }
+      ]
+      """
+    ) { buildSystem in
       assertNil(await buildSystem.indexStorePath)
     }
   }
 
   func testCompilationDatabaseBuildSystemIndexStoreClang() async throws {
-    try await checkCompilationDatabaseBuildSystem("""
-    [
-      {
-        "file": "/a/a.cpp",
-        "directory": "/a",
-        "arguments": ["clang", "/a/a.cpp"]
-      },
-      {
-        "file": "/a/b.cpp",
-        "directory": "/a",
-        "arguments": ["clang", "/a/b.cpp"]
-      },
-      {
-        "file": "/a/c.cpp",
-        "directory": "/a",
-        "arguments": ["clang", "/a/c.cpp", "-index-store-path", "/b"]
-      }
-    ]
-    """) { buildSystem in
+    try await checkCompilationDatabaseBuildSystem(
+      """
+      [
+        {
+          "file": "/a/a.cpp",
+          "directory": "/a",
+          "arguments": ["clang", "/a/a.cpp"]
+        },
+        {
+          "file": "/a/b.cpp",
+          "directory": "/a",
+          "arguments": ["clang", "/a/b.cpp"]
+        },
+        {
+          "file": "/a/c.cpp",
+          "directory": "/a",
+          "arguments": ["clang", "/a/c.cpp", "-index-store-path", "/b"]
+        }
+      ]
+      """
+    ) { buildSystem in
       assertEqual(URL(fileURLWithPath: await buildSystem.indexStorePath?.pathString ?? "").path, "/b")
       assertEqual(URL(fileURLWithPath: await buildSystem.indexDatabasePath?.pathString ?? "").path, "/IndexDatabase")
     }
   }
 }
 
-private func checkCompilationDatabaseBuildSystem(_ compdb: ByteString, block: (CompilationDatabaseBuildSystem) async throws -> ()) async throws {
+private func checkCompilationDatabaseBuildSystem(
+  _ compdb: ByteString,
+  block: (CompilationDatabaseBuildSystem) async throws -> ()
+) async throws {
   let fs = InMemoryFileSystem()
   try fs.createDirectory(AbsolutePath(validating: "/a"))
   try fs.writeFileContents(AbsolutePath(validating: "/a/compile_commands.json"), bytes: compdb)

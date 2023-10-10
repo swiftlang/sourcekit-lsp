@@ -42,8 +42,8 @@ public struct CompletionRequest: TextDocumentRequest, Hashable {
     textDocument: TextDocumentIdentifier,
     position: Position,
     context: CompletionContext? = nil,
-    sourcekitlspOptions: SKCompletionOptions? = nil)
-  {
+    sourcekitlspOptions: SKCompletionOptions? = nil
+  ) {
     self.textDocument = textDocument
     self.position = position
     self.context = context
@@ -108,7 +108,10 @@ public struct CompletionList: ResponseType, Hashable {
       } else if let insertReplaceRange = try? InsertReplaceRanges(from: decoder) {
         self = .insertReplaceRanges(insertReplaceRange)
       } else {
-        let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected Range or InsertReplaceRanges")
+        let context = DecodingError.Context(
+          codingPath: decoder.codingPath,
+          debugDescription: "Expected Range or InsertReplaceRanges"
+        )
         throw DecodingError.dataCorrupted(context)
       }
     }
@@ -139,7 +142,13 @@ public struct CompletionList: ResponseType, Hashable {
     /// A default data value.
     public var data: LSPAny?
 
-    public init(commitCharacters: [String]? = nil, editRange: ItemDefaultsEditRange? = nil, insertTextFormat: InsertTextFormat? = nil, insertTextMode: InsertTextMode? = nil, data: LSPAny? = nil) {
+    public init(
+      commitCharacters: [String]? = nil,
+      editRange: ItemDefaultsEditRange? = nil,
+      insertTextFormat: InsertTextFormat? = nil,
+      insertTextMode: InsertTextMode? = nil,
+      data: LSPAny? = nil
+    ) {
       self.commitCharacters = commitCharacters
       self.editRange = editRange
       self.insertTextFormat = insertTextFormat
@@ -147,7 +156,6 @@ public struct CompletionList: ResponseType, Hashable {
       self.data = data
     }
   }
-
 
   /// Whether the list of completions is "complete" or not.
   ///
@@ -192,7 +200,10 @@ public struct CompletionList: ResponseType, Hashable {
       return
     } catch {}
 
-    let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected CompletionList or [CompletionItem]")
+    let context = DecodingError.Context(
+      codingPath: decoder.codingPath,
+      debugDescription: "Expected CompletionList or [CompletionItem]"
+    )
     throw DecodingError.dataCorrupted(context)
   }
 }

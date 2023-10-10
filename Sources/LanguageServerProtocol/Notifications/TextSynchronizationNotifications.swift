@@ -96,8 +96,8 @@ public struct DidChangeTextDocumentNotification: NotificationType, Hashable {
   public init(
     textDocument: VersionedTextDocumentIdentifier,
     contentChanges: [TextDocumentContentChangeEvent],
-    forceRebuild: Bool? = nil)
-  {
+    forceRebuild: Bool? = nil
+  ) {
     self.textDocument = textDocument
     self.contentChanges = contentChanges
     self.forceRebuild = forceRebuild
@@ -165,7 +165,7 @@ public struct DidOpenNotebookDocumentNotification: NotificationType, Hashable {
 /// The change notification is sent from the client to the server when a notebook document changes. It is only sent by a client if the server requested the synchronization mode `notebook` in its `notebookDocumentSync` capability.
 public struct DidChangeNotebookDocumentNotification: NotificationType, Hashable {
   public static var method: String = "notebookDocument/didChange"
-  
+
   /// The notebook document that did change. The version number points
   /// to the version after all provided changes have been applied.
   public var notebookDocument: VersionedNotebookDocumentIdentifier

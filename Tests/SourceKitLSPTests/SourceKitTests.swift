@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import ISDBTestSupport
-import LanguageServerProtocol
 import LSPTestSupport
+import LanguageServerProtocol
 import SKCore
 import SKTestSupport
 import TSCBasic
@@ -22,56 +22,62 @@ public typealias URL = Foundation.URL
 
 final class SKTests: XCTestCase {
 
-    func testInitLocal() throws {
-      let c = TestSourceKitServer()
-      defer { withExtendedLifetime(c) {} } // Keep connection alive for callbacks.
+  func testInitLocal() throws {
+    let c = TestSourceKitServer()
+    defer { withExtendedLifetime(c) {} }  // Keep connection alive for callbacks.
 
-      let sk = c.client
+    let sk = c.client
 
-      let initResult = try sk.sendSync(InitializeRequest(
+    let initResult = try sk.sendSync(
+      InitializeRequest(
         processId: nil,
         rootPath: nil,
         rootURI: nil,
         initializationOptions: nil,
         capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
-        workspaceFolders: nil))
+        workspaceFolders: nil
+      )
+    )
 
-      guard case .options(let syncOptions) = initResult.capabilities.textDocumentSync else {
-        XCTFail("Unexpected textDocumentSync property")
-        return
-      }
-      XCTAssertEqual(syncOptions.openClose, true)
-      XCTAssertNotNil(initResult.capabilities.completionProvider)
+    guard case .options(let syncOptions) = initResult.capabilities.textDocumentSync else {
+      XCTFail("Unexpected textDocumentSync property")
+      return
     }
+    XCTAssertEqual(syncOptions.openClose, true)
+    XCTAssertNotNil(initResult.capabilities.completionProvider)
+  }
 
-    func testInitJSON() throws {
-      let c = TestSourceKitServer(connectionKind: .jsonrpc)
-      defer { withExtendedLifetime(c) {} } // Keep connection alive for callbacks.
+  func testInitJSON() throws {
+    let c = TestSourceKitServer(connectionKind: .jsonrpc)
+    defer { withExtendedLifetime(c) {} }  // Keep connection alive for callbacks.
 
-      let sk = c.client
+    let sk = c.client
 
-      let initResult = try sk.sendSync(InitializeRequest(
+    let initResult = try sk.sendSync(
+      InitializeRequest(
         processId: nil,
         rootPath: nil,
         rootURI: nil,
         initializationOptions: nil,
         capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
         trace: .off,
-        workspaceFolders: nil))
+        workspaceFolders: nil
+      )
+    )
 
-      guard case .options(let syncOptions) = initResult.capabilities.textDocumentSync else {
-        XCTFail("Unexpected textDocumentSync property")
-        return
-      }
-      XCTAssertEqual(syncOptions.openClose, true)
-      XCTAssertNotNil(initResult.capabilities.completionProvider)
+    guard case .options(let syncOptions) = initResult.capabilities.textDocumentSync else {
+      XCTFail("Unexpected textDocumentSync property")
+      return
     }
+    XCTAssertEqual(syncOptions.openClose, true)
+    XCTAssertNotNil(initResult.capabilities.completionProvider)
+  }
 
   func testIndexSwiftModules() async throws {
     guard let ws = try await staticSourceKitTibsWorkspace(name: "SwiftModules") else { return }
     try ws.buildAndIndex()
-    defer { withExtendedLifetime(ws) {} } // Keep workspace alive for callbacks.
+    defer { withExtendedLifetime(ws) {} }  // Keep workspace alive for callbacks.
 
     let locDef = ws.testLoc("aaa:def")
     let locRef = ws.testLoc("aaa:call:c")
@@ -81,9 +87,12 @@ final class SKTests: XCTestCase {
 
     // MARK: Jump to definition
 
-    let response = try ws.sk.sendSync(DefinitionRequest(
-      textDocument: locRef.docIdentifier,
-      position: locRef.position))
+    let response = try ws.sk.sendSync(
+      DefinitionRequest(
+        textDocument: locRef.docIdentifier,
+        position: locRef.position
+      )
+    )
     guard case .locations(let jump) = response else {
       XCTFail("Response is not locations")
       return
@@ -95,31 +104,62 @@ final class SKTests: XCTestCase {
 
     // MARK: Find references
 
-    let refs = try ws.sk.sendSync(ReferencesRequest(
-      textDocument: locDef.docIdentifier,
-      position: locDef.position,
-      context: ReferencesContext(includeDeclaration: true)))
+    let refs = try ws.sk.sendSync(
+      ReferencesRequest(
+        textDocument: locDef.docIdentifier,
+        position: locDef.position,
+        context: ReferencesContext(includeDeclaration: true)
+      )
+    )
 
     let call = ws.testLoc("aaa:call")
-    XCTAssertEqual(Set(refs), [
-      Location(TestLocation(url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: locDef.url.path)).pathString), line: locDef.line, utf8Column: locDef.utf8Column, utf16Column: locDef.utf16Column)),
-      Location(TestLocation(url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: locRef.url.path)).pathString), line: locRef.line, utf8Column: locRef.utf8Column, utf16Column: locRef.utf16Column)),
-      Location(TestLocation(url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: call.url.path)).pathString), line: call.line, utf8Column: call.utf8Column, utf16Column: call.utf16Column)),
-    ])
+    XCTAssertEqual(
+      Set(refs),
+      [
+        Location(
+          TestLocation(
+            url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: locDef.url.path)).pathString),
+            line: locDef.line,
+            utf8Column: locDef.utf8Column,
+            utf16Column: locDef.utf16Column
+          )
+        ),
+        Location(
+          TestLocation(
+            url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: locRef.url.path)).pathString),
+            line: locRef.line,
+            utf8Column: locRef.utf8Column,
+            utf16Column: locRef.utf16Column
+          )
+        ),
+        Location(
+          TestLocation(
+            url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: call.url.path)).pathString),
+            line: call.line,
+            utf8Column: call.utf8Column,
+            utf16Column: call.utf16Column
+          )
+        ),
+      ]
+    )
   }
 
   func testIndexShutdown() async throws {
 
     let tmpDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-        .appendingPathComponent("sk-test-data/\(testDirectoryName)", isDirectory: true)
+      .appendingPathComponent("sk-test-data/\(testDirectoryName)", isDirectory: true)
 
     func listdir(_ url: URL) throws -> [URL] {
       try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
     }
 
     func checkRunningIndex(build: Bool) async throws -> URL? {
-      guard let ws = try await staticSourceKitTibsWorkspace(
-        name: "SwiftModules", tmpDir: tmpDir, removeTmpDir: false)
+      guard
+        let ws = try await staticSourceKitTibsWorkspace(
+          name: "SwiftModules",
+          tmpDir: tmpDir,
+          removeTmpDir: false
+        )
       else {
         return nil
       }
@@ -131,9 +171,12 @@ final class SKTests: XCTestCase {
       let locDef = ws.testLoc("aaa:def")
       let locRef = ws.testLoc("aaa:call:c")
       try ws.openDocument(locRef.url, language: .swift)
-      let response = try ws.sk.sendSync(DefinitionRequest(
-        textDocument: locRef.docIdentifier,
-        position: locRef.position))
+      let response = try ws.sk.sendSync(
+        DefinitionRequest(
+          textDocument: locRef.docIdentifier,
+          position: locRef.position
+        )
+      )
       guard case .locations(let jump) = response else {
         XCTFail("Response is not locations")
         return nil
@@ -174,35 +217,51 @@ final class SKTests: XCTestCase {
     let loc = ws.testLoc("cc:A")
     try ws.openDocument(loc.url, language: .swift)
 
-    let results = try withExtendedLifetime(ws) { try ws.sk.sendSync(
-      CompletionRequest(textDocument: loc.docIdentifier, position: loc.position))
+    let results = try withExtendedLifetime(ws) {
+      try ws.sk.sendSync(
+        CompletionRequest(textDocument: loc.docIdentifier, position: loc.position)
+      )
     }
 
-    XCTAssertEqual(results.items, [
-      CompletionItem(
-        label: "method(a: Int)",
-        kind: .method,
-        detail: "Void",
-        deprecated: false, sortText: nil,
-        filterText: "method(a:)",
-        insertText: "method(a: )",
-        insertTextFormat: .plain,
-        textEdit: .textEdit(TextEdit(range: Position(line: 1, utf16index: 14)..<Position(line: 1, utf16index: 14), newText: "method(a: )"))),
-      CompletionItem(
-        label: "self",
-        kind: .keyword,
-        detail: "A",
-        deprecated: false, sortText: nil,
-        filterText: "self",
-        insertText: "self",
-        insertTextFormat: .plain,
-        textEdit: .textEdit(TextEdit(range: Position(line: 1, utf16index: 14)..<Position(line: 1, utf16index: 14), newText: "self"))),
-    ])
+    XCTAssertEqual(
+      results.items,
+      [
+        CompletionItem(
+          label: "method(a: Int)",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          sortText: nil,
+          filterText: "method(a:)",
+          insertText: "method(a: )",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(
+              range: Position(line: 1, utf16index: 14)..<Position(line: 1, utf16index: 14),
+              newText: "method(a: )"
+            )
+          )
+        ),
+        CompletionItem(
+          label: "self",
+          kind: .keyword,
+          detail: "A",
+          deprecated: false,
+          sortText: nil,
+          filterText: "self",
+          insertText: "self",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Position(line: 1, utf16index: 14)..<Position(line: 1, utf16index: 14), newText: "self")
+          )
+        ),
+      ]
+    )
   }
 
   func testDependenciesUpdatedSwiftTibs() async throws {
     guard let ws = try await mutableSourceKitTibsTestWorkspace(name: "SwiftModules") else { return }
-    defer { withExtendedLifetime(ws) {} } // Keep workspace alive for callbacks.
+    defer { withExtendedLifetime(ws) {} }  // Keep workspace alive for callbacks.
     guard let server = ws.testServer.server else {
       XCTFail("Unable to fetch SourceKitServer to notify for build system events.")
       return
@@ -216,12 +275,14 @@ final class SKTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 0)
       startExpectation.fulfill()
     }
-    ws.sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+    ws.sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
       // Semantic analysis: expect module import error.
       XCTAssertEqual(note.params.diagnostics.count, 1)
       if let diagnostic = note.params.diagnostics.first {
-        XCTAssert(diagnostic.message.contains("no such module"),
-                  "expected module import error but found \"\(diagnostic.message)\"")
+        XCTAssert(
+          diagnostic.message.contains("no such module"),
+          "expected module import error but found \"\(diagnostic.message)\""
+        )
       }
       startExpectation.fulfill()
     }
@@ -238,7 +299,7 @@ final class SKTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 1)
       finishExpectation.fulfill()
     }
-    ws.sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+    ws.sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
       // Semantic analysis: no more errors expected, import should resolve since we built.
       XCTAssertEqual(note.params.diagnostics.count, 0)
       finishExpectation.fulfill()
@@ -250,7 +311,7 @@ final class SKTests: XCTestCase {
 
   func testDependenciesUpdatedCXXTibs() async throws {
     guard let ws = try await mutableSourceKitTibsTestWorkspace(name: "GeneratedHeader") else { return }
-    defer { withExtendedLifetime(ws) {} } // Keep workspace alive for callbacks.
+    defer { withExtendedLifetime(ws) {} }  // Keep workspace alive for callbacks.
     guard let server = ws.testServer.server else {
       XCTFail("Unable to fetch SourceKitServer to notify for build system events.")
       return
@@ -266,7 +327,7 @@ final class SKTests: XCTestCase {
     }
 
     let generatedHeaderURL = moduleRef.url.deletingLastPathComponent()
-        .appendingPathComponent("lib-generated.h", isDirectory: false)
+      .appendingPathComponent("lib-generated.h", isDirectory: false)
 
     // Write an empty header file first since clangd doesn't handle missing header
     // files without a recently upstreamed extension.
@@ -298,12 +359,14 @@ final class SKTests: XCTestCase {
     let mainLoc = ws.testLoc("Object:include:main")
     let expectedDoc = ws.testLoc("Object").docIdentifier.uri
     let includePosition =
-        Position(line: mainLoc.position.line, utf16index: mainLoc.utf16Column + 2)
+      Position(line: mainLoc.position.line, utf16index: mainLoc.utf16Column + 2)
 
     try ws.openDocument(mainLoc.url, language: .c)
 
     let goToInclude = DefinitionRequest(
-      textDocument: mainLoc.docIdentifier, position: includePosition)
+      textDocument: mainLoc.docIdentifier,
+      position: includePosition
+    )
     let resp = try withExtendedLifetime(ws) { try ws.sk.sendSync(goToInclude) }
 
     let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-#include")
@@ -332,7 +395,9 @@ final class SKTests: XCTestCase {
     try ws.openDocument(refLoc.url, language: .c)
 
     let goToDefinition = DefinitionRequest(
-      textDocument: refLoc.docIdentifier, position: refPos)
+      textDocument: refLoc.docIdentifier,
+      position: refPos
+    )
     let resp = try withExtendedLifetime(ws) { try ws.sk.sendSync(goToDefinition) }
 
     let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-definition")
@@ -357,12 +422,14 @@ final class SKTests: XCTestCase {
     let mainLoc = ws.testLoc("Object:ref:newObject")
     let expectedDoc = ws.testLoc("Object:decl:newObject").docIdentifier.uri
     let includePosition =
-        Position(line: mainLoc.position.line, utf16index: mainLoc.utf16Column + 2)
+      Position(line: mainLoc.position.line, utf16index: mainLoc.utf16Column + 2)
 
     try ws.openDocument(mainLoc.url, language: .c)
 
     let goToInclude = DeclarationRequest(
-      textDocument: mainLoc.docIdentifier, position: includePosition)
+      textDocument: mainLoc.docIdentifier,
+      position: includePosition
+    )
     let resp = try ws.sk.sendSync(goToInclude)
 
     let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-declaration")

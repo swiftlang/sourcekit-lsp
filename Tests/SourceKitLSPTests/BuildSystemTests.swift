@@ -11,8 +11,8 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
-import LanguageServerProtocol
 import LSPTestSupport
+import LanguageServerProtocol
 import SKCore
 import SKTestSupport
 import SourceKitLSP
@@ -108,21 +108,24 @@ final class BuildSystemTests: XCTestCase {
         buildSetup: TestSourceKitServer.serverOptions.buildSetup,
         underlyingBuildSystem: buildSystem,
         index: nil,
-        indexDelegate: nil)
-
+        indexDelegate: nil
+      )
 
       await server.setWorkspaces([workspace])
       await workspace.buildSystemManager.setDelegate(server)
 
       sk = testServer.client
-      _ = try! sk.sendSync(InitializeRequest(
-        processId: nil,
-        rootPath: nil,
-        rootURI: nil,
-        initializationOptions: nil,
-        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
-        trace: .off,
-        workspaceFolders: nil))
+      _ = try! sk.sendSync(
+        InitializeRequest(
+          processId: nil,
+          rootPath: nil,
+          rootURI: nil,
+          initializationOptions: nil,
+          capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
+          trace: .off,
+          workspaceFolders: nil
+        )
+      )
       setUpCompleted.fulfill()
     }
     if XCTWaiter.wait(for: [setUpCompleted], timeout: defaultTimeout) != .completed {
@@ -142,23 +145,23 @@ final class BuildSystemTests: XCTestCase {
 
     guard haveClangd else { return }
 
-#if os(Windows)
+    #if os(Windows)
     let url = URL(fileURLWithPath: "C:/\(UUID())/file.m")
-#else
+    #else
     let url = URL(fileURLWithPath: "/\(UUID())/file.m")
-#endif
+    #endif
     let doc = DocumentURI(url)
     let args = [url.path, "-DDEBUG"]
     let text = """
-    #ifdef FOO
-    static void foo() {}
-    #endif
+      #ifdef FOO
+      static void foo() {}
+      #endif
 
-    int main() {
-      foo();
-      return 0;
-    }
-    """
+      int main() {
+        foo();
+        return 0;
+      }
+      """
 
     buildSystem.buildSettingsByFile[doc] = FileBuildSettings(compilerArguments: args)
 
@@ -166,19 +169,24 @@ final class BuildSystemTests: XCTestCase {
 
     let documentManager = await self.testServer.server!._documentManager
 
-    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: doc,
-      language: .objective_c,
-      version: 12,
-      text: text
-    )), { (note: Notification<PublishDiagnosticsNotification>) in
-      XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
-    })
+    sk.sendNoteSync(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: doc,
+          language: .objective_c,
+          version: 12,
+          text: text
+        )
+      ),
+      { (note: Notification<PublishDiagnosticsNotification>) in
+        XCTAssertEqual(note.params.diagnostics.count, 1)
+        XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+      }
+    )
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
-    let newSettings = FileBuildSettings(compilerArguments: args +  ["-DFOO"])
+    let newSettings = FileBuildSettings(compilerArguments: args + ["-DFOO"])
     buildSystem.buildSettingsByFile[doc] = newSettings
 
     let expectation = XCTestExpectation(description: "refresh")
@@ -201,30 +209,36 @@ final class BuildSystemTests: XCTestCase {
     buildSystem.buildSettingsByFile[doc] = FileBuildSettings(compilerArguments: args)
 
     let text = """
-    #if FOO
-    func foo() {}
-    #endif
+      #if FOO
+      func foo() {}
+      #endif
 
-    foo()
-    """
+      foo()
+      """
 
     sk.allowUnexpectedNotification = false
 
     let documentManager = await self.testServer.server!._documentManager
 
-    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: doc,
-      language: .swift,
-      version: 12,
-      text: text
-    )), { (note: Notification<PublishDiagnosticsNotification>) in
-      // Syntactic analysis - no expected errors here.
-      XCTAssertEqual(note.params.diagnostics.count, 0)
-      XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
-    }, { (note: Notification<PublishDiagnosticsNotification>) in
-      // Semantic analysis - expect one error here.
-      XCTAssertEqual(note.params.diagnostics.count, 1)
-    })
+    sk.sendNoteSync(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: doc,
+          language: .swift,
+          version: 12,
+          text: text
+        )
+      ),
+      { (note: Notification<PublishDiagnosticsNotification>) in
+        // Syntactic analysis - no expected errors here.
+        XCTAssertEqual(note.params.diagnostics.count, 0)
+        XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+      },
+      { (note: Notification<PublishDiagnosticsNotification>) in
+        // Semantic analysis - expect one error here.
+        XCTAssertEqual(note.params.diagnostics.count, 1)
+      }
+    )
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
@@ -238,7 +252,7 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 1)
       expectation.fulfill()
     }
-    sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+    sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
       // Semantic analysis - no expected errors here because we fixed the settings.
       XCTAssertEqual(note.params.diagnostics.count, 0)
       expectation.fulfill()
@@ -251,38 +265,43 @@ final class BuildSystemTests: XCTestCase {
   func testClangdDocumentFallbackWithholdsDiagnostics() async throws {
     try XCTSkipIf(!haveClangd)
 
-#if os(Windows)
+    #if os(Windows)
     let url = URL(fileURLWithPath: "C:/\(UUID())/file.m")
-#else
+    #else
     let url = URL(fileURLWithPath: "/\(UUID())/file.m")
-#endif
+    #endif
     let doc = DocumentURI(url)
     let args = [url.path, "-DDEBUG"]
     let text = """
-      #ifdef FOO
-      static void foo() {}
-      #endif
+        #ifdef FOO
+        static void foo() {}
+        #endif
 
-      int main() {
-        foo();
-        return 0;
-      }
-    """
+        int main() {
+          foo();
+          return 0;
+        }
+      """
 
     sk.allowUnexpectedNotification = false
 
     let documentManager = await self.testServer.server!._documentManager
 
-    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: doc,
-      language: .objective_c,
-      version: 12,
-      text: text
-    )), { (note: Notification<PublishDiagnosticsNotification>) in
-      // Expect diagnostics to be withheld.
-      XCTAssertEqual(note.params.diagnostics.count, 0)
-      XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
-    })
+    sk.sendNoteSync(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: doc,
+          language: .objective_c,
+          version: 12,
+          text: text
+        )
+      ),
+      { (note: Notification<PublishDiagnosticsNotification>) in
+        // Expect diagnostics to be withheld.
+        XCTAssertEqual(note.params.diagnostics.count, 0)
+        XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+      }
+    )
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should see a diagnostic.
@@ -310,31 +329,37 @@ final class BuildSystemTests: XCTestCase {
     primarySettings.compilerArguments.append("-DPRIMARY")
 
     let text = """
-      #if FOO
-      func foo() {}
-      #endif
+        #if FOO
+        func foo() {}
+        #endif
 
-      foo()
-      func
-    """
+        foo()
+        func
+      """
 
     sk.allowUnexpectedNotification = false
 
     let documentManager = await self.testServer.server!._documentManager
 
-    sk.sendNoteSync(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: doc,
-      language: .swift,
-      version: 12,
-      text: text
-    )), { (note: Notification<PublishDiagnosticsNotification>) in
-      // Syntactic analysis - one expected errors here (for `func`).
-      XCTAssertEqual(note.params.diagnostics.count, 1)
-      XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
-    }, { (note: Notification<PublishDiagnosticsNotification>) in
-      // Should be the same syntactic analysis since we are using fallback arguments
-      XCTAssertEqual(note.params.diagnostics.count, 1)
-    })
+    sk.sendNoteSync(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: doc,
+          language: .swift,
+          version: 12,
+          text: text
+        )
+      ),
+      { (note: Notification<PublishDiagnosticsNotification>) in
+        // Syntactic analysis - one expected errors here (for `func`).
+        XCTAssertEqual(note.params.diagnostics.count, 1)
+        XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+      },
+      { (note: Notification<PublishDiagnosticsNotification>) in
+        // Should be the same syntactic analysis since we are using fallback arguments
+        XCTAssertEqual(note.params.diagnostics.count, 1)
+      }
+    )
 
     // Swap from fallback settings to primary build system settings.
     buildSystem.buildSettingsByFile[doc] = primarySettings
@@ -345,7 +370,7 @@ final class BuildSystemTests: XCTestCase {
       XCTAssertEqual(note.params.diagnostics.count, 1)
       expectation.fulfill()
     }
-    sk.appendOneShotNotificationHandler  { (note: Notification<PublishDiagnosticsNotification>) in
+    sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
       // Semantic analysis - two errors since `-DFOO` was not passed.
       XCTAssertEqual(note.params.diagnostics.count, 2)
       expectation.fulfill()
@@ -397,12 +422,18 @@ final class BuildSystemTests: XCTestCase {
     }
 
     try ws.edit(rebuild: true) { (changes, _) in
-      changes.write("""
+      changes.write(
+        """
         // empty
-        """, to: ws.testLoc("d_func").url)
-      changes.write("""
+        """,
+        to: ws.testLoc("d_func").url
+      )
+      changes.write(
+        """
         #include "unique.h"
-        """, to: ws.testLoc("c_func").url)
+        """,
+        to: ws.testLoc("c_func").url
+      )
     }
 
     try await fulfillmentOfOrThrow([use_c])

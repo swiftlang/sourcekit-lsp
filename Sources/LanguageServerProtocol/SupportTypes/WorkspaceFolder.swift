@@ -23,7 +23,7 @@ public struct WorkspaceFolder: ResponseType, Hashable, Codable {
     self.uri = uri
 
     self.name = name ?? uri.fileURL?.lastPathComponent ?? "unknown_workspace"
-    
+
     if self.name.isEmpty {
       self.name = "unknown_workspace"
     }

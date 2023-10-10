@@ -21,7 +21,7 @@ extension sourcekitd_functions_t {
     // MARK: Optional Methods
 
     self.variant_data_get_size = dlsym(sourcekitd, symbol: "sourcekitd_variant_data_get_size")
-    self.variant_data_get_ptr = dlsym(sourcekitd, symbol:"sourcekitd_variant_data_get_ptr")
+    self.variant_data_get_ptr = dlsym(sourcekitd, symbol: "sourcekitd_variant_data_get_ptr")
 
     // MARK: Required Methods
 

@@ -21,34 +21,34 @@ import XCTest
 /// continuous integration.
 open class PerfTestCase: XCTestCase {
 
-#if !ENABLE_PERF_TESTS
+  #if !ENABLE_PERF_TESTS
 
   #if os(macOS)
-    open override func startMeasuring() {}
-    open override func stopMeasuring() {}
-    open override func measureMetrics(
-      _: [XCTPerformanceMetric],
-      automaticallyStartMeasuring: Bool,
-      for block: () -> Void)
-    {
-      block()
-    }
+  open override func startMeasuring() {}
+  open override func stopMeasuring() {}
+  open override func measureMetrics(
+    _: [XCTPerformanceMetric],
+    automaticallyStartMeasuring: Bool,
+    for block: () -> Void
+  ) {
+    block()
+  }
   #else
-    // In corelibs-xctest, these methods are public, not open, so we can only
-    // shadow them.
-    public func startMeasuring() {}
-    public func stopMeasuring() {}
-    public func measureMetrics(
-      _: [XCTPerformanceMetric],
-      automaticallyStartMeasuring: Bool,
-      for block: () -> Void)
-    {
-      block()
-    }
-    public func measure(block: () -> Void) {
-      block()
-    }
+  // In corelibs-xctest, these methods are public, not open, so we can only
+  // shadow them.
+  public func startMeasuring() {}
+  public func stopMeasuring() {}
+  public func measureMetrics(
+    _: [XCTPerformanceMetric],
+    automaticallyStartMeasuring: Bool,
+    for block: () -> Void
+  ) {
+    block()
+  }
+  public func measure(block: () -> Void) {
+    block()
+  }
   #endif
-#endif
+  #endif
 
 }

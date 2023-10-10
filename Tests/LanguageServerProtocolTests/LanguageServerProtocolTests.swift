@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-
 import XCTest
 
 fileprivate func AssertDataIsString(

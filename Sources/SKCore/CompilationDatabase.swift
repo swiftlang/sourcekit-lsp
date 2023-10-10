@@ -10,11 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
 import Foundation
+import SKSupport
 
-import protocol TSCBasic.FileSystem
 import struct TSCBasic.AbsolutePath
+import protocol TSCBasic.FileSystem
 import var TSCBasic.localFileSystem
 import func TSCBasic.resolveSymlinks
 
@@ -89,7 +89,7 @@ public func tryLoadCompilationDatabase(
 /// See https://clang.llvm.org/docs/JSONCompilationDatabase.html under Alternatives
 public struct FixedCompilationDatabase: CompilationDatabase, Equatable {
   public var allCommands: AnySequence<Command> { AnySequence([]) }
-  
+
   private let fixedArgs: [String]
   private let directory: String
 
@@ -113,7 +113,7 @@ extension FixedCompilationDatabase {
       guard let fileContents = String(data: data, encoding: .utf8) else {
         throw CompilationDatabaseDecodingError.fixedDatabaseDecordingError
       }
-      
+
       fileContents.enumerateLines { line, _ in
         fixedArgs.append(line.trimmingCharacters(in: .whitespacesAndNewlines))
       }
@@ -121,7 +121,6 @@ extension FixedCompilationDatabase {
     self.fixedArgs = fixedArgs
   }
 }
-
 
 /// The JSON clang-compatible compilation database.
 ///
@@ -194,7 +193,7 @@ extension JSONCompilationDatabase {
   public init(file: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
     let bytes = try fileSystem.readFileContents(file)
     try bytes.withUnsafeData { data in
-       self = try JSONDecoder().decode(JSONCompilationDatabase.self, from: data)
+      self = try JSONDecoder().decode(JSONCompilationDatabase.self, from: data)
     }
   }
 }
@@ -274,8 +273,8 @@ public func splitShellEscapedCommand(_ cmd: String) -> [String] {
     mutating func parse() -> [String] {
       while !done {
         switch ch {
-          case UInt8(ascii: " "): next()
-          default: parseString()
+        case UInt8(ascii: " "): next()
+        default: parseString()
         }
       }
       return result

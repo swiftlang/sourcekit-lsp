@@ -23,9 +23,9 @@ import Musl
 
 public final class DLHandle {
   #if os(Windows)
-    typealias Handle = HMODULE
+  typealias Handle = HMODULE
   #else
-    typealias Handle = UnsafeMutableRawPointer
+  typealias Handle = UnsafeMutableRawPointer
   #endif
   var rawValue: Handle? = nil
 
@@ -40,13 +40,13 @@ public final class DLHandle {
   public func close() throws {
     if let handle = rawValue {
       #if os(Windows)
-        guard FreeLibrary(handle) else {
-          throw DLError.close("Failed to FreeLibrary: \(GetLastError())")
-        }
+      guard FreeLibrary(handle) else {
+        throw DLError.close("Failed to FreeLibrary: \(GetLastError())")
+      }
       #else
-        guard dlclose(handle) == 0 else {
-          throw DLError.close(dlerror() ?? "unknown error")
-        }
+      guard dlclose(handle) == 0 else {
+        throw DLError.close(dlerror() ?? "unknown error")
+      }
       #endif
     }
     rawValue = nil
@@ -67,9 +67,9 @@ public struct DLOpenFlags: RawRepresentable, OptionSet {
 
   // Platform-specific flags.
   #if os(macOS)
-    public static let first: DLOpenFlags = DLOpenFlags(rawValue: RTLD_FIRST)
+  public static let first: DLOpenFlags = DLOpenFlags(rawValue: RTLD_FIRST)
   #else
-    public static let first: DLOpenFlags = DLOpenFlags(rawValue: 0)
+  public static let first: DLOpenFlags = DLOpenFlags(rawValue: 0)
   #endif
   #endif
 
@@ -87,13 +87,13 @@ public enum DLError: Swift.Error {
 
 public func dlopen(_ path: String?, mode: DLOpenFlags) throws -> DLHandle {
   #if os(Windows)
-    guard let handle = path?.withCString(encodedAs: UTF16.self, LoadLibraryW) else {
-      throw DLError.open("LoadLibraryW failed: \(GetLastError())")
-    }
+  guard let handle = path?.withCString(encodedAs: UTF16.self, LoadLibraryW) else {
+    throw DLError.open("LoadLibraryW failed: \(GetLastError())")
+  }
   #else
-    guard let handle = dlopen(path, mode.rawValue) else {
-      throw DLError.open(dlerror() ?? "unknown error")
-    }
+  guard let handle = dlopen(path, mode.rawValue) else {
+    throw DLError.open(dlerror() ?? "unknown error")
+  }
   #endif
   return DLHandle(rawValue: handle)
 }

@@ -77,7 +77,10 @@ extension MarkedString: Codable {
     } else if let codeBlock = try? MarkdownCodeBlock(from: decoder) {
       self = .codeBlock(language: codeBlock.language, value: codeBlock.value)
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected String or MarkdownCodeBlock")
+      let context = DecodingError.Context(
+        codingPath: decoder.codingPath,
+        debugDescription: "Expected String or MarkdownCodeBlock"
+      )
       throw DecodingError.dataCorrupted(context)
     }
   }
@@ -95,13 +98,16 @@ extension MarkedString: Codable {
 extension HoverResponseContents: Codable {
   public init(from decoder: Decoder) throws {
     if let value = try? MarkupContent(from: decoder) {
-        self = .markupContent(value)
+      self = .markupContent(value)
     } else if let value = try? [MarkedString](from: decoder) {
-        self = .markedStrings(value)
+      self = .markedStrings(value)
     } else if let value = try? MarkedString(from: decoder) {
       self = .markedStrings([value])
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected MarkedString, [MarkedString], or MarkupContent")
+      let context = DecodingError.Context(
+        codingPath: decoder.codingPath,
+        debugDescription: "Expected MarkedString, [MarkedString], or MarkupContent"
+      )
       throw DecodingError.dataCorrupted(context)
     }
   }

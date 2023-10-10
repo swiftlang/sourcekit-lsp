@@ -64,8 +64,7 @@ public struct FoldingRange: ResponseType, Hashable {
     endUTF16Index: Int? = nil,
     kind: FoldingRangeKind? = nil,
     collapsedText: String? = nil
-  )
-  {
+  ) {
     self.startLine = startLine
     self.startUTF16Index = startUTF16Index
     self.endLine = endLine
@@ -87,7 +86,7 @@ extension FoldingRange: Codable {
 
 extension FoldingRange: Comparable {
 
-  public static func <(lhs: FoldingRange, rhs: FoldingRange) -> Bool {
+  public static func < (lhs: FoldingRange, rhs: FoldingRange) -> Bool {
     return lhs.comparableKey < rhs.comparableKey
   }
 
@@ -96,6 +95,7 @@ extension FoldingRange: Comparable {
       startLine,
       startUTF16Index ?? Int.max,
       endLine, endUTF16Index ?? Int.max,
-      kind?.rawValue ?? "")
+      kind?.rawValue ?? ""
+    )
   }
 }
