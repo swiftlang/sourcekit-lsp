@@ -83,8 +83,18 @@ extension SourceKitD {
   public func send(_ req: SKDRequestDictionary) async throws -> SKDResponseDictionary {
     logRequest(req)
 
+    @Sendable
+    func cancelSourcekitdRequest() {
+      /// Take the request ID out of the box. This ensures that we only send the
+      /// cancel notification once in case the `Task.isCancelled` and the
+      /// `onCancel` check race.
+      if let handle = handleWrapper.takeValue() {
+        api.cancel_request(handle)
+      }
+    }
+
     let handleWrapper = ThreadSafeBox<sourcekitd_request_handle_t?>(initialValue: nil)
-    let sourcekitdResponse: SKDResponse = try await withTaskCancellationHandler {
+    let sourcekitdResponse: SKDResponse = try await withTaskCancellationHandler(operation: {
       try Task.checkCancellation()
       return await withCheckedContinuation { continuation in
         var handle: sourcekitd_request_handle_t? = nil
@@ -92,13 +102,16 @@ extension SourceKitD {
         api.send_request(req.dict, &handle) { _resp in
           continuation.resume(returning: SKDResponse(_resp, sourcekitd: self))
         }
+
         handleWrapper.value = handle
+        // Check if the task was cancelled. This ensures we send a
+        // CancelNotification even if the task gets cancelled after we register
+        // the cancellation handler but before we set the request handle.
+        if Task.isCancelled {
+          cancelSourcekitdRequest()
+        }
       }
-    } onCancel: {
-      if let handle = handleWrapper.value {
-        api.cancel_request(handle)
-      }
-    }
+    }, onCancel: cancelSourcekitdRequest)
 
     logResponse(sourcekitdResponse)
 

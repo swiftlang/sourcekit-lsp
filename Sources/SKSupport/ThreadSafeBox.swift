@@ -44,4 +44,14 @@ public class ThreadSafeBox<T> {
   public init(initialValue: T) {
     _value = initialValue
   }
+
+  /// If the value in the box is an optional, return it and reset it to `nil`
+  /// in an atomic operation.
+  public func takeValue<U>() -> T where U? == T {
+    lock.withLock {
+      guard let value = self._value else { return nil }
+      self._value = nil
+      return value
+    }
+  }
 }
