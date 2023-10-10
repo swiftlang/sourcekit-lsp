@@ -118,6 +118,13 @@ final class PullDiagnosticsTests: XCTestCase {
 
     XCTAssertEqual(actions.count, 1)
     let action = try XCTUnwrap(actions.first)
-    XCTAssertEqual(action.title, "add stubs for conformance")
+    // Allow the action message to be the one before or after
+    // https://github.com/apple/swift/pull/67909, ensuring this test passes with
+    // a sourcekitd that contains the change from that PR as well as older
+    // toolchains that don't contain the change yet.
+    XCTAssert([
+      "add stubs for conformance",
+      "do you want to add protocol stubs?"
+    ].contains(action.title))
   }
 }
