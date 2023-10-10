@@ -967,11 +967,7 @@ extension SourceKitServer {
     await prepareForExit()
 
     // Call onExit only once, and hop off queue to allow the handler to call us back.
-    let onExit = self.onExit
-    self.onExit = {}
-    DispatchQueue.global().async {
-      onExit()
-    }
+    self.onExit()
   }
 
   // MARK: - Text synchronization
