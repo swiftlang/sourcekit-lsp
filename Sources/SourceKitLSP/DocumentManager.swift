@@ -177,7 +177,7 @@ public final class DocumentManager {
       }
 
       if newVersion <= document.latestVersion {
-        log("Document version did not increase on edit from \(document.latestVersion) to \(newVersion)", level: .error)
+        logger.error("Document version did not increase on edit from \(document.latestVersion) to \(newVersion)")
       }
       document.latestVersion = newVersion
       return (preEditSnapshot, document.latestSnapshot)

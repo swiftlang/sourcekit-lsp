@@ -130,7 +130,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     }
 
     if compdb == nil {
-      log("could not open compilation database for \(path)", level: .warning)
+      logger.error("could not open compilation database for \(path)")
     }
 
     return compdb

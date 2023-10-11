@@ -26,7 +26,7 @@ extension IndexStoreDB: MainFilesProvider {
     } else {
       mainFiles = []
     }
-    log("mainFilesContainingFile(\(uri.pseudoPath)) -> \(mainFiles)", level: .debug)
+    logger.info("mainFilesContainingFile(\(uri.forLogging)) -> \(mainFiles)")
     return mainFiles
   }
 }

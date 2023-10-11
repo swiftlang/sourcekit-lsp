@@ -48,7 +48,7 @@ extension SwiftLanguageServer {
     let uri = req.textDocument.uri
 
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-      log("failed to find snapshot for uri \(uri)")
+      logger.error("failed to find snapshot for uri \(uri.forLogging)")
       return DocumentSemanticTokensResponse(data: [])
     }
 
@@ -71,7 +71,7 @@ extension SwiftLanguageServer {
     let range = req.range
 
     guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-      log("failed to find snapshot for uri \(uri)")
+      logger.error("failed to find snapshot for uri \(uri.forLogging)")
       return DocumentSemanticTokensResponse(data: [])
     }
 

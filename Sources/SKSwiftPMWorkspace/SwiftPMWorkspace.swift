@@ -175,10 +175,10 @@ public actor SwiftPMWorkspace {
         reloadPackageStatusCallback: reloadPackageStatusCallback
       )
     } catch Error.noManifest(let path) {
-      log("could not find manifest, or not a SwiftPM package: \(path)", level: .warning)
+      logger.error("could not find manifest, or not a SwiftPM package: \(path)")
       return nil
     } catch {
-      log("failed to create \(SwiftPMWorkspace.self) at \(url.path): \(error)", level: .error)
+      logger.error("failed to create SwiftPMWorkspace at \(url.path): \(error.forLogging)")
       return nil
     }
   }
@@ -192,7 +192,7 @@ extension SwiftPMWorkspace {
     await reloadPackageStatusCallback(.start)
 
     let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
-      log(diagnostic.description, level: diagnostic.severity.asLogLevel)
+      logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
     })
 
     let packageGraph = try self.workspace.loadPackageGraph(
@@ -554,10 +554,9 @@ private func findPackageDirectory(
 extension Basics.Diagnostic.Severity {
   var asLogLevel: LogLevel {
     switch self {
-    case .error: return .error
-    case .warning: return .warning
-    case .debug: return .debug
+    case .error, .warning: return .error
     case .info: return .info
+    case .debug: return .debug
     }
   }
 }

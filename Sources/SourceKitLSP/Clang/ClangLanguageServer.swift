@@ -134,11 +134,12 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     guard let workspace = workspace.value, let language = openDocuments[document] else {
       return nil
     }
-    let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
-      for: document,
-      language: language
-    )
-    guard let settings else {
+    guard
+      let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
+        for: document,
+        language: language
+      )
+    else {
       return nil
     }
     return ClangBuildSettings(settings.buildSettings, clangPath: clangdPath, isFallback: settings.isFallback)
@@ -203,7 +204,10 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     process.standardOutput = clangdToUs
     process.standardInput = usToClangd
     process.terminationHandler = { [weak self] process in
-      log("clangd exited: \(process.terminationReason) \(process.terminationStatus)")
+      logger.log(
+        level: process.terminationReason == .exit ? .default : .error,
+        "clangd exited: \(String(reflecting: process.terminationReason)) \(process.terminationStatus)"
+      )
       connectionToClangd.close()
       guard let self = self else { return }
       Task {
@@ -227,16 +231,13 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     self.clangRestartScheduled = true
 
     guard let initializeRequest = self.initializeRequest else {
-      log("clangd crashed before it was sent an InitializeRequest.", level: .error)
+      logger.error("clangd crashed before it was sent an InitializeRequest.")
       return
     }
 
     let restartDelay: Int
     if let lastClangdRestart = self.lastClangdRestart, Date().timeIntervalSince(lastClangdRestart) < 30 {
-      log(
-        "clangd has already been restarted in the last 30 seconds. Delaying another restart by 10 seconds.",
-        level: .info
-      )
+      logger.log("clangd has already been restarted in the last 30 seconds. Delaying another restart by 10 seconds.")
       restartDelay = 10
     } else {
       restartDelay = 0
@@ -256,11 +257,11 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
         if let sourceKitServer {
           await sourceKitServer.reopenDocuments(for: self)
         } else {
-          log("Cannot reopen documents because SourceKitServer is no longer alive", level: .error)
+          logger.fault("Cannot reopen documents because SourceKitServer is no longer alive")
         }
         self.state = .connected
       } catch {
-        log("Failed to restart clangd after a crash.", level: .error)
+        logger.fault("Failed to restart clangd after a crash.")
       }
     }
   }
@@ -276,7 +277,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
         await self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
       default:
         // We don't know how to handle any other notifications and ignore them.
-        log("Ignoring unknown notification \(type(of: params))", level: .warning)
+        logger.error("Ignoring unknown notification \(type(of: params))")
         break
       }
     }
@@ -381,7 +382,7 @@ extension ClangLanguageServerShim {
     // incorrect result, making it very temporary.
     let buildSettings = await self.buildSettings(for: params.uri)
     guard let sourceKitServer else {
-      log("Cannot publish diagnostics because SourceKitServer has been destroyed", level: .error)
+      logger.fault("Cannot publish diagnostics because SourceKitServer has been destroyed")
       return
     }
     if buildSettings?.isFallback ?? true {
@@ -462,14 +463,12 @@ extension ClangLanguageServerShim {
   public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
     guard let url = uri.fileURL else {
       // FIXME: The clang workspace can probably be reworked to support non-file URIs.
-      log("Received updated build settings for non-file URI '\(uri)'. Ignoring the update.")
+      logger.error("Received updated build settings for non-file URI '\(uri.forLogging)'. Ignoring the update.")
       return
     }
     let clangBuildSettings = await self.buildSettings(for: uri)
-    logAsync(level: clangBuildSettings == nil ? .warning : .debug) { _ in
-      let settingsStr = clangBuildSettings == nil ? "nil" : clangBuildSettings!.compilerArgs.description
-      return "settings for \(uri): \(settingsStr)"
-    }
+    // FIXME: (logging) Log only the `-something` flags with paths redacted if private mode is enabled
+    logger.info("settings for \(uri.forLogging): \(clangBuildSettings?.compilerArgs.description ?? "nil")")
 
     // The compile command changed, send over the new one.
     // FIXME: what should we do if we no longer have valid build settings?

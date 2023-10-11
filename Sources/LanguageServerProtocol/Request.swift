@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPLogging
+
 /// A request object, wrapping the parameters of a `RequestType` and tracking its state.
 public final class Request<R: RequestType> {
 
@@ -90,7 +92,7 @@ public final class Notification<N: NotificationType> {
   }
 }
 
-extension Request: CustomStringConvertible {
+extension Request: CustomStringConvertible, CustomLogStringConvertible {
   public var description: String {
     return """
       Request<\(R.method)>(
@@ -100,9 +102,14 @@ extension Request: CustomStringConvertible {
       )
       """
   }
+
+  public var redactedDescription: String {
+    // FIXME: (logging) Log the non-critical parts of the request
+    return "Request<\(R.method)>"
+  }
 }
 
-extension Notification: CustomStringConvertible {
+extension Notification: CustomStringConvertible, CustomLogStringConvertible {
   public var description: String {
     return """
       Notification<\(N.method)>(
@@ -110,5 +117,10 @@ extension Notification: CustomStringConvertible {
         params: \(params)
       )
       """
+  }
+
+  public var redactedDescription: String {
+    // FIXME: (logging) Log the non-critical parts of the notification
+    return "Notification<\(N.method)>"
   }
 }

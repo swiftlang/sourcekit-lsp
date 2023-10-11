@@ -164,7 +164,7 @@ extension Toolchain {
     if let dynamicLibraryExtension = Platform.current?.dynamicLibraryExtension {
       dylibExt = dynamicLibraryExtension
     } else {
-      log("Could not determine host OS. Falling back to using '.so' as dynamic library extension", level: .error)
+      logger.fault("Could not determine host OS. Falling back to using '.so' as dynamic library extension")
       dylibExt = ".so"
     }
 

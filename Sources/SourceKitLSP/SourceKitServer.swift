@@ -459,7 +459,7 @@ public actor SourceKitServer {
       return nil
     }
 
-    log("Using toolchain \(toolchain.displayName) (\(toolchain.identifier)) for \(uri)")
+    logger.info("Using toolchain \(toolchain.displayName) (\(toolchain.identifier)) for \(uri.forLogging)")
 
     if let concurrentlySetService = workspace.documentService[uri] {
       // Since we await the construction of `service`, another call to this
@@ -635,34 +635,22 @@ extension SourceKitServer: MessageHandler {
   }
 
   private nonisolated func _logRequest<R>(_ request: Request<R>) {
-    logAsync { currentLevel in
-      guard currentLevel >= LogLevel.debug else {
-        return "\(type(of: self)): Request<\(R.method)(\(request.id))>"
-      }
-      return "\(type(of: self)): \(request)"
-    }
+    logger.log("Received request: \(request.forLogging)")
   }
 
   private func _logNotification<N>(_ notification: Notification<N>) {
-    logAsync { currentLevel in
-      guard currentLevel >= LogLevel.debug else {
-        return "\(type(of: self)): Notification<\(N.method)>"
-      }
-      return "\(type(of: self)): \(notification)"
-    }
+    logger.log("Received notification: \(notification.forLogging)")
   }
 
   private func _logResponse<Response>(_ result: LSPResult<Response>, id: RequestID, method: String) {
-    logAsync { currentLevel in
-      guard currentLevel >= LogLevel.debug else {
-        return "\(type(of: self)): Response<\(method)(\(id))>"
-      }
-      return """
-        \(type(of: self)): Response<\(method)(\(id))>(
-          \(result)
-        )
-        """
-    }
+    logger.debug(
+      """
+      Sending response:
+      Response<\(method, privacy: .public)(\(id, privacy: .public))>(
+        \(String(describing: result))
+      )
+      """
+    )
   }
 }
 
@@ -717,7 +705,7 @@ extension SourceKitServer: BuildSystemDelegate {
         continue
       }
       for uri in self.affectedOpenDocumentsForChangeSet(changedFilesForWorkspace, self.documentManager) {
-        log("Dependencies updated for opened file \(uri)")
+        logger.log("Dependencies updated for opened file \(uri.forLogging)")
         if let service = workspace.documentService[uri] {
           await service.documentDependenciesUpdated(uri)
         }
@@ -739,7 +727,7 @@ extension SourceKitServer {
   /// Creates a workspace at the given `uri`.
   private func createWorkspace(uri: DocumentURI) async -> Workspace? {
     guard let capabilityRegistry = capabilityRegistry else {
-      log("Cannot open workspace before server is initialized")
+      logger.log("Cannot open workspace before server is initialized")
       return nil
     }
     return try? await Workspace(
@@ -781,7 +769,7 @@ extension SourceKitServer {
         case .some(.int(let maxResults)):
           self.options.completionOptions.maxResults = maxResults
         case .some(let invalid):
-          log("expected null or int for 'maxResults'; got \(invalid)", level: .warning)
+          logger.error("expected null or int for 'maxResults'; got \(String(reflecting: invalid))")
         }
       }
     }
@@ -801,7 +789,7 @@ extension SourceKitServer {
     }
 
     if self.workspaces.isEmpty {
-      log("no workspace found", level: .warning)
+      logger.error("no workspace found")
 
       let workspace = await Workspace(
         documentManager: self.documentManager,
@@ -957,7 +945,7 @@ extension SourceKitServer {
     let req = RegisterCapabilityRequest(registrations: [registration])
     let _ = client.send(req) { result in
       if let error = result.failure {
-        log("Failed to dynamically register for \(registration.method): \(error)", level: .error)
+        logger.error("Failed to dynamically register for \(registration.method): \(error.forLogging)")
         registry.remove(registration: registration)
       }
     }
@@ -1031,7 +1019,9 @@ extension SourceKitServer {
   func openDocument(_ notification: DidOpenTextDocumentNotification) async {
     let uri = notification.textDocument.uri
     guard let workspace = await workspaceForDocument(uri: uri) else {
-      log("received open notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
+      logger.error(
+        "received open notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
+      )
       return
     }
     await openDocument(notification, workspace: workspace)
@@ -1060,7 +1050,9 @@ extension SourceKitServer {
   func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
     let uri = notification.textDocument.uri
     guard let workspace = await workspaceForDocument(uri: uri) else {
-      log("received close notification for file '\(uri)' without a corresponding workspace, ignoring...", level: .error)
+      logger.error(
+        "received close notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
+      )
       return
     }
     await self.closeDocument(notification, workspace: workspace)
@@ -1082,9 +1074,8 @@ extension SourceKitServer {
     let uri = notification.textDocument.uri
 
     guard let workspace = await workspaceForDocument(uri: uri) else {
-      log(
-        "received change notification for file '\(uri)' without a corresponding workspace, ignoring...",
-        level: .error
+      logger.error(
+        "received change notification for file '\(uri.forLogging)' without a corresponding workspace, ignoring..."
       )
       return
     }
@@ -1348,7 +1339,7 @@ extension SourceKitServer {
 
   func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     guard let uri = req.textDocument?.uri else {
-      log("attempted to perform executeCommand request without an url!", level: .error)
+      logger.error("attempted to perform executeCommand request without an url!")
       return nil
     }
     guard let workspace = await workspaceForDocument(uri: uri) else {
@@ -1482,7 +1473,7 @@ extension SourceKitServer {
 
     let resolved = self.extractIndexedOccurrences(symbols: symbols, index: index, useLocalFallback: true) {
       (usr, index) in
-      log("performing indexed jump-to-def with usr \(usr)")
+      logger.info("performing indexed jump-to-def with usr \(usr)")
       var occurs = index.occurrences(ofUSR: usr, roles: [.definition])
       if occurs.isEmpty {
         occurs = index.occurrences(ofUSR: usr, roles: [.declaration])
@@ -1563,7 +1554,7 @@ extension SourceKitServer {
     )
     let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
     let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
-      log("performing indexed jump-to-def with usr \(usr)")
+      logger.info("performing indexed jump-to-def with usr \(usr)")
       var roles: SymbolRole = [.reference]
       if req.context.includeDeclaration {
         roles.formUnion([.declaration, .definition])
