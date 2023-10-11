@@ -572,6 +572,10 @@ extension ClangLanguageServerShim {
     return try await forwardRequestToClangd(req)
   }
 
+  func macroExpansion(_ req: MacroExpansionRequest) async throws -> MacroExpansion? {
+    return nil
+  }
+
   func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
     guard self.capabilities?.foldingRangeProvider?.isSupported ?? false else {
       return nil

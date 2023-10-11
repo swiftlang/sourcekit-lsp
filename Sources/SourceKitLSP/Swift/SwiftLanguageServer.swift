@@ -1299,6 +1299,11 @@ extension SwiftLanguageServer {
     return .full(RelatedFullDocumentDiagnosticReport(items: diagnostics))
   }
 
+  public func macroExpansion(_ req: MacroExpansionRequest) async throws -> MacroExpansion? {
+    // TODO
+    return nil
+  }
+
   public func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     // TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
     guard let sourceKitServer else {
