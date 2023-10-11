@@ -14,4 +14,8 @@
 public struct MacroExpansion: ResponseType, Hashable {
   /// The Swift code that the macro expands to.
   public let sourceText: String
+
+  public init(sourceText: String) {
+    self.sourceText = sourceText
+  }
 }
