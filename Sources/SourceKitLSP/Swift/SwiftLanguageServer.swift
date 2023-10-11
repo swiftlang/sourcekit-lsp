@@ -1308,10 +1308,10 @@ extension SwiftLanguageServer {
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
 
-    // TODO: Traverse syntax tree, extract the moduleName, typeName and roles
-    // for the macro at the position given in the request. Use these to
-    // construct `ExpansionSpecifier`s and pass them to SourceKitD via
-    // the `syntacticMacroExpansion` function. Extract the text edits from the
+    // TODO: Find the moduleName, typeName and roles for the macro at the
+    // position given in the request somehow. Use these to construct
+    // `ExpansionSpecifier`s and pass them to SourceKitD via the
+    // `syntacticMacroExpansion` function. Extract the text edits from the
     // result and wrap them in `MacroExpansion`.
 
     return nil
