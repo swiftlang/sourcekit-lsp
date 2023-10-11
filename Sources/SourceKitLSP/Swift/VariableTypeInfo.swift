@@ -59,11 +59,12 @@ struct VariableTypeInfo {
     let keys = dict.sourcekitd.keys
 
     guard let offset: Int = dict[keys.variable_offset],
-          let length: Int = dict[keys.variable_length],
-          let startIndex = snapshot.positionOf(utf8Offset: offset),
-          let endIndex = snapshot.positionOf(utf8Offset: offset + length),
-          let printedType: String = dict[keys.variable_type],
-          let hasExplicitType: Bool = dict[keys.variable_type_explicit] else {
+      let length: Int = dict[keys.variable_length],
+      let startIndex = snapshot.positionOf(utf8Offset: offset),
+      let endIndex = snapshot.positionOf(utf8Offset: offset + length),
+      let printedType: String = dict[keys.variable_type],
+      let hasExplicitType: Bool = dict[keys.variable_type_explicit]
+    else {
       return nil
     }
     let tokenAtOffset = syntaxTree.token(at: AbsolutePosition(utf8Offset: offset))
@@ -103,8 +104,9 @@ extension SwiftLanguageServer {
     skreq[keys.sourcefile] = snapshot.uri.pseudoPath
 
     if let range = range,
-       let start = snapshot.utf8Offset(of: range.lowerBound),
-       let end = snapshot.utf8Offset(of: range.upperBound) {
+      let start = snapshot.utf8Offset(of: range.lowerBound),
+      let end = snapshot.utf8Offset(of: range.upperBound)
+    {
       skreq[keys.offset] = start
       skreq[keys.length] = end - start
     }

@@ -17,11 +17,16 @@ import XCTest
 ///
 /// - parameter value: The value to encode/decode.
 /// - parameter json: The expected json encoding.
-public func checkCoding<T>(_ value: T, json: String, file: StaticString = #filePath, line: UInt = #line) where T: Codable & Equatable {
+public func checkCoding<T: Codable & Equatable>(
+  _ value: T,
+  json: String,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
   let encoder = JSONEncoder()
   encoder.outputFormatting.insert(.prettyPrinted)
   encoder.outputFormatting.insert(.sortedKeys)
-  
+
   let data = try! encoder.encode(WrapFragment(value: value))
   let wrappedStr = String(data: data, encoding: .utf8)!
 
@@ -52,7 +57,12 @@ private struct WrapFragment<T>: Equatable, Codable where T: Equatable & Codable 
 ///
 /// - parameter value: The value to encode/decode.
 /// - parameter json: The expected json encoding.
-public func checkDecoding<T>(json: String, expected value: T, file: StaticString = #filePath, line: UInt = #line) where T: Codable & Equatable {
+public func checkDecoding<T: Codable & Equatable>(
+  json: String,
+  expected value: T,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
 
   let wrappedStr = "{\"value\":\(json)}"
   let data = wrappedStr.data(using: .utf8)!
@@ -62,7 +72,14 @@ public func checkDecoding<T>(json: String, expected value: T, file: StaticString
   XCTAssertEqual(value, decodedValue, file: file, line: line)
 }
 
-public func checkCoding<T>(_ value: T, json: String, userInfo: [CodingUserInfoKey: Any] = [:], file: StaticString = #filePath, line: UInt = #line, body: (T) -> Void) where T: Codable {
+public func checkCoding<T>(
+  _ value: T,
+  json: String,
+  userInfo: [CodingUserInfoKey: Any] = [:],
+  file: StaticString = #filePath,
+  line: UInt = #line,
+  body: (T) -> Void
+) where T: Codable {
   let encoder = JSONEncoder()
   encoder.outputFormatting.insert(.prettyPrinted)
   encoder.outputFormatting.insert(.sortedKeys)
@@ -71,7 +88,7 @@ public func checkCoding<T>(_ value: T, json: String, userInfo: [CodingUserInfoKe
     // Remove trailing whitespace to normalize between corelibs and Apple Foundation.
     .trimmingTrailingWhitespace()
   XCTAssertEqual(json, str, file: file, line: line)
-  
+
   let decoder = JSONDecoder()
   decoder.userInfo = userInfo
   let decodedValue = try! decoder.decode(T.self, from: data)

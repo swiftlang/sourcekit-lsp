@@ -23,7 +23,12 @@ final class SupportTests: XCTestCase {
 
   func checkOffsets(_ string: String, _ expected: [Int], file: StaticString = #filePath, line: UInt = #line) {
     let table = LineTable(string)
-    XCTAssertEqual(table.map { string.utf8.distance(from: string.startIndex, to: $0.startIndex) }, expected, file: file, line: line)
+    XCTAssertEqual(
+      table.map { string.utf8.distance(from: string.startIndex, to: $0.startIndex) },
+      expected,
+      file: file,
+      line: line
+    )
   }
 
   func testLineTable() {
@@ -68,7 +73,13 @@ final class SupportTests: XCTestCase {
     XCTAssertEqual(LineTable("\n")[1], "")
   }
 
-  func checkLineAndColumns(_ table: LineTable, _ utf8Offset: Int, _ expected: (line: Int, utf16Column: Int)?, file: StaticString = #filePath, line: UInt = #line) {
+  func checkLineAndColumns(
+    _ table: LineTable,
+    _ utf8Offset: Int,
+    _ expected: (line: Int, utf16Column: Int)?,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) {
     switch (table.lineAndUTF16ColumnOf(utf8Offset: utf8Offset), expected) {
     case (nil, nil):
       break
@@ -79,20 +90,44 @@ final class SupportTests: XCTestCase {
     }
   }
 
-  func checkUTF8OffsetOf(_ table: LineTable, _ query: (line: Int, utf16Column: Int), _ expected: Int?, file: StaticString = #filePath, line: UInt = #line) {
-    XCTAssertEqual(table.utf8OffsetOf(line: query.line, utf16Column: query.utf16Column), expected, file: file, line: line)
+  func checkUTF8OffsetOf(
+    _ table: LineTable,
+    _ query: (line: Int, utf16Column: Int),
+    _ expected: Int?,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) {
+    XCTAssertEqual(
+      table.utf8OffsetOf(line: query.line, utf16Column: query.utf16Column),
+      expected,
+      file: file,
+      line: line
+    )
   }
 
-    func checkUTF16ColumnAt(_ table: LineTable, _ query: (line: Int, utf8Column: Int), _ expected: Int?, file: StaticString = #filePath, line: UInt = #line) {
-    XCTAssertEqual(table.utf16ColumnAt(line: query.line, utf8Column: query.utf8Column), expected, file: file, line: line)
+  func checkUTF16ColumnAt(
+    _ table: LineTable,
+    _ query: (line: Int, utf8Column: Int),
+    _ expected: Int?,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) {
+    XCTAssertEqual(
+      table.utf16ColumnAt(line: query.line, utf8Column: query.utf8Column),
+      expected,
+      file: file,
+      line: line
+    )
   }
 
   func testLineTableLinePositionTranslation() {
-    let t1 = LineTable("""
+    let t1 = LineTable(
+      """
       0123
       5678
       abcd
-      """)
+      """
+    )
     checkLineAndColumns(t1, 0, (line: 0, utf16Column: 0))
     checkLineAndColumns(t1, 2, (line: 0, utf16Column: 2))
     checkLineAndColumns(t1, 4, (line: 0, utf16Column: 4))
@@ -120,11 +155,13 @@ final class SupportTests: XCTestCase {
     checkUTF16ColumnAt(t1, (line: 2, utf8Column: 0), 0)
     checkUTF16ColumnAt(t1, (line: 3, utf8Column: 0), nil)
 
-    let t2 = LineTable("""
+    let t2 = LineTable(
+      """
       こんにちは
       안녕하세요
       \u{1F600}\u{1F648}
-      """)
+      """
+    )
     checkLineAndColumns(t2, 0, (line: 0, utf16Column: 0))
     checkLineAndColumns(t2, 15, (line: 0, utf16Column: 5))
     checkLineAndColumns(t2, 19, (line: 1, utf16Column: 1))
@@ -169,10 +206,12 @@ final class SupportTests: XCTestCase {
     t.replace(fromLine: 2, utf16Offset: 1, utf16Length: 0, with: "\n")
     XCTAssertEqual(t, LineTable("\n\na\n"))
 
-    t = LineTable("""
-    abcd
-    efgh
-    """)
+    t = LineTable(
+      """
+      abcd
+      efgh
+      """
+    )
 
     t.replace(fromLine: 0, utf16Offset: 2, toLine: 1, utf16Offset: 1, with: "x")
     XCTAssertEqual(t, LineTable("abxfgh"))

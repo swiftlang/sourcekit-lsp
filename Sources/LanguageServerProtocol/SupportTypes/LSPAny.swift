@@ -112,7 +112,7 @@ extension LSPAny: ExpressibleByArrayLiteral {
 
 extension LSPAny: ExpressibleByDictionaryLiteral {
   public init(dictionaryLiteral elements: (String, LSPAny)...) {
-    let dict  = [String: LSPAny](elements, uniquingKeysWith: { first, _ in first })
+    let dict = [String: LSPAny](elements, uniquingKeysWith: { first, _ in first })
     self = .dictionary(dict)
   }
 }
@@ -137,7 +137,7 @@ extension Optional: LSPAnyCodable where Wrapped: LSPAnyCodable {
     self = .some(wrapped)
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     return nil
   }
 
@@ -162,7 +162,7 @@ extension Array: LSPAnyCodable where Element: LSPAnyCodable {
     self = result
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     return nil
   }
 

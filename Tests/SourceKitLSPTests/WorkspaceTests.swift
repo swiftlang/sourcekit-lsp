@@ -11,11 +11,11 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LanguageServerProtocol
 import LSPTestSupport
-import SourceKitLSP
+import LanguageServerProtocol
 import SKCore
 import SKTestSupport
+import SourceKitLSP
 import TSCBasic
 import XCTest
 
@@ -25,7 +25,8 @@ final class WorkspaceTests: XCTestCase {
     guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
     try ws.buildAndIndex()
 
-    guard let otherWs = try await staticSourceKitSwiftPMWorkspace(name: "OtherSwiftPMPackage", server: ws.testServer) else { return }
+    guard let otherWs = try await staticSourceKitSwiftPMWorkspace(name: "OtherSwiftPMPackage", server: ws.testServer)
+    else { return }
     try otherWs.buildAndIndex()
 
     assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
@@ -36,64 +37,83 @@ final class WorkspaceTests: XCTestCase {
     try ws.openDocument(call.url, language: .swift)
 
     let completions = try withExtendedLifetime(ws) {
-        try ws.sk.sendSync(CompletionRequest(textDocument: call.docIdentifier, position: call.position))
+      try ws.sk.sendSync(CompletionRequest(textDocument: call.docIdentifier, position: call.position))
     }
 
-    XCTAssertEqual(completions.items, [
-      CompletionItem(
-        label: "foo()",
-        kind: .method,
-        detail: "Void",
-        deprecated: false,
-        sortText: nil,
-        filterText: "foo()",
-        insertText: "foo()",
-        insertTextFormat: .plain,
-        textEdit: .textEdit(TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "foo()"))),
-      CompletionItem(
-        label: "self",
-        kind: .keyword,
-        detail: "Lib",
-        deprecated: false,
-        sortText: nil,
-        filterText: "self",
-        insertText: "self",
-        insertTextFormat: .plain,
-        textEdit: .textEdit(TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "self"))),
-    ])
+    XCTAssertEqual(
+      completions.items,
+      [
+        CompletionItem(
+          label: "foo()",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          sortText: nil,
+          filterText: "foo()",
+          insertText: "foo()",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "foo()")
+          )
+        ),
+        CompletionItem(
+          label: "self",
+          kind: .keyword,
+          detail: "Lib",
+          deprecated: false,
+          sortText: nil,
+          filterText: "self",
+          insertText: "self",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "self")
+          )
+        ),
+      ]
+    )
 
     try ws.openDocument(otherCall.url, language: .swift)
 
     let otherCompletions = try withExtendedLifetime(ws) {
-        try ws.sk.sendSync(CompletionRequest(textDocument: otherCall.docIdentifier, position: otherCall.position))
+      try ws.sk.sendSync(CompletionRequest(textDocument: otherCall.docIdentifier, position: otherCall.position))
     }
 
-    XCTAssertEqual(otherCompletions.items, [
-      CompletionItem(
-        label: "sayHello()",
-        kind: .method,
-        detail: "Void",
-        documentation: nil,
-        deprecated: false,
-        sortText: nil,
-        filterText: "sayHello()",
-        insertText: "sayHello()",
-        insertTextFormat: .plain,
-        textEdit: .textEdit(TextEdit(range: Position(line: 7, utf16index: 41)..<Position(line: 7, utf16index: 41), newText: "sayHello()"))
-      ),
-      CompletionItem(
-        label: "self",
-        kind: LanguageServerProtocol.CompletionItemKind(rawValue: 14),
-        detail: "FancyLib",
-        documentation: nil,
-        deprecated: false,
-        sortText: nil,
-        filterText: "self",
-        insertText: "self",
-        insertTextFormat: .plain,
-        textEdit: .textEdit(TextEdit(range: Position(line: 7, utf16index: 41)..<Position(line: 7, utf16index: 41), newText: "self"))
-      ),
-    ])
+    XCTAssertEqual(
+      otherCompletions.items,
+      [
+        CompletionItem(
+          label: "sayHello()",
+          kind: .method,
+          detail: "Void",
+          documentation: nil,
+          deprecated: false,
+          sortText: nil,
+          filterText: "sayHello()",
+          insertText: "sayHello()",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(
+              range: Position(line: 7, utf16index: 41)..<Position(line: 7, utf16index: 41),
+              newText: "sayHello()"
+            )
+          )
+        ),
+        CompletionItem(
+          label: "self",
+          kind: LanguageServerProtocol.CompletionItemKind(rawValue: 14),
+          detail: "FancyLib",
+          documentation: nil,
+          deprecated: false,
+          sortText: nil,
+          filterText: "self",
+          insertText: "self",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Position(line: 7, utf16index: 41)..<Position(line: 7, utf16index: 41), newText: "self")
+          )
+        ),
+      ]
+    )
   }
 
   func testMultipleClangdWorkspaces() async throws {
@@ -112,7 +132,10 @@ final class WorkspaceTests: XCTestCase {
 
     try await fulfillmentOfOrThrow([expectation])
 
-    let otherWs = try await staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings", server: ws.testServer)!
+    let otherWs = try await staticSourceKitTibsWorkspace(
+      name: "ClangCrashRecoveryBuildSettings",
+      server: ws.testServer
+    )!
     assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
     let otherLoc = otherWs.testLoc("loc")
 
@@ -122,10 +145,13 @@ final class WorkspaceTests: XCTestCase {
 
     let expectedHighlightResponse = [
       DocumentHighlight(range: Position(line: 3, utf16index: 5)..<Position(line: 3, utf16index: 8), kind: .text),
-      DocumentHighlight(range: Position(line: 9, utf16index: 2)..<Position(line: 9, utf16index: 5), kind: .text)
+      DocumentHighlight(range: Position(line: 9, utf16index: 2)..<Position(line: 9, utf16index: 5), kind: .text),
     ]
 
-    let highlightRequest = DocumentHighlightRequest(textDocument: otherLoc.docIdentifier, position: Position(line: 9, utf16index: 3))
+    let highlightRequest = DocumentHighlightRequest(
+      textDocument: otherLoc.docIdentifier,
+      position: Position(line: 9, utf16index: 3)
+    )
     let highlightResponse = try otherWs.sk.sendSync(highlightRequest)
     XCTAssertEqual(highlightResponse, expectedHighlightResponse)
   }
@@ -134,7 +160,9 @@ final class WorkspaceTests: XCTestCase {
     guard let otherWs = try await staticSourceKitSwiftPMWorkspace(name: "OtherSwiftPMPackage") else { return }
     try otherWs.buildAndIndex()
 
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage", server: otherWs.testServer) else { return }
+    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage", server: otherWs.testServer) else {
+      return
+    }
     try ws.buildAndIndex()
 
     assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
@@ -148,7 +176,10 @@ final class WorkspaceTests: XCTestCase {
     // SwiftPMPackage that hasn't been added to Package.swift yet) will belong
     // to OtherSwiftPMPackage by default (because it provides fallback build
     // settings for it).
-    assertEqual(await ws.testServer.server!.workspaceForDocument(uri: otherLib.docUri)?.rootUri, DocumentURI(otherWs.sources.rootDirectory))
+    assertEqual(
+      await ws.testServer.server!.workspaceForDocument(uri: otherLib.docUri)?.rootUri,
+      DocumentURI(otherWs.sources.rootDirectory)
+    )
 
     // Add the otherlib target to Package.swift
     _ = try ws.sources.edit { builder in
@@ -156,19 +187,24 @@ final class WorkspaceTests: XCTestCase {
         .appendingPathComponent("Package.swift")
       var packageManifestContents = try String(contentsOf: packageManifest, encoding: .utf8)
       let targetMarkerRange = packageManifestContents.range(of: "/*Package.swift:targets*/")!
-      packageManifestContents.replaceSubrange(targetMarkerRange, with: """
-        .target(
-           name: "otherlib",
-           dependencies: ["lib"]
-        ),
-        /*Package.swift:targets*/
-        """)
+      packageManifestContents.replaceSubrange(
+        targetMarkerRange,
+        with: """
+          .target(
+             name: "otherlib",
+             dependencies: ["lib"]
+          ),
+          /*Package.swift:targets*/
+          """
+      )
       builder.write(packageManifestContents, to: packageManifest)
     }
 
-    ws.sk.send(DidChangeWatchedFilesNotification(changes: [
-      FileEvent(uri: packageTargets.docUri, type: .changed)
-    ]))
+    ws.sk.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: packageTargets.docUri, type: .changed)
+      ])
+    )
 
     // After updating Package.swift in SwiftPMPackage, SwiftPMPackage can
     // provide proper build settings for otherLib and thus workspace
@@ -179,7 +215,9 @@ final class WorkspaceTests: XCTestCase {
 
     // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
     for _ in 0..<30 {
-      if await ws.testServer.server!.workspaceForDocument(uri: otherLib.docUri)?.rootUri == DocumentURI(ws.sources.rootDirectory) {
+      if await ws.testServer.server!.workspaceForDocument(uri: otherLib.docUri)?.rootUri
+        == DocumentURI(ws.sources.rootDirectory)
+      {
         didReceiveCorrectWorkspaceMembership = true
         break
       }
@@ -205,7 +243,7 @@ final class WorkspaceTests: XCTestCase {
       defer {
         receivedResponse.fulfill()
       }
-      guard case .success(_) = result else  {
+      guard case .success(_) = result else {
         XCTFail("Expected a successful response")
         return
       }
@@ -229,69 +267,95 @@ final class WorkspaceTests: XCTestCase {
 
     let testServer = TestSourceKitServer(connectionKind: .local)
     let sk = testServer.client
-    _ = try sk.sendSync(InitializeRequest(
-      rootURI: nil,
-      capabilities: ClientCapabilities(workspace: .init(workspaceFolders: true)),
-      workspaceFolders: [
-        WorkspaceFolder(uri: DocumentURI(ws.sources.rootDirectory.deletingLastPathComponent()))
-      ]
-    ))
+    _ = try sk.sendSync(
+      InitializeRequest(
+        rootURI: nil,
+        capabilities: ClientCapabilities(workspace: .init(workspaceFolders: true)),
+        workspaceFolders: [
+          WorkspaceFolder(uri: DocumentURI(ws.sources.rootDirectory.deletingLastPathComponent()))
+        ]
+      )
+    )
 
     let docString = try String(data: Data(contentsOf: otherPackLoc.url), encoding: .utf8)!
 
-    sk.send(DidOpenTextDocumentNotification(
-      textDocument: TextDocumentItem(
-      uri: otherPackLoc.docUri,
-      language: .swift,
-      version: 1,
-      text: docString)
-    ))
-
-    let preChangeWorkspaceResponse = try sk.sendSync(CompletionRequest(
-      textDocument: TextDocumentIdentifier(otherPackLoc.docUri),
-      position: otherPackLoc.position
-    ))
-
-    XCTAssertEqual(preChangeWorkspaceResponse.items, [], "Did not expect to receive cross-module code completion results if we opened the parent directory of the package")
-
-    sk.send(DidChangeWorkspaceFoldersNotification(event: WorkspaceFoldersChangeEvent(added: [
-      WorkspaceFolder(uri: DocumentURI(ws.sources.rootDirectory))
-    ])))
-
-    let postChangeWorkspaceResponse = try sk.sendSync(CompletionRequest(
-      textDocument: TextDocumentIdentifier(otherPackLoc.docUri),
-      position: otherPackLoc.position
-    ))
-
-    XCTAssertEqual(postChangeWorkspaceResponse.items, [
-      CompletionItem(
-        label: "helloWorld()",
-        kind: .method,
-        detail: "Void",
-        documentation: nil,
-        deprecated: false, sortText: nil,
-        filterText: "helloWorld()",
-        insertText: "helloWorld()",
-        insertTextFormat: .plain,
-        textEdit: .textEdit(TextEdit(
-          range: otherPackLoc.position..<otherPackLoc.position,
-          newText: "helloWorld()"
-        ))
-      ),
-      CompletionItem(
-        label: "self",
-        kind: .keyword,
-        detail: "Package",
-        documentation: nil,
-        deprecated: false, sortText: nil,
-        filterText: "self",
-        insertText: "self",
-        insertTextFormat: .plain,
-        textEdit: .textEdit(TextEdit(
-          range: otherPackLoc.position..<otherPackLoc.position,
-          newText: "self"
-        ))
+    sk.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: otherPackLoc.docUri,
+          language: .swift,
+          version: 1,
+          text: docString
+        )
       )
-    ])
+    )
+
+    let preChangeWorkspaceResponse = try sk.sendSync(
+      CompletionRequest(
+        textDocument: TextDocumentIdentifier(otherPackLoc.docUri),
+        position: otherPackLoc.position
+      )
+    )
+
+    XCTAssertEqual(
+      preChangeWorkspaceResponse.items,
+      [],
+      "Did not expect to receive cross-module code completion results if we opened the parent directory of the package"
+    )
+
+    sk.send(
+      DidChangeWorkspaceFoldersNotification(
+        event: WorkspaceFoldersChangeEvent(added: [
+          WorkspaceFolder(uri: DocumentURI(ws.sources.rootDirectory))
+        ])
+      )
+    )
+
+    let postChangeWorkspaceResponse = try sk.sendSync(
+      CompletionRequest(
+        textDocument: TextDocumentIdentifier(otherPackLoc.docUri),
+        position: otherPackLoc.position
+      )
+    )
+
+    XCTAssertEqual(
+      postChangeWorkspaceResponse.items,
+      [
+        CompletionItem(
+          label: "helloWorld()",
+          kind: .method,
+          detail: "Void",
+          documentation: nil,
+          deprecated: false,
+          sortText: nil,
+          filterText: "helloWorld()",
+          insertText: "helloWorld()",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(
+              range: otherPackLoc.position..<otherPackLoc.position,
+              newText: "helloWorld()"
+            )
+          )
+        ),
+        CompletionItem(
+          label: "self",
+          kind: .keyword,
+          detail: "Package",
+          documentation: nil,
+          deprecated: false,
+          sortText: nil,
+          filterText: "self",
+          insertText: "self",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(
+              range: otherPackLoc.position..<otherPackLoc.position,
+              newText: "self"
+            )
+          )
+        ),
+      ]
+    )
   }
 }

@@ -25,8 +25,18 @@ final class SupportTests: XCTestCase {
 
     func check(expected: [(String, LogLevel)], file: StaticString = #filePath, line: UInt = #line) {
       testLogger.flush()
-      XCTAssert(messages.count == expected.count, "\(messages) does not match expected \(expected)", file: file, line: line)
-      XCTAssert(zip(messages, expected).allSatisfy({ $0.0 == $0.1 }), "\(messages) does not match expected \(expected)", file: file, line: line)
+      XCTAssert(
+        messages.count == expected.count,
+        "\(messages) does not match expected \(expected)",
+        file: file,
+        line: line
+      )
+      XCTAssert(
+        zip(messages, expected).allSatisfy({ $0.0 == $0.1 }),
+        "\(messages) does not match expected \(expected)",
+        file: file,
+        line: line
+      )
       messages.removeAll()
     }
 
@@ -65,7 +75,7 @@ final class SupportTests: XCTestCase {
       ("d", .error),
       ("e", .warning),
       ("f", .info),
-      ])
+    ])
 
     testLogger.currentLevel = .warning
 
@@ -76,7 +86,7 @@ final class SupportTests: XCTestCase {
     check(expected: [
       ("d", .error),
       ("e", .warning),
-      ])
+    ])
 
     testLogger.currentLevel = .error
 
@@ -85,8 +95,8 @@ final class SupportTests: XCTestCase {
     testLogger.log("f", level: .info)
     testLogger.log("g", level: .debug)
     check(expected: [
-      ("d", .error),
-      ])
+      ("d", .error)
+    ])
 
     testLogger.currentLevel = .default
 
@@ -100,7 +110,7 @@ final class SupportTests: XCTestCase {
     check(expected: [
       ("d", .error),
       ("e", .warning),
-      ])
+    ])
 
     // .error
     testLogger.setLogLevel("0")
@@ -110,8 +120,8 @@ final class SupportTests: XCTestCase {
     testLogger.log("f", level: .info)
     testLogger.log("g", level: .debug)
     check(expected: [
-      ("d", .error),
-      ])
+      ("d", .error)
+    ])
 
     // missing - no change
     testLogger.setLogLevel(environmentVariable: "TEST_ENV_LOGGGING_err")
@@ -121,8 +131,8 @@ final class SupportTests: XCTestCase {
     testLogger.log("f", level: .info)
     testLogger.log("g", level: .debug)
     check(expected: [
-      ("d", .error),
-      ])
+      ("d", .error)
+    ])
 
     // invalid - no change
     testLogger.setLogLevel("")
@@ -132,8 +142,8 @@ final class SupportTests: XCTestCase {
     testLogger.log("f", level: .info)
     testLogger.log("g", level: .debug)
     check(expected: [
-      ("d", .error),
-      ])
+      ("d", .error)
+    ])
 
     // invalid - no change
     testLogger.setLogLevel("a3")
@@ -143,8 +153,8 @@ final class SupportTests: XCTestCase {
     testLogger.log("f", level: .info)
     testLogger.log("g", level: .debug)
     check(expected: [
-      ("d", .error),
-      ])
+      ("d", .error)
+    ])
 
     // too high - max out at .debug
     testLogger.setLogLevel("1000")
@@ -158,7 +168,7 @@ final class SupportTests: XCTestCase {
       ("e", .warning),
       ("f", .info),
       ("g", .debug),
-      ])
+    ])
 
     // By string.
     testLogger.setLogLevel("error")
@@ -177,7 +187,7 @@ final class SupportTests: XCTestCase {
     check(expected: [
       ("a", .default),
       ("a", .default),
-      ])
+    ])
 
     testLogger.removeLogHandler(obj)
 

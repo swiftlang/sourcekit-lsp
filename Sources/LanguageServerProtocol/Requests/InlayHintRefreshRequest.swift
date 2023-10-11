@@ -14,5 +14,5 @@ public struct InlayHintRefreshRequest: RequestType {
   public static var method: String = "workspace/inlayHint/refresh"
   public typealias Response = VoidResponse
 
-  public init() { }
+  public init() {}
 }

@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import BuildServerProtocol
 import LSPTestSupport
+import LanguageServerProtocol
 import SKCore
 import TSCBasic
 import XCTest
@@ -36,8 +36,9 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: nil,
       fallbackBuildSystem: FallbackBuildSystem(buildSetup: .default),
-      mainFilesProvider: mainFiles)
-    defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
+      mainFilesProvider: mainFiles
+    )
+    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
 
     await assertEqual(bsm._cachedMainFile(for: a), nil)
     await assertEqual(bsm._cachedMainFile(for: b), nil)
@@ -97,8 +98,9 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles)
-    defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
+      mainFilesProvider: mainFiles
+    )
+    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
@@ -120,8 +122,9 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles)
-    defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
+      mainFilesProvider: mainFiles
+    )
+    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
     await bsm.registerForChangeNotifications(for: a, language: .swift)
     assertNil(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings)
@@ -142,8 +145,9 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: fallback,
-      mainFilesProvider: mainFiles)
-    defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
+      mainFilesProvider: mainFiles
+    )
+    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
     let fallbackSettings = fallback.buildSettings(for: a, language: .swift)
     await bsm.registerForChangeNotifications(for: a, language: .swift)
@@ -171,8 +175,9 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles)
-    defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
+      mainFilesProvider: mainFiles
+    )
+    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
@@ -211,8 +216,9 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles)
-    defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
+      mainFilesProvider: mainFiles
+    )
+    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["a"])
@@ -247,8 +253,9 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles)
-    defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
+      mainFilesProvider: mainFiles
+    )
+    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
     bs.map[cpp1] = FileBuildSettings(compilerArguments: ["C++ 1"])
@@ -299,18 +306,18 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles)
-    defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
+      mainFilesProvider: mainFiles
+    )
+    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
     let cppArg = "C++ Main File"
     bs.map[cpp] = FileBuildSettings(compilerArguments: [cppArg, cpp.pseudoPath])
 
-
     await bsm.registerForChangeNotifications(for: h1, language: .c)
 
     await bsm.registerForChangeNotifications(for: h2, language: .c)
-    
+
     let expectedArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h1.pseudoPath])
     let expectedArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h2.pseudoPath])
     assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h1, language: .c)?.buildSettings, expectedArgsH1)
@@ -341,8 +348,9 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles)
-    defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
+      mainFilesProvider: mainFiles
+    )
+    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["a"])
@@ -362,7 +370,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let changedB = expectation(description: "changed settings b")
     await del.setExpected([
-      (b, .swift, bs.map[b]!, changedB, #file, #line),
+      (b, .swift, bs.map[b]!, changedB, #file, #line)
     ])
 
     await bsm.unregisterForChangeNotifications(for: a)
@@ -383,8 +391,9 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles)
-    defer { withExtendedLifetime(bsm) {} } // Keep BSM alive for callbacks.
+      mainFilesProvider: mainFiles
+    )
+    defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
@@ -456,8 +465,13 @@ class ManualBuildSystem: BuildSystem {
 
 /// A `BuildSystemDelegate` setup for testing.
 private actor BSMDelegate: BuildSystemDelegate {
-  fileprivate typealias ExpectedBuildSettingChangedCall = (uri: DocumentURI, language: Language, settings: FileBuildSettings?, expectation: XCTestExpectation, file: StaticString, line: UInt)
-  fileprivate typealias ExpectedDependenciesUpdatedCall = (uri: DocumentURI, expectation: XCTestExpectation, file: StaticString, line: UInt)
+  fileprivate typealias ExpectedBuildSettingChangedCall = (
+    uri: DocumentURI, language: Language, settings: FileBuildSettings?, expectation: XCTestExpectation,
+    file: StaticString, line: UInt
+  )
+  fileprivate typealias ExpectedDependenciesUpdatedCall = (
+    uri: DocumentURI, expectation: XCTestExpectation, file: StaticString, line: UInt
+  )
 
   let queue: DispatchQueue = DispatchQueue(label: "\(BSMDelegate.self)")
   unowned let bsm: BuildSystemManager
@@ -468,7 +482,8 @@ private actor BSMDelegate: BuildSystemDelegate {
     self.expected = expected
   }
 
-  var expectedDependenciesUpdate: [(uri: DocumentURI, expectation: XCTestExpectation, file: StaticString, line: UInt)] = []
+  var expectedDependenciesUpdate: [(uri: DocumentURI, expectation: XCTestExpectation, file: StaticString, line: UInt)] =
+    []
 
   /// - Note: Needed to set `expected` outside of the actor's isolation context.
   func setExpectedDependenciesUpdate(_ expectedDependenciesUpdated: [ExpectedDependenciesUpdatedCall]) {
@@ -510,6 +525,6 @@ private actor BSMDelegate: BuildSystemDelegate {
       expected.expectation.fulfill()
     }
   }
-  
+
   func fileHandlingCapabilityChanged() {}
 }

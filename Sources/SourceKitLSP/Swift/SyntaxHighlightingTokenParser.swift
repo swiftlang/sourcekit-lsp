@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKitD
-import LanguageServerProtocol
 import LSPLogging
+import LanguageServerProtocol
+import SourceKitD
 
 /// Parses tokens from sourcekitd response dictionaries.
 struct SyntaxHighlightingTokenParser {
@@ -22,19 +22,25 @@ struct SyntaxHighlightingTokenParser {
     self.sourcekitd = sourcekitd
   }
 
-  func parseTokens(_ response: SKDResponseDictionary, in snapshot: DocumentSnapshot, into tokens: inout [SyntaxHighlightingToken]) {
+  func parseTokens(
+    _ response: SKDResponseDictionary,
+    in snapshot: DocumentSnapshot,
+    into tokens: inout [SyntaxHighlightingToken]
+  ) {
     let keys = sourcekitd.keys
 
     if let offset: Int = response[keys.offset],
-       var length: Int = response[keys.length],
-       let start: Position = snapshot.positionOf(utf8Offset: offset),
-       let skKind: sourcekitd_uid_t = response[keys.kind],
-       case (let kind, var modifiers)? = parseKindAndModifiers(skKind) {
+      var length: Int = response[keys.length],
+      let start: Position = snapshot.positionOf(utf8Offset: offset),
+      let skKind: sourcekitd_uid_t = response[keys.kind],
+      case (let kind, var modifiers)? = parseKindAndModifiers(skKind)
+    {
 
       // If the name is escaped in backticks, we need to add two characters to the
       // length for the backticks.
       if modifiers.contains(.declaration),
-         let index = snapshot.indexOf(utf8Offset: offset), snapshot.text[index] == "`" {
+        let index = snapshot.indexOf(utf8Offset: offset), snapshot.text[index] == "`"
+      {
         length += 2
       }
 
@@ -61,19 +67,25 @@ struct SyntaxHighlightingTokenParser {
     }
   }
 
-  func parseTokens(_ response: SKDResponseArray, in snapshot: DocumentSnapshot, into tokens: inout [SyntaxHighlightingToken]) {
+  func parseTokens(
+    _ response: SKDResponseArray,
+    in snapshot: DocumentSnapshot,
+    into tokens: inout [SyntaxHighlightingToken]
+  ) {
     response.forEach { (_, value) in
       parseTokens(value, in: snapshot, into: &tokens)
       return true
     }
   }
 
-  private func parseKindAndModifiers(_ uid: sourcekitd_uid_t) -> (SyntaxHighlightingToken.Kind, SyntaxHighlightingToken.Modifiers)? {
+  private func parseKindAndModifiers(
+    _ uid: sourcekitd_uid_t
+  ) -> (SyntaxHighlightingToken.Kind, SyntaxHighlightingToken.Modifiers)? {
     let api = sourcekitd.api
     let values = sourcekitd.values
     switch uid {
     case values.kind_keyword,
-         values.syntaxtype_keyword:
+      values.syntaxtype_keyword:
       return (.keyword, [])
     case values.syntaxtype_attribute_builtin:
       return (.modifier, [])
@@ -104,46 +116,46 @@ struct SyntaxHighlightingTokenParser {
     case values.ref_protocol:
       return (.interface, [])
     case values.decl_associatedtype,
-         values.decl_typealias,
-         values.decl_generic_type_param:
+      values.decl_typealias,
+      values.decl_generic_type_param:
       return (.typeParameter, [.declaration])
     case values.ref_associatedtype,
-         values.ref_typealias,
-         values.ref_generic_type_param:
+      values.ref_typealias,
+      values.ref_generic_type_param:
       return (.typeParameter, [])
     case values.decl_function_free:
       return (.function, [.declaration])
     case values.decl_function_method_static,
-         values.decl_function_method_class,
-         values.decl_function_constructor:
+      values.decl_function_method_class,
+      values.decl_function_constructor:
       return (.method, [.declaration, .static])
     case values.decl_function_method_instance,
-         values.decl_function_destructor,
-         values.decl_function_subscript:
+      values.decl_function_destructor,
+      values.decl_function_subscript:
       return (.method, [.declaration])
     case values.ref_function_free:
       return (.function, [])
     case values.ref_function_method_static,
-         values.ref_function_method_class,
-         values.ref_function_constructor:
+      values.ref_function_method_class,
+      values.ref_function_constructor:
       return (.method, [.static])
     case values.ref_function_method_instance,
-         values.ref_function_destructor,
-         values.ref_function_subscript:
+      values.ref_function_destructor,
+      values.ref_function_subscript:
       return (.method, [])
     case values.syntaxtype_operator:
       return (.operator, [])
     case values.decl_function_operator_prefix,
-         values.decl_function_operator_postfix,
-         values.decl_function_operator_infix:
+      values.decl_function_operator_postfix,
+      values.decl_function_operator_infix:
       return (.operator, [.declaration])
     case values.ref_function_operator_prefix,
-         values.ref_function_operator_postfix,
-         values.ref_function_operator_infix:
+      values.ref_function_operator_postfix,
+      values.ref_function_operator_infix:
       return (.operator, [])
     case values.decl_var_static,
-         values.decl_var_class,
-         values.decl_var_instance:
+      values.decl_var_class,
+      values.decl_var_instance:
       return (.property, [.declaration])
     case values.decl_var_parameter:
       // SourceKit seems to use these to refer to parameter labels,
@@ -152,21 +164,21 @@ struct SyntaxHighlightingTokenParser {
       // causing a 'wrong highlighting' e.g. of `x` in `f(x y: Int) {}`)
       return (.function, [.declaration])
     case values.ref_var_static,
-         values.ref_var_class,
-         values.ref_var_instance:
+      values.ref_var_class,
+      values.ref_var_instance:
       return (.property, [])
     case values.decl_var_local,
-         values.decl_var_global:
+      values.decl_var_global:
       return (.variable, [.declaration])
     case values.ref_var_local,
-         values.ref_var_global:
+      values.ref_var_global:
       return (.variable, [])
     case values.syntaxtype_comment,
-         values.syntaxtype_comment_marker,
-         values.syntaxtype_comment_url:
+      values.syntaxtype_comment_marker,
+      values.syntaxtype_comment_url:
       return (.comment, [])
     case values.syntaxtype_doccomment,
-         values.syntaxtype_doccomment_field:
+      values.syntaxtype_doccomment_field:
       return (.comment, [.documentation])
     case values.syntaxtype_type_identifier:
       return (.type, [])
@@ -178,7 +190,7 @@ struct SyntaxHighlightingTokenParser {
       return (.identifier, [])
     default:
       let ignoredKinds: Set<sourcekitd_uid_t> = [
-        values.syntaxtype_string_interpolation_anchor,
+        values.syntaxtype_string_interpolation_anchor
       ]
       if !ignoredKinds.contains(uid) {
         let name = api.uid_get_string_ptr(uid).map(String.init(cString:))
@@ -201,14 +213,16 @@ extension Range where Bound == Position {
     }
 
     guard let startIndex = snapshot.index(of: lowerBound),
-          let endIndex = snapshot.index(of: upperBound) else {
+      let endIndex = snapshot.index(of: upperBound)
+    else {
       fatalError("Range \(self) reaches outside of the document")
     }
 
     let text = snapshot.text[startIndex..<endIndex]
     let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
 
-    return lines
+    return
+      lines
       .enumerated()
       .lazy
       .map { (i, content) in

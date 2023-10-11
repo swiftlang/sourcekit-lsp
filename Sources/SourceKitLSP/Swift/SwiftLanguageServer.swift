@@ -10,15 +10,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-import Foundation
 import Dispatch
-import LanguageServerProtocol
+import Foundation
 import LSPLogging
+import LanguageServerProtocol
 import SKCore
 import SKSupport
 import SourceKitD
-import SwiftSyntax
 import SwiftParser
+import SwiftSyntax
 
 #if os(Windows)
 import WinSDK
@@ -99,7 +99,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   let capabilityRegistry: CapabilityRegistry
 
   let serverOptions: SourceKitServer.Options
-  
+
   /// Directory where generated Swift interfaces will be stored.
   let generatedInterfacesPath: URL
 
@@ -124,7 +124,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     // and we should disable the publish notifications to avoid double-reporting.
     return capabilityRegistry.pullDiagnosticsRegistration(for: .swift) == nil
   }
-  
+
   private var state: LanguageServerState {
     didSet {
       for handler in stateChangeHandlers {
@@ -132,7 +132,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
       }
     }
   }
-  
+
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
 
   /// Creates a language server for the given client using the sourcekitd dylib specified in `toolchain`.
@@ -168,7 +168,10 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     guard let workspace = await sourceKitServer.workspaceForDocument(uri: document) else {
       return nil
     }
-    if let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(for: document, language: .swift) {
+    if let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
+      for: document,
+      language: .swift
+    ) {
       return SwiftCompileCommand(settings.buildSettings, isFallback: settings.isFallback)
     } else {
       return nil
@@ -180,7 +183,9 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     return true
   }
 
-  public func addStateChangeHandler(handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void) {
+  public func addStateChangeHandler(
+    handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
+  ) {
     self.stateChangeHandlers.append(handler)
   }
 
@@ -334,40 +339,55 @@ extension SwiftLanguageServer {
   public func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult {
     sourcekitd.addNotificationHandler(self)
 
-    return InitializeResult(capabilities: ServerCapabilities(
-      textDocumentSync: .options(TextDocumentSyncOptions(
-        openClose: true,
-        change: .incremental
-      )),
-      hoverProvider: .bool(true),
-      completionProvider: CompletionOptions(
-        resolveProvider: false,
-        triggerCharacters: [".", "("]),
-      definitionProvider: nil,
-      implementationProvider: .bool(true),
-      referencesProvider: nil,
-      documentHighlightProvider: .bool(true),
-      documentSymbolProvider: .bool(true),
-      codeActionProvider: .value(CodeActionServerCapabilities(
-        clientCapabilities: initialize.capabilities.textDocument?.codeAction,
-        codeActionOptions: CodeActionOptions(codeActionKinds: [.quickFix, .refactor]),
-        supportsCodeActions: true)),
-      colorProvider: .bool(true),
-      foldingRangeProvider: .bool(true),
-      executeCommandProvider: ExecuteCommandOptions(
-        commands: builtinSwiftCommands),
-      semanticTokensProvider: SemanticTokensOptions(
-        legend: SemanticTokensLegend(
-          tokenTypes: SyntaxHighlightingToken.Kind.allCases.map(\.lspName),
-          tokenModifiers: SyntaxHighlightingToken.Modifiers.allModifiers.map { $0.lspName! }),
-        range: .bool(true),
-        full: .bool(true)),
-      inlayHintProvider: .value(InlayHintOptions(
-        resolveProvider: false)),
-      diagnosticProvider: DiagnosticOptions(
-        interFileDependencies: true,
-        workspaceDiagnostics: false)
-    ))
+    return InitializeResult(
+      capabilities: ServerCapabilities(
+        textDocumentSync: .options(
+          TextDocumentSyncOptions(
+            openClose: true,
+            change: .incremental
+          )
+        ),
+        hoverProvider: .bool(true),
+        completionProvider: CompletionOptions(
+          resolveProvider: false,
+          triggerCharacters: [".", "("]
+        ),
+        definitionProvider: nil,
+        implementationProvider: .bool(true),
+        referencesProvider: nil,
+        documentHighlightProvider: .bool(true),
+        documentSymbolProvider: .bool(true),
+        codeActionProvider: .value(
+          CodeActionServerCapabilities(
+            clientCapabilities: initialize.capabilities.textDocument?.codeAction,
+            codeActionOptions: CodeActionOptions(codeActionKinds: [.quickFix, .refactor]),
+            supportsCodeActions: true
+          )
+        ),
+        colorProvider: .bool(true),
+        foldingRangeProvider: .bool(true),
+        executeCommandProvider: ExecuteCommandOptions(
+          commands: builtinSwiftCommands
+        ),
+        semanticTokensProvider: SemanticTokensOptions(
+          legend: SemanticTokensLegend(
+            tokenTypes: SyntaxHighlightingToken.Kind.allCases.map(\.lspName),
+            tokenModifiers: SyntaxHighlightingToken.Modifiers.allModifiers.map { $0.lspName! }
+          ),
+          range: .bool(true),
+          full: .bool(true)
+        ),
+        inlayHintProvider: .value(
+          InlayHintOptions(
+            resolveProvider: false
+          )
+        ),
+        diagnosticProvider: DiagnosticOptions(
+          interFileDependencies: true,
+          workspaceDiagnostics: false
+        )
+      )
+    )
   }
 
   public func clientInitialized(_: InitializedNotification) {
@@ -388,7 +408,7 @@ extension SwiftLanguageServer {
     req[sourcekitd.keys.request] = sourcekitd.requests.crash_exit
     _ = try? sourcekitd.sendSync(req)
   }
-  
+
   // MARK: - Build System Integration
 
   private func reopenDocument(_ snapshot: DocumentSnapshot, _ compileCmd: SwiftCompileCommand?) async {
@@ -413,7 +433,10 @@ extension SwiftLanguageServer {
       return
     }
     await self.publishDiagnostics(
-        response: dict, for: snapshot, compileCommand: compileCmd)
+      response: dict,
+      for: snapshot,
+      compileCommand: compileCmd
+    )
   }
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
@@ -498,7 +521,7 @@ extension SwiftLanguageServer {
 
       if let range = edit.range {
         guard let offset = before.utf8OffsetOf(line: range.lowerBound.line, utf16Column: range.lowerBound.utf16index),
-              let end = before.utf8OffsetOf(line: range.upperBound.line, utf16Column: range.upperBound.utf16index)
+          let end = before.utf8OffsetOf(line: range.upperBound.line, utf16Column: range.upperBound.utf16index)
         else {
           fatalError("invalid edit \(range)")
         }
@@ -623,12 +646,12 @@ extension SwiftLanguageServer {
       let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       closeHelperReq[self.keys.request] = self.requests.editor_close
       closeHelperReq[self.keys.name] = helperDocumentName
-      // FIXME: (async) We might receive two concurrent document symbol requests for the 
-      // same document, in which race to open/close a document with the same name in 
+      // FIXME: (async) We might receive two concurrent document symbol requests for the
+      // same document, in which race to open/close a document with the same name in
       // sourcekitd. The solution is to either
-      //  - Not open the helper document and instead rely on the document that is already 
+      //  - Not open the helper document and instead rely on the document that is already
       //    open or
-      //  - Prefix the helper document with a UUID to make sure the two concurrent 
+      //  - Prefix the helper document with a UUID to make sure the two concurrent
       //    requests operate on different documents as far as sourcekitd is concerned.
       Task {
         _ = try await self.sourcekitd.send(closeHelperReq)
@@ -641,21 +664,23 @@ extension SwiftLanguageServer {
 
     func documentSymbol(value: SKDResponseDictionary) -> DocumentSymbol? {
       guard let name: String = value[self.keys.name],
-            let uid: sourcekitd_uid_t = value[self.keys.kind],
-            let kind: SymbolKind = uid.asSymbolKind(self.values),
-            let offset: Int = value[self.keys.offset],
-            let start: Position = snapshot.positionOf(utf8Offset: offset),
-            let length: Int = value[self.keys.length],
-            let end: Position = snapshot.positionOf(utf8Offset: offset + length) else {
+        let uid: sourcekitd_uid_t = value[self.keys.kind],
+        let kind: SymbolKind = uid.asSymbolKind(self.values),
+        let offset: Int = value[self.keys.offset],
+        let start: Position = snapshot.positionOf(utf8Offset: offset),
+        let length: Int = value[self.keys.length],
+        let end: Position = snapshot.positionOf(utf8Offset: offset + length)
+      else {
         return nil
       }
 
       let range = start..<end
       let selectionRange: Range<Position>
       if let nameOffset: Int = value[self.keys.nameoffset],
-          let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
-          let nameLength: Int = value[self.keys.namelength],
-          let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength) {
+        let nameStart: Position = snapshot.positionOf(utf8Offset: nameOffset),
+        let nameLength: Int = value[self.keys.namelength],
+        let nameEnd: Position = snapshot.positionOf(utf8Offset: nameOffset + nameLength)
+      {
         selectionRange = nameStart..<nameEnd
       } else {
         selectionRange = range
@@ -667,13 +692,15 @@ extension SwiftLanguageServer {
       } else {
         children = []
       }
-      return DocumentSymbol(name: name,
-                            detail: value[self.keys.typename] as String?,
-                            kind: kind,
-                            deprecated: nil,
-                            range: range,
-                            selectionRange: selectionRange,
-                            children: children)
+      return DocumentSymbol(
+        name: name,
+        detail: value[self.keys.typename] as String?,
+        kind: kind,
+        deprecated: nil,
+        range: range,
+        selectionRange: selectionRange,
+        children: children
+      )
     }
 
     func documentSymbols(array: SKDResponseArray) -> [DocumentSymbol] {
@@ -712,12 +739,12 @@ extension SwiftLanguageServer {
       let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       closeHelperReq[keys.request] = self.requests.editor_close
       closeHelperReq[keys.name] = helperDocumentName
-      // FIXME: (async) We might receive two concurrent document color requests for the 
-      // same document, in which race to open/close a document with the same name in 
+      // FIXME: (async) We might receive two concurrent document color requests for the
+      // same document, in which race to open/close a document with the same name in
       // sourcekitd. The solution is to either
-      //  - Not open the helper document and instead rely on the document that is already 
+      //  - Not open the helper document and instead rely on the document that is already
       //    open or
-      //  - Prefix the helper document with a UUID to make sure the two concurrent 
+      //  - Prefix the helper document with a UUID to make sure the two concurrent
       //    requests operate on different documents as far as sourcekitd is concerned.
       Task {
         _ = try? await self.sourcekitd.send(closeHelperReq)
@@ -730,45 +757,48 @@ extension SwiftLanguageServer {
 
     func colorInformation(dict: SKDResponseDictionary) -> ColorInformation? {
       guard let kind: sourcekitd_uid_t = dict[self.keys.kind],
-            kind == self.values.expr_object_literal,
-            let name: String = dict[self.keys.name],
-            name == "colorLiteral",
-            let offset: Int = dict[self.keys.offset],
-            let start: Position = snapshot.positionOf(utf8Offset: offset),
-            let length: Int = dict[self.keys.length],
-            let end: Position = snapshot.positionOf(utf8Offset: offset + length),
-            let substructure: SKDResponseArray = dict[self.keys.substructure] else {
+        kind == self.values.expr_object_literal,
+        let name: String = dict[self.keys.name],
+        name == "colorLiteral",
+        let offset: Int = dict[self.keys.offset],
+        let start: Position = snapshot.positionOf(utf8Offset: offset),
+        let length: Int = dict[self.keys.length],
+        let end: Position = snapshot.positionOf(utf8Offset: offset + length),
+        let substructure: SKDResponseArray = dict[self.keys.substructure]
+      else {
         return nil
       }
       var red, green, blue, alpha: Double?
-      substructure.forEach{ (i: Int, value: SKDResponseDictionary) in
+      substructure.forEach { (i: Int, value: SKDResponseDictionary) in
         guard let name: String = value[self.keys.name],
-              let bodyoffset: Int = value[self.keys.bodyoffset],
-              let bodylength: Int = value[self.keys.bodylength] else {
+          let bodyoffset: Int = value[self.keys.bodyoffset],
+          let bodylength: Int = value[self.keys.bodylength]
+        else {
           return true
         }
         let view = snapshot.text.utf8
         let bodyStart = view.index(view.startIndex, offsetBy: bodyoffset)
-        let bodyEnd = view.index(view.startIndex, offsetBy: bodyoffset+bodylength)
+        let bodyEnd = view.index(view.startIndex, offsetBy: bodyoffset + bodylength)
         let value = String(view[bodyStart..<bodyEnd]).flatMap(Double.init)
         switch name {
-          case "red":
-            red = value
-          case "green":
-            green = value
-          case "blue":
-            blue = value
-          case "alpha":
-            alpha = value
-          default:
-            break
+        case "red":
+          red = value
+        case "green":
+          green = value
+        case "blue":
+          blue = value
+        case "alpha":
+          alpha = value
+        default:
+          break
         }
         return true
       }
       if let red = red,
-         let green = green,
-         let blue = blue,
-         let alpha = alpha {
+        let green = green,
+        let blue = blue,
+        let alpha = alpha
+      {
         let color = Color(red: red, green: green, blue: blue, alpha: alpha)
         return ColorInformation(range: start..<end, color: color)
       } else {
@@ -837,14 +867,16 @@ extension SwiftLanguageServer {
 
     results.forEach { _, value in
       if let offset: Int = value[self.keys.offset],
-         let start: Position = snapshot.positionOf(utf8Offset: offset),
-         let length: Int = value[self.keys.length],
-         let end: Position = snapshot.positionOf(utf8Offset: offset + length)
+        let start: Position = snapshot.positionOf(utf8Offset: offset),
+        let length: Int = value[self.keys.length],
+        let end: Position = snapshot.positionOf(utf8Offset: offset + length)
       {
-        highlights.append(DocumentHighlight(
-          range: start..<end,
-          kind: .read // unknown
-        ))
+        highlights.append(
+          DocumentHighlight(
+            range: start..<end,
+            kind: .read  // unknown
+          )
+        )
       }
       return true
     }
@@ -975,43 +1007,50 @@ extension SwiftLanguageServer {
       override func visit(_ node: CodeBlockSyntax) -> SyntaxVisitorContinueKind {
         return self.addFoldingRange(
           start: node.statements.position.utf8Offset,
-          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset
+        )
       }
 
       override func visit(_ node: MemberBlockSyntax) -> SyntaxVisitorContinueKind {
         return self.addFoldingRange(
           start: node.members.position.utf8Offset,
-          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset
+        )
       }
 
       override func visit(_ node: ClosureExprSyntax) -> SyntaxVisitorContinueKind {
         return self.addFoldingRange(
           start: node.statements.position.utf8Offset,
-          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset
+        )
       }
 
       override func visit(_ node: AccessorBlockSyntax) -> SyntaxVisitorContinueKind {
         return self.addFoldingRange(
           start: node.accessors.position.utf8Offset,
-          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset
+        )
       }
 
       override func visit(_ node: SwitchExprSyntax) -> SyntaxVisitorContinueKind {
         return self.addFoldingRange(
           start: node.cases.position.utf8Offset,
-          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset)
+          end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset
+        )
       }
 
       override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
         return self.addFoldingRange(
           start: node.arguments.position.utf8Offset,
-          end: node.arguments.endPosition.utf8Offset)
+          end: node.arguments.endPosition.utf8Offset
+        )
       }
 
       override func visit(_ node: SubscriptCallExprSyntax) -> SyntaxVisitorContinueKind {
         return self.addFoldingRange(
           start: node.arguments.position.utf8Offset,
-          end: node.arguments.endPosition.utf8Offset)
+          end: node.arguments.endPosition.utf8Offset
+        )
       }
 
       __consuming func finalize() -> Set<FoldingRange> {
@@ -1024,7 +1063,8 @@ extension SwiftLanguageServer {
         }
 
         guard let start: Position = snapshot.positionOf(utf8Offset: start),
-              let end: Position = snapshot.positionOf(utf8Offset: end) else {
+          let end: Position = snapshot.positionOf(utf8Offset: end)
+        else {
           log("folding range failed to retrieve position of \(snapshot.uri): \(start)-\(end)", level: .warning)
           return .visitChildren
         }
@@ -1038,17 +1078,21 @@ extension SwiftLanguageServer {
 
           // If the client only supports folding full lines, don't report
           // the end of the range since there's nothing they could do with it.
-          range = FoldingRange(startLine: start.line,
-                               startUTF16Index: nil,
-                               endLine: end.line,
-                               endUTF16Index: nil,
-                               kind: kind)
+          range = FoldingRange(
+            startLine: start.line,
+            startUTF16Index: nil,
+            endLine: end.line,
+            endUTF16Index: nil,
+            kind: kind
+          )
         } else {
-          range = FoldingRange(startLine: start.line,
-                               startUTF16Index: start.utf16index,
-                               endLine: end.line,
-                               endUTF16Index: end.utf16index,
-                               kind: kind)
+          range = FoldingRange(
+            startLine: start.line,
+            startUTF16Index: start.utf16index,
+            endLine: end.line,
+            endUTF16Index: end.utf16index,
+            kind: kind
+          )
         }
         ranges.insert(range)
         return .visitChildren
@@ -1065,7 +1109,8 @@ extension SwiftLanguageServer {
     let rangeFinder = FoldingRangeFinder(
       snapshot: snapshot,
       rangeLimit: foldingRangeCapabilities?.rangeLimit,
-      lineFoldingOnly: foldingRangeCapabilities?.lineFoldingOnly ?? false)
+      lineFoldingOnly: foldingRangeCapabilities?.lineFoldingOnly ?? false
+    )
     rangeFinder.walk(sourceFile)
     let ranges = rangeFinder.finalize()
 
@@ -1075,7 +1120,7 @@ extension SwiftLanguageServer {
   public func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
     let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
       (retrieveRefactorCodeActions, .refactor),
-      (retrieveQuickFixCodeActions, .quickFix)
+      (retrieveQuickFixCodeActions, .quickFix),
     ]
     let wantedActionKinds = req.context.only
     let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
@@ -1120,7 +1165,8 @@ extension SwiftLanguageServer {
     let cursorInfoResponse = try await cursorInfo(
       params.textDocument.uri,
       params.range,
-      additionalParameters: additionalCursorInfoParameters)
+      additionalParameters: additionalCursorInfoParameters
+    )
 
     guard let cursorInfoResponse else {
       throw ResponseError.unknown("CursorInfo failed.")
@@ -1149,8 +1195,7 @@ extension SwiftLanguageServer {
       let diag = cachedDiag.diagnostic
 
       let codeActions: [CodeAction] =
-        (diag.codeActions ?? []) +
-        (diag.relatedInformation?.flatMap{ $0.codeActions ?? [] } ?? [])
+        (diag.codeActions ?? []) + (diag.relatedInformation?.flatMap { $0.codeActions ?? [] } ?? [])
 
       if codeActions.isEmpty {
         // The diagnostic doesn't have fix-its. Don't return anything.
@@ -1165,13 +1210,13 @@ extension SwiftLanguageServer {
       // Check if the set of diagnostics provided by the request contains this diagnostic.
       // For this, only compare the 'basic' properties of the diagnostics, excluding related information and code actions since
       // code actions are only defined in an LSP extension and might not be sent back to us.
-      guard params.context.diagnostics.contains(where: { (contextDiag) -> Bool in
-        return contextDiag.range == diag.range &&
-          contextDiag.severity == diag.severity &&
-          contextDiag.code == diag.code &&
-          contextDiag.source == diag.source &&
-          contextDiag.message == diag.message
-      }) else {
+      guard
+        params.context.diagnostics.contains(where: { (contextDiag) -> Bool in
+          return contextDiag.range == diag.range && contextDiag.severity == diag.severity
+            && contextDiag.code == diag.code && contextDiag.source == diag.source
+            && contextDiag.message == diag.message
+        })
+      else {
         return []
       }
 
@@ -1316,7 +1361,7 @@ extension SwiftLanguageServer: SKDNotificationHandler {
       // Reset the document manager to reflect that.
       self.documentManager = DocumentManager()
     }
-    
+
     guard let dict = notification.value else {
       log(notification.description, level: .error)
       return
@@ -1325,8 +1370,9 @@ extension SwiftLanguageServer: SKDNotificationHandler {
     logAsync(level: .debug) { _ in notification.description }
 
     if let kind: sourcekitd_uid_t = dict[self.keys.notification],
-       kind == self.values.notification_documentupdate,
-       let name: String = dict[self.keys.name] {
+      kind == self.values.notification_documentupdate,
+      let name: String = dict[self.keys.name]
+    {
 
       let uri: DocumentURI
 
@@ -1339,13 +1385,13 @@ extension SwiftLanguageServer: SKDNotificationHandler {
 
       // TODO: this is not completely portable, e.g. MacOS 9 HFS paths are
       // unhandled.
-#if os(Windows)
+      #if os(Windows)
       let isPath: Bool = name.withCString(encodedAs: UTF16.self) {
         !PathIsURLW($0)
       }
-#else
+      #else
       let isPath: Bool = name.starts(with: "/")
-#endif
+      #endif
       if isPath {
         // If sourcekitd returns us a path, translate it back into a URL
         uri = DocumentURI(URL(fileURLWithPath: name))
@@ -1365,8 +1411,8 @@ extension DocumentSnapshot {
 
   func utf8OffsetRange(of range: Range<Position>) -> Range<Int>? {
     guard let startOffset = utf8Offset(of: range.lowerBound),
-          let endOffset = utf8Offset(of: range.upperBound) else
-    {
+      let endOffset = utf8Offset(of: range.upperBound)
+    else {
       return nil
     }
     return startOffset..<endOffset
@@ -1392,10 +1438,10 @@ extension DocumentSnapshot {
 extension sourcekitd_uid_t {
   func isCommentKind(_ vals: sourcekitd_values) -> Bool {
     switch self {
-      case vals.syntaxtype_comment, vals.syntaxtype_comment_marker, vals.syntaxtype_comment_url:
-        return true
-      default:
-        return isDocCommentKind(vals)
+    case vals.syntaxtype_comment, vals.syntaxtype_comment_marker, vals.syntaxtype_comment_url:
+      return true
+    default:
+      return isDocCommentKind(vals)
     }
   }
 
@@ -1405,91 +1451,91 @@ extension sourcekitd_uid_t {
 
   func asCompletionItemKind(_ vals: sourcekitd_values) -> CompletionItemKind? {
     switch self {
-      case vals.kind_keyword:
-        return .keyword
-      case vals.decl_module:
-        return .module
-      case vals.decl_class:
-        return .class
-      case vals.decl_struct:
-        return .struct
-      case vals.decl_enum:
-        return .enum
-      case vals.decl_enumelement:
-        return .enumMember
-      case vals.decl_protocol:
-        return .interface
-      case vals.decl_associatedtype:
-        return .typeParameter
-      case vals.decl_typealias:
-        return .typeParameter // FIXME: is there a better choice?
-      case vals.decl_generic_type_param:
-        return .typeParameter
-      case vals.decl_function_constructor:
-        return .constructor
-      case vals.decl_function_destructor:
-        return .value // FIXME: is there a better choice?
-      case vals.decl_function_subscript:
-        return .method // FIXME: is there a better choice?
-      case vals.decl_function_method_static:
-        return .method
-      case vals.decl_function_method_instance:
-        return .method
-      case vals.decl_function_operator_prefix,
-           vals.decl_function_operator_postfix,
-           vals.decl_function_operator_infix:
-        return .operator
-      case vals.decl_precedencegroup:
-        return .value
-      case vals.decl_function_free:
-        return .function
-      case vals.decl_var_static, vals.decl_var_class:
-        return .property
-      case vals.decl_var_instance:
-        return .property
-      case vals.decl_var_local,
-           vals.decl_var_global,
-           vals.decl_var_parameter:
-        return .variable
-      default:
-        return nil
+    case vals.kind_keyword:
+      return .keyword
+    case vals.decl_module:
+      return .module
+    case vals.decl_class:
+      return .class
+    case vals.decl_struct:
+      return .struct
+    case vals.decl_enum:
+      return .enum
+    case vals.decl_enumelement:
+      return .enumMember
+    case vals.decl_protocol:
+      return .interface
+    case vals.decl_associatedtype:
+      return .typeParameter
+    case vals.decl_typealias:
+      return .typeParameter  // FIXME: is there a better choice?
+    case vals.decl_generic_type_param:
+      return .typeParameter
+    case vals.decl_function_constructor:
+      return .constructor
+    case vals.decl_function_destructor:
+      return .value  // FIXME: is there a better choice?
+    case vals.decl_function_subscript:
+      return .method  // FIXME: is there a better choice?
+    case vals.decl_function_method_static:
+      return .method
+    case vals.decl_function_method_instance:
+      return .method
+    case vals.decl_function_operator_prefix,
+      vals.decl_function_operator_postfix,
+      vals.decl_function_operator_infix:
+      return .operator
+    case vals.decl_precedencegroup:
+      return .value
+    case vals.decl_function_free:
+      return .function
+    case vals.decl_var_static, vals.decl_var_class:
+      return .property
+    case vals.decl_var_instance:
+      return .property
+    case vals.decl_var_local,
+      vals.decl_var_global,
+      vals.decl_var_parameter:
+      return .variable
+    default:
+      return nil
     }
   }
 
   func asSymbolKind(_ vals: sourcekitd_values) -> SymbolKind? {
     switch self {
-      case vals.decl_class:
-        return .class
-      case vals.decl_function_method_instance,
-           vals.decl_function_method_static, 
-           vals.decl_function_method_class:
-        return .method
-      case vals.decl_var_instance, 
-           vals.decl_var_static,
-           vals.decl_var_class:
-        return .property
-      case vals.decl_enum:
-        return .enum
-      case vals.decl_enumelement:
-        return .enumMember
-      case vals.decl_protocol:
-        return .interface
-      case vals.decl_function_free:
-        return .function
-      case vals.decl_var_global, 
-           vals.decl_var_local:
-        return .variable
-      case vals.decl_struct:
-        return .struct
-      case vals.decl_generic_type_param:
-        return .typeParameter
-      case vals.decl_extension:
-        // There are no extensions in LSP, so I return something vaguely similar
-        return .namespace
-      case vals.ref_module:
-        return .module
-      default:
-        return nil
+    case vals.decl_class:
+      return .class
+    case vals.decl_function_method_instance,
+      vals.decl_function_method_static,
+      vals.decl_function_method_class:
+      return .method
+    case vals.decl_var_instance,
+      vals.decl_var_static,
+      vals.decl_var_class:
+      return .property
+    case vals.decl_enum:
+      return .enum
+    case vals.decl_enumelement:
+      return .enumMember
+    case vals.decl_protocol:
+      return .interface
+    case vals.decl_function_free:
+      return .function
+    case vals.decl_var_global,
+      vals.decl_var_local:
+      return .variable
+    case vals.decl_struct:
+      return .struct
+    case vals.decl_generic_type_param:
+      return .typeParameter
+    case vals.decl_extension:
+      // There are no extensions in LSP, so I return something vaguely similar
+      return .namespace
+    case vals.ref_module:
+      return .module
+    default:
+      return nil
     }
   }
 }

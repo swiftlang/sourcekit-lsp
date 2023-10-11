@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import LSPLogging
+import LanguageServerProtocol
 import SKSupport
 
 import enum PackageLoading.Platform
@@ -69,8 +69,8 @@ public final class Toolchain {
     swiftc: AbsolutePath? = nil,
     clangd: AbsolutePath? = nil,
     sourcekitd: AbsolutePath? = nil,
-    libIndexStore: AbsolutePath? = nil)
-  {
+    libIndexStore: AbsolutePath? = nil
+  ) {
     self.identifier = identifier
     self.displayName = displayName
     self.path = path
@@ -122,9 +122,8 @@ extension Toolchain {
   @discardableResult
   func searchForTools(_ path: AbsolutePath, _ fs: FileSystem = localFileSystem) -> Bool {
     return
-      searchForTools(binPath: path, fs) ||
-      searchForTools(binPath: path.appending(components: "bin"), fs) ||
-      searchForTools(binPath: path.appending(components: "usr", "bin"), fs)
+      searchForTools(binPath: path, fs) || searchForTools(binPath: path.appending(components: "bin"), fs)
+      || searchForTools(binPath: path.appending(components: "usr", "bin"), fs)
   }
 
   private func searchForTools(binPath: AbsolutePath, _ fs: FileSystem) -> Bool {
@@ -174,22 +173,22 @@ extension Toolchain {
       self.sourcekitd = sourcekitdPath
       foundAny = true
     } else {
-#if os(Windows)
+      #if os(Windows)
       let sourcekitdPath = binPath.appending(component: "sourcekitdInProc\(dylibExt)")
-#else
+      #else
       let sourcekitdPath = libPath.appending(component: "libsourcekitdInProc\(dylibExt)")
-#endif
+      #endif
       if fs.isFile(sourcekitdPath) {
         self.sourcekitd = sourcekitdPath
         foundAny = true
       }
     }
 
-#if os(Windows)
+    #if os(Windows)
     let libIndexStore = binPath.appending(components: "libIndexStore\(dylibExt)")
-#else
+    #else
     let libIndexStore = libPath.appending(components: "libIndexStore\(dylibExt)")
-#endif
+    #endif
     if fs.isFile(libIndexStore) {
       self.libIndexStore = libIndexStore
       foundAny = true
@@ -202,8 +201,8 @@ extension Toolchain {
 /// Find a containing xctoolchain with plist, if available.
 func containingXCToolchain(
   _ path: AbsolutePath,
-  _ fileSystem: FileSystem) -> (XCToolchainPlist, AbsolutePath)?
-{
+  _ fileSystem: FileSystem
+) -> (XCToolchainPlist, AbsolutePath)? {
   var path = path
   while !path.isRoot {
     if path.extension == "xctoolchain" {

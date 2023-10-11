@@ -15,5 +15,5 @@
 /// This notification will come after the shutdown request finishes.
 public struct ExitNotification: NotificationType, Hashable {
   public static let method: String = "exit"
-  public init() { }
+  public init() {}
 }

@@ -82,11 +82,14 @@ extension XCTestCase {
     var expecatations: [XCTestExpectation]
 
     var description: String {
-      return "One of the expectation was not fulfilled within timeout: \(expecatations.map(\.description).joined(separator: ", "))"
+      return """
+        One of the expectation was not fulfilled within timeout: \
+        \(expecatations.map(\.description).joined(separator: ", "))
+        """
     }
   }
 
-  /// Wait for the given expectations to be fulfilled. If the expectations aren't 
+  /// Wait for the given expectations to be fulfilled. If the expectations aren't
   /// fulfilled within `timeout`, throw an error, aborting the test execution.
   public func fulfillmentOfOrThrow(
     _ expectations: [XCTestExpectation],

@@ -39,7 +39,7 @@ public struct LineTable: Hashable {
   /// - parameter line: Line number (zero-based).
   @inlinable
   public subscript(line: Int) -> Substring {
-    return content[impl[line] ..< (line == count - 1 ? content.endIndex : impl[line + 1])]
+    return content[impl[line]..<(line == count - 1 ? content.endIndex : impl[line + 1])]
   }
 
   /// Translate String.Index to logical line/utf16 pair.
@@ -94,8 +94,8 @@ extension LineTable {
     utf16Offset fromOff: Int,
     toLine: Int,
     utf16Offset toOff: Int,
-    with replacement: String)
-  {
+    with replacement: String
+  ) {
     let start = content.utf16.index(impl[fromLine], offsetBy: fromOff)
     let end = content.utf16.index(impl[toLine], offsetBy: toOff)
 
@@ -115,8 +115,8 @@ extension LineTable {
     fromLine: Int,
     utf16Offset fromOff: Int,
     utf16Length: Int,
-    with replacement: String)
-  {
+    with replacement: String
+  ) {
     let start = content.utf16.index(impl[fromLine], offsetBy: fromOff)
     let end = content.utf16.index(start, offsetBy: utf16Length)
     let (toLine, toOff) = lineAndUTF16ColumnOf(end, fromLine: fromLine)
@@ -176,7 +176,8 @@ extension LineTable {
       line: line,
       column: utf8Column,
       indexFunction: content.utf8.index(_:offsetBy:limitedBy:),
-      distanceFunction: content.utf16.distance(from:to:))
+      distanceFunction: content.utf16.distance(from:to:)
+    )
   }
 
   /// Returns UTF8 column offset at UTF16 version of logical position.
@@ -189,11 +190,17 @@ extension LineTable {
       line: line,
       column: utf16Column,
       indexFunction: content.utf16.index(_:offsetBy:limitedBy:),
-      distanceFunction: content.utf8.distance(from:to:))
+      distanceFunction: content.utf8.distance(from:to:)
+    )
   }
 
   @inlinable
-  func convertColumn(line: Int, column: Int, indexFunction: (Substring.Index, Int, Substring.Index) -> Substring.Index?, distanceFunction: (Substring.Index, Substring.Index) -> Int) -> Int? {
+  func convertColumn(
+    line: Int,
+    column: Int,
+    indexFunction: (Substring.Index, Int, Substring.Index) -> Substring.Index?,
+    distanceFunction: (Substring.Index, Substring.Index) -> Int
+  ) -> Int? {
     guard line < count else {
       // Line out of range.
       return nil

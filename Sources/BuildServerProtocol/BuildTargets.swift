@@ -62,13 +62,15 @@ public struct BuildTarget: Codable, Hashable {
   /// The direct upstream build target dependencies of this build target
   public var dependencies: [BuildTargetIdentifier]
 
-  public init(id: BuildTargetIdentifier,
-              displayName: String?,
-              baseDirectory: URI?,
-              tags: [BuildTargetTag],
-              capabilities: BuildTargetCapabilities,
-              languageIds: [Language],
-              dependencies: [BuildTargetIdentifier]) {
+  public init(
+    id: BuildTargetIdentifier,
+    displayName: String?,
+    baseDirectory: URI?,
+    tags: [BuildTargetTag],
+    capabilities: BuildTargetCapabilities,
+    languageIds: [Language],
+    dependencies: [BuildTargetIdentifier]
+  ) {
     self.id = id
     self.displayName = displayName
     self.baseDirectory = baseDirectory

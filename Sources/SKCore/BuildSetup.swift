@@ -12,16 +12,18 @@
 
 import SKSupport
 
-import struct TSCBasic.AbsolutePath
 import struct PackageModel.BuildFlags
+import struct TSCBasic.AbsolutePath
 
 /// Build configuration
 public struct BuildSetup {
 
   /// Default configuration
-  public static let `default` = BuildSetup(configuration: .debug,
-                                           path: nil,
-                                           flags: BuildFlags())
+  public static let `default` = BuildSetup(
+    configuration: .debug,
+    path: nil,
+    flags: BuildFlags()
+  )
 
   /// Build configuration (debug|release).
   public var configuration: BuildConfiguration

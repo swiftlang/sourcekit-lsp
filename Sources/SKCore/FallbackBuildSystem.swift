@@ -11,14 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
+import Dispatch
+import Foundation
 import LanguageServerProtocol
 import SKSupport
-import Foundation
-import Dispatch
 
 import enum PackageLoading.Platform
-import class TSCBasic.Process
 import struct TSCBasic.AbsolutePath
+import class TSCBasic.Process
 
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
 public final class FallbackBuildSystem {
@@ -32,7 +32,10 @@ public final class FallbackBuildSystem {
   /// The path to the SDK.
   public lazy var sdkpath: AbsolutePath? = {
     guard Platform.current == .darwin else { return nil }
-    return try? AbsolutePath(validating: Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx").trimmingCharacters(in: .whitespacesAndNewlines))
+    return try? AbsolutePath(
+      validating: Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    )
   }()
 
   /// Delegate to handle any build system events.

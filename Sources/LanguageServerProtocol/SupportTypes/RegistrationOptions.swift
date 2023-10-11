@@ -45,7 +45,7 @@ public struct TextDocumentRegistrationOptions: RegistrationOptions, Hashable {
 
 /// Protocol for a type which structurally represents`TextDocumentRegistrationOptions`.
 public protocol TextDocumentRegistrationOptionsProtocol {
-  var textDocumentRegistrationOptions: TextDocumentRegistrationOptions {get}
+  var textDocumentRegistrationOptions: TextDocumentRegistrationOptions { get }
 }
 
 /// Code completiion registration options.
@@ -55,7 +55,7 @@ public struct CompletionRegistrationOptions: RegistrationOptions, TextDocumentRe
 
   public init(documentSelector: DocumentSelector? = nil, completionOptions: CompletionOptions) {
     self.textDocumentRegistrationOptions =
-        TextDocumentRegistrationOptions(documentSelector: documentSelector)
+      TextDocumentRegistrationOptions(documentSelector: documentSelector)
     self.completionOptions = completionOptions
   }
 
@@ -81,7 +81,7 @@ public struct FoldingRangeRegistrationOptions: RegistrationOptions, TextDocument
 
   public init(documentSelector: DocumentSelector? = nil, foldingRangeOptions: FoldingRangeOptions) {
     self.textDocumentRegistrationOptions =
-        TextDocumentRegistrationOptions(documentSelector: documentSelector)
+      TextDocumentRegistrationOptions(documentSelector: documentSelector)
     self.foldingRangeOptions = foldingRangeOptions
   }
 
@@ -91,7 +91,8 @@ public struct FoldingRangeRegistrationOptions: RegistrationOptions, TextDocument
   }
 }
 
-public struct SemanticTokensRegistrationOptions: RegistrationOptions, TextDocumentRegistrationOptionsProtocol, Hashable {
+public struct SemanticTokensRegistrationOptions: RegistrationOptions, TextDocumentRegistrationOptionsProtocol, Hashable
+{
   /// Method for registration, which defers from the actual requests' methods
   /// since this registration handles multiple requests.
   public static let method: String = "textDocument/semanticTokens"
@@ -101,7 +102,7 @@ public struct SemanticTokensRegistrationOptions: RegistrationOptions, TextDocume
 
   public init(documentSelector: DocumentSelector? = nil, semanticTokenOptions: SemanticTokensOptions) {
     self.textDocumentRegistrationOptions =
-        TextDocumentRegistrationOptions(documentSelector: documentSelector)
+      TextDocumentRegistrationOptions(documentSelector: documentSelector)
     self.semanticTokenOptions = semanticTokenOptions
   }
 
@@ -110,7 +111,7 @@ public struct SemanticTokensRegistrationOptions: RegistrationOptions, TextDocume
     let legend = semanticTokenOptions.legend
     dict["legend"] = .dictionary([
       "tokenTypes": encode(strings: legend.tokenTypes),
-      "tokenModifiers": encode(strings: legend.tokenModifiers)
+      "tokenModifiers": encode(strings: legend.tokenModifiers),
     ])
     if let range = semanticTokenOptions.range {
       let encodedRange: LSPAny
@@ -160,7 +161,7 @@ public struct InlayHintRegistrationOptions: RegistrationOptions, TextDocumentReg
 public struct DiagnosticRegistrationOptions: RegistrationOptions, TextDocumentRegistrationOptionsProtocol {
   public var textDocumentRegistrationOptions: TextDocumentRegistrationOptions
   public var diagnosticOptions: DiagnosticOptions
-  
+
   public init(
     documentSelector: DocumentSelector? = nil,
     diagnosticOptions: DiagnosticOptions

@@ -45,7 +45,10 @@ public enum DocumentDiagnosticReport: ResponseType, Codable, Hashable {
     } else if let unchanged = try? RelatedUnchangedDocumentDiagnosticReport(from: decoder) {
       self = .unchanged(unchanged)
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected RelatedFullDocumentDiagnosticReport or RelatedUnchangedDocumentDiagnosticReport")
+      let context = DecodingError.Context(
+        codingPath: decoder.codingPath,
+        debugDescription: "Expected RelatedFullDocumentDiagnosticReport or RelatedUnchangedDocumentDiagnosticReport"
+      )
       throw DecodingError.dataCorrupted(context)
     }
   }
@@ -94,7 +97,11 @@ public struct RelatedFullDocumentDiagnosticReport: Codable, Hashable {
   /// a.cpp and result in errors in a header file b.hpp.
   public var relatedDocuments: [DocumentURI: DocumentDiagnosticReport]?
 
-  public init(resultId: String? = nil, items: [Diagnostic], relatedDocuments: [DocumentURI : DocumentDiagnosticReport]? = nil) {
+  public init(
+    resultId: String? = nil,
+    items: [Diagnostic],
+    relatedDocuments: [DocumentURI: DocumentDiagnosticReport]? = nil
+  ) {
     self.resultId = resultId
     self.items = items
     self.relatedDocuments = relatedDocuments
@@ -111,11 +118,18 @@ public struct RelatedFullDocumentDiagnosticReport: Codable, Hashable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let kind = try container.decode(DocumentDiagnosticReportKind.self, forKey: .kind)
     guard kind == .full else {
-      throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "Kind of FullDocumentDiagnosticReport is not 'full'")
+      throw DecodingError.dataCorruptedError(
+        forKey: .kind,
+        in: container,
+        debugDescription: "Kind of FullDocumentDiagnosticReport is not 'full'"
+      )
     }
     self.resultId = try container.decodeIfPresent(String.self, forKey: .resultId)
     self.items = try container.decode([Diagnostic].self, forKey: .items)
-    self.relatedDocuments = try container.decodeIfPresent([DocumentURI: DocumentDiagnosticReport].self, forKey: .relatedDocuments)
+    self.relatedDocuments = try container.decodeIfPresent(
+      [DocumentURI: DocumentDiagnosticReport].self,
+      forKey: .relatedDocuments
+    )
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -141,7 +155,7 @@ public struct RelatedUnchangedDocumentDiagnosticReport: Codable, Hashable {
   /// a.cpp and result in errors in a header file b.hpp.
   public var relatedDocuments: [DocumentURI: DocumentDiagnosticReport]?
 
-  public init(resultId: String, relatedDocuments: [DocumentURI : DocumentDiagnosticReport]? = nil) {
+  public init(resultId: String, relatedDocuments: [DocumentURI: DocumentDiagnosticReport]? = nil) {
     self.resultId = resultId
     self.relatedDocuments = relatedDocuments
   }
@@ -156,10 +170,17 @@ public struct RelatedUnchangedDocumentDiagnosticReport: Codable, Hashable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let kind = try container.decode(DocumentDiagnosticReportKind.self, forKey: .kind)
     guard kind == .unchanged else {
-      throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "Kind of FullDocumentDiagnosticReport is not 'unchanged'")
+      throw DecodingError.dataCorruptedError(
+        forKey: .kind,
+        in: container,
+        debugDescription: "Kind of FullDocumentDiagnosticReport is not 'unchanged'"
+      )
     }
     self.resultId = try container.decode(String.self, forKey: .resultId)
-    self.relatedDocuments = try container.decodeIfPresent([DocumentURI: DocumentDiagnosticReport].self, forKey: .relatedDocuments)
+    self.relatedDocuments = try container.decodeIfPresent(
+      [DocumentURI: DocumentDiagnosticReport].self,
+      forKey: .relatedDocuments
+    )
   }
 
   public func encode(to encoder: Encoder) throws {

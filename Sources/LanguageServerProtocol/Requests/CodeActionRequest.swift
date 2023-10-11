@@ -119,7 +119,11 @@ public struct CodeActionContext: Codable, Hashable {
   /// The reason why code actions were requested.
   public var triggerKind: CodeActionTriggerKind?
 
-  public init(diagnostics: [Diagnostic] = [], only: [CodeActionKind]? = nil, triggerKind: CodeActionTriggerKind? = nil) {
+  public init(
+    diagnostics: [Diagnostic] = [],
+    only: [CodeActionKind]? = nil,
+    triggerKind: CodeActionTriggerKind? = nil
+  ) {
     self.diagnostics = diagnostics
     self.only = only
     self.triggerKind = triggerKind
@@ -145,7 +149,13 @@ public struct CodeAction: ResponseType, Hashable {
   /// first the edit is executed and then the command.
   public var command: Command?
 
-  public init(title: String, kind: CodeActionKind? = nil, diagnostics: [Diagnostic]? = nil, edit: WorkspaceEdit? = nil, command: Command? = nil) {
+  public init(
+    title: String,
+    kind: CodeActionKind? = nil,
+    diagnostics: [Diagnostic]? = nil,
+    edit: WorkspaceEdit? = nil,
+    command: Command? = nil
+  ) {
     self.title = title
     self.kind = kind
     self.diagnostics = diagnostics

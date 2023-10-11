@@ -11,14 +11,14 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
-import LanguageServerProtocol
-import LSPLogging
-import SKSupport
 import Dispatch
-import struct Foundation.URL
+import LSPLogging
+import LanguageServerProtocol
+import SKSupport
 
-import protocol TSCBasic.FileSystem
+import struct Foundation.URL
 import struct TSCBasic.AbsolutePath
+import protocol TSCBasic.FileSystem
 import var TSCBasic.localFileSystem
 
 /// A `BuildSystem` based on loading clang-compatible compilation database(s).
@@ -61,7 +61,7 @@ public actor CompilationDatabaseBuildSystem {
         let args = command.commandLine
         for i in args.indices.reversed() {
           if args[i] == "-index-store-path" && i != args.endIndex - 1 {
-            _indexStorePath = try? AbsolutePath(validating: args[i+1])
+            _indexStorePath = try? AbsolutePath(validating: args[i + 1])
             return _indexStorePath
           }
         }
@@ -93,10 +93,12 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
       return nil
     }
     guard let db = database(for: url),
-          let cmd = db[url].first else { return nil }
+      let cmd = db[url].first
+    else { return nil }
     return FileBuildSettings(
       compilerArguments: Array(cmd.commandLine.dropFirst()),
-      workingDirectory: cmd.directory)
+      workingDirectory: cmd.directory
+    )
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {

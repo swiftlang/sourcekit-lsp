@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// The color presentation request is sent from the client to the server to obtain 
-/// a list of presentations for a color value at a given location. Clients can 
-/// use the result to modify a color reference, or show in a color picker 
+/// The color presentation request is sent from the client to the server to obtain
+/// a list of presentations for a color value at a given location. Clients can
+/// use the result to modify a color reference, or show in a color picker
 /// and let users pick one of the presentations
 ///
 /// - Parameters:
@@ -44,7 +44,7 @@ public struct ColorPresentationRequest: TextDocumentRequest, Hashable {
 
 public struct ColorPresentation: ResponseType, Hashable {
   /// The label of this color presentation. It will be shown on the color
-  /// picker header. By default this is also the text that is inserted when 
+  /// picker header. By default this is also the text that is inserted when
   /// selecting this color presentation.
   public var label: String
 
@@ -53,7 +53,7 @@ public struct ColorPresentation: ResponseType, Hashable {
   public var textEdit: TextEdit?
 
   /// An optional array of additional text edits that are applied when
-  /// selecting this color presentation. Edits must not overlap with 
+  /// selecting this color presentation. Edits must not overlap with
   /// the main edit nor with themselves.
   public var additionalTextEdits: [TextEdit]?
 

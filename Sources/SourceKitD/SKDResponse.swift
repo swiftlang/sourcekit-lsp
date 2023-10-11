@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Csourcekitd
+
 #if canImport(Glibc)
 import Glibc
 #elseif canImport(Musl)
@@ -37,11 +38,11 @@ public final class SKDResponse {
       return nil
     }
     switch sourcekitd.api.response_error_get_kind(response) {
-      case SOURCEKITD_ERROR_CONNECTION_INTERRUPTED: return .connectionInterrupted
-      case SOURCEKITD_ERROR_REQUEST_INVALID: return .requestInvalid(description)
-      case SOURCEKITD_ERROR_REQUEST_FAILED: return .requestFailed(description)
-      case SOURCEKITD_ERROR_REQUEST_CANCELLED: return .requestCancelled
-      default: return .requestFailed(description)
+    case SOURCEKITD_ERROR_CONNECTION_INTERRUPTED: return .connectionInterrupted
+    case SOURCEKITD_ERROR_REQUEST_INVALID: return .requestInvalid(description)
+    case SOURCEKITD_ERROR_REQUEST_FAILED: return .requestFailed(description)
+    case SOURCEKITD_ERROR_REQUEST_CANCELLED: return .requestCancelled
+    default: return .requestFailed(description)
     }
   }
 

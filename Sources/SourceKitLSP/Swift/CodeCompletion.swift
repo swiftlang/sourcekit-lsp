@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import LSPLogging
-import SourceKitD
 import Foundation
+import LSPLogging
+import LanguageServerProtocol
+import SourceKitD
 
 extension SwiftLanguageServer {
 
@@ -36,9 +36,21 @@ extension SwiftLanguageServer {
     let options = req.sourcekitlspOptions ?? serverOptions.completionOptions
 
     if options.serverSideFiltering {
-      return try await completionWithServerFiltering(offset: offset, completionPos: completionPos, snapshot: snapshot, request: req, options: options)
+      return try await completionWithServerFiltering(
+        offset: offset,
+        completionPos: completionPos,
+        snapshot: snapshot,
+        request: req,
+        options: options
+      )
     } else {
-      return try await completionWithClientFiltering(offset: offset, completionPos: completionPos, snapshot: snapshot, request: req, options: options)
+      return try await completionWithClientFiltering(
+        offset: offset,
+        completionPos: completionPos,
+        snapshot: snapshot,
+        request: req,
+        options: options
+      )
     }
   }
 
@@ -50,7 +62,8 @@ extension SwiftLanguageServer {
     options: SKCompletionOptions
   ) async throws -> CompletionList {
     guard let start = snapshot.indexOf(utf8Offset: offset),
-          let end = snapshot.index(of: req.position) else {
+      let end = snapshot.index(of: req.position)
+    else {
       log("invalid completion position \(req.position)")
       return CompletionList(isIncomplete: true, items: [])
     }
@@ -64,7 +77,10 @@ extension SwiftLanguageServer {
         throw ResponseError.serverCancelled
       }
       guard currentSession.uri == snapshot.uri, currentSession.utf8StartOffset == offset else {
-        log("triggerFromIncompleteCompletions with incompatible completion session; expected \(currentSession.uri)@\(currentSession.utf8StartOffset), but got \(snapshot.uri)@\(offset)", level: .warning)
+        log(
+          "triggerFromIncompleteCompletions with incompatible completion session; expected \(currentSession.uri)@\(currentSession.utf8StartOffset), but got \(snapshot.uri)@\(offset)",
+          level: .warning
+        )
         throw ResponseError.serverCancelled
       }
       session = currentSession
@@ -76,7 +92,8 @@ extension SwiftLanguageServer {
         snapshot: snapshot,
         utf8Offset: offset,
         position: completionPos,
-        compileCommand: await buildSettings(for: snapshot.uri))
+        compileCommand: await buildSettings(for: snapshot.uri)
+      )
 
       await currentCompletionSession?.close()
       currentCompletionSession = session
@@ -115,7 +132,13 @@ extension SwiftLanguageServer {
 
     try Task.checkCancellation()
 
-    return self.completionsFromSKDResponse(completions, in: snapshot, completionPos: completionPos, requestPosition: req.position, isIncomplete: false)
+    return self.completionsFromSKDResponse(
+      completions,
+      in: snapshot,
+      completionPos: completionPos,
+      requestPosition: req.position,
+      isIncomplete: false
+    )
   }
 
   nonisolated func completionsFromSKDResponse(
@@ -129,7 +152,7 @@ extension SwiftLanguageServer {
 
     completions.forEach { (i, value) -> Bool in
       guard let name: String = value[self.keys.description] else {
-        return true // continue
+        return true  // continue
       }
 
       var filterName: String? = value[self.keys.name]
@@ -148,15 +171,27 @@ extension SwiftLanguageServer {
       if let text = text {
         let utf8CodeUnitsToErase: Int = value[self.keys.num_bytes_to_erase] ?? 0
 
-        textEdit = self.computeCompletionTextEdit(completionPos: completionPos, requestPosition: requestPosition, utf8CodeUnitsToErase: utf8CodeUnitsToErase, newText: text, snapshot: snapshot)
+        textEdit = self.computeCompletionTextEdit(
+          completionPos: completionPos,
+          requestPosition: requestPosition,
+          utf8CodeUnitsToErase: utf8CodeUnitsToErase,
+          newText: text,
+          snapshot: snapshot
+        )
 
         if utf8CodeUnitsToErase != 0, filterName != nil, let textEdit = textEdit {
           // To support the case where the client is doing prefix matching on the TextEdit range,
           // we need to prepend the deleted text to filterText.
           // This also works around a behaviour in VS Code that causes completions to not show up
           // if a '.' is being replaced for Optional completion.
-          let startIndex = snapshot.lineTable.stringIndexOf(line: textEdit.range.lowerBound.line, utf16Column: textEdit.range.lowerBound.utf16index)!
-          let endIndex = snapshot.lineTable.stringIndexOf(line: completionPos.line, utf16Column: completionPos.utf16index)!
+          let startIndex = snapshot.lineTable.stringIndexOf(
+            line: textEdit.range.lowerBound.line,
+            utf16Column: textEdit.range.lowerBound.utf16index
+          )!
+          let endIndex = snapshot.lineTable.stringIndexOf(
+            line: completionPos.line,
+            utf16Column: completionPos.utf16index
+          )!
           let filterPrefix = snapshot.text[startIndex..<endIndex]
           filterName = filterPrefix + filterName!
         }
@@ -168,18 +203,20 @@ extension SwiftLanguageServer {
       let notRecommended = (value[self.keys.not_recommended] as Int?).map({ $0 != 0 })
 
       let kind: sourcekitd_uid_t? = value[self.keys.kind]
-      result.items.append(CompletionItem(
-        label: name,
-        kind: kind?.asCompletionItemKind(self.values) ?? .value,
-        detail: typeName,
-        documentation: docBrief != nil ? .markupContent(MarkupContent(kind: .markdown, value: docBrief!)) : nil,
-        deprecated: notRecommended ?? false,
-        sortText: nil,
-        filterText: filterName,
-        insertText: text,
-        insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
-        textEdit: textEdit.map(CompletionItemEdit.textEdit)
-      ))
+      result.items.append(
+        CompletionItem(
+          label: name,
+          kind: kind?.asCompletionItemKind(self.values) ?? .value,
+          detail: typeName,
+          documentation: docBrief != nil ? .markupContent(MarkupContent(kind: .markdown, value: docBrief!)) : nil,
+          deprecated: notRecommended ?? false,
+          sortText: nil,
+          filterText: filterName,
+          insertText: text,
+          insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
+          textEdit: textEdit.map(CompletionItemEdit.textEdit)
+        )
+      )
 
       return true
     }
@@ -218,7 +255,13 @@ extension SwiftLanguageServer {
     return Position(line: pos.line, utf16index: adjustedOffset)
   }
 
-  private nonisolated func computeCompletionTextEdit(completionPos: Position, requestPosition: Position, utf8CodeUnitsToErase: Int, newText: String, snapshot: DocumentSnapshot) -> TextEdit {
+  private nonisolated func computeCompletionTextEdit(
+    completionPos: Position,
+    requestPosition: Position,
+    utf8CodeUnitsToErase: Int,
+    newText: String,
+    snapshot: DocumentSnapshot
+  ) -> TextEdit {
     let textEditRangeStart: Position
 
     // Compute the TextEdit
@@ -241,7 +284,10 @@ extension SwiftLanguageServer {
       assert(completionPos.line == requestPosition.line)
       // Construct a string index for the edit range start by subtracting the UTF-8 code units to erase from the completion position.
       let line = snapshot.lineTable[completionPos.line]
-      let completionPosStringIndex = snapshot.lineTable.stringIndexOf(line: completionPos.line, utf16Column: completionPos.utf16index)!
+      let completionPosStringIndex = snapshot.lineTable.stringIndexOf(
+        line: completionPos.line,
+        utf16Column: completionPos.utf16index
+      )!
       let deletionStartStringIndex = line.utf8.index(completionPosStringIndex, offsetBy: -utf8CodeUnitsToErase)
 
       // Compute the UTF-16 offset of the deletion start range. If the start lies in a previous line, this will be negative

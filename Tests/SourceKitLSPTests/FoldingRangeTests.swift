@@ -18,12 +18,18 @@ final class FoldingRangeTests: XCTestCase {
 
   typealias FoldingRangeCapabilities = TextDocumentClientCapabilities.FoldingRange
 
-  func initializeWorkspace(withCapabilities capabilities: FoldingRangeCapabilities, testLoc: String) async throws -> (SKTibsTestWorkspace, DocumentURI)? {
+  func initializeWorkspace(withCapabilities capabilities: FoldingRangeCapabilities, testLoc: String) async throws -> (
+    SKTibsTestWorkspace, DocumentURI
+  )? {
     var documentCapabilities = TextDocumentClientCapabilities()
     documentCapabilities.foldingRange = capabilities
     let capabilities = ClientCapabilities(workspace: nil, textDocument: documentCapabilities)
-    guard let ws = try await staticSourceKitTibsWorkspace(name: "FoldingRange",
-                                                    clientCapabilities: capabilities) else { return nil }
+    guard
+      let ws = try await staticSourceKitTibsWorkspace(
+        name: "FoldingRange",
+        clientCapabilities: capabilities
+      )
+    else { return nil }
     let loc = ws.testLoc(testLoc)
     try ws.openDocument(loc.url, language: .swift)
     return (ws, DocumentURI(loc.url))
@@ -33,7 +39,9 @@ final class FoldingRangeTests: XCTestCase {
     var capabilities = FoldingRangeCapabilities()
     capabilities.lineFoldingOnly = false
 
-    guard let (ws, uri) = try await initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else { return }
+    guard let (ws, uri) = try await initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else {
+      return
+    }
 
     let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri))
     let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
@@ -60,7 +68,9 @@ final class FoldingRangeTests: XCTestCase {
     var capabilities = FoldingRangeCapabilities()
     capabilities.lineFoldingOnly = true
 
-    guard let (ws, uri) = try await initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else { return }
+    guard let (ws, uri) = try await initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else {
+      return
+    }
 
     let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri))
     let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
@@ -85,7 +95,9 @@ final class FoldingRangeTests: XCTestCase {
       var capabilities = FoldingRangeCapabilities()
       capabilities.lineFoldingOnly = false
       capabilities.rangeLimit = limit
-      guard let (ws, url) = try await initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else { return }
+      guard let (ws, url) = try await initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:base") else {
+        return
+      }
       let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
       let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
       XCTAssertEqual(ranges?.count, expectedRanges, "Failed rangeLimit test at line \(line)")
@@ -101,7 +113,9 @@ final class FoldingRangeTests: XCTestCase {
   func testNoRanges() async throws {
     let capabilities = FoldingRangeCapabilities()
 
-    guard let (ws, url) = try await initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:empty") else { return }
+    guard let (ws, url) = try await initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:empty") else {
+      return
+    }
 
     let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
     let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
@@ -114,7 +128,12 @@ final class FoldingRangeTests: XCTestCase {
     // Test that we only report the folding range once.
     let capabilities = FoldingRangeCapabilities()
 
-    guard let (ws, url) = try await initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:multilineDocLineComment") else { return }
+    guard
+      let (ws, url) = try await initializeWorkspace(
+        withCapabilities: capabilities,
+        testLoc: "fr:multilineDocLineComment"
+      )
+    else { return }
 
     let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
     let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
@@ -125,7 +144,7 @@ final class FoldingRangeTests: XCTestCase {
       FoldingRange(startLine: 7, startUTF16Index: 0, endLine: 8, endUTF16Index: 21, kind: .comment),
       FoldingRange(startLine: 10, startUTF16Index: 0, endLine: 10, endUTF16Index: 44, kind: .comment),
       FoldingRange(startLine: 11, startUTF16Index: 12, endLine: 11, endUTF16Index: 12),
-      FoldingRange(startLine: 13, startUTF16Index: 0, endLine: 13, endUTF16Index: 30, kind: .comment)
+      FoldingRange(startLine: 13, startUTF16Index: 0, endLine: 13, endUTF16Index: 30, kind: .comment),
     ]
 
     XCTAssertEqual(ranges, expected)
@@ -136,7 +155,8 @@ final class FoldingRangeTests: XCTestCase {
     // Test that we only report the folding range once.
     let capabilities = FoldingRangeCapabilities()
 
-    guard let (ws, url) = try await initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:duplicateRanges") else { return }
+    guard let (ws, url) = try await initializeWorkspace(withCapabilities: capabilities, testLoc: "fr:duplicateRanges")
+    else { return }
 
     let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
     let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }

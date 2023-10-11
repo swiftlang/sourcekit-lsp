@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPTestSupport
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import LSPTestSupport
 import XCTest
 
 #if os(Windows)
@@ -75,7 +75,9 @@ class ConnectionTests: XCTestCase {
       clientConnection.send(_rawData: [b].withUnsafeBytes { DispatchData(bytes: $0) })
     }
 
-    clientConnection.send(_rawData: [note1Str.utf8.last!, note2Str.utf8.first!].withUnsafeBytes { DispatchData(bytes: $0) })
+    clientConnection.send(
+      _rawData: [note1Str.utf8.last!, note2Str.utf8.first!].withUnsafeBytes { DispatchData(bytes: $0) }
+    )
 
     waitForExpectations(timeout: defaultTimeout)
 
@@ -225,7 +227,7 @@ class ConnectionTests: XCTestCase {
 
     waitForExpectations(timeout: defaultTimeout)
   }
-  
+
   func testSendSynchronouslyBeforeClose() {
     let client = connection.client
 
@@ -255,30 +257,39 @@ class ConnectionTests: XCTestCase {
       let conn = JSONRPCConnection(
         protocol: MessageRegistry(requests: [], notifications: []),
         inFD: to.fileHandleForReading,
-        outFD: from.fileHandleForWriting)
+        outFD: from.fileHandleForWriting
+      )
 
       final class DummyHandler: MessageHandler {
         func handle<N: NotificationType>(_: N, from: ObjectIdentifier) {}
-        func handle<R: RequestType>(_: R, id: RequestID, from: ObjectIdentifier, reply: @escaping (LSPResult<R.Response>) -> Void) {}
+        func handle<R: RequestType>(
+          _: R,
+          id: RequestID,
+          from: ObjectIdentifier,
+          reply: @escaping (LSPResult<R.Response>) -> Void
+        ) {}
       }
 
-      conn.start(receiveHandler: DummyHandler(), closeHandler: {
-        // We get an error from XCTest if this is fulfilled more than once.
-        expectation.fulfill()
+      conn.start(
+        receiveHandler: DummyHandler(),
+        closeHandler: {
+          // We get an error from XCTest if this is fulfilled more than once.
+          expectation.fulfill()
 
-        // FIXME: keep the pipes alive until we close the connection. This
-        // should be fixed systemically.
-        withExtendedLifetime((to, from)) {}
-      })
+          // FIXME: keep the pipes alive until we close the connection. This
+          // should be fixed systemically.
+          withExtendedLifetime((to, from)) {}
+        }
+      )
 
       to.fileHandleForWriting.closeFile()
-#if os(Windows)
+      #if os(Windows)
       // 1 ms was chosen for simplicity.
       Sleep(1)
-#else
+      #else
       // 100 us was chosen empirically to encourage races.
       usleep(100)
-#endif
+      #endif
       conn.close()
 
       withExtendedLifetime(conn) {

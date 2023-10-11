@@ -88,7 +88,12 @@ public struct NotebookCell: Codable, Hashable {
   /// Additional execution summary information if supported by the client.
   public var executionSummary: ExecutionSummary?
 
-  public init(kind: NotebookCellKind, document: DocumentURI, metadata: LSPObject? = nil, executionSummary: ExecutionSummary? = nil) {
+  public init(
+    kind: NotebookCellKind,
+    document: DocumentURI,
+    metadata: LSPObject? = nil,
+    executionSummary: ExecutionSummary? = nil
+  ) {
     self.kind = kind
     self.document = document
     self.metadata = metadata

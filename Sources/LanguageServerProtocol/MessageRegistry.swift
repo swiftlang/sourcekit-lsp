@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-
 public final class MessageRegistry {
 
   public static let lspProtocol: MessageRegistry =

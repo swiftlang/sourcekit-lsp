@@ -124,7 +124,6 @@ public final class AsyncQueue {
         dependencies = [pendingTasks.last].compactMap { $0 }
       }
 
-
       // Schedule the task.
       let task = Task {
         // IMPORTANT: The only throwing call in here must be the call to

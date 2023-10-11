@@ -29,7 +29,6 @@ public struct ErrorCode: RawRepresentable, Codable, Hashable {
   public static let invalidParams: ErrorCode = ErrorCode(rawValue: -32602)
   public static let internalError: ErrorCode = ErrorCode(rawValue: -32603)
 
-
   /// This is the start range of JSON-RPC reserved error codes.
   /// It doesn't denote a real error code. No LSP error codes should
   /// be defined between the start and end range. For backwards
@@ -103,7 +102,10 @@ extension ResponseError {
 
   public static var cancelled: ResponseError = ResponseError(code: .cancelled, message: "request cancelled by client")
 
-  public static var serverCancelled: ResponseError = ResponseError(code: .serverCancelled, message: "request cancelled by server")
+  public static var serverCancelled: ResponseError = ResponseError(
+    code: .serverCancelled,
+    message: "request cancelled by server"
+  )
 
   public static func workspaceNotOpen(_ uri: DocumentURI) -> ResponseError {
     return ResponseError(code: .workspaceNotOpen, message: "No workspace containing '\(uri)' found")
@@ -149,19 +151,40 @@ public struct MessageDecodingError: Error, Hashable {
 }
 
 extension MessageDecodingError {
-  public static func methodNotFound(_ method: String, id: RequestID? = nil, messageKind: MessageKind = .unknown) -> MessageDecodingError {
-    return MessageDecodingError(code: .methodNotFound, message: "method not found: \(method)", id: id, messageKind: messageKind)
+  public static func methodNotFound(
+    _ method: String,
+    id: RequestID? = nil,
+    messageKind: MessageKind = .unknown
+  ) -> MessageDecodingError {
+    return MessageDecodingError(
+      code: .methodNotFound,
+      message: "method not found: \(method)",
+      id: id,
+      messageKind: messageKind
+    )
   }
 
-  public static func invalidRequest(_ reason: String, id: RequestID? = nil, messageKind: MessageKind = .unknown) -> MessageDecodingError {
+  public static func invalidRequest(
+    _ reason: String,
+    id: RequestID? = nil,
+    messageKind: MessageKind = .unknown
+  ) -> MessageDecodingError {
     return MessageDecodingError(code: .invalidRequest, message: reason, id: id, messageKind: messageKind)
   }
 
-  public static func invalidParams(_ reason: String, id: RequestID? = nil, messageKind: MessageKind = .unknown) -> MessageDecodingError {
+  public static func invalidParams(
+    _ reason: String,
+    id: RequestID? = nil,
+    messageKind: MessageKind = .unknown
+  ) -> MessageDecodingError {
     return MessageDecodingError(code: .invalidParams, message: reason, id: id, messageKind: messageKind)
   }
 
-  public static func parseError(_ reason: String, id: RequestID? = nil, messageKind: MessageKind = .unknown) -> MessageDecodingError {
+  public static func parseError(
+    _ reason: String,
+    id: RequestID? = nil,
+    messageKind: MessageKind = .unknown
+  ) -> MessageDecodingError {
     return MessageDecodingError(code: .parseError, message: reason, id: id, messageKind: messageKind)
   }
 }

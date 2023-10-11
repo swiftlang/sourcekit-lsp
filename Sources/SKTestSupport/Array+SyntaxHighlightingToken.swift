@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKitLSP
 import LanguageServerProtocol
+import SourceKitLSP
 
 extension Array where Element == SyntaxHighlightingToken {
   /// Decodes the LSP representation of syntax highlighting tokens
@@ -40,12 +40,14 @@ extension Array where Element == SyntaxHighlightingToken {
       guard let kind = SyntaxHighlightingToken.Kind(rawValue: rawKind) else { continue }
       let modifiers = SyntaxHighlightingToken.Modifiers(rawValue: rawModifiers)
 
-      append(SyntaxHighlightingToken(
-        start: current,
-        utf16length: length,
-        kind: kind,
-        modifiers: modifiers
-      ))
+      append(
+        SyntaxHighlightingToken(
+          start: current,
+          utf16length: length,
+          kind: kind,
+          modifiers: modifiers
+        )
+      )
     }
   }
 }

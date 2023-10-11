@@ -45,12 +45,14 @@ public protocol ToolchainLanguageServer: AnyObject {
 
   func initializeSync(_ initialize: InitializeRequest) async throws -> InitializeResult
   func clientInitialized(_ initialized: InitializedNotification) async
-  
+
   /// Shut the server down and return once the server has finished shutting down
   func shutdown() async
 
   /// Add a handler that is called whenever the state of the language server changes.
-  func addStateChangeHandler(handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void) async
+  func addStateChangeHandler(
+    handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
+  ) async
 
   // MARK: - Text synchronization
 
@@ -92,8 +94,12 @@ public protocol ToolchainLanguageServer: AnyObject {
   func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse?
   func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation]
   func documentSemanticTokens(_ req: DocumentSemanticTokensRequest) async throws -> DocumentSemanticTokensResponse?
-  func documentSemanticTokensDelta(_ req: DocumentSemanticTokensDeltaRequest) async throws -> DocumentSemanticTokensDeltaResponse?
-  func documentSemanticTokensRange(_ req: DocumentSemanticTokensRangeRequest) async throws -> DocumentSemanticTokensResponse?
+  func documentSemanticTokensDelta(
+    _ req: DocumentSemanticTokensDeltaRequest
+  ) async throws -> DocumentSemanticTokensDeltaResponse?
+  func documentSemanticTokensRange(
+    _ req: DocumentSemanticTokensRangeRequest
+  ) async throws -> DocumentSemanticTokensResponse?
   func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation]
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse?
   func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint]

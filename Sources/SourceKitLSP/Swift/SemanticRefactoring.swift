@@ -49,14 +49,18 @@ struct SemanticRefactoring {
       edits.forEach { _, value in
         // The LSP is zero based, but semantic_refactoring is one based.
         if let startLine: Int = value[keys.line],
-           let startColumn: Int = value[keys.column],
-           let startPosition = snapshot.positionOf(zeroBasedLine: startLine - 1,
-                                                   utf8Column: startColumn - 1),
-           let endLine: Int = value[keys.endline],
-           let endColumn: Int = value[keys.endcolumn],
-           let endPosition = snapshot.positionOf(zeroBasedLine: endLine - 1,
-                                                 utf8Column: endColumn - 1),
-           let text: String = value[keys.text]
+          let startColumn: Int = value[keys.column],
+          let startPosition = snapshot.positionOf(
+            zeroBasedLine: startLine - 1,
+            utf8Column: startColumn - 1
+          ),
+          let endLine: Int = value[keys.endline],
+          let endColumn: Int = value[keys.endcolumn],
+          let endPosition = snapshot.positionOf(
+            zeroBasedLine: endLine - 1,
+            utf8Column: endColumn - 1
+          ),
+          let text: String = value[keys.text]
         {
           // Snippets are only suppored in code completion.
           // Remove SourceKit placeholders in refactoring actions because they can't be represented in the editor properly.

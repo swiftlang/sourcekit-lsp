@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
 import Foundation
+import SKSupport
 
 import struct TSCBasic.AbsolutePath
 
@@ -99,7 +99,7 @@ public final class SourceKitDImpl: SourceKitD {
   /// Removes a previously registered notification handler.
   public func removeNotificationHandler(_ handler: SKDNotificationHandler) {
     lock.withLock {
-      _notificationHandlers.removeAll(where: { $0.value == nil || $0.value === handler})
+      _notificationHandlers.removeAll(where: { $0.value == nil || $0.value === handler })
     }
   }
 }

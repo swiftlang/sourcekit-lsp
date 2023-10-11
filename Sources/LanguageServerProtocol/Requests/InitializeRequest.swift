@@ -93,8 +93,8 @@ public struct InitializeRequest: RequestType, Hashable {
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities,
     trace: Tracing = .off,
-    workspaceFolders: [WorkspaceFolder]?)
-  {
+    workspaceFolders: [WorkspaceFolder]?
+  ) {
     self.processId = processId
     self.clientInfo = clientInfo
     self.locale = locale

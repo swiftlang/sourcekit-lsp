@@ -10,13 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Dispatch
+import Foundation
+import LSPLogging
+import LanguageServerProtocol
+
 #if canImport(CDispatch)
 import struct CDispatch.dispatch_fd_t
 #endif
-import Dispatch
-import Foundation
-import LanguageServerProtocol
-import LSPLogging
 
 /// A connection between a message handler (e.g. language server) in the same process as the connection object and a remote message handler (e.g. language client) that may run in another process using JSON RPC messages sent over a pair of in/out file descriptors.
 ///
@@ -24,7 +25,7 @@ import LSPLogging
 public final class JSONRPCConnection {
 
   var receiveHandler: MessageHandler? = nil
-  
+
   /// The queue on which we read the data
   let queue: DispatchQueue = DispatchQueue(label: "jsonrpc-queue", qos: .userInitiated)
 
@@ -68,25 +69,25 @@ public final class JSONRPCConnection {
     protocol messageRegistry: MessageRegistry,
     inFD: FileHandle,
     outFD: FileHandle,
-    syncRequests: Bool = false)
-  {
-#if os(Linux) || os(Android)
+    syncRequests: Bool = false
+  ) {
+    #if os(Linux) || os(Android)
     // We receive a `SIGPIPE` if we write to a pipe that points to a crashed process. This in particular happens if the target of a `JSONRPCConnection` has crashed and we try to send it a message.
     // On Darwin, `DispatchIO` ignores `SIGPIPE` for the pipes handled by it, but that features is not available on Linux.
     // Instead, globally ignore `SIGPIPE` on Linux to prevent us from crashing if the `JSONRPCConnection`'s target crashes.
     globallyDisableSigpipe()
-#endif
+    #endif
     state = .created
     self.messageRegistry = messageRegistry
     self.syncRequests = syncRequests
 
     let ioGroup = DispatchGroup()
 
-#if os(Windows)
+    #if os(Windows)
     let rawInFD = dispatch_fd_t(bitPattern: inFD._handle)
-#else
+    #else
     let rawInFD = inFD.fileDescriptor
-#endif
+    #endif
 
     ioGroup.enter()
     receiveIO = DispatchIO(type: .stream, fileDescriptor: rawInFD, queue: queue) { (error: Int32) in
@@ -96,11 +97,11 @@ public final class JSONRPCConnection {
       ioGroup.leave()
     }
 
-#if os(Windows)
+    #if os(Windows)
     let rawOutFD = dispatch_fd_t(bitPattern: outFD._handle)
-#else
+    #else
     let rawOutFD = outFD.fileDescriptor
-#endif
+    #endif
 
     ioGroup.enter()
     sendIO = DispatchIO(type: .stream, fileDescriptor: rawOutFD, queue: sendQueue) { (error: Int32) in
@@ -114,7 +115,7 @@ public final class JSONRPCConnection {
       guard let self = self else { return }
       Task {
         await self.closeHandler?()
-        self.receiveHandler = nil // break retain cycle
+        self.receiveHandler = nil  // break retain cycle
       }
     }
 
@@ -141,11 +142,11 @@ public final class JSONRPCConnection {
 
     receiveIO.read(offset: 0, length: Int.max, queue: queue) { done, data, errorCode in
       guard errorCode == 0 else {
-#if !os(Windows)
+        #if !os(Windows)
         if errorCode != POSIXError.ECANCELED.rawValue {
           log("IO error reading \(errorCode)", level: .error)
         }
-#endif
+        #endif
         if done { self._close() }
         return
       }
@@ -188,7 +189,7 @@ public final class JSONRPCConnection {
     }
     return ready
   }
-  
+
   /// *Public for testing*
   public func _send(_ message: JSONRPCMessage, async: Bool = true) {
     send(async: async) { encoder in
@@ -205,13 +206,14 @@ public final class JSONRPCConnection {
     decoder.userInfo[.messageRegistryKey] = messageRegistry
 
     // Setup callback for response type.
-    decoder.userInfo[.responseTypeCallbackKey] = { id in
-      guard let outstanding = self.outstandingRequests[id] else {
-        log("Unknown request for \(id)", level: .error)
-        return nil
-      }
-      return outstanding.responseType
-    } as JSONRPCMessage.ResponseTypeCallback
+    decoder.userInfo[.responseTypeCallbackKey] =
+      { id in
+        guard let outstanding = self.outstandingRequests[id] else {
+          log("Unknown request for \(id)", level: .error)
+          return nil
+        }
+        return outstanding.responseType
+      } as JSONRPCMessage.ResponseTypeCallback
 
     var bytes = bytes[...]
 
@@ -223,45 +225,54 @@ public final class JSONRPCConnection {
         bytes = rest
 
         let pointer = UnsafeMutableRawPointer(mutating: UnsafeBufferPointer(rebasing: messageBytes).baseAddress!)
-        let message = try decoder.decode(JSONRPCMessage.self, from: Data(bytesNoCopy: pointer, count: messageBytes.count, deallocator: .none))
+        let message = try decoder.decode(
+          JSONRPCMessage.self,
+          from: Data(bytesNoCopy: pointer, count: messageBytes.count, deallocator: .none)
+        )
 
         handle(message)
 
       } catch let error as MessageDecodingError {
 
         switch error.messageKind {
-          case .request:
-            if let id = error.id {
-              _send(.errorResponse(ResponseError(error), id: id))
-              continue MESSAGE_LOOP
+        case .request:
+          if let id = error.id {
+            _send(.errorResponse(ResponseError(error), id: id))
+            continue MESSAGE_LOOP
+          }
+        case .response:
+          if let id = error.id {
+            if let outstanding = self.outstandingRequests.removeValue(forKey: id) {
+              outstanding.replyHandler(.failure(ResponseError(error)))
+            } else {
+              log("error in response to unknown request \(id) \(error)", level: .error)
             }
-          case .response:
-            if let id = error.id {
-              if let outstanding = self.outstandingRequests.removeValue(forKey: id) {
-                outstanding.replyHandler(.failure(ResponseError(error)))
-              } else {
-                log("error in response to unknown request \(id) \(error)", level: .error)
-              }
-              continue MESSAGE_LOOP
-            }
-          case .notification:
-            if error.code == .methodNotFound {
-              log("ignoring unknown notification \(error)")
-              continue MESSAGE_LOOP
-            }
-          case .unknown:
-            _send(.errorResponse(ResponseError(error), id: nil),
-                 async: false) // synchronous because the following fatalError
-            break
+            continue MESSAGE_LOOP
+          }
+        case .notification:
+          if error.code == .methodNotFound {
+            log("ignoring unknown notification \(error)")
+            continue MESSAGE_LOOP
+          }
+        case .unknown:
+          _send(
+            .errorResponse(ResponseError(error), id: nil),
+            async: false
+          )  // synchronous because the following fatalError
+          break
         }
         // FIXME: graceful shutdown?
         fatalError("fatal error encountered decoding message \(error)")
 
       } catch {
-        let responseError = ResponseError(code: .parseError,
-                                          message: "Failed to decode message. \(error.localizedDescription)")
-        _send(.errorResponse(responseError, id: nil),
-             async: false) // synchronous because the following fatalError
+        let responseError = ResponseError(
+          code: .parseError,
+          message: "Failed to decode message. \(error.localizedDescription)"
+        )
+        _send(
+          .errorResponse(responseError, id: nil),
+          async: false
+        )  // synchronous because the following fatalError
         // FIXME: graceful shutdown?
         fatalError("fatal error encountered decoding message \(error)")
       }
@@ -302,8 +313,10 @@ public final class JSONRPCConnection {
   }
 
   /// *Public for testing*.
-  public func send(_rawData dispatchData: DispatchData,
-                   handleCompletion: (() -> Void)? = nil) {
+  public func send(
+    _rawData dispatchData: DispatchData,
+    handleCompletion: (() -> Void)? = nil
+  ) {
     guard readyToSend() else { return }
 
     sendIO.write(offset: 0, data: dispatchData, queue: sendQueue) { [weak self] done, _, errorCode in
@@ -325,7 +338,7 @@ public final class JSONRPCConnection {
 
     var dispatchData = DispatchData.empty
     let header = "Content-Length: \(messageData.count)\r\n\r\n"
-    header.utf8.map{$0}.withUnsafeBytes { buffer in
+    header.utf8.map { $0 }.withUnsafeBytes { buffer in
       dispatchData.append(buffer)
     }
     messageData.withUnsafeBytes { rawBufferPointer in
@@ -335,18 +348,20 @@ public final class JSONRPCConnection {
     send(_rawData: dispatchData, handleCompletion: handleCompletion)
   }
 
-  private func sendMessageSynchronously(_ messageData: Data,
-                                        timeoutInSeconds seconds: Int) {
+  private func sendMessageSynchronously(
+    _ messageData: Data,
+    timeoutInSeconds seconds: Int
+  ) {
     let synchronizationSemaphore = DispatchSemaphore(value: 0)
-    
+
     send(messageData: messageData) {
-        synchronizationSemaphore.signal()
+      synchronizationSemaphore.signal()
     }
-    
+
     // blocks until timeout expires or message sending completes
     _ = synchronizationSemaphore.wait(timeout: .now() + .seconds(seconds))
   }
-  
+
   func send(async: Bool = true, encoding: (JSONEncoder) throws -> Data) {
     guard readyToSend() else { return }
 
@@ -408,7 +423,8 @@ extension JSONRPCConnection: Connection {
     }
   }
 
-  public func send<Request>(_ request: Request, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID where Request: RequestType {
+  public func send<Request>(_ request: Request, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID
+  where Request: RequestType {
 
     let id: RequestID = self.queue.sync {
       let id = nextRequestID()

@@ -13,7 +13,7 @@
 import Foundation
 
 #if canImport(os)
-import os // os_log
+import os  // os_log
 #endif
 
 /// Log the given message.
@@ -52,8 +52,8 @@ public func orLog<R>(
   _ prefix: String = "",
   level: LogLevel = .default,
   logger: Logger = Logger.shared,
-  _ block: () throws -> R?) -> R?
-{
+  _ block: () throws -> R?
+) -> R? {
   do {
     return try block()
   } catch {
@@ -67,8 +67,8 @@ public func orLog<R>(
   _ prefix: String = "",
   level: LogLevel = .default,
   logger: Logger = Logger.shared,
-  _ block: () async throws -> R?) async -> R?
-{
+  _ block: () async throws -> R?
+) async -> R? {
   do {
     return try await block()
   } catch {
@@ -76,7 +76,6 @@ public func orLog<R>(
     return nil
   }
 }
-
 
 /// Logs the time that the given block takes to execute in milliseconds.
 public func logExecutionTime<R>(
@@ -197,7 +196,7 @@ public final class Logger {
     let currentLevel = self.currentLevel
 
     var usedOSLog = false
-#if canImport(os)
+    #if canImport(os)
     if !disableOSLog {
       // If os_log is available, we call it unconditionally since it has its own log-level handling that we respect.
       if #available(macOS 11.0, *) {
@@ -207,7 +206,7 @@ public final class Logger {
       }
       usedOSLog = true
     }
-#endif
+    #endif
 
     if level > currentLevel {
       return

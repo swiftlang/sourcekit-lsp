@@ -20,7 +20,10 @@ public enum StringOrMarkupContent: Codable, Hashable {
     } else if let markupContent = try? MarkupContent(from: decoder) {
       self = .markupContent(markupContent)
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected String or MarkupContent")
+      let context = DecodingError.Context(
+        codingPath: decoder.codingPath,
+        debugDescription: "Expected String or MarkupContent"
+      )
       throw DecodingError.dataCorrupted(context)
     }
   }

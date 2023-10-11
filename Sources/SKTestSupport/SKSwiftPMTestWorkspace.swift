@@ -10,21 +10,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKitLSP
-import SKSwiftPMWorkspace
+import Foundation
+import ISDBTestSupport
+import ISDBTibs
+import IndexStoreDB
+import LSPTestSupport
 import LanguageServerProtocol
 import SKCore
-import IndexStoreDB
-import ISDBTibs
-import ISDBTestSupport
+import SKSwiftPMWorkspace
+import SourceKitLSP
 import XCTest
-import Foundation
-import LSPTestSupport
 
+import struct PackageModel.BuildFlags
+import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 import func TSCBasic.resolveSymlinks
-import struct TSCBasic.AbsolutePath
-import struct PackageModel.BuildFlags
 
 fileprivate extension SourceKitServer {
   func addWorkspace(_ workspace: Workspace) {
@@ -88,7 +88,8 @@ public final class SKSwiftPMTestWorkspace {
     let swiftpm = try await SwiftPMWorkspace(
       workspacePath: sourcePath,
       toolchainRegistry: ToolchainRegistry.shared,
-      buildSetup: buildSetup)
+      buildSetup: buildSetup
+    )
 
     let libIndexStore = try IndexStoreLibrary(dylibPath: toolchain.libIndexStore!.pathString)
 
@@ -101,7 +102,8 @@ public final class SKSwiftPMTestWorkspace {
       databasePath: tmpDir.path,
       library: libIndexStore,
       delegate: indexDelegate,
-      listenToUnitEvents: false)
+      listenToUnitEvents: false
+    )
 
     let server = self.testServer.server!
     let workspace = await Workspace(
@@ -112,7 +114,8 @@ public final class SKSwiftPMTestWorkspace {
       buildSetup: buildSetup,
       underlyingBuildSystem: swiftpm,
       index: index,
-      indexDelegate: indexDelegate)
+      indexDelegate: indexDelegate
+    )
     await workspace.buildSystemManager.setDelegate(server)
     await server.addWorkspace(workspace)
   }
@@ -150,11 +153,16 @@ extension SKSwiftPMTestWorkspace {
 
 extension SKSwiftPMTestWorkspace {
   public func openDocument(_ url: URL, language: Language) throws {
-    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: DocumentURI(url),
-      language: language,
-      version: 1,
-      text: try sources.sourceCache.get(url))))
+    sk.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: DocumentURI(url),
+          language: language,
+          version: 1,
+          text: try sources.sourceCache.get(url)
+        )
+      )
+    )
   }
 
   public func closeDocument(_ url: URL) {
@@ -164,7 +172,10 @@ extension SKSwiftPMTestWorkspace {
 
 extension XCTestCase {
 
-  public func staticSourceKitSwiftPMWorkspace(name: String, server: TestSourceKitServer? = nil) async throws -> SKSwiftPMTestWorkspace? {
+  public func staticSourceKitSwiftPMWorkspace(
+    name: String,
+    server: TestSourceKitServer? = nil
+  ) async throws -> SKSwiftPMTestWorkspace? {
     let testDirName = testDirectoryName
     let toolchain = ToolchainRegistry.shared.default!
     let workspace = try await SKSwiftPMTestWorkspace(
@@ -181,13 +192,17 @@ extension XCTestCase {
 
     if hasClangFile {
       if toolchain.libIndexStore == nil {
-        fputs("warning: skipping test because libIndexStore is missing;" +
-              "install Clang's IndexStore component\n", stderr)
+        fputs(
+          "warning: skipping test because libIndexStore is missing;" + "install Clang's IndexStore component\n",
+          stderr
+        )
         return nil
       }
       if !TibsToolchain(toolchain).clangHasIndexSupport {
-        fputs("warning: skipping test because '\(toolchain.clang!)' does not " +
-              "have indexstore support; use swift-clang\n", stderr)
+        fputs(
+          "warning: skipping test because '\(toolchain.clang!)' does not have indexstore support; use swift-clang\n",
+          stderr
+        )
         return nil
       }
     }

@@ -14,5 +14,5 @@ struct InlineValueRefreshRequest: RequestType {
   static var method: String = "workspace/inlineValue/refresh"
   typealias Response = VoidResponse
 
-  public init() { }
+  public init() {}
 }

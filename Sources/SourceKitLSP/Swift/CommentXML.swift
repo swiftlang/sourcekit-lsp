@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
 import Foundation
+import SKSupport
 
 #if canImport(FoundationXML)
 import FoundationXML
@@ -78,7 +78,7 @@ private struct XMLToMarkdown {
       out += "```swift\n"
       toMarkdown(node.children)
       out += "\n```\n\n---\n"
-      
+
     case "Name", "USR", "Direction":
       break
 
@@ -120,7 +120,7 @@ private struct XMLToMarkdown {
         toMarkdown(discussion.children)
         inParam = false
       }
-      // FIXME: closure parameters would go here.
+    // FIXME: closure parameters would go here.
 
     case "CodeListing":
       lineNumber = 0
@@ -160,7 +160,7 @@ private struct XMLToMarkdown {
 
     case "Link":
       if let href = node.attributes?.first(where: { $0.name == "href" })?.stringValue {
-        out += "[" 
+        out += "["
         toMarkdown(node.children)
         out += "](\(href))"
       } else {

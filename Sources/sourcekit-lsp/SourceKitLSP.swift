@@ -11,12 +11,12 @@
 //===----------------------------------------------------------------------===//
 
 import ArgumentParser
-import Csourcekitd // Not needed here, but fixes debugging...
+import Csourcekitd  // Not needed here, but fixes debugging...
 import Dispatch
 import Foundation
+import LSPLogging
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import LSPLogging
 import SKCore
 import SKSupport
 import SourceKitLSP
@@ -51,8 +51,10 @@ extension AbsolutePath: ExpressibleByArgument {
 extension PathPrefixMapping: ExpressibleByArgument {
   public init?(argument: String) {
     guard let eqIndex = argument.firstIndex(of: "=") else { return nil }
-    self.init(original: String(argument[..<eqIndex]),
-              replacement: String(argument[argument.index(after: eqIndex)...]))
+    self.init(
+      original: String(argument[..<eqIndex]),
+      replacement: String(argument[argument.index(after: eqIndex)...])
+    )
   }
 }
 
@@ -79,7 +81,10 @@ struct SourceKitLSP: ParsableCommand {
   )
   var buildConfiguration = BuildConfiguration.debug
 
-  @Option(name: [.long, .customLong("build-path")], help: "Specify build/cache directory (--build-path option is deprecated, --scratch-path should be used instead)")
+  @Option(
+    name: [.long, .customLong("build-path")],
+    help: "Specify build/cache directory (--build-path option is deprecated, --scratch-path should be used instead)"
+  )
   var scratchPath: AbsolutePath?
 
   @Option(
@@ -200,17 +205,24 @@ struct SourceKitLSP: ParsableCommand {
     let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
     ToolchainRegistry.shared = ToolchainRegistry(installPath: installPath, localFileSystem)
 
-    let server = SourceKitServer(client: clientConnection, options: mapOptions(), onExit: {
-      clientConnection.close()
-    })
-    clientConnection.start(receiveHandler: server, closeHandler: {
-      await server.prepareForExit()
-      // FIXME: keep the FileHandle alive until we close the connection to
-      // workaround SR-13822.
-      withExtendedLifetime(realStdoutHandle) {}
-      // Use _Exit to avoid running static destructors due to SR-12668.
-      _Exit(0)
-    })
+    let server = SourceKitServer(
+      client: clientConnection,
+      options: mapOptions(),
+      onExit: {
+        clientConnection.close()
+      }
+    )
+    clientConnection.start(
+      receiveHandler: server,
+      closeHandler: {
+        await server.prepareForExit()
+        // FIXME: keep the FileHandle alive until we close the connection to
+        // workaround SR-13822.
+        withExtendedLifetime(realStdoutHandle) {}
+        // Use _Exit to avoid running static destructors due to SR-12668.
+        _Exit(0)
+      }
+    )
 
     dispatchMain()
   }

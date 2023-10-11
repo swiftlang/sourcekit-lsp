@@ -23,7 +23,10 @@ public enum LocationsOrLocationLinksResponse: ResponseType, Hashable {
       // Fallback: Decode single location as array with one element
       self = .locations([location])
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected [Location], [LocationLink], or Location")
+      let context = DecodingError.Context(
+        codingPath: decoder.codingPath,
+        debugDescription: "Expected [Location], [LocationLink], or Location"
+      )
       throw DecodingError.dataCorrupted(context)
     }
   }
@@ -37,4 +40,3 @@ public enum LocationsOrLocationLinksResponse: ResponseType, Hashable {
     }
   }
 }
-

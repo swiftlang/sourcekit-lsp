@@ -32,11 +32,10 @@ struct RangeAdjuster {
 
     let replacedLineCount = 1 + editRange.upperBound.line - editRange.lowerBound.line
     let newLines = edit.text.split(separator: "\n", omittingEmptySubsequences: false)
-    let upperUtf16IndexAfterEdit = (
-      newLines.count == 1 ? editRange.lowerBound.utf16index : 0
-    ) + newLines.last!.utf16.count
+    let upperUtf16IndexAfterEdit =
+      (newLines.count == 1 ? editRange.lowerBound.utf16index : 0) + newLines.last!.utf16.count
     self.lastLineCharDelta = upperUtf16IndexAfterEdit - editRange.upperBound.utf16index
-    self.lineDelta = newLines.count - replacedLineCount // may be negative
+    self.lineDelta = newLines.count - replacedLineCount  // may be negative
   }
 
   /// Adjust the pre-edit `range` to the corresponding range in the post-edit document.
@@ -48,7 +47,8 @@ struct RangeAdjuster {
     let lineOffset: Int
     let charOffset: Int
     if range.lowerBound.line == editRange.upperBound.line,
-       range.lowerBound.utf16index >= editRange.upperBound.utf16index {
+      range.lowerBound.utf16index >= editRange.upperBound.utf16index
+    {
       lineOffset = lineDelta
       charOffset = lastLineCharDelta
     } else if range.lowerBound.line > editRange.upperBound.line {
@@ -58,8 +58,14 @@ struct RangeAdjuster {
       lineOffset = 0
       charOffset = 0
     }
-    let newStart = Position(line: range.lowerBound.line + lineOffset, utf16index: range.lowerBound.utf16index + charOffset)
-    let newEnd = Position(line: range.upperBound.line + lineOffset, utf16index: range.upperBound.utf16index + charOffset)
+    let newStart = Position(
+      line: range.lowerBound.line + lineOffset,
+      utf16index: range.lowerBound.utf16index + charOffset
+    )
+    let newEnd = Position(
+      line: range.upperBound.line + lineOffset,
+      utf16index: range.upperBound.utf16index + charOffset
+    )
     return newStart..<newEnd
   }
 }

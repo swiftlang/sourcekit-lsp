@@ -16,27 +16,27 @@
 ///
 /// Requires the `workspaceFolders` capability on both the client and server.
 public struct DidChangeWorkspaceFoldersNotification: NotificationType {
-    public static let method: String = "workspace/didChangeWorkspaceFolders"
+  public static let method: String = "workspace/didChangeWorkspaceFolders"
 
-    /// The set of changes.
-    public var event: WorkspaceFoldersChangeEvent
+  /// The set of changes.
+  public var event: WorkspaceFoldersChangeEvent
 
-    public init(event: WorkspaceFoldersChangeEvent) {
-        self.event = event
-    }
+  public init(event: WorkspaceFoldersChangeEvent) {
+    self.event = event
+  }
 }
 
 /// The workspace folder change event.
 public struct WorkspaceFoldersChangeEvent: Codable, Hashable {
 
-    /// The array of added workspace folders
-    public var added: [WorkspaceFolder]?
+  /// The array of added workspace folders
+  public var added: [WorkspaceFolder]?
 
-    /// The array of the removed workspace folders
-    public var removed: [WorkspaceFolder]?
+  /// The array of the removed workspace folders
+  public var removed: [WorkspaceFolder]?
 
-    public init(added: [WorkspaceFolder]? = nil, removed: [WorkspaceFolder]? = nil) {
-        self.added = added
-        self.removed = removed
-    }
+  public init(added: [WorkspaceFolder]? = nil, removed: [WorkspaceFolder]? = nil) {
+    self.added = added
+    self.removed = removed
+  }
 }

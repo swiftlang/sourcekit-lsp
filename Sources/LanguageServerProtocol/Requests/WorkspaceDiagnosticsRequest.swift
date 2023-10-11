@@ -64,7 +64,7 @@ public struct WorkspaceFullDocumentDiagnosticReport: Codable, Hashable {
   public var uri: DocumentURI
 
   /// The version number for which the diagnostics are reported.
- /// If the document is not marked as open `null` can be provided.
+  /// If the document is not marked as open `null` can be provided.
   public var version: Int?
 
   public init(resultId: String? = nil, items: [Diagnostic], uri: DocumentURI, version: Int? = nil) {
@@ -86,7 +86,11 @@ public struct WorkspaceFullDocumentDiagnosticReport: Codable, Hashable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let kind = try container.decode(DocumentDiagnosticReportKind.self, forKey: .kind)
     guard kind == .full else {
-      throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "Kind of FullDocumentDiagnosticReport is not 'full'")
+      throw DecodingError.dataCorruptedError(
+        forKey: .kind,
+        in: container,
+        debugDescription: "Kind of FullDocumentDiagnosticReport is not 'full'"
+      )
     }
     self.resultId = try container.decodeIfPresent(String.self, forKey: .resultId)
     self.items = try container.decode([Diagnostic].self, forKey: .items)
@@ -109,7 +113,6 @@ public struct WorkspaceUnchangedDocumentDiagnosticReport: Codable, Hashable {
   /// A result id which will be sent on the next
   /// diagnostic request for the same document.
   public var resultId: String
-
 
   /// The URI for which diagnostic information is reported.
   public var uri: DocumentURI
@@ -135,7 +138,11 @@ public struct WorkspaceUnchangedDocumentDiagnosticReport: Codable, Hashable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let kind = try container.decode(DocumentDiagnosticReportKind.self, forKey: .kind)
     guard kind == .unchanged else {
-      throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "Kind of FullDocumentDiagnosticReport is not 'unchanged'")
+      throw DecodingError.dataCorruptedError(
+        forKey: .kind,
+        in: container,
+        debugDescription: "Kind of FullDocumentDiagnosticReport is not 'unchanged'"
+      )
     }
     self.resultId = try container.decode(String.self, forKey: .resultId)
     self.uri = try container.decode(DocumentURI.self, forKey: .uri)
@@ -162,7 +169,10 @@ public enum WorkspaceDocumentDiagnosticReport: Codable, Hashable {
     } else if let unchanged = try? WorkspaceUnchangedDocumentDiagnosticReport(from: decoder) {
       self = .unchanged(unchanged)
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected WorkspaceFullDocumentDiagnosticReport or WorkspaceUnchangedDocumentDiagnosticReport")
+      let context = DecodingError.Context(
+        codingPath: decoder.codingPath,
+        debugDescription: "Expected WorkspaceFullDocumentDiagnosticReport or WorkspaceUnchangedDocumentDiagnosticReport"
+      )
       throw DecodingError.dataCorrupted(context)
     }
   }

@@ -42,7 +42,7 @@ public struct PrepareRenameResponse: ResponseType, Hashable {
   /// The range of the symbol
   @CustomCodable<PositionRange>
   public var range: Range<Position>
-  
+
   /// A placeholder text of the string content to be renamed
   public var placeholder: String?
 
@@ -50,7 +50,7 @@ public struct PrepareRenameResponse: ResponseType, Hashable {
     self.range = range
     self.placeholder = placeholder
   }
-  
+
   public init(from decoder: Decoder) throws {
     // Try decoding as PrepareRenameResponse
     do {
@@ -59,18 +59,21 @@ public struct PrepareRenameResponse: ResponseType, Hashable {
       self.placeholder = try container.decode(String.self, forKey: .placeholder)
       return
     } catch {}
-    
+
     // Try decoding as PositionRange
     do {
       self.range = try PositionRange(from: decoder).wrappedValue
       self.placeholder = nil
       return
     } catch {}
-    
-    let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected PrepareRenameResponse or PositionRange")
+
+    let context = DecodingError.Context(
+      codingPath: decoder.codingPath,
+      debugDescription: "Expected PrepareRenameResponse or PositionRange"
+    )
     throw DecodingError.dataCorrupted(context)
   }
-  
+
   public func encode(to encoder: Encoder) throws {
     if let placeholder = placeholder {
       var container = encoder.container(keyedBy: CodingKeys.self)
@@ -80,7 +83,7 @@ public struct PrepareRenameResponse: ResponseType, Hashable {
       try _range.encode(to: encoder)
     }
   }
-  
+
   private enum CodingKeys: String, CodingKey {
     case range
     case placeholder

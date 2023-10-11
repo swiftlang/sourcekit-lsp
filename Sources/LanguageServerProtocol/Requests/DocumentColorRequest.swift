@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 /// The document color request is sent from the client to the server to list
-/// all color references found in a given text document. Along with the range, 
+/// all color references found in a given text document. Along with the range,
 /// a color value in RGB is returned.
-/// Clients can use the result to decorate color references in an editor. 
+/// Clients can use the result to decorate color references in an editor.
 ///
 /// - Parameters:
 ///   - textDocument: The document to search for color references.

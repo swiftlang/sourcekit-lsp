@@ -41,7 +41,11 @@ public struct NotebookDocumentChangeEvent: Codable, Hashable {
     /// Additional closed cell text documents.
     public var didClose: [TextDocumentIdentifier]?
 
-    public init(array: NotebookCellArrayChange, didOpen: [TextDocumentItem]? = nil, didClose: [TextDocumentIdentifier]? = nil) {
+    public init(
+      array: NotebookCellArrayChange,
+      didOpen: [TextDocumentItem]? = nil,
+      didClose: [TextDocumentIdentifier]? = nil
+    ) {
       self.array = array
       self.didOpen = didOpen
       self.didClose = didClose

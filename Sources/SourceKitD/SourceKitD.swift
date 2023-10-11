@@ -11,11 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 @_exported import Csourcekitd
-
-import SKSupport
-import LSPLogging
 import Dispatch
 import Foundation
+import LSPLogging
+import SKSupport
 
 /// Access to sourcekitd API, taking care of initialization, shutdown, and notification handler
 /// multiplexing.

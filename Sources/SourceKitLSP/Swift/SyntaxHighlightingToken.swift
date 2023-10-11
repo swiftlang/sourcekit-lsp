@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKitD
-import LanguageServerProtocol
 import LSPLogging
+import LanguageServerProtocol
+import SourceKitD
 
 /// A ranged token in the document used for syntax highlighting.
 public struct SyntaxHighlightingToken: Hashable {
@@ -92,7 +92,7 @@ public struct SyntaxHighlightingToken: Hashable {
       switch self {
       case .namespace: return "namespace"
       case .type: return "type"
-      case .actor: return "class" // LSP doesn’t know about actors. Display actors as classes.
+      case .actor: return "class"  // LSP doesn’t know about actors. Display actors as classes.
       case .class: return "class"
       case .enum: return "enum"
       case .interface: return "interface"
@@ -199,11 +199,11 @@ extension Array where Element == SyntaxHighlightingToken {
 
     for token in self {
       let lineDelta = token.start.line - previous.line
-      let charDelta = token.start.utf16index - (
-        // The character delta is relative to the previous token's start
-        // only if the token is on the previous token's line.
-        previous.line == token.start.line ? previous.utf16index : 0
-      )
+      let charDelta =
+        token.start.utf16index - (
+          // The character delta is relative to the previous token's start
+          // only if the token is on the previous token's line.
+          previous.line == token.start.line ? previous.utf16index : 0)
 
       // We assert that the tokens are actually sorted
       assert(lineDelta >= 0)
@@ -215,7 +215,7 @@ extension Array where Element == SyntaxHighlightingToken {
         UInt32(charDelta),
         UInt32(token.utf16length),
         token.kind.rawValue,
-        token.modifiers.rawValue
+        token.modifiers.rawValue,
       ]
     }
 

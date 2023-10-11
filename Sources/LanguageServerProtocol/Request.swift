@@ -38,7 +38,13 @@ public final class Request<R: RequestType> {
   /// The request's cancellation state.
   public let cancellationToken: CancellationToken
 
-  public init(_ request: Params, id: RequestID, clientID: ObjectIdentifier, cancellation: CancellationToken, reply: @escaping (LSPResult<Response>) -> Void) {
+  public init(
+    _ request: Params,
+    id: RequestID,
+    clientID: ObjectIdentifier,
+    cancellation: CancellationToken,
+    reply: @escaping (LSPResult<Response>) -> Void
+  ) {
     self.id = id
     self.clientID = clientID
     self.params = request
@@ -87,22 +93,22 @@ public final class Notification<N: NotificationType> {
 extension Request: CustomStringConvertible {
   public var description: String {
     return """
-    Request<\(R.method)>(
-      id: \(id),
-      clientID: \(clientID),
-      params: \(params)
-    )
-    """
+      Request<\(R.method)>(
+        id: \(id),
+        clientID: \(clientID),
+        params: \(params)
+      )
+      """
   }
 }
 
 extension Notification: CustomStringConvertible {
   public var description: String {
     return """
-    Notification<\(N.method)>(
-      clientID: \(clientID),
-      params: \(params)
-    )
-    """
+      Notification<\(N.method)>(
+        clientID: \(clientID),
+        params: \(params)
+      )
+      """
   }
 }

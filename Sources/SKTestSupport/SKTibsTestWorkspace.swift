@@ -10,20 +10,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SourceKitLSP
+import Foundation
+import ISDBTestSupport
+import ISDBTibs
+import IndexStoreDB
+import LSPTestSupport
 import LanguageServerProtocol
 import SKCore
 import SKSupport
-import IndexStoreDB
-import ISDBTibs
-import ISDBTestSupport
+import SourceKitLSP
 import XCTest
-import Foundation
-import LSPTestSupport
 
 import enum PackageLoading.Platform
-import struct TSCBasic.AbsolutePath
 import struct PackageModel.BuildFlags
+import struct TSCBasic.AbsolutePath
 
 public typealias URL = Foundation.URL
 
@@ -51,15 +51,15 @@ public final class SKTibsTestWorkspace {
     toolchain: Toolchain,
     clientCapabilities: ClientCapabilities,
     testServer: TestSourceKitServer? = nil
-  ) async throws
-  {
+  ) async throws {
     self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
     self.tibsWorkspace = try TibsTestWorkspace(
       immutableProjectDir: immutableProjectDir,
       persistentBuildDir: persistentBuildDir,
       tmpDir: tmpDir,
       removeTmpDir: removeTmpDir,
-      toolchain: TibsToolchain(toolchain))
+      toolchain: TibsToolchain(toolchain)
+    )
 
     try await initWorkspace(clientCapabilities: clientCapabilities)
   }
@@ -76,7 +76,8 @@ public final class SKTibsTestWorkspace {
     self.tibsWorkspace = try TibsTestWorkspace(
       projectDir: projectDir,
       tmpDir: tmpDir,
-      toolchain: TibsToolchain(toolchain))
+      toolchain: TibsToolchain(toolchain)
+    )
 
     try await initWorkspace(clientCapabilities: clientCapabilities)
   }
@@ -95,7 +96,8 @@ public final class SKTibsTestWorkspace {
       buildSetup: BuildSetup(configuration: .debug, path: buildPath, flags: BuildFlags()),
       underlyingBuildSystem: buildSystem,
       index: index,
-      indexDelegate: indexDelegate)
+      indexDelegate: indexDelegate
+    )
 
     await workspace.buildSystemManager.setDelegate(testServer.server!)
     await testServer.server!.setWorkspaces([workspace])
@@ -113,19 +115,24 @@ extension SKTibsTestWorkspace {
   /// Perform a group of edits to the project sources and optionally rebuild.
   public func edit(
     rebuild: Bool = false,
-    _ block: (inout TestSources.ChangeBuilder, _ current: SourceFileCache) throws -> ()) throws
-  {
+    _ block: (inout TestSources.ChangeBuilder, _ current: SourceFileCache) throws -> ()
+  ) throws {
     try tibsWorkspace.edit(rebuild: rebuild, block)
   }
 }
 
 extension SKTibsTestWorkspace {
   public func openDocument(_ url: URL, language: Language) throws {
-    sk.send(DidOpenTextDocumentNotification(textDocument: TextDocumentItem(
-      uri: DocumentURI(url),
-      language: language,
-      version: 1,
-      text: try sources.sourceCache.get(url))))
+    sk.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: DocumentURI(url),
+          language: language,
+          version: 1,
+          text: try sources.sourceCache.get(url)
+        )
+      )
+    )
   }
 }
 
@@ -144,7 +151,8 @@ extension XCTestCase {
         .appendingPathComponent(name, isDirectory: true),
       persistentBuildDir: XCTestCase.productsDirectory
         .appendingPathComponent("sk-tests/\(testDirName)", isDirectory: true),
-      tmpDir: tmpDir ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+      tmpDir: tmpDir
+        ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),
       removeTmpDir: removeTmpDir,
       toolchain: ToolchainRegistry.shared.default!,
@@ -153,9 +161,13 @@ extension XCTestCase {
     )
 
     if workspace.builder.targets.contains(where: { target in !target.clangTUs.isEmpty })
-      && !workspace.builder.toolchain.clangHasIndexSupport {
-      fputs("warning: skipping test because '\(workspace.builder.toolchain.clang.path)' does not " +
-            "have indexstore support; use swift-clang\n", stderr)
+      && !workspace.builder.toolchain.clangHasIndexSupport
+    {
+      fputs(
+        "warning: skipping test because '\(workspace.builder.toolchain.clang.path)' does not "
+          + "have indexstore support; use swift-clang\n",
+        stderr
+      )
       return nil
     }
 
@@ -173,15 +185,21 @@ extension XCTestCase {
     let testDirName = testDirectoryName
     let workspace = try await SKTibsTestWorkspace(
       projectDir: XCTestCase.sklspInputsDirectory.appendingPathComponent(name, isDirectory: true),
-      tmpDir: tmpDir ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+      tmpDir: tmpDir
+        ?? URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("sk-test-data/\(testDirName)", isDirectory: true),
       toolchain: ToolchainRegistry.shared.default!,
-      clientCapabilities: clientCapabilities)
+      clientCapabilities: clientCapabilities
+    )
 
     if workspace.builder.targets.contains(where: { target in !target.clangTUs.isEmpty })
-      && !workspace.builder.toolchain.clangHasIndexSupport {
-      fputs("warning: skipping test because '\(workspace.builder.toolchain.clang.path)' does not " +
-            "have indexstore support; use swift-clang\n", stderr)
+      && !workspace.builder.toolchain.clangHasIndexSupport
+    {
+      fputs(
+        "warning: skipping test because '\(workspace.builder.toolchain.clang.path)' does not "
+          + "have indexstore support; use swift-clang\n",
+        stderr
+      )
       return nil
     }
 
@@ -257,7 +275,8 @@ extension TibsToolchain {
       clang: sktc.clang!.asURL,
       libIndexStore: sktc.libIndexStore!.asURL,
       tibs: XCTestCase.productsDirectory.appendingPathComponent("tibs\(execExt)", isDirectory: false),
-      ninja: ninja)
+      ninja: ninja
+    )
   }
 }
 

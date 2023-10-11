@@ -35,7 +35,7 @@ public struct CodeLens: ResponseType, Hashable {
   @CustomCodable<PositionRange>
   public var range: Range<Position>
 
-   /// The command this code lens represents.
+  /// The command this code lens represents.
   public var command: Command?
 
   /// A data entry field that is preserved on a code lens item between

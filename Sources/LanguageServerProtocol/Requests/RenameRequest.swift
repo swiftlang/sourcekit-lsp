@@ -32,7 +32,7 @@ public struct RenameRequest: TextDocumentRequest, Hashable {
 
   /// The document location at which the selected symbol is.
   public var position: Position
-  
+
   /// The new name of the symbol. If the given name is not valid the request must return
   /// a ResponseError with an appropriate message set.
   public var newName: String

@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocolJSONRPC
 import LSPTestSupport
+import LanguageServerProtocolJSONRPC
 import XCTest
 
 class ConnectionPerfTests: PerfTestCase {
@@ -57,11 +57,14 @@ class ConnectionPerfTests: PerfTestCase {
     let client = connection.client
     let sema = DispatchSemaphore(value: 0)
     self.measure {
-      DispatchQueue.concurrentPerform(iterations: 100, execute: { _ in
-        _ = client.send(EchoRequest(string: "hello!")) { _ in
-          sema.signal()
+      DispatchQueue.concurrentPerform(
+        iterations: 100,
+        execute: { _ in
+          _ = client.send(EchoRequest(string: "hello!")) { _ in
+            sema.signal()
+          }
         }
-      })
+      )
       for _ in 1...100 {
         XCTAssertEqual(sema.wait(timeout: .now() + .seconds(Int(defaultTimeout))), .success)
       }

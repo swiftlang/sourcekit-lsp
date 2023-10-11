@@ -14,5 +14,5 @@ public struct DiagnosticsRefreshRequest: RequestType {
   public static var method: String = "workspace/diagnostic/refresh"
   public typealias Response = VoidResponse
 
-  public init() { }
+  public init() {}
 }

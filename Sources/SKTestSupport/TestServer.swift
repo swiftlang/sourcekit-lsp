@@ -10,13 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKSupport
-import SKCore
-import LanguageServerProtocol
-import LanguageServerProtocolJSONRPC
-import SourceKitLSP
 import Foundation
 import LSPTestSupport
+import LanguageServerProtocol
+import LanguageServerProtocolJSONRPC
+import SKCore
+import SKSupport
+import SourceKitLSP
 
 public final class TestSourceKitServer {
   public enum ConnectionKind {
@@ -26,12 +26,14 @@ public final class TestSourceKitServer {
   enum ConnectionImpl {
     case local(
       clientConnection: LocalConnection,
-      serverConnection: LocalConnection)
+      serverConnection: LocalConnection
+    )
     case jsonrpc(
       clientToServer: Pipe,
       serverToClient: Pipe,
       clientConnection: JSONRPCConnection,
-      serverConnection: JSONRPCConnection)
+      serverConnection: JSONRPCConnection
+    )
   }
 
   public static let serverOptions: SourceKitServer.Options = SourceKitServer.Options()
@@ -49,7 +51,7 @@ public final class TestSourceKitServer {
 
   /// The server, if it is in the same process.
   public let server: SourceKitServer?
-  
+
   /// - Parameters:
   ///   - useGlobalModuleCache: If `false`, the server will use its own module
   ///     cache in an empty temporary directory instead of the global module cache.
@@ -65,55 +67,64 @@ public final class TestSourceKitServer {
     }
 
     switch connectionKind {
-      case .local:
-        let clientConnection = LocalConnection()
-        let serverConnection = LocalConnection()
-        client = TestClient(server: serverConnection)
-        server = SourceKitServer(client: clientConnection, options: serverOptions, onExit: {
+    case .local:
+      let clientConnection = LocalConnection()
+      let serverConnection = LocalConnection()
+      client = TestClient(server: serverConnection)
+      server = SourceKitServer(
+        client: clientConnection,
+        options: serverOptions,
+        onExit: {
           clientConnection.close()
-        })
+        }
+      )
 
-        clientConnection.start(handler: client)
-        serverConnection.start(handler: server!)
+      clientConnection.start(handler: client)
+      serverConnection.start(handler: server!)
 
-        connImpl = .local(clientConnection: clientConnection, serverConnection: serverConnection)
+      connImpl = .local(clientConnection: clientConnection, serverConnection: serverConnection)
 
-      case .jsonrpc:
-        let clientToServer: Pipe = Pipe()
-        let serverToClient: Pipe = Pipe()
+    case .jsonrpc:
+      let clientToServer: Pipe = Pipe()
+      let serverToClient: Pipe = Pipe()
 
-        let clientConnection = JSONRPCConnection(
-          protocol: MessageRegistry.lspProtocol,
-          inFD: serverToClient.fileHandleForReading,
-          outFD: clientToServer.fileHandleForWriting
-        )
-        let serverConnection = JSONRPCConnection(
-          protocol: MessageRegistry.lspProtocol,
-          inFD: clientToServer.fileHandleForReading,
-          outFD: serverToClient.fileHandleForWriting
-        )
+      let clientConnection = JSONRPCConnection(
+        protocol: MessageRegistry.lspProtocol,
+        inFD: serverToClient.fileHandleForReading,
+        outFD: clientToServer.fileHandleForWriting
+      )
+      let serverConnection = JSONRPCConnection(
+        protocol: MessageRegistry.lspProtocol,
+        inFD: clientToServer.fileHandleForReading,
+        outFD: serverToClient.fileHandleForWriting
+      )
 
-        client = TestClient(server: clientConnection)
-        server = SourceKitServer(client: serverConnection, options: serverOptions, onExit: {
+      client = TestClient(server: clientConnection)
+      server = SourceKitServer(
+        client: serverConnection,
+        options: serverOptions,
+        onExit: {
           serverConnection.close()
-        })
-
-        clientConnection.start(receiveHandler: client) {
-          // FIXME: keep the pipes alive until we close the connection. This
-          // should be fixed systemically.
-          withExtendedLifetime((clientToServer, serverToClient)) {}
         }
-        serverConnection.start(receiveHandler: server!) {
-          // FIXME: keep the pipes alive until we close the connection. This
-          // should be fixed systemically.
-          withExtendedLifetime((clientToServer, serverToClient)) {}
-        }
+      )
 
-        connImpl = .jsonrpc(
-          clientToServer: clientToServer,
-          serverToClient: serverToClient,
-          clientConnection: clientConnection,
-          serverConnection: serverConnection)
+      clientConnection.start(receiveHandler: client) {
+        // FIXME: keep the pipes alive until we close the connection. This
+        // should be fixed systemically.
+        withExtendedLifetime((clientToServer, serverToClient)) {}
+      }
+      serverConnection.start(receiveHandler: server!) {
+        // FIXME: keep the pipes alive until we close the connection. This
+        // should be fixed systemically.
+        withExtendedLifetime((clientToServer, serverToClient)) {}
+      }
+
+      connImpl = .jsonrpc(
+        clientToServer: clientToServer,
+        serverToClient: serverToClient,
+        clientConnection: clientConnection,
+        serverConnection: serverConnection
+      )
     }
   }
 

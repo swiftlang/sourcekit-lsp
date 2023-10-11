@@ -24,7 +24,10 @@ public struct TextDocumentEdit: Hashable, Codable {
       } else if let edit = try? TextEdit(from: decoder) {
         self = .textEdit(edit)
       } else {
-        let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected AnnotatedTextEdit or TextEdit")
+        let context = DecodingError.Context(
+          codingPath: decoder.codingPath,
+          debugDescription: "Expected AnnotatedTextEdit or TextEdit"
+        )
         throw DecodingError.dataCorrupted(context)
       }
     }

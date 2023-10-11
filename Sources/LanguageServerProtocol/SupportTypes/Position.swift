@@ -39,10 +39,10 @@ extension Position: Comparable {
 }
 
 extension Position: LSPAnyCodable {
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard case .int(let line) = dictionary[CodingKeys.line.stringValue],
-          case .int(let utf16index) = dictionary[CodingKeys.utf16index.stringValue] else
-    {
+      case .int(let utf16index) = dictionary[CodingKeys.utf16index.stringValue]
+    else {
       return nil
     }
     self.line = line
@@ -52,7 +52,7 @@ extension Position: LSPAnyCodable {
   public func encodeToLSPAny() -> LSPAny {
     return .dictionary([
       CodingKeys.line.stringValue: .int(line),
-      CodingKeys.utf16index.stringValue: .int(utf16index)
+      CodingKeys.utf16index.stringValue: .int(utf16index),
     ])
   }
 }

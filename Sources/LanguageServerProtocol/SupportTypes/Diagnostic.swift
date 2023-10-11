@@ -83,8 +83,8 @@ public struct Diagnostic: Codable, Hashable {
     tags: [DiagnosticTag]? = nil,
     relatedInformation: [DiagnosticRelatedInformation]? = nil,
     data: LSPAny? = nil,
-    codeActions: [CodeAction]? = nil)
-  {
+    codeActions: [CodeAction]? = nil
+  ) {
     self._range = CustomCodable<PositionRange>(wrappedValue: range)
     self.severity = severity
     self.code = code

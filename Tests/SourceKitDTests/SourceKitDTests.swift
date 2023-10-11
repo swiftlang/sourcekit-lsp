@@ -10,14 +10,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
+import ISDBTestSupport
+import ISDBTibs
 import LSPTestSupport
-import SourceKitD
 import SKCore
 import SKSupport
+import SourceKitD
 import TSCBasic
-import ISDBTibs
-import ISDBTestSupport
-import Foundation
 import XCTest
 
 import enum PackageLoading.Platform
@@ -30,7 +30,8 @@ final class SourceKitDTests: XCTestCase {
   override class func setUp() {
     sourcekitdPath = ToolchainRegistry.shared.default!.sourcekitd!
     guard case .darwin? = Platform.current else { return }
-    sdkpath = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx").trimmingCharacters(in: .whitespacesAndNewlines)
+    sdkpath = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   func testMultipleNotificationHandlers() throws {
@@ -41,7 +42,7 @@ final class SourceKitDTests: XCTestCase {
 
     let isExpectedNotification = { (response: SKDResponse) -> Bool in
       if let notification: sourcekitd_uid_t = response.value?[keys.notification],
-         let name: String = response.value?[keys.name]
+        let name: String = response.value?[keys.name]
       {
         return name == path && notification == sourcekitd.values.notification_documentupdate
       }

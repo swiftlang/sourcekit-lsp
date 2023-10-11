@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
 import LSPTestSupport
+import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
 import XCTest
@@ -32,14 +32,17 @@ final class ExecuteCommandTests: XCTestCase {
   override func setUp() {
     connection = TestSourceKitServer()
     sk = connection.client
-    _ = try! sk.sendSync(InitializeRequest(
-      processId: nil,
-      rootPath: nil,
-      rootURI: nil,
-      initializationOptions: nil,
-      capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
-      trace: .off,
-      workspaceFolders: nil))
+    _ = try! sk.sendSync(
+      InitializeRequest(
+        processId: nil,
+        rootPath: nil,
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
+        trace: .off,
+        workspaceFolders: nil
+      )
+    )
   }
 
   func testLocationSemanticRefactoring() async throws {
@@ -49,10 +52,12 @@ final class ExecuteCommandTests: XCTestCase {
 
     let textDocument = TextDocumentIdentifier(loc.url)
 
-    let args = SemanticRefactorCommand(title: "Localize String",
-                                       actionString: "source.refactoring.kind.localize.string",
-                                       positionRange: loc.position..<loc.position,
-                                       textDocument: textDocument)
+    let args = SemanticRefactorCommand(
+      title: "Localize String",
+      actionString: "source.refactoring.kind.localize.string",
+      positionRange: loc.position..<loc.position,
+      textDocument: textDocument
+    )
 
     let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
 
@@ -72,14 +77,21 @@ final class ExecuteCommandTests: XCTestCase {
       return
     }
 
-    XCTAssertEqual(WorkspaceEdit(fromLSPDictionary: resultDict), WorkspaceEdit(changes: [
-      DocumentURI(loc.url): [
-        TextEdit(range: Position(line: 1, utf16index: 29)..<Position(line: 1, utf16index: 29),
-                 newText: "NSLocalizedString("),
-        TextEdit(range: Position(line: 1, utf16index: 44)..<Position(line: 1, utf16index: 44),
-                 newText: ", comment: \"\")")
-      ]
-    ]))
+    XCTAssertEqual(
+      WorkspaceEdit(fromLSPDictionary: resultDict),
+      WorkspaceEdit(changes: [
+        DocumentURI(loc.url): [
+          TextEdit(
+            range: Position(line: 1, utf16index: 29)..<Position(line: 1, utf16index: 29),
+            newText: "NSLocalizedString("
+          ),
+          TextEdit(
+            range: Position(line: 1, utf16index: 44)..<Position(line: 1, utf16index: 44),
+            newText: ", comment: \"\")"
+          ),
+        ]
+      ])
+    )
   }
 
   func testRangeSemanticRefactoring() async throws {
@@ -92,10 +104,12 @@ final class ExecuteCommandTests: XCTestCase {
     let startPosition = Position(line: 1, utf16index: 2)
     let endPosition = Position(line: 2, utf16index: 10)
 
-    let args = SemanticRefactorCommand(title: "Extract Method",
-                                       actionString: "source.refactoring.kind.extract.function",
-                                       positionRange: startPosition..<endPosition,
-                                       textDocument: textDocument)
+    let args = SemanticRefactorCommand(
+      title: "Extract Method",
+      actionString: "source.refactoring.kind.extract.function",
+      positionRange: startPosition..<endPosition,
+      textDocument: textDocument
+    )
 
     let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
 
@@ -115,14 +129,22 @@ final class ExecuteCommandTests: XCTestCase {
       return
     }
 
-    XCTAssertEqual(WorkspaceEdit(fromLSPDictionary: resultDict), WorkspaceEdit(changes: [
-      DocumentURI(loc.url): [
-        TextEdit(range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
-                 newText: "fileprivate func extractedFunc() -> String {\n/*sr:extractStart*/var a = \"/*sr:string*/\"\n  return a\n}\n\n"),
-        TextEdit(range: Position(line: 1, utf16index: 2)..<Position(line: 2, utf16index: 10),
-                 newText: "return extractedFunc()")
-      ]
-    ]))
+    XCTAssertEqual(
+      WorkspaceEdit(fromLSPDictionary: resultDict),
+      WorkspaceEdit(changes: [
+        DocumentURI(loc.url): [
+          TextEdit(
+            range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
+            newText:
+              "fileprivate func extractedFunc() -> String {\n/*sr:extractStart*/var a = \"/*sr:string*/\"\n  return a\n}\n\n"
+          ),
+          TextEdit(
+            range: Position(line: 1, utf16index: 2)..<Position(line: 2, utf16index: 10),
+            newText: "return extractedFunc()"
+          ),
+        ]
+      ])
+    )
   }
 
   func testLSPCommandMetadataRetrieval() {

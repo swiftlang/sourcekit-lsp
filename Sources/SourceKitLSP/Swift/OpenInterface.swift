@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SourceKitD
-import LanguageServerProtocol
 import LSPLogging
+import LanguageServerProtocol
 import SKSupport
+import SourceKitD
 
 struct InterfaceInfo {
   var contents: String
@@ -33,12 +33,22 @@ extension SwiftLanguageServer {
       return await self.interfaceDetails(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
     } else {
       // generate interface
-      let interfaceInfo = try await self.openInterface(request: request, uri: uri, name: moduleName, interfaceURI: interfaceDocURI)
+      let interfaceInfo = try await self.openInterface(
+        request: request,
+        uri: uri,
+        name: moduleName,
+        interfaceURI: interfaceDocURI
+      )
       do {
         // write to file
         try interfaceInfo.contents.write(to: interfaceFilePath, atomically: true, encoding: String.Encoding.utf8)
         // store snapshot
-        let snapshot = try self.documentManager.open(interfaceDocURI, language: .swift, version: 0, text: interfaceInfo.contents)
+        let snapshot = try self.documentManager.open(
+          interfaceDocURI,
+          language: .swift,
+          version: 0,
+          text: interfaceInfo.contents
+        )
         return await self.interfaceDetails(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
       } catch {
         throw ResponseError.unknown(error.localizedDescription)
@@ -71,11 +81,11 @@ extension SwiftLanguageServer {
     if let compileCommand = await self.buildSettings(for: uri) {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
-    
+
     let dict = try await self.sourcekitd.send(skreq)
     return InterfaceInfo(contents: dict[keys.sourcetext] ?? "")
   }
-  
+
   private func interfaceDetails(
     request: OpenInterfaceRequest,
     uri: DocumentURI,
@@ -95,7 +105,8 @@ extension SwiftLanguageServer {
 
       let dict = try await self.sourcekitd.send(skreq)
       if let offset: Int = dict[keys.offset],
-         let position = snapshot.positionOf(utf8Offset: offset) {
+        let position = snapshot.positionOf(utf8Offset: offset)
+      {
         return InterfaceDetails(uri: uri, position: position)
       } else {
         return InterfaceDetails(uri: uri, position: nil)

@@ -26,14 +26,15 @@ actor SyntaxTreeManager {
   /// Conceptually, this is a dictionary. To prevent excessive memory usage we
   /// only keep `cacheSize` entries within the array. Older entries are at the
   /// end of the list, newer entries at the front.
-  private var syntaxTreeComputations: [(
-    snapshotID: DocumentSnapshot.ID,
-    computation: SyntaxTreeComputation
-  )] = []
+  private var syntaxTreeComputations:
+    [(
+      snapshotID: DocumentSnapshot.ID,
+      computation: SyntaxTreeComputation
+    )] = []
 
   /// The number of syntax trees to keep.
   ///
-  /// - Note: This has been chosen without scientific measurements. The feeling 
+  /// - Note: This has been chosen without scientific measurements. The feeling
   ///   is that you rarely work on more than 5 files at once and 5 syntax trees
   ///   don't take up too much memory.
   private let cacheSize = 5
@@ -57,7 +58,7 @@ actor SyntaxTreeManager {
   /// will get discarded.
   private func setComputation(for snapshotID: DocumentSnapshot.ID, computation: SyntaxTreeComputation) {
     syntaxTreeComputations.insert((snapshotID, computation), at: 0)
-    
+
     // Remove any syntax trees for old versions of this document.
     syntaxTreeComputations.removeAll(where: { $0.snapshotID < snapshotID })
 

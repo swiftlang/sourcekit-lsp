@@ -34,8 +34,8 @@ public struct ShowMessageRequest: RequestType, Hashable {
   public init(
     type: WindowMessageType,
     message: String,
-    actions: [MessageActionItem]?)
-  {
+    actions: [MessageActionItem]?
+  ) {
     self.type = type
     self.message = message
     self.actions = actions

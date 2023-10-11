@@ -38,7 +38,10 @@ public enum WorkDoneProgressKind: Codable, Hashable {
     } else if let end = try? WorkDoneProgressEnd(from: decoder) {
       self = .end(end)
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected WorkDoneProgressBegin, WorkDoneProgressReport, or WorkDoneProgressEnd")
+      let context = DecodingError.Context(
+        codingPath: decoder.codingPath,
+        debugDescription: "Expected WorkDoneProgressBegin, WorkDoneProgressReport, or WorkDoneProgressEnd"
+      )
       throw DecodingError.dataCorrupted(context)
     }
   }
@@ -101,7 +104,11 @@ public struct WorkDoneProgressBegin: Codable, Hashable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let kind = try container.decode(String.self, forKey: .kind)
     guard kind == "begin" else {
-      throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "Kind of WorkDoneProgressBegin is not 'begin'")
+      throw DecodingError.dataCorruptedError(
+        forKey: .kind,
+        in: container,
+        debugDescription: "Kind of WorkDoneProgressBegin is not 'begin'"
+      )
     }
 
     self.title = try container.decode(String.self, forKey: .title)
@@ -109,7 +116,6 @@ public struct WorkDoneProgressBegin: Codable, Hashable {
     self.message = try container.decodeIfPresent(String.self, forKey: .message)
     self.percentage = try container.decodeIfPresent(Int.self, forKey: .percentage)
   }
-
 
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
@@ -161,14 +167,17 @@ public struct WorkDoneProgressReport: Codable, Hashable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let kind = try container.decode(String.self, forKey: .kind)
     guard kind == "report" else {
-      throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "Kind of WorkDoneProgressReport is not 'report'")
+      throw DecodingError.dataCorruptedError(
+        forKey: .kind,
+        in: container,
+        debugDescription: "Kind of WorkDoneProgressReport is not 'report'"
+      )
     }
 
     self.cancellable = try container.decodeIfPresent(Bool.self, forKey: .cancellable)
     self.message = try container.decodeIfPresent(String.self, forKey: .message)
     self.percentage = try container.decodeIfPresent(Int.self, forKey: .percentage)
   }
-
 
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
@@ -197,12 +206,15 @@ public struct WorkDoneProgressEnd: Codable, Hashable {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     let kind = try container.decode(String.self, forKey: .kind)
     guard kind == "end" else {
-      throw DecodingError.dataCorruptedError(forKey: .kind, in: container, debugDescription: "Kind of WorkDoneProgressReport is not 'end'")
+      throw DecodingError.dataCorruptedError(
+        forKey: .kind,
+        in: container,
+        debugDescription: "Kind of WorkDoneProgressReport is not 'end'"
+      )
     }
 
     self.message = try container.decodeIfPresent(String.self, forKey: .message)
   }
-
 
   public func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)

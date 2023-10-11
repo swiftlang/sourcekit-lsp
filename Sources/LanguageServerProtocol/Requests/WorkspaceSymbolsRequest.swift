@@ -44,7 +44,10 @@ public enum WorkspaceSymbolItem: ResponseType, Hashable {
     } else if let workspaceSymbol = try? WorkspaceSymbol(from: decoder) {
       self = .workspaceSymbol(workspaceSymbol)
     } else {
-      let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected SymbolInformation or WorkspaceSymbol")
+      let context = DecodingError.Context(
+        codingPath: decoder.codingPath,
+        debugDescription: "Expected SymbolInformation or WorkspaceSymbol"
+      )
       throw DecodingError.dataCorrupted(context)
     }
   }
@@ -72,12 +75,14 @@ public struct SymbolInformation: Hashable, ResponseType {
 
   public var containerName: String?
 
-  public init(name: String,
-              kind: SymbolKind,
-              tags: [SymbolTag]? = nil,
-              deprecated: Bool? = nil,
-              location: Location,
-              containerName: String? = nil) {
+  public init(
+    name: String,
+    kind: SymbolKind,
+    tags: [SymbolTag]? = nil,
+    deprecated: Bool? = nil,
+    location: Location,
+    containerName: String? = nil
+  ) {
     self.name = name
     self.kind = kind
     self.tags = tags
@@ -107,7 +112,10 @@ public struct WorkspaceSymbol: ResponseType, Hashable {
       } else if let uri = try? WorkspaceSymbolLocation.URI(from: decoder) {
         self = .uri(uri)
       } else {
-        let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Expected Location or object containing a URI")
+        let context = DecodingError.Context(
+          codingPath: decoder.codingPath,
+          debugDescription: "Expected Location or object containing a URI"
+        )
         throw DecodingError.dataCorrupted(context)
       }
     }
@@ -148,7 +156,14 @@ public struct WorkspaceSymbol: ResponseType, Hashable {
   /// workspace symbol request and a workspace symbol resolve request.
   public var data: LSPAny?
 
-  public init(name: String, kind: SymbolKind, tags: [SymbolTag]? = nil, containerName: String? = nil, location: WorkspaceSymbolLocation, data: LSPAny? = nil) {
+  public init(
+    name: String,
+    kind: SymbolKind,
+    tags: [SymbolTag]? = nil,
+    containerName: String? = nil,
+    location: WorkspaceSymbolLocation,
+    data: LSPAny? = nil
+  ) {
     self.name = name
     self.kind = kind
     self.tags = tags

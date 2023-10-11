@@ -12,17 +12,17 @@
 
 import Foundation
 
-import func TSCBasic.resolveSymlinks
 import struct TSCBasic.AbsolutePath
+import func TSCBasic.resolveSymlinks
 
 public struct DocumentURI: Codable, Hashable {
   /// The URL that store the URIs value
   private let storage: URL
 
   public var nativeURI: Self {
-      get throws {
-          DocumentURI(URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: self.pseudoPath)).pathString))
-      }
+    get throws {
+      DocumentURI(URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: self.pseudoPath)).pathString))
+    }
   }
 
   public var fileURL: URL? {

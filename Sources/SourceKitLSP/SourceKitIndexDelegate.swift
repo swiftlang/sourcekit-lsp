@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Dispatch
 import IndexStoreDB
 import SKCore
-import Dispatch
 
 /// `IndexDelegate` for the SourceKit workspace.
 ///
