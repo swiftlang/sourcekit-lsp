@@ -82,7 +82,7 @@ struct SemanticRefactoring {
   }
 }
 
-/// An error from a cursor info request.
+/// An error from a semantic refactoring request.
 enum SemanticRefactoringError: Error {
 
   /// The given URL is not a known document.
