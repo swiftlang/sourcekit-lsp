@@ -1300,7 +1300,20 @@ extension SwiftLanguageServer {
   }
 
   public func macroExpansion(_ req: MacroExpansionRequest) async throws -> MacroExpansion? {
-    // TODO
+    guard let snapshot = documentManager.latestSnapshot(req.textDocument.uri) else {
+      let msg = "failed to find snapshot for url \(req.textDocument.uri)"
+      log(msg)
+      throw ResponseError.unknown(msg)
+    }
+
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+
+    // TODO: Traverse syntax tree, extract the moduleName, typeName and roles
+    // for the macro at the position given in the request. Use these to
+    // construct `ExpansionSpecifier`s and pass them to SourceKitD via
+    // the `syntacticMacroExpansion` function. Extract the text edits from the
+    // result and wrap them in `MacroExpansion`.
+
     return nil
   }
 
