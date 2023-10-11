@@ -24,7 +24,7 @@ import WinSDK
 #endif
 
 extension NSLock {
-  /// notification: Keep in sync with SwiftPM's 'Sources/Basics/NSLock+Extensions.swift'
+  /// NOTE: Keep in sync with SwiftPM's 'Sources/Basics/NSLock+Extensions.swift'
   fileprivate func withLock<T>(_ body: () throws -> T) rethrows -> T {
     lock()
     defer { unlock() }
