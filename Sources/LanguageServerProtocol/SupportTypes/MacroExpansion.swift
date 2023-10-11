@@ -13,5 +13,5 @@
 /// The expansion of a macro in a source file.
 public struct MacroExpansion: ResponseType, Hashable {
   /// The Swift code that the macro expands to.
-  public let expansion: String
+  public let sourceText: String
 }
