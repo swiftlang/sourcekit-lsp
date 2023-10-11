@@ -156,33 +156,12 @@ extension Connection {
   ///   guarantees. If you need to gurantee that messages are sent in-order
   ///   use the version with a completion handler.
   public func send<R: RequestType>(_ request: R) async throws -> R.Response {
-    let requestIDWrapper = ThreadSafeBox<RequestID?>(initialValue: nil)
-
-    @Sendable
-    func sendCancelNotification() {
-      /// Take the request ID out of the box. This ensures that we only send the
-      /// cancel notification once in case the `Task.isCancelled` and the
-      /// `onCancel` check race.
-      if let requestID = requestIDWrapper.takeValue() {
-        self.send(CancelRequestNotification(id: requestID))
+    return try await withCancellableCheckedThrowingContinuation { continuation in
+      return self.send(request) { result in
+        continuation.resume(with: result)
       }
+    } cancel: { requestID in
+      self.send(CancelRequestNotification(id: requestID))
     }
-
-    return try await withTaskCancellationHandler(operation: {
-      try Task.checkCancellation()
-      return try await withCheckedThrowingContinuation { continuation in
-        let requestID = self.send(request) { result in
-          continuation.resume(with: result)
-        }
-        requestIDWrapper.value = requestID
-
-        // Check if the task was cancelled. This ensures we send a
-        // CancelNotification even if the task gets cancelled after we register
-        // the cancellation handler but before we set the `requestID`.
-        if Task.isCancelled {
-          sendCancelNotification()
-        }
-      }
-    }, onCancel: sendCancelNotification)
   }
 }

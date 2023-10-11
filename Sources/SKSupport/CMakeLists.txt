@@ -1,5 +1,6 @@
 
 add_library(SKSupport STATIC
+  AsyncUtils.swift
   BuildConfiguration.swift
   ByteString.swift
   dlopen.swift
@@ -7,7 +8,6 @@ add_library(SKSupport STATIC
   LineTable.swift
   Random.swift
   Result.swift
-  Task+ValuePropagatingCancellation.swift
   ThreadSafeBox.swift
 )
 set_target_properties(SKSupport PROPERTIES
