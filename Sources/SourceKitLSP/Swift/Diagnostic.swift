@@ -19,8 +19,8 @@ extension CodeAction {
 
   /// Creates a CodeAction from a list for sourcekit fixits.
   ///
-  /// If this is from a note, the note's description should be passed as `fromNote`.
-  init?(fixits: SKDResponseArray, in snapshot: DocumentSnapshot, fromNote: String?) {
+  /// If this is from a notification, the notification's description should be passed as `fromNotification`.
+  init?(fixits: SKDResponseArray, in snapshot: DocumentSnapshot, fromNotification: String?) {
     var edits: [TextEdit] = []
     let editsMapped = fixits.forEach { (_, skfixit) -> Bool in
       if let edit = TextEdit(fixit: skfixit, in: snapshot) {
@@ -40,8 +40,8 @@ extension CodeAction {
     }
 
     let title: String
-    if let fromNote = fromNote {
-      title = fromNote
+    if let fromNotification = fromNotification {
+      title = fromNotification
     } else {
       guard let startIndex = snapshot.index(of: edits[0].range.lowerBound),
         let endIndex = snapshot.index(of: edits[0].range.upperBound),
@@ -123,7 +123,7 @@ extension Diagnostic {
   init?(
     _ diag: SKDResponseDictionary,
     in snapshot: DocumentSnapshot,
-    useEducationalNoteAsCode: Bool
+    useEducationalNotificationAsCode: Bool
   ) {
     // FIXME: this assumes that the diagnostics are all in the same file.
 
@@ -175,14 +175,14 @@ extension Diagnostic {
 
     var code: DiagnosticCode? = nil
     var codeDescription: CodeDescription? = nil
-    // If this diagnostic has one or more educational notes, the first one is
+    // If this diagnostic has one or more educational notifications, the first one is
     // treated as primary and used to fill in the diagnostic code and
-    // description. `useEducationalNoteAsCode` ensures a note name is only used
+    // description. `useEducationalNotificationAsCode` ensures a notification name is only used
     // as a code if the cline supports an extended code description.
-    if useEducationalNoteAsCode,
-      let educationalNotePaths: SKDResponseArray = diag[keys.educational_note_paths],
-      educationalNotePaths.count > 0,
-      let primaryPath = educationalNotePaths[0]
+    if useEducationalNotificationAsCode,
+      let educationalNotificationPaths: SKDResponseArray = diag[keys.educational_notification_paths],
+      educationalNotificationPaths.count > 0,
+      let primaryPath = educationalNotificationPaths[0]
     {
       let url = URL(fileURLWithPath: primaryPath)
       let name = url.deletingPathExtension().lastPathComponent
@@ -192,17 +192,17 @@ extension Diagnostic {
 
     var actions: [CodeAction]? = nil
     if let skfixits: SKDResponseArray = diag[keys.fixits],
-      let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: nil)
+      let action = CodeAction(fixits: skfixits, in: snapshot, fromNotification: nil)
     {
       actions = [action]
     }
 
-    var notes: [DiagnosticRelatedInformation]? = nil
-    if let sknotes: SKDResponseArray = diag[keys.diagnostics] {
-      notes = []
-      sknotes.forEach { (_, sknote) -> Bool in
-        guard let note = DiagnosticRelatedInformation(sknote, in: snapshot) else { return true }
-        notes?.append(note)
+    var notifications: [DiagnosticRelatedInformation]? = nil
+    if let sknotifications: SKDResponseArray = diag[keys.diagnostics] {
+      notifications = []
+      sknotifications.forEach { (_, sknotification) -> Bool in
+        guard let notification = DiagnosticRelatedInformation(sknotification, in: snapshot) else { return true }
+        notifications?.append(notification)
         return true
       }
     }
@@ -230,7 +230,7 @@ extension Diagnostic {
       source: "sourcekitd",
       message: message,
       tags: tags,
-      relatedInformation: notes,
+      relatedInformation: notifications,
       codeActions: actions
     )
   }
@@ -238,7 +238,7 @@ extension Diagnostic {
 
 extension DiagnosticRelatedInformation {
 
-  /// Creates related information from a sourcekitd note response dictionary.
+  /// Creates related information from a sourcekitd notification response dictionary.
   init?(_ diag: SKDResponseDictionary, in snapshot: DocumentSnapshot) {
     let keys = diag.sourcekitd.keys
 
@@ -260,7 +260,7 @@ extension DiagnosticRelatedInformation {
 
     var actions: [CodeAction]? = nil
     if let skfixits: SKDResponseArray = diag[keys.fixits],
-      let action = CodeAction(fixits: skfixits, in: snapshot, fromNote: message)
+      let action = CodeAction(fixits: skfixits, in: snapshot, fromNotification: message)
     {
       actions = [action]
     }
@@ -297,14 +297,14 @@ extension CachedDiagnostic {
   init?(
     _ diag: SKDResponseDictionary,
     in snapshot: DocumentSnapshot,
-    useEducationalNoteAsCode: Bool
+    useEducationalNotificationAsCode: Bool
   ) {
     let sk = diag.sourcekitd
     guard
       let diagnostic = Diagnostic(
         diag,
         in: snapshot,
-        useEducationalNoteAsCode: useEducationalNoteAsCode
+        useEducationalNotificationAsCode: useEducationalNotificationAsCode
       )
     else {
       return nil

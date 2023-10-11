@@ -253,7 +253,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
     var newDiags: [CachedDiagnostic] = []
     sourcekitdDiagnostics?.forEach { _, diag in
-      if let diag = CachedDiagnostic(diag, in: snapshot, useEducationalNoteAsCode: supportsCodeDescription) {
+      if let diag = CachedDiagnostic(diag, in: snapshot, useEducationalNotificationAsCode: supportsCodeDescription) {
         newDiags.append(diag)
       }
       return true
@@ -462,17 +462,17 @@ extension SwiftLanguageServer {
 
   // MARK: - Text synchronization
 
-  public func openDocument(_ note: DidOpenTextDocumentNotification) async {
+  public func openDocument(_ notification: DidOpenTextDocumentNotification) async {
     let keys = self.keys
 
-    guard let snapshot = self.documentManager.open(note) else {
+    guard let snapshot = self.documentManager.open(notification) else {
       // Already logged failure.
       return
     }
 
     let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     req[keys.request] = self.requests.editor_open
-    req[keys.name] = note.textDocument.uri.pseudoPath
+    req[keys.name] = notification.textDocument.uri.pseudoPath
     req[keys.sourcetext] = snapshot.text
 
     let compileCommand = await self.buildSettings(for: snapshot.uri)
@@ -488,12 +488,12 @@ extension SwiftLanguageServer {
     await self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
   }
 
-  public func closeDocument(_ note: DidCloseTextDocumentNotification) async {
+  public func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
     let keys = self.keys
 
-    self.documentManager.close(note)
+    self.documentManager.close(notification)
 
-    let uri = note.textDocument.uri
+    let uri = notification.textDocument.uri
 
     let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     req[keys.request] = self.requests.editor_close
@@ -504,20 +504,20 @@ extension SwiftLanguageServer {
 
     _ = try? self.sourcekitd.sendSync(req)
 
-    await semanticTokensManager.discardSemanticTokens(for: note.textDocument.uri)
+    await semanticTokensManager.discardSemanticTokens(for: notification.textDocument.uri)
   }
 
-  public func changeDocument(_ note: DidChangeTextDocumentNotification) async {
+  public func changeDocument(_ notification: DidChangeTextDocumentNotification) async {
     let keys = self.keys
     var edits: [IncrementalEdit] = []
 
     var lastResponse: SKDResponseDictionary? = nil
 
-    let editResult = self.documentManager.edit(note) {
+    let editResult = self.documentManager.edit(notification) {
       (before: LineTable, edit: TextDocumentContentChangeEvent) in
       let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       req[keys.request] = self.requests.editor_replacetext
-      req[keys.name] = note.textDocument.uri.pseudoPath
+      req[keys.name] = notification.textDocument.uri.pseudoPath
 
       if let range = edit.range {
         guard let offset = before.utf8OffsetOf(line: range.lowerBound.line, utf16Column: range.lowerBound.utf16index),
@@ -543,7 +543,7 @@ extension SwiftLanguageServer {
       req[keys.sourcetext] = edit.text
       lastResponse = try? self.sourcekitd.sendSync(req)
 
-      self.adjustDiagnosticRanges(of: note.textDocument.uri, for: edit)
+      self.adjustDiagnosticRanges(of: notification.textDocument.uri, for: edit)
     }
     guard let (preEditSnapshot, postEditSnapshot) = editResult else {
       return
@@ -556,20 +556,20 @@ extension SwiftLanguageServer {
     await semanticTokensManager.registerEdit(
       preEditSnapshot: preEditSnapshot.id,
       postEditSnapshot: postEditSnapshot.id,
-      edits: note.contentChanges
+      edits: notification.contentChanges
     )
 
     if let dict = lastResponse {
-      let compileCommand = await self.buildSettings(for: note.textDocument.uri)
+      let compileCommand = await self.buildSettings(for: notification.textDocument.uri)
       await self.publishDiagnostics(response: dict, for: postEditSnapshot, compileCommand: compileCommand)
     }
   }
 
-  public func willSaveDocument(_ note: WillSaveTextDocumentNotification) {
+  public func willSaveDocument(_ notification: WillSaveTextDocumentNotification) {
 
   }
 
-  public func didSaveDocument(_ note: DidSaveTextDocumentNotification) {
+  public func didSaveDocument(_ notification: DidSaveTextDocumentNotification) {
 
   }
 

@@ -80,16 +80,16 @@ final class PublishDiagnosticsTests: XCTestCase {
     let syntacticDiagnosticsReceived = self.expectation(description: "Syntactic diagnotistics received")
     let semanticDiagnosticsReceived = self.expectation(description: "Semantic diagnotistics received")
 
-    sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
+    sk.appendOneShotNotificationHandler { (notification: Notification<PublishDiagnosticsNotification>) in
       // Unresolved identifier is not a syntactic diagnostic.
-      XCTAssertEqual(note.params.diagnostics, [])
+      XCTAssertEqual(notification.params.diagnostics, [])
       syntacticDiagnosticsReceived.fulfill()
     }
 
-    sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
-      XCTAssertEqual(note.params.diagnostics.count, 1)
+    sk.appendOneShotNotificationHandler { (notification: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(notification.params.diagnostics.count, 1)
       XCTAssertEqual(
-        note.params.diagnostics.first?.range,
+        notification.params.diagnostics.first?.range,
         Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9)
       )
       semanticDiagnosticsReceived.fulfill()
@@ -112,16 +112,16 @@ final class PublishDiagnosticsTests: XCTestCase {
     )
     let initialSemanticDiagnosticsReceived = self.expectation(description: "Semantic diagnotistics after open received")
 
-    sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
+    sk.appendOneShotNotificationHandler { (notification: Notification<PublishDiagnosticsNotification>) in
       // Unresolved identifier is not a syntactic diagnostic.
-      XCTAssertEqual(note.params.diagnostics, [])
+      XCTAssertEqual(notification.params.diagnostics, [])
       initialSyntacticDiagnosticsReceived.fulfill()
     }
 
-    sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
-      XCTAssertEqual(note.params.diagnostics.count, 1)
+    sk.appendOneShotNotificationHandler { (notification: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(notification.params.diagnostics.count, 1)
       XCTAssertEqual(
-        note.params.diagnostics.first?.range,
+        notification.params.diagnostics.first?.range,
         Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9)
       )
       initialSemanticDiagnosticsReceived.fulfill()
@@ -142,20 +142,20 @@ final class PublishDiagnosticsTests: XCTestCase {
     )
     let editedSemanticDiagnosticsReceived = self.expectation(description: "Semantic diagnotistics after edit received")
 
-    sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
+    sk.appendOneShotNotificationHandler { (notification: Notification<PublishDiagnosticsNotification>) in
       // We should report the semantic diagnostic reported by the edit range-shifted
-      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(notification.params.diagnostics.count, 1)
       XCTAssertEqual(
-        note.params.diagnostics.first?.range,
+        notification.params.diagnostics.first?.range,
         Position(line: 2, utf16index: 2)..<Position(line: 2, utf16index: 9)
       )
       editedSyntacticDiagnosticsReceived.fulfill()
     }
 
-    sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
-      XCTAssertEqual(note.params.diagnostics.count, 1)
+    sk.appendOneShotNotificationHandler { (notification: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(notification.params.diagnostics.count, 1)
       XCTAssertEqual(
-        note.params.diagnostics.first?.range,
+        notification.params.diagnostics.first?.range,
         Position(line: 2, utf16index: 2)..<Position(line: 2, utf16index: 9)
       )
       editedSemanticDiagnosticsReceived.fulfill()
@@ -178,16 +178,16 @@ final class PublishDiagnosticsTests: XCTestCase {
     )
     let initialSemanticDiagnosticsReceived = self.expectation(description: "Semantic diagnotistics after open received")
 
-    sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
+    sk.appendOneShotNotificationHandler { (notification: Notification<PublishDiagnosticsNotification>) in
       // Unresolved identifier is not a syntactic diagnostic.
-      XCTAssertEqual(note.params.diagnostics, [])
+      XCTAssertEqual(notification.params.diagnostics, [])
       initialSyntacticDiagnosticsReceived.fulfill()
     }
 
-    sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
-      XCTAssertEqual(note.params.diagnostics.count, 1)
+    sk.appendOneShotNotificationHandler { (notification: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(notification.params.diagnostics.count, 1)
       XCTAssertEqual(
-        note.params.diagnostics.first?.range,
+        notification.params.diagnostics.first?.range,
         Position(line: 2, utf16index: 2)..<Position(line: 2, utf16index: 9)
       )
       initialSemanticDiagnosticsReceived.fulfill()
@@ -209,20 +209,20 @@ final class PublishDiagnosticsTests: XCTestCase {
     )
     let editedSemanticDiagnosticsReceived = self.expectation(description: "Semantic diagnotistics after edit received")
 
-    sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
+    sk.appendOneShotNotificationHandler { (notification: Notification<PublishDiagnosticsNotification>) in
       // We should report the semantic diagnostic reported by the edit range-shifted
-      XCTAssertEqual(note.params.diagnostics.count, 1)
+      XCTAssertEqual(notification.params.diagnostics.count, 1)
       XCTAssertEqual(
-        note.params.diagnostics.first?.range,
+        notification.params.diagnostics.first?.range,
         Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9)
       )
       editedSyntacticDiagnosticsReceived.fulfill()
     }
 
-    sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
-      XCTAssertEqual(note.params.diagnostics.count, 1)
+    sk.appendOneShotNotificationHandler { (notification: Notification<PublishDiagnosticsNotification>) in
+      XCTAssertEqual(notification.params.diagnostics.count, 1)
       XCTAssertEqual(
-        note.params.diagnostics.first?.range,
+        notification.params.diagnostics.first?.range,
         Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9)
       )
       editedSemanticDiagnosticsReceived.fulfill()
