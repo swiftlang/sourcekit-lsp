@@ -24,47 +24,49 @@ typealias Notification = LanguageServerProtocol.Notification
 
 final class LocalSwiftTests: XCTestCase {
 
-  /// Connection and lifetime management for the service.
-  var connection: TestSourceKitServer! = nil
+  /// The mock client used to communicate with the SourceKit-LSP server.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var testClient: TestSourceKitLSPClient! = nil
 
-  override func setUp() {
-    connection = TestSourceKitServer()
-    self.awaitTask(description: "Initialized") {
-      _ = try await self.connection.send(
-        InitializeRequest(
-          processId: nil,
-          rootPath: nil,
-          rootURI: nil,
-          initializationOptions: nil,
-          capabilities: ClientCapabilities(
-            workspace: nil,
-            textDocument: TextDocumentClientCapabilities(
-              codeAction: .init(
-                codeActionLiteralSupport: .init(
-                  codeActionKind: .init(valueSet: [.quickFix])
-                )
-              ),
-              publishDiagnostics: .init(codeDescriptionSupport: true)
-            )
-          ),
-          trace: .off,
-          workspaceFolders: nil
-        )
+  override func setUp() async throws {
+    testClient = TestSourceKitLSPClient()
+    _ = try await self.testClient.send(
+      InitializeRequest(
+        processId: nil,
+        rootPath: nil,
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(
+          workspace: nil,
+          textDocument: TextDocumentClientCapabilities(
+            codeAction: .init(
+              codeActionLiteralSupport: .init(
+                codeActionKind: .init(valueSet: [.quickFix])
+              )
+            ),
+            publishDiagnostics: .init(codeDescriptionSupport: true)
+          )
+        ),
+        trace: .off,
+        workspaceFolders: nil
       )
-    }
+    )
   }
 
   override func tearDown() {
-    connection = nil
+    testClient = nil
   }
+
+  // MARK: - Tests
 
   func testEditing() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    let documentManager = await connection.server._documentManager
+    let documentManager = await testClient.server._documentManager
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -76,11 +78,11 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    let syntacticDiags = try await connection.nextDiagnosticsNotification()
+    let syntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(syntacticDiags.version, 12)
     XCTAssertEqual(syntacticDiags.diagnostics.count, 1)
     XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
-    let semanticOpenDiags = try await connection.nextDiagnosticsNotification()
+    let semanticOpenDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(semanticOpenDiags.version, 12)
     XCTAssertEqual(semanticOpenDiags.diagnostics.count, 1)
     XCTAssertEqual(
@@ -88,7 +90,7 @@ final class LocalSwiftTests: XCTestCase {
       Position(line: 0, utf16index: 4)
     )
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 13),
         contentChanges: [
@@ -96,18 +98,18 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit1SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let edit1SyntacticDiags = try await testClient.nextDiagnosticsNotification()
     // 1 = remaining semantic error
     XCTAssertEqual(edit1SyntacticDiags.version, 13)
     XCTAssertLessThanOrEqual(edit1SyntacticDiags.diagnostics.count, 1)
     XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
 
-    let edit1SemanticDiags = try await connection.nextDiagnosticsNotification()
+    let edit1SemanticDiags = try await testClient.nextDiagnosticsNotification()
     // 0 = semantic update finished already
     XCTAssertEqual(edit1SemanticDiags.version, 13)
     XCTAssertEqual(edit1SemanticDiags.diagnostics.count, 0)
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 14),
         contentChanges: [
@@ -115,7 +117,7 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit2SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let edit2SyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit2SyntacticDiags.version, 14)
     // 0 = only syntactic
     XCTAssertLessThanOrEqual(edit2SyntacticDiags.diagnostics.count, 1)
@@ -126,7 +128,7 @@ final class LocalSwiftTests: XCTestCase {
       """,
       documentManager.latestSnapshot(uri)!.text
     )
-    let edit2SemanticDiags = try await connection.nextDiagnosticsNotification()
+    let edit2SemanticDiags = try await testClient.nextDiagnosticsNotification()
     // 1 = semantic update finished already
     XCTAssertEqual(edit2SemanticDiags.version, 14)
     XCTAssertEqual(edit2SemanticDiags.diagnostics.count, 1)
@@ -135,7 +137,7 @@ final class LocalSwiftTests: XCTestCase {
       Position(line: 1, utf16index: 0)
     )
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 14),
         contentChanges: [
@@ -143,7 +145,7 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit3SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let edit3SyntacticDiags = try await testClient.nextDiagnosticsNotification()
     // 1 = remaining semantic error
     XCTAssertEqual(edit3SyntacticDiags.version, 14)
     XCTAssertLessThanOrEqual(edit3SyntacticDiags.diagnostics.count, 1)
@@ -155,12 +157,12 @@ final class LocalSwiftTests: XCTestCase {
       documentManager.latestSnapshot(uri)!.text
     )
 
-    let edit3SemanticDiags = try await connection.nextDiagnosticsNotification()
+    let edit3SemanticDiags = try await testClient.nextDiagnosticsNotification()
     // 0 = semantic update finished already
     XCTAssertEqual(edit3SemanticDiags.version, 14)
     XCTAssertEqual(edit3SemanticDiags.diagnostics.count, 0)
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 15),
         contentChanges: [
@@ -168,7 +170,7 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit4SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let edit4SyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit4SyntacticDiags.version, 15)
     // 1 = semantic update finished already
     XCTAssertLessThanOrEqual(edit4SyntacticDiags.diagnostics.count, 1)
@@ -179,7 +181,7 @@ final class LocalSwiftTests: XCTestCase {
       """,
       documentManager.latestSnapshot(uri)!.text
     )
-    let edit4SemanticDiags = try await connection.nextDiagnosticsNotification()
+    let edit4SemanticDiags = try await testClient.nextDiagnosticsNotification()
     // 0 = only syntactic
     XCTAssertEqual(edit4SemanticDiags.version, 15)
     XCTAssertEqual(edit4SemanticDiags.diagnostics.count, 1)
@@ -188,7 +190,7 @@ final class LocalSwiftTests: XCTestCase {
       Position(line: 1, utf16index: 0)
     )
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 16),
         contentChanges: [
@@ -202,7 +204,7 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit5SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let edit5SyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit5SyntacticDiags.version, 16)
     // Could be remaining semantic error or new one.
     XCTAssertEqual(edit5SyntacticDiags.diagnostics.count, 1)
@@ -213,7 +215,7 @@ final class LocalSwiftTests: XCTestCase {
       """,
       documentManager.latestSnapshot(uri)!.text
     )
-    let edit5SemanticDiags = try await connection.nextDiagnosticsNotification()
+    let edit5SemanticDiags = try await testClient.nextDiagnosticsNotification()
     log("Received diagnostics for edit 5 - semantic")
     XCTAssertEqual(edit5SemanticDiags.version, 16)
     XCTAssertEqual(edit5SemanticDiags.diagnostics.count, 1)
@@ -226,9 +228,9 @@ final class LocalSwiftTests: XCTestCase {
   func testEditingNonURL() async throws {
     let uri = DocumentURI(string: "urn:uuid:A1B08909-E791-469E-BF0F-F5790977E051")
 
-    let documentManager = await connection.server._documentManager
+    let documentManager = await testClient.server._documentManager
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -240,12 +242,12 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    let openSyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let openSyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openSyntacticDiags.version, 12)
     XCTAssertEqual(openSyntacticDiags.diagnostics.count, 1)
     XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
 
-    let openSemanticDiags = try await connection.nextDiagnosticsNotification()
+    let openSemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openSemanticDiags.version, 12)
     XCTAssertEqual(openSemanticDiags.diagnostics.count, 1)
     XCTAssertEqual(
@@ -253,7 +255,7 @@ final class LocalSwiftTests: XCTestCase {
       Position(line: 0, utf16index: 4)
     )
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 13),
         contentChanges: [
@@ -261,18 +263,18 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit1SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let edit1SyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit1SyntacticDiags.version, 13)
     // 1 = remaining semantic error
     // 0 = semantic update finished already
     XCTAssertLessThanOrEqual(edit1SyntacticDiags.diagnostics.count, 1)
     XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
 
-    let edit1SemanticDiags = try await connection.nextDiagnosticsNotification()
+    let edit1SemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit1SemanticDiags.version, 13)
     XCTAssertEqual(edit1SemanticDiags.diagnostics.count, 0)
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 14),
         contentChanges: [
@@ -280,7 +282,7 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit2SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let edit2SyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit2SyntacticDiags.version, 14)
     // 1 = semantic update finished already
     // 0 = only syntactic
@@ -292,7 +294,7 @@ final class LocalSwiftTests: XCTestCase {
       """,
       documentManager.latestSnapshot(uri)!.text
     )
-    let edit2SemanticDiags = try await connection.nextDiagnosticsNotification()
+    let edit2SemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit2SemanticDiags.version, 14)
     XCTAssertEqual(edit2SemanticDiags.diagnostics.count, 1)
     XCTAssertEqual(
@@ -300,7 +302,7 @@ final class LocalSwiftTests: XCTestCase {
       Position(line: 1, utf16index: 0)
     )
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 14),
         contentChanges: [
@@ -308,7 +310,7 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit3SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let edit3SyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit3SyntacticDiags.version, 14)
     // 1 = remaining semantic error
     // 0 = semantic update finished already
@@ -320,11 +322,11 @@ final class LocalSwiftTests: XCTestCase {
       """,
       documentManager.latestSnapshot(uri)!.text
     )
-    let edit3SemanticDiags = try await connection.nextDiagnosticsNotification()
+    let edit3SemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit3SemanticDiags.version, 14)
     XCTAssertEqual(edit3SemanticDiags.diagnostics.count, 0)
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 15),
         contentChanges: [
@@ -332,7 +334,7 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit4SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let edit4SyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit4SyntacticDiags.version, 15)
     // 1 = semantic update finished already
     // 0 = only syntactic
@@ -344,7 +346,7 @@ final class LocalSwiftTests: XCTestCase {
       """,
       documentManager.latestSnapshot(uri)!.text
     )
-    let edit4SemanticDiags = try await connection.nextDiagnosticsNotification()
+    let edit4SemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit4SemanticDiags.version, 15)
     XCTAssertEqual(edit4SemanticDiags.diagnostics.count, 1)
     XCTAssertEqual(
@@ -352,7 +354,7 @@ final class LocalSwiftTests: XCTestCase {
       Position(line: 1, utf16index: 0)
     )
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 16),
         contentChanges: [
@@ -366,7 +368,7 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit5SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let edit5SyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit5SyntacticDiags.version, 16)
     // Could be remaining semantic error or new one.
     XCTAssertEqual(edit5SyntacticDiags.diagnostics.count, 1)
@@ -377,7 +379,7 @@ final class LocalSwiftTests: XCTestCase {
       """,
       documentManager.latestSnapshot(uri)!.text
     )
-    let edit5SemanticDiags = try await connection.nextDiagnosticsNotification()
+    let edit5SemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit5SemanticDiags.version, 16)
     XCTAssertEqual(edit5SemanticDiags.diagnostics.count, 1)
     XCTAssertEqual(
@@ -398,7 +400,7 @@ final class LocalSwiftTests: XCTestCase {
 
     // Open the excluded URI first so our later notification handlers can confirm
     // that no diagnostics were emitted for this excluded URI.
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: excludedURI,
@@ -409,7 +411,7 @@ final class LocalSwiftTests: XCTestCase {
       )
     )
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: includedURI,
@@ -419,9 +421,9 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    let syntacticDiags = try await connection.nextDiagnosticsNotification()
+    let syntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(syntacticDiags.uri, includedURI)
-    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    let semanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(semanticDiags.uri, includedURI)
   }
 
@@ -431,7 +433,7 @@ final class LocalSwiftTests: XCTestCase {
     let uriA = DocumentURI(urlA)
     let uriB = DocumentURI(urlB)
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uriA,
@@ -443,13 +445,13 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    let openASyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let openASyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openASyntacticDiags.version, 12)
     // 1 = semantic update finished already
     // 0 = only syntactic
     XCTAssertLessThanOrEqual(openASyntacticDiags.diagnostics.count, 1)
 
-    let openASemanticDiags = try await connection.nextDiagnosticsNotification()
+    let openASemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openASemanticDiags.version, 12)
     XCTAssertEqual(openASemanticDiags.diagnostics.count, 1)
     XCTAssertEqual(
@@ -457,7 +459,7 @@ final class LocalSwiftTests: XCTestCase {
       Position(line: 0, utf16index: 0)
     )
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uriB,
@@ -469,13 +471,13 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    let openBSyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let openBSyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openBSyntacticDiags.version, 12)
     // 1 = semantic update finished already
     // 0 = only syntactic
     XCTAssertLessThanOrEqual(openBSyntacticDiags.diagnostics.count, 1)
 
-    let openBSemanticDiags = try await connection.nextDiagnosticsNotification()
+    let openBSemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openBSemanticDiags.version, 12)
     XCTAssertEqual(openBSemanticDiags.diagnostics.count, 1)
     XCTAssertEqual(
@@ -483,7 +485,7 @@ final class LocalSwiftTests: XCTestCase {
       Position(line: 0, utf16index: 0)
     )
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uriA, version: 13),
         contentChanges: [
@@ -491,11 +493,11 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let editASyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let editASyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(editASyntacticDiags.version, 13)
     XCTAssertEqual(editASyntacticDiags.diagnostics.count, 1)
 
-    let editASemanticDiags = try await connection.nextDiagnosticsNotification()
+    let editASemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(editASemanticDiags.version, 13)
     XCTAssertEqual(editASemanticDiags.diagnostics.count, 1)
   }
@@ -504,7 +506,7 @@ final class LocalSwiftTests: XCTestCase {
     let urlA = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uriA = DocumentURI(urlA)
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uriA,
@@ -517,13 +519,13 @@ final class LocalSwiftTests: XCTestCase {
       )
     )
 
-    let open1SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let open1SyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(open1SyntacticDiags.version, 12)
     // 1 = semantic update finished already
     // 0 = only syntactic
     XCTAssertLessThanOrEqual(open1SyntacticDiags.diagnostics.count, 1)
 
-    let open1SemanticDiags = try await connection.nextDiagnosticsNotification()
+    let open1SemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(open1SemanticDiags.version, 12)
     XCTAssertEqual(open1SemanticDiags.diagnostics.count, 1)
     XCTAssertEqual(
@@ -531,9 +533,9 @@ final class LocalSwiftTests: XCTestCase {
       Position(line: 0, utf16index: 0)
     )
 
-    connection.send(DidCloseTextDocumentNotification(textDocument: .init(urlA)))
+    testClient.send(DidCloseTextDocumentNotification(textDocument: .init(urlA)))
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uriA,
@@ -546,7 +548,7 @@ final class LocalSwiftTests: XCTestCase {
       )
     )
 
-    let open2SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let open2SyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(open2SyntacticDiags.version, 13)
     // 1 = syntactic, no cached semantic diagnostic from previous version
     XCTAssertEqual(open2SyntacticDiags.diagnostics.count, 1)
@@ -555,7 +557,7 @@ final class LocalSwiftTests: XCTestCase {
       Position(line: 0, utf16index: 3)
     )
 
-    let open2SemanticDiags = try await connection.nextDiagnosticsNotification()
+    let open2SemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(open2SemanticDiags.version, 13)
     XCTAssertEqual(open2SemanticDiags.diagnostics.count, 1)
     XCTAssertEqual(
@@ -568,7 +570,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -579,9 +581,9 @@ final class LocalSwiftTests: XCTestCase {
       )
     )
     // syntactic diags
-    _ = try await connection.nextDiagnosticsNotification()
+    _ = try await testClient.nextDiagnosticsNotification()
 
-    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    let semanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(semanticDiags.diagnostics.count, 1)
     let diag = semanticDiags.diagnostics.first!
     XCTAssertEqual(diag.code, .string("property-wrapper-requirements"))
@@ -592,7 +594,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -607,9 +609,9 @@ final class LocalSwiftTests: XCTestCase {
       )
     )
     // syntactic diags
-    _ = try await connection.nextDiagnosticsNotification()
+    _ = try await testClient.nextDiagnosticsNotification()
 
-    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    let semanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(semanticDiags.diagnostics.count, 1)
     let diag = semanticDiags.diagnostics.first!
     XCTAssertNotNil(diag.codeActions)
@@ -637,7 +639,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -652,9 +654,9 @@ final class LocalSwiftTests: XCTestCase {
       )
     )
     // syntactic diags
-    _ = try await connection.nextDiagnosticsNotification()
+    _ = try await testClient.nextDiagnosticsNotification()
 
-    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    let semanticDiags = try await testClient.nextDiagnosticsNotification()
     log("Received diagnostics for open - semantic")
     XCTAssertEqual(semanticDiags.diagnostics.count, 1)
     let diag = semanticDiags.diagnostics.first!
@@ -709,7 +711,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -724,8 +726,8 @@ final class LocalSwiftTests: XCTestCase {
       )
     )
     // syntactic diags
-    _ = try await connection.nextDiagnosticsNotification()
-    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    _ = try await testClient.nextDiagnosticsNotification()
+    let semanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(semanticDiags.diagnostics.count, 1)
     let diag = semanticDiags.diagnostics.first!
     XCTAssertNotNil(diag.codeActions)
@@ -760,7 +762,7 @@ final class LocalSwiftTests: XCTestCase {
     let uri = DocumentURI(url)
 
     var diagnostic: Diagnostic? = nil
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -775,8 +777,8 @@ final class LocalSwiftTests: XCTestCase {
       )
     )
     // syntactic diags
-    _ = try await connection.nextDiagnosticsNotification()
-    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    _ = try await testClient.nextDiagnosticsNotification()
+    let semanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(semanticDiags.diagnostics.count, 1)
     diagnostic = semanticDiags.diagnostics.first
 
@@ -788,7 +790,7 @@ final class LocalSwiftTests: XCTestCase {
       ),
       textDocument: TextDocumentIdentifier(uri)
     )
-    let response = try await connection.send(request)
+    let response = try await testClient.send(request)
 
     XCTAssertNotNil(response)
     guard case .codeActions(let codeActions) = response else {
@@ -825,7 +827,7 @@ final class LocalSwiftTests: XCTestCase {
     let uri = DocumentURI(url)
 
     var diagnostic: Diagnostic?
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -840,9 +842,9 @@ final class LocalSwiftTests: XCTestCase {
       )
     )
     // syntactic diags
-    _ = try await connection.nextDiagnosticsNotification()
+    _ = try await testClient.nextDiagnosticsNotification()
 
-    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    let semanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(semanticDiags.diagnostics.count, 1)
     diagnostic = semanticDiags.diagnostics.first
 
@@ -854,7 +856,7 @@ final class LocalSwiftTests: XCTestCase {
       ),
       textDocument: TextDocumentIdentifier(uri)
     )
-    let response = try await connection.send(request)
+    let response = try await testClient.send(request)
 
     XCTAssertNotNil(response)
     guard case .codeActions(let codeActions) = response else {
@@ -892,7 +894,7 @@ final class LocalSwiftTests: XCTestCase {
     let uri = DocumentURI(url)
 
     var diagnostic: Diagnostic?
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -906,9 +908,9 @@ final class LocalSwiftTests: XCTestCase {
       )
     )
     // syntactic diags
-    _ = try await connection.nextDiagnosticsNotification()
+    _ = try await testClient.nextDiagnosticsNotification()
 
-    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    let semanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(semanticDiags.diagnostics.count, 1)
     diagnostic = semanticDiags.diagnostics.first
 
@@ -920,7 +922,7 @@ final class LocalSwiftTests: XCTestCase {
       ),
       textDocument: TextDocumentIdentifier(uri)
     )
-    let response = try await connection.send(request)
+    let response = try await testClient.send(request)
 
     XCTAssertNotNil(response)
     guard case .codeActions(let codeActions) = response else {
@@ -947,7 +949,7 @@ final class LocalSwiftTests: XCTestCase {
     let uri = DocumentURI(url)
 
     var diagnostic: Diagnostic?
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -964,8 +966,8 @@ final class LocalSwiftTests: XCTestCase {
       )
     )
     // syntactic diags
-    _ = try await connection.nextDiagnosticsNotification()
-    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    _ = try await testClient.nextDiagnosticsNotification()
+    let semanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(semanticDiags.diagnostics.count, 1)
     diagnostic = semanticDiags.diagnostics.first!
 
@@ -977,7 +979,7 @@ final class LocalSwiftTests: XCTestCase {
       ),
       textDocument: TextDocumentIdentifier(uri)
     )
-    let response = try await connection.send(request)
+    let response = try await testClient.send(request)
 
     XCTAssertNotNil(response)
     guard case .codeActions(let codeActions) = response else {
@@ -1425,7 +1427,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -1444,7 +1446,7 @@ final class LocalSwiftTests: XCTestCase {
     )
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         SymbolInfoRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 0, utf16index: 7)
@@ -1464,7 +1466,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         SymbolInfoRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 1, utf16index: 7)
@@ -1483,7 +1485,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         SymbolInfoRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 2, utf16index: 7)
@@ -1502,7 +1504,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         SymbolInfoRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 3, utf16index: 8)
@@ -1521,7 +1523,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         SymbolInfoRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 3, utf16index: 0)
@@ -1536,7 +1538,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -1553,7 +1555,7 @@ final class LocalSwiftTests: XCTestCase {
     )
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         HoverRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 3, utf16index: 7)
@@ -1588,7 +1590,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         HoverRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 0, utf16index: 7)
@@ -1602,7 +1604,7 @@ final class LocalSwiftTests: XCTestCase {
   func testHoverNameEscaping() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -1619,7 +1621,7 @@ final class LocalSwiftTests: XCTestCase {
     )
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         HoverRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 1, utf16index: 7)
@@ -1650,7 +1652,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         HoverRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 3, utf16index: 7)
@@ -1685,7 +1687,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -1705,7 +1707,7 @@ final class LocalSwiftTests: XCTestCase {
     )
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         DocumentHighlightRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 0, utf16index: 0)
@@ -1715,7 +1717,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         DocumentHighlightRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 1, utf16index: 6)
@@ -1731,7 +1733,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         DocumentHighlightRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 2, utf16index: 6)
@@ -1753,7 +1755,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         DocumentHighlightRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 3, utf16index: 6)
@@ -1837,14 +1839,14 @@ final class LocalSwiftTests: XCTestCase {
     let reusedNodeCallback = self.expectation(description: "reused node callback called")
     var reusedNodes: [Syntax] = []
     let swiftLanguageServer =
-      await connection.server._languageService(for: uri, .swift, in: connection.server.workspaceForDocument(uri: uri)!)
+      await testClient.server._languageService(for: uri, .swift, in: testClient.server.workspaceForDocument(uri: uri)!)
       as! SwiftLanguageServer
     await swiftLanguageServer.setReusedNodeCallback {
       reusedNodes.append($0)
       reusedNodeCallback.fulfill()
     }
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -1861,9 +1863,9 @@ final class LocalSwiftTests: XCTestCase {
     )
 
     // Send a request that triggers a syntax tree to be built.
-    _ = try await connection.send(FoldingRangeRequest(textDocument: .init(uri)))
+    _ = try await testClient.send(FoldingRangeRequest(textDocument: .init(uri)))
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 1),
         contentChanges: [

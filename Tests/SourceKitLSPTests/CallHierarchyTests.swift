@@ -28,7 +28,7 @@ final class CallHierarchyTests: XCTestCase {
     func callHierarchy(at testLoc: TestLocation) async throws -> [CallHierarchyItem] {
       let textDocument = testLoc.docIdentifier
       let request = CallHierarchyPrepareRequest(textDocument: textDocument, position: Position(testLoc))
-      return try await ws.testServer.send(request) ?? []
+      return try await ws.testClient.send(request) ?? []
     }
 
     func incomingCalls(at testLoc: TestLocation) async throws -> [CallHierarchyIncomingCall] {
@@ -37,7 +37,7 @@ final class CallHierarchyTests: XCTestCase {
         return []
       }
       let request = CallHierarchyIncomingCallsRequest(item: item)
-      return try await ws.testServer.send(request) ?? []
+      return try await ws.testClient.send(request) ?? []
     }
 
     func outgoingCalls(at testLoc: TestLocation) async throws -> [CallHierarchyOutgoingCall] {
@@ -46,7 +46,7 @@ final class CallHierarchyTests: XCTestCase {
         return []
       }
       let request = CallHierarchyOutgoingCallsRequest(item: item)
-      return try await ws.testServer.send(request) ?? []
+      return try await ws.testClient.send(request) ?? []
     }
 
     func usr(at testLoc: TestLocation) async throws -> String {

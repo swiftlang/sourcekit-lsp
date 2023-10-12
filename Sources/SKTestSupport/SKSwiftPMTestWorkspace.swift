@@ -53,11 +53,16 @@ public final class SKSwiftPMTestWorkspace {
   public let toolchain: Toolchain
 
   /// Connection to the language server.
-  public let testServer: TestSourceKitServer
+  public let testClient: TestSourceKitLSPClient
 
   /// When `testServer` is not `nil`, the workspace will be opened in that server, otherwise a new server will be created for the workspace
-  public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain, testServer: TestSourceKitServer? = nil) async throws {
-    self.testServer = testServer ?? TestSourceKitServer()
+  public init(
+    projectDir: URL,
+    tmpDir: URL,
+    toolchain: Toolchain,
+    testClient: TestSourceKitLSPClient? = nil
+  ) async throws {
+    self.testClient = testClient ?? TestSourceKitLSPClient()
 
     self.projectDir = URL(
       fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: projectDir.path)).pathString
@@ -103,7 +108,7 @@ public final class SKSwiftPMTestWorkspace {
       listenToUnitEvents: false
     )
 
-    let server = self.testServer.server
+    let server = self.testClient.server
     let workspace = await Workspace(
       documentManager: DocumentManager(),
       rootUri: DocumentURI(sources.rootDirectory),
@@ -151,7 +156,7 @@ extension SKSwiftPMTestWorkspace {
 
 extension SKSwiftPMTestWorkspace {
   public func openDocument(_ url: URL, language: Language) throws {
-    testServer.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -164,7 +169,7 @@ extension SKSwiftPMTestWorkspace {
   }
 
   public func closeDocument(_ url: URL) {
-    testServer.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(DocumentURI(url))))
+    testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(DocumentURI(url))))
   }
 }
 
@@ -172,7 +177,7 @@ extension XCTestCase {
 
   public func staticSourceKitSwiftPMWorkspace(
     name: String,
-    server: TestSourceKitServer? = nil
+    testClient: TestSourceKitLSPClient? = nil
   ) async throws -> SKSwiftPMTestWorkspace? {
     let testDirName = testDirectoryName
     let toolchain = ToolchainRegistry.shared.default!
@@ -181,7 +186,7 @@ extension XCTestCase {
       tmpDir: URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
         .appendingPathComponent("sk-test-data/\(testDirName)/\(name)", isDirectory: true),
       toolchain: toolchain,
-      testServer: server
+      testClient: testClient
     )
 
     let hasClangFile: Bool = workspace.sources.locations.contains { _, loc in

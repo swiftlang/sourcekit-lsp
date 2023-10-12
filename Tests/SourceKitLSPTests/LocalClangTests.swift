@@ -19,47 +19,51 @@ import XCTest
 final class LocalClangTests: XCTestCase {
 
   /// Whether to fail tests if clangd cannot be found.
-  static let requireClangd: Bool = false  // Note: Swift CI doesn't build clangd on all jobs
+  ///
+  /// - Note: Swift CI doesn't build clangd on all jobs
+  private static let requireClangd: Bool = false
 
   /// Whether clangd exists in the toolchain.
-  var haveClangd: Bool = false
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var haveClangd: Bool = false
 
-  /// Connection and lifetime management for the service.
-  var connection: TestSourceKitServer! = nil
+  /// The mock client used to communicate with the SourceKit-LSP server.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var testClient: TestSourceKitLSPClient! = nil
 
-  override func setUp() {
+  override func setUp() async throws {
     haveClangd = ToolchainRegistry.shared.toolchains.contains { $0.clangd != nil }
     if LocalClangTests.requireClangd && !haveClangd {
       XCTFail("cannot find clangd in toolchain")
     }
 
-    connection = TestSourceKitServer()
+    testClient = TestSourceKitLSPClient()
     let documentSymbol = TextDocumentClientCapabilities.DocumentSymbol(
       dynamicRegistration: nil,
       symbolKind: nil,
       hierarchicalDocumentSymbolSupport: true
     )
     let textDocument = TextDocumentClientCapabilities(documentSymbol: documentSymbol)
-    self.awaitTask(description: "Initialized") {
-      _ = try await self.connection.send(
-        InitializeRequest(
-          processId: nil,
-          rootPath: nil,
-          rootURI: nil,
-          initializationOptions: nil,
-          capabilities: ClientCapabilities(workspace: nil, textDocument: textDocument),
-          trace: .off,
-          workspaceFolders: nil
-        )
+    _ = try await self.testClient.send(
+      InitializeRequest(
+        processId: nil,
+        rootPath: nil,
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(workspace: nil, textDocument: textDocument),
+        trace: .off,
+        workspaceFolders: nil
       )
-    }
+    )
   }
 
   override func tearDown() {
-    connection = nil
+    testClient = nil
   }
 
-  // MARK: Tests
+  // MARK: - Tests
 
   func testSymbolInfo() async throws {
     guard haveClangd else { return }
@@ -69,7 +73,7 @@ final class LocalClangTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.cpp")
     #endif
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -87,7 +91,7 @@ final class LocalClangTests: XCTestCase {
     )
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         SymbolInfoRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 0, utf16index: 7)
@@ -103,7 +107,7 @@ final class LocalClangTests: XCTestCase {
     }
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         SymbolInfoRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 1, utf16index: 7)
@@ -119,7 +123,7 @@ final class LocalClangTests: XCTestCase {
     }
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         SymbolInfoRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 2, utf16index: 8)
@@ -135,7 +139,7 @@ final class LocalClangTests: XCTestCase {
     }
 
     do {
-      let resp = try await connection.send(
+      let resp = try await testClient.send(
         SymbolInfoRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 3, utf16index: 0)
@@ -154,7 +158,7 @@ final class LocalClangTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.cpp")
     #endif
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -171,7 +175,7 @@ final class LocalClangTests: XCTestCase {
       )
     )
 
-    let resp = try await connection.send(FoldingRangeRequest(textDocument: TextDocumentIdentifier(url)))
+    let resp = try await testClient.send(FoldingRangeRequest(textDocument: TextDocumentIdentifier(url)))
     if let resp = resp {
       XCTAssertEqual(
         resp,
@@ -191,7 +195,7 @@ final class LocalClangTests: XCTestCase {
     let url = URL(fileURLWithPath: "/a.cpp")
     #endif
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -208,7 +212,7 @@ final class LocalClangTests: XCTestCase {
       )
     )
 
-    guard let resp = try await connection.send(DocumentSymbolRequest(textDocument: TextDocumentIdentifier(url))) else {
+    guard let resp = try await testClient.send(DocumentSymbolRequest(textDocument: TextDocumentIdentifier(url))) else {
       XCTFail("Invalid document symbol response")
       return
     }
@@ -230,7 +234,7 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .cpp)
 
-    let diagsNotification = try await ws.testServer.nextDiagnosticsNotification()
+    let diagsNotification = try await ws.testClient.nextDiagnosticsNotification()
     let diagnostics = diagsNotification.diagnostics
     // It seems we either get no diagnostics or a `-Wswitch` warning. Either is fine
     // as long as our code action works properly.
@@ -244,7 +248,7 @@ final class LocalClangTests: XCTestCase {
       context: CodeActionContext(),
       textDocument: loc.docIdentifier
     )
-    guard let reply = try await ws.testServer.send(codeAction) else {
+    guard let reply = try await ws.testClient.send(codeAction) else {
       XCTFail("CodeActionRequest had nil reply")
       return
     }
@@ -259,7 +263,7 @@ final class LocalClangTests: XCTestCase {
     XCTAssertEqual(command.command, "clangd.applyTweak")
 
     let applyEdit = XCTestExpectation(description: "applyEdit")
-    ws.testServer.handleNextRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
+    ws.testClient.handleNextRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
       XCTAssertNotNil(request.edit.changes)
       applyEdit.fulfill()
       return ApplyEditResponse(applied: true, failureReason: nil)
@@ -269,7 +273,7 @@ final class LocalClangTests: XCTestCase {
       command: command.command,
       arguments: command.arguments
     )
-    _ = try await ws.testServer.send(executeCommand)
+    _ = try await ws.testClient.send(executeCommand)
 
     try await fulfillmentOfOrThrow([applyEdit])
   }
@@ -282,7 +286,7 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .cpp)
 
-    let diags = try await ws.testServer.nextDiagnosticsNotification()
+    let diags = try await ws.testClient.nextDiagnosticsNotification()
     // Don't use exact equality because of differences in recent clang.
     XCTAssertEqual(diags.diagnostics.count, 1)
     XCTAssertEqual(
@@ -301,7 +305,7 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .objective_c)
 
-    let diags = try await ws.testServer.nextDiagnosticsNotification()
+    let diags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 0)
   }
 
@@ -314,12 +318,12 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(mainLoc.url, language: .c)
 
-    let diags = try await ws.testServer.nextDiagnosticsNotification()
+    let diags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 0)
 
     let request = DocumentSemanticTokensRequest(textDocument: mainLoc.docIdentifier)
     do {
-      let reply = try await ws.testServer.send(request)
+      let reply = try await ws.testClient.send(request)
       XCTAssertNotNil(reply)
     } catch let e {
       if let error = e as? ResponseError {
@@ -340,7 +344,7 @@ final class LocalClangTests: XCTestCase {
     try ws.openDocument(cFileLoc.url, language: .cpp)
 
     // Initially the workspace should build fine.
-    let initialDiags = try await ws.testServer.nextDiagnosticsNotification()
+    let initialDiags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssert(initialDiags.diagnostics.isEmpty)
 
     // We rename Object to MyObject in the header.
@@ -352,16 +356,16 @@ final class LocalClangTests: XCTestCase {
       builder.write(headerFile, to: headerFilePath)
     }
 
-    let clangdServer = await ws.testServer.server._languageService(
+    let clangdServer = await ws.testClient.server._languageService(
       for: cFileLoc.docUri,
       .cpp,
-      in: ws.testServer.server.workspaceForDocument(uri: cFileLoc.docUri)!
+      in: ws.testClient.server.workspaceForDocument(uri: cFileLoc.docUri)!
     )!
 
     await clangdServer.documentDependenciesUpdated(cFileLoc.docUri)
 
     // Now we should get a diagnostic in main.c file because `Object` is no longer defined.
-    let editedDiags = try await ws.testServer.nextDiagnosticsNotification()
+    let editedDiags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssertFalse(editedDiags.diagnostics.isEmpty)
   }
 }

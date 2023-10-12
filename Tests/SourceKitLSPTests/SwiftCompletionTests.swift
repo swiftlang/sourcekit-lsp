@@ -18,10 +18,10 @@ import XCTest
 
 final class SwiftCompletionTests: XCTestCase {
 
-  typealias CompletionCapabilities = TextDocumentClientCapabilities.Completion
+  private typealias CompletionCapabilities = TextDocumentClientCapabilities.Completion
 
   /// Base document text to use for completion tests.
-  let text: String = """
+  private let text: String = """
     struct S {
       /// Documentation for `abc`.
       var abc: Int
@@ -36,22 +36,13 @@ final class SwiftCompletionTests: XCTestCase {
     }
     """
 
-  /// Connection and lifetime management for the service.
-  var connection: TestSourceKitServer! = nil
+  // MARK: - Helpers
 
-  override func tearDown() {
-    shutdownServer()
-  }
-
-  func shutdownServer() {
-    connection = nil
-  }
-
-  func initializeServer(
+  private func initializeServer(
     options: SKCompletionOptions = .init(),
     capabilities: CompletionCapabilities? = nil
-  ) async throws {
-    connection = TestSourceKitServer()
+  ) async throws -> TestSourceKitLSPClient {
+    let testClient = TestSourceKitLSPClient()
     var documentCapabilities: TextDocumentClientCapabilities?
     if let capabilities = capabilities {
       documentCapabilities = TextDocumentClientCapabilities()
@@ -59,7 +50,7 @@ final class SwiftCompletionTests: XCTestCase {
     } else {
       documentCapabilities = nil
     }
-    _ = try await connection.send(
+    _ = try await testClient.send(
       InitializeRequest(
         processId: nil,
         rootPath: nil,
@@ -75,10 +66,11 @@ final class SwiftCompletionTests: XCTestCase {
         workspaceFolders: nil
       )
     )
+    return testClient
   }
 
-  func openDocument(text: String? = nil, url: URL) {
-    connection.send(
+  func openDocument(testClient: TestSourceKitLSPClient, text: String? = nil, url: URL) {
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -89,6 +81,8 @@ final class SwiftCompletionTests: XCTestCase {
       )
     )
   }
+
+  // MARK: - Tests
 
   func testCompletionClientFilter() async throws {
     try await testCompletionBasic(options: SKCompletionOptions(serverSideFiltering: false, maxResults: nil))
@@ -103,11 +97,11 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionBasic(options: SKCompletionOptions) async throws {
-    try await initializeServer(options: options)
+    let testClient = try await initializeServer(options: options)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
-    openDocument(url: url)
+    openDocument(testClient: testClient, url: url)
 
-    let selfDot = try await connection.send(
+    let selfDot = try await testClient.send(
       CompletionRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 5, utf16index: 9)
@@ -132,7 +126,7 @@ final class SwiftCompletionTests: XCTestCase {
     }
 
     for col in 10...12 {
-      let inIdent = try await connection.send(
+      let inIdent = try await testClient.send(
         CompletionRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 5, utf16index: col)
@@ -158,7 +152,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(abc.insertTextFormat, .plain)
     }
 
-    let after = try await connection.send(
+    let after = try await testClient.send(
       CompletionRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 6, utf16index: 0)
@@ -171,12 +165,12 @@ final class SwiftCompletionTests: XCTestCase {
     var capabilities = CompletionCapabilities()
     capabilities.completionItem = CompletionCapabilities.CompletionItem(snippetSupport: true)
 
-    try await initializeServer(capabilities: capabilities)
+    let testClient = try await initializeServer(capabilities: capabilities)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
-    openDocument(url: url)
+    openDocument(testClient: testClient, url: url)
 
     func getTestMethodCompletion(_ position: Position, label: String) async throws -> CompletionItem? {
-      let selfDot = try await connection.send(
+      let selfDot = try await testClient.send(
         CompletionRequest(
           textDocument: TextDocumentIdentifier(url),
           position: position
@@ -185,15 +179,7 @@ final class SwiftCompletionTests: XCTestCase {
       return selfDot.items.first { $0.label == label }
     }
 
-    func getTestMethodACompletion() async throws -> CompletionItem? {
-      return try await getTestMethodCompletion(Position(line: 5, utf16index: 9), label: "test(a: Int)")
-    }
-
-    func getTestMethodBCompletion() async throws -> CompletionItem? {
-      return try await getTestMethodCompletion(Position(line: 9, utf16index: 9), label: "test(b: Int)")
-    }
-
-    var test = try await getTestMethodACompletion()
+    var test = try await getTestMethodCompletion(Position(line: 5, utf16index: 9), label: "test(a: Int)")
     XCTAssertNotNil(test)
     if let test = test {
       XCTAssertEqual(test.kind, .method)
@@ -212,7 +198,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.insertTextFormat, .snippet)
     }
 
-    test = try await getTestMethodBCompletion()
+    test = try await getTestMethodCompletion(Position(line: 9, utf16index: 9), label: "test(b: Int)")
     XCTAssertNotNil(test)
     if let test = test {
       XCTAssertEqual(test.kind, .method)
@@ -230,13 +216,26 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.insertText, "test(${1:b: Int})")
       XCTAssertEqual(test.insertTextFormat, .snippet)
     }
+  }
 
-    shutdownServer()
+  func testCompletionNoSnippetSupport() async throws {
+    var capabilities = CompletionCapabilities()
     capabilities.completionItem?.snippetSupport = false
-    try await initializeServer(capabilities: capabilities)
-    openDocument(url: url)
+    let testClient = try await initializeServer(capabilities: capabilities)
+    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
+    openDocument(testClient: testClient, url: url)
 
-    test = try await getTestMethodACompletion()
+    func getTestMethodCompletion(_ position: Position, label: String) async throws -> CompletionItem? {
+      let selfDot = try await testClient.send(
+        CompletionRequest(
+          textDocument: TextDocumentIdentifier(url),
+          position: position
+        )
+      )
+      return selfDot.items.first { $0.label == label }
+    }
+
+    var test = try await getTestMethodCompletion(Position(line: 5, utf16index: 9), label: "test(a: Int)")
     XCTAssertNotNil(test)
     if let test = test {
       XCTAssertEqual(test.kind, .method)
@@ -252,7 +251,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertEqual(test.insertTextFormat, .plain)
     }
 
-    test = try await getTestMethodBCompletion()
+    test = try await getTestMethodCompletion(Position(line: 9, utf16index: 9), label: "test(b: Int)")
     XCTAssertNotNil(test)
     if let test = test {
       XCTAssertEqual(test.kind, .method)
@@ -279,12 +278,12 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionPosition(options: SKCompletionOptions) async throws {
-    try await initializeServer(options: options)
+    let testClient = try await initializeServer(options: options)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
-    openDocument(text: "foo", url: url)
+    openDocument(testClient: testClient, text: "foo", url: url)
 
     for col in 0...3 {
-      let inOrAfterFoo = try await connection.send(
+      let inOrAfterFoo = try await testClient.send(
         CompletionRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 0, utf16index: col)
@@ -294,7 +293,7 @@ final class SwiftCompletionTests: XCTestCase {
       XCTAssertFalse(inOrAfterFoo.items.isEmpty)
     }
 
-    let outOfRange1 = try await connection.send(
+    let outOfRange1 = try await testClient.send(
       CompletionRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 0, utf16index: 4)
@@ -302,7 +301,7 @@ final class SwiftCompletionTests: XCTestCase {
     )
     XCTAssertTrue(outOfRange1.isIncomplete)
 
-    let outOfRange2 = try await connection.send(
+    let outOfRange2 = try await testClient.send(
       CompletionRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 1, utf16index: 0)
@@ -312,7 +311,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionOptional() async throws {
-    try await initializeServer()
+    let testClient = try await initializeServer()
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let text = """
       struct Foo {
@@ -321,10 +320,10 @@ final class SwiftCompletionTests: XCTestCase {
       let a: Foo? = Foo(bar: 1)
       a.ba
       """
-    openDocument(text: text, url: url)
+    openDocument(testClient: testClient, text: text, url: url)
 
     for col in 2...4 {
-      let response = try await connection.send(
+      let response = try await testClient.send(
         CompletionRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 4, utf16index: col)
@@ -346,7 +345,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionOverride() async throws {
-    try await initializeServer()
+    let testClient = try await initializeServer()
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let text = """
       class Base {
@@ -356,9 +355,9 @@ final class SwiftCompletionTests: XCTestCase {
         func    // don't delete trailing space in this file
       }
       """
-    openDocument(text: text, url: url)
+    openDocument(testClient: testClient, text: text, url: url)
 
-    let response = try await connection.send(
+    let response = try await testClient.send(
       CompletionRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 4, utf16index: 7)
@@ -382,7 +381,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionOverrideInNewLine() async throws {
-    try await initializeServer()
+    let testClient = try await initializeServer()
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let text = """
       class Base {
@@ -393,9 +392,9 @@ final class SwiftCompletionTests: XCTestCase {
           // don't delete trailing space in this file
       }
       """
-    openDocument(text: text, url: url)
+    openDocument(testClient: testClient, text: text, url: url)
 
-    let response = try await connection.send(
+    let response = try await testClient.send(
       CompletionRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 5, utf16index: 2)
@@ -419,9 +418,12 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testMaxResults() async throws {
-    try await initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
+    let testClient = try await initializeServer(
+      options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil)
+    )
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     openDocument(
+      testClient: testClient,
       text: """
         struct S {
           func f1() {}
@@ -441,7 +443,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       5,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 9)
@@ -454,7 +456,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       5,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 9),
@@ -473,7 +475,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       5,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 9),
@@ -490,7 +492,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       3,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 9),
@@ -506,7 +508,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       1,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 9),
@@ -524,7 +526,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       5,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 9),
@@ -543,7 +545,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       5,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 10),
@@ -559,7 +561,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       3,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 10),
@@ -576,9 +578,10 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testRefilterAfterIncompleteResults() async throws {
-    try await initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: 20))
+    let testClient = try await initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: 20))
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     openDocument(
+      testClient: testClient,
       text: """
         struct S {
           func fooAbc() {}
@@ -597,7 +600,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       5,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 10),
@@ -610,7 +613,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       3,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 11),
@@ -622,7 +625,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       2,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 12),
@@ -634,7 +637,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       1,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 13),
@@ -646,7 +649,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       0,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 14),
@@ -658,7 +661,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       2,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 12),
@@ -672,7 +675,7 @@ final class SwiftCompletionTests: XCTestCase {
     // We explicitly keep the session and fail any requests that don't match so that the editor
     // can rely on `.triggerFromIncompleteCompletions` always being fast.
     await assertThrowsError(
-      try await connection.send(
+      try await testClient.send(
         CompletionRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 7, utf16index: 0),
@@ -683,7 +686,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       1,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 13),
@@ -696,7 +699,7 @@ final class SwiftCompletionTests: XCTestCase {
     // Trigger kind changed => OK (20 is maxResults since we're outside the member completion)
     assertEqual(
       20,
-      try await connection.send(
+      try await testClient.send(
         CompletionRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 7, utf16index: 0),
@@ -707,9 +710,12 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testRefilterAfterIncompleteResultsWithEdits() async throws {
-    try await initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
+    let testClient = try await initializeServer(
+      options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil)
+    )
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     openDocument(
+      testClient: testClient,
       text: """
         struct S {
           func fooAbc() {}
@@ -729,7 +735,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       5,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 10),
@@ -743,7 +749,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       0,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 11),
@@ -753,7 +759,7 @@ final class SwiftCompletionTests: XCTestCase {
       )
     )
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(DocumentURI(url), version: 1),
         contentChanges: [
@@ -766,7 +772,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       1,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 11),
@@ -778,7 +784,7 @@ final class SwiftCompletionTests: XCTestCase {
 
     // 'fA '
     await assertThrowsError(
-      try await connection.send(
+      try await testClient.send(
         CompletionRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 7, utf16index: 12),
@@ -787,7 +793,7 @@ final class SwiftCompletionTests: XCTestCase {
       )
     )
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(DocumentURI(url), version: 1),
         contentChanges: [
@@ -800,7 +806,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       1,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 11),
@@ -810,7 +816,7 @@ final class SwiftCompletionTests: XCTestCase {
       )
     )
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(DocumentURI(url), version: 1),
         contentChanges: [
@@ -823,7 +829,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       2,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 11),
@@ -833,7 +839,7 @@ final class SwiftCompletionTests: XCTestCase {
       )
     )
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(DocumentURI(url), version: 1),
         contentChanges: [
@@ -846,7 +852,7 @@ final class SwiftCompletionTests: XCTestCase {
     assertEqual(
       1,
       countFs(
-        try await connection.send(
+        try await testClient.send(
           CompletionRequest(
             textDocument: TextDocumentIdentifier(url),
             position: Position(line: 7, utf16index: 12),
@@ -860,9 +866,12 @@ final class SwiftCompletionTests: XCTestCase {
   /// Regression test for https://bugs.swift.org/browse/SR-13561 to make sure the a session
   /// close waits for its respective open to finish to prevent a session geting stuck open.
   func testSessionCloseWaitsforOpen() async throws {
-    try await initializeServer(options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil))
+    let testClient = try await initializeServer(
+      options: SKCompletionOptions(serverSideFiltering: true, maxResults: nil)
+    )
     let url = URL(fileURLWithPath: "/\(UUID())/file.swift")
     openDocument(
+      testClient: testClient,
       text: """
         struct S {
           func forSomethingCrazy() {}
@@ -891,17 +900,17 @@ final class SwiftCompletionTests: XCTestCase {
     )
 
     // Code completion for "self.forSome"
-    async let forSomeResult = connection.send(forSomeComplete)
+    async let forSomeResult = testClient.send(forSomeComplete)
 
     // Code completion for "self.prin", previously could immediately invalidate
     // the previous request.
-    async let printResult = connection.send(printComplete)
+    async let printResult = testClient.send(printComplete)
 
     assertEqual(2, countFs(try await forSomeResult))
     assertEqual(1, try await printResult.items.count)
 
     // Try code completion for "self.forSome" again to verify that it still works.
-    let result = try await connection.send(forSomeComplete)
+    let result = try await testClient.send(forSomeComplete)
     XCTAssertEqual(2, countFs(result))
   }
 }

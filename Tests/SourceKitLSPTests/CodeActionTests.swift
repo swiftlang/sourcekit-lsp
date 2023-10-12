@@ -203,7 +203,7 @@ final class CodeActionTests: XCTestCase {
     let textDocument = TextDocumentIdentifier(loc.url)
     let start = Position(line: 2, utf16index: 0)
     let request = CodeActionRequest(range: start..<start, context: .init(), textDocument: textDocument)
-    let result = try await ws.testServer.send(request)
+    let result = try await ws.testClient.send(request)
     XCTAssertEqual(result, .codeActions([]))
   }
 
@@ -214,7 +214,7 @@ final class CodeActionTests: XCTestCase {
 
     let textDocument = TextDocumentIdentifier(loc.url)
     let request = CodeActionRequest(range: loc.position..<loc.position, context: .init(), textDocument: textDocument)
-    let result = try await ws.testServer.send(request)
+    let result = try await ws.testClient.send(request)
     XCTAssertEqual(result, .codeActions([]))
   }
 
@@ -225,7 +225,7 @@ final class CodeActionTests: XCTestCase {
 
     let textDocument = TextDocumentIdentifier(loc.url)
     let request = CodeActionRequest(range: loc.position..<loc.position, context: .init(), textDocument: textDocument)
-    let result = try await ws.testServer.send(request)
+    let result = try await ws.testClient.send(request)
 
     let expectedCommandArgs: LSPAny = [
       "actionString": "source.refactoring.kind.localize.string",
@@ -263,7 +263,7 @@ final class CodeActionTests: XCTestCase {
       context: .init(),
       textDocument: textDocument
     )
-    let result = try await ws.testServer.send(request)
+    let result = try await ws.testClient.send(request)
 
     let expectedCommandArgs: LSPAny = [
       "actionString": "source.refactoring.kind.extract.function",
@@ -294,11 +294,11 @@ final class CodeActionTests: XCTestCase {
 
     try ws.openDocument(def.url, language: .swift)
 
-    let syntacticDiags = try await ws.testServer.nextDiagnosticsNotification()
+    let syntacticDiags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(syntacticDiags.uri, def.docUri)
     XCTAssertEqual(syntacticDiags.diagnostics, [])
 
-    let semanticDiags = try await ws.testServer.nextDiagnosticsNotification()
+    let semanticDiags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(semanticDiags.uri, def.docUri)
     XCTAssertEqual(semanticDiags.diagnostics.count, 1)
 
@@ -308,7 +308,7 @@ final class CodeActionTests: XCTestCase {
       context: .init(diagnostics: semanticDiags.diagnostics),
       textDocument: textDocument
     )
-    let actionResult = try await ws.testServer.send(actionsRequest)
+    let actionResult = try await ws.testClient.send(actionsRequest)
 
     guard case .codeActions(let codeActions) = actionResult else {
       return XCTFail("Expected code actions, not commands as a response")
@@ -343,7 +343,7 @@ final class CodeActionTests: XCTestCase {
 
     let editReceived = self.expectation(description: "Received ApplyEdit request")
 
-    ws.testServer.handleNextRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
+    ws.testClient.handleNextRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
       defer {
         editReceived.fulfill()
       }
@@ -363,7 +363,7 @@ final class CodeActionTests: XCTestCase {
       )
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
-    _ = try await ws.testServer.send(ExecuteCommandRequest(command: command.command, arguments: command.arguments))
+    _ = try await ws.testClient.send(ExecuteCommandRequest(command: command.command, arguments: command.arguments))
 
     try await fulfillmentOfOrThrow([editReceived])
   }

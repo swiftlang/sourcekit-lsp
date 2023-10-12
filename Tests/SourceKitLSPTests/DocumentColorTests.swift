@@ -17,17 +17,15 @@ import SourceKitLSP
 import XCTest
 
 final class DocumentColorTests: XCTestCase {
-  /// Connection and lifetime management for the service.
-  var connection: TestSourceKitServer! = nil
+  /// The mock client used to communicate with the SourceKit-LSP server.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var testClient: TestSourceKitLSPClient! = nil
 
-  override func tearDown() {
-    connection = nil
-  }
-
-  func initialize() async throws {
-    connection = TestSourceKitServer()
+  override func setUp() async throws {
+    testClient = TestSourceKitLSPClient()
     let documentCapabilities = TextDocumentClientCapabilities()
-    _ = try await connection.send(
+    _ = try await testClient.send(
       InitializeRequest(
         processId: nil,
         rootPath: nil,
@@ -40,10 +38,16 @@ final class DocumentColorTests: XCTestCase {
     )
   }
 
-  func performDocumentColorRequest(text: String) async throws -> [ColorInformation] {
+  override func tearDown() {
+    testClient = nil
+  }
+
+  // MARK: - Helpers
+
+  private func performDocumentColorRequest(text: String) async throws -> [ColorInformation] {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -55,17 +59,17 @@ final class DocumentColorTests: XCTestCase {
     )
 
     let request = DocumentColorRequest(textDocument: TextDocumentIdentifier(url))
-    return try await connection.send(request)
+    return try await testClient.send(request)
   }
 
-  func performColorPresentationRequest(
+  private func performColorPresentationRequest(
     text: String,
     color: Color,
     range: Range<Position>
   ) async throws -> [ColorPresentation] {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -81,17 +85,17 @@ final class DocumentColorTests: XCTestCase {
       color: color,
       range: range
     )
-    return try await connection.send(request)
+    return try await testClient.send(request)
   }
 
+  // MARK: - Tests
+
   func testEmptyText() async throws {
-    try await initialize()
     let colors = try await performDocumentColorRequest(text: "")
     XCTAssertEqual(colors, [])
   }
 
   func testSimple() async throws {
-    try await initialize()
     let text = #"""
       #colorLiteral(red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4)
       """#
@@ -109,7 +113,6 @@ final class DocumentColorTests: XCTestCase {
   }
 
   func testWeirdWhitespace() async throws {
-    try await initialize()
     let text = #"""
         let x = #colorLiteral(red:0.5,green:0.5,blue:0.5,alpha:0.5)
         let y = #colorLiteral(
@@ -144,7 +147,6 @@ final class DocumentColorTests: XCTestCase {
   }
 
   func testPresentation() async throws {
-    try await initialize()
     let text = """
       let x = #colorLiteral(red: 0.5, green: 0.5, blue: 0.5, alpha: 0.5);
       """

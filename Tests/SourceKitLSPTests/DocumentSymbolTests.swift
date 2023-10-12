@@ -19,18 +19,16 @@ import XCTest
 final class DocumentSymbolTests: XCTestCase {
   typealias DocumentSymbolCapabilities = TextDocumentClientCapabilities.DocumentSymbol
 
-  /// Connection and lifetime management for the service.
-  var connection: TestSourceKitServer! = nil
+  /// The mock client used to communicate with the SourceKit-LSP server.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var testClient: TestSourceKitLSPClient! = nil
 
-  override func tearDown() {
-    connection = nil
-  }
-
-  func initialize(capabilities: DocumentSymbolCapabilities) async throws {
-    connection = TestSourceKitServer()
+  override func setUp() async throws {
+    testClient = TestSourceKitLSPClient()
     var documentCapabilities = TextDocumentClientCapabilities()
-    documentCapabilities.documentSymbol = capabilities
-    _ = try await connection.send(
+    documentCapabilities.documentSymbol = DocumentSymbolCapabilities()
+    _ = try await testClient.send(
       InitializeRequest(
         processId: nil,
         rootPath: nil,
@@ -43,10 +41,16 @@ final class DocumentSymbolTests: XCTestCase {
     )
   }
 
-  func performDocumentSymbolRequest(text: String) async throws -> DocumentSymbolResponse {
+  override func tearDown() {
+    testClient = nil
+  }
+
+  // MARK: - Helpers
+
+  private func performDocumentSymbolRequest(text: String) async throws -> DocumentSymbolResponse {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -58,28 +62,24 @@ final class DocumentSymbolTests: XCTestCase {
     )
 
     let request = DocumentSymbolRequest(textDocument: TextDocumentIdentifier(url))
-    return try await connection.send(request)!
+    return try await testClient.send(request)!
   }
 
-  func range(from startTuple: (Int, Int), to endTuple: (Int, Int)) -> Range<Position> {
+  private func range(from startTuple: (Int, Int), to endTuple: (Int, Int)) -> Range<Position> {
     let startPos = Position(line: startTuple.0, utf16index: startTuple.1)
     let endPos = Position(line: endTuple.0, utf16index: endTuple.1)
     return startPos..<endPos
   }
 
-  func testEmpty() async throws {
-    let capabilities = DocumentSymbolCapabilities()
-    try await initialize(capabilities: capabilities)
+  // MARK: - Tests
 
+  func testEmpty() async throws {
     let text = ""
     let symbols = try await performDocumentSymbolRequest(text: text)
     XCTAssertEqual(symbols, .documentSymbols([]))
   }
 
   func testStruct() async throws {
-    let capabilities = DocumentSymbolCapabilities()
-    try await initialize(capabilities: capabilities)
-
     let text = """
       struct Foo { }
       """
@@ -102,9 +102,6 @@ final class DocumentSymbolTests: XCTestCase {
   }
 
   func testUnicode() async throws {
-    let capabilities = DocumentSymbolCapabilities()
-    try await initialize(capabilities: capabilities)
-
     let text = """
       struct Żółć { }
       struct 🍰 { }
@@ -143,9 +140,6 @@ final class DocumentSymbolTests: XCTestCase {
   }
 
   func testEnum() async throws {
-    let capabilities = DocumentSymbolCapabilities()
-    try await initialize(capabilities: capabilities)
-
     let text = """
       enum Foo {
         case first
@@ -297,9 +291,6 @@ final class DocumentSymbolTests: XCTestCase {
   }
 
   func testAll() async throws {
-    let capabilities = DocumentSymbolCapabilities()
-    try await initialize(capabilities: capabilities)
-
     let text = """
       // struct ThisIsCommentedOut { }
       /* struct ThisOneToo { } */

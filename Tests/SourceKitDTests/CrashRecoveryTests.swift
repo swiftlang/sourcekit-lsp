@@ -57,8 +57,8 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Wait for syntactic and semantic diagnsotics to be produced to make sure the
     // document open got handled by sourcekitd
-    _ = try await ws.testServer.nextDiagnosticsNotification()
-    _ = try await ws.testServer.nextDiagnosticsNotification()
+    _ = try await ws.testClient.nextDiagnosticsNotification()
+    _ = try await ws.testClient.nextDiagnosticsNotification()
 
     // Make a change to the file that's not saved to disk. This way we can check that we re-open the correct in-memory state.
 
@@ -72,7 +72,7 @@ final class CrashRecoveryTests: XCTestCase {
         }
         """
     )
-    ws.testServer.send(
+    ws.testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(loc.docUri, version: 2),
         contentChanges: [addFuncChange]
@@ -82,7 +82,7 @@ final class CrashRecoveryTests: XCTestCase {
     // Do a sanity check and verify that we get the expected result from a hover response before crashing sourcekitd.
 
     let hoverRequest = HoverRequest(textDocument: loc.docIdentifier, position: Position(line: 1, utf16index: 6))
-    let preCrashHoverResponse = try await ws.testServer.send(hoverRequest)
+    let preCrashHoverResponse = try await ws.testClient.send(hoverRequest)
     precondition(
       preCrashHoverResponse?.contains(string: "foo()") ?? false,
       "Sanity check failed. The Hover response did not contain foo(), even before crashing sourcekitd. Received response: \(String(describing: preCrashHoverResponse))"
@@ -91,10 +91,10 @@ final class CrashRecoveryTests: XCTestCase {
     // Crash sourcekitd
 
     let sourcekitdServer =
-      await ws.testServer.server._languageService(
+      await ws.testClient.server._languageService(
         for: loc.docUri,
         .swift,
-        in: ws.testServer.server.workspaceForDocument(uri: loc.docUri)!
+        in: ws.testClient.server.workspaceForDocument(uri: loc.docUri)!
       ) as! SwiftLanguageServer
 
     let sourcekitdCrashed = expectation(description: "sourcekitd has crashed")
@@ -121,18 +121,18 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Check that we have syntactic functionality again
 
-    _ = try await ws.testServer.send(FoldingRangeRequest(textDocument: loc.docIdentifier))
+    _ = try await ws.testClient.send(FoldingRangeRequest(textDocument: loc.docIdentifier))
 
     // sourcekitd's semantic request timer is only started when the first semantic request comes in.
     // Send a hover request (which will fail) to trigger that timer.
     // Afterwards wait for semantic functionality to be restored.
-    _ = try? await ws.testServer.send(hoverRequest)
+    _ = try? await ws.testClient.send(hoverRequest)
     try await fulfillmentOfOrThrow([semanticFunctionalityRestored], timeout: 30)
 
     // Check that we get the same hover response from the restored in-memory state
 
     await assertNoThrow {
-      let postCrashHoverResponse = try await ws.testServer.send(hoverRequest)
+      let postCrashHoverResponse = try await ws.testClient.send(hoverRequest)
       XCTAssertTrue(postCrashHoverResponse?.contains(string: "foo()") ?? false)
     }
   }
@@ -142,10 +142,10 @@ final class CrashRecoveryTests: XCTestCase {
   ///   - ws: The workspace for which the clangd server shall be crashed
   ///   - document: The URI of a C/C++/... document in the workspace
   private func crashClangd(for ws: SKTibsTestWorkspace, document docUri: DocumentURI) async throws {
-    let clangdServer = await ws.testServer.server._languageService(
+    let clangdServer = await ws.testClient.server._languageService(
       for: docUri,
       .cpp,
-      in: ws.testServer.server.workspaceForDocument(uri: docUri)!
+      in: ws.testClient.server.workspaceForDocument(uri: docUri)!
     )!
 
     let clangdCrashed = self.expectation(description: "clangd crashed")
@@ -187,7 +187,7 @@ final class CrashRecoveryTests: XCTestCase {
         }
         """
     )
-    ws.testServer.send(
+    ws.testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(loc.docUri, version: 2),
         contentChanges: [addFuncChange]
@@ -199,7 +199,7 @@ final class CrashRecoveryTests: XCTestCase {
     let expectedHoverRange = Position(line: 1, utf16index: 5)..<Position(line: 1, utf16index: 9)
 
     let hoverRequest = HoverRequest(textDocument: loc.docIdentifier, position: Position(line: 1, utf16index: 6))
-    let preCrashHoverResponse = try await ws.testServer.send(hoverRequest)
+    let preCrashHoverResponse = try await ws.testClient.send(hoverRequest)
     precondition(
       preCrashHoverResponse?.range == expectedHoverRange,
       "Sanity check failed. The Hover response was not what we expected, even before crashing sourcekitd"
@@ -212,7 +212,7 @@ final class CrashRecoveryTests: XCTestCase {
     // Check that we have re-opened the document with the correct in-memory state
 
     await assertNoThrow {
-      let postCrashHoverResponse = try await ws.testServer.send(hoverRequest)
+      let postCrashHoverResponse = try await ws.testClient.send(hoverRequest)
       XCTAssertEqual(postCrashHoverResponse?.range, expectedHoverRange)
     }
   }
@@ -236,7 +236,7 @@ final class CrashRecoveryTests: XCTestCase {
       textDocument: loc.docIdentifier,
       position: Position(line: 9, utf16index: 3)
     )
-    let preCrashHighlightResponse = try await ws.testServer.send(highlightRequest)
+    let preCrashHighlightResponse = try await ws.testClient.send(highlightRequest)
     precondition(
       preCrashHighlightResponse == expectedHighlightResponse,
       "Sanity check failed. The Hover response was not what we expected, even before crashing sourcekitd"
@@ -251,7 +251,7 @@ final class CrashRecoveryTests: XCTestCase {
     // pick the definition of foo() in the #else branch.
 
     await assertNoThrow {
-      let postCrashHighlightResponse = try await ws.testServer.send(highlightRequest)
+      let postCrashHighlightResponse = try await ws.testClient.send(highlightRequest)
       XCTAssertEqual(postCrashHighlightResponse, expectedHighlightResponse)
     }
   }
@@ -267,14 +267,14 @@ final class CrashRecoveryTests: XCTestCase {
     // Send a nonsensical request to wait for clangd to start up
 
     let hoverRequest = HoverRequest(textDocument: loc.docIdentifier, position: Position(line: 1, utf16index: 6))
-    _ = try await ws.testServer.send(hoverRequest)
+    _ = try await ws.testClient.send(hoverRequest)
 
     // Keep track of clangd crashes
 
-    let clangdServer = await ws.testServer.server._languageService(
+    let clangdServer = await ws.testClient.server._languageService(
       for: loc.docUri,
       .cpp,
-      in: ws.testServer.server.workspaceForDocument(uri: loc.docUri)!
+      in: ws.testClient.server.workspaceForDocument(uri: loc.docUri)!
     )!
 
     let clangdCrashed = self.expectation(description: "clangd crashed")

@@ -27,7 +27,7 @@ final class ImplementationTests: XCTestCase {
     func impls(at testLoc: TestLocation) async throws -> Set<Location> {
       let textDocument = testLoc.docIdentifier
       let request = ImplementationRequest(textDocument: textDocument, position: Position(testLoc))
-      let response = try await ws.testServer.send(request)
+      let response = try await ws.testClient.send(request)
       guard case .locations(let implementations) = response else {
         XCTFail("Response was not locations")
         return []

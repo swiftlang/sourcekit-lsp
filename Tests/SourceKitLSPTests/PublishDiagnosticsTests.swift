@@ -16,20 +16,29 @@ import SKTestSupport
 import XCTest
 
 final class PublishDiagnosticsTests: XCTestCase {
-  /// Connection and lifetime management for the service.
-  var connection: TestSourceKitServer! = nil
+  /// The mock client used to communicate with the SourceKit-LSP server.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var testClient: TestSourceKitLSPClient! = nil
 
+  /// The URI of the document that is being tested by the current test case.
+  ///
+  /// - Note: This URI is set to a unique value before each test case in `setUp`.
   private var uri: DocumentURI!
-  private var textDocument: TextDocumentIdentifier { TextDocumentIdentifier(uri) }
+
+  /// The current verion of the document being opened.
+  ///
+  /// - Note: This gets reset to 0 in `setUp` and incremented on every call to
+  ///   `openDocument` and `editDocument`.
   private var version: Int!
 
   override func setUp() {
     version = 0
     uri = DocumentURI(URL(fileURLWithPath: "/PublishDiagnosticsTests/\(UUID()).swift"))
-    connection = TestSourceKitServer()
+    testClient = TestSourceKitLSPClient()
     let documentCapabilities = TextDocumentClientCapabilities()
     awaitTask(description: "Initialized") {
-      _ = try await self.connection.send(
+      _ = try await self.testClient.send(
         InitializeRequest(
           processId: nil,
           rootPath: nil,
@@ -44,11 +53,13 @@ final class PublishDiagnosticsTests: XCTestCase {
   }
 
   override func tearDown() {
-    connection = nil
+    testClient = nil
   }
 
+  // MARK: - Helpers
+
   private func openDocument(text: String) {
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -62,7 +73,7 @@ final class PublishDiagnosticsTests: XCTestCase {
   }
 
   private func editDocument(changes: [TextDocumentContentChangeEvent]) {
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(
           uri,
@@ -71,7 +82,10 @@ final class PublishDiagnosticsTests: XCTestCase {
         contentChanges: changes
       )
     )
+    version += 1
   }
+
+  // MARK: - Tests
 
   func testUnknownIdentifierDiagnostic() async throws {
     openDocument(
@@ -82,11 +96,11 @@ final class PublishDiagnosticsTests: XCTestCase {
         """
     )
 
-    let syntacticDiags = try await connection.nextDiagnosticsNotification()
+    let syntacticDiags = try await testClient.nextDiagnosticsNotification()
     // Unresolved identifier is not a syntactic diagnostic.
     XCTAssertEqual(syntacticDiags.diagnostics, [])
 
-    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    let semanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(semanticDiags.diagnostics.count, 1)
     XCTAssertEqual(
       semanticDiags.diagnostics.first?.range,
@@ -103,11 +117,11 @@ final class PublishDiagnosticsTests: XCTestCase {
         """
     )
 
-    let openSyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let openSyntacticDiags = try await testClient.nextDiagnosticsNotification()
     // Unresolved identifier is not a syntactic diagnostic.
     XCTAssertEqual(openSyntacticDiags.diagnostics, [])
 
-    let openSemanticDiags = try await connection.nextDiagnosticsNotification()
+    let openSemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openSemanticDiags.diagnostics.count, 1)
     XCTAssertEqual(
       openSemanticDiags.diagnostics.first?.range,
@@ -122,7 +136,7 @@ final class PublishDiagnosticsTests: XCTestCase {
       )
     ])
 
-    let editSyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let editSyntacticDiags = try await testClient.nextDiagnosticsNotification()
     // We should report the semantic diagnostic reported by the edit range-shifted
     XCTAssertEqual(editSyntacticDiags.diagnostics.count, 1)
     XCTAssertEqual(
@@ -130,7 +144,7 @@ final class PublishDiagnosticsTests: XCTestCase {
       Position(line: 2, utf16index: 2)..<Position(line: 2, utf16index: 9)
     )
 
-    let editSemanticDiags = try await connection.nextDiagnosticsNotification()
+    let editSemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(editSemanticDiags.diagnostics.count, 1)
     XCTAssertEqual(
       editSemanticDiags.diagnostics.first?.range,
@@ -148,11 +162,11 @@ final class PublishDiagnosticsTests: XCTestCase {
         """
     )
 
-    let openSyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let openSyntacticDiags = try await testClient.nextDiagnosticsNotification()
     // Unresolved identifier is not a syntactic diagnostic.
     XCTAssertEqual(openSyntacticDiags.diagnostics, [])
 
-    let openSemanticDiags = try await connection.nextDiagnosticsNotification()
+    let openSemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openSemanticDiags.diagnostics.count, 1)
     XCTAssertEqual(
       openSemanticDiags.diagnostics.first?.range,
@@ -167,7 +181,7 @@ final class PublishDiagnosticsTests: XCTestCase {
       )
     ])
 
-    let editSyntacticDiags = try await connection.nextDiagnosticsNotification()
+    let editSyntacticDiags = try await testClient.nextDiagnosticsNotification()
     // We should report the semantic diagnostic reported by the edit range-shifted
     XCTAssertEqual(editSyntacticDiags.diagnostics.count, 1)
     XCTAssertEqual(
@@ -175,7 +189,7 @@ final class PublishDiagnosticsTests: XCTestCase {
       Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9)
     )
 
-    let editSemanticDiags = try await connection.nextDiagnosticsNotification()
+    let editSemanticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(editSemanticDiags.diagnostics.count, 1)
     XCTAssertEqual(
       editSemanticDiags.diagnostics.first?.range,

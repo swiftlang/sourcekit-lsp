@@ -27,7 +27,7 @@ final class TypeHierarchyTests: XCTestCase {
     func typeHierarchy(at testLoc: TestLocation) async throws -> [TypeHierarchyItem] {
       let textDocument = testLoc.docIdentifier
       let request = TypeHierarchyPrepareRequest(textDocument: textDocument, position: Position(testLoc))
-      let items = try await ws.testServer.send(request)
+      let items = try await ws.testClient.send(request)
       return items ?? []
     }
 
@@ -37,7 +37,7 @@ final class TypeHierarchyTests: XCTestCase {
         return []
       }
       let request = TypeHierarchySupertypesRequest(item: item)
-      let types = try await ws.testServer.send(request)
+      let types = try await ws.testClient.send(request)
       return types ?? []
     }
 
@@ -47,7 +47,7 @@ final class TypeHierarchyTests: XCTestCase {
         return []
       }
       let request = TypeHierarchySubtypesRequest(item: item)
-      let types = try await ws.testServer.send(request)
+      let types = try await ws.testClient.send(request)
       return types ?? []
     }
 

@@ -20,39 +20,41 @@ final class PullDiagnosticsTests: XCTestCase {
     case unexpectedDiagnosticReport
   }
 
-  /// Connection and lifetime management for the service.
-  var connection: TestSourceKitServer! = nil
+  /// The mock client used to communicate with the SourceKit-LSP server.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var testClient: TestSourceKitLSPClient! = nil
 
-  override func setUp() {
-    connection = TestSourceKitServer()
-    awaitTask(description: "Initialize") {
-      _ = try await self.connection.send(
-        InitializeRequest(
-          processId: nil,
-          rootPath: nil,
-          rootURI: nil,
-          initializationOptions: nil,
-          capabilities: ClientCapabilities(
-            workspace: nil,
-            textDocument: .init(
-              codeAction: .init(codeActionLiteralSupport: .init(codeActionKind: .init(valueSet: [.quickFix])))
-            )
-          ),
-          trace: .off,
-          workspaceFolders: nil
-        )
+  override func setUp() async throws {
+    testClient = TestSourceKitLSPClient()
+    _ = try await self.testClient.send(
+      InitializeRequest(
+        processId: nil,
+        rootPath: nil,
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(
+          workspace: nil,
+          textDocument: .init(
+            codeAction: .init(codeActionLiteralSupport: .init(codeActionKind: .init(valueSet: [.quickFix])))
+          )
+        ),
+        trace: .off,
+        workspaceFolders: nil
       )
-    }
+    )
   }
 
   override func tearDown() {
-    connection = nil
+    testClient = nil
   }
+
+  // MARK: - Tests
 
   func performDiagnosticRequest(text: String) async throws -> [Diagnostic] {
     let url = URL(fileURLWithPath: "/PullDiagnostics/\(UUID()).swift")
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -67,7 +69,7 @@ final class PullDiagnosticsTests: XCTestCase {
 
     let report: DocumentDiagnosticReport
     do {
-      report = try await connection.send(request)
+      report = try await testClient.send(request)
     } catch let error as ResponseError where error.message.contains("unknown request: source.request.diagnostics") {
       throw XCTSkip("toolchain does not support source.request.diagnostics request")
     }
@@ -110,7 +112,7 @@ final class PullDiagnosticsTests: XCTestCase {
     XCTAssertEqual(note.location.range, Position(line: 4, utf16index: 7)..<Position(line: 4, utf16index: 7))
     XCTAssertEqual(note.codeActions?.count ?? 0, 1)
 
-    let response = try await connection.send(
+    let response = try await testClient.send(
       CodeActionRequest(
         range: note.location.range,
         context: CodeActionContext(

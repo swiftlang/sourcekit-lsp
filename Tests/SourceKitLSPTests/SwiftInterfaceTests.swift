@@ -22,8 +22,10 @@ import XCTest
 
 final class SwiftInterfaceTests: XCTestCase {
 
-  /// Connection and lifetime management for the service.
-  var connection: TestSourceKitServer! = nil
+  /// The mock client used to communicate with the SourceKit-LSP server.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var testClient: TestSourceKitLSPClient! = nil
 
   override func setUp() {
     // This is the only test that references modules from the SDK (Foundation).
@@ -31,9 +33,9 @@ final class SwiftInterfaceTests: XCTestCase {
     // hypothesis is that it was failing because of a malformed global module
     // cache that might still be present from previous CI runs. If we use a
     // local module cache, we define away that source of bugs.
-    connection = TestSourceKitServer(useGlobalModuleCache: false)
+    testClient = TestSourceKitLSPClient(useGlobalModuleCache: false)
     awaitTask(description: "Initialize") {
-      _ = try await connection.send(
+      _ = try await testClient.send(
         InitializeRequest(
           processId: nil,
           rootPath: nil,
@@ -58,14 +60,16 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   override func tearDown() {
-    connection = nil
+    testClient = nil
   }
+
+  // MARK: - Tests
 
   func testSystemModuleInterface() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -78,7 +82,7 @@ final class SwiftInterfaceTests: XCTestCase {
       )
     )
 
-    let _resp = try await connection.send(
+    let _resp = try await testClient.send(
       DefinitionRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 0, utf16index: 10)
@@ -106,7 +110,7 @@ final class SwiftInterfaceTests: XCTestCase {
     let importedModule = ws.testLoc("lib:import")
     try ws.openDocument(importedModule.url, language: .swift)
     let openInterface = OpenInterfaceRequest(textDocument: importedModule.docIdentifier, name: "lib", symbolUSR: nil)
-    let interfaceDetails = try unwrap(await ws.testServer.send(openInterface))
+    let interfaceDetails = try unwrap(await ws.testClient.send(openInterface))
     XCTAssert(interfaceDetails.uri.pseudoPath.hasSuffix("/lib.swiftinterface"))
     let fileContents = try XCTUnwrap(
       interfaceDetails.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) })
@@ -133,7 +137,7 @@ final class SwiftInterfaceTests: XCTestCase {
     linePrefix: String
   ) async throws {
     try ws.openDocument(testLoc.url, language: .swift)
-    let definition = try await ws.testServer.send(
+    let definition = try await ws.testClient.send(
       DefinitionRequest(
         textDocument: testLoc.docIdentifier,
         position: testLoc.position
@@ -189,7 +193,7 @@ final class SwiftInterfaceTests: XCTestCase {
     let importedModule = ws.testLoc("lib:import")
     try ws.openDocument(importedModule.url, language: .swift)
     let _resp =
-      try await ws.testServer.send(
+      try await ws.testClient.send(
         DefinitionRequest(
           textDocument: importedModule.docIdentifier,
           position: importedModule.position

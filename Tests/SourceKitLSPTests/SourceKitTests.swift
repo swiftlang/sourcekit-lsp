@@ -23,10 +23,9 @@ public typealias URL = Foundation.URL
 final class SKTests: XCTestCase {
 
   func testInitLocal() async throws {
-    let c = TestSourceKitServer()
-    defer { withExtendedLifetime(c) {} }  // Keep connection alive for callbacks.
+    let testClient = TestSourceKitLSPClient()
 
-    let initResult = try await c.send(
+    let initResult = try await testClient.send(
       InitializeRequest(
         processId: nil,
         rootPath: nil,
@@ -59,7 +58,7 @@ final class SKTests: XCTestCase {
 
     // MARK: Jump to definition
 
-    let response = try await ws.testServer.send(
+    let response = try await ws.testClient.send(
       DefinitionRequest(
         textDocument: locRef.docIdentifier,
         position: locRef.position
@@ -76,7 +75,7 @@ final class SKTests: XCTestCase {
 
     // MARK: Find references
 
-    let refs = try await ws.testServer.send(
+    let refs = try await ws.testClient.send(
       ReferencesRequest(
         textDocument: locDef.docIdentifier,
         position: locDef.position,
@@ -143,7 +142,7 @@ final class SKTests: XCTestCase {
       let locDef = ws.testLoc("aaa:def")
       let locRef = ws.testLoc("aaa:call:c")
       try ws.openDocument(locRef.url, language: .swift)
-      let response = try await ws.testServer.send(
+      let response = try await ws.testClient.send(
         DefinitionRequest(
           textDocument: locRef.docIdentifier,
           position: locRef.position
@@ -167,7 +166,7 @@ final class SKTests: XCTestCase {
       XCTAssertEqual(versionContentsBefore.count, 1)
       XCTAssert(versionContentsBefore.first?.lastPathComponent.starts(with: "p") ?? false)
 
-      _ = try await ws.testServer.send(ShutdownRequest())
+      _ = try await ws.testClient.send(ShutdownRequest())
       return versionedPath
     }
 
@@ -187,7 +186,7 @@ final class SKTests: XCTestCase {
     let loc = ws.testLoc("cc:A")
     try ws.openDocument(loc.url, language: .swift)
 
-    let results = try await ws.testServer.send(
+    let results = try await ws.testClient.send(
       CompletionRequest(textDocument: loc.docIdentifier, position: loc.position)
     )
 
@@ -235,11 +234,11 @@ final class SKTests: XCTestCase {
 
     try ws.openDocument(moduleRef.url, language: .swift)
 
-    let initialSyntacticDiags = try await ws.testServer.nextDiagnosticsNotification()
+    let initialSyntacticDiags = try await ws.testClient.nextDiagnosticsNotification()
     // Semantic analysis: no errors expected here.
     XCTAssertEqual(initialSyntacticDiags.diagnostics.count, 0)
 
-    let initialSemanticDiags = try await ws.testServer.nextDiagnosticsNotification()
+    let initialSemanticDiags = try await ws.testClient.nextDiagnosticsNotification()
     // Semantic analysis: expect module import error.
     XCTAssertEqual(initialSemanticDiags.diagnostics.count, 1)
     if let diagnostic = initialSemanticDiags.diagnostics.first {
@@ -251,13 +250,13 @@ final class SKTests: XCTestCase {
 
     try ws.buildAndIndex()
 
-    await ws.testServer.server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
+    await ws.testClient.server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
 
-    let updatedSyntacticDiags = try await ws.testServer.nextDiagnosticsNotification()
+    let updatedSyntacticDiags = try await ws.testClient.nextDiagnosticsNotification()
     // Semantic analysis - SourceKit currently caches diagnostics so we still see an error.
     XCTAssertEqual(updatedSyntacticDiags.diagnostics.count, 1)
 
-    let updatedSemanticDiags = try await ws.testServer.nextDiagnosticsNotification()
+    let updatedSemanticDiags = try await ws.testClient.nextDiagnosticsNotification()
     // Semantic analysis: no more errors expected, import should resolve since we built.
     XCTAssertEqual(updatedSemanticDiags.diagnostics.count, 0)
   }
@@ -276,7 +275,7 @@ final class SKTests: XCTestCase {
     try "".write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
     try ws.openDocument(moduleRef.url, language: .c)
 
-    let openDiags = try await ws.testServer.nextDiagnosticsNotification()
+    let openDiags = try await ws.testClient.nextDiagnosticsNotification()
     // Expect one error:
     // - Implicit declaration of function invalid
     XCTAssertEqual(openDiags.diagnostics.count, 1)
@@ -286,9 +285,9 @@ final class SKTests: XCTestCase {
     try contents.write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
     try ws.buildAndIndex()
 
-    await ws.testServer.server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
+    await ws.testClient.server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
 
-    let updatedDiags = try await ws.testServer.nextDiagnosticsNotification()
+    let updatedDiags = try await ws.testClient.nextDiagnosticsNotification()
     // No more errors expected, import should resolve since we the generated header file
     // now has the proper contents.
     XCTAssertEqual(updatedDiags.diagnostics.count, 0)
@@ -309,7 +308,7 @@ final class SKTests: XCTestCase {
       textDocument: mainLoc.docIdentifier,
       position: includePosition
     )
-    let resp = try await ws.testServer.send(goToInclude)
+    let resp = try await ws.testClient.send(goToInclude)
 
     let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-#include")
     switch locationsOrLinks {
@@ -340,7 +339,7 @@ final class SKTests: XCTestCase {
       textDocument: refLoc.docIdentifier,
       position: refPos
     )
-    let resp = try await ws.testServer.send(goToDefinition)
+    let resp = try await ws.testClient.send(goToDefinition)
 
     let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-definition")
     switch locationsOrLinks {
@@ -372,7 +371,7 @@ final class SKTests: XCTestCase {
       textDocument: mainLoc.docIdentifier,
       position: includePosition
     )
-    let resp = try await ws.testServer.send(goToInclude)
+    let resp = try await ws.testClient.send(goToInclude)
 
     let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-declaration")
     switch locationsOrLinks {

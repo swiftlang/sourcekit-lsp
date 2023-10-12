@@ -29,7 +29,7 @@ final class CompilationDatabaseTests: XCTestCase {
       textDocument: loc.docIdentifier,
       position: Position(line: 9, utf16index: 3)
     )
-    let preChangeHighlightResponse = try await ws.testServer.send(highlightRequest)
+    let preChangeHighlightResponse = try await ws.testClient.send(highlightRequest)
     XCTAssertEqual(
       preChangeHighlightResponse,
       [
@@ -56,7 +56,7 @@ final class CompilationDatabaseTests: XCTestCase {
       builder.write(newCompilationDatabaseStr, to: compilationDatabaseUrl)
     })
 
-    ws.testServer.send(
+    ws.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: DocumentURI(compilationDatabaseUrl), type: .changed)
       ])
@@ -74,7 +74,7 @@ final class CompilationDatabaseTests: XCTestCase {
     // Updating the build settings takes a few seconds.
     // Send highlight requests every second until we receive correct results.
     for _ in 0..<30 {
-      let postChangeHighlightResponse = try await ws.testServer.send(highlightRequest)
+      let postChangeHighlightResponse = try await ws.testClient.send(highlightRequest)
 
       if postChangeHighlightResponse == expectedPostEditHighlight {
         didReceiveCorrectHighlight = true

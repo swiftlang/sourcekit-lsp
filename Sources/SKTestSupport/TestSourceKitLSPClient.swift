@@ -19,7 +19,13 @@ import SKSupport
 import SourceKitLSP
 import XCTest
 
-public final class TestSourceKitServer: MessageHandler {
+/// A mock SourceKit-LSP client (aka. a mock editor) that behaves like an editor
+/// for testing purposes.
+///
+/// It can send requests to the LSP server and receive requests or notifications
+/// that the server sends to the client.
+public final class TestSourceKitLSPClient: MessageHandler {
+  /// A function that takes a request and returns the request's response.
   public typealias RequestHandler<Request: RequestType> = (Request) -> Request.Response
 
   public static let serverOptions: SourceKitServer.Options = SourceKitServer.Options()
@@ -37,7 +43,7 @@ public final class TestSourceKitServer: MessageHandler {
   public let server: SourceKitServer
 
   /// The connection via which the server sends requests and notifications to us.
-  private let clientConnection: LocalConnection
+  private let serverToClientConnection: LocalConnection
 
   /// Stream of the notifications that the server has sent to the client.
   private let notifications: AsyncStream<any NotificationType>
@@ -72,7 +78,7 @@ public final class TestSourceKitServer: MessageHandler {
     self.notificationYielder = notificationYielder
 
     let clientConnection = LocalConnection()
-    self.clientConnection = clientConnection
+    self.serverToClientConnection = clientConnection
     server = SourceKitServer(
       client: clientConnection,
       options: serverOptions,
@@ -81,7 +87,7 @@ public final class TestSourceKitServer: MessageHandler {
       }
     )
 
-    self.clientConnection.start(handler: WeakMessageHandler(self))
+    self.serverToClientConnection.start(handler: WeakMessageHandler(self))
   }
 
   deinit {
@@ -206,6 +212,8 @@ public final class TestSourceKitServer: MessageHandler {
     requestHandlers.removeFirst()
   }
 }
+
+// MARK: - WeakMessageHelper
 
 /// Wrapper around a weak `MessageHandler`.
 ///

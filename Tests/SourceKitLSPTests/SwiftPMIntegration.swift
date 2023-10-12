@@ -23,7 +23,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
     let call = ws.testLoc("Lib.foo:call")
     let def = ws.testLoc("Lib.foo:def")
     try ws.openDocument(call.url, language: .swift)
-    let refs = try await ws.testServer.send(
+    let refs = try await ws.testClient.send(
       ReferencesRequest(
         textDocument: call.docIdentifier,
         position: call.position,
@@ -39,7 +39,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
       ]
     )
 
-    let completions = try await ws.testServer.send(
+    let completions = try await ws.testClient.send(
       CompletionRequest(textDocument: call.docIdentifier, position: call.position)
     )
 
@@ -101,21 +101,21 @@ final class SwiftPMIntegrationTests: XCTestCase {
     try ws.openDocument(newFile.url, language: .swift)
     try ws.openDocument(oldFile.url, language: .swift)
 
-    let completionsBeforeDidChangeNotification = try await ws.testServer.send(
+    let completionsBeforeDidChangeNotification = try await ws.testClient.send(
       CompletionRequest(textDocument: newFile.docIdentifier, position: newFile.position)
     )
     XCTAssertEqual(completionsBeforeDidChangeNotification.items, [])
     ws.closeDocument(newFile.url)
 
     // Send a `DidChangeWatchedFilesNotification` and verify that we now get cross-file code completion.
-    ws.testServer.send(
+    ws.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: newFile.docUri, type: .created)
       ])
     )
     try ws.openDocument(newFile.url, language: .swift)
 
-    let completions = try await ws.testServer.send(
+    let completions = try await ws.testClient.send(
       CompletionRequest(textDocument: newFile.docIdentifier, position: newFile.position)
     )
 
@@ -154,7 +154,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
     // Check that we get code completion for `baz` (defined in the new file) in the old file.
     // I.e. check that the existing file's build settings have been updated to include the new file.
 
-    let oldFileCompletions = try await ws.testServer.send(
+    let oldFileCompletions = try await ws.testClient.send(
       CompletionRequest(textDocument: oldFile.docIdentifier, position: oldFile.position)
     )
     XCTAssert(
@@ -187,7 +187,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
     // Check that we don't get cross-file code completion before we send a `DidChangeWatchedFilesNotification` to make sure we didn't include the file in the initial retrieval of build settings.
     try ws.openDocument(otherLib.url, language: .swift)
 
-    let completionsBeforeDidChangeNotification = try await ws.testServer.send(
+    let completionsBeforeDidChangeNotification = try await ws.testClient.send(
       CompletionRequest(textDocument: otherLib.docIdentifier, position: otherLib.position)
     )
     XCTAssertEqual(completionsBeforeDidChangeNotification.items, [])
@@ -212,7 +212,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
     }
 
     // Send a `DidChangeWatchedFilesNotification` and verify that we now get cross-file code completion.
-    ws.testServer.send(
+    ws.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: packageTargets.docUri, type: .changed)
       ])
@@ -251,7 +251,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
 
     // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
     for _ in 0..<30 {
-      let completions = try await ws.testServer.send(
+      let completions = try await ws.testClient.send(
         CompletionRequest(textDocument: otherLib.docIdentifier, position: otherLib.position)
       )
 

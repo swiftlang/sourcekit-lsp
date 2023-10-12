@@ -19,58 +19,64 @@ import XCTest
 private typealias Token = SyntaxHighlightingToken
 
 final class SemanticTokensTests: XCTestCase {
-  /// Connection and lifetime management for the service.
-  private var connection: TestSourceKitServer! = nil
+  /// The mock client used to communicate with the SourceKit-LSP server.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var testClient: TestSourceKitLSPClient! = nil
 
+  /// The URI of the document that is being tested by the current test case.
+  ///
+  /// - Note: This URI is set to a unique value before each test case in `setUp`.
+  private var uri: DocumentURI!
+
+  /// The current verion of the document being opened.
+  ///
+  /// - Note: This gets reset to 0 in `setUp` and incremented on every call to
+  ///   `openDocument` and `editDocument`.
   private var version: Int = 0
 
-  private var uri: DocumentURI!
-  private var textDocument: TextDocumentIdentifier { TextDocumentIdentifier(uri) }
-
-  override func tearDown() {
-    connection = nil
-  }
-
-  override func setUp() {
+  override func setUp() async throws {
     version = 0
     uri = DocumentURI(URL(fileURLWithPath: "/SemanticTokensTests/\(UUID()).swift"))
-    connection = TestSourceKitServer()
-    awaitTask(description: "Initialize") {
-      _ = try await self.connection.send(
-        InitializeRequest(
-          processId: nil,
-          rootPath: nil,
-          rootURI: nil,
-          initializationOptions: nil,
-          capabilities: ClientCapabilities(
-            workspace: .init(
-              semanticTokens: .init(
-                refreshSupport: true
-              )
-            ),
-            textDocument: .init(
-              semanticTokens: .init(
-                dynamicRegistration: true,
-                requests: .init(
-                  range: .bool(true),
-                  full: .bool(true)
-                ),
-                tokenTypes: Token.Kind.allCases.map(\._lspName),
-                tokenModifiers: Token.Modifiers.allModifiers.map { $0._lspName! },
-                formats: [.relative]
-              )
+    testClient = TestSourceKitLSPClient()
+    _ = try await self.testClient.send(
+      InitializeRequest(
+        processId: nil,
+        rootPath: nil,
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(
+          workspace: .init(
+            semanticTokens: .init(
+              refreshSupport: true
             )
           ),
-          trace: .off,
-          workspaceFolders: nil
-        )
+          textDocument: .init(
+            semanticTokens: .init(
+              dynamicRegistration: true,
+              requests: .init(
+                range: .bool(true),
+                full: .bool(true)
+              ),
+              tokenTypes: Token.Kind.allCases.map(\._lspName),
+              tokenModifiers: Token.Modifiers.allModifiers.map { $0._lspName! },
+              formats: [.relative]
+            )
+          )
+        ),
+        trace: .off,
+        workspaceFolders: nil
       )
-    }
+    )
+  }
+
+  override func tearDown() {
+    testClient = nil
   }
 
   private func expectSemanticTokensRefresh() -> XCTestExpectation {
     let refreshExpectation = expectation(description: "\(#function) - refresh received")
-    connection.handleNextRequest { (req: WorkspaceSemanticTokensRefreshRequest) -> VoidResponse in
+    testClient.handleNextRequest { (req: WorkspaceSemanticTokensRefreshRequest) -> VoidResponse in
       refreshExpectation.fulfill()
       return VoidResponse()
     }
@@ -81,7 +87,7 @@ final class SemanticTokensTests: XCTestCase {
     // We will wait for the server to dynamically register semantic tokens
 
     let registerCapabilityExpectation = expectation(description: "\(#function) - register semantic tokens capability")
-    connection.handleNextRequest { (req: RegisterCapabilityRequest) -> VoidResponse in
+    testClient.handleNextRequest { (req: RegisterCapabilityRequest) -> VoidResponse in
       XCTAssert(
         req.registrations.contains { reg in
           reg.method == SemanticTokensRegistrationOptions.method
@@ -95,7 +101,7 @@ final class SemanticTokensTests: XCTestCase {
 
     let refreshExpectation = expectSemanticTokensRefresh()
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -120,7 +126,7 @@ final class SemanticTokensTests: XCTestCase {
       expectations.append(expectSemanticTokensRefresh())
     }
 
-    connection.send(
+    testClient.send(
       DidChangeTextDocumentNotification(
         textDocument: VersionedTextDocumentIdentifier(
           uri,
@@ -150,9 +156,18 @@ final class SemanticTokensTests: XCTestCase {
     let response: DocumentSemanticTokensResponse!
 
     if let range = range {
-      response = try await connection.send(DocumentSemanticTokensRangeRequest(textDocument: textDocument, range: range))
+      response = try await testClient.send(
+        DocumentSemanticTokensRangeRequest(
+          textDocument: TextDocumentIdentifier(uri),
+          range: range
+        )
+      )
     } else {
-      response = try await connection.send(DocumentSemanticTokensRequest(textDocument: textDocument))
+      response = try await testClient.send(
+        DocumentSemanticTokensRequest(
+          textDocument: TextDocumentIdentifier(uri)
+        )
+      )
     }
 
     return [Token](lspEncodedTokens: response.data)
@@ -214,7 +229,7 @@ final class SemanticTokensTests: XCTestCase {
       """
     openDocument(text: text)
 
-    guard let snapshot = await connection.server._documentManager.latestSnapshot(uri) else {
+    guard let snapshot = await testClient.server._documentManager.latestSnapshot(uri) else {
       fatalError("Could not fetch document snapshot for \(#function)")
     }
 

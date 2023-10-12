@@ -18,29 +18,31 @@ import XCTest
 
 final class ExecuteCommandTests: XCTestCase {
 
-  /// Connection and lifetime management for the service.
-  var connection: TestSourceKitServer! = nil
+  /// The mock client used to communicate with the SourceKit-LSP server.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var testClient: TestSourceKitLSPClient! = nil
 
   override func tearDown() {
-    connection = nil
+    testClient = nil
   }
 
-  override func setUp() {
-    connection = TestSourceKitServer()
-    awaitTask(description: "Initialized") {
-      _ = try await self.connection.send(
-        InitializeRequest(
-          processId: nil,
-          rootPath: nil,
-          rootURI: nil,
-          initializationOptions: nil,
-          capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
-          trace: .off,
-          workspaceFolders: nil
-        )
+  override func setUp() async throws {
+    testClient = TestSourceKitLSPClient()
+    _ = try await self.testClient.send(
+      InitializeRequest(
+        processId: nil,
+        rootPath: nil,
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
+        trace: .off,
+        workspaceFolders: nil
       )
-    }
+    )
   }
+
+  // MARK: - Tests
 
   func testLocationSemanticRefactoring() async throws {
     guard let ws = try await staticSourceKitTibsWorkspace(name: "SemanticRefactor") else { return }
@@ -63,11 +65,11 @@ final class ExecuteCommandTests: XCTestCase {
 
     let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
 
-    ws.testServer.handleNextRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
+    ws.testClient.handleNextRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
 
-    let result = try await ws.testServer.send(request)
+    let result = try await ws.testClient.send(request)
 
     guard case .dictionary(let resultDict) = result else {
       XCTFail("Result is not a dictionary.")
@@ -115,11 +117,11 @@ final class ExecuteCommandTests: XCTestCase {
 
     let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
 
-    ws.testServer.handleNextRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
+    ws.testClient.handleNextRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
 
-    let result = try await ws.testServer.send(request)
+    let result = try await ws.testClient.send(request)
 
     guard case .dictionary(let resultDict) = result else {
       XCTFail("Result is not a dictionary.")

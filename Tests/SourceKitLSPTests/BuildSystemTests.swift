@@ -72,32 +72,40 @@ final class TestBuildSystem: BuildSystem {
 
 final class BuildSystemTests: XCTestCase {
 
-  /// Connection and lifetime management for the service.
-  var testServer: TestSourceKitServer! = nil
+  /// The mock client used to communicate with the SourceKit-LSP server.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var testClient: TestSourceKitLSPClient! = nil
 
   /// The server's workspace data. Accessing this is unsafe if the server does so concurrently.
-  var workspace: Workspace! = nil
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var workspace: Workspace! = nil
 
   /// The build system that we use to verify SourceKitServer behavior.
-  var buildSystem: TestBuildSystem! = nil
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var buildSystem: TestBuildSystem! = nil
 
   /// Whether clangd exists in the toolchain.
-  var haveClangd: Bool = false
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var haveClangd: Bool = false
 
   override func setUp() {
     awaitTask(description: "Setup complete") {
       haveClangd = ToolchainRegistry.shared.toolchains.contains { $0.clangd != nil }
-      testServer = TestSourceKitServer()
+      testClient = TestSourceKitLSPClient()
       buildSystem = TestBuildSystem()
 
-      let server = testServer.server
+      let server = testClient.server
 
       self.workspace = await Workspace(
         documentManager: DocumentManager(),
         rootUri: nil,
         capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
         toolchainRegistry: ToolchainRegistry.shared,
-        buildSetup: TestSourceKitServer.serverOptions.buildSetup,
+        buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup,
         underlyingBuildSystem: buildSystem,
         index: nil,
         indexDelegate: nil
@@ -106,7 +114,7 @@ final class BuildSystemTests: XCTestCase {
       await server.setWorkspaces([workspace])
       await workspace.buildSystemManager.setDelegate(server)
 
-      _ = try await testServer.send(
+      _ = try await testClient.send(
         InitializeRequest(
           processId: nil,
           rootPath: nil,
@@ -123,8 +131,10 @@ final class BuildSystemTests: XCTestCase {
   override func tearDown() {
     buildSystem = nil
     workspace = nil
-    testServer = nil
+    testClient = nil
   }
+
+  // MARK: - Tests
 
   func testClangdDocumentUpdatedBuildSettings() async throws {
     try XCTSkipIf(true, "rdar://115435598 - crashing on rebranch")
@@ -151,9 +161,9 @@ final class BuildSystemTests: XCTestCase {
 
     buildSystem.buildSettingsByFile[doc] = FileBuildSettings(compilerArguments: args)
 
-    let documentManager = await self.testServer.server._documentManager
+    let documentManager = await self.testClient.server._documentManager
 
-    testServer.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: doc,
@@ -163,7 +173,7 @@ final class BuildSystemTests: XCTestCase {
         )
       )
     )
-    let diags = try await testServer.nextDiagnosticsNotification()
+    let diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 1)
     XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
 
@@ -173,7 +183,7 @@ final class BuildSystemTests: XCTestCase {
     buildSystem.buildSettingsByFile[doc] = newSettings
 
     let expectation = XCTestExpectation(description: "refresh")
-    let refreshedDiags = try await testServer.nextDiagnosticsNotification()
+    let refreshedDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(refreshedDiags.diagnostics.count, 0)
     XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
 
@@ -197,9 +207,9 @@ final class BuildSystemTests: XCTestCase {
       foo()
       """
 
-    let documentManager = await self.testServer.server._documentManager
+    let documentManager = await self.testClient.server._documentManager
 
-    testServer.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: doc,
@@ -209,11 +219,11 @@ final class BuildSystemTests: XCTestCase {
         )
       )
     )
-    let syntacticDiags1 = try await testServer.nextDiagnosticsNotification()
+    let syntacticDiags1 = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(syntacticDiags1.diagnostics.count, 0)
     XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
 
-    let semanticDiags1 = try await testServer.nextDiagnosticsNotification()
+    let semanticDiags1 = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(semanticDiags1.diagnostics.count, 1)
 
     // Modify the build settings and inform the delegate.
@@ -223,11 +233,11 @@ final class BuildSystemTests: XCTestCase {
 
     await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
-    let syntacticDiags2 = try await testServer.nextDiagnosticsNotification()
+    let syntacticDiags2 = try await testClient.nextDiagnosticsNotification()
     // Semantic analysis - SourceKit currently caches diagnostics so we still see an error.
     XCTAssertEqual(syntacticDiags2.diagnostics.count, 1)
 
-    let semanticDiags2 = try await testServer.nextDiagnosticsNotification()
+    let semanticDiags2 = try await testClient.nextDiagnosticsNotification()
     // Semantic analysis - no expected errors here because we fixed the settings.
     XCTAssertEqual(semanticDiags2.diagnostics.count, 0)
   }
@@ -253,9 +263,9 @@ final class BuildSystemTests: XCTestCase {
         }
       """
 
-    let documentManager = await self.testServer.server._documentManager
+    let documentManager = await self.testClient.server._documentManager
 
-    testServer.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: doc,
@@ -265,7 +275,7 @@ final class BuildSystemTests: XCTestCase {
         )
       )
     )
-    let openDiags = try await testServer.nextDiagnosticsNotification()
+    let openDiags = try await testClient.nextDiagnosticsNotification()
     // Expect diagnostics to be withheld.
     XCTAssertEqual(openDiags.diagnostics.count, 0)
     XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
@@ -277,7 +287,7 @@ final class BuildSystemTests: XCTestCase {
 
     await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
-    let refreshedDiags = try await testServer.nextDiagnosticsNotification()
+    let refreshedDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(refreshedDiags.diagnostics.count, 1)
     XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
   }
@@ -299,9 +309,9 @@ final class BuildSystemTests: XCTestCase {
         func
       """
 
-    let documentManager = await self.testServer.server._documentManager
+    let documentManager = await self.testClient.server._documentManager
 
-    testServer.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: doc,
@@ -311,11 +321,11 @@ final class BuildSystemTests: XCTestCase {
         )
       )
     )
-    let openSyntacticDiags = try await testServer.nextDiagnosticsNotification()
+    let openSyntacticDiags = try await testClient.nextDiagnosticsNotification()
     // Syntactic analysis - one expected errors here (for `func`).
     XCTAssertEqual(openSyntacticDiags.diagnostics.count, 1)
     XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
-    let openSemanticDiags = try await testServer.nextDiagnosticsNotification()
+    let openSemanticDiags = try await testClient.nextDiagnosticsNotification()
     // Should be the same syntactic analysis since we are using fallback arguments
     XCTAssertEqual(openSemanticDiags.diagnostics.count, 1)
 
@@ -324,11 +334,11 @@ final class BuildSystemTests: XCTestCase {
 
     await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
-    let refreshedSyntacticDiags = try await testServer.nextDiagnosticsNotification()
+    let refreshedSyntacticDiags = try await testClient.nextDiagnosticsNotification()
     // Syntactic analysis with new args - one expected errors here (for `func`).
     XCTAssertEqual(refreshedSyntacticDiags.diagnostics.count, 1)
 
-    let refreshedSemanticDiags = try await testServer.nextDiagnosticsNotification()
+    let refreshedSemanticDiags = try await testClient.nextDiagnosticsNotification()
     // Semantic analysis - two errors since `-DFOO` was not passed.
     XCTAssertEqual(refreshedSemanticDiags.diagnostics.count, 2)
   }
@@ -341,11 +351,11 @@ final class BuildSystemTests: XCTestCase {
 
     try ws.openDocument(unique_h.fileURL!, language: .cpp)
 
-    let openSyntacticDiags = try await testServer.nextDiagnosticsNotification()
+    let openSyntacticDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openSyntacticDiags.diagnostics.count, 0)
 
     try ws.buildAndIndex()
-    let diagsFromD = try await testServer.nextDiagnosticsNotification()
+    let diagsFromD = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diagsFromD.diagnostics.count, 1)
     let diagFromD = try XCTUnwrap(diagsFromD.diagnostics.first)
     XCTAssertEqual(diagFromD.severity, .warning)
@@ -366,7 +376,7 @@ final class BuildSystemTests: XCTestCase {
       )
     }
 
-    let diagsFromC = try await testServer.nextDiagnosticsNotification()
+    let diagsFromC = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diagsFromC.diagnostics.count, 1)
     let diagFromC = try XCTUnwrap(diagsFromC.diagnostics.first)
     XCTAssertEqual(diagFromC.severity, .warning)

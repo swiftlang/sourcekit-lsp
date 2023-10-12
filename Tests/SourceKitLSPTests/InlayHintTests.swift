@@ -17,34 +17,36 @@ import SourceKitLSP
 import XCTest
 
 final class InlayHintTests: XCTestCase {
-  /// Connection and lifetime management for the service.
-  var connection: TestSourceKitServer! = nil
+  /// The mock client used to communicate with the SourceKit-LSP server.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var testClient: TestSourceKitLSPClient! = nil
+
+  override func setUp() async throws {
+    testClient = TestSourceKitLSPClient()
+    _ = try await testClient.send(
+      InitializeRequest(
+        processId: nil,
+        rootPath: nil,
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
+        trace: .off,
+        workspaceFolders: nil
+      )
+    )
+  }
 
   override func tearDown() {
-    connection = nil
+    testClient = nil
   }
 
-  override func setUp() {
-    connection = TestSourceKitServer()
-    awaitTask(description: "Initialize") {
-      _ = try await connection.send(
-        InitializeRequest(
-          processId: nil,
-          rootPath: nil,
-          rootURI: nil,
-          initializationOptions: nil,
-          capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
-          trace: .off,
-          workspaceFolders: nil
-        )
-      )
-    }
-  }
+  // MARK: - Helpers
 
   func performInlayHintRequest(text: String, range: Range<Position>? = nil) async throws -> [InlayHint] {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
 
-    connection.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -58,14 +60,18 @@ final class InlayHintTests: XCTestCase {
     let request = InlayHintRequest(textDocument: TextDocumentIdentifier(url), range: range)
 
     do {
-      return try await connection.send(request)
+      return try await testClient.send(request)
     } catch let error as ResponseError where error.message.contains("unknown request: source.request.variable.type") {
       throw XCTSkip("toolchain does not support variable.type request")
     }
   }
 
-  private func makeInlayHint(position: Position, kind: InlayHintKind, label: String, hasEdit: Bool = true) -> InlayHint
-  {
+  private func makeInlayHint(
+    position: Position,
+    kind: InlayHintKind,
+    label: String,
+    hasEdit: Bool = true
+  ) -> InlayHint {
     let textEdits: [TextEdit]?
     if hasEdit {
       textEdits = [TextEdit(range: position..<position, newText: label)]
@@ -79,6 +85,8 @@ final class InlayHintTests: XCTestCase {
       textEdits: textEdits
     )
   }
+
+  // MARK: - Tests
 
   func testEmpty() async throws {
     let text = ""
