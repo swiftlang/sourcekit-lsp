@@ -124,6 +124,8 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace) -> List[str]:
             '-Xcxx', '-I', '-Xcxx',
             os.path.join(args.toolchain, 'lib', 'swift', 'Block'),
         ]
+        if args.action == 'install':
+            swiftpm_args += ['--disable-local-rpath']
 
     if '-android' in build_target:
         swiftpm_args += [
@@ -181,6 +183,9 @@ def get_swiftpm_environment_variables(swift_exec: str, args: argparse.Namespace)
     if args.action == 'test' and args.skip_long_tests:
         env['SKIP_LONG_TESTS'] = '1'
 
+    if args.action == 'install':
+        env['SOURCEKIT_LSP_CI_INSTALL'] = "1"
+
     return env
 
 
@@ -190,8 +195,6 @@ def build_single_product(product: str, swift_exec: str, args: argparse.Namespace
     """
     swiftpm_args = get_swiftpm_options(swift_exec, args)
     additional_env = get_swiftpm_environment_variables(swift_exec, args)
-    if args.action == 'install':
-      additional_env['SOURCEKIT_LSP_CI_INSTALL'] = "1"
     cmd = [swift_exec, 'build', '--product', product] + swiftpm_args
     check_call(cmd, additional_env=additional_env, verbose=args.verbose)
 
