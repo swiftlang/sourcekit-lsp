@@ -94,7 +94,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   /// Queue on which notifications from sourcekitd are handled to ensure we are
   /// handling them in-order.
-  let sourcekitdNotificationHandlingQueue = AsyncQueue(.serial)
+  let sourcekitdNotificationHandlingQueue = AsyncQueue<Serial>()
 
   let capabilityRegistry: CapabilityRegistry
 

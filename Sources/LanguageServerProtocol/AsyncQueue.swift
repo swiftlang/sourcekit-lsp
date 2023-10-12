@@ -33,31 +33,33 @@ extension NSLock {
   }
 }
 
-/// A queue that allows the execution of asyncronous blocks of code.
-public final class AsyncQueue {
-  public enum QueueKind {
-    /// A queue that allows concurrent execution of tasks.
-    case concurrent
+/// A type that is able to track dependencies between tasks.
+public protocol DependencyTracker {
+  /// Whether the task described by `self` needs to finish executing before
+  /// `other` can start executing.
+  func isDependency(of other: Self) -> Bool
+}
 
-    /// A queue that executes one task after the other.
-    case serial
+/// A dependency tracker where each task depends on every other, i.e. a serial
+/// queue.
+public struct Serial: DependencyTracker {
+  public func isDependency(of other: Serial) -> Bool {
+    return true
   }
+}
 
+/// A queue that allows the execution of asyncronous blocks of code.
+public final class AsyncQueue<TaskMetadata: DependencyTracker> {
   private struct PendingTask {
     /// The task that is pending.
     let task: any AnyTask
 
-    /// Whether the task needs to finish executing befoer any other task can
-    /// start in executing in the queue.
-    let isBarrier: Bool
+    let metadata: TaskMetadata
 
     /// A unique value used to identify the task. This allows tasks to get
     /// removed from `pendingTasks` again after they finished executing.
     let id: UUID
   }
-
-  /// Whether the queue allows concurrent execution of tasks.
-  private let kind: QueueKind
 
   ///  Lock guarding `pendingTasks`.
   private let pendingTasksLock = NSLock()
@@ -65,8 +67,7 @@ public final class AsyncQueue {
   /// Pending tasks that have not finished execution yet.
   private var pendingTasks = [PendingTask]()
 
-  public init(_ kind: QueueKind) {
-    self.kind = kind
+  public init() {
     self.pendingTasksLock.name = "AsyncQueue"
   }
 
@@ -81,10 +82,10 @@ public final class AsyncQueue {
   @discardableResult
   public func async<Success: Sendable>(
     priority: TaskPriority? = nil,
-    barrier isBarrier: Bool = false,
+    metadata: TaskMetadata,
     @_inheritActorContext operation: @escaping @Sendable () async -> Success
   ) -> Task<Success, Never> {
-    let throwingTask = asyncThrowing(priority: priority, barrier: isBarrier, operation: operation)
+    let throwingTask = asyncThrowing(priority: priority, metadata: metadata, operation: operation)
     return Task {
       do {
         return try await throwingTask.value
@@ -102,7 +103,7 @@ public final class AsyncQueue {
   ///   the operation by awaiting the result of the returned task.
   public func asyncThrowing<Success: Sendable>(
     priority: TaskPriority? = nil,
-    barrier isBarrier: Bool = false,
+    metadata: TaskMetadata,
     @_inheritActorContext operation: @escaping @Sendable () async throws -> Success
   ) -> Task<Success, any Error> {
     let id = UUID()
@@ -110,19 +111,7 @@ public final class AsyncQueue {
     return pendingTasksLock.withLock {
       // Build the list of tasks that need to finishe exeuction before this one
       // can be executed
-      let dependencies: [PendingTask]
-      switch (kind, isBarrier: isBarrier) {
-      case (.concurrent, isBarrier: true):
-        // Wait for all tasks after the last barrier.
-        let lastBarrierIndex = pendingTasks.lastIndex(where: { $0.isBarrier }) ?? pendingTasks.startIndex
-        dependencies = Array(pendingTasks[lastBarrierIndex...])
-      case (.concurrent, isBarrier: false):
-        // If there is a barrier, wait for it.
-        dependencies = [pendingTasks.last(where: { $0.isBarrier })].compactMap { $0 }
-      case (.serial, _):
-        // We are in a serial queue. The last pending task must finish for this one to start.
-        dependencies = [pendingTasks.last].compactMap { $0 }
-      }
+      let dependencies: [PendingTask] = pendingTasks.filter { $0.metadata.isDependency(of: metadata) }
 
       // Schedule the task.
       let task = Task {
@@ -143,9 +132,31 @@ public final class AsyncQueue {
         return result
       }
 
-      pendingTasks.append(PendingTask(task: task, isBarrier: isBarrier, id: id))
+      pendingTasks.append(PendingTask(task: task, metadata: metadata, id: id))
 
       return task
     }
+  }
+}
+
+/// Convenience overloads for serial queues.
+extension AsyncQueue where TaskMetadata == Serial {
+  /// Same as ``async(priority:operation:)`` but specialized for serial queues 
+  /// that don't specify any metadata.
+  @discardableResult
+  public func async<Success: Sendable>(
+    priority: TaskPriority? = nil,
+    @_inheritActorContext operation: @escaping @Sendable () async -> Success
+  ) -> Task<Success, Never> {
+    return self.async(priority: priority, metadata: Serial(), operation: operation)
+  }
+
+  /// Same as ``asyncThrowing(priority:metadata:operation:)`` but specialized 
+  /// for serial queues that don't specify any metadata.
+  public func asyncThrowing<Success: Sendable>(
+    priority: TaskPriority? = nil,
+    @_inheritActorContext operation: @escaping @Sendable () async throws -> Success
+  ) -> Task<Success, any Error> {
+    return self.asyncThrowing(priority: priority, metadata: Serial(), operation: operation)
   }
 }

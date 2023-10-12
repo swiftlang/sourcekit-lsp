@@ -58,7 +58,7 @@ public actor BuildServerBuildSystem: MessageHandler {
   /// This ensures that messages from the build server are handled in the order
   /// they were received. Swift concurrency does not guarentee in-order
   /// execution of tasks.
-  public let bspMessageHandlingQueue = AsyncQueue(.serial)
+  public let bspMessageHandlingQueue = AsyncQueue<Serial>()
 
   let searchPaths: [AbsolutePath]
 
