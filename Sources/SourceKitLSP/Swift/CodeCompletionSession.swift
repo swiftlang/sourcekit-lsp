@@ -27,9 +27,6 @@ import SourceKitD
 /// `codecomplete.close` requests.
 actor CodeCompletionSession {
   private unowned let server: SwiftLanguageServer
-  /// The queue on which `update` and `close` are executed to ensure in-order
-  /// execution.
-  private let queue: AsyncQueue = AsyncQueue(.serial)
   private let snapshot: DocumentSnapshot
   let utf8StartOffset: Int
   private let position: Position
@@ -72,16 +69,13 @@ actor CodeCompletionSession {
     in snapshot: DocumentSnapshot,
     options: SKCompletionOptions
   ) async throws -> CompletionList {
-    let task = queue.asyncThrowing {
-      switch self.state {
-      case .closed:
-        self.state = .open
-        return try await self.open(filterText: filterText, position: position, in: snapshot, options: options)
-      case .open:
-        return try await self.updateImpl(filterText: filterText, position: position, in: snapshot, options: options)
-      }
+    switch self.state {
+    case .closed:
+      self.state = .open
+      return try await self.open(filterText: filterText, position: position, in: snapshot, options: options)
+    case .open:
+      return try await self.updateImpl(filterText: filterText, position: position, in: snapshot, options: options)
     }
-    return try await task.value
   }
 
   private func open(
@@ -185,19 +179,17 @@ actor CodeCompletionSession {
     _ = try? server.sourcekitd.sendSync(req)
   }
 
-  func close() {
+  func close() async {
     // Temporary back-reference to server to keep it alive during close().
     let server = self.server
 
-    queue.async {
-      switch self.state {
-      case .closed:
-        // Already closed, nothing to do.
-        break
-      case .open:
-        self.sendClose(server)
-        self.state = .closed
-      }
+    switch self.state {
+    case .closed:
+      // Already closed, nothing to do.
+      break
+    case .open:
+      self.sendClose(server)
+      self.state = .closed
     }
   }
 }
