@@ -37,22 +37,6 @@ extension SwiftLanguageServer {
 
     let options = req.sourcekitlspOptions ?? serverOptions.completionOptions
 
-    return try await completionWithServerFiltering(
-      offset: offset,
-      completionPos: completionPos,
-      snapshot: snapshot,
-      request: req,
-      options: options
-    )
-  }
-
-  private func completionWithServerFiltering(
-    offset: Int,
-    completionPos: Position,
-    snapshot: DocumentSnapshot,
-    request req: CompletionRequest,
-    options: SKCompletionOptions
-  ) async throws -> CompletionList {
     guard let start = snapshot.indexOf(utf8Offset: offset),
       let end = snapshot.index(of: req.position)
     else {
@@ -62,42 +46,20 @@ extension SwiftLanguageServer {
 
     let filterText = String(snapshot.text[start..<end])
 
-    let session: CodeCompletionSession
-    if req.context?.triggerKind == .triggerFromIncompleteCompletions {
-      guard let currentSession = currentCompletionSession else {
-        logger.error("triggerFromIncompleteCompletions with no existing completion session")
-        throw ResponseError.serverCancelled
-      }
-      guard currentSession.uri == snapshot.uri, currentSession.utf8StartOffset == offset else {
-        logger.error(
-          """
-            triggerFromIncompleteCompletions with incompatible completion session; expected \
-            \(currentSession.uri.forLogging)@\(currentSession.utf8StartOffset), \
-            but got \(snapshot.uri.forLogging)@\(offset)
-          """
-        )
-        throw ResponseError.serverCancelled
-      }
-      session = currentSession
-    } else {
-      let clientSupportsSnippets = capabilityRegistry.clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport ?? false
-
-      // FIXME: even if trigger kind is not from incomplete, we could to detect a compatible
-      // location if we also check that the rest of the snapshot has not changed.
-      session = CodeCompletionSession(
-        sourcekitd: sourcekitd,
-        snapshot: snapshot,
-        utf8Offset: offset,
-        position: completionPos,
-        compileCommand: await buildSettings(for: snapshot.uri),
-        clientSupportsSnippets: clientSupportsSnippets
-      )
-
-      await currentCompletionSession?.close()
-      currentCompletionSession = session
-    }
-
-    return try await session.update(filterText: filterText, position: req.position, in: snapshot, options: options)
+    let clientSupportsSnippets = capabilityRegistry.clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport ?? false
+    let buildSettings = await buildSettings(for: snapshot.uri)
+    return try await CodeCompletionSession.completionList(
+      sourcekitd: sourcekitd,
+      snapshot: snapshot,
+      completionPosition: completionPos,
+      completionUtf8Offset: offset,
+      cursorPosition: req.position,
+      compileCommand: buildSettings,
+      options: options,
+      clientSupportsSnippets: clientSupportsSnippets,
+      filterText: filterText,
+      mustReuse: req.context?.triggerKind == .triggerFromIncompleteCompletions
+    )
   }
 
    /// Adjust completion position to the start of identifier characters.

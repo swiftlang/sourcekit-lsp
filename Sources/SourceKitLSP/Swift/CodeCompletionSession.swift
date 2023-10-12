@@ -25,10 +25,128 @@ import SourceKitD
 ///
 /// At the sourcekitd level, this uses `codecomplete.open`, `codecomplete.update` and
 /// `codecomplete.close` requests.
-actor CodeCompletionSession {
+class CodeCompletionSession {
+  // MARK: - Public static API
+
+  /// The queue on which all code completion requests are executed.
+  ///
+  /// This is needed because sourcekitd has a single, global code completion
+  /// session and we need to make sure that multiple code completion requests
+  /// don't race each other.
+  ///
+  /// Technically, we would only need one queue for each sourcekitd and different
+  /// sourcekitd could serve code completion requests simultaneously.
+  ///
+  /// But it's rare to open multiple sourcekitd instances simultaneously and
+  /// even rarer to interact with them at the same time, so we have a global
+  /// queue for now to simplify the implementation.
+  private static let completionQueue = AsyncQueue(.serial)
+
+  /// The code completion session for each sourcekitd instance.
+  ///
+  /// `sourcekitd` has a global code completion session, that's why we need to
+  /// have a global mapping from `sourcekitd` to its currently active code
+  /// completion session.
+  ///
+  /// Modification of code completion sessions should only happen on
+  /// `completionQueue`.
+  private static var completionSessions: [ObjectIdentifier: CodeCompletionSession] = [:]
+  
+  /// Gets the code completion results for the given parameters.
+  ///
+  /// If a code completion session that is compatible with the parameters
+  /// already exists, this just performs an update to the filtering. If it does
+  /// not, this opens a new code completion session with `sourcekitd` and gets
+  /// the results.
+  ///
+  /// - Parameters:
+  ///   - sourcekitd: The `sourcekitd` instance from which to get code
+  ///     completion results
+  ///   - snapshot: The document in which to perform completion.
+  ///   - completionPosition: The position at which to perform completion.
+  ///     This is the position at which the code completion token logically
+  ///     starts. For example when completing `foo.ba|`, then the completion
+  ///     position should be after the `.`.
+  ///   - completionUtf8Offset: Same as `completionPosition` but as a UTF-8
+  ///     offset within the buffer.
+  ///   - cursorPosition: The position at which the cursor is positioned. E.g.
+  ///     when completing `foo.ba|`, this is after the `a` (see
+  ///     `completionPosition` for comparison)
+  ///   - compileCommand: The compiler arguments to use.
+  ///   - options: Further options that can be sent from the editor to control
+  ///     completion.
+  ///   - clientSupportsSnippets: Whether the editor supports LSP snippets.
+  ///   - filterText: The text by which to filter code completion results.
+  ///   - mustReuse: If `true` and there is an active session in this
+  ///     `sourcekitd` instance, cancel the request instead of opening a new
+  ///     session.
+  ///     This is set to `true` when triggering a filter from incomplete results
+  ///     so that clients can rely on results being delivered quickly when
+  ///     getting updated results after updating the filter text.
+  /// - Returns: The code completion results for those parameters.
+  static func completionList(
+    sourcekitd: any SourceKitD,
+    snapshot: DocumentSnapshot,
+    completionPosition: Position,
+    completionUtf8Offset: Int,
+    cursorPosition: Position,
+    compileCommand: SwiftCompileCommand?,
+    options: SKCompletionOptions,
+    clientSupportsSnippets: Bool,
+    filterText: String,
+    mustReuse: Bool
+  ) async throws -> CompletionList {
+    let task = completionQueue.asyncThrowing {
+      if let session = completionSessions[ObjectIdentifier(sourcekitd)], session.state == .open {
+        let isCompatible = session.snapshot.uri == snapshot.uri &&
+        session.utf8StartOffset == completionUtf8Offset &&
+        session.position == completionPosition &&
+        session.compileCommand == compileCommand &&
+        session.clientSupportsSnippets == clientSupportsSnippets
+
+        if isCompatible {
+          return try await session.update(filterText: filterText, position: cursorPosition, in: snapshot, options: options)
+        }
+        
+        if mustReuse {
+          logger.error(
+            """
+              triggerFromIncompleteCompletions with incompatible completion session; expected \
+              \(session.uri.forLogging)@\(session.utf8StartOffset), \
+              but got \(snapshot.uri.forLogging)@\(completionUtf8Offset)
+            """
+          )
+          throw ResponseError.serverCancelled
+        }
+        // The sessions aren't compatible. Close the existing session and open
+        // a new one below.
+        session.close()
+      }
+      if mustReuse {
+        logger.error("triggerFromIncompleteCompletions with no existing completion session")
+        throw ResponseError.serverCancelled
+      }
+      let session = CodeCompletionSession(
+        sourcekitd: sourcekitd,
+        snapshot: snapshot,
+        utf8Offset: completionUtf8Offset,
+        position: completionPosition,
+        compileCommand: compileCommand,
+        clientSupportsSnippets: clientSupportsSnippets
+      )
+      completionSessions[ObjectIdentifier(sourcekitd)] = session
+      return try await session.open(filterText: filterText, position: cursorPosition, in: snapshot, options: options)
+    }
+
+    // FIXME: (async) Use valuePropagatingCancellation once we support cancellation
+    return try await task.value
+  }
+
+  // MARK: - Implementation
+
   private let sourcekitd: any SourceKitD
   private let snapshot: DocumentSnapshot
-  let utf8StartOffset: Int
+  private let utf8StartOffset: Int
   private let position: Position
   private let compileCommand: SwiftCompileCommand?
   private let clientSupportsSnippets: Bool
@@ -39,10 +157,10 @@ actor CodeCompletionSession {
     case open
   }
 
-  nonisolated var uri: DocumentURI { snapshot.uri }
-  nonisolated var keys: sourcekitd_keys { return sourcekitd.keys }
+  private nonisolated var uri: DocumentURI { snapshot.uri }
+  private nonisolated var keys: sourcekitd_keys { return sourcekitd.keys }
 
-  init(
+  private init(
     sourcekitd: any SourceKitD,
     snapshot: DocumentSnapshot,
     utf8Offset: Int,
@@ -56,30 +174,6 @@ actor CodeCompletionSession {
     self.position = position
     self.compileCommand = compileCommand
     self.clientSupportsSnippets = clientSupportsSnippets
-  }
-
-  /// Retrieve completions for the given `filterText`, opening or updating the session.
-  ///
-  /// - parameters:
-  ///   - filterText: The text to use for fuzzy matching the results.
-  ///   - position: The position at the end of the existing text (typically right after the end of
-  ///               `filterText`), which determines the end of the `TextEdit` replacement range
-  ///               in the resulting completions.
-  ///   - snapshot: The current snapshot that the `TextEdit` replacement in results will be in.
-  ///   - options: The completion options, such as the maximum number of results.
-  func update(
-    filterText: String,
-    position: Position,
-    in snapshot: DocumentSnapshot,
-    options: SKCompletionOptions
-  ) async throws -> CompletionList {
-    switch self.state {
-    case .closed:
-      self.state = .open
-      return try await self.open(filterText: filterText, position: position, in: snapshot, options: options)
-    case .open:
-      return try await self.updateImpl(filterText: filterText, position: position, in: snapshot, options: options)
-    }
   }
 
   private func open(
@@ -105,6 +199,7 @@ actor CodeCompletionSession {
     }
 
     let dict = try await sourcekitd.send(req)
+    self.state = .open
 
     guard let completions: SKDResponseArray = dict[keys.results] else {
       return CompletionList(isIncomplete: false, items: [])
@@ -121,7 +216,7 @@ actor CodeCompletionSession {
     )
   }
 
-  private func updateImpl(
+  private func update(
     filterText: String,
     position: Position,
     in snapshot: DocumentSnapshot,
@@ -170,22 +265,18 @@ actor CodeCompletionSession {
     return dict
   }
 
-  private func sendClose() {
-    let req = SKDRequestDictionary(sourcekitd: sourcekitd)
-    req[keys.request] = sourcekitd.requests.codecomplete_close
-    req[keys.offset] = self.utf8StartOffset
-    req[keys.name] = self.snapshot.uri.pseudoPath
-    logger.info("Closing code completion session: \(self, privacy: .private)")
-    _ = try? sourcekitd.sendSync(req)
-  }
-
-  func close() async {
+  private func close() {
     switch self.state {
     case .closed:
       // Already closed, nothing to do.
       break
     case .open:
-      self.sendClose()
+      let req = SKDRequestDictionary(sourcekitd: sourcekitd)
+      req[keys.request] = sourcekitd.requests.codecomplete_close
+      req[keys.offset] = self.utf8StartOffset
+      req[keys.name] = self.snapshot.uri.pseudoPath
+      logger.info("Closing code completion session: \(self, privacy: .private)")
+      _ = try? sourcekitd.sendSync(req)
       self.state = .closed
     }
   }
