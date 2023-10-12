@@ -112,19 +112,6 @@ public final class TestClient: MessageHandler {
     })
   }
 
-  public func handleNextNotification<N>(_ handler: @escaping (Notification<N>) -> Void) {
-    guard oneShotNotificationHandlers.isEmpty else {
-      XCTFail("unexpected one shot notification handler registered")
-      return
-    }
-    appendOneShotNotificationHandler(handler)
-  }
-
-  public func handleNextRequest<R>(_ handler: @escaping (Request<R>) -> Void) {
-    precondition(oneShotRequestHandlers.isEmpty)
-    appendOneShotRequestHandler(handler)
-  }
-
   public func handle<N>(_ params: N, from clientID: ObjectIdentifier) where N: NotificationType {
     let notification = Notification(params, clientID: clientID)
 
@@ -167,58 +154,6 @@ extension TestClient: Connection {
     reply: @escaping (LSPResult<Request.Response>) -> Void
   ) -> RequestID {
     return server.send(request, reply: reply)
-  }
-
-  /// Send a notification and expect a notification in reply synchronously.
-  /// For testing notifications that behave like requests  - e.g. didChange & publishDiagnostics.
-  public func sendNoteSync<NReply>(
-    _ notification: some NotificationType,
-    _ handler: @escaping (Notification<NReply>) -> Void
-  ) {
-
-    let expectation = XCTestExpectation(description: "sendNoteSync - note received")
-
-    handleNextNotification { (note: Notification<NReply>) in
-      handler(note)
-      expectation.fulfill()
-    }
-
-    send(notification)
-
-    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    guard result == .completed else {
-      XCTFail("error \(result) waiting for notification in response to \(notification)")
-      return
-    }
-  }
-
-  /// Send a notification and expect two notifications in reply synchronously.
-  /// For testing notifications that behave like requests  - e.g. didChange & publishDiagnostics.
-  public func sendNoteSync<NSend, NReply1, NReply2>(
-    _ notification: NSend,
-    _ handler1: @escaping (Notification<NReply1>) -> Void,
-    _ handler2: @escaping (Notification<NReply2>) -> Void
-  ) where NSend: NotificationType {
-
-    let expectation = XCTestExpectation(description: "sendNoteSync - note received")
-    expectation.expectedFulfillmentCount = 2
-
-    handleNextNotification { (note: Notification<NReply1>) in
-      handler1(note)
-      expectation.fulfill()
-    }
-    appendOneShotNotificationHandler { (note: Notification<NReply2>) in
-      handler2(note)
-      expectation.fulfill()
-    }
-
-    send(notification)
-
-    let result = XCTWaiter.wait(for: [expectation], timeout: defaultTimeout)
-    guard result == .completed else {
-      XCTFail("wait for notification in response to \(notification) failed with \(result)")
-      return
-    }
   }
 }
 

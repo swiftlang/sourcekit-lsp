@@ -60,7 +60,7 @@ class ConnectionTests: XCTestCase {
     let clientConnection = connection.clientConnection
     let expectation = self.expectation(description: "note received")
 
-    client.handleNextNotification { (note: Notification<EchoNotification>) in
+    client.appendOneShotNotificationHandler { (note: Notification<EchoNotification>) in
       XCTAssertEqual(note.params.string, "hello!")
       expectation.fulfill()
     }
@@ -83,7 +83,7 @@ class ConnectionTests: XCTestCase {
 
     let expectation2 = self.expectation(description: "note received")
 
-    client.handleNextNotification { (note: Notification<EchoNotification>) in
+    client.appendOneShotNotificationHandler { (note: Notification<EchoNotification>) in
       XCTAssertEqual(note.params.string, "no way!")
       expectation2.fulfill()
     }
@@ -125,7 +125,7 @@ class ConnectionTests: XCTestCase {
     let client = connection.client
     let expectation = self.expectation(description: "note received")
 
-    client.handleNextNotification { (note: Notification<EchoNotification>) in
+    client.appendOneShotNotificationHandler { (note: Notification<EchoNotification>) in
       XCTAssertEqual(note.params.string, "hello!")
       expectation.fulfill()
     }
@@ -218,7 +218,7 @@ class ConnectionTests: XCTestCase {
     let server = connection.server
 
     let expectation = self.expectation(description: "received notification")
-    client.handleNextNotification { (note: Notification<EchoNotification>) in
+    client.appendOneShotNotificationHandler { (note: Notification<EchoNotification>) in
       expectation.fulfill()
     }
 
@@ -232,7 +232,7 @@ class ConnectionTests: XCTestCase {
     let client = connection.client
 
     let expectation = self.expectation(description: "received notification")
-    client.handleNextNotification { (note: Notification<EchoNotification>) in
+    client.appendOneShotNotificationHandler { (note: Notification<EchoNotification>) in
       expectation.fulfill()
     }
     let notification = EchoNotification(string: "about to close!")
