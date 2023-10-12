@@ -27,36 +27,34 @@ final class SwiftInterfaceTests: XCTestCase {
   /// - Note: Set before each test run in `setUp`.
   private var testClient: TestSourceKitLSPClient! = nil
 
-  override func setUp() {
+  override func setUp() async throws {
     // This is the only test that references modules from the SDK (Foundation).
     // `testSystemModuleInterface` has been flaky for a long while and a
     // hypothesis is that it was failing because of a malformed global module
     // cache that might still be present from previous CI runs. If we use a
     // local module cache, we define away that source of bugs.
     testClient = TestSourceKitLSPClient(useGlobalModuleCache: false)
-    awaitTask(description: "Initialize") {
-      _ = try await testClient.send(
-        InitializeRequest(
-          processId: nil,
-          rootPath: nil,
-          rootURI: nil,
-          initializationOptions: nil,
-          capabilities: ClientCapabilities(
-            workspace: nil,
-            textDocument: TextDocumentClientCapabilities(
-              codeAction: .init(
-                codeActionLiteralSupport: .init(
-                  codeActionKind: .init(valueSet: [.quickFix])
-                )
-              ),
-              publishDiagnostics: .init(codeDescriptionSupport: true)
-            )
-          ),
-          trace: .off,
-          workspaceFolders: nil
-        )
+    _ = try await testClient.send(
+      InitializeRequest(
+        processId: nil,
+        rootPath: nil,
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(
+          workspace: nil,
+          textDocument: TextDocumentClientCapabilities(
+            codeAction: .init(
+              codeActionLiteralSupport: .init(
+                codeActionKind: .init(valueSet: [.quickFix])
+              )
+            ),
+            publishDiagnostics: .init(codeDescriptionSupport: true)
+          )
+        ),
+        trace: .off,
+        workspaceFolders: nil
       )
-    }
+    )
   }
 
   override func tearDown() {

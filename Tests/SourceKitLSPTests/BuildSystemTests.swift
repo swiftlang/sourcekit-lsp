@@ -92,40 +92,38 @@ final class BuildSystemTests: XCTestCase {
   /// - Note: Set before each test run in `setUp`.
   private var haveClangd: Bool = false
 
-  override func setUp() {
-    awaitTask(description: "Setup complete") {
-      haveClangd = ToolchainRegistry.shared.toolchains.contains { $0.clangd != nil }
-      testClient = TestSourceKitLSPClient()
-      buildSystem = TestBuildSystem()
+  override func setUp() async throws {
+    haveClangd = ToolchainRegistry.shared.toolchains.contains { $0.clangd != nil }
+    testClient = TestSourceKitLSPClient()
+    buildSystem = TestBuildSystem()
 
-      let server = testClient.server
+    let server = testClient.server
 
-      self.workspace = await Workspace(
-        documentManager: DocumentManager(),
-        rootUri: nil,
-        capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
-        toolchainRegistry: ToolchainRegistry.shared,
-        buildSetup: SourceKitServer.Options.testDefault.buildSetup,
-        underlyingBuildSystem: buildSystem,
-        index: nil,
-        indexDelegate: nil
+    self.workspace = await Workspace(
+      documentManager: DocumentManager(),
+      rootUri: nil,
+      capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
+      toolchainRegistry: ToolchainRegistry.shared,
+      buildSetup: SourceKitServer.Options.testDefault.buildSetup,
+      underlyingBuildSystem: buildSystem,
+      index: nil,
+      indexDelegate: nil
+    )
+
+    await server.setWorkspaces([workspace])
+    await workspace.buildSystemManager.setDelegate(server)
+
+    _ = try await testClient.send(
+      InitializeRequest(
+        processId: nil,
+        rootPath: nil,
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
+        trace: .off,
+        workspaceFolders: nil
       )
-
-      await server.setWorkspaces([workspace])
-      await workspace.buildSystemManager.setDelegate(server)
-
-      _ = try await testClient.send(
-        InitializeRequest(
-          processId: nil,
-          rootPath: nil,
-          rootURI: nil,
-          initializationOptions: nil,
-          capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
-          trace: .off,
-          workspaceFolders: nil
-        )
-      )
-    }
+    )
   }
 
   override func tearDown() {

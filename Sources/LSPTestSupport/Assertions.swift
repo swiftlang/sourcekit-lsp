@@ -130,28 +130,4 @@ extension XCTestCase {
       throw ExpectationNotFulfilledError(expecatations: expectations)
     }
   }
-
-  /// Execute the given asynchronous `operation` and block execution until it
-  /// finishes.
-  ///
-  /// - Important: Only use this in context where execution of async functions
-  ///   is necessary but the context doesn't allow it, like `XCTestCase.setUp`
-  public func awaitTask(
-    description: String,
-    _ operation: () async throws -> Void,
-    file: StaticString = #filePath,
-    line: UInt = #line
-  ) {
-    let completed = self.expectation(description: description)
-    withoutActuallyEscaping(operation) { operation in
-      Task(priority: .userInitiated) {
-        await assertNoThrow<Void>(operation, "", file: file, line: line)
-        completed.fulfill()
-      }
-      let started = XCTWaiter.wait(for: [completed], timeout: defaultTimeout)
-      if started != .completed {
-        XCTFail("Task '\(description)' did not finish within timeout", file: file, line: line)
-      }
-    }
-  }
 }

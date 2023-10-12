@@ -32,24 +32,22 @@ final class PublishDiagnosticsTests: XCTestCase {
   ///   `openDocument` and `editDocument`.
   private var version: Int!
 
-  override func setUp() {
+  override func setUp() async throws {
     version = 0
     uri = DocumentURI(URL(fileURLWithPath: "/PublishDiagnosticsTests/\(UUID()).swift"))
     testClient = TestSourceKitLSPClient()
     let documentCapabilities = TextDocumentClientCapabilities()
-    awaitTask(description: "Initialized") {
-      _ = try await self.testClient.send(
-        InitializeRequest(
-          processId: nil,
-          rootPath: nil,
-          rootURI: nil,
-          initializationOptions: nil,
-          capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
-          trace: .off,
-          workspaceFolders: nil
-        )
+    _ = try await self.testClient.send(
+      InitializeRequest(
+        processId: nil,
+        rootPath: nil,
+        rootURI: nil,
+        initializationOptions: nil,
+        capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
+        trace: .off,
+        workspaceFolders: nil
       )
-    }
+    )
   }
 
   override func tearDown() {
