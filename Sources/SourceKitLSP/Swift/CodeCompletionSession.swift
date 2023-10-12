@@ -109,7 +109,7 @@ actor CodeCompletionSession {
 
     try Task.checkCancellation()
 
-    return self.server.completionsFromSKDResponse(
+    return self.completionsFromSKDResponse(
       completions,
       in: snapshot,
       completionPos: self.position,
@@ -139,7 +139,7 @@ actor CodeCompletionSession {
       return CompletionList(isIncomplete: false, items: [])
     }
 
-    return self.server.completionsFromSKDResponse(
+    return self.completionsFromSKDResponse(
       completions,
       in: snapshot,
       completionPos: self.position,
@@ -191,6 +191,144 @@ actor CodeCompletionSession {
       self.sendClose(server)
       self.state = .closed
     }
+  }
+
+  // MARK: - Helpers
+
+  private func completionsFromSKDResponse(
+    _ completions: SKDResponseArray,
+    in snapshot: DocumentSnapshot,
+    completionPos: Position,
+    requestPosition: Position,
+    isIncomplete: Bool
+  ) -> CompletionList {
+    var result = CompletionList(isIncomplete: isIncomplete, items: [])
+
+    completions.forEach { (i, value) -> Bool in
+      guard let name: String = value[server.keys.description] else {
+        return true  // continue
+      }
+
+      var filterName: String? = value[server.keys.name]
+      let insertText: String? = value[server.keys.sourcetext]
+      let typeName: String? = value[server.keys.typename]
+      let docBrief: String? = value[server.keys.doc_brief]
+
+      let completionCapabilities = server.capabilityRegistry.clientCapabilities.textDocument?.completion
+      let clientSupportsSnippets = completionCapabilities?.completionItem?.snippetSupport == true
+      let text = insertText.map {
+        rewriteSourceKitPlaceholders(inString: $0, clientSupportsSnippets: clientSupportsSnippets)
+      }
+      let isInsertTextSnippet = clientSupportsSnippets && text != insertText
+
+      let textEdit: TextEdit?
+      if let text = text {
+        let utf8CodeUnitsToErase: Int = value[server.keys.num_bytes_to_erase] ?? 0
+
+        textEdit = self.computeCompletionTextEdit(
+          completionPos: completionPos,
+          requestPosition: requestPosition,
+          utf8CodeUnitsToErase: utf8CodeUnitsToErase,
+          newText: text,
+          snapshot: snapshot
+        )
+
+        if utf8CodeUnitsToErase != 0, filterName != nil, let textEdit = textEdit {
+          // To support the case where the client is doing prefix matching on the TextEdit range,
+          // we need to prepend the deleted text to filterText.
+          // This also works around a behaviour in VS Code that causes completions to not show up
+          // if a '.' is being replaced for Optional completion.
+          let startIndex = snapshot.lineTable.stringIndexOf(
+            line: textEdit.range.lowerBound.line,
+            utf16Column: textEdit.range.lowerBound.utf16index
+          )!
+          let endIndex = snapshot.lineTable.stringIndexOf(
+            line: completionPos.line,
+            utf16Column: completionPos.utf16index
+          )!
+          let filterPrefix = snapshot.text[startIndex..<endIndex]
+          filterName = filterPrefix + filterName!
+        }
+      } else {
+        textEdit = nil
+      }
+
+      // Map SourceKit's not_recommended field to LSP's deprecated
+      let notRecommended = (value[server.keys.not_recommended] as Int?).map({ $0 != 0 })
+
+      let kind: sourcekitd_uid_t? = value[server.keys.kind]
+      result.items.append(
+        CompletionItem(
+          label: name,
+          kind: kind?.asCompletionItemKind(server.values) ?? .value,
+          detail: typeName,
+          documentation: docBrief != nil ? .markupContent(MarkupContent(kind: .markdown, value: docBrief!)) : nil,
+          deprecated: notRecommended ?? false,
+          sortText: nil,
+          filterText: filterName,
+          insertText: text,
+          insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
+          textEdit: textEdit.map(CompletionItemEdit.textEdit)
+        )
+      )
+
+      return true
+    }
+
+    return result
+  }
+
+  private func computeCompletionTextEdit(
+    completionPos: Position,
+    requestPosition: Position,
+    utf8CodeUnitsToErase: Int,
+    newText: String,
+    snapshot: DocumentSnapshot
+  ) -> TextEdit {
+    let textEditRangeStart: Position
+
+    // Compute the TextEdit
+    if utf8CodeUnitsToErase == 0 {
+      // Nothing to delete. Fast path and avoid UTF-8/UTF-16 conversions
+      textEditRangeStart = completionPos
+    } else if utf8CodeUnitsToErase == 1 {
+      // Fast path: Erasing a single UTF-8 byte code unit means we are also need to erase exactly one UTF-16 code unit, meaning we don't need to process the file contents
+      if completionPos.utf16index >= 1 {
+        // We can delete the character.
+        textEditRangeStart = Position(line: completionPos.line, utf16index: completionPos.utf16index - 1)
+      } else {
+        // Deleting the character would cross line boundaries. This is not supported by LSP.
+        // Fall back to ignoring utf8CodeUnitsToErase.
+        // If we discover that multi-lines replacements are often needed, we can add an LSP extension to support multi-line edits.
+        textEditRangeStart = completionPos
+      }
+    } else {
+      // We need to delete more than one text character. Do the UTF-8/UTF-16 dance.
+      assert(completionPos.line == requestPosition.line)
+      // Construct a string index for the edit range start by subtracting the UTF-8 code units to erase from the completion position.
+      let line = snapshot.lineTable[completionPos.line]
+      let completionPosStringIndex = snapshot.lineTable.stringIndexOf(
+        line: completionPos.line,
+        utf16Column: completionPos.utf16index
+      )!
+      let deletionStartStringIndex = line.utf8.index(completionPosStringIndex, offsetBy: -utf8CodeUnitsToErase)
+
+      // Compute the UTF-16 offset of the deletion start range. If the start lies in a previous line, this will be negative
+      let deletionStartUtf16Offset = line.utf16.distance(from: line.startIndex, to: deletionStartStringIndex)
+
+      // Check if we are only deleting on one line. LSP does not support deleting over multiple lines.
+      if deletionStartUtf16Offset >= 0 {
+        // We are only deleting characters on the same line. Construct the corresponding text edit.
+        textEditRangeStart = Position(line: completionPos.line, utf16index: deletionStartUtf16Offset)
+      } else {
+        // Deleting the character would cross line boundaries. This is not supported by LSP.
+        // Fall back to ignoring utf8CodeUnitsToErase.
+        // If we discover that multi-lines replacements are often needed, we can add an LSP extension to support multi-line edits.
+        textEditRangeStart = completionPos
+      }
+    }
+
+    return TextEdit(range: textEditRangeStart..<requestPosition, newText: newText)
   }
 }
 

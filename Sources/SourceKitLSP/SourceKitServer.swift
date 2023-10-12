@@ -758,9 +758,6 @@ extension SourceKitServer {
         self.options.indexOptions.listenToUnitEvents = listenToUnitEvents
       }
       if case .dictionary(let completionOptions) = options["completion"] {
-        if case .bool(let serverSideFiltering) = completionOptions["serverSideFiltering"] {
-          self.options.completionOptions.serverSideFiltering = serverSideFiltering
-        }
         switch completionOptions["maxResults"] {
         case .none:
           break
