@@ -80,14 +80,17 @@ extension SwiftLanguageServer {
       }
       session = currentSession
     } else {
+      let clientSupportsSnippets = capabilityRegistry.clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport ?? false
+
       // FIXME: even if trigger kind is not from incomplete, we could to detect a compatible
       // location if we also check that the rest of the snapshot has not changed.
       session = CodeCompletionSession(
-        server: self,
+        sourcekitd: sourcekitd,
         snapshot: snapshot,
         utf8Offset: offset,
         position: completionPos,
-        compileCommand: await buildSettings(for: snapshot.uri)
+        compileCommand: await buildSettings(for: snapshot.uri),
+        clientSupportsSnippets: clientSupportsSnippets
       )
 
       await currentCompletionSession?.close()

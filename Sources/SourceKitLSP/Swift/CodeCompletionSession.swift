@@ -26,11 +26,12 @@ import SourceKitD
 /// At the sourcekitd level, this uses `codecomplete.open`, `codecomplete.update` and
 /// `codecomplete.close` requests.
 actor CodeCompletionSession {
-  private unowned let server: SwiftLanguageServer
+  private let sourcekitd: any SourceKitD
   private let snapshot: DocumentSnapshot
   let utf8StartOffset: Int
   private let position: Position
   private let compileCommand: SwiftCompileCommand?
+  private let clientSupportsSnippets: Bool
   private var state: State = .closed
 
   private enum State {
@@ -39,19 +40,22 @@ actor CodeCompletionSession {
   }
 
   nonisolated var uri: DocumentURI { snapshot.uri }
+  nonisolated var keys: sourcekitd_keys { return sourcekitd.keys }
 
   init(
-    server: SwiftLanguageServer,
+    sourcekitd: any SourceKitD,
     snapshot: DocumentSnapshot,
     utf8Offset: Int,
     position: Position,
-    compileCommand: SwiftCompileCommand?
+    compileCommand: SwiftCompileCommand?,
+    clientSupportsSnippets: Bool
   ) {
-    self.server = server
+    self.sourcekitd = sourcekitd
     self.snapshot = snapshot
     self.utf8StartOffset = utf8Offset
     self.position = position
     self.compileCommand = compileCommand
+    self.clientSupportsSnippets = clientSupportsSnippets
   }
 
   /// Retrieve completions for the given `filterText`, opening or updating the session.
@@ -89,9 +93,8 @@ actor CodeCompletionSession {
       throw ResponseError(code: .invalidRequest, message: "open must use the original snapshot")
     }
 
-    let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
-    let keys = server.sourcekitd.keys
-    req[keys.request] = server.sourcekitd.requests.codecomplete_open
+    let req = SKDRequestDictionary(sourcekitd: sourcekitd)
+    req[keys.request] = sourcekitd.requests.codecomplete_open
     req[keys.offset] = utf8StartOffset
     req[keys.name] = uri.pseudoPath
     req[keys.sourcefile] = uri.pseudoPath
@@ -101,7 +104,7 @@ actor CodeCompletionSession {
       req[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let dict = try await server.sourcekitd.send(req)
+    let dict = try await sourcekitd.send(req)
 
     guard let completions: SKDResponseArray = dict[keys.results] else {
       return CompletionList(isIncomplete: false, items: [])
@@ -127,14 +130,13 @@ actor CodeCompletionSession {
     // FIXME: Assertion for prefix of snapshot matching what we started with.
 
     logger.info("Updating code completion session: \(self, privacy: .private) filter=\(filterText)")
-    let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
-    let keys = server.sourcekitd.keys
-    req[keys.request] = server.sourcekitd.requests.codecomplete_update
+    let req = SKDRequestDictionary(sourcekitd: sourcekitd)
+    req[keys.request] = sourcekitd.requests.codecomplete_update
     req[keys.offset] = utf8StartOffset
     req[keys.name] = uri.pseudoPath
     req[keys.codecomplete_options] = optionsDictionary(filterText: filterText, options: options)
 
-    let dict = try await server.sourcekitd.send(req)
+    let dict = try await sourcekitd.send(req)
     guard let completions: SKDResponseArray = dict[keys.results] else {
       return CompletionList(isIncomplete: false, items: [])
     }
@@ -152,8 +154,7 @@ actor CodeCompletionSession {
     filterText: String,
     options: SKCompletionOptions
   ) -> SKDRequestDictionary {
-    let dict = SKDRequestDictionary(sourcekitd: server.sourcekitd)
-    let keys = server.sourcekitd.keys
+    let dict = SKDRequestDictionary(sourcekitd: sourcekitd)
     // Sorting and priority options.
     dict[keys.codecomplete_hideunderscores] = 0
     dict[keys.codecomplete_hidelowpriority] = 0
@@ -169,26 +170,22 @@ actor CodeCompletionSession {
     return dict
   }
 
-  private func sendClose(_ server: SwiftLanguageServer) {
-    let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
-    let keys = server.sourcekitd.keys
-    req[keys.request] = server.sourcekitd.requests.codecomplete_close
+  private func sendClose() {
+    let req = SKDRequestDictionary(sourcekitd: sourcekitd)
+    req[keys.request] = sourcekitd.requests.codecomplete_close
     req[keys.offset] = self.utf8StartOffset
     req[keys.name] = self.snapshot.uri.pseudoPath
     logger.info("Closing code completion session: \(self, privacy: .private)")
-    _ = try? server.sourcekitd.sendSync(req)
+    _ = try? sourcekitd.sendSync(req)
   }
 
   func close() async {
-    // Temporary back-reference to server to keep it alive during close().
-    let server = self.server
-
     switch self.state {
     case .closed:
       // Already closed, nothing to do.
       break
     case .open:
-      self.sendClose(server)
+      self.sendClose()
       self.state = .closed
     }
   }
@@ -204,18 +201,16 @@ actor CodeCompletionSession {
   ) -> CompletionList {
     var result = CompletionList(isIncomplete: isIncomplete, items: [])
 
-    completions.forEach { (i, value) -> Bool in
-      guard let name: String = value[server.keys.description] else {
+    completions.forEach { (i: Int, value: SKDResponseDictionary) -> Bool in
+      guard let name: String = value[keys.description] else {
         return true  // continue
       }
 
-      var filterName: String? = value[server.keys.name]
-      let insertText: String? = value[server.keys.sourcetext]
-      let typeName: String? = value[server.keys.typename]
-      let docBrief: String? = value[server.keys.doc_brief]
+      var filterName: String? = value[keys.name]
+      let insertText: String? = value[keys.sourcetext]
+      let typeName: String? = value[sourcekitd.keys.typename]
+      let docBrief: String? = value[sourcekitd.keys.doc_brief]
 
-      let completionCapabilities = server.capabilityRegistry.clientCapabilities.textDocument?.completion
-      let clientSupportsSnippets = completionCapabilities?.completionItem?.snippetSupport == true
       let text = insertText.map {
         rewriteSourceKitPlaceholders(inString: $0, clientSupportsSnippets: clientSupportsSnippets)
       }
@@ -223,7 +218,7 @@ actor CodeCompletionSession {
 
       let textEdit: TextEdit?
       if let text = text {
-        let utf8CodeUnitsToErase: Int = value[server.keys.num_bytes_to_erase] ?? 0
+        let utf8CodeUnitsToErase: Int = value[sourcekitd.keys.num_bytes_to_erase] ?? 0
 
         textEdit = self.computeCompletionTextEdit(
           completionPos: completionPos,
@@ -254,13 +249,13 @@ actor CodeCompletionSession {
       }
 
       // Map SourceKit's not_recommended field to LSP's deprecated
-      let notRecommended = (value[server.keys.not_recommended] as Int?).map({ $0 != 0 })
+      let notRecommended = (value[sourcekitd.keys.not_recommended] as Int?).map({ $0 != 0 })
 
-      let kind: sourcekitd_uid_t? = value[server.keys.kind]
+      let kind: sourcekitd_uid_t? = value[sourcekitd.keys.kind]
       result.items.append(
         CompletionItem(
           label: name,
-          kind: kind?.asCompletionItemKind(server.values) ?? .value,
+          kind: kind?.asCompletionItemKind(sourcekitd.values) ?? .value,
           detail: typeName,
           documentation: docBrief != nil ? .markupContent(MarkupContent(kind: .markdown, value: docBrief!)) : nil,
           deprecated: notRecommended ?? false,
