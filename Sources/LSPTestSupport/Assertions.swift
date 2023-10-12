@@ -12,7 +12,7 @@
 
 import XCTest
 
-/// Same as `assertNoThrow` but executes the trailing closure.
+/// Same as `XCTAssertNoThrow` but executes the trailing closure.
 public func assertNoThrow<T>(
   _ expression: () throws -> T,
   _ message: @autoclosure () -> String = "",
@@ -20,6 +20,20 @@ public func assertNoThrow<T>(
   line: UInt = #line
 ) {
   XCTAssertNoThrow(try expression(), message(), file: file, line: line)
+}
+
+/// Same as `assertNoThrow` but allows the closure to be `async`.
+public func assertNoThrow<T>(
+  _ expression: () async throws -> T,
+  _ message: @autoclosure () -> String = "",
+  file: StaticString = #filePath,
+  line: UInt = #line
+) async {
+  do {
+    _ = try await expression()
+  } catch {
+    XCTFail("Expression was not expected to throw but threw \(error)", file: file, line: line)
+  }
 }
 
 /// Same as `XCTAssertThrows` but executes the trailing closure.
@@ -77,6 +91,17 @@ public func assertNotNil<T: Equatable>(
   XCTAssertNotNil(expression, message(), file: file, line: line)
 }
 
+/// Same as `XCTUnwrap` but doesn't take autoclosures and thus `expression`
+/// can contain `await`.
+public func unwrap<T>(
+  _ expression: T?,
+  _ message: @autoclosure () -> String = "",
+  file: StaticString = #filePath,
+  line: UInt = #line
+) throws -> T {
+  return try XCTUnwrap(expression, file: file, line: line)
+}
+
 extension XCTestCase {
   private struct ExpectationNotFulfilledError: Error, CustomStringConvertible {
     var expecatations: [XCTestExpectation]
@@ -103,6 +128,30 @@ extension XCTestCase {
     let started = XCTWaiter.wait(for: expectations, timeout: timeout, enforceOrder: enforceOrderOfFulfillment)
     if started != .completed {
       throw ExpectationNotFulfilledError(expecatations: expectations)
+    }
+  }
+
+  /// Execute the given asynchronous `operation` and block execution until it
+  /// finishes.
+  ///
+  /// - Important: Only use this in context where execution of async functions
+  ///   is necessary but the context doesn't allow it, like `XCTestCase.setUp`
+  public func awaitTask(
+    description: String,
+    _ operation: () async throws -> Void,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) {
+    let completed = self.expectation(description: description)
+    withoutActuallyEscaping(operation) { operation in
+      Task(priority: .userInitiated) {
+        await assertNoThrow<Void>(operation, "", file: file, line: line)
+        completed.fulfill()
+      }
+      let started = XCTWaiter.wait(for: [completed], timeout: defaultTimeout)
+      if started != .completed {
+        XCTFail("Task '\(description)' did not finish within timeout", file: file, line: line)
+      }
     }
   }
 }

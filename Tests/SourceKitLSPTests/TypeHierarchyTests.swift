@@ -24,30 +24,30 @@ final class TypeHierarchyTests: XCTestCase {
 
     // Requests
 
-    func typeHierarchy(at testLoc: TestLocation) throws -> [TypeHierarchyItem] {
+    func typeHierarchy(at testLoc: TestLocation) async throws -> [TypeHierarchyItem] {
       let textDocument = testLoc.docIdentifier
       let request = TypeHierarchyPrepareRequest(textDocument: textDocument, position: Position(testLoc))
-      let items = try ws.sk.sendSync(request)
+      let items = try await ws.testServer.send(request)
       return items ?? []
     }
 
-    func supertypes(at testLoc: TestLocation) throws -> [TypeHierarchyItem] {
-      guard let item = try typeHierarchy(at: testLoc).first else {
+    func supertypes(at testLoc: TestLocation) async throws -> [TypeHierarchyItem] {
+      guard let item = try await typeHierarchy(at: testLoc).first else {
         XCTFail("Type hierarchy at \(testLoc) was empty")
         return []
       }
       let request = TypeHierarchySupertypesRequest(item: item)
-      let types = try ws.sk.sendSync(request)
+      let types = try await ws.testServer.send(request)
       return types ?? []
     }
 
-    func subtypes(at testLoc: TestLocation) throws -> [TypeHierarchyItem] {
-      guard let item = try typeHierarchy(at: testLoc).first else {
+    func subtypes(at testLoc: TestLocation) async throws -> [TypeHierarchyItem] {
+      guard let item = try await typeHierarchy(at: testLoc).first else {
         XCTFail("Type hierarchy at \(testLoc) was empty")
         return []
       }
       let request = TypeHierarchySubtypesRequest(item: item)
-      let types = try ws.sk.sendSync(request)
+      let types = try await ws.testServer.send(request)
       return types ?? []
     }
 
@@ -105,25 +105,25 @@ final class TypeHierarchyTests: XCTestCase {
     // Test type hierarchy preparation
 
     assertEqualIgnoringData(
-      try typeHierarchy(at: testLoc("P")),
+      try await typeHierarchy(at: testLoc("P")),
       [
         try item("P", .interface, at: "P")
       ]
     )
     assertEqualIgnoringData(
-      try typeHierarchy(at: testLoc("A")),
+      try await typeHierarchy(at: testLoc("A")),
       [
         try item("A", .class, at: "A")
       ]
     )
     assertEqualIgnoringData(
-      try typeHierarchy(at: testLoc("S")),
+      try await typeHierarchy(at: testLoc("S")),
       [
         try item("S", .struct, at: "S")
       ]
     )
     assertEqualIgnoringData(
-      try typeHierarchy(at: testLoc("E")),
+      try await typeHierarchy(at: testLoc("E")),
       [
         try item("E", .enum, at: "E")
       ]
@@ -131,35 +131,35 @@ final class TypeHierarchyTests: XCTestCase {
 
     // Test supertype hierarchy
 
-    assertEqualIgnoringData(try supertypes(at: testLoc("A")), [])
+    assertEqualIgnoringData(try await supertypes(at: testLoc("A")), [])
     assertEqualIgnoringData(
-      try supertypes(at: testLoc("B")),
+      try await supertypes(at: testLoc("B")),
       [
         try item("A", .class, at: "A"),
         try item("P", .interface, at: "P"),
       ]
     )
     assertEqualIgnoringData(
-      try supertypes(at: testLoc("C")),
+      try await supertypes(at: testLoc("C")),
       [
         try item("B", .class, at: "B")
       ]
     )
     assertEqualIgnoringData(
-      try supertypes(at: testLoc("D")),
+      try await supertypes(at: testLoc("D")),
       [
         try item("A", .class, at: "A")
       ]
     )
     assertEqualIgnoringData(
-      try supertypes(at: testLoc("S")),
+      try await supertypes(at: testLoc("S")),
       [
         try item("P", .interface, at: "P"),
         try item("X", .interface, at: "X"),  // Retroactive conformance
       ]
     )
     assertEqualIgnoringData(
-      try supertypes(at: testLoc("E")),
+      try await supertypes(at: testLoc("E")),
       [
         try item("P", .interface, at: "P"),
         try item("Y", .interface, at: "Y"),  // Retroactive conformance
@@ -170,20 +170,20 @@ final class TypeHierarchyTests: XCTestCase {
     // Test subtype hierarchy (includes extensions)
 
     assertEqualIgnoringData(
-      try subtypes(at: testLoc("A")),
+      try await subtypes(at: testLoc("A")),
       [
         try item("B", .class, at: "B"),
         try item("D", .class, at: "D"),
       ]
     )
     assertEqualIgnoringData(
-      try subtypes(at: testLoc("B")),
+      try await subtypes(at: testLoc("B")),
       [
         try item("C", .class, at: "C")
       ]
     )
     assertEqualIgnoringData(
-      try subtypes(at: testLoc("P")),
+      try await subtypes(at: testLoc("P")),
       [
         try item("B", .class, at: "B"),
         try item("S", .struct, at: "S"),
@@ -191,32 +191,32 @@ final class TypeHierarchyTests: XCTestCase {
       ]
     )
     assertEqualIgnoringData(
-      try subtypes(at: testLoc("E")),
+      try await subtypes(at: testLoc("E")),
       [
         try item("E: Y, Z", .null, detail: "Extension at a.swift:19", at: "extE:Y,Z")
       ]
     )
     assertEqualIgnoringData(
-      try subtypes(at: testLoc("S")),
+      try await subtypes(at: testLoc("S")),
       [
         try item("S: X", .null, detail: "Extension at a.swift:15", at: "extS:X"),
         try item("S", .null, detail: "Extension at a.swift:16", at: "extS"),
       ]
     )
     assertEqualIgnoringData(
-      try subtypes(at: testLoc("X")),
+      try await subtypes(at: testLoc("X")),
       [
         try item("S: X", .null, detail: "Extension at a.swift:15", at: "extS:X")
       ]
     )
     assertEqualIgnoringData(
-      try subtypes(at: testLoc("Y")),
+      try await subtypes(at: testLoc("Y")),
       [
         try item("E: Y, Z", .null, detail: "Extension at a.swift:19", at: "extE:Y,Z")
       ]
     )
     assertEqualIgnoringData(
-      try subtypes(at: testLoc("Z")),
+      try await subtypes(at: testLoc("Z")),
       [
         try item("E: Y, Z", .null, detail: "Extension at a.swift:19", at: "extE:Y,Z")
       ]
@@ -229,9 +229,9 @@ final class TypeHierarchyTests: XCTestCase {
         let declLoc = testLoc(name)
         let occurLoc = testLoc(occurrence + name)
 
-        try assertEqualIgnoringData(typeHierarchy(at: occurLoc), typeHierarchy(at: declLoc))
-        try assertEqualIgnoringData(supertypes(at: occurLoc), supertypes(at: declLoc))
-        try assertEqualIgnoringData(subtypes(at: occurLoc), subtypes(at: declLoc))
+        try assertEqualIgnoringData(await typeHierarchy(at: occurLoc), await typeHierarchy(at: declLoc))
+        try assertEqualIgnoringData(await supertypes(at: occurLoc), await supertypes(at: declLoc))
+        try assertEqualIgnoringData(await subtypes(at: occurLoc), await subtypes(at: declLoc))
       }
     }
   }

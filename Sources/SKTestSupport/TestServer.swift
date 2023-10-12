@@ -17,26 +17,15 @@ import LanguageServerProtocolJSONRPC
 import SKCore
 import SKSupport
 import SourceKitLSP
+import XCTest
 
-public final class TestSourceKitServer {
-  public enum ConnectionKind {
-    case local, jsonrpc
-  }
-
-  enum ConnectionImpl {
-    case local(
-      clientConnection: LocalConnection,
-      serverConnection: LocalConnection
-    )
-    case jsonrpc(
-      clientToServer: Pipe,
-      serverToClient: Pipe,
-      clientConnection: JSONRPCConnection,
-      serverConnection: JSONRPCConnection
-    )
-  }
+public final class TestSourceKitServer: MessageHandler {
+  public typealias RequestHandler<Request: RequestType> = (Request) -> Request.Response
 
   public static let serverOptions: SourceKitServer.Options = SourceKitServer.Options()
+
+  /// The ID that should be assigned to the next request sent to the `server`.
+  private var nextRequestID: Int = 0
 
   /// If the server is not using the global module cache, the path of the local
   /// module cache.
@@ -44,18 +33,28 @@ public final class TestSourceKitServer {
   /// This module cache will be deleted when the test server is destroyed.
   private let moduleCache: URL?
 
-  public let client: TestClient
-  let connImpl: ConnectionImpl
+  /// The server that handles the requests.
+  public let server: SourceKitServer
 
-  public var hasShutdown: Bool = false
+  /// The connection via which the server sends requests and notifications to us.
+  private let clientConnection: LocalConnection
 
-  /// The server, if it is in the same process.
-  public let server: SourceKitServer?
+  /// Stream of the notifications that the server has sent to the client.
+  private let notifications: AsyncStream<any NotificationType>
+
+  /// Continuation to add a new notification from the ``server`` to the `notifications` stream.
+  private let notificationYielder: AsyncStream<any NotificationType>.Continuation
+
+  /// The request handlers that have been set by `handleNextRequest`.
+  ///
+  /// Conceptually, this is an array of `RequestHandler<any RequestType>` but
+  /// since we can't express this in the Swift type system, we use `[Any]`.
+  private var requestHandlers: [Any] = []
 
   /// - Parameters:
   ///   - useGlobalModuleCache: If `false`, the server will use its own module
   ///     cache in an empty temporary directory instead of the global module cache.
-  public init(connectionKind: ConnectionKind = .local, useGlobalModuleCache: Bool = true) {
+  public init(useGlobalModuleCache: Bool = true) {
     if !useGlobalModuleCache {
       moduleCache = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
     } else {
@@ -66,81 +65,173 @@ public final class TestSourceKitServer {
       serverOptions.buildSetup.flags.swiftCompilerFlags += ["-module-cache-path", moduleCache.path]
     }
 
-    switch connectionKind {
-    case .local:
-      let clientConnection = LocalConnection()
-      let serverConnection = LocalConnection()
-      client = TestClient(server: serverConnection)
-      server = SourceKitServer(
-        client: clientConnection,
-        options: serverOptions,
-        onExit: {
-          clientConnection.close()
-        }
-      )
-
-      clientConnection.start(handler: client)
-      serverConnection.start(handler: server!)
-
-      connImpl = .local(clientConnection: clientConnection, serverConnection: serverConnection)
-
-    case .jsonrpc:
-      let clientToServer: Pipe = Pipe()
-      let serverToClient: Pipe = Pipe()
-
-      let clientConnection = JSONRPCConnection(
-        protocol: MessageRegistry.lspProtocol,
-        inFD: serverToClient.fileHandleForReading,
-        outFD: clientToServer.fileHandleForWriting
-      )
-      let serverConnection = JSONRPCConnection(
-        protocol: MessageRegistry.lspProtocol,
-        inFD: clientToServer.fileHandleForReading,
-        outFD: serverToClient.fileHandleForWriting
-      )
-
-      client = TestClient(server: clientConnection)
-      server = SourceKitServer(
-        client: serverConnection,
-        options: serverOptions,
-        onExit: {
-          serverConnection.close()
-        }
-      )
-
-      clientConnection.start(receiveHandler: client) {
-        // FIXME: keep the pipes alive until we close the connection. This
-        // should be fixed systemically.
-        withExtendedLifetime((clientToServer, serverToClient)) {}
-      }
-      serverConnection.start(receiveHandler: server!) {
-        // FIXME: keep the pipes alive until we close the connection. This
-        // should be fixed systemically.
-        withExtendedLifetime((clientToServer, serverToClient)) {}
-      }
-
-      connImpl = .jsonrpc(
-        clientToServer: clientToServer,
-        serverToClient: serverToClient,
-        clientConnection: clientConnection,
-        serverConnection: serverConnection
-      )
+    var notificationYielder: AsyncStream<any NotificationType>.Continuation!
+    self.notifications = AsyncStream { continuation in
+      notificationYielder = continuation
     }
+    self.notificationYielder = notificationYielder
+
+    let clientConnection = LocalConnection()
+    self.clientConnection = clientConnection
+    server = SourceKitServer(
+      client: clientConnection,
+      options: serverOptions,
+      onExit: {
+        clientConnection.close()
+      }
+    )
+
+    self.clientConnection.start(handler: WeakMessageHandler(self))
   }
 
   deinit {
-    close()
+    // It's really unfortunate that there are no async deinits. If we had async
+    // deinits, we could await the sending of a ShutdownRequest.
+    let sema = DispatchSemaphore(value: 0)
+    nextRequestID += 1
+    server.handle(ShutdownRequest(), id: .number(nextRequestID), from: ObjectIdentifier(self)) { result in
+      sema.signal()
+    }
+    sema.wait()
+    self.send(ExitNotification())
 
     if let moduleCache {
       try? FileManager.default.removeItem(at: moduleCache)
     }
   }
 
-  func close() {
-    if !hasShutdown {
-      hasShutdown = true
-      _ = try! self.client.sendSync(ShutdownRequest())
-      self.client.send(ExitNotification())
+  // MARK: - Sending messages
+
+  /// Send the request to `server` and return the request result.
+  public func send<R: RequestType>(_ request: R) async throws -> R.Response {
+    nextRequestID += 1
+    return try await withCheckedThrowingContinuation { continuation in
+      server.handle(request, id: .number(self.nextRequestID), from: ObjectIdentifier(self)) { result in
+        continuation.resume(with: result)
+      }
     }
+  }
+
+  /// Send the notification to `server`.
+  public func send(_ notification: some NotificationType) {
+    server.handle(notification, from: ObjectIdentifier(self))
+  }
+
+  // MARK: - Handling messages sent to the editor
+
+  /// Await the next notification that is sent to the client.
+  ///
+  /// - Note: This also returns any notifications sent before the call to
+  ///   `nextNotification`.
+  public func nextNotification(timeout: TimeInterval = defaultTimeout) async throws -> any NotificationType {
+    struct TimeoutError: Error, CustomStringConvertible {
+      var description: String = "Failed to receive next notification within timeout"
+    }
+
+    return try await withThrowingTaskGroup(of: (any NotificationType).self) { taskGroup in
+      taskGroup.addTask {
+        for await notification in self.notifications {
+          return notification
+        }
+        throw TimeoutError()
+      }
+      taskGroup.addTask {
+        try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+        throw TimeoutError()
+      }
+      let result = try await taskGroup.next()!
+      taskGroup.cancelAll()
+      return result
+    }
+  }
+
+  /// Await the next diagnostic notification sent to the client.
+  ///
+  /// If the next notification is not a `PublishDiagnosticsNotification`, this
+  /// methods throws.
+  public func nextDiagnosticsNotification() async throws -> PublishDiagnosticsNotification {
+    struct CastError: Error, CustomStringConvertible {
+      let actualType: any NotificationType.Type
+
+      var description: String { "Expected a publish diagnostics notification but got '\(actualType)'" }
+    }
+
+    let nextNotification = try await nextNotification()
+    guard let diagnostics = nextNotification as? PublishDiagnosticsNotification else {
+      throw CastError(actualType: type(of: nextNotification))
+    }
+    return diagnostics
+  }
+
+  /// Handle the next request that is sent to the client with the given handler.
+  ///
+  /// By default, `TestSourceKitServer` emits an `XCTFail` if a request is sent
+  /// to the client, since it doesn't know how to handle it. This allows the
+  /// simulation of a single request's handling on the client.
+  ///
+  /// If the next request that is sent to the client is of a different kind than
+  /// the given handler, `TestSourceKitServer` will emit an `XCTFail`.
+  public func handleNextRequest<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
+    requestHandlers.append(requestHandler)
+  }
+
+  // MARK: - Conformance to MessageHandler
+
+  /// - Important: Implementation detail of `TestSourceKitServer`. Do not call
+  ///   from tests.
+  public func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+    notificationYielder.yield(params)
+  }
+
+  /// - Important: Implementation detail of `TestSourceKitServer`. Do not call
+  ///   from tests.
+  public func handle<Request: RequestType>(
+    _ params: Request,
+    id: LanguageServerProtocol.RequestID,
+    from clientID: ObjectIdentifier,
+    reply: @escaping (LSPResult<Request.Response>) -> Void
+  ) {
+    guard let requestHandler = requestHandlers.first else {
+      XCTFail("Received unexpected request \(Request.method)")
+      reply(.failure(.methodNotFound(Request.method)))
+      return
+    }
+    guard let requestHandler = requestHandler as? RequestHandler<Request> else {
+      print("\(RequestHandler<Request>.self)")
+      XCTFail("Received request of unexpected type \(Request.method)")
+      reply(.failure(.methodNotFound(Request.method)))
+      return
+    }
+    reply(.success(requestHandler(params)))
+    requestHandlers.removeFirst()
+  }
+}
+
+/// Wrapper around a weak `MessageHandler`.
+///
+/// This allows us to set the ``TestSourceKitServer`` as the message handler of
+/// `SourceKitServer` without retaining it.
+private class WeakMessageHandler: MessageHandler {
+  private weak var handler: (any MessageHandler)?
+
+  init(_ handler: any MessageHandler) {
+    self.handler = handler
+  }
+
+  func handle(_ params: some LanguageServerProtocol.NotificationType, from clientID: ObjectIdentifier) {
+    handler?.handle(params, from: clientID)
+  }
+
+  func handle<Request: RequestType>(
+    _ params: Request,
+    id: LanguageServerProtocol.RequestID,
+    from clientID: ObjectIdentifier,
+    reply: @escaping (LanguageServerProtocol.LSPResult<Request.Response>) -> Void
+  ) {
+    guard let handler = handler else {
+      reply(.failure(.unknown("Handler has been deallocated")))
+      return
+    }
+    handler.handle(params, id: id, from: clientID, reply: reply)
   }
 }

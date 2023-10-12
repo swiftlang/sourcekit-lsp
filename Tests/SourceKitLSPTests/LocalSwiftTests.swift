@@ -27,49 +27,44 @@ final class LocalSwiftTests: XCTestCase {
   /// Connection and lifetime management for the service.
   var connection: TestSourceKitServer! = nil
 
-  /// The primary interface to make requests to the SourceKitServer.
-  var sk: TestClient! = nil
-
   override func setUp() {
     connection = TestSourceKitServer()
-    sk = connection.client
-    _ = try! sk.sendSync(
-      InitializeRequest(
-        processId: nil,
-        rootPath: nil,
-        rootURI: nil,
-        initializationOptions: nil,
-        capabilities: ClientCapabilities(
-          workspace: nil,
-          textDocument: TextDocumentClientCapabilities(
-            codeAction: .init(
-              codeActionLiteralSupport: .init(
-                codeActionKind: .init(valueSet: [.quickFix])
-              )
-            ),
-            publishDiagnostics: .init(codeDescriptionSupport: true)
-          )
-        ),
-        trace: .off,
-        workspaceFolders: nil
+    self.awaitTask(description: "Initialized") {
+      _ = try await self.connection.send(
+        InitializeRequest(
+          processId: nil,
+          rootPath: nil,
+          rootURI: nil,
+          initializationOptions: nil,
+          capabilities: ClientCapabilities(
+            workspace: nil,
+            textDocument: TextDocumentClientCapabilities(
+              codeAction: .init(
+                codeActionLiteralSupport: .init(
+                  codeActionKind: .init(valueSet: [.quickFix])
+                )
+              ),
+              publishDiagnostics: .init(codeDescriptionSupport: true)
+            )
+          ),
+          trace: .off,
+          workspaceFolders: nil
+        )
       )
-    )
+    }
   }
 
   override func tearDown() {
-    sk = nil
     connection = nil
   }
 
-  func testEditing() async {
+  func testEditing() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    sk.allowUnexpectedNotification = false
+    let documentManager = await connection.server._documentManager
 
-    let documentManager = await connection.server!._documentManager
-
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -79,139 +74,121 @@ final class LocalSwiftTests: XCTestCase {
             func
             """
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-        XCTAssertEqual(note.params.version, 12)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.version, 12)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          note.params.diagnostics.first?.range.lowerBound,
-          Position(line: 0, utf16index: 4)
-        )
-      }
+      )
+    )
+    let syntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(syntacticDiags.version, 12)
+    XCTAssertEqual(syntacticDiags.diagnostics.count, 1)
+    XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
+    let semanticOpenDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(semanticOpenDiags.version, 12)
+    XCTAssertEqual(semanticOpenDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      semanticOpenDiags.diagnostics.first?.range.lowerBound,
+      Position(line: 0, utf16index: 4)
     )
 
-    sk.sendNoteSync(
+    connection.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 13),
         contentChanges: [
           .init(range: Range(Position(line: 0, utf16index: 4)), text: " foo() {}\n")
         ]
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 1 - syntactic")
-        // 1 = remaining semantic error
-        // 0 = semantic update finished already
-        XCTAssertEqual(note.params.version, 13)
-        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 1 - semantic")
-        XCTAssertEqual(note.params.version, 13)
-        XCTAssertEqual(note.params.diagnostics.count, 0)
-      }
+      )
     )
+    let edit1SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    // 1 = remaining semantic error
+    XCTAssertEqual(edit1SyntacticDiags.version, 13)
+    XCTAssertLessThanOrEqual(edit1SyntacticDiags.diagnostics.count, 1)
+    XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
 
-    sk.sendNoteSync(
+    let edit1SemanticDiags = try await connection.nextDiagnosticsNotification()
+    // 0 = semantic update finished already
+    XCTAssertEqual(edit1SemanticDiags.version, 13)
+    XCTAssertEqual(edit1SemanticDiags.diagnostics.count, 0)
+
+    connection.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 14),
         contentChanges: [
           .init(range: Range(Position(line: 1, utf16index: 0)), text: "bar()")
         ]
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 2 - syntactic")
-        XCTAssertEqual(note.params.version, 14)
-        // 1 = semantic update finished already
-        // 0 = only syntactic
-        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          """
-          func foo() {}
-          bar()
-          """,
-          documentManager.latestSnapshot(uri)!.text
-        )
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 2 - semantic")
-        XCTAssertEqual(note.params.version, 14)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          note.params.diagnostics.first?.range.lowerBound,
-          Position(line: 1, utf16index: 0)
-        )
-      }
+      )
+    )
+    let edit2SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(edit2SyntacticDiags.version, 14)
+    // 0 = only syntactic
+    XCTAssertLessThanOrEqual(edit2SyntacticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      """
+      func foo() {}
+      bar()
+      """,
+      documentManager.latestSnapshot(uri)!.text
+    )
+    let edit2SemanticDiags = try await connection.nextDiagnosticsNotification()
+    // 1 = semantic update finished already
+    XCTAssertEqual(edit2SemanticDiags.version, 14)
+    XCTAssertEqual(edit2SemanticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      edit2SemanticDiags.diagnostics.first?.range.lowerBound,
+      Position(line: 1, utf16index: 0)
     )
 
-    sk.sendNoteSync(
+    connection.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 14),
         contentChanges: [
           .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "foo")
         ]
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 3 - syntactic")
-        // 1 = remaining semantic error
-        // 0 = semantic update finished already
-        XCTAssertEqual(note.params.version, 14)
-        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          """
-          func foo() {}
-          foo()
-          """,
-          documentManager.latestSnapshot(uri)!.text
-        )
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 3 - semantic")
-        XCTAssertEqual(note.params.version, 14)
-        XCTAssertEqual(note.params.diagnostics.count, 0)
-      }
+      )
+    )
+    let edit3SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    // 1 = remaining semantic error
+    XCTAssertEqual(edit3SyntacticDiags.version, 14)
+    XCTAssertLessThanOrEqual(edit3SyntacticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      """
+      func foo() {}
+      foo()
+      """,
+      documentManager.latestSnapshot(uri)!.text
     )
 
-    sk.sendNoteSync(
+    let edit3SemanticDiags = try await connection.nextDiagnosticsNotification()
+    // 0 = semantic update finished already
+    XCTAssertEqual(edit3SemanticDiags.version, 14)
+    XCTAssertEqual(edit3SemanticDiags.diagnostics.count, 0)
+
+    connection.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 15),
         contentChanges: [
           .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "fooTypo")
         ]
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 4 - syntactic")
-        XCTAssertEqual(note.params.version, 15)
-        // 1 = semantic update finished already
-        // 0 = only syntactic
-        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          """
-          func foo() {}
-          fooTypo()
-          """,
-          documentManager.latestSnapshot(uri)!.text
-        )
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 4 - semantic")
-        XCTAssertEqual(note.params.version, 15)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          note.params.diagnostics.first?.range.lowerBound,
-          Position(line: 1, utf16index: 0)
-        )
-      }
+      )
+    )
+    let edit4SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(edit4SyntacticDiags.version, 15)
+    // 1 = semantic update finished already
+    XCTAssertLessThanOrEqual(edit4SyntacticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      """
+      func foo() {}
+      fooTypo()
+      """,
+      documentManager.latestSnapshot(uri)!.text
+    )
+    let edit4SemanticDiags = try await connection.nextDiagnosticsNotification()
+    // 0 = only syntactic
+    XCTAssertEqual(edit4SemanticDiags.version, 15)
+    XCTAssertEqual(edit4SemanticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      edit4SemanticDiags.diagnostics.first?.range.lowerBound,
+      Position(line: 1, utf16index: 0)
     )
 
-    sk.sendNoteSync(
+    connection.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 16),
         contentChanges: [
@@ -223,40 +200,35 @@ final class LocalSwiftTests: XCTestCase {
               """
           )
         ]
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 5 - syntactic")
-        XCTAssertEqual(note.params.version, 16)
-        // Could be remaining semantic error or new one.
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          """
-          func bar() {}
-          foo()
-          """,
-          documentManager.latestSnapshot(uri)!.text
-        )
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 5 - semantic")
-        XCTAssertEqual(note.params.version, 16)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          note.params.diagnostics.first?.range.lowerBound,
-          Position(line: 1, utf16index: 0)
-        )
-      }
+      )
+    )
+    let edit5SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(edit5SyntacticDiags.version, 16)
+    // Could be remaining semantic error or new one.
+    XCTAssertEqual(edit5SyntacticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      """
+      func bar() {}
+      foo()
+      """,
+      documentManager.latestSnapshot(uri)!.text
+    )
+    let edit5SemanticDiags = try await connection.nextDiagnosticsNotification()
+    log("Received diagnostics for edit 5 - semantic")
+    XCTAssertEqual(edit5SemanticDiags.version, 16)
+    XCTAssertEqual(edit5SemanticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      edit5SemanticDiags.diagnostics.first?.range.lowerBound,
+      Position(line: 1, utf16index: 0)
     )
   }
 
-  func testEditingNonURL() async {
+  func testEditingNonURL() async throws {
     let uri = DocumentURI(string: "urn:uuid:A1B08909-E791-469E-BF0F-F5790977E051")
 
-    sk.allowUnexpectedNotification = false
+    let documentManager = await connection.server._documentManager
 
-    let documentManager = await connection.server!._documentManager
-
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -266,139 +238,121 @@ final class LocalSwiftTests: XCTestCase {
             func
             """
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-        XCTAssertEqual(note.params.version, 12)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.version, 12)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          note.params.diagnostics.first?.range.lowerBound,
-          Position(line: 0, utf16index: 4)
-        )
-      }
+      )
+    )
+    let openSyntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(openSyntacticDiags.version, 12)
+    XCTAssertEqual(openSyntacticDiags.diagnostics.count, 1)
+    XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
+
+    let openSemanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(openSemanticDiags.version, 12)
+    XCTAssertEqual(openSemanticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      openSemanticDiags.diagnostics.first?.range.lowerBound,
+      Position(line: 0, utf16index: 4)
     )
 
-    sk.sendNoteSync(
+    connection.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 13),
         contentChanges: [
           .init(range: Range(Position(line: 0, utf16index: 4)), text: " foo() {}\n")
         ]
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 1 - syntactic")
-        XCTAssertEqual(note.params.version, 13)
-        // 1 = remaining semantic error
-        // 0 = semantic update finished already
-        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 1 - semantic")
-        XCTAssertEqual(note.params.version, 13)
-        XCTAssertEqual(note.params.diagnostics.count, 0)
-      }
+      )
     )
+    let edit1SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(edit1SyntacticDiags.version, 13)
+    // 1 = remaining semantic error
+    // 0 = semantic update finished already
+    XCTAssertLessThanOrEqual(edit1SyntacticDiags.diagnostics.count, 1)
+    XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
 
-    sk.sendNoteSync(
+    let edit1SemanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(edit1SemanticDiags.version, 13)
+    XCTAssertEqual(edit1SemanticDiags.diagnostics.count, 0)
+
+    connection.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 14),
         contentChanges: [
           .init(range: Range(Position(line: 1, utf16index: 0)), text: "bar()")
         ]
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 2 - syntactic")
-        XCTAssertEqual(note.params.version, 14)
-        // 1 = semantic update finished already
-        // 0 = only syntactic
-        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          """
-          func foo() {}
-          bar()
-          """,
-          documentManager.latestSnapshot(uri)!.text
-        )
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 2 - semantic")
-        XCTAssertEqual(note.params.version, 14)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          note.params.diagnostics.first?.range.lowerBound,
-          Position(line: 1, utf16index: 0)
-        )
-      }
+      )
+    )
+    let edit2SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(edit2SyntacticDiags.version, 14)
+    // 1 = semantic update finished already
+    // 0 = only syntactic
+    XCTAssertLessThanOrEqual(edit2SyntacticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      """
+      func foo() {}
+      bar()
+      """,
+      documentManager.latestSnapshot(uri)!.text
+    )
+    let edit2SemanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(edit2SemanticDiags.version, 14)
+    XCTAssertEqual(edit2SemanticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      edit2SemanticDiags.diagnostics.first?.range.lowerBound,
+      Position(line: 1, utf16index: 0)
     )
 
-    sk.sendNoteSync(
+    connection.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 14),
         contentChanges: [
           .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "foo")
         ]
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 3 - syntactic")
-        XCTAssertEqual(note.params.version, 14)
-        // 1 = remaining semantic error
-        // 0 = semantic update finished already
-        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          """
-          func foo() {}
-          foo()
-          """,
-          documentManager.latestSnapshot(uri)!.text
-        )
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 3 - semantic")
-        XCTAssertEqual(note.params.version, 14)
-        XCTAssertEqual(note.params.diagnostics.count, 0)
-      }
+      )
     )
+    let edit3SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(edit3SyntacticDiags.version, 14)
+    // 1 = remaining semantic error
+    // 0 = semantic update finished already
+    XCTAssertLessThanOrEqual(edit3SyntacticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      """
+      func foo() {}
+      foo()
+      """,
+      documentManager.latestSnapshot(uri)!.text
+    )
+    let edit3SemanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(edit3SemanticDiags.version, 14)
+    XCTAssertEqual(edit3SemanticDiags.diagnostics.count, 0)
 
-    sk.sendNoteSync(
+    connection.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 15),
         contentChanges: [
           .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "fooTypo")
         ]
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 4 - syntactic")
-        XCTAssertEqual(note.params.version, 15)
-        // 1 = semantic update finished already
-        // 0 = only syntactic
-        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          """
-          func foo() {}
-          fooTypo()
-          """,
-          documentManager.latestSnapshot(uri)!.text
-        )
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 4 - semantic")
-        XCTAssertEqual(note.params.version, 15)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          note.params.diagnostics.first?.range.lowerBound,
-          Position(line: 1, utf16index: 0)
-        )
-      }
+      )
+    )
+    let edit4SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(edit4SyntacticDiags.version, 15)
+    // 1 = semantic update finished already
+    // 0 = only syntactic
+    XCTAssertLessThanOrEqual(edit4SyntacticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      """
+      func foo() {}
+      fooTypo()
+      """,
+      documentManager.latestSnapshot(uri)!.text
+    )
+    let edit4SemanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(edit4SemanticDiags.version, 15)
+    XCTAssertEqual(edit4SemanticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      edit4SemanticDiags.diagnostics.first?.range.lowerBound,
+      Position(line: 1, utf16index: 0)
     )
 
-    sk.sendNoteSync(
+    connection.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 16),
         contentChanges: [
@@ -410,33 +364,29 @@ final class LocalSwiftTests: XCTestCase {
               """
           )
         ]
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 5 - syntactic")
-        XCTAssertEqual(note.params.version, 16)
-        // Could be remaining semantic error or new one.
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          """
-          func bar() {}
-          foo()
-          """,
-          documentManager.latestSnapshot(uri)!.text
-        )
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 5 - semantic")
-        XCTAssertEqual(note.params.version, 16)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          note.params.diagnostics.first?.range.lowerBound,
-          Position(line: 1, utf16index: 0)
-        )
-      }
+      )
+    )
+    let edit5SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(edit5SyntacticDiags.version, 16)
+    // Could be remaining semantic error or new one.
+    XCTAssertEqual(edit5SyntacticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      """
+      func bar() {}
+      foo()
+      """,
+      documentManager.latestSnapshot(uri)!.text
+    )
+    let edit5SemanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(edit5SemanticDiags.version, 16)
+    XCTAssertEqual(edit5SemanticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      edit5SemanticDiags.diagnostics.first?.range.lowerBound,
+      Position(line: 1, utf16index: 0)
     )
   }
 
-  func testExcludedDocumentSchemeDiagnostics() {
+  func testExcludedDocumentSchemeDiagnostics() async throws {
     let includedURL = URL(fileURLWithPath: "/a.swift")
     let includedURI = DocumentURI(includedURL)
 
@@ -446,11 +396,9 @@ final class LocalSwiftTests: XCTestCase {
       func
       """
 
-    sk.allowUnexpectedNotification = false
-
     // Open the excluded URI first so our later notification handlers can confirm
     // that no diagnostics were emitted for this excluded URI.
-    sk.send(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: excludedURI,
@@ -461,7 +409,7 @@ final class LocalSwiftTests: XCTestCase {
       )
     )
 
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: includedURI,
@@ -469,27 +417,21 @@ final class LocalSwiftTests: XCTestCase {
           version: 1,
           text: text
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-        XCTAssertEqual(note.params.uri, includedURI)
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.uri, includedURI)
-      }
+      )
     )
+    let syntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(syntacticDiags.uri, includedURI)
+    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(semanticDiags.uri, includedURI)
   }
 
-  func testCrossFileDiagnostics() {
+  func testCrossFileDiagnostics() async throws {
     let urlA = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let urlB = URL(fileURLWithPath: "/\(UUID())/b.swift")
     let uriA = DocumentURI(urlA)
     let uriB = DocumentURI(urlB)
 
-    sk.allowUnexpectedNotification = false
-
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uriA,
@@ -499,26 +441,23 @@ final class LocalSwiftTests: XCTestCase {
             foo()
             """
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-        XCTAssertEqual(note.params.version, 12)
-        // 1 = semantic update finished already
-        // 0 = only syntactic
-        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.version, 12)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          note.params.diagnostics.first?.range.lowerBound,
-          Position(line: 0, utf16index: 0)
-        )
-      }
+      )
+    )
+    let openASyntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(openASyntacticDiags.version, 12)
+    // 1 = semantic update finished already
+    // 0 = only syntactic
+    XCTAssertLessThanOrEqual(openASyntacticDiags.diagnostics.count, 1)
+
+    let openASemanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(openASemanticDiags.version, 12)
+    XCTAssertEqual(openASemanticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      openASemanticDiags.diagnostics.first?.range.lowerBound,
+      Position(line: 0, utf16index: 0)
     )
 
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uriB,
@@ -528,51 +467,44 @@ final class LocalSwiftTests: XCTestCase {
             bar()
             """
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-        XCTAssertEqual(note.params.version, 12)
-        // 1 = semantic update finished already
-        // 0 = only syntactic
-        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.version, 12)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          note.params.diagnostics.first?.range.lowerBound,
-          Position(line: 0, utf16index: 0)
-        )
-      }
+      )
+    )
+    let openBSyntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(openBSyntacticDiags.version, 12)
+    // 1 = semantic update finished already
+    // 0 = only syntactic
+    XCTAssertLessThanOrEqual(openBSyntacticDiags.diagnostics.count, 1)
+
+    let openBSemanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(openBSemanticDiags.version, 12)
+    XCTAssertEqual(openBSemanticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      openBSemanticDiags.diagnostics.first?.range.lowerBound,
+      Position(line: 0, utf16index: 0)
     )
 
-    sk.sendNoteSync(
+    connection.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uriA, version: 13),
         contentChanges: [
           .init(range: nil, text: "foo()\n")
         ]
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 1 - syntactic")
-        XCTAssertEqual(note.params.version, 13)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for edit 1 - semantic")
-        XCTAssertEqual(note.params.version, 13)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-      }
+      )
     )
+    let editASyntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(editASyntacticDiags.version, 13)
+    XCTAssertEqual(editASyntacticDiags.diagnostics.count, 1)
+
+    let editASemanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(editASemanticDiags.version, 13)
+    XCTAssertEqual(editASemanticDiags.diagnostics.count, 1)
   }
 
-  func testDiagnosticsReopen() {
+  func testDiagnosticsReopen() async throws {
     let urlA = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uriA = DocumentURI(urlA)
-    sk.allowUnexpectedNotification = false
 
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uriA,
@@ -582,28 +514,26 @@ final class LocalSwiftTests: XCTestCase {
             foo()
             """
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-        XCTAssertEqual(note.params.version, 12)
-        // 1 = semantic update finished already
-        // 0 = only syntactic
-        XCTAssertLessThanOrEqual(note.params.diagnostics.count, 1)
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.version, 12)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          note.params.diagnostics.first?.range.lowerBound,
-          Position(line: 0, utf16index: 0)
-        )
-      }
+      )
     )
 
-    sk.send(DidCloseTextDocumentNotification(textDocument: .init(urlA)))
+    let open1SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(open1SyntacticDiags.version, 12)
+    // 1 = semantic update finished already
+    // 0 = only syntactic
+    XCTAssertLessThanOrEqual(open1SyntacticDiags.diagnostics.count, 1)
 
-    sk.sendNoteSync(
+    let open1SemanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(open1SemanticDiags.version, 12)
+    XCTAssertEqual(open1SemanticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      open1SemanticDiags.diagnostics.first?.range.lowerBound,
+      Position(line: 0, utf16index: 0)
+    )
+
+    connection.send(DidCloseTextDocumentNotification(textDocument: .init(urlA)))
+
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uriA,
@@ -613,36 +543,32 @@ final class LocalSwiftTests: XCTestCase {
             var
             """
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-        XCTAssertEqual(note.params.version, 13)
-        // 1 = syntactic, no cached semantic diagnostic from previous version
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          note.params.diagnostics.first?.range.lowerBound,
-          Position(line: 0, utf16index: 3)
-        )
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.version, 13)
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        XCTAssertEqual(
-          note.params.diagnostics.first?.range.lowerBound,
-          Position(line: 0, utf16index: 3)
-        )
-      }
+      )
+    )
+
+    let open2SyntacticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(open2SyntacticDiags.version, 13)
+    // 1 = syntactic, no cached semantic diagnostic from previous version
+    XCTAssertEqual(open2SyntacticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      open2SyntacticDiags.diagnostics.first?.range.lowerBound,
+      Position(line: 0, utf16index: 3)
+    )
+
+    let open2SemanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(open2SemanticDiags.version, 13)
+    XCTAssertEqual(open2SemanticDiags.diagnostics.count, 1)
+    XCTAssertEqual(
+      open2SemanticDiags.diagnostics.first?.range.lowerBound,
+      Position(line: 0, utf16index: 3)
     )
   }
 
-  func testEducationalNotesAreUsedAsDiagnosticCodes() {
+  func testEducationalNotesAreUsedAsDiagnosticCodes() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    sk.allowUnexpectedNotification = false
-
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -650,27 +576,23 @@ final class LocalSwiftTests: XCTestCase {
           version: 12,
           text: "@propertyWrapper struct Bar {}"
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        let diag = note.params.diagnostics.first!
-        XCTAssertEqual(diag.code, .string("property-wrapper-requirements"))
-        XCTAssertEqual(diag.codeDescription?.href.fileURL?.lastPathComponent, "property-wrapper-requirements.md")
-      }
+      )
     )
+    // syntactic diags
+    _ = try await connection.nextDiagnosticsNotification()
+
+    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
+    let diag = semanticDiags.diagnostics.first!
+    XCTAssertEqual(diag.code, .string("property-wrapper-requirements"))
+    XCTAssertEqual(diag.codeDescription?.href.fileURL?.lastPathComponent, "property-wrapper-requirements.md")
   }
 
-  func testFixitsAreIncludedInPublishDiagnostics() {
+  func testFixitsAreIncludedInPublishDiagnostics() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    sk.allowUnexpectedNotification = false
-
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -682,44 +604,40 @@ final class LocalSwiftTests: XCTestCase {
             }
             """
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        let diag = note.params.diagnostics.first!
-        XCTAssertNotNil(diag.codeActions)
-        XCTAssertEqual(diag.codeActions!.count, 1)
-        let fixit = diag.codeActions!.first!
+      )
+    )
+    // syntactic diags
+    _ = try await connection.nextDiagnosticsNotification()
 
-        // Expected Fix-it: Replace `let a` with `_` because it's never used
-        let expectedTextEdit = TextEdit(
-          range: Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 7),
-          newText: "_"
-        )
-        XCTAssertEqual(
-          fixit,
-          CodeAction(
-            title: "Replace 'let a' with '_'",
-            kind: .quickFix,
-            diagnostics: nil,
-            edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
-            command: nil
-          )
-        )
-      }
+    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
+    let diag = semanticDiags.diagnostics.first!
+    XCTAssertNotNil(diag.codeActions)
+    XCTAssertEqual(diag.codeActions!.count, 1)
+    let fixit = diag.codeActions!.first!
+
+    // Expected Fix-it: Replace `let a` with `_` because it's never used
+    let expectedTextEdit = TextEdit(
+      range: Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 7),
+      newText: "_"
+    )
+    XCTAssertEqual(
+      fixit,
+      CodeAction(
+        title: "Replace 'let a' with '_'",
+        kind: .quickFix,
+        diagnostics: nil,
+        edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+        command: nil
+      )
     )
   }
 
-  func testFixitsAreIncludedInPublishDiagnosticsNotes() {
+  func testFixitsAreIncludedInPublishDiagnosticsNotes() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    sk.allowUnexpectedNotification = false
-
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -731,70 +649,67 @@ final class LocalSwiftTests: XCTestCase {
             }
             """
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        let diag = note.params.diagnostics.first!
-        XCTAssertEqual(diag.relatedInformation?.count, 2)
-        if let note1 = diag.relatedInformation?.first(where: { $0.message.contains("'?'") }) {
-          XCTAssertEqual(note1.codeActions?.count, 1)
-          if let fixit = note1.codeActions?.first {
-            // Expected Fix-it: Replace `let a` with `_` because it's never used
-            let expectedTextEdit = TextEdit(
-              range: Position(line: 1, utf16index: 7)..<Position(line: 1, utf16index: 7),
-              newText: "?"
-            )
-            XCTAssertEqual(
-              fixit,
-              CodeAction(
-                title: "chain the optional using '?' to access member 'bigEndian' only for non-'nil' base values",
-                kind: .quickFix,
-                diagnostics: nil,
-                edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
-                command: nil
-              )
-            )
-          }
-        } else {
-          XCTFail("missing '?' note")
-        }
-        if let note2 = diag.relatedInformation?.first(where: { $0.message.contains("'!'") }) {
-          XCTAssertEqual(note2.codeActions?.count, 1)
-          if let fixit = note2.codeActions?.first {
-            // Expected Fix-it: Replace `let a` with `_` because it's never used
-            let expectedTextEdit = TextEdit(
-              range: Position(line: 1, utf16index: 7)..<Position(line: 1, utf16index: 7),
-              newText: "!"
-            )
-            XCTAssertEqual(
-              fixit,
-              CodeAction(
-                title: "force-unwrap using '!' to abort execution if the optional value contains 'nil'",
-                kind: .quickFix,
-                diagnostics: nil,
-                edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
-                command: nil
-              )
-            )
-          }
-        } else {
-          XCTFail("missing '!' note")
-        }
-      }
+      )
     )
+    // syntactic diags
+    _ = try await connection.nextDiagnosticsNotification()
+
+    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    log("Received diagnostics for open - semantic")
+    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
+    let diag = semanticDiags.diagnostics.first!
+    XCTAssertEqual(diag.relatedInformation?.count, 2)
+    if let note1 = diag.relatedInformation?.first(where: { $0.message.contains("'?'") }) {
+      XCTAssertEqual(note1.codeActions?.count, 1)
+      if let fixit = note1.codeActions?.first {
+        // Expected Fix-it: Replace `let a` with `_` because it's never used
+        let expectedTextEdit = TextEdit(
+          range: Position(line: 1, utf16index: 7)..<Position(line: 1, utf16index: 7),
+          newText: "?"
+        )
+        XCTAssertEqual(
+          fixit,
+          CodeAction(
+            title: "chain the optional using '?' to access member 'bigEndian' only for non-'nil' base values",
+            kind: .quickFix,
+            diagnostics: nil,
+            edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+            command: nil
+          )
+        )
+      }
+    } else {
+      XCTFail("missing '?' note")
+    }
+    if let note2 = diag.relatedInformation?.first(where: { $0.message.contains("'!'") }) {
+      XCTAssertEqual(note2.codeActions?.count, 1)
+      if let fixit = note2.codeActions?.first {
+        // Expected Fix-it: Replace `let a` with `_` because it's never used
+        let expectedTextEdit = TextEdit(
+          range: Position(line: 1, utf16index: 7)..<Position(line: 1, utf16index: 7),
+          newText: "!"
+        )
+        XCTAssertEqual(
+          fixit,
+          CodeAction(
+            title: "force-unwrap using '!' to abort execution if the optional value contains 'nil'",
+            kind: .quickFix,
+            diagnostics: nil,
+            edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+            command: nil
+          )
+        )
+      }
+    } else {
+      XCTFail("missing '!' note")
+    }
   }
 
-  func testFixitInsert() {
+  func testFixitInsert() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    sk.allowUnexpectedNotification = false
-
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -806,34 +721,31 @@ final class LocalSwiftTests: XCTestCase {
             }
             """
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        let diag = note.params.diagnostics.first!
-        XCTAssertNotNil(diag.codeActions)
-        XCTAssertEqual(diag.codeActions!.count, 1)
-        let fixit = diag.codeActions!.first!
+      )
+    )
+    // syntactic diags
+    _ = try await connection.nextDiagnosticsNotification()
+    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
+    let diag = semanticDiags.diagnostics.first!
+    XCTAssertNotNil(diag.codeActions)
+    XCTAssertEqual(diag.codeActions!.count, 1)
+    let fixit = diag.codeActions!.first!
 
-        // Expected Fix-it: Insert `;`
-        let expectedTextEdit = TextEdit(
-          range: Position(line: 1, utf16index: 11)..<Position(line: 1, utf16index: 11),
-          newText: ";"
-        )
-        XCTAssertEqual(
-          fixit,
-          CodeAction(
-            title: "Insert ';'",
-            kind: .quickFix,
-            diagnostics: nil,
-            edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
-            command: nil
-          )
-        )
-      }
+    // Expected Fix-it: Insert `;`
+    let expectedTextEdit = TextEdit(
+      range: Position(line: 1, utf16index: 11)..<Position(line: 1, utf16index: 11),
+      newText: ";"
+    )
+    XCTAssertEqual(
+      fixit,
+      CodeAction(
+        title: "Insert ';'",
+        kind: .quickFix,
+        diagnostics: nil,
+        edit: WorkspaceEdit(changes: [uri: [expectedTextEdit]], documentChanges: nil),
+        command: nil
+      )
     )
   }
 
@@ -843,12 +755,12 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual("Remove 'foo ='", CodeAction.fixitTitle(replace: "foo =", with: ""))
   }
 
-  func testFixitsAreReturnedFromCodeActions() throws {
+  func testFixitsAreReturnedFromCodeActions() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
     var diagnostic: Diagnostic? = nil
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -860,16 +772,13 @@ final class LocalSwiftTests: XCTestCase {
             }
             """
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        diagnostic = note.params.diagnostics.first
-      }
+      )
     )
+    // syntactic diags
+    _ = try await connection.nextDiagnosticsNotification()
+    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
+    diagnostic = semanticDiags.diagnostics.first
 
     let request = CodeActionRequest(
       range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 11),
@@ -879,7 +788,7 @@ final class LocalSwiftTests: XCTestCase {
       ),
       textDocument: TextDocumentIdentifier(uri)
     )
-    let response = try sk.sendSync(request)
+    let response = try await connection.send(request)
 
     XCTAssertNotNil(response)
     guard case .codeActions(let codeActions) = response else {
@@ -911,12 +820,12 @@ final class LocalSwiftTests: XCTestCase {
     )
   }
 
-  func testFixitsAreReturnedFromCodeActionsNotes() throws {
+  func testFixitsAreReturnedFromCodeActionsNotes() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
     var diagnostic: Diagnostic?
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -928,16 +837,14 @@ final class LocalSwiftTests: XCTestCase {
             }
             """
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        diagnostic = note.params.diagnostics.first
-      }
+      )
     )
+    // syntactic diags
+    _ = try await connection.nextDiagnosticsNotification()
+
+    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
+    diagnostic = semanticDiags.diagnostics.first
 
     let request = CodeActionRequest(
       range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 11),
@@ -947,7 +854,7 @@ final class LocalSwiftTests: XCTestCase {
       ),
       textDocument: TextDocumentIdentifier(uri)
     )
-    let response = try sk.sendSync(request)
+    let response = try await connection.send(request)
 
     XCTAssertNotNil(response)
     guard case .codeActions(let codeActions) = response else {
@@ -980,12 +887,12 @@ final class LocalSwiftTests: XCTestCase {
     }
   }
 
-  func testMuliEditFixitCodeActionPrimary() throws {
+  func testMuliEditFixitCodeActionPrimary() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
     var diagnostic: Diagnostic?
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -996,16 +903,14 @@ final class LocalSwiftTests: XCTestCase {
             func foo() {}
             """
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        diagnostic = note.params.diagnostics.first
-      }
+      )
     )
+    // syntactic diags
+    _ = try await connection.nextDiagnosticsNotification()
+
+    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
+    diagnostic = semanticDiags.diagnostics.first
 
     let request = CodeActionRequest(
       range: Position(line: 0, utf16index: 1)..<Position(line: 0, utf16index: 10),
@@ -1015,7 +920,7 @@ final class LocalSwiftTests: XCTestCase {
       ),
       textDocument: TextDocumentIdentifier(uri)
     )
-    let response = try sk.sendSync(request)
+    let response = try await connection.send(request)
 
     XCTAssertNotNil(response)
     guard case .codeActions(let codeActions) = response else {
@@ -1037,12 +942,12 @@ final class LocalSwiftTests: XCTestCase {
     )
   }
 
-  func testMuliEditFixitCodeActionNote() throws {
+  func testMuliEditFixitCodeActionNote() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
     var diagnostic: Diagnostic?
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -1056,16 +961,13 @@ final class LocalSwiftTests: XCTestCase {
             }
             """
         )
-      ),
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - syntactic")
-      },
-      { (note: Notification<PublishDiagnosticsNotification>) in
-        log("Received diagnostics for open - semantic")
-        XCTAssertEqual(note.params.diagnostics.count, 1)
-        diagnostic = note.params.diagnostics.first!
-      }
+      )
     )
+    // syntactic diags
+    _ = try await connection.nextDiagnosticsNotification()
+    let semanticDiags = try await connection.nextDiagnosticsNotification()
+    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
+    diagnostic = semanticDiags.diagnostics.first!
 
     let request = CodeActionRequest(
       range: Position(line: 3, utf16index: 2)..<Position(line: 3, utf16index: 2),
@@ -1075,7 +977,7 @@ final class LocalSwiftTests: XCTestCase {
       ),
       textDocument: TextDocumentIdentifier(uri)
     )
-    let response = try sk.sendSync(request)
+    let response = try await connection.send(request)
 
     XCTAssertNotNil(response)
     guard case .codeActions(let codeActions) = response else {
@@ -1404,16 +1306,14 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(
       try xmlDocumentationToMarkdown(
         "<Class>" + "<Name>String</Name>" + "<USR>s:SS</USR>" + "<Declaration>struct String</Declaration>"
-          + "<CommentParts>" + "<Abstract>"
-          + "<Para>A Unicode s</Para>" + "</Abstract>" + "<Discussion>"
+          + "<CommentParts>" + "<Abstract>" + "<Para>A Unicode s</Para>" + "</Abstract>" + "<Discussion>"
           + "<Para>A string is a series of characters, such as <codeVoice>&quot;Swift&quot;</codeVoice>, that forms a collection. "
           + "The <codeVoice>String</codeVoice> type bridges with the Objective-C class <codeVoice>NSString</codeVoice> and offers"
-          + "</Para>"
-          + "<Para>You can create new strings A <emphasis>string literal</emphasis> i" + "</Para>"
+          + "</Para>" + "<Para>You can create new strings A <emphasis>string literal</emphasis> i" + "</Para>"
           + "<CodeListing language=\"swift\">"
           + "<zCodeLineNumbered><![CDATA[let greeting = \"Welcome!\"]]></zCodeLineNumbered>"
-          + "<zCodeLineNumbered></zCodeLineNumbered>" + "</CodeListing>"
-          + "<Para>...</Para>" + "<CodeListing language=\"swift\">"
+          + "<zCodeLineNumbered></zCodeLineNumbered>" + "</CodeListing>" + "<Para>...</Para>"
+          + "<CodeListing language=\"swift\">"
           + "<zCodeLineNumbered><![CDATA[let greeting = \"Welcome!\"]]></zCodeLineNumbered>"
           + "<zCodeLineNumbered></zCodeLineNumbered>" + "</CodeListing>" + "</Discussion>" + "</CommentParts>"
           + "</Class>"
@@ -1452,13 +1352,11 @@ final class LocalSwiftTests: XCTestCase {
       try xmlDocumentationToMarkdown(
         "<Function file=\"DocumentManager.swift\" line=\"92\" column=\"15\">" + "<CommentParts>"
           + "<Abstract><Para>Applies the given edits to the document.</Para></Abstract>" + "<Parameters>"
-          + "<Parameter>" + "<Name>editCallback</Name>"
-          + "<Direction isExplicit=\"0\">in</Direction>"
+          + "<Parameter>" + "<Name>editCallback</Name>" + "<Direction isExplicit=\"0\">in</Direction>"
           + "<Discussion><Para>Optional closure to call for each edit.</Para></Discussion>" + "</Parameter>"
           + "<Parameter>" + "<Name>before</Name>" + "<Direction isExplicit=\"0\">in</Direction>"
           + "<Discussion><Para>The document contents <emphasis>before</emphasis> the edit is applied.</Para></Discussion>"
-          + "</Parameter>" + "</Parameters>"
-          + "</CommentParts>" + "</Function>"
+          + "</Parameter>" + "</Parameters>" + "</CommentParts>" + "</Function>"
       ),
       """
       Applies the given edits to the document.
@@ -1498,12 +1396,10 @@ final class LocalSwiftTests: XCTestCase {
     XCTAssertEqual(
       try xmlDocumentationToMarkdown(
         "<Class>" + "<Name>S</Name>" + "<USR>s:1a1SV</USR>" + "<Declaration>struct S</Declaration>" + "<CommentParts>"
-          + "<Discussion>"
-          + #"<CodeListing language="swift">"# + "<zCodeLineNumbered>" + "<![CDATA[let S = 12456]]>"
-          + "</zCodeLineNumbered>"
-          + "<zCodeLineNumbered></zCodeLineNumbered>" + "</CodeListing>" + "<rawHTML>" + "<![CDATA[<h2>]]>"
-          + "</rawHTML>Title<rawHTML>" + "<![CDATA[</h2>]]>"
-          + "</rawHTML>" + "<Para>Details.</Para>" + "</Discussion>" + "</CommentParts>" + "</Class>"
+          + "<Discussion>" + #"<CodeListing language="swift">"# + "<zCodeLineNumbered>" + "<![CDATA[let S = 12456]]>"
+          + "</zCodeLineNumbered>" + "<zCodeLineNumbered></zCodeLineNumbered>" + "</CodeListing>" + "<rawHTML>"
+          + "<![CDATA[<h2>]]>" + "</rawHTML>Title<rawHTML>" + "<![CDATA[</h2>]]>" + "</rawHTML>"
+          + "<Para>Details.</Para>" + "</Discussion>" + "</CommentParts>" + "</Class>"
       ),
       """
       ```swift
@@ -1525,11 +1421,11 @@ final class LocalSwiftTests: XCTestCase {
     )
   }
 
-  func testSymbolInfo() throws {
+  func testSymbolInfo() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    sk.send(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -1548,7 +1444,7 @@ final class LocalSwiftTests: XCTestCase {
     )
 
     do {
-      let resp = try sk.sendSync(
+      let resp = try await connection.send(
         SymbolInfoRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 0, utf16index: 7)
@@ -1568,7 +1464,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try sk.sendSync(
+      let resp = try await connection.send(
         SymbolInfoRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 1, utf16index: 7)
@@ -1587,7 +1483,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try sk.sendSync(
+      let resp = try await connection.send(
         SymbolInfoRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 2, utf16index: 7)
@@ -1606,7 +1502,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try sk.sendSync(
+      let resp = try await connection.send(
         SymbolInfoRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 3, utf16index: 8)
@@ -1625,7 +1521,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try sk.sendSync(
+      let resp = try await connection.send(
         SymbolInfoRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 3, utf16index: 0)
@@ -1636,11 +1532,11 @@ final class LocalSwiftTests: XCTestCase {
     }
   }
 
-  func testHover() throws {
+  func testHover() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    sk.send(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -1657,7 +1553,7 @@ final class LocalSwiftTests: XCTestCase {
     )
 
     do {
-      let resp = try sk.sendSync(
+      let resp = try await connection.send(
         HoverRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 3, utf16index: 7)
@@ -1692,7 +1588,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try sk.sendSync(
+      let resp = try await connection.send(
         HoverRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 0, utf16index: 7)
@@ -1703,10 +1599,10 @@ final class LocalSwiftTests: XCTestCase {
     }
   }
 
-  func testHoverNameEscaping() throws {
+  func testHoverNameEscaping() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
 
-    sk.send(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -1723,7 +1619,7 @@ final class LocalSwiftTests: XCTestCase {
     )
 
     do {
-      let resp = try sk.sendSync(
+      let resp = try await connection.send(
         HoverRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 1, utf16index: 7)
@@ -1754,7 +1650,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try sk.sendSync(
+      let resp = try await connection.send(
         HoverRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 3, utf16index: 7)
@@ -1785,11 +1681,11 @@ final class LocalSwiftTests: XCTestCase {
     }
   }
 
-  func testDocumentSymbolHighlight() throws {
+  func testDocumentSymbolHighlight() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    sk.send(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -1809,7 +1705,7 @@ final class LocalSwiftTests: XCTestCase {
     )
 
     do {
-      let resp = try sk.sendSync(
+      let resp = try await connection.send(
         DocumentHighlightRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 0, utf16index: 0)
@@ -1819,7 +1715,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try sk.sendSync(
+      let resp = try await connection.send(
         DocumentHighlightRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 1, utf16index: 6)
@@ -1835,7 +1731,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try sk.sendSync(
+      let resp = try await connection.send(
         DocumentHighlightRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 2, utf16index: 6)
@@ -1857,7 +1753,7 @@ final class LocalSwiftTests: XCTestCase {
     }
 
     do {
-      let resp = try sk.sendSync(
+      let resp = try await connection.send(
         DocumentHighlightRequest(
           textDocument: TextDocumentIdentifier(url),
           position: Position(line: 3, utf16index: 6)
@@ -1938,17 +1834,17 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
+    let reusedNodeCallback = self.expectation(description: "reused node callback called")
     var reusedNodes: [Syntax] = []
     let swiftLanguageServer =
-      await connection.server!._languageService(
-        for: uri,
-        .swift,
-        in: connection.server!.workspaceForDocument(uri: uri)!
-      ) as! SwiftLanguageServer
-    await swiftLanguageServer.setReusedNodeCallback({ reusedNodes.append($0) })
-    sk.allowUnexpectedNotification = false
+      await connection.server._languageService(for: uri, .swift, in: connection.server.workspaceForDocument(uri: uri)!)
+      as! SwiftLanguageServer
+    await swiftLanguageServer.setReusedNodeCallback {
+      reusedNodes.append($0)
+      reusedNodeCallback.fulfill()
+    }
 
-    sk.sendNoteSync(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -1961,32 +1857,21 @@ final class LocalSwiftTests: XCTestCase {
             }
             """
         )
-      ),
-      { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
-        log("Received diagnostics for open - syntactic")
-      },
-      { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
-        log("Received diagnostics for open - semantic")
-      }
+      )
     )
 
     // Send a request that triggers a syntax tree to be built.
-    _ = try sk.sendSync(FoldingRangeRequest(textDocument: .init(uri)))
+    _ = try await connection.send(FoldingRangeRequest(textDocument: .init(uri)))
 
-    sk.sendNoteSync(
+    connection.send(
       DidChangeTextDocumentNotification(
         textDocument: .init(uri, version: 1),
         contentChanges: [
           .init(range: Range(Position(line: 2, utf16index: 7)), text: "a")
         ]
-      ),
-      { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
-        log("Received diagnostics for text edit - syntactic")
-      },
-      { (note: LanguageServerProtocol.Notification<PublishDiagnosticsNotification>) -> Void in
-        log("Received diagnostics for text edit - semantic")
-      }
+      )
     )
+    try await fulfillmentOfOrThrow([reusedNodeCallback])
 
     XCTAssertEqual(reusedNodes.count, 1)
 

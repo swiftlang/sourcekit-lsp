@@ -41,7 +41,6 @@ public final class SKTibsTestWorkspace {
   public var index: IndexStoreDB { tibsWorkspace.index }
   public var builder: TibsBuilder { tibsWorkspace.builder }
   public var sources: TestSources { tibsWorkspace.sources }
-  public var sk: TestClient { testServer.client }
 
   public init(
     immutableProjectDir: URL,
@@ -52,7 +51,7 @@ public final class SKTibsTestWorkspace {
     clientCapabilities: ClientCapabilities,
     testServer: TestSourceKitServer? = nil
   ) async throws {
-    self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
+    self.testServer = testServer ?? TestSourceKitServer()
     self.tibsWorkspace = try TibsTestWorkspace(
       immutableProjectDir: immutableProjectDir,
       persistentBuildDir: persistentBuildDir,
@@ -71,7 +70,7 @@ public final class SKTibsTestWorkspace {
     clientCapabilities: ClientCapabilities,
     testServer: TestSourceKitServer? = nil
   ) async throws {
-    self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
+    self.testServer = testServer ?? TestSourceKitServer()
 
     self.tibsWorkspace = try TibsTestWorkspace(
       projectDir: projectDir,
@@ -99,8 +98,8 @@ public final class SKTibsTestWorkspace {
       indexDelegate: indexDelegate
     )
 
-    await workspace.buildSystemManager.setDelegate(testServer.server!)
-    await testServer.server!.setWorkspaces([workspace])
+    await workspace.buildSystemManager.setDelegate(testServer.server)
+    await testServer.server.setWorkspaces([workspace])
   }
 }
 
@@ -123,7 +122,7 @@ extension SKTibsTestWorkspace {
 
 extension SKTibsTestWorkspace {
   public func openDocument(_ url: URL, language: Language) throws {
-    sk.send(
+    testServer.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),

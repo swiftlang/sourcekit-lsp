@@ -21,28 +21,25 @@ final class ExecuteCommandTests: XCTestCase {
   /// Connection and lifetime management for the service.
   var connection: TestSourceKitServer! = nil
 
-  /// The primary interface to make requests to the SourceKitServer.
-  var sk: TestClient! = nil
-
   override func tearDown() {
-    sk = nil
     connection = nil
   }
 
   override func setUp() {
     connection = TestSourceKitServer()
-    sk = connection.client
-    _ = try! sk.sendSync(
-      InitializeRequest(
-        processId: nil,
-        rootPath: nil,
-        rootURI: nil,
-        initializationOptions: nil,
-        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
-        trace: .off,
-        workspaceFolders: nil
+    awaitTask(description: "Initialized") {
+      _ = try await self.connection.send(
+        InitializeRequest(
+          processId: nil,
+          rootPath: nil,
+          rootURI: nil,
+          initializationOptions: nil,
+          capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
+          trace: .off,
+          workspaceFolders: nil
+        )
       )
-    )
+    }
   }
 
   func testLocationSemanticRefactoring() async throws {
@@ -66,11 +63,11 @@ final class ExecuteCommandTests: XCTestCase {
 
     let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
 
-    ws.testServer.client.handleNextRequest { (req: Request<ApplyEditRequest>) in
-      req.reply(ApplyEditResponse(applied: true, failureReason: nil))
+    ws.testServer.handleNextRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
+      return ApplyEditResponse(applied: true, failureReason: nil)
     }
 
-    let result = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
+    let result = try await ws.testServer.send(request)
 
     guard case .dictionary(let resultDict) = result else {
       XCTFail("Result is not a dictionary.")
@@ -118,11 +115,11 @@ final class ExecuteCommandTests: XCTestCase {
 
     let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
 
-    ws.testServer.client.handleNextRequest { (req: Request<ApplyEditRequest>) in
-      req.reply(ApplyEditResponse(applied: true, failureReason: nil))
+    ws.testServer.handleNextRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
+      return ApplyEditResponse(applied: true, failureReason: nil)
     }
 
-    let result = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
+    let result = try await ws.testServer.send(request)
 
     guard case .dictionary(let resultDict) = result else {
       XCTFail("Result is not a dictionary.")

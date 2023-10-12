@@ -20,34 +20,31 @@ final class InlayHintTests: XCTestCase {
   /// Connection and lifetime management for the service.
   var connection: TestSourceKitServer! = nil
 
-  /// The primary interface to make requests to the SourceKitServer.
-  var sk: TestClient! = nil
-
   override func tearDown() {
-    sk = nil
     connection = nil
   }
 
   override func setUp() {
     connection = TestSourceKitServer()
-    sk = connection.client
-    _ = try! sk.sendSync(
-      InitializeRequest(
-        processId: nil,
-        rootPath: nil,
-        rootURI: nil,
-        initializationOptions: nil,
-        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
-        trace: .off,
-        workspaceFolders: nil
+    awaitTask(description: "Initialize") {
+      _ = try await connection.send(
+        InitializeRequest(
+          processId: nil,
+          rootPath: nil,
+          rootURI: nil,
+          initializationOptions: nil,
+          capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
+          trace: .off,
+          workspaceFolders: nil
+        )
       )
-    )
+    }
   }
 
-  func performInlayHintRequest(text: String, range: Range<Position>? = nil) throws -> [InlayHint] {
+  func performInlayHintRequest(text: String, range: Range<Position>? = nil) async throws -> [InlayHint] {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
 
-    sk.send(
+    connection.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -61,7 +58,7 @@ final class InlayHintTests: XCTestCase {
     let request = InlayHintRequest(textDocument: TextDocumentIdentifier(url), range: range)
 
     do {
-      return try sk.sendSync(request)
+      return try await connection.send(request)
     } catch let error as ResponseError where error.message.contains("unknown request: source.request.variable.type") {
       throw XCTSkip("toolchain does not support variable.type request")
     }
@@ -83,18 +80,18 @@ final class InlayHintTests: XCTestCase {
     )
   }
 
-  func testEmpty() throws {
+  func testEmpty() async throws {
     let text = ""
-    let hints = try performInlayHintRequest(text: text)
+    let hints = try await performInlayHintRequest(text: text)
     XCTAssertEqual(hints, [])
   }
 
-  func testBindings() throws {
+  func testBindings() async throws {
     let text = """
       let x = 4
       var y = "test" + "123"
       """
-    let hints = try performInlayHintRequest(text: text)
+    let hints = try await performInlayHintRequest(text: text)
     XCTAssertEqual(
       hints,
       [
@@ -112,7 +109,7 @@ final class InlayHintTests: XCTestCase {
     )
   }
 
-  func testRanged() throws {
+  func testRanged() async throws {
     let text = """
       func square(_ x: Double) -> Double {
         let result = x * x
@@ -126,7 +123,7 @@ final class InlayHintTests: XCTestCase {
       }
       """
     let range = Position(line: 6, utf16index: 0)..<Position(line: 9, utf16index: 0)
-    let hints = try performInlayHintRequest(text: text, range: range)
+    let hints = try await performInlayHintRequest(text: text, range: range)
     XCTAssertEqual(
       hints,
       [
@@ -144,7 +141,7 @@ final class InlayHintTests: XCTestCase {
     )
   }
 
-  func testFields() throws {
+  func testFields() async throws {
     let text = """
       class X {
         let instanceMember = 3
@@ -160,7 +157,7 @@ final class InlayHintTests: XCTestCase {
         static let staticMember = 3.0
       }
       """
-    let hints = try performInlayHintRequest(text: text)
+    let hints = try await performInlayHintRequest(text: text)
     XCTAssertEqual(
       hints,
       [
@@ -193,7 +190,7 @@ final class InlayHintTests: XCTestCase {
     )
   }
 
-  func testExplicitTypeAnnotation() throws {
+  func testExplicitTypeAnnotation() async throws {
     let text = """
       let x: String = "abc"
 
@@ -201,11 +198,11 @@ final class InlayHintTests: XCTestCase {
         var y: Int = 34
       }
       """
-    let hints = try performInlayHintRequest(text: text)
+    let hints = try await performInlayHintRequest(text: text)
     XCTAssertEqual(hints, [])
   }
 
-  func testClosureParams() throws {
+  func testClosureParams() async throws {
     let text = """
       func f(x: Int) {}
 
@@ -215,7 +212,7 @@ final class InlayHintTests: XCTestCase {
         x + y
       }
       """
-    let hints = try performInlayHintRequest(text: text)
+    let hints = try await performInlayHintRequest(text: text)
     XCTAssertEqual(
       hints,
       [

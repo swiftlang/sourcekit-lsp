@@ -55,11 +55,9 @@ public final class SKSwiftPMTestWorkspace {
   /// Connection to the language server.
   public let testServer: TestSourceKitServer
 
-  public var sk: TestClient { testServer.client }
-
   /// When `testServer` is not `nil`, the workspace will be opened in that server, otherwise a new server will be created for the workspace
   public init(projectDir: URL, tmpDir: URL, toolchain: Toolchain, testServer: TestSourceKitServer? = nil) async throws {
-    self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
+    self.testServer = testServer ?? TestSourceKitServer()
 
     self.projectDir = URL(
       fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: projectDir.path)).pathString
@@ -105,7 +103,7 @@ public final class SKSwiftPMTestWorkspace {
       listenToUnitEvents: false
     )
 
-    let server = self.testServer.server!
+    let server = self.testServer.server
     let workspace = await Workspace(
       documentManager: DocumentManager(),
       rootUri: DocumentURI(sources.rootDirectory),
@@ -153,7 +151,7 @@ extension SKSwiftPMTestWorkspace {
 
 extension SKSwiftPMTestWorkspace {
   public func openDocument(_ url: URL, language: Language) throws {
-    sk.send(
+    testServer.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -166,7 +164,7 @@ extension SKSwiftPMTestWorkspace {
   }
 
   public func closeDocument(_ url: URL) {
-    sk.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(DocumentURI(url))))
+    testServer.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(DocumentURI(url))))
   }
 }
 
