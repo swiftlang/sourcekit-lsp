@@ -19,6 +19,11 @@ import SKSupport
 import SourceKitLSP
 import XCTest
 
+extension SourceKitServer.Options {
+  /// The default SourceKitServer options for testing.
+  public static var testDefault = Self()
+}
+
 /// A mock SourceKit-LSP client (aka. a mock editor) that behaves like an editor
 /// for testing purposes.
 ///
@@ -27,8 +32,6 @@ import XCTest
 public final class TestSourceKitLSPClient: MessageHandler {
   /// A function that takes a request and returns the request's response.
   public typealias RequestHandler<Request: RequestType> = (Request) -> Request.Response
-
-  public static let serverOptions: SourceKitServer.Options = SourceKitServer.Options()
 
   /// The ID that should be assigned to the next request sent to the `server`.
   private var nextRequestID: Int = 0
@@ -66,7 +69,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
     } else {
       moduleCache = nil
     }
-    var serverOptions = Self.serverOptions
+    var serverOptions = SourceKitServer.Options.testDefault
     if let moduleCache {
       serverOptions.buildSetup.flags.swiftCompilerFlags += ["-module-cache-path", moduleCache.path]
     }

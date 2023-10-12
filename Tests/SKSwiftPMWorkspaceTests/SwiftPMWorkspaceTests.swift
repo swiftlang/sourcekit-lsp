@@ -17,6 +17,7 @@ import PackageModel
 import SKCore
 import SKSwiftPMWorkspace
 import SKTestSupport
+import SourceKitLSP
 import TSCBasic
 import XCTest
 
@@ -44,7 +45,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           workspacePath: packageRoot,
           toolchainRegistry: tr,
           fileSystem: fs,
-          buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup
+          buildSetup: SourceKitServer.Options.testDefault.buildSetup
         )
       )
     }
@@ -71,7 +72,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           workspacePath: packageRoot,
           toolchainRegistry: tr,
           fileSystem: fs,
-          buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup
+          buildSetup: SourceKitServer.Options.testDefault.buildSetup
         )
       )
     }
@@ -98,7 +99,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           workspacePath: packageRoot,
           toolchainRegistry: ToolchainRegistry(),
           fileSystem: fs,
-          buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup
+          buildSetup: SourceKitServer.Options.testDefault.buildSetup
         )
       )
     }
@@ -126,7 +127,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup
+        buildSetup: SourceKitServer.Options.testDefault.buildSetup
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
@@ -231,7 +232,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup
+        buildSetup: SourceKitServer.Options.testDefault.buildSetup
       )
 
       let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
@@ -265,7 +266,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup
+        buildSetup: SourceKitServer.Options.testDefault.buildSetup
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
@@ -309,7 +310,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup
+        buildSetup: SourceKitServer.Options.testDefault.buildSetup
       )
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
@@ -371,7 +372,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup
+        buildSetup: SourceKitServer.Options.testDefault.buildSetup
       )
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
@@ -407,7 +408,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup
+        buildSetup: SourceKitServer.Options.testDefault.buildSetup
       )
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
@@ -499,7 +500,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: ToolchainRegistry.shared,
         fileSystem: fs,
-        buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup
+        buildSetup: SourceKitServer.Options.testDefault.buildSetup
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
@@ -547,7 +548,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup
+        buildSetup: SourceKitServer.Options.testDefault.buildSetup
       )
 
       let aswift1 = packageRoot.appending(components: "Sources", "lib", "a.swift")
@@ -606,7 +607,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup
+        buildSetup: SourceKitServer.Options.testDefault.buildSetup
       )
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
@@ -651,7 +652,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup
+        buildSetup: SourceKitServer.Options.testDefault.buildSetup
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
@@ -687,7 +688,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: TestSourceKitLSPClient.serverOptions.buildSetup
+        buildSetup: SourceKitServer.Options.testDefault.buildSetup
       )
 
       assertEqual(await ws._packageRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
@@ -734,7 +735,7 @@ private func check(
 
 private func buildPath(
   root: AbsolutePath,
-  config: BuildSetup = TestSourceKitLSPClient.serverOptions.buildSetup,
+  config: BuildSetup = SourceKitServer.Options.testDefault.buildSetup,
   platform: String
 ) -> AbsolutePath {
   let buildPath = config.path ?? root.appending(component: ".build")
