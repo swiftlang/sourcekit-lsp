@@ -1307,13 +1307,17 @@ extension SwiftLanguageServer {
       textDocument: req.textDocument
     )
     
-    let refactor = try await semanticRefactoring(command)
+    do {
+      let refactor = try await semanticRefactoring(command)
 
-    guard let newText = refactor.edit.changes?[req.textDocument.uri]?.first?.newText else {
+      guard let newText = refactor.edit.changes?[req.textDocument.uri]?.first?.newText else {
+        return nil
+      }
+
+      return MacroExpansion(sourceText: newText)
+    } catch SemanticRefactoringError.noEditsNeeded(_) {
       return nil
     }
-
-    return MacroExpansion(sourceText: newText)
   }
 
   public func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
