@@ -573,7 +573,7 @@ extension ClangLanguageServerShim {
   }
 
   func macroExpansion(_ req: MacroExpansionRequest) async throws -> MacroExpansion? {
-    return nil
+    throw ResponseError.unsupportedMethod
   }
 
   func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
