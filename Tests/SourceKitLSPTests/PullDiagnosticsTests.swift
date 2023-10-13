@@ -20,16 +20,14 @@ final class PullDiagnosticsTests: XCTestCase {
     case unexpectedDiagnosticReport
   }
 
-  /// Connection and lifetime management for the service.
-  var connection: TestSourceKitServer! = nil
+  /// The mock client used to communicate with the SourceKit-LSP server.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var testClient: TestSourceKitLSPClient! = nil
 
-  /// The primary interface to make requests to the SourceKitServer.
-  var sk: TestClient! = nil
-
-  override func setUp() {
-    connection = TestSourceKitServer()
-    sk = connection.client
-    _ = try! sk.sendSync(
+  override func setUp() async throws {
+    testClient = TestSourceKitLSPClient()
+    _ = try await self.testClient.send(
       InitializeRequest(
         processId: nil,
         rootPath: nil,
@@ -48,14 +46,15 @@ final class PullDiagnosticsTests: XCTestCase {
   }
 
   override func tearDown() {
-    sk = nil
-    connection = nil
+    testClient = nil
   }
 
-  func performDiagnosticRequest(text: String) throws -> [Diagnostic] {
+  // MARK: - Tests
+
+  func performDiagnosticRequest(text: String) async throws -> [Diagnostic] {
     let url = URL(fileURLWithPath: "/PullDiagnostics/\(UUID()).swift")
 
-    sk.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -70,7 +69,7 @@ final class PullDiagnosticsTests: XCTestCase {
 
     let report: DocumentDiagnosticReport
     do {
-      report = try sk.sendSync(request)
+      report = try await testClient.send(request)
     } catch let error as ResponseError where error.message.contains("unknown request: source.request.diagnostics") {
       throw XCTSkip("toolchain does not support source.request.diagnostics request")
     }
@@ -82,8 +81,8 @@ final class PullDiagnosticsTests: XCTestCase {
     return fullReport.items
   }
 
-  func testUnknownIdentifierDiagnostic() throws {
-    let diagnostics = try performDiagnosticRequest(
+  func testUnknownIdentifierDiagnostic() async throws {
+    let diagnostics = try await performDiagnosticRequest(
       text: """
         func foo() {
           invalid
@@ -96,8 +95,8 @@ final class PullDiagnosticsTests: XCTestCase {
   }
 
   /// Test that we can get code actions for pulled diagnostics (https://github.com/apple/sourcekit-lsp/issues/776)
-  func testCodeActions() throws {
-    let diagnostics = try performDiagnosticRequest(
+  func testCodeActions() async throws {
+    let diagnostics = try await performDiagnosticRequest(
       text: """
         protocol MyProtocol {
           func bar()
@@ -113,7 +112,7 @@ final class PullDiagnosticsTests: XCTestCase {
     XCTAssertEqual(note.location.range, Position(line: 4, utf16index: 7)..<Position(line: 4, utf16index: 7))
     XCTAssertEqual(note.codeActions?.count ?? 0, 1)
 
-    let response = try sk.sendSync(
+    let response = try await testClient.send(
       CodeActionRequest(
         range: note.location.range,
         context: CodeActionContext(
@@ -136,9 +135,11 @@ final class PullDiagnosticsTests: XCTestCase {
     // https://github.com/apple/swift/pull/67909, ensuring this test passes with
     // a sourcekitd that contains the change from that PR as well as older
     // toolchains that don't contain the change yet.
-    XCTAssert([
-      "add stubs for conformance",
-      "do you want to add protocol stubs?"
-    ].contains(action.title))
+    XCTAssert(
+      [
+        "add stubs for conformance",
+        "do you want to add protocol stubs?",
+      ].contains(action.title)
+    )
   }
 }

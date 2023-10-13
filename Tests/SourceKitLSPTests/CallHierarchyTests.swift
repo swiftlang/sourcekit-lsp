@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import ISDBTestSupport
+import LSPTestSupport
 import LanguageServerProtocol
 import TSCBasic
 import XCTest
@@ -24,35 +25,32 @@ final class CallHierarchyTests: XCTestCase {
 
     // Requests
 
-    func callHierarchy(at testLoc: TestLocation) throws -> [CallHierarchyItem] {
+    func callHierarchy(at testLoc: TestLocation) async throws -> [CallHierarchyItem] {
       let textDocument = testLoc.docIdentifier
       let request = CallHierarchyPrepareRequest(textDocument: textDocument, position: Position(testLoc))
-      let items = try ws.sk.sendSync(request)
-      return items ?? []
+      return try await ws.testClient.send(request) ?? []
     }
 
-    func incomingCalls(at testLoc: TestLocation) throws -> [CallHierarchyIncomingCall] {
-      guard let item = try callHierarchy(at: testLoc).first else {
+    func incomingCalls(at testLoc: TestLocation) async throws -> [CallHierarchyIncomingCall] {
+      guard let item = try await callHierarchy(at: testLoc).first else {
         XCTFail("call hierarchy at \(testLoc) was empty")
         return []
       }
       let request = CallHierarchyIncomingCallsRequest(item: item)
-      let calls = try ws.sk.sendSync(request)
-      return calls ?? []
+      return try await ws.testClient.send(request) ?? []
     }
 
-    func outgoingCalls(at testLoc: TestLocation) throws -> [CallHierarchyOutgoingCall] {
-      guard let item = try callHierarchy(at: testLoc).first else {
+    func outgoingCalls(at testLoc: TestLocation) async throws -> [CallHierarchyOutgoingCall] {
+      guard let item = try await callHierarchy(at: testLoc).first else {
         XCTFail("call hierarchy at \(testLoc) was empty")
         return []
       }
       let request = CallHierarchyOutgoingCallsRequest(item: item)
-      let calls = try ws.sk.sendSync(request)
-      return calls ?? []
+      return try await ws.testClient.send(request) ?? []
     }
 
-    func usr(at testLoc: TestLocation) throws -> String {
-      guard let item = try callHierarchy(at: testLoc).first else {
+    func usr(at testLoc: TestLocation) async throws -> String {
+      guard let item = try await callHierarchy(at: testLoc).first else {
         XCTFail("call hierarchy at \(testLoc) was empty")
         return ""
       }
@@ -112,24 +110,24 @@ final class CallHierarchyTests: XCTestCase {
       )
     }
 
-    let aUsr = try usr(at: testLoc("a"))
-    let bUsr = try usr(at: testLoc("b"))
-    let cUsr = try usr(at: testLoc("c"))
-    let dUsr = try usr(at: testLoc("d"))
+    let aUsr = try await usr(at: testLoc("a"))
+    let bUsr = try await usr(at: testLoc("b"))
+    let cUsr = try await usr(at: testLoc("c"))
+    let dUsr = try await usr(at: testLoc("d"))
 
     // Test outgoing call hierarchy
 
-    XCTAssertEqual(try outgoingCalls(at: testLoc("a")), [])
-    XCTAssertEqual(
-      try outgoingCalls(at: testLoc("b")),
+    assertEqual(try await outgoingCalls(at: testLoc("a")), [])
+    assertEqual(
+      try await outgoingCalls(at: testLoc("b")),
       [
         outCall(try item("a()", .function, usr: aUsr, at: "a"), at: "b->a"),
         outCall(try item("c()", .function, usr: cUsr, at: "c"), at: "b->c"),
         outCall(try item("b(x:)", .function, usr: bUsr, at: "b"), at: "b->b"),
       ]
     )
-    XCTAssertEqual(
-      try outgoingCalls(at: testLoc("c")),
+    assertEqual(
+      try await outgoingCalls(at: testLoc("c")),
       [
         outCall(try item("a()", .function, usr: aUsr, at: "a"), at: "c->a"),
         outCall(try item("d()", .function, usr: dUsr, at: "d"), at: "c->d"),
@@ -139,21 +137,21 @@ final class CallHierarchyTests: XCTestCase {
 
     // Test incoming call hierarchy
 
-    XCTAssertEqual(
-      try incomingCalls(at: testLoc("a")),
+    assertEqual(
+      try await incomingCalls(at: testLoc("a")),
       [
         inCall(try item("b(x:)", .function, usr: bUsr, at: "b"), at: "b->a"),
         inCall(try item("c()", .function, usr: cUsr, at: "c"), at: "c->a"),
       ]
     )
-    XCTAssertEqual(
-      try incomingCalls(at: testLoc("b")),
+    assertEqual(
+      try await incomingCalls(at: testLoc("b")),
       [
         inCall(try item("b(x:)", .function, usr: bUsr, at: "b"), at: "b->b")
       ]
     )
-    XCTAssertEqual(
-      try incomingCalls(at: testLoc("d")),
+    assertEqual(
+      try await incomingCalls(at: testLoc("d")),
       [
         inCall(try item("c()", .function, usr: cUsr, at: "c"), at: "c->d")
       ]

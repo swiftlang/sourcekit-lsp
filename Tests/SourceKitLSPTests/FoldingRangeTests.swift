@@ -44,7 +44,7 @@ final class FoldingRangeTests: XCTestCase {
     }
 
     let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri))
-    let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
+    let ranges = try await ws.testClient.send(request)
 
     let expected = [
       FoldingRange(startLine: 0, startUTF16Index: 0, endLine: 1, endUTF16Index: 18, kind: .comment),
@@ -73,7 +73,7 @@ final class FoldingRangeTests: XCTestCase {
     }
 
     let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri))
-    let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
+    let ranges = try await ws.testClient.send(request)
 
     let expected = [
       FoldingRange(startLine: 0, endLine: 1, kind: .comment),
@@ -99,7 +99,7 @@ final class FoldingRangeTests: XCTestCase {
         return
       }
       let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
-      let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
+      let ranges = try await ws.testClient.send(request)
       XCTAssertEqual(ranges?.count, expectedRanges, "Failed rangeLimit test at line \(line)")
     }
 
@@ -118,7 +118,7 @@ final class FoldingRangeTests: XCTestCase {
     }
 
     let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
-    let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
+    let ranges = try await ws.testClient.send(request)
 
     XCTAssertEqual(ranges?.count, 0)
   }
@@ -136,7 +136,7 @@ final class FoldingRangeTests: XCTestCase {
     else { return }
 
     let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
-    let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
+    let ranges = try await ws.testClient.send(request)
 
     let expected = [
       FoldingRange(startLine: 0, startUTF16Index: 0, endLine: 2, endUTF16Index: 65, kind: .comment),
@@ -159,7 +159,7 @@ final class FoldingRangeTests: XCTestCase {
     else { return }
 
     let request = FoldingRangeRequest(textDocument: TextDocumentIdentifier(url))
-    let ranges = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
+    let ranges = try await ws.testClient.send(request)
 
     let expected = [
       FoldingRange(startLine: 0, startUTF16Index: 12, endLine: 2, endUTF16Index: 0, kind: nil),

@@ -68,7 +68,7 @@ class ConnectionTests: XCTestCase {
     let client = connection.client
     let expectation = self.expectation(description: "note received")
 
-    client.handleNextNotification { (note: Notification<EchoNotification>) in
+    client.appendOneShotNotificationHandler { (note: Notification<EchoNotification>) in
       XCTAssertEqual(note.params.string, "hello!")
       expectation.fulfill()
     }

@@ -25,20 +25,21 @@ final class WorkspaceTests: XCTestCase {
     guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
     try ws.buildAndIndex()
 
-    guard let otherWs = try await staticSourceKitSwiftPMWorkspace(name: "OtherSwiftPMPackage", server: ws.testServer)
+    guard
+      let otherWs = try await staticSourceKitSwiftPMWorkspace(name: "OtherSwiftPMPackage", testClient: ws.testClient)
     else { return }
     try otherWs.buildAndIndex()
 
-    assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
+    assert(ws.testClient === otherWs.testClient, "Sanity check: The two workspaces should be opened in the same server")
 
     let call = ws.testLoc("Lib.foo:call")
     let otherCall = otherWs.testLoc("FancyLib.sayHello:call")
 
     try ws.openDocument(call.url, language: .swift)
 
-    let completions = try withExtendedLifetime(ws) {
-      try ws.sk.sendSync(CompletionRequest(textDocument: call.docIdentifier, position: call.position))
-    }
+    let completions = try await ws.testClient.send(
+      CompletionRequest(textDocument: call.docIdentifier, position: call.position)
+    )
 
     XCTAssertEqual(
       completions.items,
@@ -74,9 +75,9 @@ final class WorkspaceTests: XCTestCase {
 
     try ws.openDocument(otherCall.url, language: .swift)
 
-    let otherCompletions = try withExtendedLifetime(ws) {
-      try ws.sk.sendSync(CompletionRequest(textDocument: otherCall.docIdentifier, position: otherCall.position))
-    }
+    let otherCompletions = try await ws.testClient.send(
+      CompletionRequest(textDocument: otherCall.docIdentifier, position: otherCall.position)
+    )
 
     XCTAssertEqual(
       otherCompletions.items,
@@ -121,22 +122,16 @@ final class WorkspaceTests: XCTestCase {
 
     let loc = ws.testLoc("main_file")
 
-    let expectation = self.expectation(description: "diagnostics")
-
-    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
-      XCTAssertEqual(note.params.diagnostics.count, 0)
-      expectation.fulfill()
-    }
-
     try ws.openDocument(loc.url, language: .objective_c)
 
-    try await fulfillmentOfOrThrow([expectation])
+    let diags = try await ws.testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.diagnostics.count, 0)
 
     let otherWs = try await staticSourceKitTibsWorkspace(
       name: "ClangCrashRecoveryBuildSettings",
-      server: ws.testServer
+      testClient: ws.testClient
     )!
-    assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
+    assert(ws.testClient === otherWs.testClient, "Sanity check: The two workspaces should be opened in the same server")
     let otherLoc = otherWs.testLoc("loc")
 
     try otherWs.openDocument(otherLoc.url, language: .cpp)
@@ -152,7 +147,7 @@ final class WorkspaceTests: XCTestCase {
       textDocument: otherLoc.docIdentifier,
       position: Position(line: 9, utf16index: 3)
     )
-    let highlightResponse = try otherWs.sk.sendSync(highlightRequest)
+    let highlightResponse = try await otherWs.testClient.send(highlightRequest)
     XCTAssertEqual(highlightResponse, expectedHighlightResponse)
   }
 
@@ -160,12 +155,13 @@ final class WorkspaceTests: XCTestCase {
     guard let otherWs = try await staticSourceKitSwiftPMWorkspace(name: "OtherSwiftPMPackage") else { return }
     try otherWs.buildAndIndex()
 
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage", server: otherWs.testServer) else {
+    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage", testClient: otherWs.testClient)
+    else {
       return
     }
     try ws.buildAndIndex()
 
-    assert(ws.testServer === otherWs.testServer, "Sanity check: The two workspaces should be opened in the same server")
+    assert(ws.testClient === otherWs.testClient, "Sanity check: The two workspaces should be opened in the same server")
 
     let otherLib = ws.testLoc("OtherLib.topLevelFunction:libMember")
     let packageTargets = ws.testLoc("Package.swift:targets")
@@ -177,7 +173,7 @@ final class WorkspaceTests: XCTestCase {
     // to OtherSwiftPMPackage by default (because it provides fallback build
     // settings for it).
     assertEqual(
-      await ws.testServer.server!.workspaceForDocument(uri: otherLib.docUri)?.rootUri,
+      await ws.testClient.server.workspaceForDocument(uri: otherLib.docUri)?.rootUri,
       DocumentURI(otherWs.sources.rootDirectory)
     )
 
@@ -200,7 +196,7 @@ final class WorkspaceTests: XCTestCase {
       builder.write(packageManifestContents, to: packageManifest)
     }
 
-    ws.sk.send(
+    ws.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: packageTargets.docUri, type: .changed)
       ])
@@ -215,7 +211,7 @@ final class WorkspaceTests: XCTestCase {
 
     // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
     for _ in 0..<30 {
-      if await ws.testServer.server!.workspaceForDocument(uri: otherLib.docUri)?.rootUri
+      if await ws.testClient.server.workspaceForDocument(uri: otherLib.docUri)?.rootUri
         == DocumentURI(ws.sources.rootDirectory)
       {
         didReceiveCorrectWorkspaceMembership = true
@@ -237,19 +233,9 @@ final class WorkspaceTests: XCTestCase {
     try ws.openDocument(swiftLoc.url, language: .swift)
     try ws.openDocument(cLoc.url, language: .c)
 
-    let receivedResponse = self.expectation(description: "Received completion response")
-
-    _ = ws.sk.send(CompletionRequest(textDocument: cLoc.docIdentifier, position: cLoc.position)) { result in
-      defer {
-        receivedResponse.fulfill()
-      }
-      guard case .success(_) = result else {
-        XCTFail("Expected a successful response")
-        return
-      }
+    await assertNoThrow {
+      _ = try await ws.testClient.send(CompletionRequest(textDocument: cLoc.docIdentifier, position: cLoc.position))
     }
-
-    try await fulfillmentOfOrThrow([receivedResponse])
   }
 
   func testChangeWorkspaceFolders() async throws {
@@ -265,9 +251,8 @@ final class WorkspaceTests: XCTestCase {
 
     let otherPackLoc = ws.testLoc("otherPackage:call")
 
-    let testServer = TestSourceKitServer(connectionKind: .local)
-    let sk = testServer.client
-    _ = try sk.sendSync(
+    let testClient = TestSourceKitLSPClient()
+    _ = try await testClient.send(
       InitializeRequest(
         rootURI: nil,
         capabilities: ClientCapabilities(workspace: .init(workspaceFolders: true)),
@@ -279,7 +264,7 @@ final class WorkspaceTests: XCTestCase {
 
     let docString = try String(data: Data(contentsOf: otherPackLoc.url), encoding: .utf8)!
 
-    sk.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: otherPackLoc.docUri,
@@ -290,7 +275,7 @@ final class WorkspaceTests: XCTestCase {
       )
     )
 
-    let preChangeWorkspaceResponse = try sk.sendSync(
+    let preChangeWorkspaceResponse = try await testClient.send(
       CompletionRequest(
         textDocument: TextDocumentIdentifier(otherPackLoc.docUri),
         position: otherPackLoc.position
@@ -303,7 +288,7 @@ final class WorkspaceTests: XCTestCase {
       "Did not expect to receive cross-module code completion results if we opened the parent directory of the package"
     )
 
-    sk.send(
+    testClient.send(
       DidChangeWorkspaceFoldersNotification(
         event: WorkspaceFoldersChangeEvent(added: [
           WorkspaceFolder(uri: DocumentURI(ws.sources.rootDirectory))
@@ -311,7 +296,7 @@ final class WorkspaceTests: XCTestCase {
       )
     )
 
-    let postChangeWorkspaceResponse = try sk.sendSync(
+    let postChangeWorkspaceResponse = try await testClient.send(
       CompletionRequest(
         textDocument: TextDocumentIdentifier(otherPackLoc.docUri),
         position: otherPackLoc.position

@@ -22,21 +22,19 @@ import XCTest
 
 final class SwiftInterfaceTests: XCTestCase {
 
-  /// Connection and lifetime management for the service.
-  var connection: TestSourceKitServer! = nil
+  /// The mock client used to communicate with the SourceKit-LSP server.
+  ///
+  /// - Note: Set before each test run in `setUp`.
+  private var testClient: TestSourceKitLSPClient! = nil
 
-  /// The primary interface to make requests to the SourceKitServer.
-  var sk: TestClient! = nil
-
-  override func setUp() {
+  override func setUp() async throws {
     // This is the only test that references modules from the SDK (Foundation).
     // `testSystemModuleInterface` has been flaky for a long while and a
     // hypothesis is that it was failing because of a malformed global module
     // cache that might still be present from previous CI runs. If we use a
     // local module cache, we define away that source of bugs.
-    connection = TestSourceKitServer(useGlobalModuleCache: false)
-    sk = connection.client
-    _ = try! sk.sendSync(
+    testClient = TestSourceKitLSPClient(useGlobalModuleCache: false)
+    _ = try await testClient.send(
       InitializeRequest(
         processId: nil,
         rootPath: nil,
@@ -60,15 +58,16 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   override func tearDown() {
-    sk = nil
-    connection = nil
+    testClient = nil
   }
 
-  func testSystemModuleInterface() throws {
+  // MARK: - Tests
+
+  func testSystemModuleInterface() async throws {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    sk.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: uri,
@@ -81,7 +80,7 @@ final class SwiftInterfaceTests: XCTestCase {
       )
     )
 
-    let _resp = try sk.sendSync(
+    let _resp = try await testClient.send(
       DefinitionRequest(
         textDocument: TextDocumentIdentifier(url),
         position: Position(line: 0, utf16index: 10)
@@ -109,8 +108,8 @@ final class SwiftInterfaceTests: XCTestCase {
     let importedModule = ws.testLoc("lib:import")
     try ws.openDocument(importedModule.url, language: .swift)
     let openInterface = OpenInterfaceRequest(textDocument: importedModule.docIdentifier, name: "lib", symbolUSR: nil)
-    let interfaceDetails = try XCTUnwrap(ws.sk.sendSync(openInterface))
-    XCTAssertTrue(interfaceDetails.uri.pseudoPath.hasSuffix("/lib.swiftinterface"))
+    let interfaceDetails = try unwrap(await ws.testClient.send(openInterface))
+    XCTAssert(interfaceDetails.uri.pseudoPath.hasSuffix("/lib.swiftinterface"))
     let fileContents = try XCTUnwrap(
       interfaceDetails.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) })
     )
@@ -134,9 +133,9 @@ final class SwiftInterfaceTests: XCTestCase {
     ws: SKSwiftPMTestWorkspace,
     swiftInterfaceFile: String,
     linePrefix: String
-  ) throws {
+  ) async throws {
     try ws.openDocument(testLoc.url, language: .swift)
-    let definition = try ws.sk.sendSync(
+    let definition = try await ws.testClient.send(
       DefinitionRequest(
         textDocument: testLoc.docIdentifier,
         position: testLoc.position
@@ -164,21 +163,21 @@ final class SwiftInterfaceTests: XCTestCase {
     let withTaskGroupRef = ws.testLoc("lib.withTaskGroup")
 
     // Test stdlib with one submodule
-    try testSystemSwiftInterface(
+    try await testSystemSwiftInterface(
       stringRef,
       ws: ws,
       swiftInterfaceFile: "/Swift.String.swiftinterface",
       linePrefix: "@frozen public struct String"
     )
     // Test stdlib with two submodules
-    try testSystemSwiftInterface(
+    try await testSystemSwiftInterface(
       intRef,
       ws: ws,
       swiftInterfaceFile: "/Swift.Math.Integers.swiftinterface",
       linePrefix: "@frozen public struct Int"
     )
     // Test concurrency
-    try testSystemSwiftInterface(
+    try await testSystemSwiftInterface(
       withTaskGroupRef,
       ws: ws,
       swiftInterfaceFile: "/_Concurrency.swiftinterface",
@@ -191,14 +190,13 @@ final class SwiftInterfaceTests: XCTestCase {
     try ws.buildAndIndex()
     let importedModule = ws.testLoc("lib:import")
     try ws.openDocument(importedModule.url, language: .swift)
-    let _resp = try withExtendedLifetime(ws) {
-      try ws.sk.sendSync(
+    let _resp =
+      try await ws.testClient.send(
         DefinitionRequest(
           textDocument: importedModule.docIdentifier,
           position: importedModule.position
         )
       )
-    }
     let resp = try XCTUnwrap(_resp)
     guard case .locations(let locations) = resp else {
       XCTFail("Unexpected response: \(resp)")

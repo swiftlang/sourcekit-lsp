@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import ISDBTestSupport
+import LSPTestSupport
 import LanguageServerProtocol
 import TSCBasic
 import XCTest
@@ -23,10 +24,10 @@ final class ImplementationTests: XCTestCase {
     try ws.openDocument(ws.testLoc("a.swift").url, language: .swift)
     try ws.openDocument(ws.testLoc("b.swift").url, language: .swift)
 
-    func impls(at testLoc: TestLocation) throws -> Set<Location> {
+    func impls(at testLoc: TestLocation) async throws -> Set<Location> {
       let textDocument = testLoc.docIdentifier
       let request = ImplementationRequest(textDocument: textDocument, position: Position(testLoc))
-      let response = try ws.sk.sendSync(request)
+      let response = try await ws.testClient.send(request)
       guard case .locations(let implementations) = response else {
         XCTFail("Response was not locations")
         return []
@@ -48,31 +49,31 @@ final class ImplementationTests: XCTestCase {
       )
     }
 
-    try XCTAssertEqual(impls(at: testLoc("Protocol")), [loc("StructConformance")])
-    try XCTAssertEqual(impls(at: testLoc("ProtocolStaticVar")), [loc("StructStaticVar")])
-    try XCTAssertEqual(impls(at: testLoc("ProtocolStaticFunction")), [loc("StructStaticFunction")])
-    try XCTAssertEqual(impls(at: testLoc("ProtocolVariable")), [loc("StructVariable")])
-    try XCTAssertEqual(impls(at: testLoc("ProtocolFunction")), [loc("StructFunction")])
-    try XCTAssertEqual(impls(at: testLoc("Class")), [loc("SubclassConformance")])
-    try XCTAssertEqual(impls(at: testLoc("ClassClassVar")), [loc("SubclassClassVar")])
-    try XCTAssertEqual(impls(at: testLoc("ClassClassFunction")), [loc("SubclassClassFunction")])
-    try XCTAssertEqual(impls(at: testLoc("ClassVariable")), [loc("SubclassVariable")])
-    try XCTAssertEqual(impls(at: testLoc("ClassFunction")), [loc("SubclassFunction")])
+    try assertEqual(await impls(at: testLoc("Protocol")), [loc("StructConformance")])
+    try assertEqual(await impls(at: testLoc("ProtocolStaticVar")), [loc("StructStaticVar")])
+    try assertEqual(await impls(at: testLoc("ProtocolStaticFunction")), [loc("StructStaticFunction")])
+    try assertEqual(await impls(at: testLoc("ProtocolVariable")), [loc("StructVariable")])
+    try assertEqual(await impls(at: testLoc("ProtocolFunction")), [loc("StructFunction")])
+    try assertEqual(await impls(at: testLoc("Class")), [loc("SubclassConformance")])
+    try assertEqual(await impls(at: testLoc("ClassClassVar")), [loc("SubclassClassVar")])
+    try assertEqual(await impls(at: testLoc("ClassClassFunction")), [loc("SubclassClassFunction")])
+    try assertEqual(await impls(at: testLoc("ClassVariable")), [loc("SubclassVariable")])
+    try assertEqual(await impls(at: testLoc("ClassFunction")), [loc("SubclassFunction")])
 
-    try XCTAssertEqual(
-      impls(at: testLoc("Sepulcidae")),
+    try assertEqual(
+      await impls(at: testLoc("Sepulcidae")),
       [loc("ParapamphiliinaeConformance"), loc("XyelulinaeConformance"), loc("TrematothoracinaeConformance")]
     )
-    try XCTAssertEqual(
-      impls(at: testLoc("Parapamphiliinae")),
+    try assertEqual(
+      await impls(at: testLoc("Parapamphiliinae")),
       [loc("MicramphiliusConformance"), loc("PamparaphiliusConformance")]
     )
-    try XCTAssertEqual(impls(at: testLoc("Xyelulinae")), [loc("XyelulaConformance")])
-    try XCTAssertEqual(impls(at: testLoc("Trematothoracinae")), [])
+    try assertEqual(await impls(at: testLoc("Xyelulinae")), [loc("XyelulaConformance")])
+    try assertEqual(await impls(at: testLoc("Trematothoracinae")), [])
 
-    try XCTAssertEqual(impls(at: testLoc("Prozaiczne")), [loc("MurkwiaConformance2"), loc("SepulkaConformance1")])
-    try XCTAssertEqual(
-      impls(at: testLoc("Sepulkowate")),
+    try assertEqual(await impls(at: testLoc("Prozaiczne")), [loc("MurkwiaConformance2"), loc("SepulkaConformance1")])
+    try assertEqual(
+      await impls(at: testLoc("Sepulkowate")),
       [
         loc("MurkwiaConformance1"), loc("SepulkaConformance2"), loc("PćmaŁagodnaConformance"),
         loc("PćmaZwyczajnaConformance"),
@@ -80,13 +81,13 @@ final class ImplementationTests: XCTestCase {
     )
     // FIXME: sourcekit returns wrong locations for the function (subclasses that don't override it, and extensions that don't implement it)
     // try XCTAssertEqual(impls(at: testLoc("rozpocznijSepulenie")), [loc("MurkwiaFunc"), loc("SepulkaFunc"), loc("PćmaŁagodnaFunc"), loc("PćmaZwyczajnaFunc")])
-    try XCTAssertEqual(impls(at: testLoc("Murkwia")), [])
-    try XCTAssertEqual(impls(at: testLoc("MurkwiaFunc")), [])
-    try XCTAssertEqual(
-      impls(at: testLoc("Sepulka")),
+    try assertEqual(await impls(at: testLoc("Murkwia")), [])
+    try assertEqual(await impls(at: testLoc("MurkwiaFunc")), [])
+    try assertEqual(
+      await impls(at: testLoc("Sepulka")),
       [loc("SepulkaDwuusznaConformance"), loc("SepulkaPrzechylnaConformance")]
     )
-    try XCTAssertEqual(impls(at: testLoc("SepulkaVar")), [loc("SepulkaDwuusznaVar"), loc("SepulkaPrzechylnaVar")])
-    try XCTAssertEqual(impls(at: testLoc("SepulkaFunc")), [])
+    try assertEqual(await impls(at: testLoc("SepulkaVar")), [loc("SepulkaDwuusznaVar"), loc("SepulkaPrzechylnaVar")])
+    try assertEqual(await impls(at: testLoc("SepulkaFunc")), [])
   }
 }

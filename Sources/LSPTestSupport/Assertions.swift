@@ -12,7 +12,7 @@
 
 import XCTest
 
-/// Same as `assertNoThrow` but executes the trailing closure.
+/// Same as `XCTAssertNoThrow` but executes the trailing closure.
 public func assertNoThrow<T>(
   _ expression: () throws -> T,
   _ message: @autoclosure () -> String = "",
@@ -20,6 +20,20 @@ public func assertNoThrow<T>(
   line: UInt = #line
 ) {
   XCTAssertNoThrow(try expression(), message(), file: file, line: line)
+}
+
+/// Same as `assertNoThrow` but allows the closure to be `async`.
+public func assertNoThrow<T>(
+  _ expression: () async throws -> T,
+  _ message: @autoclosure () -> String = "",
+  file: StaticString = #filePath,
+  line: UInt = #line
+) async {
+  do {
+    _ = try await expression()
+  } catch {
+    XCTFail("Expression was not expected to throw but threw \(error)", file: file, line: line)
+  }
 }
 
 /// Same as `XCTAssertThrows` but executes the trailing closure.
@@ -75,6 +89,17 @@ public func assertNotNil<T: Equatable>(
   line: UInt = #line
 ) {
   XCTAssertNotNil(expression, message(), file: file, line: line)
+}
+
+/// Same as `XCTUnwrap` but doesn't take autoclosures and thus `expression`
+/// can contain `await`.
+public func unwrap<T>(
+  _ expression: T?,
+  _ message: @autoclosure () -> String = "",
+  file: StaticString = #filePath,
+  line: UInt = #line
+) throws -> T {
+  return try XCTUnwrap(expression, file: file, line: line)
 }
 
 extension XCTestCase {

@@ -22,39 +22,10 @@ public typealias URL = Foundation.URL
 
 final class SKTests: XCTestCase {
 
-  func testInitLocal() throws {
-    let c = TestSourceKitServer()
-    defer { withExtendedLifetime(c) {} }  // Keep connection alive for callbacks.
+  func testInitLocal() async throws {
+    let testClient = TestSourceKitLSPClient()
 
-    let sk = c.client
-
-    let initResult = try sk.sendSync(
-      InitializeRequest(
-        processId: nil,
-        rootPath: nil,
-        rootURI: nil,
-        initializationOptions: nil,
-        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
-        trace: .off,
-        workspaceFolders: nil
-      )
-    )
-
-    guard case .options(let syncOptions) = initResult.capabilities.textDocumentSync else {
-      XCTFail("Unexpected textDocumentSync property")
-      return
-    }
-    XCTAssertEqual(syncOptions.openClose, true)
-    XCTAssertNotNil(initResult.capabilities.completionProvider)
-  }
-
-  func testInitJSON() throws {
-    let c = TestSourceKitServer(connectionKind: .jsonrpc)
-    defer { withExtendedLifetime(c) {} }  // Keep connection alive for callbacks.
-
-    let sk = c.client
-
-    let initResult = try sk.sendSync(
+    let initResult = try await testClient.send(
       InitializeRequest(
         processId: nil,
         rootPath: nil,
@@ -87,7 +58,7 @@ final class SKTests: XCTestCase {
 
     // MARK: Jump to definition
 
-    let response = try ws.sk.sendSync(
+    let response = try await ws.testClient.send(
       DefinitionRequest(
         textDocument: locRef.docIdentifier,
         position: locRef.position
@@ -104,7 +75,7 @@ final class SKTests: XCTestCase {
 
     // MARK: Find references
 
-    let refs = try ws.sk.sendSync(
+    let refs = try await ws.testClient.send(
       ReferencesRequest(
         textDocument: locDef.docIdentifier,
         position: locDef.position,
@@ -171,7 +142,7 @@ final class SKTests: XCTestCase {
       let locDef = ws.testLoc("aaa:def")
       let locRef = ws.testLoc("aaa:call:c")
       try ws.openDocument(locRef.url, language: .swift)
-      let response = try ws.sk.sendSync(
+      let response = try await ws.testClient.send(
         DefinitionRequest(
           textDocument: locRef.docIdentifier,
           position: locRef.position
@@ -195,9 +166,7 @@ final class SKTests: XCTestCase {
       XCTAssertEqual(versionContentsBefore.count, 1)
       XCTAssert(versionContentsBefore.first?.lastPathComponent.starts(with: "p") ?? false)
 
-      try withExtendedLifetime(ws) {
-        _ = try ws.sk.sendSync(ShutdownRequest())
-      }
+      _ = try await ws.testClient.send(ShutdownRequest())
       return versionedPath
     }
 
@@ -217,11 +186,9 @@ final class SKTests: XCTestCase {
     let loc = ws.testLoc("cc:A")
     try ws.openDocument(loc.url, language: .swift)
 
-    let results = try withExtendedLifetime(ws) {
-      try ws.sk.sendSync(
-        CompletionRequest(textDocument: loc.docIdentifier, position: loc.position)
-      )
-    }
+    let results = try await ws.testClient.send(
+      CompletionRequest(textDocument: loc.docIdentifier, position: loc.position)
+    )
 
     XCTAssertEqual(
       results.items,
@@ -262,69 +229,43 @@ final class SKTests: XCTestCase {
   func testDependenciesUpdatedSwiftTibs() async throws {
     guard let ws = try await mutableSourceKitTibsTestWorkspace(name: "SwiftModules") else { return }
     defer { withExtendedLifetime(ws) {} }  // Keep workspace alive for callbacks.
-    guard let server = ws.testServer.server else {
-      XCTFail("Unable to fetch SourceKitServer to notify for build system events.")
-      return
-    }
 
     let moduleRef = ws.testLoc("aaa:call:c")
-    let startExpectation = XCTestExpectation(description: "initial diagnostics")
-    startExpectation.expectedFulfillmentCount = 2
-    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
-      // Semantic analysis: no errors expected here.
-      XCTAssertEqual(note.params.diagnostics.count, 0)
-      startExpectation.fulfill()
-    }
-    ws.sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
-      // Semantic analysis: expect module import error.
-      XCTAssertEqual(note.params.diagnostics.count, 1)
-      if let diagnostic = note.params.diagnostics.first {
-        XCTAssert(
-          diagnostic.message.contains("no such module"),
-          "expected module import error but found \"\(diagnostic.message)\""
-        )
-      }
-      startExpectation.fulfill()
-    }
 
     try ws.openDocument(moduleRef.url, language: .swift)
-    try await fulfillmentOfOrThrow([startExpectation])
+
+    let initialSyntacticDiags = try await ws.testClient.nextDiagnosticsNotification()
+    // Semantic analysis: no errors expected here.
+    XCTAssertEqual(initialSyntacticDiags.diagnostics.count, 0)
+
+    let initialSemanticDiags = try await ws.testClient.nextDiagnosticsNotification()
+    // Semantic analysis: expect module import error.
+    XCTAssertEqual(initialSemanticDiags.diagnostics.count, 1)
+    if let diagnostic = initialSemanticDiags.diagnostics.first {
+      XCTAssert(
+        diagnostic.message.contains("no such module"),
+        "expected module import error but found \"\(diagnostic.message)\""
+      )
+    }
 
     try ws.buildAndIndex()
 
-    let finishExpectation = XCTestExpectation(description: "post-build diagnostics")
-    finishExpectation.expectedFulfillmentCount = 2
-    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
-      // Semantic analysis - SourceKit currently caches diagnostics so we still see an error.
-      XCTAssertEqual(note.params.diagnostics.count, 1)
-      finishExpectation.fulfill()
-    }
-    ws.sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
-      // Semantic analysis: no more errors expected, import should resolve since we built.
-      XCTAssertEqual(note.params.diagnostics.count, 0)
-      finishExpectation.fulfill()
-    }
-    await server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
+    await ws.testClient.server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
 
-    try await fulfillmentOfOrThrow([finishExpectation])
+    let updatedSyntacticDiags = try await ws.testClient.nextDiagnosticsNotification()
+    // Semantic analysis - SourceKit currently caches diagnostics so we still see an error.
+    XCTAssertEqual(updatedSyntacticDiags.diagnostics.count, 1)
+
+    let updatedSemanticDiags = try await ws.testClient.nextDiagnosticsNotification()
+    // Semantic analysis: no more errors expected, import should resolve since we built.
+    XCTAssertEqual(updatedSemanticDiags.diagnostics.count, 0)
   }
 
   func testDependenciesUpdatedCXXTibs() async throws {
     guard let ws = try await mutableSourceKitTibsTestWorkspace(name: "GeneratedHeader") else { return }
     defer { withExtendedLifetime(ws) {} }  // Keep workspace alive for callbacks.
-    guard let server = ws.testServer.server else {
-      XCTFail("Unable to fetch SourceKitServer to notify for build system events.")
-      return
-    }
 
     let moduleRef = ws.testLoc("libX:call:main")
-    let startExpectation = XCTestExpectation(description: "initial diagnostics")
-    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
-      // Expect one error:
-      // - Implicit declaration of function invalid
-      XCTAssertEqual(note.params.diagnostics.count, 1)
-      startExpectation.fulfill()
-    }
 
     let generatedHeaderURL = moduleRef.url.deletingLastPathComponent()
       .appendingPathComponent("lib-generated.h", isDirectory: false)
@@ -333,23 +274,23 @@ final class SKTests: XCTestCase {
     // files without a recently upstreamed extension.
     try "".write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
     try ws.openDocument(moduleRef.url, language: .c)
-    try await fulfillmentOfOrThrow([startExpectation])
+
+    let openDiags = try await ws.testClient.nextDiagnosticsNotification()
+    // Expect one error:
+    // - Implicit declaration of function invalid
+    XCTAssertEqual(openDiags.diagnostics.count, 1)
 
     // Update the header file to have the proper contents for our code to build.
     let contents = "int libX(int value);"
     try contents.write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
     try ws.buildAndIndex()
 
-    let finishExpectation = XCTestExpectation(description: "post-build diagnostics")
-    ws.sk.handleNextNotification { (note: Notification<PublishDiagnosticsNotification>) in
-      // No more errors expected, import should resolve since we the generated header file
-      // now has the proper contents.
-      XCTAssertEqual(note.params.diagnostics.count, 0)
-      finishExpectation.fulfill()
-    }
-    await server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
+    await ws.testClient.server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
 
-    try await fulfillmentOfOrThrow([finishExpectation])
+    let updatedDiags = try await ws.testClient.nextDiagnosticsNotification()
+    // No more errors expected, import should resolve since we the generated header file
+    // now has the proper contents.
+    XCTAssertEqual(updatedDiags.diagnostics.count, 0)
   }
 
   func testClangdGoToInclude() async throws {
@@ -367,7 +308,7 @@ final class SKTests: XCTestCase {
       textDocument: mainLoc.docIdentifier,
       position: includePosition
     )
-    let resp = try withExtendedLifetime(ws) { try ws.sk.sendSync(goToInclude) }
+    let resp = try await ws.testClient.send(goToInclude)
 
     let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-#include")
     switch locationsOrLinks {
@@ -398,7 +339,7 @@ final class SKTests: XCTestCase {
       textDocument: refLoc.docIdentifier,
       position: refPos
     )
-    let resp = try withExtendedLifetime(ws) { try ws.sk.sendSync(goToDefinition) }
+    let resp = try await ws.testClient.send(goToDefinition)
 
     let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-definition")
     switch locationsOrLinks {
@@ -430,7 +371,7 @@ final class SKTests: XCTestCase {
       textDocument: mainLoc.docIdentifier,
       position: includePosition
     )
-    let resp = try ws.sk.sendSync(goToInclude)
+    let resp = try await ws.testClient.send(goToInclude)
 
     let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-declaration")
     switch locationsOrLinks {

@@ -36,12 +36,11 @@ fileprivate extension SourceKitServer {
 public final class SKTibsTestWorkspace {
 
   public let tibsWorkspace: TibsTestWorkspace
-  public let testServer: TestSourceKitServer
+  public let testClient: TestSourceKitLSPClient
 
   public var index: IndexStoreDB { tibsWorkspace.index }
   public var builder: TibsBuilder { tibsWorkspace.builder }
   public var sources: TestSources { tibsWorkspace.sources }
-  public var sk: TestClient { testServer.client }
 
   public init(
     immutableProjectDir: URL,
@@ -50,9 +49,9 @@ public final class SKTibsTestWorkspace {
     removeTmpDir: Bool,
     toolchain: Toolchain,
     clientCapabilities: ClientCapabilities,
-    testServer: TestSourceKitServer? = nil
+    testClient: TestSourceKitLSPClient? = nil
   ) async throws {
-    self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
+    self.testClient = testClient ?? TestSourceKitLSPClient()
     self.tibsWorkspace = try TibsTestWorkspace(
       immutableProjectDir: immutableProjectDir,
       persistentBuildDir: persistentBuildDir,
@@ -69,9 +68,9 @@ public final class SKTibsTestWorkspace {
     tmpDir: URL,
     toolchain: Toolchain,
     clientCapabilities: ClientCapabilities,
-    testServer: TestSourceKitServer? = nil
+    testClient: TestSourceKitLSPClient? = nil
   ) async throws {
-    self.testServer = testServer ?? TestSourceKitServer(connectionKind: .local)
+    self.testClient = testClient ?? TestSourceKitLSPClient()
 
     self.tibsWorkspace = try TibsTestWorkspace(
       projectDir: projectDir,
@@ -99,8 +98,8 @@ public final class SKTibsTestWorkspace {
       indexDelegate: indexDelegate
     )
 
-    await workspace.buildSystemManager.setDelegate(testServer.server!)
-    await testServer.server!.setWorkspaces([workspace])
+    await workspace.buildSystemManager.setDelegate(testClient.server)
+    await testClient.server.setWorkspaces([workspace])
   }
 }
 
@@ -123,7 +122,7 @@ extension SKTibsTestWorkspace {
 
 extension SKTibsTestWorkspace {
   public func openDocument(_ url: URL, language: Language) throws {
-    sk.send(
+    testClient.send(
       DidOpenTextDocumentNotification(
         textDocument: TextDocumentItem(
           uri: DocumentURI(url),
@@ -143,7 +142,7 @@ extension XCTestCase {
     clientCapabilities: ClientCapabilities = .init(),
     tmpDir: URL? = nil,
     removeTmpDir: Bool = true,
-    server: TestSourceKitServer? = nil
+    testClient: TestSourceKitLSPClient? = nil
   ) async throws -> SKTibsTestWorkspace? {
     let testDirName = testDirectoryName
     let workspace = try await SKTibsTestWorkspace(
@@ -157,7 +156,7 @@ extension XCTestCase {
       removeTmpDir: removeTmpDir,
       toolchain: ToolchainRegistry.shared.default!,
       clientCapabilities: clientCapabilities,
-      testServer: server
+      testClient: testClient
     )
 
     if workspace.builder.targets.contains(where: { target in !target.clangTUs.isEmpty })

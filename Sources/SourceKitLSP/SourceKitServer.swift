@@ -535,7 +535,11 @@ extension SourceKitServer: MessageHandler {
     //    completion session but it only makes sense for the client to request
     //    more results for this completion session after it has received the
     //    initial results.
-    messageHandlingQueue.async(barrier: false) {
+    // FIXME: (async) We need more granular request handling. Completion requests
+    // to the same file depend on each other because we only have one global
+    // code completion session in sourcekitd but they don't need to be full
+    // barriers to any other request.
+    messageHandlingQueue.async(barrier: R.self is CompletionRequest.Type) {
       let cancellationToken = CancellationToken()
 
       let request = Request(

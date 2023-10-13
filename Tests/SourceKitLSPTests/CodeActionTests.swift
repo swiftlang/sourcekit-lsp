@@ -203,10 +203,8 @@ final class CodeActionTests: XCTestCase {
     let textDocument = TextDocumentIdentifier(loc.url)
     let start = Position(line: 2, utf16index: 0)
     let request = CodeActionRequest(range: start..<start, context: .init(), textDocument: textDocument)
-    try withExtendedLifetime(ws) {
-      let result = try ws.sk.sendSync(request)
-      XCTAssertEqual(result, .codeActions([]))
-    }
+    let result = try await ws.testClient.send(request)
+    XCTAssertEqual(result, .codeActions([]))
   }
 
   func testSemanticRefactorLocalRenameResult() async throws {
@@ -216,10 +214,8 @@ final class CodeActionTests: XCTestCase {
 
     let textDocument = TextDocumentIdentifier(loc.url)
     let request = CodeActionRequest(range: loc.position..<loc.position, context: .init(), textDocument: textDocument)
-    try withExtendedLifetime(ws) {
-      let result = try ws.sk.sendSync(request)
-      XCTAssertEqual(result, .codeActions([]))
-    }
+    let result = try await ws.testClient.send(request)
+    XCTAssertEqual(result, .codeActions([]))
   }
 
   func testSemanticRefactorLocationCodeActionResult() async throws {
@@ -229,7 +225,7 @@ final class CodeActionTests: XCTestCase {
 
     let textDocument = TextDocumentIdentifier(loc.url)
     let request = CodeActionRequest(range: loc.position..<loc.position, context: .init(), textDocument: textDocument)
-    let result = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
+    let result = try await ws.testClient.send(request)
 
     let expectedCommandArgs: LSPAny = [
       "actionString": "source.refactoring.kind.localize.string",
@@ -267,7 +263,7 @@ final class CodeActionTests: XCTestCase {
       context: .init(),
       textDocument: textDocument
     )
-    let result = try withExtendedLifetime(ws) { try ws.sk.sendSync(request) }
+    let result = try await ws.testClient.send(request)
 
     let expectedCommandArgs: LSPAny = [
       "actionString": "source.refactoring.kind.extract.function",
@@ -298,34 +294,21 @@ final class CodeActionTests: XCTestCase {
 
     try ws.openDocument(def.url, language: .swift)
 
-    let syntacticDiagnosticsReceived = self.expectation(description: "Syntactic diagnotistics received")
-    let semanticDiagnosticsReceived = self.expectation(description: "Semantic diagnotistics received")
+    let syntacticDiags = try await ws.testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(syntacticDiags.uri, def.docUri)
+    XCTAssertEqual(syntacticDiags.diagnostics, [])
 
-    ws.sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
-      // syntactic diagnostics
-      XCTAssertEqual(note.params.uri, def.docUri)
-      XCTAssertEqual(note.params.diagnostics, [])
-      syntacticDiagnosticsReceived.fulfill()
-    }
-
-    var diags: [Diagnostic]! = nil
-    ws.sk.appendOneShotNotificationHandler { (note: Notification<PublishDiagnosticsNotification>) in
-      // semantic diagnostics
-      XCTAssertEqual(note.params.uri, def.docUri)
-      XCTAssertEqual(note.params.diagnostics.count, 1)
-      diags = note.params.diagnostics
-      semanticDiagnosticsReceived.fulfill()
-    }
-
-    try await fulfillmentOfOrThrow([syntacticDiagnosticsReceived, semanticDiagnosticsReceived])
+    let semanticDiags = try await ws.testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(semanticDiags.uri, def.docUri)
+    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
 
     let textDocument = TextDocumentIdentifier(def.url)
     let actionsRequest = CodeActionRequest(
       range: def.position..<def.position,
-      context: .init(diagnostics: diags),
+      context: .init(diagnostics: semanticDiags.diagnostics),
       textDocument: textDocument
     )
-    let actionResult = try ws.sk.sendSync(actionsRequest)
+    let actionResult = try await ws.testClient.send(actionsRequest)
 
     guard case .codeActions(let codeActions) = actionResult else {
       return XCTFail("Expected code actions, not commands as a response")
@@ -360,12 +343,13 @@ final class CodeActionTests: XCTestCase {
 
     let editReceived = self.expectation(description: "Received ApplyEdit request")
 
-    ws.sk.appendOneShotRequestHandler { (request: Request<ApplyEditRequest>) in
+    ws.testClient.handleNextRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
       defer {
         editReceived.fulfill()
       }
-      guard let change = request.params.edit.changes?[def.docUri]?.spm_only else {
-        return XCTFail("Expected exactly one edit")
+      guard let change = request.edit.changes?[def.docUri]?.spm_only else {
+        XCTFail("Expected exactly one edit")
+        return ApplyEditResponse(applied: false, failureReason: "Expected exactly one edit")
       }
       XCTAssertEqual(
         change.newText.trimmingTrailingWhitespace(),
@@ -377,9 +361,9 @@ final class CodeActionTests: XCTestCase {
 
         """
       )
-      request.reply(ApplyEditResponse(applied: true, failureReason: nil))
+      return ApplyEditResponse(applied: true, failureReason: nil)
     }
-    _ = try ws.sk.sendSync(ExecuteCommandRequest(command: command.command, arguments: command.arguments))
+    _ = try await ws.testClient.send(ExecuteCommandRequest(command: command.command, arguments: command.arguments))
 
     try await fulfillmentOfOrThrow([editReceived])
   }
