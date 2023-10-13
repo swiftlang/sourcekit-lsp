@@ -171,7 +171,7 @@ extension TestClient: Connection {
 
   /// Send a notification and expect a notification in reply synchronously.
   /// For testing notifications that behave like requests  - e.g. didChange & publishDiagnostics.
-  public func sendnotificationSync<NReply>(
+  public func sendNotificationSync<NReply>(
     _ notification: some NotificationType,
     _ handler: @escaping (Notification<NReply>) -> Void
   ) {
