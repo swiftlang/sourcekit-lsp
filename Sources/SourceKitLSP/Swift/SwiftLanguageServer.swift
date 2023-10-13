@@ -1318,7 +1318,7 @@ extension SwiftLanguageServer {
         position: edit.range.lowerBound,
         sourceText: edit.newText
       )
-    } catch SemanticRefactoringError.noEditsNeeded(_) {
+    } catch SemanticRefactoringError.noEditsNeeded {
       return nil
     }
   }
