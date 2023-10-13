@@ -200,7 +200,7 @@ extension TestClient: Connection {
     _ handler2: @escaping (Notification<NReply2>) -> Void
   ) where NSend: NotificationType {
 
-    let expectation = XCTestExpectation(description: "sendnotificationSync - notification received")
+    let expectation = XCTestExpectation(description: "sendNotificationSync - notification received")
     expectation.expectedFulfillmentCount = 2
 
     handleNextNotification { (notification: Notification<NReply1>) in
