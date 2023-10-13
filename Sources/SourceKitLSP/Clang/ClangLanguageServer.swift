@@ -572,7 +572,7 @@ extension ClangLanguageServerShim {
     return try await forwardRequestToClangd(req)
   }
 
-  func macroExpansion(_ req: MacroExpansionRequest) async throws -> MacroExpansion? {
+  func macroExpansion(_ req: MacroExpansionRequest) async throws -> [MacroExpansion] {
     throw ResponseError.unsupportedMethod
   }
 

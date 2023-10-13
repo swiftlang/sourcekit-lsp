@@ -625,7 +625,7 @@ extension SourceKitServer: MessageHandler {
           fallback: .full(.init(items: []))
         )
       case let request as Request<MacroExpansionRequest>:
-        await self.handleRequest(for: request, requestHandler: self.macroExpansion, fallback: nil)
+        await self.handleRequest(for: request, requestHandler: self.macroExpansion, fallback: [])
       default:
         reply(.failure(ResponseError.methodNotFound(R.method)))
       }
@@ -1392,7 +1392,7 @@ extension SourceKitServer {
     _ request: MacroExpansionRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async throws -> MacroExpansion? {
+  ) async throws -> [MacroExpansion] {
     return try await languageService.macroExpansion(request)
   }
 

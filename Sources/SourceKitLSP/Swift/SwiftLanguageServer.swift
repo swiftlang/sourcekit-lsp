@@ -1299,7 +1299,7 @@ extension SwiftLanguageServer {
     return .full(RelatedFullDocumentDiagnosticReport(items: diagnostics))
   }
 
-  public func macroExpansion(_ req: MacroExpansionRequest) async throws -> MacroExpansion? {
+  public func macroExpansion(_ req: MacroExpansionRequest) async throws -> [MacroExpansion] {
     let command = SemanticRefactorCommand(
       title: "Expand Macro",
       actionString: "source.refactoring.kind.expand.macro",
@@ -1310,16 +1310,18 @@ extension SwiftLanguageServer {
     do {
       let refactor = try await semanticRefactoring(command)
 
-      guard let edit = refactor.edit.changes?[req.textDocument.uri]?.first else {
-        return nil
+      guard let edits = refactor.edit.changes?[req.textDocument.uri] else {
+        return []
       }
 
-      return MacroExpansion(
-        position: edit.range.lowerBound,
-        sourceText: edit.newText
-      )
+      return edits.map { edit in
+        MacroExpansion(
+          position: edit.range.lowerBound,
+          sourceText: edit.newText
+        )
+      }
     } catch SemanticRefactoringError.noEditsNeeded {
-      return nil
+      return []
     }
   }
 

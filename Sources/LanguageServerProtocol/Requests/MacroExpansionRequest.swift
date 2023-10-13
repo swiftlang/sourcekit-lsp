@@ -20,7 +20,7 @@
 /// - Returns: The macro expansion.
 public struct MacroExpansionRequest: TextDocumentRequest, Hashable {
   public static let method: String = "sourcekit-lsp/macroExpansion"
-  public typealias Response = MacroExpansion?
+  public typealias Response = [MacroExpansion]
 
   /// The document in which the macro is used.
   public var textDocument: TextDocumentIdentifier
