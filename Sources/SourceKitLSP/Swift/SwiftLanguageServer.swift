@@ -92,9 +92,9 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   let sourcekitd: SourceKitD
 
-  /// Queue on which notifications from sourcekitd are handled to ensure we are
+  /// Queue on which notes from sourcekitd are handled to ensure we are
   /// handling them in-order.
-  let sourcekitdNotificationHandlingQueue = AsyncQueue(.serial)
+  let sourcekitdNoteHandlingQueue = AsyncQueue(.serial)
 
   let capabilityRegistry: CapabilityRegistry
 
@@ -119,9 +119,9 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   var enablePublishDiagnostics: Bool {
     // Since LSP 3.17.0, diagnostics can be reported through pull-based requests,
-    // in addition to the existing push-based publish notifications.
+    // in addition to the existing push-based publish notes.
     // If the client supports pull diagnostics, we report the capability
-    // and we should disable the publish notifications to avoid double-reporting.
+    // and we should disable the publish notes to avoid double-reporting.
     return capabilityRegistry.pullDiagnosticsRegistration(for: .swift) == nil
   }
 
@@ -253,7 +253,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
     var newDiags: [CachedDiagnostic] = []
     sourcekitdDiagnostics?.forEach { _, diag in
-      if let diag = CachedDiagnostic(diag, in: snapshot, useEducationalNotificationAsCode: supportsCodeDescription) {
+      if let diag = CachedDiagnostic(diag, in: snapshot, useEducationalNoteAsCode: supportsCodeDescription) {
         newDiags.append(diag)
       }
       return true
@@ -294,8 +294,8 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
       isFromFallbackBuildSettings: compileCommand?.isFallback ?? true
     )
 
-    await sourceKitServer?.sendNotificationToClient(
-      PublishDiagnosticsNotification(
+    await sourceKitServer?.sendNoteToClient(
+      PublishDiagnosticsNote(
         uri: documentUri,
         version: snapshot.version,
         diagnostics: diagnostics
@@ -337,7 +337,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 extension SwiftLanguageServer {
 
   public func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult {
-    sourcekitd.addNotificationHandler(self)
+    sourcekitd.addNoteHandler(self)
 
     return InitializeResult(
       capabilities: ServerCapabilities(
@@ -390,7 +390,7 @@ extension SwiftLanguageServer {
     )
   }
 
-  public func clientInitialized(_: InitializedNotification) {
+  public func clientInitialized(_: InitializedNote) {
     // Nothing to do.
   }
 
@@ -399,7 +399,7 @@ extension SwiftLanguageServer {
       await session.close()
       self.currentCompletionSession = nil
     }
-    self.sourcekitd.removeNotificationHandler(self)
+    self.sourcekitd.removeNoteHandler(self)
   }
 
   /// Tell sourcekitd to crash itself. For testing purposes only.
@@ -462,17 +462,17 @@ extension SwiftLanguageServer {
 
   // MARK: - Text synchronization
 
-  public func openDocument(_ notification: DidOpenTextDocumentNotification) async {
+  public func openDocument(_ note: DidOpenTextDocumentNote) async {
     let keys = self.keys
 
-    guard let snapshot = self.documentManager.open(notification) else {
+    guard let snapshot = self.documentManager.open(note) else {
       // Already logged failure.
       return
     }
 
     let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     req[keys.request] = self.requests.editor_open
-    req[keys.name] = notification.textDocument.uri.pseudoPath
+    req[keys.name] = note.textDocument.uri.pseudoPath
     req[keys.sourcetext] = snapshot.text
 
     let compileCommand = await self.buildSettings(for: snapshot.uri)
@@ -488,12 +488,12 @@ extension SwiftLanguageServer {
     await self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
   }
 
-  public func closeDocument(_ notification: DidCloseTextDocumentNotification) async {
+  public func closeDocument(_ note: DidCloseTextDocumentNote) async {
     let keys = self.keys
 
-    self.documentManager.close(notification)
+    self.documentManager.close(note)
 
-    let uri = notification.textDocument.uri
+    let uri = note.textDocument.uri
 
     let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     req[keys.request] = self.requests.editor_close
@@ -504,20 +504,20 @@ extension SwiftLanguageServer {
 
     _ = try? self.sourcekitd.sendSync(req)
 
-    await semanticTokensManager.discardSemanticTokens(for: notification.textDocument.uri)
+    await semanticTokensManager.discardSemanticTokens(for: note.textDocument.uri)
   }
 
-  public func changeDocument(_ notification: DidChangeTextDocumentNotification) async {
+  public func changeDocument(_ note: DidChangeTextDocumentNote) async {
     let keys = self.keys
     var edits: [IncrementalEdit] = []
 
     var lastResponse: SKDResponseDictionary? = nil
 
-    let editResult = self.documentManager.edit(notification) {
+    let editResult = self.documentManager.edit(note) {
       (before: LineTable, edit: TextDocumentContentChangeEvent) in
       let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       req[keys.request] = self.requests.editor_replacetext
-      req[keys.name] = notification.textDocument.uri.pseudoPath
+      req[keys.name] = note.textDocument.uri.pseudoPath
 
       if let range = edit.range {
         guard let offset = before.utf8OffsetOf(line: range.lowerBound.line, utf16Column: range.lowerBound.utf16index),
@@ -543,7 +543,7 @@ extension SwiftLanguageServer {
       req[keys.sourcetext] = edit.text
       lastResponse = try? self.sourcekitd.sendSync(req)
 
-      self.adjustDiagnosticRanges(of: notification.textDocument.uri, for: edit)
+      self.adjustDiagnosticRanges(of: note.textDocument.uri, for: edit)
     }
     guard let (preEditSnapshot, postEditSnapshot) = editResult else {
       return
@@ -556,20 +556,20 @@ extension SwiftLanguageServer {
     await semanticTokensManager.registerEdit(
       preEditSnapshot: preEditSnapshot.id,
       postEditSnapshot: postEditSnapshot.id,
-      edits: notification.contentChanges
+      edits: note.contentChanges
     )
 
     if let dict = lastResponse {
-      let compileCommand = await self.buildSettings(for: notification.textDocument.uri)
+      let compileCommand = await self.buildSettings(for: note.textDocument.uri)
       await self.publishDiagnostics(response: dict, for: postEditSnapshot, compileCommand: compileCommand)
     }
   }
 
-  public func willSaveDocument(_ notification: WillSaveTextDocumentNotification) {
+  public func willSaveDocument(_ note: WillSaveTextDocumentNote) {
 
   }
 
-  public func didSaveDocument(_ notification: DidSaveTextDocumentNotification) {
+  public func didSaveDocument(_ note: DidSaveTextDocumentNote) {
 
   }
 
@@ -1328,21 +1328,21 @@ extension SwiftLanguageServer {
   }
 }
 
-extension SwiftLanguageServer: SKDNotificationHandler {
-  public nonisolated func notification(_ notification: SKDResponse) {
-    sourcekitdNotificationHandlingQueue.async {
-      await self.notificationImpl(notification)
+extension SwiftLanguageServer: SKDNoteHandler {
+  public nonisolated func note(_ note: SKDResponse) {
+    sourcekitdNoteHandlingQueue.async {
+      await self.noteImpl(note)
     }
   }
 
-  private func notificationImpl(_ notification: SKDResponse) async {
-    // Check if we need to update our `state` based on the contents of the notification.
-    if notification.value?[self.keys.notification] == self.values.notification_sema_enabled {
+  private func noteImpl(_ note: SKDResponse) async {
+    // Check if we need to update our `state` based on the contents of the note.
+    if note.value?[self.keys.note] == self.values.note_sema_enabled {
       self.state = .connected
     }
 
     if self.state == .connectionInterrupted {
-      // If we get a notification while we are restoring the connection, it means that the server has restarted.
+      // If we get a note while we are restoring the connection, it means that the server has restarted.
       // We still need to wait for semantic functionality to come back up.
       self.state = .semanticFunctionalityDisabled
 
@@ -1354,7 +1354,7 @@ extension SwiftLanguageServer: SKDNotificationHandler {
       }
     }
 
-    if notification.error == .connectionInterrupted {
+    if note.error == .connectionInterrupted {
       self.state = .connectionInterrupted
 
       // We don't have any open documents anymore after sourcekitd crashed.
@@ -1362,15 +1362,15 @@ extension SwiftLanguageServer: SKDNotificationHandler {
       self.documentManager = DocumentManager()
     }
 
-    guard let dict = notification.value else {
-      log(notification.description, level: .error)
+    guard let dict = note.value else {
+      log(note.description, level: .error)
       return
     }
 
-    logAsync(level: .debug) { _ in notification.description }
+    logAsync(level: .debug) { _ in note.description }
 
-    if let kind: sourcekitd_uid_t = dict[self.keys.notification],
-      kind == self.values.notification_documentupdate,
+    if let kind: sourcekitd_uid_t = dict[self.keys.note],
+      kind == self.values.note_documentupdate,
       let name: String = dict[self.keys.name]
     {
 
