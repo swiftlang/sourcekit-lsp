@@ -1303,7 +1303,7 @@ extension SwiftLanguageServer {
     let command = SemanticRefactorCommand(
       title: "Expand Macro",
       actionString: "source.refactoring.kind.expand.macro",
-      positionRange: req.position..<req.position,
+      positionRange: req.range,
       textDocument: req.textDocument
     )
     

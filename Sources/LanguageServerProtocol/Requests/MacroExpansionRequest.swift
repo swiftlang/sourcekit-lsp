@@ -15,7 +15,7 @@
 ///
 /// - Parameters:
 ///   - textDocument: The document in which the macro is used.
-///   - position: The position at which the macro is used.
+///   - range: The range at which the macro is used.
 ///
 /// - Returns: The macro expansion.
 public struct MacroExpansionRequest: TextDocumentRequest, Hashable {
@@ -26,13 +26,14 @@ public struct MacroExpansionRequest: TextDocumentRequest, Hashable {
   public var textDocument: TextDocumentIdentifier
 
   /// The position at which the macro is used.
-  public var position: Position
+  @CustomCodable<PositionRange>
+  public var range: Range<Position>
 
   public init(
     textDocument: TextDocumentIdentifier,
-    position: Position
+    range: Range<Position>
   ) {
     self.textDocument = textDocument
-    self.position = position
+    self._range = CustomCodable(wrappedValue: range)
   }
 }
