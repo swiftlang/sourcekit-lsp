@@ -1300,21 +1300,20 @@ extension SwiftLanguageServer {
   }
 
   public func macroExpansion(_ req: MacroExpansionRequest) async throws -> MacroExpansion? {
-    guard let snapshot = documentManager.latestSnapshot(req.textDocument.uri) else {
-      let msg = "failed to find snapshot for url \(req.textDocument.uri)"
-      log(msg)
-      throw ResponseError.unknown(msg)
+    let command = SemanticRefactorCommand(
+      title: "Expand Macro",
+      actionString: "source.refactoring.kind.expand.macro",
+      positionRange: req.position..<req.position,
+      textDocument: req.textDocument
+    )
+    
+    let refactor = try await semanticRefactoring(command)
+
+    guard let newText = refactor.edit.changes?[req.textDocument.uri]?.first?.newText else {
+      return nil
     }
 
-    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-
-    // TODO: Find the moduleName, typeName and roles for the macro at the
-    // position given in the request somehow. Use these to construct
-    // `ExpansionSpecifier`s and pass them to SourceKitD via the
-    // `syntacticMacroExpansion` function. Extract the text edits from the
-    // result and wrap them in `MacroExpansion`.
-
-    return nil
+    return MacroExpansion(sourceText: newText)
   }
 
   public func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
