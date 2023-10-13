@@ -12,10 +12,14 @@
 
 /// The expansion of a macro in a source file.
 public struct MacroExpansion: ResponseType, Hashable {
+  /// The position in the source file where the expansion would be inserted.
+  public let position: Position
+
   /// The Swift code that the macro expands to.
   public let sourceText: String
 
-  public init(sourceText: String) {
+  public init(position: Position, sourceText: String) {
+    self.position = position
     self.sourceText = sourceText
   }
 }

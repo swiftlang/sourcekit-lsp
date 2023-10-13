@@ -1310,11 +1310,14 @@ extension SwiftLanguageServer {
     do {
       let refactor = try await semanticRefactoring(command)
 
-      guard let newText = refactor.edit.changes?[req.textDocument.uri]?.first?.newText else {
+      guard let edit = refactor.edit.changes?[req.textDocument.uri]?.first else {
         return nil
       }
 
-      return MacroExpansion(sourceText: newText)
+      return MacroExpansion(
+        position: edit.range.lowerBound,
+        sourceText: edit.newText
+      )
     } catch SemanticRefactoringError.noEditsNeeded(_) {
       return nil
     }
