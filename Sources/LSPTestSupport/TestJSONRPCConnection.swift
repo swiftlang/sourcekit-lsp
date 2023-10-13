@@ -194,7 +194,7 @@ extension TestClient: Connection {
 
   /// Send a notification and expect two notifications in reply synchronously.
   /// For testing notifications that behave like requests  - e.g. didChange & publishDiagnostics.
-  public func sendnotificationSync<NSend, NReply1, NReply2>(
+  public func sendNotificationSync<NSend, NReply1, NReply2>(
     _ notification: NSend,
     _ handler1: @escaping (Notification<NReply1>) -> Void,
     _ handler2: @escaping (Notification<NReply2>) -> Void
