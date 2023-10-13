@@ -577,11 +577,11 @@ extension SwiftLanguageServer {
 
   /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
   public func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
-    throw ResponseError.unknown("unsupported method")
+    throw ResponseError.unsupportedMethod
   }
 
   public func declaration(_ request: DeclarationRequest) async throws -> LocationsOrLocationLinksResponse? {
-    throw ResponseError.unknown("unsupported method")
+    throw ResponseError.unsupportedMethod
   }
 
   public func hover(_ req: HoverRequest) async throws -> HoverResponse? {

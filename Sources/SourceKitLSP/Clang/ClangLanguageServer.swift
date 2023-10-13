@@ -584,7 +584,7 @@ extension ClangLanguageServerShim {
   }
 
   func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails? {
-    throw ResponseError.unknown("unsupported method")
+    throw ResponseError.unsupportedMethod
   }
 
   // MARK: - Other
