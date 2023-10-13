@@ -176,7 +176,7 @@ extension TestClient: Connection {
     _ handler: @escaping (Notification<NReply>) -> Void
   ) {
 
-    let expectation = XCTestExpectation(description: "sendnotificationSync - notification received")
+    let expectation = XCTestExpectation(description: "sendNotificationSync - notification received")
 
     handleNextNotification { (notification: Notification<NReply>) in
       handler(notification)
