@@ -216,7 +216,6 @@ final class LocalSwiftTests: XCTestCase {
       documentManager.latestSnapshot(uri)!.text
     )
     let edit5SemanticDiags = try await testClient.nextDiagnosticsNotification()
-    log("Received diagnostics for edit 5 - semantic")
     XCTAssertEqual(edit5SemanticDiags.version, 16)
     XCTAssertEqual(edit5SemanticDiags.diagnostics.count, 1)
     XCTAssertEqual(
@@ -657,7 +656,6 @@ final class LocalSwiftTests: XCTestCase {
     _ = try await testClient.nextDiagnosticsNotification()
 
     let semanticDiags = try await testClient.nextDiagnosticsNotification()
-    log("Received diagnostics for open - semantic")
     XCTAssertEqual(semanticDiags.diagnostics.count, 1)
     let diag = semanticDiags.diagnostics.first!
     XCTAssertEqual(diag.relatedInformation?.count, 2)

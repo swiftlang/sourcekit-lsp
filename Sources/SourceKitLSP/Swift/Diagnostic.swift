@@ -31,7 +31,7 @@ extension CodeAction {
     }
 
     if !editsMapped {
-      log("failed to construct TextEdits from response \(fixits)", level: .warning)
+      logger.fault("failed to construct TextEdits from response \(fixits)")
       return nil
     }
 
@@ -49,7 +49,7 @@ extension CodeAction {
         snapshot.text.indices.contains(startIndex),
         endIndex <= snapshot.text.endIndex
       else {
-        logAssertionFailure("position mapped, but indices failed for edit range \(edits[0])")
+        logger.fault("position mapped, but indices failed for edit range \(String(reflecting: edits[0]))")
         return nil
       }
       let oldText = String(snapshot.text[startIndex..<endIndex])
@@ -335,7 +335,7 @@ func mergeDiagnostics(
 
   #if DEBUG
   if let sema = new.first(where: { $0.stage == .sema }) {
-    log("unexpected semantic diagnostic in parse diagnostics \(sema.diagnostic)", level: .warning)
+    logger.fault("unexpected semantic diagnostic in parse diagnostics \(String(reflecting: sema.diagnostic))")
   }
   #endif
   return new.filter { $0.stage == .parse } + old.filter { $0.stage == .sema }
@@ -356,7 +356,7 @@ extension DiagnosticStage {
       self = .sema
     default:
       let desc = sourcekitd.api.uid_get_string_ptr(uid).map { String(cString: $0) }
-      log("unknown diagnostic stage \(desc ?? "nil")", level: .warning)
+      logger.fault("unknown diagnostic stage \(desc ?? "nil", privacy: .public)")
       return nil
     }
   }

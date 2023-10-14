@@ -76,7 +76,7 @@ extension ExecuteCommandRequest {
       return nil
     }
     guard let metadata = SourceKitLSPCommandMetadata(fromLSPDictionary: dictionary) else {
-      log("failed to decode lsp metadata in executeCommand request", level: .error)
+      logger.error("failed to decode lsp metadata in executeCommand request")
       return nil
     }
     return metadata

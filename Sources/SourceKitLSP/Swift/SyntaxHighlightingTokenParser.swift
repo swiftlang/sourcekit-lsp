@@ -194,7 +194,7 @@ struct SyntaxHighlightingTokenParser {
       ]
       if !ignoredKinds.contains(uid) {
         let name = api.uid_get_string_ptr(uid).map(String.init(cString:))
-        log("Unknown token kind: \(name ?? "?")", level: .debug)
+        logger.error("Unknown token kind: \(name ?? "?", privacy: .public)")
       }
       return nil
     }

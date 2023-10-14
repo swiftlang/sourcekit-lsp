@@ -84,7 +84,7 @@ actor CodeCompletionSession {
     in snapshot: DocumentSnapshot,
     options: SKCompletionOptions
   ) async throws -> CompletionList {
-    log("\(Self.self) Open: \(self) filter=\(filterText)")
+    logger.info("Opening code completion session: \(self, privacy: .private) filter=\(filterText)")
     guard snapshot.version == self.snapshot.version else {
       throw ResponseError(code: .invalidRequest, message: "open must use the original snapshot")
     }
@@ -126,7 +126,7 @@ actor CodeCompletionSession {
   ) async throws -> CompletionList {
     // FIXME: Assertion for prefix of snapshot matching what we started with.
 
-    log("\(Self.self) Update: \(self) filter=\(filterText)")
+    logger.info("Updating code completion session: \(self, privacy: .private) filter=\(filterText)")
     let req = SKDRequestDictionary(sourcekitd: server.sourcekitd)
     let keys = server.sourcekitd.keys
     req[keys.request] = server.sourcekitd.requests.codecomplete_update
@@ -175,7 +175,7 @@ actor CodeCompletionSession {
     req[keys.request] = server.sourcekitd.requests.codecomplete_close
     req[keys.offset] = self.utf8StartOffset
     req[keys.name] = self.snapshot.uri.pseudoPath
-    log("\(Self.self) Closing: \(self)")
+    logger.info("Closing code completion session: \(self, privacy: .private)")
     _ = try? server.sourcekitd.sendSync(req)
   }
 

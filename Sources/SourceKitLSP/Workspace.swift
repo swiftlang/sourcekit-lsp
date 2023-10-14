@@ -122,7 +122,9 @@ public final class Workspace {
     } else {
       // We assume that workspaces are directories. This is only true for URLs not for URIs in general.
       // Simply skip setting up the build integration in this case.
-      log("cannot setup build integration for workspace at URI \(rootUri) because the URI it is not a valid file URL")
+      logger.error(
+        "cannot setup build integration for workspace at URI \(rootUri.forLogging) because the URI it is not a valid file URL"
+      )
     }
 
     var index: IndexStoreDB? = nil
@@ -145,9 +147,9 @@ public final class Workspace {
           listenToUnitEvents: indexOptions.listenToUnitEvents,
           prefixMappings: prefixMappings.map { PathMapping(original: $0.original, replacement: $0.replacement) }
         )
-        log("opened IndexStoreDB at \(dbPath) with store path \(storePath)")
+        logger.debug("opened IndexStoreDB at \(dbPath) with store path \(storePath)")
       } catch {
-        log("failed to open IndexStoreDB: \(error.localizedDescription)", level: .error)
+        logger.error("failed to open IndexStoreDB: \(error.localizedDescription)")
       }
     }
 

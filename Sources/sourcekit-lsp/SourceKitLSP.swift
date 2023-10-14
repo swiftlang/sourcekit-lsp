@@ -58,7 +58,6 @@ extension PathPrefixMapping: ExpressibleByArgument {
   }
 }
 
-extension LogLevel: ExpressibleByArgument {}
 extension BuildConfiguration: ExpressibleByArgument {}
 
 @main
@@ -71,9 +70,6 @@ struct SourceKitLSP: ParsableCommand {
   /// Used for testing.
   @Flag(name: .customLong("sync"))
   var syncRequests = false
-
-  @Option(help: "Set the logging level [debug|info|warning|error] (default: \(LogLevel.default))")
-  var logLevel: LogLevel?
 
   @Option(
     name: [.customLong("configuration"), .customShort("c")],
@@ -177,12 +173,6 @@ struct SourceKitLSP: ParsableCommand {
   }
 
   func run() throws {
-    if let logLevel = logLevel {
-      Logger.shared.currentLevel = logLevel
-    } else {
-      Logger.shared.setLogLevel(environmentVariable: "SOURCEKIT_LOGGING")
-    }
-
     // Dup stdout and redirect the fd to stderr so that a careless print()
     // will not break our connection stream.
     let realStdout = dup(STDOUT_FILENO)

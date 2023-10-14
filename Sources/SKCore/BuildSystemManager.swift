@@ -107,7 +107,7 @@ extension BuildSystemManager {
         return (buildSettings: settings, isFallback: false)
       }
     } catch {
-      log("Getting build settings failed: \(error)")
+      logger.error("Getting build settings failed: \(error.forLogging)")
     }
     if let settings = fallbackBuildSystem?.buildSettings(for: document, language: language) {
       // If there is no build system and we only have the fallback build system,
@@ -141,7 +141,7 @@ extension BuildSystemManager {
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
-    log("registerForChangeNotifications(\(uri.pseudoPath))")
+    logger.debug("registerForChangeNotifications(\(uri.forLogging))")
     let mainFile = mainFile(for: uri)
     self.watchedFiles[uri] = (mainFile, language)
 
@@ -154,7 +154,7 @@ extension BuildSystemManager {
 
   public func unregisterForChangeNotifications(for uri: DocumentURI) async {
     guard let mainFile = self.watchedFiles[uri]?.mainFile else {
-      log("Unbalanced calls for registerForChangeNotifications and unregisterForChangeNotifications", level: .warning)
+      logger.error("Unbalanced calls for registerForChangeNotifications and unregisterForChangeNotifications")
       return
     }
     self.watchedFiles[uri] = nil

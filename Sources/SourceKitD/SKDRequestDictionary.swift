@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Csourcekitd
+import LSPLogging
 
 #if canImport(Glibc)
 import Glibc
@@ -68,5 +69,13 @@ extension SKDRequestDictionary: CustomStringConvertible {
     let ptr = sourcekitd.api.request_description_copy(dict)!
     defer { free(ptr) }
     return String(cString: ptr)
+  }
+}
+
+extension SKDRequestDictionary: CustomLogStringConvertible {
+  public var redactedDescription: String {
+    // FIXME: (logging) Implement a better redacted log that contains keys,
+    // number of elements in an array but not the data itself.
+    return "<\(description.filter(\.isNewline).count) lines>"
   }
 }

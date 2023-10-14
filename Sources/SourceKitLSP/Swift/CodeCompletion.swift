@@ -19,17 +19,19 @@ extension SwiftLanguageServer {
 
   public func completion(_ req: CompletionRequest) async throws -> CompletionList {
     guard let snapshot = documentManager.latestSnapshot(req.textDocument.uri) else {
-      log("failed to find snapshot for url \(req.textDocument.uri)")
+      logger.error("failed to find snapshot for url \(req.textDocument.uri.forLogging)")
       return CompletionList(isIncomplete: true, items: [])
     }
 
     guard let completionPos = adjustCompletionLocation(req.position, in: snapshot) else {
-      log("invalid completion position \(req.position)")
+      logger.error("invalid completion position \(req.position, privacy: .public)")
       return CompletionList(isIncomplete: true, items: [])
     }
 
     guard let offset = snapshot.utf8Offset(of: completionPos) else {
-      log("invalid completion position \(req.position) (adjusted: \(completionPos)")
+      logger.error(
+        "invalid completion position \(req.position, privacy: .public) (adjusted: \(completionPos, privacy: .public)"
+      )
       return CompletionList(isIncomplete: true, items: [])
     }
 
@@ -64,7 +66,7 @@ extension SwiftLanguageServer {
     guard let start = snapshot.indexOf(utf8Offset: offset),
       let end = snapshot.index(of: req.position)
     else {
-      log("invalid completion position \(req.position)")
+      logger.error("invalid completion position \(req.position, privacy: .public)")
       return CompletionList(isIncomplete: true, items: [])
     }
 
@@ -73,13 +75,16 @@ extension SwiftLanguageServer {
     let session: CodeCompletionSession
     if req.context?.triggerKind == .triggerFromIncompleteCompletions {
       guard let currentSession = currentCompletionSession else {
-        log("triggerFromIncompleteCompletions with no existing completion session", level: .warning)
+        logger.error("triggerFromIncompleteCompletions with no existing completion session")
         throw ResponseError.serverCancelled
       }
       guard currentSession.uri == snapshot.uri, currentSession.utf8StartOffset == offset else {
-        log(
-          "triggerFromIncompleteCompletions with incompatible completion session; expected \(currentSession.uri)@\(currentSession.utf8StartOffset), but got \(snapshot.uri)@\(offset)",
-          level: .warning
+        logger.error(
+          """
+            triggerFromIncompleteCompletions with incompatible completion session; expected \
+            \(currentSession.uri.forLogging)@\(currentSession.utf8StartOffset), \
+            but got \(snapshot.uri.forLogging)@\(offset)
+          """
         )
         throw ResponseError.serverCancelled
       }

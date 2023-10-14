@@ -141,3 +141,7 @@ target_link_libraries(LanguageServerProtocol PUBLIC
   TSCBasic
   $<$<NOT:$<PLATFORM_ID:Darwin>>:swiftDispatch>
   $<$<NOT:$<PLATFORM_ID:Darwin>>:Foundation>)
+
+target_link_libraries(LanguageServerProtocol PUBLIC
+  LSPLogging
+)

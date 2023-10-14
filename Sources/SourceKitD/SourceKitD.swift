@@ -113,17 +113,22 @@ extension SourceKitD {
 private func logRequest(_ request: SKDRequestDictionary) {
   // FIXME: Ideally we could log the request key here at the info level but the dictionary is
   // readonly.
-  logAsync(level: .debug) { _ in request.description }
+  logger.log(
+    """
+    Sending sourcekitd request:
+    \(request.forLogging)
+    """
+  )
 }
 
 private func logResponse(_ response: SKDResponse) {
-  if let value = response.value {
-    logAsync(level: .debug) { _ in value.description }
-  } else if case .requestCancelled = response.error! {
-    log(response.description, level: .debug)
-  } else {
-    log(response.description, level: .error)
-  }
+  logger.log(
+    level: (response.error == nil || response.error == .requestCancelled) ? .debug : .error,
+    """
+    Received sourcekitd response:
+    \(response.forLogging)
+    """
+  )
 }
 
 /// A sourcekitd notification handler in a class to allow it to be uniquely referenced.
