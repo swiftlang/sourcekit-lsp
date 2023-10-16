@@ -15,16 +15,10 @@
 /// **(LSP Extension)**: This is used as part of an extension to the
 /// code-completion request.
 public struct SKCompletionOptions: Codable, Hashable {
-
-  /// Whether to use server-side filtering or to return all results and let the
-  /// client handle all filtering.
-  public var serverSideFiltering: Bool
-
   /// The maximum number of completion results to return, or `nil` for unlimited.
   public var maxResults: Int?
 
-  public init(serverSideFiltering: Bool = true, maxResults: Int? = 200) {
-    self.serverSideFiltering = serverSideFiltering
+  public init(maxResults: Int? = 200) {
     self.maxResults = maxResults
   }
 }

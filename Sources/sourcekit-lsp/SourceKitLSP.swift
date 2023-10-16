@@ -143,11 +143,6 @@ struct SourceKitLSP: ParsableCommand {
   var generatedInterfacesPath = defaultDirectoryForGeneratedInterfaces
 
   @Option(
-    help: "Whether to enable server-side filtering in code-completion"
-  )
-  var completionServerSideFiltering = true
-
-  @Option(
     help: "When server-side filtering is enabled, the maximum number of results to return"
   )
   var completionMaxResults = 200
@@ -165,7 +160,6 @@ struct SourceKitLSP: ParsableCommand {
     serverOptions.indexOptions.indexStorePath = indexStorePath
     serverOptions.indexOptions.indexDatabasePath = indexDatabasePath
     serverOptions.indexOptions.indexPrefixMappings = indexPrefixMappings
-    serverOptions.completionOptions.serverSideFiltering = completionServerSideFiltering
     serverOptions.completionOptions.maxResults = completionMaxResults
     serverOptions.generatedInterfacesPath = generatedInterfacesPath
 

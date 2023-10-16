@@ -108,8 +108,6 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   var currentDiagnostics: [DocumentURI: [CachedDiagnostic]] = [:]
 
-  var currentCompletionSession: CodeCompletionSession? = nil
-
   let syntaxTreeManager = SyntaxTreeManager()
   let semanticTokensManager = SemanticTokensManager()
 
@@ -393,10 +391,6 @@ extension SwiftLanguageServer {
   }
 
   public func shutdown() async {
-    if let session = self.currentCompletionSession {
-      await session.close()
-      self.currentCompletionSession = nil
-    }
     self.sourcekitd.removeNotificationHandler(self)
   }
 
