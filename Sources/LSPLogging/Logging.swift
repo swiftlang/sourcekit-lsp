@@ -22,7 +22,7 @@ import Foundation
 /// The subsystem that should be used for any logging by default.
 public let subsystem = "org.swift.sourcekit-lsp"
 
-#if canImport(os)
+#if canImport(os) && !SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER
 import os  // os_log
 
 public typealias LogLevel = os.OSLogType
