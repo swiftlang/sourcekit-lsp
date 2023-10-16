@@ -3,39 +3,51 @@
 import Foundation
 import PackageDescription
 
+// MARK: - Parse build arguments
+
+func hasEnvironmentVariable(_ name: String) -> Bool {
+  return ProcessInfo.processInfo.environment[name] != nil
+}
+
 // When building the toolchain on the CI, don't add the CI's runpath for the
 // final build before installing.
+let installAction = hasEnvironmentVariable("SOURCEKIT_LSP_CI_INSTALL")
+
+/// Assume that all the package dependencies are checked out next to sourcekit-lsp and use that instead of fetching a
+/// remote dependency.
+let useLocalDependencies = hasEnvironmentVariable("SWIFTCI_USE_LOCAL_DEPS")
+
+// MARK: - Compute custom build settings
+
 let sourcekitLSPLinkSettings: [LinkerSetting]
-if ProcessInfo.processInfo.environment["SOURCEKIT_LSP_CI_INSTALL"] != nil {
+if installAction {
   sourcekitLSPLinkSettings = [.unsafeFlags(["-no-toolchain-stdlib-rpath"], .when(platforms: [.linux, .android]))]
 } else {
   sourcekitLSPLinkSettings = []
 }
 
+// MARK: - Build the package
+
 let package = Package(
   name: "SourceKitLSP",
   platforms: [.macOS("12.0")],
   products: [
-    .executable(
-      name: "sourcekit-lsp",
-      targets: ["sourcekit-lsp"]
-    ),
-    .library(
-      name: "_SourceKitLSP",
-      targets: ["SourceKitLSP"]
-    ),
-    .library(
-      name: "LSPBindings",
-      targets: [
-        "LanguageServerProtocol",
-        "LanguageServerProtocolJSONRPC",
-      ]
-    ),
+    .executable(name: "sourcekit-lsp", targets: ["sourcekit-lsp"]),
+    .library(name: "_SourceKitLSP", targets: ["SourceKitLSP"]),
+    .library(name: "LSPBindings", targets: ["LanguageServerProtocol", "LanguageServerProtocolJSONRPC"]),
   ],
   dependencies: [
     // See 'Dependencies' below.
   ],
   targets: [
+    // Formatting style:
+    //  - One section for each target and its test target
+    //  - Sections are sorted alphabetically
+    //  - Dependencies are listed on separate lines
+    //  - All array elements are sorted alphabetically
+
+    // MARK: sourcekit-lsp
+
     .executableTarget(
       name: "sourcekit-lsp",
       dependencies: [
@@ -48,48 +60,148 @@ let package = Package(
       linkerSettings: sourcekitLSPLinkSettings
     ),
 
+    // MARK: BuildServerProtocol:
+    // Connection between build server and language server to provide build and index info
+
     .target(
-      name: "SourceKitLSP",
+      name: "BuildServerProtocol",
       dependencies: [
-        "BuildServerProtocol",
-        .product(name: "IndexStoreDB", package: "indexstore-db"),
-        "LanguageServerProtocol",
-        "LanguageServerProtocolJSONRPC",
-        "SKCore",
-        "SourceKitD",
-        "SKSwiftPMWorkspace",
-        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
-        .product(name: "SwiftSyntax", package: "swift-syntax"),
-        .product(name: "SwiftParser", package: "swift-syntax"),
-        .product(name: "SwiftIDEUtils", package: "swift-syntax"),
+        "LanguageServerProtocol"
       ],
       exclude: ["CMakeLists.txt"]
     ),
 
+    // MARK: CSKTestSupport
     .target(
       name: "CSKTestSupport",
       dependencies: []
     ),
+
+    // MARK: Csourcekitd:
+    // C modules wrapper for sourcekitd.
     .target(
-      name: "SKTestSupport",
+      name: "Csourcekitd",
+      dependencies: [],
+      exclude: ["CMakeLists.txt"]
+    ),
+
+    // MARK: LanguageServerProtocol
+    // The core LSP types, suitable for any LSP implementation.
+    .target(
+      name: "LanguageServerProtocol",
       dependencies: [
-        "CSKTestSupport",
-        "LSPTestSupport",
-        "SourceKitLSP",
-        .product(name: "ISDBTestSupport", package: "indexstore-db"),
+        "LSPLogging",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      resources: [
-        .copy("INPUTS")
-      ]
+      exclude: ["CMakeLists.txt"]
     ),
+
     .testTarget(
-      name: "SourceKitLSPTests",
+      name: "LanguageServerProtocolTests",
       dependencies: [
-        "SKTestSupport",
-        "SourceKitLSP",
+        "LanguageServerProtocol",
+        "LSPTestSupport",
       ]
     ),
+
+    // MARK: LanguageServerProtocolJSONRPC
+    // LSP connection using jsonrpc over pipes.
+
+    .target(
+      name: "LanguageServerProtocolJSONRPC",
+      dependencies: [
+        "LanguageServerProtocol",
+        "LSPLogging",
+      ],
+      exclude: ["CMakeLists.txt"]
+    ),
+
+    .testTarget(
+      name: "LanguageServerProtocolJSONRPCTests",
+      dependencies: [
+        "LanguageServerProtocolJSONRPC",
+        "LSPTestSupport",
+      ]
+    ),
+
+    // MARK: LSPLogging
+    // Logging support used in LSP modules.
+
+    .target(
+      name: "LSPLogging",
+      dependencies: [
+        .product(name: "Crypto", package: "swift-crypto")
+      ],
+      exclude: ["CMakeLists.txt"]
+    ),
+
+    .testTarget(
+      name: "LSPLoggingTests",
+      dependencies: [
+        "LSPLogging",
+        "SKTestSupport",
+      ]
+    ),
+
+    // MARK: LSPTestSupport
+
+    .target(
+      name: "LSPTestSupport",
+      dependencies: [
+        "LanguageServerProtocol",
+        "LanguageServerProtocolJSONRPC",
+      ]
+    ),
+
+    // MARK: SKCore
+    // Data structures and algorithms useful across the project, but not necessarily
+    // suitable for use in other packages.
+
+    .target(
+      name: "SKCore",
+      dependencies: [
+        "BuildServerProtocol",
+        "LanguageServerProtocol",
+        "LanguageServerProtocolJSONRPC",
+        "LSPLogging",
+        "SKSupport",
+        "SourceKitD",
+        .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+      ],
+      exclude: ["CMakeLists.txt"]
+    ),
+
+    .testTarget(
+      name: "SKCoreTests",
+      dependencies: [
+        "SKCore",
+        "SKTestSupport",
+      ]
+    ),
+
+    // MARK: SKSupport
+    // Data structures, algorithms and platform-abstraction code that might be generally useful to any Swift package.
+    // Similar in spirit to SwiftPM's Basic module.
+
+    .target(
+      name: "SKSupport",
+      dependencies: [
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
+      ],
+      exclude: ["CMakeLists.txt"]
+    ),
+
+    .testTarget(
+      name: "SKSupportTests",
+      dependencies: [
+        "LSPTestSupport",
+        "SKSupport",
+        "SKTestSupport",
+      ]
+    ),
+
+    // MARK: SKSwiftPMWorkspace
 
     .target(
       name: "SKSwiftPMWorkspace",
@@ -111,31 +223,25 @@ let package = Package(
       ]
     ),
 
-    // SKCore: Data structures and algorithms useful across the project, but not necessarily
-    // suitable for use in other packages.
+    // MARK: SKTestSupport
+
     .target(
-      name: "SKCore",
+      name: "SKTestSupport",
       dependencies: [
-        "SourceKitD",
-        "BuildServerProtocol",
-        "LanguageServerProtocol",
-        "LanguageServerProtocolJSONRPC",
-        "SKSupport",
-        .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
+        "CSKTestSupport",
+        "LSPTestSupport",
+        "SourceKitLSP",
+        .product(name: "ISDBTestSupport", package: "indexstore-db"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt"]
-    ),
-
-    .testTarget(
-      name: "SKCoreTests",
-      dependencies: [
-        "SKCore",
-        "SKTestSupport",
+      resources: [
+        .copy("INPUTS")
       ]
     ),
 
-    // SourceKitD: Swift bindings for sourcekitd.
+    // MARK: SourceKitD
+    // Swift bindings for sourcekitd.
+
     .target(
       name: "SourceKitD",
       dependencies: [
@@ -156,99 +262,32 @@ let package = Package(
       ]
     ),
 
-    // Csourcekitd: C modules wrapper for sourcekitd.
-    .target(
-      name: "Csourcekitd",
-      dependencies: [],
-      exclude: ["CMakeLists.txt"]
-    ),
-
-    // Logging support used in LSP modules.
-    .target(
-      name: "LSPLogging",
-      dependencies: [
-        .product(name: "Crypto", package: "swift-crypto")
-      ],
-      exclude: ["CMakeLists.txt"]
-    ),
-
-    .testTarget(
-      name: "LSPLoggingTests",
-      dependencies: [
-        "LSPLogging",
-        "SKTestSupport",
-      ]
-    ),
+    // MARK: SourceKitLSP
 
     .target(
-      name: "LSPTestSupport",
+      name: "SourceKitLSP",
       dependencies: [
+        "BuildServerProtocol",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
-      ]
-    ),
-
-    // jsonrpc: LSP connection using jsonrpc over pipes.
-    .target(
-      name: "LanguageServerProtocolJSONRPC",
-      dependencies: [
-        "LanguageServerProtocol",
         "LSPLogging",
-      ],
-      exclude: ["CMakeLists.txt"]
-    ),
-
-    .testTarget(
-      name: "LanguageServerProtocolJSONRPCTests",
-      dependencies: [
-        "LanguageServerProtocolJSONRPC",
-        "LSPTestSupport",
-      ]
-    ),
-
-    // LanguageServerProtocol: The core LSP types, suitable for any LSP implementation.
-    .target(
-      name: "LanguageServerProtocol",
-      dependencies: [
-        "LSPLogging",
+        "SKCore",
+        "SKSwiftPMWorkspace",
+        "SourceKitD",
+        .product(name: "IndexStoreDB", package: "indexstore-db"),
+        .product(name: "SwiftIDEUtils", package: "swift-syntax"),
+        .product(name: "SwiftParser", package: "swift-syntax"),
+        .product(name: "SwiftSyntax", package: "swift-syntax"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
       exclude: ["CMakeLists.txt"]
     ),
 
     .testTarget(
-      name: "LanguageServerProtocolTests",
+      name: "SourceKitLSPTests",
       dependencies: [
-        "LanguageServerProtocol",
-        "LSPTestSupport",
-      ]
-    ),
-
-    // BuildServerProtocol: connection between build server and language server to provide build and index info
-    .target(
-      name: "BuildServerProtocol",
-      dependencies: [
-        "LanguageServerProtocol"
-      ],
-      exclude: ["CMakeLists.txt"]
-    ),
-
-    // SKSupport: Data structures, algorithms and platform-abstraction code that might be generally
-    // useful to any Swift package. Similar in spirit to SwiftPM's Basic module.
-    .target(
-      name: "SKSupport",
-      dependencies: [
-        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
-      ],
-      exclude: ["CMakeLists.txt"]
-    ),
-
-    .testTarget(
-      name: "SKSupportTests",
-      dependencies: [
-        "LSPTestSupport",
-        "SKSupport",
         "SKTestSupport",
+        "SourceKitLSP",
       ]
     ),
   ]
@@ -260,7 +299,16 @@ let package = Package(
 // by the external environment. This allows sourcekit-lsp to take advantage of the automation used
 // for building the swift toolchain, such as `update-checkout`, or cross-repo PR tests.
 
-if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
+if useLocalDependencies {
+  package.dependencies += [
+    .package(path: "../indexstore-db"),
+    .package(name: "swift-package-manager", path: "../swiftpm"),
+    .package(path: "../swift-tools-support-core"),
+    .package(path: "../swift-argument-parser"),
+    .package(path: "../swift-syntax"),
+    .package(path: "../swift-crypto"),
+  ]
+} else {
   let relatedDependenciesBranch = "main"
 
   // Building standalone.
@@ -271,14 +319,5 @@ if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
     .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.2"),
     .package(url: "https://github.com/apple/swift-syntax.git", branch: relatedDependenciesBranch),
     .package(url: "https://github.com/apple/swift-crypto.git", from: "2.5.0"),
-  ]
-} else {
-  package.dependencies += [
-    .package(path: "../indexstore-db"),
-    .package(name: "swift-package-manager", path: "../swiftpm"),
-    .package(path: "../swift-tools-support-core"),
-    .package(path: "../swift-argument-parser"),
-    .package(path: "../swift-syntax"),
-    .package(path: "../swift-crypto"),
   ]
 }
