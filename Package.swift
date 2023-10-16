@@ -51,7 +51,10 @@ let package = Package(
     .executableTarget(
       name: "sourcekit-lsp",
       dependencies: [
+        "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
+        "SKCore",
+        "SKSupport",
         "SourceKitLSP",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
@@ -208,8 +211,10 @@ let package = Package(
       dependencies: [
         "BuildServerProtocol",
         "LanguageServerProtocol",
+        "LSPLogging",
         "SKCore",
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
       ],
       exclude: ["CMakeLists.txt"]
     ),
@@ -272,6 +277,7 @@ let package = Package(
         "LanguageServerProtocolJSONRPC",
         "LSPLogging",
         "SKCore",
+        "SKSupport",
         "SKSwiftPMWorkspace",
         "SourceKitD",
         .product(name: "IndexStoreDB", package: "indexstore-db"),
