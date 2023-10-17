@@ -9,6 +9,12 @@ func hasEnvironmentVariable(_ name: String) -> Bool {
   return ProcessInfo.processInfo.environment[name] != nil
 }
 
+/// Use the `NonDarwinLogger` even if `os_log` can be imported.
+///
+/// This is useful when running tests using `swift test` because xctest will not display the output from `os_log` on the
+/// command line.
+let forceNonDarwinLogger = hasEnvironmentVariable("SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER")
+
 // When building the toolchain on the CI, don't add the CI's runpath for the
 // final build before installing.
 let installAction = hasEnvironmentVariable("SOURCEKIT_LSP_CI_INSTALL")
@@ -19,11 +25,14 @@ let useLocalDependencies = hasEnvironmentVariable("SWIFTCI_USE_LOCAL_DEPS")
 
 // MARK: - Compute custom build settings
 
-let sourcekitLSPLinkSettings: [LinkerSetting]
+var sourcekitLSPLinkSettings: [LinkerSetting] = []
 if installAction {
-  sourcekitLSPLinkSettings = [.unsafeFlags(["-no-toolchain-stdlib-rpath"], .when(platforms: [.linux, .android]))]
-} else {
-  sourcekitLSPLinkSettings = []
+  sourcekitLSPLinkSettings += [.unsafeFlags(["-no-toolchain-stdlib-rpath"], .when(platforms: [.linux, .android]))]
+}
+
+var lspLoggingSwiftSettings: [SwiftSetting] = []
+if forceNonDarwinLogger {
+  lspLoggingSwiftSettings += [.define("SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER")]
 }
 
 // MARK: - Build the package
@@ -135,7 +144,8 @@ let package = Package(
       dependencies: [
         .product(name: "Crypto", package: "swift-crypto")
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: lspLoggingSwiftSettings
     ),
 
     .testTarget(
