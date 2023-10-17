@@ -595,34 +595,38 @@ public actor SourceKitServer {
 extension SourceKitServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
     messageHandlingQueue.async(metadata: TaskMetadata(params)) {
-      let notification = Notification(params, clientID: clientID)
-      await self._logNotification(notification)
+      await self.handleImpl(params, from: clientID)
+    }
+  }
 
-      switch notification.params {
-      case let notification as InitializedNotification:
-        await self.clientInitialized(notification)
-      case let notification as CancelRequestNotification:
-        await self.cancelRequest(notification)
-      case let notification as ExitNotification:
-        await self.exit(notification)
-      case let notification as DidOpenTextDocumentNotification:
-        await self.openDocument(notification)
-      case let notification as DidCloseTextDocumentNotification:
-        await self.closeDocument(notification)
-      case let notification as DidChangeTextDocumentNotification:
-        await self.changeDocument(notification)
-      case let notification as DidChangeWorkspaceFoldersNotification:
-        await self.didChangeWorkspaceFolders(notification)
-      case let notification as DidChangeWatchedFilesNotification:
-        await self.didChangeWatchedFiles(notification)
-      case let notification as WillSaveTextDocumentNotification:
-        await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
-      case let notification as DidSaveTextDocumentNotification:
-        await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.didSaveDocument)
-        // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
-      default:
-        break
-      }
+  private func handleImpl(_ params: some NotificationType, from clientID: ObjectIdentifier) async {
+    let notification = Notification(params, clientID: clientID)
+    self._logNotification(notification)
+
+    switch notification.params {
+    case let notification as InitializedNotification:
+      self.clientInitialized(notification)
+    case let notification as CancelRequestNotification:
+      self.cancelRequest(notification)
+    case let notification as ExitNotification:
+      await self.exit(notification)
+    case let notification as DidOpenTextDocumentNotification:
+      await self.openDocument(notification)
+    case let notification as DidCloseTextDocumentNotification:
+      await self.closeDocument(notification)
+    case let notification as DidChangeTextDocumentNotification:
+      await self.changeDocument(notification)
+    case let notification as DidChangeWorkspaceFoldersNotification:
+      await self.didChangeWorkspaceFolders(notification)
+    case let notification as DidChangeWatchedFilesNotification:
+      await self.didChangeWatchedFiles(notification)
+    case let notification as WillSaveTextDocumentNotification:
+      await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
+    case let notification as DidSaveTextDocumentNotification:
+      await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.didSaveDocument)
+      // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
+    default:
+      break
     }
   }
 
@@ -633,98 +637,107 @@ extension SourceKitServer: MessageHandler {
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
     messageHandlingQueue.async(metadata: TaskMetadata(params)) {
-      let cancellationToken = CancellationToken()
+      await self.handleImpl(params, id: id, from: clientID, reply: reply)
+    }
+  }
 
-      let request = Request(
-        params,
-        id: id,
-        clientID: clientID,
-        cancellation: cancellationToken,
-        reply: { [weak self] result in
-          reply(result)
-          if let self {
-            Task {
-              await self._logResponse(result, id: id, method: R.method)
-            }
+  private func handleImpl<R: RequestType>(
+    _ params: R,
+    id: RequestID,
+    from clientID: ObjectIdentifier,
+    reply: @escaping (LSPResult<R.Response>) -> Void
+  ) async {
+    let cancellationToken = CancellationToken()
+
+    let request = Request(
+      params,
+      id: id,
+      clientID: clientID,
+      cancellation: cancellationToken,
+      reply: { [weak self] result in
+        reply(result)
+        if let self {
+          Task {
+            await self._logResponse(result, id: id, method: R.method)
           }
         }
-      )
-
-      self._logRequest(request)
-
-      switch request {
-      case let request as Request<InitializeRequest>:
-        await self.handleRequest(request, handler: self.initialize)
-      case let request as Request<ShutdownRequest>:
-        await self.handleRequest(request, handler: self.shutdown)
-      case let request as Request<WorkspaceSymbolsRequest>:
-        await self.handleRequest(request, handler: self.workspaceSymbols)
-      case let request as Request<PollIndexRequest>:
-        await self.handleRequest(request, handler: self.pollIndex)
-      case let request as Request<ExecuteCommandRequest>:
-        await self.handleRequest(request, handler: self.executeCommand)
-      case let request as Request<CallHierarchyIncomingCallsRequest>:
-        await self.handleRequest(request, handler: self.incomingCalls)
-      case let request as Request<CallHierarchyOutgoingCallsRequest>:
-        await self.handleRequest(request, handler: self.outgoingCalls)
-      case let request as Request<TypeHierarchySupertypesRequest>:
-        await self.handleRequest(request, handler: self.supertypes)
-      case let request as Request<TypeHierarchySubtypesRequest>:
-        await self.handleRequest(request, handler: self.subtypes)
-      case let request as Request<CompletionRequest>:
-        await self.handleRequest(
-          for: request,
-          requestHandler: self.completion,
-          fallback: CompletionList(isIncomplete: false, items: [])
-        )
-      case let request as Request<HoverRequest>:
-        await self.handleRequest(for: request, requestHandler: self.hover, fallback: nil)
-      case let request as Request<OpenInterfaceRequest>:
-        await self.handleRequest(for: request, requestHandler: self.openInterface, fallback: nil)
-      case let request as Request<DeclarationRequest>:
-        await self.handleRequest(for: request, requestHandler: self.declaration, fallback: nil)
-      case let request as Request<DefinitionRequest>:
-        await self.handleRequest(for: request, requestHandler: self.definition, fallback: .locations([]))
-      case let request as Request<ReferencesRequest>:
-        await self.handleRequest(for: request, requestHandler: self.references, fallback: [])
-      case let request as Request<ImplementationRequest>:
-        await self.handleRequest(for: request, requestHandler: self.implementation, fallback: .locations([]))
-      case let request as Request<CallHierarchyPrepareRequest>:
-        await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy, fallback: [])
-      case let request as Request<TypeHierarchyPrepareRequest>:
-        await self.handleRequest(for: request, requestHandler: self.prepareTypeHierarchy, fallback: [])
-      case let request as Request<SymbolInfoRequest>:
-        await self.handleRequest(for: request, requestHandler: self.symbolInfo, fallback: [])
-      case let request as Request<DocumentHighlightRequest>:
-        await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
-      case let request as Request<FoldingRangeRequest>:
-        await self.handleRequest(for: request, requestHandler: self.foldingRange, fallback: nil)
-      case let request as Request<DocumentSymbolRequest>:
-        await self.handleRequest(for: request, requestHandler: self.documentSymbol, fallback: nil)
-      case let request as Request<DocumentColorRequest>:
-        await self.handleRequest(for: request, requestHandler: self.documentColor, fallback: [])
-      case let request as Request<DocumentSemanticTokensRequest>:
-        await self.handleRequest(for: request, requestHandler: self.documentSemanticTokens, fallback: nil)
-      case let request as Request<DocumentSemanticTokensDeltaRequest>:
-        await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensDelta, fallback: nil)
-      case let request as Request<DocumentSemanticTokensRangeRequest>:
-        await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensRange, fallback: nil)
-      case let request as Request<ColorPresentationRequest>:
-        await self.handleRequest(for: request, requestHandler: self.colorPresentation, fallback: [])
-      case let request as Request<CodeActionRequest>:
-        await self.handleRequest(for: request, requestHandler: self.codeAction, fallback: nil)
-      case let request as Request<InlayHintRequest>:
-        await self.handleRequest(for: request, requestHandler: self.inlayHint, fallback: [])
-      case let request as Request<DocumentDiagnosticsRequest>:
-        await self.handleRequest(
-          for: request,
-          requestHandler: self.documentDiagnostic,
-          fallback: .full(.init(items: []))
-        )
-        // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
-      default:
-        reply(.failure(ResponseError.methodNotFound(R.method)))
       }
+    )
+
+    self._logRequest(request)
+
+    switch request {
+    case let request as Request<InitializeRequest>:
+      await self.handleRequest(request, handler: self.initialize)
+    case let request as Request<ShutdownRequest>:
+      await self.handleRequest(request, handler: self.shutdown)
+    case let request as Request<WorkspaceSymbolsRequest>:
+      await self.handleRequest(request, handler: self.workspaceSymbols)
+    case let request as Request<PollIndexRequest>:
+      await self.handleRequest(request, handler: self.pollIndex)
+    case let request as Request<ExecuteCommandRequest>:
+      await self.handleRequest(request, handler: self.executeCommand)
+    case let request as Request<CallHierarchyIncomingCallsRequest>:
+      await self.handleRequest(request, handler: self.incomingCalls)
+    case let request as Request<CallHierarchyOutgoingCallsRequest>:
+      await self.handleRequest(request, handler: self.outgoingCalls)
+    case let request as Request<TypeHierarchySupertypesRequest>:
+      await self.handleRequest(request, handler: self.supertypes)
+    case let request as Request<TypeHierarchySubtypesRequest>:
+      await self.handleRequest(request, handler: self.subtypes)
+    case let request as Request<CompletionRequest>:
+      await self.handleRequest(
+        for: request,
+        requestHandler: self.completion,
+        fallback: CompletionList(isIncomplete: false, items: [])
+      )
+    case let request as Request<HoverRequest>:
+      await self.handleRequest(for: request, requestHandler: self.hover, fallback: nil)
+    case let request as Request<OpenInterfaceRequest>:
+      await self.handleRequest(for: request, requestHandler: self.openInterface, fallback: nil)
+    case let request as Request<DeclarationRequest>:
+      await self.handleRequest(for: request, requestHandler: self.declaration, fallback: nil)
+    case let request as Request<DefinitionRequest>:
+      await self.handleRequest(for: request, requestHandler: self.definition, fallback: .locations([]))
+    case let request as Request<ReferencesRequest>:
+      await self.handleRequest(for: request, requestHandler: self.references, fallback: [])
+    case let request as Request<ImplementationRequest>:
+      await self.handleRequest(for: request, requestHandler: self.implementation, fallback: .locations([]))
+    case let request as Request<CallHierarchyPrepareRequest>:
+      await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy, fallback: [])
+    case let request as Request<TypeHierarchyPrepareRequest>:
+      await self.handleRequest(for: request, requestHandler: self.prepareTypeHierarchy, fallback: [])
+    case let request as Request<SymbolInfoRequest>:
+      await self.handleRequest(for: request, requestHandler: self.symbolInfo, fallback: [])
+    case let request as Request<DocumentHighlightRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
+    case let request as Request<FoldingRangeRequest>:
+      await self.handleRequest(for: request, requestHandler: self.foldingRange, fallback: nil)
+    case let request as Request<DocumentSymbolRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentSymbol, fallback: nil)
+    case let request as Request<DocumentColorRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentColor, fallback: [])
+    case let request as Request<DocumentSemanticTokensRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentSemanticTokens, fallback: nil)
+    case let request as Request<DocumentSemanticTokensDeltaRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensDelta, fallback: nil)
+    case let request as Request<DocumentSemanticTokensRangeRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensRange, fallback: nil)
+    case let request as Request<ColorPresentationRequest>:
+      await self.handleRequest(for: request, requestHandler: self.colorPresentation, fallback: [])
+    case let request as Request<CodeActionRequest>:
+      await self.handleRequest(for: request, requestHandler: self.codeAction, fallback: nil)
+    case let request as Request<InlayHintRequest>:
+      await self.handleRequest(for: request, requestHandler: self.inlayHint, fallback: [])
+    case let request as Request<DocumentDiagnosticsRequest>:
+      await self.handleRequest(
+        for: request,
+        requestHandler: self.documentDiagnostic,
+        fallback: .full(.init(items: []))
+      )
+      // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
+    default:
+      reply(.failure(ResponseError.methodNotFound(R.method)))
     }
   }
 
