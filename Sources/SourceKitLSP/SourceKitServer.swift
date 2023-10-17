@@ -592,10 +592,28 @@ public actor SourceKitServer {
 
 // MARK: - MessageHandler
 
+private let notificationIDForLoggingLock = NSLock()
+private var notificationIDForLogging: Int = 0
+
+/// On every call, returns a new unique number that can be used to identify a notification.
+///
+/// This is needed so we can consistently refer to a notification using the `category` of the logger. 
+/// Requests don't need this since they already have a unique ID in the LSP protocol.
+private func getNextNotificationIDForLogging() -> Int {
+  return notificationIDForLoggingLock.withLock {
+    notificationIDForLogging += 1
+    return notificationIDForLogging
+  }
+}
+
 extension SourceKitServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
     messageHandlingQueue.async(metadata: TaskMetadata(params)) {
-      await self.handleImpl(params, from: clientID)
+      let notificationID = getNextNotificationIDForLogging()
+
+      await withLoggingScope("notification-\(notificationID)") {
+        await self.handleImpl(params, from: clientID)
+      }
     }
   }
 
@@ -637,7 +655,9 @@ extension SourceKitServer: MessageHandler {
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
     messageHandlingQueue.async(metadata: TaskMetadata(params)) {
-      await self.handleImpl(params, id: id, from: clientID, reply: reply)
+      await withLoggingScope("request-\(id)") {
+        await self.handleImpl(params, id: id, from: clientID, reply: reply)
+      }
     }
   }
 
