@@ -72,6 +72,22 @@ public actor BuildSystemManager {
   }
 }
 
+/// Splits `message` on newline characters such that each chunk is at most `maxChunkSize` bytes long.
+///
+/// The intended use case for this is to split compiler arguments into multiple chunks so that each chunk doesn't exceed
+/// the maximum message length of `os_log` and thus won't get truncated.
+private func splitLongMultilineMessage(message: String, maxChunkSize: Int) -> [String] {
+  var chunks: [String] = [""]
+  for line in message.split(separator: "\n", omittingEmptySubsequences: false) {
+    if chunks.last!.utf8.count + line.utf8.count < maxChunkSize {
+      chunks[chunks.count - 1] += "\n" + line
+    } else {
+      chunks.append(String(line))
+    }
+  }
+  return chunks
+}
+
 extension BuildSystemManager {
   public var delegate: BuildSystemDelegate? {
     get { _delegate }
@@ -136,6 +152,25 @@ extension BuildSystemManager {
       // If the main file isn't the file itself, we need to patch the build settings
       // to reference `document` instead of `mainFile`.
       buildSettings?.buildSettings = settings.patching(newFile: document.pseudoPath, originalFile: mainFile.pseudoPath)
+    }
+    if let buildSettings {
+      let log = """
+        Compiler Arguments:
+        \(buildSettings.buildSettings.compilerArguments.joined(separator: "\n"))
+
+        Working directory:
+        \(buildSettings.buildSettings.workingDirectory ?? "<nil>")
+        """
+
+      let chunks = splitLongMultilineMessage(message: log, maxChunkSize: 800)
+      for (index, chunk) in chunks.enumerated() {
+        logger.log(
+          """
+          Build settings for \(document.forLogging) (\(index + 1)/\(chunks.count))
+          \(chunk)
+          """
+        )
+      }
     }
     return buildSettings
   }
