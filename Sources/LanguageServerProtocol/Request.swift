@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import LSPLogging
 
 /// A request object, wrapping the parameters of a `RequestType` and tracking its state.
@@ -92,14 +93,27 @@ public final class Notification<N: NotificationType> {
   }
 }
 
+fileprivate extension Encodable {
+  var prettyPrintJSON: String {
+    let encoder = JSONEncoder()
+    encoder.outputFormatting.insert(.prettyPrinted)
+    guard let data = try? encoder.encode(self) else {
+      return "\(self)"
+    }
+    guard let string = String(data: data, encoding: .utf8) else {
+      return "\(self)"
+    }
+    // Don't escape '/'. Most JSON readers don't need it escaped and it makes
+    // paths a lot easier to read and copy-paste.
+    return string.replacingOccurrences(of: "\\/", with: "/")
+  }
+}
+
 extension Request: CustomStringConvertible, CustomLogStringConvertible {
   public var description: String {
     return """
-      Request<\(R.method)>(
-        id: \(id),
-        clientID: \(clientID),
-        params: \(params)
-      )
+      \(R.method)
+      \(params.prettyPrintJSON)
       """
   }
 
@@ -112,10 +126,8 @@ extension Request: CustomStringConvertible, CustomLogStringConvertible {
 extension Notification: CustomStringConvertible, CustomLogStringConvertible {
   public var description: String {
     return """
-      Notification<\(N.method)>(
-        clientID: \(clientID),
-        params: \(params)
-      )
+      \(N.method)
+      \(params.prettyPrintJSON)
       """
   }
 
