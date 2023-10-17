@@ -667,6 +667,8 @@ extension SourceKitServer: MessageHandler {
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) async {
+    let startDate = Date()
+
     let cancellationToken = CancellationToken()
 
     let request = Request(
@@ -676,6 +678,7 @@ extension SourceKitServer: MessageHandler {
       cancellation: cancellationToken,
       reply: { [weak self] result in
         reply(result)
+        logger.log("Replied. Took \(-startDate.timeIntervalSinceNow * 1000)ms")
         if let self {
           Task {
             await self._logResponse(result, id: id, method: R.method)

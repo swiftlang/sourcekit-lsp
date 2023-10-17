@@ -76,10 +76,13 @@ public actor BuildSystemManager {
 ///
 /// The intended use case for this is to split compiler arguments into multiple chunks so that each chunk doesn't exceed
 /// the maximum message length of `os_log` and thus won't get truncated.
+///
+///  - Note: This will only split along newline boundary. If a single line is longer than `maxChunkSize`, it won't be
+///    split. This is fine for compiler argument splitting since a single argument is rarely longer than 800 characters.
 private func splitLongMultilineMessage(message: String, maxChunkSize: Int) -> [String] {
-  var chunks: [String] = [""]
+  var chunks: [String] = []
   for line in message.split(separator: "\n", omittingEmptySubsequences: false) {
-    if chunks.last!.utf8.count + line.utf8.count < maxChunkSize {
+    if let lastChunk = chunks.last, lastChunk.utf8.count + line.utf8.count < maxChunkSize {
       chunks[chunks.count - 1] += "\n" + line
     } else {
       chunks.append(String(line))
