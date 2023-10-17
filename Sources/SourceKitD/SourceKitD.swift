@@ -83,26 +83,22 @@ extension SourceKitD {
   public func send(_ req: SKDRequestDictionary) async throws -> SKDResponseDictionary {
     logRequest(req)
 
-    return try await withCheckedThrowingContinuation { continuation in
+    let sourcekitdResponse: SKDResponse = await withCheckedContinuation { continuation in
       var handle: sourcekitd_request_handle_t? = nil
 
-      api.send_request(req.dict, &handle) { [weak self] _resp in
-        guard let self = self else { return }
-
-        let resp = SKDResponse(_resp, sourcekitd: self)
-
-        logResponse(resp)
-
-        guard let dict = resp.value else {
-          continuation.resume(throwing: resp.error!)
-          return
-        }
-
-        continuation.resume(returning: dict)
+      api.send_request(req.dict, &handle) { _resp in
+        continuation.resume(returning: SKDResponse(_resp, sourcekitd: self))
       }
-
-      // FIXME: (async) Cancellation
     }
+    logResponse(sourcekitdResponse)
+
+    guard let dict = sourcekitdResponse.value else {
+      throw sourcekitdResponse.error!
+    }
+
+    return dict
+
+    // FIXME: (async) Cancellation
   }
 
   public func cancel(_ handle: sourcekitd_request_handle_t) {
