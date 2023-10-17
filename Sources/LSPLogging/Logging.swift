@@ -27,9 +27,17 @@ import os  // os_log
 
 public typealias LogLevel = os.OSLogType
 public typealias Logger = os.Logger
+public typealias Signposter = OSSignposter
+
+extension os.Logger {
+  public func makeSignposter() -> Signposter {
+    return OSSignposter(logger: self)
+  }
+}
 #else
 public typealias LogLevel = NonDarwinLogLevel
 public typealias Logger = NonDarwinLogger
+public typealias Signposter = NonDarwinSignposter
 #endif
 
 /// The logger that is used to log any messages.

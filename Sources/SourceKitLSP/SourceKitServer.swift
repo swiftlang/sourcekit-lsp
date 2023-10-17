@@ -628,11 +628,17 @@ extension SourceKitServer: MessageHandler {
       self.cancelRequest(params)
     }
 
+    let notificationID = getNextNotificationIDForLogging()
+
+    let signposter = Logger(subsystem: subsystem, category: "notification-\(notificationID)").makeSignposter()
+    let signpostID = signposter.makeSignpostID()
+    let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: params))")
     messageHandlingQueue.async(metadata: TaskMetadata(params)) {
-      let notificationID = getNextNotificationIDForLogging()
+      signposter.emitEvent("Start handling", id: signpostID)
 
       await withLoggingScope("notification-\(notificationID)") {
         await self.handleImpl(params, from: clientID)
+        signposter.endInterval("Notification", state, "Done")
       }
     }
   }
@@ -676,9 +682,15 @@ extension SourceKitServer: MessageHandler {
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
+    let signposter = Logger(subsystem: subsystem, category: "request-\(id)").makeSignposter()
+    let signpostID = signposter.makeSignpostID()
+    let state = signposter.beginInterval("Request", id: signpostID, "\(R.self)")
+
     let task = messageHandlingQueue.async(metadata: TaskMetadata(params)) {
+      signposter.emitEvent("Start handling", id: signpostID)
       await withLoggingScope("request-\(id)") {
         await self.handleImpl(params, id: id, from: clientID, reply: reply)
+        signposter.endInterval("Request", state, "Done")
       }
       // We have handled the request and can't cancel it anymore.
       // Stop keeping track of it to free the memory.

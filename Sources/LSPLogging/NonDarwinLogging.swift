@@ -330,4 +330,35 @@ public struct NonDarwinLogger {
   public static func flush() {
     loggingQueue.sync {}
   }
+
+  public func makeSignposter() -> NonDarwinSignposter {
+    return NonDarwinSignposter()
+  }
+}
+
+// MARK: - Signposter
+
+public struct NonDarwinSignpostID {}
+
+public struct NonDarwinSignpostIntervalState {}
+
+/// A type that is API-compatible to `OSLogMessage` for all uses within sourcekit-lsp.
+///
+/// Since non-Darwin platforms don't have signposts, the type just has no-op operations.
+public struct NonDarwinSignposter {
+  public func makeSignpostID() -> NonDarwinSignpostID {
+    return NonDarwinSignpostID()
+  }
+
+  public func beginInterval(
+    _ name: StaticString,
+    id: NonDarwinSignpostID,
+    _ message: NonDarwinLogMessage
+  ) -> NonDarwinSignpostIntervalState {
+    return NonDarwinSignpostIntervalState()
+  }
+
+  public func emitEvent(_ name: StaticString, id: NonDarwinSignpostID, _ message: NonDarwinLogMessage = "") {}
+
+  public func endInterval(_ name: StaticString, _ state: NonDarwinSignpostIntervalState, _ message: StaticString) {}
 }
