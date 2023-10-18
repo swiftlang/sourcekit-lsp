@@ -619,7 +619,13 @@ extension SourceKitServer: MessageHandler {
 
   private func handleImpl(_ params: some NotificationType, from clientID: ObjectIdentifier) async {
     let notification = Notification(params, clientID: clientID)
-    self._logNotification(notification)
+
+    logger.log(
+      """
+      Received notification
+      \(notification.forLogging)
+      """
+    )
 
     switch notification.params {
     case let notification as InitializedNotification:
@@ -678,16 +684,23 @@ extension SourceKitServer: MessageHandler {
       cancellation: cancellationToken,
       reply: { [weak self] result in
         reply(result)
-        logger.log("Replied. Took \(-startDate.timeIntervalSinceNow * 1000)ms")
+        let endDate = Date()
         if let self {
           Task {
-            await self._logResponse(result, id: id, method: R.method)
+            logger.debug(
+              """
+              Sending response (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
+              Response<\(R.method, privacy: .public)(\(id, privacy: .public))>(
+                \(String(describing: result))
+              )
+              """
+            )
           }
         }
       }
     )
 
-    self._logRequest(request)
+    logger.log("Received request: \(request.forLogging)")
 
     switch request {
     case let request as Request<InitializeRequest>:
@@ -762,25 +775,6 @@ extension SourceKitServer: MessageHandler {
     default:
       reply(.failure(ResponseError.methodNotFound(R.method)))
     }
-  }
-
-  private nonisolated func _logRequest<R>(_ request: Request<R>) {
-    logger.log("Received request: \(request.forLogging)")
-  }
-
-  private func _logNotification<N>(_ notification: Notification<N>) {
-    logger.log("Received notification: \(notification.forLogging)")
-  }
-
-  private func _logResponse<Response>(_ result: LSPResult<Response>, id: RequestID, method: String) {
-    logger.log(
-      """
-      Sending response:
-      Response<\(method, privacy: .public)(\(id, privacy: .public))>(
-        \(String(describing: result))
-      )
-      """
-    )
   }
 }
 
