@@ -234,14 +234,10 @@ final class SKTests: XCTestCase {
 
     try ws.openDocument(moduleRef.url, language: .swift)
 
-    let initialSyntacticDiags = try await ws.testClient.nextDiagnosticsNotification()
-    // Semantic analysis: no errors expected here.
-    XCTAssertEqual(initialSyntacticDiags.diagnostics.count, 0)
-
-    let initialSemanticDiags = try await ws.testClient.nextDiagnosticsNotification()
+    let initialDiags = try await ws.testClient.nextDiagnosticsNotification()
     // Semantic analysis: expect module import error.
-    XCTAssertEqual(initialSemanticDiags.diagnostics.count, 1)
-    if let diagnostic = initialSemanticDiags.diagnostics.first {
+    XCTAssertEqual(initialDiags.diagnostics.count, 1)
+    if let diagnostic = initialDiags.diagnostics.first {
       XCTAssert(
         diagnostic.message.contains("no such module"),
         "expected module import error but found \"\(diagnostic.message)\""
@@ -252,13 +248,9 @@ final class SKTests: XCTestCase {
 
     await ws.testClient.server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
 
-    let updatedSyntacticDiags = try await ws.testClient.nextDiagnosticsNotification()
-    // Semantic analysis - SourceKit currently caches diagnostics so we still see an error.
-    XCTAssertEqual(updatedSyntacticDiags.diagnostics.count, 1)
-
-    let updatedSemanticDiags = try await ws.testClient.nextDiagnosticsNotification()
+    let updatedDiags = try await ws.testClient.nextDiagnosticsNotification()
     // Semantic analysis: no more errors expected, import should resolve since we built.
-    XCTAssertEqual(updatedSemanticDiags.diagnostics.count, 0)
+    XCTAssertEqual(updatedDiags.diagnostics.count, 0)
   }
 
   func testDependenciesUpdatedCXXTibs() async throws {

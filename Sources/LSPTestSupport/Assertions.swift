@@ -42,7 +42,7 @@ public func assertThrowsError<T>(
   _ message: @autoclosure () -> String = "",
   file: StaticString = #filePath,
   line: UInt = #line,
-  _ errorHandler: (_ error: Error) -> Void = { _ in }
+  errorHandler: (_ error: Error) -> Void = { _ in }
 ) async {
   let didThrow: Bool
   do {

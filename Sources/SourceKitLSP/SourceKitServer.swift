@@ -643,7 +643,7 @@ extension SourceKitServer: MessageHandler {
   }
 
   private func _logResponse<Response>(_ result: LSPResult<Response>, id: RequestID, method: String) {
-    logger.debug(
+    logger.log(
       """
       Sending response:
       Response<\(method, privacy: .public)(\(id, privacy: .public))>(

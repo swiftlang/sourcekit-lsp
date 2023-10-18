@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import LanguageServerProtocol
 import SKCore
 import SKSupport
@@ -37,18 +38,27 @@ extension SourceKitServer {
     /// Override the default directory where generated interfaces will be stored
     public var generatedInterfacesPath: AbsolutePath
 
+    /// The time that `SwiftLanguageServer` should wait after an edit before starting to compute diagnostics and sending
+    /// a `PublishDiagnosticsNotification`.
+    ///
+    /// This is mostly intended for testing purposes so we don't need to wait the debouncing time to get a diagnostics
+    /// notification when running unit tests.
+    public var swiftPublishDiagnosticsDebounceDuration: TimeInterval
+
     public init(
       buildSetup: BuildSetup = .default,
       clangdOptions: [String] = [],
       indexOptions: IndexOptions = .init(),
       completionOptions: SKCompletionOptions = .init(),
-      generatedInterfacesPath: AbsolutePath = defaultDirectoryForGeneratedInterfaces
+      generatedInterfacesPath: AbsolutePath = defaultDirectoryForGeneratedInterfaces,
+      swiftPublishDiagnosticsDebounceDuration: TimeInterval = 2 /* 2s */
     ) {
       self.buildSetup = buildSetup
       self.clangdOptions = clangdOptions
       self.indexOptions = indexOptions
       self.completionOptions = completionOptions
       self.generatedInterfacesPath = generatedInterfacesPath
+      self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
     }
   }
 }

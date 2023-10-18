@@ -217,12 +217,9 @@ final class BuildSystemTests: XCTestCase {
         )
       )
     )
-    let syntacticDiags1 = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(syntacticDiags1.diagnostics.count, 0)
+    let diags1 = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags1.diagnostics.count, 1)
     XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
-
-    let semanticDiags1 = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(semanticDiags1.diagnostics.count, 1)
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
@@ -231,13 +228,9 @@ final class BuildSystemTests: XCTestCase {
 
     await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
-    let syntacticDiags2 = try await testClient.nextDiagnosticsNotification()
-    // Semantic analysis - SourceKit currently caches diagnostics so we still see an error.
-    XCTAssertEqual(syntacticDiags2.diagnostics.count, 1)
-
-    let semanticDiags2 = try await testClient.nextDiagnosticsNotification()
-    // Semantic analysis - no expected errors here because we fixed the settings.
-    XCTAssertEqual(semanticDiags2.diagnostics.count, 0)
+    // No expected errors here because we fixed the settings.
+    let diags2 = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags2.diagnostics.count, 0)
   }
 
   func testClangdDocumentFallbackWithholdsDiagnostics() async throws {
@@ -319,26 +312,18 @@ final class BuildSystemTests: XCTestCase {
         )
       )
     )
-    let openSyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    // Syntactic analysis - one expected errors here (for `func`).
-    XCTAssertEqual(openSyntacticDiags.diagnostics.count, 1)
+    let openDiags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(openDiags.diagnostics.count, 1)
     XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
-    let openSemanticDiags = try await testClient.nextDiagnosticsNotification()
-    // Should be the same syntactic analysis since we are using fallback arguments
-    XCTAssertEqual(openSemanticDiags.diagnostics.count, 1)
 
     // Swap from fallback settings to primary build system settings.
     buildSystem.buildSettingsByFile[doc] = primarySettings
 
     await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
-    let refreshedSyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    // Syntactic analysis with new args - one expected errors here (for `func`).
-    XCTAssertEqual(refreshedSyntacticDiags.diagnostics.count, 1)
-
-    let refreshedSemanticDiags = try await testClient.nextDiagnosticsNotification()
-    // Semantic analysis - two errors since `-DFOO` was not passed.
-    XCTAssertEqual(refreshedSemanticDiags.diagnostics.count, 2)
+    // Two errors since `-DFOO` was not passed.
+    let refreshedDiags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(refreshedDiags.diagnostics.count, 2)
   }
 
   func testMainFilesChanged() async throws {
@@ -349,8 +334,8 @@ final class BuildSystemTests: XCTestCase {
 
     try ws.openDocument(unique_h.fileURL!, language: .cpp)
 
-    let openSyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(openSyntacticDiags.diagnostics.count, 0)
+    let openDiags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(openDiags.diagnostics.count, 0)
 
     try ws.buildAndIndex()
     let diagsFromD = try await testClient.nextDiagnosticsNotification()

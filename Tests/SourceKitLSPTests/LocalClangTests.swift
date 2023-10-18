@@ -234,8 +234,7 @@ final class LocalClangTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .cpp)
 
-    let diagsNotification = try await ws.testClient.nextDiagnosticsNotification()
-    let diagnostics = diagsNotification.diagnostics
+    let diagnostics = try await ws.testClient.nextDiagnosticsNotification().diagnostics
     // It seems we either get no diagnostics or a `-Wswitch` warning. Either is fine
     // as long as our code action works properly.
     XCTAssert(

@@ -18,6 +18,7 @@ import SKCore
 import SKSupport
 import SourceKitD
 import SwiftParser
+import SwiftParserDiagnostics
 import SwiftSyntax
 
 #if os(Windows)
@@ -106,7 +107,13 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   // FIXME: ideally we wouldn't need separate management from a parent server in the same process.
   var documentManager: DocumentManager
 
-  var currentDiagnostics: [DocumentURI: [CachedDiagnostic]] = [:]
+  /// For each edited document, the last task that was triggered to send a `PublishDiagnosticsNotification`.
+  ///
+  /// This is used to cancel previous publish diagnostics tasks if an edit is made to a document.
+  ///
+  /// - Note: We only clear entries from the dictionary when a document is closed. The task that the document maps to
+  ///   might have finished. This isn't an issue since the tasks do not retain `self`.
+  private var inFlightPublishDiagnosticsTasks: [DocumentURI: Task<Void, Never>] = [:]
 
   let syntaxTreeManager = SyntaxTreeManager()
   let semanticTokensManager = SemanticTokensManager()
@@ -219,92 +226,10 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     }
   }
 
-  /// Shift the ranges of all current diagnostics in the document with the given `uri` to account for `edit`.
-  private func adjustDiagnosticRanges(of uri: DocumentURI, for edit: TextDocumentContentChangeEvent) {
-    guard let rangeAdjuster = RangeAdjuster(edit: edit) else {
-      return
-    }
-    currentDiagnostics[uri] = currentDiagnostics[uri]?.compactMap({ cachedDiag in
-      if let adjustedRange = rangeAdjuster.adjust(cachedDiag.diagnostic.range) {
-        return cachedDiag.withRange(adjustedRange)
-      } else {
-        return nil
-      }
-    })
-  }
-
-  /// Register the diagnostics returned from sourcekitd in `currentDiagnostics`
-  /// and returns the corresponding LSP diagnostics.
-  ///
-  /// If `isFromFallbackBuildSettings` is `true`, then only parse diagnostics are
-  /// stored and any semantic diagnostics are ignored since they are probably
-  /// incorrect in the absence of build settings.
-  private func registerDiagnostics(
-    sourcekitdDiagnostics: SKDResponseArray?,
-    snapshot: DocumentSnapshot,
-    stage: DiagnosticStage,
-    isFromFallbackBuildSettings: Bool
-  ) -> [Diagnostic] {
-    let supportsCodeDescription = capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
-
-    var newDiags: [CachedDiagnostic] = []
-    sourcekitdDiagnostics?.forEach { _, diag in
-      if let diag = CachedDiagnostic(diag, in: snapshot, useEducationalNoteAsCode: supportsCodeDescription) {
-        newDiags.append(diag)
-      }
-      return true
-    }
-
-    let result = mergeDiagnostics(
-      old: currentDiagnostics[snapshot.uri] ?? [],
-      new: newDiags,
-      stage: stage,
-      isFallback: isFromFallbackBuildSettings
-    )
-    currentDiagnostics[snapshot.uri] = result
-
-    return result.map(\.diagnostic)
-
-  }
-
-  /// Publish diagnostics for the given `snapshot`. We withhold semantic diagnostics if we are using
-  /// fallback arguments.
-  func publishDiagnostics(
-    response: SKDResponseDictionary,
-    for snapshot: DocumentSnapshot,
-    compileCommand: SwiftCompileCommand?
-  ) async {
-    let documentUri = snapshot.uri
-    guard diagnosticsEnabled(for: documentUri) else {
-      logger.debug("Ignoring diagnostics for blacklisted file \(documentUri.forLogging)")
-      return
-    }
-
-    let stageUID: sourcekitd_uid_t? = response[sourcekitd.keys.diagnostic_stage]
-    let stage = stageUID.flatMap { DiagnosticStage($0, sourcekitd: sourcekitd) } ?? .sema
-
-    let diagnostics = registerDiagnostics(
-      sourcekitdDiagnostics: response[keys.diagnostics],
-      snapshot: snapshot,
-      stage: stage,
-      isFromFallbackBuildSettings: compileCommand?.isFallback ?? true
-    )
-
-    await sourceKitServer?.sendNotificationToClient(
-      PublishDiagnosticsNotification(
-        uri: documentUri,
-        version: snapshot.version,
-        diagnostics: diagnostics
-      )
-    )
-  }
-
   func handleDocumentUpdate(uri: DocumentURI) async {
     guard let snapshot = documentManager.latestSnapshot(uri) else {
       return
     }
-    let compileCommand = await self.buildSettings(for: uri)
-
     // Make the magic 0,0 replacetext request to update diagnostics and semantic tokens.
 
     let req = SKDRequestDictionary(sourcekitd: sourcekitd)
@@ -319,9 +244,6 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
       if isSemaStage, let semanticTokens = semanticTokens(of: dict, for: snapshot) {
         // Only update semantic tokens if the 0,0 replacetext request returned semantic information.
         await semanticTokensManager.setSemanticTokens(for: snapshot.id, semanticTokens: semanticTokens)
-      }
-      if enablePublishDiagnostics {
-        await publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
       }
       if isSemaStage {
         await requestTokensRefresh()
@@ -404,6 +326,8 @@ extension SwiftLanguageServer {
   // MARK: - Build System Integration
 
   private func reopenDocument(_ snapshot: DocumentSnapshot, _ compileCmd: SwiftCompileCommand?) async {
+    cancelInFlightPublishDiagnosticsTask(for: snapshot.uri)
+
     let keys = self.keys
     let path = snapshot.uri.pseudoPath
 
@@ -420,15 +344,9 @@ extension SwiftLanguageServer {
       openReq[keys.compilerargs] = compileCmd.compilerArgs
     }
 
-    guard let dict = try? self.sourcekitd.sendSync(openReq) else {
-      // Already logged failure.
-      return
-    }
-    await self.publishDiagnostics(
-      response: dict,
-      for: snapshot,
-      compileCommand: compileCmd
-    )
+    _ = try? self.sourcekitd.sendSync(openReq)
+
+    publishDiagnosticsIfNeeded(for: snapshot.uri)
   }
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
@@ -455,6 +373,8 @@ extension SwiftLanguageServer {
   // MARK: - Text synchronization
 
   public func openDocument(_ note: DidOpenTextDocumentNotification) async {
+    cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
+
     let keys = self.keys
 
     guard let snapshot = self.documentManager.open(note) else {
@@ -473,14 +393,14 @@ extension SwiftLanguageServer {
       req[keys.compilerargs] = compilerArgs
     }
 
-    guard let dict = try? self.sourcekitd.sendSync(req) else {
-      // Already logged failure.
-      return
-    }
-    await self.publishDiagnostics(response: dict, for: snapshot, compileCommand: compileCommand)
+    _ = try? self.sourcekitd.sendSync(req)
+    publishDiagnosticsIfNeeded(for: note.textDocument.uri)
   }
 
   public func closeDocument(_ note: DidCloseTextDocumentNotification) async {
+    cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
+    inFlightPublishDiagnosticsTasks[note.textDocument.uri] = nil
+
     let keys = self.keys
 
     self.documentManager.close(note)
@@ -491,19 +411,64 @@ extension SwiftLanguageServer {
     req[keys.request] = self.requests.editor_close
     req[keys.name] = uri.pseudoPath
 
-    // Clear settings that should not be cached for closed documents.
-    self.currentDiagnostics[uri] = nil
-
     _ = try? self.sourcekitd.sendSync(req)
 
     await semanticTokensManager.discardSemanticTokens(for: note.textDocument.uri)
   }
 
+  /// Cancels any in-flight tasks to send a `PublishedDiagnosticsNotification` after edits.
+  private func cancelInFlightPublishDiagnosticsTask(for document: DocumentURI) {
+    if let inFlightTask = inFlightPublishDiagnosticsTasks[document] {
+      inFlightTask.cancel()
+    }
+  }
+
+  /// If the client doesn't support pull diagnostics, compute diagnostics for the latest version of the given document
+  /// and send a `PublishDiagnosticsNotification` to the client for it.
+  private func publishDiagnosticsIfNeeded(for document: DocumentURI) {
+    guard enablePublishDiagnostics else {
+      return
+    }
+    guard diagnosticsEnabled(for: document) else {
+      return
+    }
+    cancelInFlightPublishDiagnosticsTask(for: document)
+    inFlightPublishDiagnosticsTasks[document] = Task(priority: .medium) { [weak self] in
+      guard let self, let sourceKitServer = await self.sourceKitServer else {
+        logger.fault("Cannot produce PublishDiagnosticsNotification because sourceKitServer was deallocated")
+        return
+      }
+      do {
+        // Sleep for a little bit until triggering the diagnostic generation. This effectively de-bounces diagnostic
+        // generation since any later edit will cancel the previous in-flight task, which will thus never go on to send
+        // the `DocumentDiagnosticsRequest`.
+        try await Task.sleep(nanoseconds: UInt64(sourceKitServer.options.swiftPublishDiagnosticsDebounceDuration * 1_000_000_000))
+      } catch {
+        return
+      }
+      do {
+        let diagnosticReport = try await self.fullDocumentDiagnosticReport(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(document)))
+
+        await sourceKitServer.sendNotificationToClient(
+          PublishDiagnosticsNotification(
+            uri: document,
+            diagnostics: diagnosticReport.items
+          )
+        )
+      } catch {
+        logger.fault("""
+          Failed to get diagnostics
+          \(error.forLogging)
+          """)
+      }
+    }
+  }
+
   public func changeDocument(_ note: DidChangeTextDocumentNotification) async {
+    cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
+
     let keys = self.keys
     var edits: [IncrementalEdit] = []
-
-    var lastResponse: SKDResponseDictionary? = nil
 
     let editResult = self.documentManager.edit(note) {
       (before: LineTable, edit: TextDocumentContentChangeEvent) in
@@ -533,9 +498,7 @@ extension SwiftLanguageServer {
       }
 
       req[keys.sourcetext] = edit.text
-      lastResponse = try? self.sourcekitd.sendSync(req)
-
-      self.adjustDiagnosticRanges(of: note.textDocument.uri, for: edit)
+      _ = try? self.sourcekitd.sendSync(req)
     }
     guard let (preEditSnapshot, postEditSnapshot) = editResult else {
       return
@@ -551,10 +514,7 @@ extension SwiftLanguageServer {
       edits: note.contentChanges
     )
 
-    if let dict = lastResponse {
-      let compileCommand = await self.buildSettings(for: note.textDocument.uri)
-      await self.publishDiagnostics(response: dict, for: postEditSnapshot, compileCommand: compileCommand)
-    }
+    publishDiagnosticsIfNeeded(for: note.textDocument.uri)
   }
 
   public func willSaveDocument(_ note: WillSaveTextDocumentNotification) {
@@ -1176,14 +1136,14 @@ extension SwiftLanguageServer {
     return codeActions
   }
 
-  func retrieveQuickFixCodeActions(_ params: CodeActionRequest) -> [CodeAction] {
-    guard let cachedDiags = currentDiagnostics[params.textDocument.uri] else {
-      return []
-    }
+  func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
+    let diagnosticReport = try await self.fullDocumentDiagnosticReport(
+      DocumentDiagnosticsRequest(
+        textDocument: params.textDocument
+      )
+    )
 
-    let codeActions = cachedDiags.flatMap { (cachedDiag) -> [CodeAction] in
-      let diag = cachedDiag.diagnostic
-
+    let codeActions = diagnosticReport.items.flatMap { (diag) -> [CodeAction] in
       let codeActions: [CodeAction] =
         (diag.codeActions ?? []) + (diag.relatedInformation?.flatMap { $0.codeActions ?? [] } ?? [])
 
@@ -1255,10 +1215,41 @@ extension SwiftLanguageServer {
     return Array(hints)
   }
 
+  public func syntacticDiagnosticFromBuiltInSwiftSyntax(
+    for snapshot: DocumentSnapshot
+  ) async throws -> RelatedFullDocumentDiagnosticReport {
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let swiftSyntaxDiagnostics = ParseDiagnosticsGenerator.diagnostics(for: syntaxTree)
+    let diagnostics = swiftSyntaxDiagnostics.compactMap { (diag) -> Diagnostic? in
+      if diag.diagnosticID == StaticTokenError.editorPlaceholder.diagnosticID {
+        // Ignore errors about editor placeholders in the source file, similar to how sourcekitd ignores them.
+        return nil
+      }
+      return Diagnostic(diag, in: snapshot)
+    }
+    return RelatedFullDocumentDiagnosticReport(items: diagnostics)
+  }
+
   public func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
+    return try await .full(fullDocumentDiagnosticReport(req))
+  }
+
+  private func fullDocumentDiagnosticReport(_ req: DocumentDiagnosticsRequest) async throws -> RelatedFullDocumentDiagnosticReport {
     guard let snapshot = documentManager.latestSnapshot(req.textDocument.uri) else {
       throw ResponseError.unknown("failed to find snapshot for url \(req.textDocument.uri.forLogging)")
     }
+    guard let buildSettings = await self.buildSettings(for: req.textDocument.uri), !buildSettings.isFallback else {
+      logger.log(
+        "Producing syntactic diagnostics from the built-in swift-syntax because we have fallback arguments"
+      )
+      // If we don't have build settings or we only have fallback build settings,
+      // sourcekitd won't be able to give us accurate semantic diagnostics.
+      // Fall back to providing syntactic diagnostics from the built-in
+      // swift-syntax. That's the best we can do for now.
+      return try await syntacticDiagnosticFromBuiltInSwiftSyntax(for: snapshot)
+    }
+
+    try Task.checkCancellation()
 
     let keys = self.keys
 
@@ -1267,23 +1258,28 @@ extension SwiftLanguageServer {
     skreq[keys.sourcefile] = snapshot.uri.pseudoPath
 
     // FIXME: SourceKit should probably cache this for us.
-    let areFallbackBuildSettings: Bool
-    if let buildSettings = await self.buildSettings(for: req.textDocument.uri) {
-      skreq[keys.compilerargs] = buildSettings.compilerArgs
-      areFallbackBuildSettings = buildSettings.isFallback
-    } else {
-      areFallbackBuildSettings = true
-    }
+    skreq[keys.compilerargs] = buildSettings.compilerArgs
 
     let dict = try await self.sourcekitd.send(skreq)
-    let diagnostics = self.registerDiagnostics(
-      sourcekitdDiagnostics: dict[keys.diagnostics],
-      snapshot: snapshot,
-      stage: .sema,
-      isFromFallbackBuildSettings: areFallbackBuildSettings
-    )
 
-    return .full(RelatedFullDocumentDiagnosticReport(items: diagnostics))
+    try Task.checkCancellation()
+    guard documentManager.latestSnapshot(req.textDocument.uri)?.id == snapshot.id else {
+      // Check that the document wasn't modified while we were getting diagnostics. This could happen because we are
+      // calling `fullDocumentDiagnosticReport` from `publishDiagnosticsIfNeeded` outside of `messageHandlingQueue`
+      // and thus a concurrent edit is possible while we are waiting for the sourcekitd request to return a result.
+      throw ResponseError.unknown("Document was modified while loading document")
+    }
+
+    let supportsCodeDescription = capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
+    var diagnostics: [Diagnostic] = []
+    dict[keys.diagnostics]?.forEach { _, diag in
+      if let diag = Diagnostic(diag, in: snapshot, useEducationalNoteAsCode: supportsCodeDescription) {
+        diagnostics.append(diag)
+      }
+      return true
+    }
+
+    return RelatedFullDocumentDiagnosticReport(items: diagnostics)
   }
 
   public func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
@@ -1423,6 +1419,19 @@ extension DocumentSnapshot {
     return lineTable.utf16ColumnAt(line: zeroBasedLine, utf8Column: utf8Column).map {
       Position(line: zeroBasedLine, utf16index: $0)
     }
+  }
+
+  func position(of position: AbsolutePosition) -> Position? {
+    return positionOf(utf8Offset: position.utf8Offset)
+  }
+
+  func range(of range: Range<AbsolutePosition>) -> Range<Position>? {
+    guard let lowerBound = self.position(of: range.lowerBound),
+      let upperBound = self.position(of: range.upperBound)
+    else {
+      return nil
+    }
+    return lowerBound..<upperBound
   }
 
   func indexOf(utf8Offset: Int) -> String.Index? {

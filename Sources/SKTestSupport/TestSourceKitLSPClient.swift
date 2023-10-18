@@ -21,7 +21,7 @@ import XCTest
 
 extension SourceKitServer.Options {
   /// The default SourceKitServer options for testing.
-  public static var testDefault = Self()
+  public static var testDefault = Self(swiftPublishDiagnosticsDebounceDuration: 0)
 }
 
 /// A mock SourceKit-LSP client (aka. a mock editor) that behaves like an editor
@@ -63,13 +63,13 @@ public final class TestSourceKitLSPClient: MessageHandler {
   /// - Parameters:
   ///   - useGlobalModuleCache: If `false`, the server will use its own module
   ///     cache in an empty temporary directory instead of the global module cache.
-  public init(useGlobalModuleCache: Bool = true) {
+  public init(serverOptions: SourceKitServer.Options = .testDefault, useGlobalModuleCache: Bool = true) {
     if !useGlobalModuleCache {
       moduleCache = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
     } else {
       moduleCache = nil
     }
-    var serverOptions = SourceKitServer.Options.testDefault
+    var serverOptions = serverOptions
     if let moduleCache {
       serverOptions.buildSetup.flags.swiftCompilerFlags += ["-module-cache-path", moduleCache.path]
     }
@@ -158,14 +158,16 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///
   /// If the next notification is not a `PublishDiagnosticsNotification`, this
   /// methods throws.
-  public func nextDiagnosticsNotification() async throws -> PublishDiagnosticsNotification {
+  public func nextDiagnosticsNotification(
+    timeout: TimeInterval = defaultTimeout
+  ) async throws -> PublishDiagnosticsNotification {
     struct CastError: Error, CustomStringConvertible {
       let actualType: any NotificationType.Type
 
       var description: String { "Expected a publish diagnostics notification but got '\(actualType)'" }
     }
 
-    let nextNotification = try await nextNotification()
+    let nextNotification = try await nextNotification(timeout: timeout)
     guard let diagnostics = nextNotification as? PublishDiagnosticsNotification else {
       throw CastError(actualType: type(of: nextNotification))
     }
