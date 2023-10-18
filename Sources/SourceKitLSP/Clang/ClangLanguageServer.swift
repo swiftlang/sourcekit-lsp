@@ -420,10 +420,9 @@ extension ClangLanguageServerShim {
 
   public func shutdown() async {
     await withCheckedContinuation { continuation in
-      _ = clangd.send(ShutdownRequest()) { [weak self] _ in
-        guard let self else { return }
+      _ = clangd.send(ShutdownRequest()) { _ in
         Task {
-          await self.clangd.send(ExitNotification())
+          self.clangd.send(ExitNotification())
           continuation.resume()
         }
       }
