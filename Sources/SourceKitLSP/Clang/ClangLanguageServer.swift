@@ -49,7 +49,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// Since we are blindly forwarding requests from clangd to the editor, we
   /// cannot allow concurrent requests. This should be fine since the number of
   /// requests and notifications sent from clangd to the client is quite small.
-  public let clangdMessageHandlingQueue = AsyncQueue(.serial)
+  public let clangdMessageHandlingQueue = AsyncQueue<Serial>()
 
   /// The ``SourceKitServer`` instance that created this `ClangLanguageServerShim`.
   ///

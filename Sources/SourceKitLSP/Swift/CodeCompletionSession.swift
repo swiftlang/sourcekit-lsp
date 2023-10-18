@@ -40,7 +40,7 @@ class CodeCompletionSession {
   /// But it's rare to open multiple sourcekitd instances simultaneously and
   /// even rarer to interact with them at the same time, so we have a global
   /// queue for now to simplify the implementation.
-  private static let completionQueue = AsyncQueue(.serial)
+  private static let completionQueue = AsyncQueue<Serial>()
 
   /// The code completion session for each sourcekitd instance.
   ///

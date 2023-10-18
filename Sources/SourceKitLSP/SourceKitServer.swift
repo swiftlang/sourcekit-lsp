@@ -128,6 +128,123 @@ final actor WorkDoneProgressState {
   }
 }
 
+/// A lightweight way of describing tasks that are created from handling LSP
+/// requests or notifications for the purpose of dependency tracking.
+fileprivate enum TaskMetadata: DependencyTracker {
+  /// A task that changes the global configuration of sourcekit-lsp in any way.
+  ///
+  /// No other tasks must execute simulateneously with this task since they
+  /// might be relying on this task to take effect.
+  case globalConfigurationChange
+
+  /// Changes the contents of the document with the given URI.
+  ///
+  /// Any other updates or requests to this document must wait for the
+  /// document update to finish before being executed
+  case documentUpdate(DocumentURI)
+
+  /// A request that concerns one document.
+  ///
+  /// Any updates to this document must be processed before the document
+  /// request can be handled. Multiple requests to the same document can be
+  /// handled simultaneously.
+  case documentRequest(DocumentURI)
+
+  /// A request that doesn't have any dependencies other than global
+  /// configuration changes.
+  case freestanding
+
+  /// Whether this request needs to finish before `other` can start executing.
+  func isDependency(of other: TaskMetadata) -> Bool {
+    switch (self, other) {
+    case (.globalConfigurationChange, _): return true
+    case (_, .globalConfigurationChange): return true
+    case (.documentUpdate(let selfUri), .documentUpdate(let otherUri)):
+      return selfUri == otherUri
+    case (.documentUpdate(let selfUri), .documentRequest(let otherUri)):
+      return selfUri == otherUri
+    case (.documentRequest(let selfUri), .documentUpdate(let otherUri)):
+      return selfUri == otherUri
+    case (.documentRequest, .documentRequest):
+      return false
+    case (.freestanding, _):
+      return false
+    case (_, .freestanding):
+      return false
+    }
+  }
+
+  init(_ notification: any NotificationType) {
+    switch notification {
+    case is InitializedNotification:
+      self = .globalConfigurationChange
+    case is CancelRequestNotification:
+      self = .freestanding
+    case is ExitNotification:
+      self = .globalConfigurationChange
+    case let notification as DidOpenTextDocumentNotification:
+      self = .documentUpdate(notification.textDocument.uri)
+    case let notification as DidCloseTextDocumentNotification:
+      self = .documentUpdate(notification.textDocument.uri)
+    case let notification as DidChangeTextDocumentNotification:
+      self = .documentUpdate(notification.textDocument.uri)
+    case is DidChangeWorkspaceFoldersNotification:
+      self = .globalConfigurationChange
+    case is DidChangeWatchedFilesNotification:
+      self = .freestanding
+    case let notification as WillSaveTextDocumentNotification:
+      self = .documentUpdate(notification.textDocument.uri)
+    case let notification as DidSaveTextDocumentNotification:
+      self = .documentUpdate(notification.textDocument.uri)
+    default:
+      logger.error(
+        """
+        Unknown notification \(type(of: notification)). Treating as a freestanding notification. \
+        This might lead to out-of-order request handling
+        """
+      )
+      self = .freestanding
+    }
+  }
+
+  init(_ request: any RequestType) {
+    switch request {
+    case is InitializeRequest:
+      self = .globalConfigurationChange
+    case is ShutdownRequest:
+      self = .globalConfigurationChange
+    case is WorkspaceSymbolsRequest:
+      self = .freestanding
+    case is PollIndexRequest:
+      self = .globalConfigurationChange
+    case let request as ExecuteCommandRequest:
+      if let uri = request.textDocument?.uri {
+        self = .documentRequest(uri)
+      } else {
+        self = .freestanding
+      }
+    case is CallHierarchyIncomingCallsRequest:
+      self = .freestanding
+    case is CallHierarchyOutgoingCallsRequest:
+      self = .freestanding
+    case is TypeHierarchySupertypesRequest:
+      self = .freestanding
+    case is TypeHierarchySubtypesRequest:
+      self = .freestanding
+    case let request as any TextDocumentRequest:
+      self = .documentRequest(request.textDocument.uri)
+    default:
+      logger.error(
+        """
+        Unknown request \(type(of: request)). Treating as a freestanding notification. \
+        This might lead to out-of-order request handling
+        """
+      )
+      self = .freestanding
+    }
+  }
+}
+
 /// The SourceKit language server.
 ///
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
@@ -143,7 +260,7 @@ public actor SourceKitServer {
   /// have forwarded the request to clangd.
   ///
   /// The actual semantic handling of the message happens off this queue.
-  private let messageHandlingQueue = AsyncQueue(.concurrent)
+  private let messageHandlingQueue = AsyncQueue<TaskMetadata>()
 
   /// The connection to the editor.
   public let client: Connection
@@ -477,20 +594,7 @@ public actor SourceKitServer {
 
 extension SourceKitServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
-    // All of the notifications sourcekit-lsp currently handles might modify the
-    // global state (eg. whether a document is open or its contents) in a way
-    // that changes the results of requsts before and after.
-    // We thus need to ensure that we handle the notifications in order, so they
-    // need to be dispatch barriers.
-    //
-    // Technically, we could optimize this further by having an `AsyncQueue` for
-    // each file, because edits on one file should not block requests on another
-    // file from executing but, at least in Swift, this would get us any real
-    // benefits at the moment because sourcekitd only has a single, global queue,
-    // instead of a queue per file.
-    // Additionally, usually you are editing one file in a source editor, which
-    // means that concurrent requests to multiple files tend to be rare.
-    messageHandlingQueue.async(barrier: true) {
+    messageHandlingQueue.async(metadata: TaskMetadata(params)) {
       let notification = Notification(params, clientID: clientID)
       await self._logNotification(notification)
 
@@ -515,6 +619,7 @@ extension SourceKitServer: MessageHandler {
         await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
       case let notification as DidSaveTextDocumentNotification:
         await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.didSaveDocument)
+        // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
       default:
         break
       }
@@ -527,19 +632,7 @@ extension SourceKitServer: MessageHandler {
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
-    // All of the requests sourcekit-lsp do not modify global state or require
-    // the client to wait for the result before using the modified global state.
-    // For example
-    //  - `DeclarationRequest` does not modify global state
-    //  - `CodeCompletionRequest` modifies the state of the current code
-    //    completion session but it only makes sense for the client to request
-    //    more results for this completion session after it has received the
-    //    initial results.
-    // FIXME: (async) We need more granular request handling. Completion requests
-    // to the same file depend on each other because we only have one global
-    // code completion session in sourcekitd but they don't need to be full
-    // barriers to any other request.
-    messageHandlingQueue.async(barrier: R.self is CompletionRequest.Type) {
+    messageHandlingQueue.async(metadata: TaskMetadata(params)) {
       let cancellationToken = CancellationToken()
 
       let request = Request(
@@ -628,6 +721,7 @@ extension SourceKitServer: MessageHandler {
           requestHandler: self.documentDiagnostic,
           fallback: .full(.init(items: []))
         )
+        // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
       default:
         reply(.failure(ResponseError.methodNotFound(R.method)))
       }
