@@ -55,9 +55,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     try ws.openDocument(loc.url, language: .swift)
 
-    // Wait for syntactic and semantic diagnsotics to be produced to make sure the
-    // document open got handled by sourcekitd
-    _ = try await ws.testClient.nextDiagnosticsNotification()
+    // Wait for diagnostics to be produced to make sure the document open got handled by sourcekitd.
     _ = try await ws.testClient.nextDiagnosticsNotification()
 
     // Make a change to the file that's not saved to disk. This way we can check that we re-open the correct in-memory state.

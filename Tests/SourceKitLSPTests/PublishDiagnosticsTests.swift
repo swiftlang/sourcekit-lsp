@@ -94,14 +94,10 @@ final class PublishDiagnosticsTests: XCTestCase {
         """
     )
 
-    let syntacticDiags = try await testClient.nextDiagnosticsNotification()
-    // Unresolved identifier is not a syntactic diagnostic.
-    XCTAssertEqual(syntacticDiags.diagnostics, [])
-
-    let semanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
+    let diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.diagnostics.count, 1)
     XCTAssertEqual(
-      semanticDiags.diagnostics.first?.range,
+      diags.diagnostics.first?.range,
       Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9)
     )
   }
@@ -115,14 +111,10 @@ final class PublishDiagnosticsTests: XCTestCase {
         """
     )
 
-    let openSyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    // Unresolved identifier is not a syntactic diagnostic.
-    XCTAssertEqual(openSyntacticDiags.diagnostics, [])
-
-    let openSemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(openSemanticDiags.diagnostics.count, 1)
+    let openDiags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(openDiags.diagnostics.count, 1)
     XCTAssertEqual(
-      openSemanticDiags.diagnostics.first?.range,
+      openDiags.diagnostics.first?.range,
       Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9)
     )
 
@@ -134,18 +126,10 @@ final class PublishDiagnosticsTests: XCTestCase {
       )
     ])
 
-    let editSyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    // We should report the semantic diagnostic reported by the edit range-shifted
-    XCTAssertEqual(editSyntacticDiags.diagnostics.count, 1)
+    let editDiags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(editDiags.diagnostics.count, 1)
     XCTAssertEqual(
-      editSyntacticDiags.diagnostics.first?.range,
-      Position(line: 2, utf16index: 2)..<Position(line: 2, utf16index: 9)
-    )
-
-    let editSemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(editSemanticDiags.diagnostics.count, 1)
-    XCTAssertEqual(
-      editSemanticDiags.diagnostics.first?.range,
+      editDiags.diagnostics.first?.range,
       Position(line: 2, utf16index: 2)..<Position(line: 2, utf16index: 9)
     )
   }
@@ -160,14 +144,10 @@ final class PublishDiagnosticsTests: XCTestCase {
         """
     )
 
-    let openSyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    // Unresolved identifier is not a syntactic diagnostic.
-    XCTAssertEqual(openSyntacticDiags.diagnostics, [])
-
-    let openSemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(openSemanticDiags.diagnostics.count, 1)
+    let openDiags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(openDiags.diagnostics.count, 1)
     XCTAssertEqual(
-      openSemanticDiags.diagnostics.first?.range,
+      openDiags.diagnostics.first?.range,
       Position(line: 2, utf16index: 2)..<Position(line: 2, utf16index: 9)
     )
 
@@ -179,18 +159,10 @@ final class PublishDiagnosticsTests: XCTestCase {
       )
     ])
 
-    let editSyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    // We should report the semantic diagnostic reported by the edit range-shifted
-    XCTAssertEqual(editSyntacticDiags.diagnostics.count, 1)
+    let editDiags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(editDiags.diagnostics.count, 1)
     XCTAssertEqual(
-      editSyntacticDiags.diagnostics.first?.range,
-      Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9)
-    )
-
-    let editSemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(editSemanticDiags.diagnostics.count, 1)
-    XCTAssertEqual(
-      editSemanticDiags.diagnostics.first?.range,
+      editDiags.diagnostics.first?.range,
       Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9)
     )
   }

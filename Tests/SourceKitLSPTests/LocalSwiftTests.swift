@@ -13,6 +13,7 @@
 import LSPLogging
 import LSPTestSupport
 import LanguageServerProtocol
+import SKCore
 import SKTestSupport
 import SourceKitLSP
 import SwiftParser
@@ -78,17 +79,14 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    let syntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(syntacticDiags.version, 12)
-    XCTAssertEqual(syntacticDiags.diagnostics.count, 1)
-    XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
-    let semanticOpenDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(semanticOpenDiags.version, 12)
-    XCTAssertEqual(semanticOpenDiags.diagnostics.count, 1)
+
+    let openDiags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(openDiags.diagnostics.count, 1)
     XCTAssertEqual(
-      semanticOpenDiags.diagnostics.first?.range.lowerBound,
+      openDiags.diagnostics.first?.range.lowerBound,
       Position(line: 0, utf16index: 4)
     )
+    XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
 
     testClient.send(
       DidChangeTextDocumentNotification(
@@ -98,16 +96,9 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit1SyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    // 1 = remaining semantic error
-    XCTAssertEqual(edit1SyntacticDiags.version, 13)
-    XCTAssertLessThanOrEqual(edit1SyntacticDiags.diagnostics.count, 1)
+    let edit1Diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(edit1Diags.diagnostics.count, 0)
     XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
-
-    let edit1SemanticDiags = try await testClient.nextDiagnosticsNotification()
-    // 0 = semantic update finished already
-    XCTAssertEqual(edit1SemanticDiags.version, 13)
-    XCTAssertEqual(edit1SemanticDiags.diagnostics.count, 0)
 
     testClient.send(
       DidChangeTextDocumentNotification(
@@ -117,24 +108,19 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit2SyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(edit2SyntacticDiags.version, 14)
-    // 0 = only syntactic
-    XCTAssertLessThanOrEqual(edit2SyntacticDiags.diagnostics.count, 1)
+    let edit2Diags = try await testClient.nextDiagnosticsNotification()
+    // 1 = semantic update finished already
+    XCTAssertEqual(edit2Diags.diagnostics.count, 1)
+    XCTAssertEqual(
+      edit2Diags.diagnostics.first?.range.lowerBound,
+      Position(line: 1, utf16index: 0)
+    )
     XCTAssertEqual(
       """
       func foo() {}
       bar()
       """,
       documentManager.latestSnapshot(uri)!.text
-    )
-    let edit2SemanticDiags = try await testClient.nextDiagnosticsNotification()
-    // 1 = semantic update finished already
-    XCTAssertEqual(edit2SemanticDiags.version, 14)
-    XCTAssertEqual(edit2SemanticDiags.diagnostics.count, 1)
-    XCTAssertEqual(
-      edit2SemanticDiags.diagnostics.first?.range.lowerBound,
-      Position(line: 1, utf16index: 0)
     )
 
     testClient.send(
@@ -145,10 +131,9 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit3SyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    // 1 = remaining semantic error
-    XCTAssertEqual(edit3SyntacticDiags.version, 14)
-    XCTAssertLessThanOrEqual(edit3SyntacticDiags.diagnostics.count, 1)
+
+    let edit3Diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(edit3Diags.diagnostics.count, 0)
     XCTAssertEqual(
       """
       func foo() {}
@@ -156,11 +141,6 @@ final class LocalSwiftTests: XCTestCase {
       """,
       documentManager.latestSnapshot(uri)!.text
     )
-
-    let edit3SemanticDiags = try await testClient.nextDiagnosticsNotification()
-    // 0 = semantic update finished already
-    XCTAssertEqual(edit3SemanticDiags.version, 14)
-    XCTAssertEqual(edit3SemanticDiags.diagnostics.count, 0)
 
     testClient.send(
       DidChangeTextDocumentNotification(
@@ -170,24 +150,19 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit4SyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(edit4SyntacticDiags.version, 15)
-    // 1 = semantic update finished already
-    XCTAssertLessThanOrEqual(edit4SyntacticDiags.diagnostics.count, 1)
+    let edit4Diags = try await testClient.nextDiagnosticsNotification()
+    // 0 = only syntactic
+    XCTAssertEqual(edit4Diags.diagnostics.count, 1)
+    XCTAssertEqual(
+      edit4Diags.diagnostics.first?.range.lowerBound,
+      Position(line: 1, utf16index: 0)
+    )
     XCTAssertEqual(
       """
       func foo() {}
       fooTypo()
       """,
       documentManager.latestSnapshot(uri)!.text
-    )
-    let edit4SemanticDiags = try await testClient.nextDiagnosticsNotification()
-    // 0 = only syntactic
-    XCTAssertEqual(edit4SemanticDiags.version, 15)
-    XCTAssertEqual(edit4SemanticDiags.diagnostics.count, 1)
-    XCTAssertEqual(
-      edit4SemanticDiags.diagnostics.first?.range.lowerBound,
-      Position(line: 1, utf16index: 0)
     )
 
     testClient.send(
@@ -204,23 +179,19 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit5SyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(edit5SyntacticDiags.version, 16)
-    // Could be remaining semantic error or new one.
-    XCTAssertEqual(edit5SyntacticDiags.diagnostics.count, 1)
+
+    let edit5Diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(edit5Diags.diagnostics.count, 1)
+    XCTAssertEqual(
+      edit5Diags.diagnostics.first?.range.lowerBound,
+      Position(line: 1, utf16index: 0)
+    )
     XCTAssertEqual(
       """
       func bar() {}
       foo()
       """,
       documentManager.latestSnapshot(uri)!.text
-    )
-    let edit5SemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(edit5SemanticDiags.version, 16)
-    XCTAssertEqual(edit5SemanticDiags.diagnostics.count, 1)
-    XCTAssertEqual(
-      edit5SemanticDiags.diagnostics.first?.range.lowerBound,
-      Position(line: 1, utf16index: 0)
     )
   }
 
@@ -241,18 +212,14 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    let openSyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(openSyntacticDiags.version, 12)
-    XCTAssertEqual(openSyntacticDiags.diagnostics.count, 1)
-    XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
 
-    let openSemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(openSemanticDiags.version, 12)
-    XCTAssertEqual(openSemanticDiags.diagnostics.count, 1)
+    let openDiags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(openDiags.diagnostics.count, 1)
     XCTAssertEqual(
-      openSemanticDiags.diagnostics.first?.range.lowerBound,
+      openDiags.diagnostics.first?.range.lowerBound,
       Position(line: 0, utf16index: 4)
     )
+    XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
 
     testClient.send(
       DidChangeTextDocumentNotification(
@@ -262,16 +229,10 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit1SyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(edit1SyntacticDiags.version, 13)
-    // 1 = remaining semantic error
-    // 0 = semantic update finished already
-    XCTAssertLessThanOrEqual(edit1SyntacticDiags.diagnostics.count, 1)
-    XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
 
-    let edit1SemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(edit1SemanticDiags.version, 13)
-    XCTAssertEqual(edit1SemanticDiags.diagnostics.count, 0)
+    let edit1Diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(edit1Diags.diagnostics.count, 0)
+    XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
 
     testClient.send(
       DidChangeTextDocumentNotification(
@@ -281,24 +242,19 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit2SyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(edit2SyntacticDiags.version, 14)
-    // 1 = semantic update finished already
-    // 0 = only syntactic
-    XCTAssertLessThanOrEqual(edit2SyntacticDiags.diagnostics.count, 1)
+
+    let edit2Diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(edit2Diags.diagnostics.count, 1)
+    XCTAssertEqual(
+      edit2Diags.diagnostics.first?.range.lowerBound,
+      Position(line: 1, utf16index: 0)
+    )
     XCTAssertEqual(
       """
       func foo() {}
       bar()
       """,
       documentManager.latestSnapshot(uri)!.text
-    )
-    let edit2SemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(edit2SemanticDiags.version, 14)
-    XCTAssertEqual(edit2SemanticDiags.diagnostics.count, 1)
-    XCTAssertEqual(
-      edit2SemanticDiags.diagnostics.first?.range.lowerBound,
-      Position(line: 1, utf16index: 0)
     )
 
     testClient.send(
@@ -309,11 +265,9 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit3SyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(edit3SyntacticDiags.version, 14)
-    // 1 = remaining semantic error
-    // 0 = semantic update finished already
-    XCTAssertLessThanOrEqual(edit3SyntacticDiags.diagnostics.count, 1)
+
+    let edit3Diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(edit3Diags.diagnostics.count, 0)
     XCTAssertEqual(
       """
       func foo() {}
@@ -321,9 +275,6 @@ final class LocalSwiftTests: XCTestCase {
       """,
       documentManager.latestSnapshot(uri)!.text
     )
-    let edit3SemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(edit3SemanticDiags.version, 14)
-    XCTAssertEqual(edit3SemanticDiags.diagnostics.count, 0)
 
     testClient.send(
       DidChangeTextDocumentNotification(
@@ -333,24 +284,18 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit4SyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(edit4SyntacticDiags.version, 15)
-    // 1 = semantic update finished already
-    // 0 = only syntactic
-    XCTAssertLessThanOrEqual(edit4SyntacticDiags.diagnostics.count, 1)
+    let edit4Diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(edit4Diags.diagnostics.count, 1)
+    XCTAssertEqual(
+      edit4Diags.diagnostics.first?.range.lowerBound,
+      Position(line: 1, utf16index: 0)
+    )
     XCTAssertEqual(
       """
       func foo() {}
       fooTypo()
       """,
       documentManager.latestSnapshot(uri)!.text
-    )
-    let edit4SemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(edit4SemanticDiags.version, 15)
-    XCTAssertEqual(edit4SemanticDiags.diagnostics.count, 1)
-    XCTAssertEqual(
-      edit4SemanticDiags.diagnostics.first?.range.lowerBound,
-      Position(line: 1, utf16index: 0)
     )
 
     testClient.send(
@@ -367,10 +312,13 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let edit5SyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(edit5SyntacticDiags.version, 16)
-    // Could be remaining semantic error or new one.
-    XCTAssertEqual(edit5SyntacticDiags.diagnostics.count, 1)
+
+    let edit5Diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(edit5Diags.diagnostics.count, 1)
+    XCTAssertEqual(
+      edit5Diags.diagnostics.first?.range.lowerBound,
+      Position(line: 1, utf16index: 0)
+    )
     XCTAssertEqual(
       """
       func bar() {}
@@ -378,13 +326,7 @@ final class LocalSwiftTests: XCTestCase {
       """,
       documentManager.latestSnapshot(uri)!.text
     )
-    let edit5SemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(edit5SemanticDiags.version, 16)
-    XCTAssertEqual(edit5SemanticDiags.diagnostics.count, 1)
-    XCTAssertEqual(
-      edit5SemanticDiags.diagnostics.first?.range.lowerBound,
-      Position(line: 1, utf16index: 0)
-    )
+
   }
 
   func testExcludedDocumentSchemeDiagnostics() async throws {
@@ -420,10 +362,8 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    let syntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(syntacticDiags.uri, includedURI)
-    let semanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(semanticDiags.uri, includedURI)
+    let diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.uri, includedURI)
   }
 
   func testCrossFileDiagnostics() async throws {
@@ -444,17 +384,11 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    let openASyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(openASyntacticDiags.version, 12)
-    // 1 = semantic update finished already
-    // 0 = only syntactic
-    XCTAssertLessThanOrEqual(openASyntacticDiags.diagnostics.count, 1)
 
-    let openASemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(openASemanticDiags.version, 12)
-    XCTAssertEqual(openASemanticDiags.diagnostics.count, 1)
+    let openADiags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(openADiags.diagnostics.count, 1)
     XCTAssertEqual(
-      openASemanticDiags.diagnostics.first?.range.lowerBound,
+      openADiags.diagnostics.first?.range.lowerBound,
       Position(line: 0, utf16index: 0)
     )
 
@@ -470,17 +404,11 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    let openBSyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(openBSyntacticDiags.version, 12)
-    // 1 = semantic update finished already
-    // 0 = only syntactic
-    XCTAssertLessThanOrEqual(openBSyntacticDiags.diagnostics.count, 1)
 
-    let openBSemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(openBSemanticDiags.version, 12)
-    XCTAssertEqual(openBSemanticDiags.diagnostics.count, 1)
+    let openBDiags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(openBDiags.diagnostics.count, 1)
     XCTAssertEqual(
-      openBSemanticDiags.diagnostics.first?.range.lowerBound,
+      openBDiags.diagnostics.first?.range.lowerBound,
       Position(line: 0, utf16index: 0)
     )
 
@@ -492,13 +420,9 @@ final class LocalSwiftTests: XCTestCase {
         ]
       )
     )
-    let editASyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(editASyntacticDiags.version, 13)
-    XCTAssertEqual(editASyntacticDiags.diagnostics.count, 1)
 
-    let editASemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(editASemanticDiags.version, 13)
-    XCTAssertEqual(editASemanticDiags.diagnostics.count, 1)
+    let editADiags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(editADiags.diagnostics.count, 1)
   }
 
   func testDiagnosticsReopen() async throws {
@@ -518,17 +442,10 @@ final class LocalSwiftTests: XCTestCase {
       )
     )
 
-    let open1SyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(open1SyntacticDiags.version, 12)
-    // 1 = semantic update finished already
-    // 0 = only syntactic
-    XCTAssertLessThanOrEqual(open1SyntacticDiags.diagnostics.count, 1)
-
-    let open1SemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(open1SemanticDiags.version, 12)
-    XCTAssertEqual(open1SemanticDiags.diagnostics.count, 1)
+    let open1Diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(open1Diags.diagnostics.count, 1)
     XCTAssertEqual(
-      open1SemanticDiags.diagnostics.first?.range.lowerBound,
+      open1Diags.diagnostics.first?.range.lowerBound,
       Position(line: 0, utf16index: 0)
     )
 
@@ -547,20 +464,10 @@ final class LocalSwiftTests: XCTestCase {
       )
     )
 
-    let open2SyntacticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(open2SyntacticDiags.version, 13)
-    // 1 = syntactic, no cached semantic diagnostic from previous version
-    XCTAssertEqual(open2SyntacticDiags.diagnostics.count, 1)
+    let open2Diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(open2Diags.diagnostics.count, 1)
     XCTAssertEqual(
-      open2SyntacticDiags.diagnostics.first?.range.lowerBound,
-      Position(line: 0, utf16index: 3)
-    )
-
-    let open2SemanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(open2SemanticDiags.version, 13)
-    XCTAssertEqual(open2SemanticDiags.diagnostics.count, 1)
-    XCTAssertEqual(
-      open2SemanticDiags.diagnostics.first?.range.lowerBound,
+      open2Diags.diagnostics.first?.range.lowerBound,
       Position(line: 0, utf16index: 3)
     )
   }
@@ -579,12 +486,10 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    // syntactic diags
-    _ = try await testClient.nextDiagnosticsNotification()
 
-    let semanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
-    let diag = semanticDiags.diagnostics.first!
+    let diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.diagnostics.count, 1)
+    let diag = diags.diagnostics.first!
     XCTAssertEqual(diag.code, .string("property-wrapper-requirements"))
     XCTAssertEqual(diag.codeDescription?.href.fileURL?.lastPathComponent, "property-wrapper-requirements.md")
   }
@@ -607,12 +512,10 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    // syntactic diags
-    _ = try await testClient.nextDiagnosticsNotification()
 
-    let semanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
-    let diag = semanticDiags.diagnostics.first!
+    let diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.diagnostics.count, 1)
+    let diag = diags.diagnostics.first!
     XCTAssertNotNil(diag.codeActions)
     XCTAssertEqual(diag.codeActions!.count, 1)
     let fixit = diag.codeActions!.first!
@@ -652,12 +555,10 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    // syntactic diags
-    _ = try await testClient.nextDiagnosticsNotification()
 
-    let semanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
-    let diag = semanticDiags.diagnostics.first!
+    let diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.diagnostics.count, 1)
+    let diag = diags.diagnostics.first!
     XCTAssertEqual(diag.relatedInformation?.count, 2)
     if let note1 = diag.relatedInformation?.first(where: { $0.message.contains("'?'") }) {
       XCTAssertEqual(note1.codeActions?.count, 1)
@@ -723,11 +624,10 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    // syntactic diags
-    _ = try await testClient.nextDiagnosticsNotification()
-    let semanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
-    let diag = semanticDiags.diagnostics.first!
+
+    let diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.diagnostics.count, 1)
+    let diag = diags.diagnostics.first!
     XCTAssertNotNil(diag.codeActions)
     XCTAssertEqual(diag.codeActions!.count, 1)
     let fixit = diag.codeActions!.first!
@@ -774,11 +674,10 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    // syntactic diags
-    _ = try await testClient.nextDiagnosticsNotification()
-    let semanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
-    diagnostic = semanticDiags.diagnostics.first
+
+    let diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.diagnostics.count, 1)
+    diagnostic = diags.diagnostics.first
 
     let request = CodeActionRequest(
       range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 11),
@@ -839,12 +738,10 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    // syntactic diags
-    _ = try await testClient.nextDiagnosticsNotification()
 
-    let semanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
-    diagnostic = semanticDiags.diagnostics.first
+    let diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.diagnostics.count, 1)
+    diagnostic = diags.diagnostics.first
 
     let request = CodeActionRequest(
       range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 11),
@@ -905,12 +802,10 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    // syntactic diags
-    _ = try await testClient.nextDiagnosticsNotification()
 
-    let semanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
-    diagnostic = semanticDiags.diagnostics.first
+    let diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.diagnostics.count, 1)
+    diagnostic = diags.diagnostics.first
 
     let request = CodeActionRequest(
       range: Position(line: 0, utf16index: 1)..<Position(line: 0, utf16index: 10),
@@ -963,11 +858,10 @@ final class LocalSwiftTests: XCTestCase {
         )
       )
     )
-    // syntactic diags
-    _ = try await testClient.nextDiagnosticsNotification()
-    let semanticDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
-    diagnostic = semanticDiags.diagnostics.first!
+
+    let diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.diagnostics.count, 1)
+    diagnostic = diags.diagnostics.first!
 
     let request = CodeActionRequest(
       range: Position(line: 3, utf16index: 2)..<Position(line: 3, utf16index: 2),
@@ -1884,5 +1778,50 @@ final class LocalSwiftTests: XCTestCase {
       """
     )
     XCTAssertEqual(firstNode.kind, .codeBlockItem)
+  }
+
+  func testDebouncePublishDiagnosticsNotification() async throws {
+    try XCTSkipIf(longTestsDisabled)
+
+    var serverOptions = SourceKitServer.Options.testDefault
+    serverOptions.swiftPublishDiagnosticsDebounceDuration = 1 /* 1s */
+
+    // Construct our own  `TestSourceKitLSPClient` instead of the one from set up because we want a higher debounce interval.
+    let testClient = TestSourceKitLSPClient(serverOptions: serverOptions)
+    _ = try await testClient.send(
+      InitializeRequest(rootURI: nil, capabilities: ClientCapabilities(), workspaceFolders: nil)
+    )
+
+    let uri = DocumentURI(URL(fileURLWithPath: "/\(UUID())/a.swift"))
+    testClient.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: uri,
+          language: .swift,
+          version: 0,
+          text: """
+            foo
+            """
+        )
+      )
+    )
+
+    let edit = TextDocumentContentChangeEvent(
+      range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 3),
+      text: "bar"
+    )
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 0),
+        contentChanges: [edit]
+      )
+    )
+
+    let diagnostic = try await testClient.nextDiagnosticsNotification()
+    let diag = try XCTUnwrap(diagnostic.diagnostics.first)
+    XCTAssertEqual(diag.message, "cannot find 'bar' in scope")
+
+    // Ensure that we don't get a second `PublishDiagnosticsNotification`
+    await assertThrowsError(try await testClient.nextDiagnosticsNotification(timeout: 2))
   }
 }

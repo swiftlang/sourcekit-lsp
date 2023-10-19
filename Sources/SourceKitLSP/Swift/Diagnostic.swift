@@ -14,6 +14,7 @@ import LSPLogging
 import LanguageServerProtocol
 import SKSupport
 import SourceKitD
+import SwiftDiagnostics
 
 extension CodeAction {
 
@@ -67,6 +68,13 @@ extension CodeAction {
       diagnostics: nil,
       edit: WorkspaceEdit(changes: [snapshot.uri: edits])
     )
+  }
+
+  init?(_ fixIt: FixIt, in snapshot: DocumentSnapshot) {
+    // FIXME: Once https://github.com/apple/swift-syntax/pull/2226 is merged and
+    // FixItApplier is public, use it to compute the edits that should be
+    // applied to the source.
+    return nil
   }
 
   /// Describe a fixit's edit briefly.
@@ -161,7 +169,7 @@ extension Diagnostic {
       return nil
     }
 
-    var severity: DiagnosticSeverity? = nil
+    var severity: LanguageServerProtocol.DiagnosticSeverity? = nil
     if let uid: sourcekitd_uid_t = diag[keys.severity] {
       switch uid {
       case values.diag_error:
@@ -234,6 +242,51 @@ extension Diagnostic {
       codeActions: actions
     )
   }
+
+  init?(
+    _ diag: SwiftDiagnostics.Diagnostic,
+    in snapshot: DocumentSnapshot
+  ) {
+    guard let position = snapshot.position(of: diag.position) else {
+      logger.error(
+        """
+        Cannot construct Diagnostic from SwiftSyntax diagnostic because its UTF-8 offset \(diag.position.utf8Offset) \
+        is out of range of the source file \(snapshot.uri.forLogging)
+        """
+      )
+      return nil
+    }
+    // Start with a zero-length range based on the position.
+    // If the diagnostic has highlights associated with it that start at the
+    // position, use that as the diagnostic's range.
+    var range = Range(position)
+    for highlight in diag.highlights {
+      let swiftSyntaxRange = highlight.positionAfterSkippingLeadingTrivia..<highlight.endPositionBeforeTrailingTrivia
+      guard let highlightRange = snapshot.range(of: swiftSyntaxRange) else {
+        break
+      }
+      if range.upperBound == highlightRange.lowerBound {
+        range = range.lowerBound..<highlightRange.upperBound
+      } else {
+        break
+      }
+    }
+
+    let relatedInformation = diag.notes.compactMap { DiagnosticRelatedInformation($0, in: snapshot) }
+    let codeActions = diag.fixIts.compactMap { CodeAction($0, in: snapshot) }
+
+    self.init(
+      range: range,
+      severity: diag.diagMessage.severity.lspSeverity,
+      code: nil,
+      codeDescription: nil,
+      source: "SwiftSyntax",
+      message: diag.message,
+      tags: nil,
+      relatedInformation: relatedInformation,
+      codeActions: codeActions
+    )
+  }
 }
 
 extension DiagnosticRelatedInformation {
@@ -271,6 +324,23 @@ extension DiagnosticRelatedInformation {
       codeActions: actions
     )
   }
+
+  init?(_ note: Note, in snapshot: DocumentSnapshot) {
+    let nodeRange = note.node.positionAfterSkippingLeadingTrivia..<note.node.endPositionBeforeTrailingTrivia
+    guard let range = snapshot.range(of: nodeRange) else {
+      logger.error(
+        """
+        Cannot construct DiagnosticRelatedInformation because the range \(nodeRange, privacy: .public) \
+        is out of range of the source file \(snapshot.uri.forLogging).
+        """
+      )
+      return nil
+    }
+    self.init(
+      location: Location(uri: snapshot.uri, range: range),
+      message: note.message
+    )
+  }
 }
 
 extension Diagnostic {
@@ -279,66 +349,6 @@ extension Diagnostic {
     updated.range = newRange
     return updated
   }
-}
-
-struct CachedDiagnostic {
-  var diagnostic: Diagnostic
-  var stage: DiagnosticStage
-
-  func withRange(_ newRange: Range<Position>) -> CachedDiagnostic {
-    return CachedDiagnostic(
-      diagnostic: self.diagnostic.withRange(newRange),
-      stage: self.stage
-    )
-  }
-}
-
-extension CachedDiagnostic {
-  init?(
-    _ diag: SKDResponseDictionary,
-    in snapshot: DocumentSnapshot,
-    useEducationalNoteAsCode: Bool
-  ) {
-    let sk = diag.sourcekitd
-    guard
-      let diagnostic = Diagnostic(
-        diag,
-        in: snapshot,
-        useEducationalNoteAsCode: useEducationalNoteAsCode
-      )
-    else {
-      return nil
-    }
-    self.diagnostic = diagnostic
-    let stageUID: sourcekitd_uid_t? = diag[sk.keys.diagnostic_stage]
-    self.stage = stageUID.flatMap { DiagnosticStage($0, sourcekitd: sk) } ?? .parse
-  }
-}
-
-/// Returns the new diagnostics after merging in any existing diagnostics from a higher diagnostic
-/// stage that should not be cleared yet.
-///
-/// Sourcekitd returns parse diagnostics immediately after edits, but we do not want to clear the
-/// semantic diagnostics until we have semantic level diagnostics from after the edit.
-///
-/// However, if fallback arguments are being used, we withhold semantic diagnostics in favor of only
-/// emitting syntactic diagnostics.
-func mergeDiagnostics(
-  old: [CachedDiagnostic],
-  new: [CachedDiagnostic],
-  stage: DiagnosticStage,
-  isFallback: Bool
-) -> [CachedDiagnostic] {
-  if stage == .sema {
-    return isFallback ? old.filter { $0.stage == .parse } : new
-  }
-
-  #if DEBUG
-  if let sema = new.first(where: { $0.stage == .sema }) {
-    logger.fault("unexpected semantic diagnostic in parse diagnostics \(String(reflecting: sema.diagnostic))")
-  }
-  #endif
-  return new.filter { $0.stage == .parse } + old.filter { $0.stage == .sema }
 }
 
 /// Whether a diagostic is semantic or syntatic (parse).
@@ -358,6 +368,17 @@ extension DiagnosticStage {
       let desc = sourcekitd.api.uid_get_string_ptr(uid).map { String(cString: $0) }
       logger.fault("unknown diagnostic stage \(desc ?? "nil", privacy: .public)")
       return nil
+    }
+  }
+}
+
+fileprivate extension SwiftDiagnostics.DiagnosticSeverity {
+  var lspSeverity: LanguageServerProtocol.DiagnosticSeverity {
+    switch self {
+    case .error: return .error
+    case .warning: return .warning
+    case .note: return .information
+    case .remark: return .hint
     }
   }
 }

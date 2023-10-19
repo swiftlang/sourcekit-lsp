@@ -294,18 +294,14 @@ final class CodeActionTests: XCTestCase {
 
     try ws.openDocument(def.url, language: .swift)
 
-    let syntacticDiags = try await ws.testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(syntacticDiags.uri, def.docUri)
-    XCTAssertEqual(syntacticDiags.diagnostics, [])
-
-    let semanticDiags = try await ws.testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(semanticDiags.uri, def.docUri)
-    XCTAssertEqual(semanticDiags.diagnostics.count, 1)
+    let diags = try await ws.testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.uri, def.docUri)
+    XCTAssertEqual(diags.diagnostics.count, 1)
 
     let textDocument = TextDocumentIdentifier(def.url)
     let actionsRequest = CodeActionRequest(
       range: def.position..<def.position,
-      context: .init(diagnostics: semanticDiags.diagnostics),
+      context: .init(diagnostics: diags.diagnostics),
       textDocument: textDocument
     )
     let actionResult = try await ws.testClient.send(actionsRequest)
