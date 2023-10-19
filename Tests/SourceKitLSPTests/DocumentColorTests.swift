@@ -17,34 +17,11 @@ import SourceKitLSP
 import XCTest
 
 final class DocumentColorTests: XCTestCase {
-  /// The mock client used to communicate with the SourceKit-LSP server.
-  ///
-  /// - Note: Set before each test run in `setUp`.
-  private var testClient: TestSourceKitLSPClient! = nil
-
-  override func setUp() async throws {
-    testClient = TestSourceKitLSPClient()
-    let documentCapabilities = TextDocumentClientCapabilities()
-    _ = try await testClient.send(
-      InitializeRequest(
-        processId: nil,
-        rootPath: nil,
-        rootURI: nil,
-        initializationOptions: nil,
-        capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
-        trace: .off,
-        workspaceFolders: nil
-      )
-    )
-  }
-
-  override func tearDown() {
-    testClient = nil
-  }
-
   // MARK: - Helpers
 
   private func performDocumentColorRequest(text: String) async throws -> [ColorInformation] {
+    let testClient = try await TestSourceKitLSPClient()
+
     let uri = DocumentURI.for(.swift)
 
     testClient.openDocument(text, uri: uri)
@@ -58,6 +35,8 @@ final class DocumentColorTests: XCTestCase {
     color: Color,
     range: Range<Position>
   ) async throws -> [ColorPresentation] {
+    let testClient = try await TestSourceKitLSPClient()
+
     let uri = DocumentURI.for(.swift)
 
     testClient.openDocument(text, uri: uri)

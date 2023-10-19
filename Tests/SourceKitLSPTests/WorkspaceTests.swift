@@ -251,15 +251,11 @@ final class WorkspaceTests: XCTestCase {
 
     let otherPackLoc = ws.testLoc("otherPackage:call")
 
-    let testClient = TestSourceKitLSPClient()
-    _ = try await testClient.send(
-      InitializeRequest(
-        rootURI: nil,
-        capabilities: ClientCapabilities(workspace: .init(workspaceFolders: true)),
-        workspaceFolders: [
-          WorkspaceFolder(uri: DocumentURI(ws.sources.rootDirectory.deletingLastPathComponent()))
-        ]
-      )
+    let testClient = try await TestSourceKitLSPClient(
+      capabilities: ClientCapabilities(
+        workspace: .init(workspaceFolders: true)
+      ),
+      workspaceFolders: [WorkspaceFolder(uri: DocumentURI(ws.sources.rootDirectory.deletingLastPathComponent()))]
     )
 
     let docString = try String(data: Data(contentsOf: otherPackLoc.url), encoding: .utf8)!

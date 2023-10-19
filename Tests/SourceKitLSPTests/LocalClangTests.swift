@@ -28,45 +28,18 @@ final class LocalClangTests: XCTestCase {
   /// - Note: Set before each test run in `setUp`.
   private var haveClangd: Bool = false
 
-  /// The mock client used to communicate with the SourceKit-LSP server.
-  ///
-  /// - Note: Set before each test run in `setUp`.
-  private var testClient: TestSourceKitLSPClient! = nil
-
   override func setUp() async throws {
     haveClangd = ToolchainRegistry.shared.toolchains.contains { $0.clangd != nil }
     if LocalClangTests.requireClangd && !haveClangd {
       XCTFail("cannot find clangd in toolchain")
     }
-
-    testClient = TestSourceKitLSPClient()
-    let documentSymbol = TextDocumentClientCapabilities.DocumentSymbol(
-      dynamicRegistration: nil,
-      symbolKind: nil,
-      hierarchicalDocumentSymbolSupport: true
-    )
-    let textDocument = TextDocumentClientCapabilities(documentSymbol: documentSymbol)
-    _ = try await self.testClient.send(
-      InitializeRequest(
-        processId: nil,
-        rootPath: nil,
-        rootURI: nil,
-        initializationOptions: nil,
-        capabilities: ClientCapabilities(workspace: nil, textDocument: textDocument),
-        trace: .off,
-        workspaceFolders: nil
-      )
-    )
-  }
-
-  override func tearDown() {
-    testClient = nil
   }
 
   // MARK: - Tests
 
   func testSymbolInfo() async throws {
     guard haveClangd else { return }
+    let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.cpp)
 
     let locations = testClient.openDocument(
@@ -142,6 +115,7 @@ final class LocalClangTests: XCTestCase {
 
   func testFoldingRange() async throws {
     guard haveClangd else { return }
+    let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.cpp)
 
     testClient.openDocument(
@@ -169,6 +143,17 @@ final class LocalClangTests: XCTestCase {
 
   func testDocumentSymbols() async throws {
     guard haveClangd else { return }
+    let testClient = try await TestSourceKitLSPClient(
+      capabilities: ClientCapabilities(
+        textDocument: TextDocumentClientCapabilities(
+          documentSymbol: TextDocumentClientCapabilities.DocumentSymbol(
+            dynamicRegistration: nil,
+            symbolKind: nil,
+            hierarchicalDocumentSymbolSupport: true
+          )
+        )
+      )
+    )
     let uri = DocumentURI.for(.cpp)
 
     testClient.openDocument(

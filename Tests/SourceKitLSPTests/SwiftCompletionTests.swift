@@ -17,9 +17,6 @@ import SourceKitLSP
 import XCTest
 
 final class SwiftCompletionTests: XCTestCase {
-
-  private typealias CompletionCapabilities = TextDocumentClientCapabilities.Completion
-
   /// Base document text to use for completion tests.
   private let text: String = """
     struct S {
@@ -38,34 +35,12 @@ final class SwiftCompletionTests: XCTestCase {
 
   // MARK: - Helpers
 
-  private func initializeServer(
-    options: SKCompletionOptions = .init(),
-    capabilities: CompletionCapabilities? = nil
-  ) async throws -> TestSourceKitLSPClient {
-    let testClient = TestSourceKitLSPClient()
-    var documentCapabilities: TextDocumentClientCapabilities?
-    if let capabilities = capabilities {
-      documentCapabilities = TextDocumentClientCapabilities()
-      documentCapabilities?.completion = capabilities
-    } else {
-      documentCapabilities = nil
-    }
-    _ = try await testClient.send(
-      InitializeRequest(
-        processId: nil,
-        rootPath: nil,
-        rootURI: nil,
-        initializationOptions: .dictionary([
-          "completion": .dictionary([
-            "maxResults": options.maxResults == nil ? .null : .int(options.maxResults!)
-          ])
-        ]),
-        capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
-        trace: .off,
-        workspaceFolders: nil
-      )
-    )
-    return testClient
+  private func initializationOptions(for options: SKCompletionOptions) -> LSPAny? {
+    return LSPAny.dictionary([
+      "completion": .dictionary([
+        "maxResults": options.maxResults == nil ? .null : .int(options.maxResults!)
+      ])
+    ])
   }
 
   // MARK: - Tests
@@ -79,7 +54,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionBasic(options: SKCompletionOptions) async throws {
-    let testClient = try await initializeServer(options: options)
+    let testClient = try await TestSourceKitLSPClient(initializationOptions: initializationOptions(for: options))
     let uri = DocumentURI.for(.swift)
 
     testClient.openDocument(text, uri: uri)
@@ -145,10 +120,15 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionSnippetSupport() async throws {
-    var capabilities = CompletionCapabilities()
-    capabilities.completionItem = CompletionCapabilities.CompletionItem(snippetSupport: true)
-
-    let testClient = try await initializeServer(capabilities: capabilities)
+    let testClient = try await TestSourceKitLSPClient(
+      capabilities: ClientCapabilities(
+        textDocument: TextDocumentClientCapabilities(
+          completion: TextDocumentClientCapabilities.Completion(
+            completionItem: TextDocumentClientCapabilities.Completion.CompletionItem(snippetSupport: true)
+          )
+        )
+      )
+    )
     let uri = DocumentURI.for(.swift)
     testClient.openDocument(text, uri: uri)
 
@@ -202,9 +182,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionNoSnippetSupport() async throws {
-    var capabilities = CompletionCapabilities()
-    capabilities.completionItem?.snippetSupport = false
-    let testClient = try await initializeServer(capabilities: capabilities)
+    let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
     testClient.openDocument(text, uri: uri)
 
@@ -253,7 +231,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionPositionServerFilter() async throws {
-    let testClient = try await initializeServer(options: SKCompletionOptions(maxResults: nil))
+    let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
     testClient.openDocument("foo", uri: uri)
 
@@ -286,7 +264,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionOptional() async throws {
-    let testClient = try await initializeServer()
+    let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
     testClient.openDocument(
       """
@@ -322,7 +300,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionOverride() async throws {
-    let testClient = try await initializeServer()
+    let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
     testClient.openDocument(
       """
@@ -360,7 +338,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionOverrideInNewLine() async throws {
-    let testClient = try await initializeServer()
+    let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
     testClient.openDocument(
       """
@@ -399,7 +377,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testMaxResults() async throws {
-    let testClient = try await initializeServer(options: SKCompletionOptions(maxResults: nil))
+    let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
     testClient.openDocument(
       """
@@ -528,7 +506,11 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testRefilterAfterIncompleteResults() async throws {
-    let testClient = try await initializeServer(options: SKCompletionOptions(maxResults: 20))
+    let testClient = try await TestSourceKitLSPClient(
+      initializationOptions: initializationOptions(
+        for: SKCompletionOptions(maxResults: 20)
+      )
+    )
     let uri = DocumentURI.for(.swift)
     testClient.openDocument(
       """
@@ -659,7 +641,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testRefilterAfterIncompleteResultsWithEdits() async throws {
-    let testClient = try await initializeServer(options: SKCompletionOptions(maxResults: nil))
+    let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
     testClient.openDocument(
       """
@@ -812,7 +794,7 @@ final class SwiftCompletionTests: XCTestCase {
   /// Regression test for https://bugs.swift.org/browse/SR-13561 to make sure the a session
   /// close waits for its respective open to finish to prevent a session geting stuck open.
   func testSessionCloseWaitsforOpen() async throws {
-    let testClient = try await initializeServer(options: SKCompletionOptions(maxResults: nil))
+    let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
     testClient.openDocument(
       """

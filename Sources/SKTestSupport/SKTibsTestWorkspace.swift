@@ -51,7 +51,14 @@ public final class SKTibsTestWorkspace {
     clientCapabilities: ClientCapabilities,
     testClient: TestSourceKitLSPClient? = nil
   ) async throws {
-    self.testClient = testClient ?? TestSourceKitLSPClient()
+    self.testClient =
+      if let testClient {
+        testClient
+      } else {
+        // Don't initialize the LSP server because we wire up all the properties that `InitializeRequest` would set
+        // manually below.
+        try await TestSourceKitLSPClient(initialize: false)
+      }
     self.tibsWorkspace = try TibsTestWorkspace(
       immutableProjectDir: immutableProjectDir,
       persistentBuildDir: persistentBuildDir,
@@ -70,7 +77,14 @@ public final class SKTibsTestWorkspace {
     clientCapabilities: ClientCapabilities,
     testClient: TestSourceKitLSPClient? = nil
   ) async throws {
-    self.testClient = testClient ?? TestSourceKitLSPClient()
+    self.testClient =
+      if let testClient {
+        testClient
+      } else {
+        // Don't initialize the LSP server because we wire up all the properties that `InitializeRequest` would set
+        // manually below.
+        try await TestSourceKitLSPClient(initialize: false)
+      }
 
     self.tibsWorkspace = try TibsTestWorkspace(
       projectDir: projectDir,

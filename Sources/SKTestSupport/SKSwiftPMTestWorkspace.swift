@@ -62,7 +62,14 @@ public final class SKSwiftPMTestWorkspace {
     toolchain: Toolchain,
     testClient: TestSourceKitLSPClient? = nil
   ) async throws {
-    self.testClient = testClient ?? TestSourceKitLSPClient()
+    self.testClient =
+      if let testClient {
+        testClient
+      } else {
+        // Don't initialize the LSP server because we wire up all the properties that `InitializeRequest` would set
+        // manually below.
+        try await TestSourceKitLSPClient(initialize: false)
+      }
 
     self.projectDir = URL(
       fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: projectDir.path)).pathString

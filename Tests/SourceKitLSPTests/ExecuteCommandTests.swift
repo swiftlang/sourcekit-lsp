@@ -17,33 +17,6 @@ import SourceKitLSP
 import XCTest
 
 final class ExecuteCommandTests: XCTestCase {
-
-  /// The mock client used to communicate with the SourceKit-LSP server.
-  ///
-  /// - Note: Set before each test run in `setUp`.
-  private var testClient: TestSourceKitLSPClient! = nil
-
-  override func tearDown() {
-    testClient = nil
-  }
-
-  override func setUp() async throws {
-    testClient = TestSourceKitLSPClient()
-    _ = try await self.testClient.send(
-      InitializeRequest(
-        processId: nil,
-        rootPath: nil,
-        rootURI: nil,
-        initializationOptions: nil,
-        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
-        trace: .off,
-        workspaceFolders: nil
-      )
-    )
-  }
-
-  // MARK: - Tests
-
   func testLocationSemanticRefactoring() async throws {
     guard let ws = try await staticSourceKitTibsWorkspace(name: "SemanticRefactor") else { return }
     let loc = ws.testLoc("sr:string")

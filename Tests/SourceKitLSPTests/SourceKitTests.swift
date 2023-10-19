@@ -23,7 +23,7 @@ public typealias URL = Foundation.URL
 final class SKTests: XCTestCase {
 
   func testInitLocal() async throws {
-    let testClient = TestSourceKitLSPClient()
+    let testClient = try await TestSourceKitLSPClient(initialize: false)
 
     let initResult = try await testClient.send(
       InitializeRequest(

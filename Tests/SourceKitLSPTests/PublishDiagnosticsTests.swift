@@ -16,62 +16,10 @@ import SKTestSupport
 import XCTest
 
 final class PublishDiagnosticsTests: XCTestCase {
-  /// The mock client used to communicate with the SourceKit-LSP server.
-  ///
-  /// - Note: Set before each test run in `setUp`.
-  private var testClient: TestSourceKitLSPClient! = nil
-
-  /// The URI of the document that is being tested by the current test case.
-  ///
-  /// - Note: This URI is set to a unique value before each test case in `setUp`.
-  private var uri: DocumentURI!
-
-  /// The current verion of the document being opened.
-  ///
-  /// - Note: This gets reset to 0 in `setUp` and incremented on every call to
-  ///   `openDocument` and `editDocument`.
-  private var version: Int!
-
-  override func setUp() async throws {
-    version = 0
-    uri = DocumentURI(URL(fileURLWithPath: "/PublishDiagnosticsTests/\(UUID()).swift"))
-    testClient = TestSourceKitLSPClient()
-    let documentCapabilities = TextDocumentClientCapabilities()
-    _ = try await self.testClient.send(
-      InitializeRequest(
-        processId: nil,
-        rootPath: nil,
-        rootURI: nil,
-        initializationOptions: nil,
-        capabilities: ClientCapabilities(workspace: nil, textDocument: documentCapabilities),
-        trace: .off,
-        workspaceFolders: nil
-      )
-    )
-  }
-
-  override func tearDown() {
-    testClient = nil
-  }
-
-  // MARK: - Helpers
-
-  private func editDocument(changes: [TextDocumentContentChangeEvent]) {
-    testClient.send(
-      DidChangeTextDocumentNotification(
-        textDocument: VersionedTextDocumentIdentifier(
-          uri,
-          version: version
-        ),
-        contentChanges: changes
-      )
-    )
-    version += 1
-  }
-
-  // MARK: - Tests
-
   func testUnknownIdentifierDiagnostic() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
     testClient.openDocument(
       """
       func foo() {
@@ -90,6 +38,9 @@ final class PublishDiagnosticsTests: XCTestCase {
   }
 
   func testRangeShiftAfterNewlineAdded() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
     testClient.openDocument(
       """
       func foo() {
@@ -106,13 +57,18 @@ final class PublishDiagnosticsTests: XCTestCase {
       Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9)
     )
 
-    editDocument(changes: [
-      TextDocumentContentChangeEvent(
-        range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
-        rangeLength: 0,
-        text: "\n"
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(
+            range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
+            rangeLength: 0,
+            text: "\n"
+          )
+        ]
       )
-    ])
+    )
 
     let editDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(editDiags.diagnostics.count, 1)
@@ -123,6 +79,9 @@ final class PublishDiagnosticsTests: XCTestCase {
   }
 
   func testRangeShiftAfterNewlineRemoved() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
     testClient.openDocument(
       """
 
@@ -140,13 +99,18 @@ final class PublishDiagnosticsTests: XCTestCase {
       Position(line: 2, utf16index: 2)..<Position(line: 2, utf16index: 9)
     )
 
-    editDocument(changes: [
-      TextDocumentContentChangeEvent(
-        range: Position(line: 0, utf16index: 0)..<Position(line: 1, utf16index: 0),
-        rangeLength: 1,
-        text: ""
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(
+            range: Position(line: 0, utf16index: 0)..<Position(line: 1, utf16index: 0),
+            rangeLength: 1,
+            text: ""
+          )
+        ]
       )
-    ])
+    )
 
     let editDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(editDiags.diagnostics.count, 1)
