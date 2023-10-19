@@ -473,7 +473,6 @@ private actor BSMDelegate: BuildSystemDelegate {
     uri: DocumentURI, expectation: XCTestExpectation, file: StaticString, line: UInt
   )
 
-  let queue: DispatchQueue = DispatchQueue(label: "\(BSMDelegate.self)")
   unowned let bsm: BuildSystemManager
   var expected: [ExpectedBuildSettingChangedCall] = []
 
