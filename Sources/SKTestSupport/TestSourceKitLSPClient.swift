@@ -17,6 +17,7 @@ import LanguageServerProtocolJSONRPC
 import SKCore
 import SKSupport
 import SourceKitLSP
+import SwiftSyntax
 import XCTest
 
 extension SourceKitServer.Options {
@@ -215,6 +216,82 @@ public final class TestSourceKitLSPClient: MessageHandler {
     }
     reply(.success(requestHandler(params)))
     requestHandlers.removeFirst()
+  }
+
+  // MARK: - Convenience functions
+
+  /// Opens the document with the given text as the given URI.
+  ///
+  /// The version defaults to 0 and the language is inferred from the file's extension by default.
+  ///
+  /// If the text contained location markers like `1️⃣`, then these are stripped from the opened document and
+  /// `DocumentPositions` are returned that map these markers to their position in the source file.
+  @discardableResult
+  public func openDocument(
+    _ markedText: String,
+    uri: DocumentURI,
+    version: Int = 0,
+    language: Language? = nil
+  ) -> DocumentPositions {
+    let (markers, textWithoutMarkers) = extractMarkers(markedText)
+    var language = language
+    if language == nil {
+      guard let fileExtension = uri.fileURL?.pathExtension,
+        let inferredLanguage = Language(fileExtension: fileExtension)
+      else {
+        preconditionFailure("Unable to infer language for file \(uri)")
+      }
+      language = inferredLanguage
+    }
+
+    self.send(
+      DidOpenTextDocumentNotification(
+        textDocument: TextDocumentItem(
+          uri: uri,
+          language: language!,
+          version: version,
+          text: textWithoutMarkers
+        )
+      )
+    )
+
+    return DocumentPositions(markers: markers, textWithoutMarkers: textWithoutMarkers)
+  }
+}
+
+// MARK: - DocumentPositions
+
+/// Maps location marker like `1️⃣` to their position within a source file.
+public struct DocumentPositions {
+  private let positions: [String: Position]
+
+  fileprivate init(markers: [String: Int], textWithoutMarkers: String) {
+    if markers.isEmpty {
+      // No need to build a line table if we don't have any markers.
+      positions = [:]
+      return
+    }
+
+    let lineTable = LineTable(textWithoutMarkers)
+    positions = markers.mapValues { offset in
+      guard let (line, column) = lineTable.lineAndUTF16ColumnOf(utf8Offset: offset) else {
+        preconditionFailure("UTF-8 offset not within source file: \(offset)")
+      }
+      return Position(line: line, utf16index: column)
+    }
+  }
+
+  fileprivate init(positions: [String: Position]) {
+    self.positions = positions
+  }
+
+  /// Returns the position of the given marker and traps if the document from which these `DocumentPositions` were
+  /// derived didn't contain the marker.
+  public subscript(_ marker: String) -> Position {
+    guard let position = positions[marker] else {
+      preconditionFailure("Could not find marker '\(marker)' in source code")
+    }
+    return position
   }
 }
 

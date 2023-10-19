@@ -44,20 +44,11 @@ final class InlayHintTests: XCTestCase {
   // MARK: - Helpers
 
   func performInlayHintRequest(text: String, range: Range<Position>? = nil) async throws -> [InlayHint] {
-    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
+    let uri = DocumentURI.for(.swift)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: DocumentURI(url),
-          language: .swift,
-          version: 17,
-          text: text
-        )
-      )
-    )
+    testClient.openDocument(text, uri: uri)
 
-    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(url), range: range)
+    let request = InlayHintRequest(textDocument: TextDocumentIdentifier(uri), range: range)
 
     do {
       return try await testClient.send(request)

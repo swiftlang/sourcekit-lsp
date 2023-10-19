@@ -101,16 +101,7 @@ final class SemanticTokensTests: XCTestCase {
 
     let refreshExpectation = expectSemanticTokensRefresh()
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: version,
-          text: text
-        )
-      )
-    )
+    testClient.openDocument(text, uri: uri)
     version += 1
 
     wait(for: [registerCapabilityExpectation, refreshExpectation], timeout: defaultTimeout)

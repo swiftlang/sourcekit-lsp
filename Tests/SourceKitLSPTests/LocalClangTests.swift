@@ -67,34 +67,24 @@ final class LocalClangTests: XCTestCase {
 
   func testSymbolInfo() async throws {
     guard haveClangd else { return }
-    #if os(Windows)
-    let url = URL(fileURLWithPath: "C:/a.cpp")
-    #else
-    let url = URL(fileURLWithPath: "/a.cpp")
-    #endif
+    let uri = DocumentURI.for(.cpp)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: DocumentURI(url),
-          language: .cpp,
-          version: 1,
-          text: """
-            struct S {
-              void foo() {
-                int local = 1;
-              }
-            };
-            """
-        )
-      )
+    let locations = testClient.openDocument(
+      """
+      struct 1️⃣S {
+        void 2️⃣foo() {
+          int 3️⃣local = 1;
+      4️⃣  }
+      };
+      """,
+      uri: uri
     )
 
     do {
       let resp = try await testClient.send(
         SymbolInfoRequest(
-          textDocument: TextDocumentIdentifier(url),
-          position: Position(line: 0, utf16index: 7)
+          textDocument: TextDocumentIdentifier(uri),
+          position: locations["1️⃣"]
         )
       )
 
@@ -109,8 +99,8 @@ final class LocalClangTests: XCTestCase {
     do {
       let resp = try await testClient.send(
         SymbolInfoRequest(
-          textDocument: TextDocumentIdentifier(url),
-          position: Position(line: 1, utf16index: 7)
+          textDocument: TextDocumentIdentifier(uri),
+          position: locations["2️⃣"]
         )
       )
 
@@ -125,8 +115,8 @@ final class LocalClangTests: XCTestCase {
     do {
       let resp = try await testClient.send(
         SymbolInfoRequest(
-          textDocument: TextDocumentIdentifier(url),
-          position: Position(line: 2, utf16index: 8)
+          textDocument: TextDocumentIdentifier(uri),
+          position: locations["3️⃣"]
         )
       )
 
@@ -134,15 +124,15 @@ final class LocalClangTests: XCTestCase {
       if let sym = resp.first {
         XCTAssertEqual(sym.name, "local")
         XCTAssertEqual(sym.containerName, "S::foo")
-        XCTAssertEqual(sym.usr, "c:a.cpp@30@S@S@F@foo#@local")
+        XCTAssertEqual(sym.usr, "c:test.cpp@30@S@S@F@foo#@local")
       }
     }
 
     do {
       let resp = try await testClient.send(
         SymbolInfoRequest(
-          textDocument: TextDocumentIdentifier(url),
-          position: Position(line: 3, utf16index: 0)
+          textDocument: TextDocumentIdentifier(uri),
+          position: locations["4️⃣"]
         )
       )
 
@@ -152,30 +142,20 @@ final class LocalClangTests: XCTestCase {
 
   func testFoldingRange() async throws {
     guard haveClangd else { return }
-    #if os(Windows)
-    let url = URL(fileURLWithPath: "C:/a.cpp")
-    #else
-    let url = URL(fileURLWithPath: "/a.cpp")
-    #endif
+    let uri = DocumentURI.for(.cpp)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: DocumentURI(url),
-          language: .cpp,
-          version: 1,
-          text: """
-            struct S {
-              void foo() {
-                int local = 1;
-              }
-            };
-            """
-        )
-      )
+    testClient.openDocument(
+      """
+      struct S {
+        void foo() {
+          int local = 1;
+        }
+      };
+      """,
+      uri: uri
     )
 
-    let resp = try await testClient.send(FoldingRangeRequest(textDocument: TextDocumentIdentifier(url)))
+    let resp = try await testClient.send(FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri)))
     if let resp = resp {
       XCTAssertEqual(
         resp,
@@ -189,30 +169,20 @@ final class LocalClangTests: XCTestCase {
 
   func testDocumentSymbols() async throws {
     guard haveClangd else { return }
-    #if os(Windows)
-    let url = URL(fileURLWithPath: "C:/a.cpp")
-    #else
-    let url = URL(fileURLWithPath: "/a.cpp")
-    #endif
+    let uri = DocumentURI.for(.cpp)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: DocumentURI(url),
-          language: .cpp,
-          version: 1,
-          text: """
-            struct S {
-              void foo() {
-                int local = 1;
-              }
-            };
-            """
-        )
-      )
+    testClient.openDocument(
+      """
+      struct S {
+        void foo() {
+          int local = 1;
+        }
+      };
+      """,
+      uri: uri
     )
 
-    guard let resp = try await testClient.send(DocumentSymbolRequest(textDocument: TextDocumentIdentifier(url))) else {
+    guard let resp = try await testClient.send(DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri))) else {
       XCTFail("Invalid document symbol response")
       return
     }

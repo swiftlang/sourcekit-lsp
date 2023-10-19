@@ -67,18 +67,7 @@ final class SwiftInterfaceTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 1,
-          text: """
-            import Foundation
-            """
-        )
-      )
-    )
+    testClient.openDocument("import Foundation", uri: uri)
 
     let _resp = try await testClient.send(
       DefinitionRequest(

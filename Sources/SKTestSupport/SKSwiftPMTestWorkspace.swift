@@ -156,15 +156,10 @@ extension SKSwiftPMTestWorkspace {
 
 extension SKSwiftPMTestWorkspace {
   public func openDocument(_ url: URL, language: Language) throws {
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: DocumentURI(url),
-          language: language,
-          version: 1,
-          text: try sources.sourceCache.get(url)
-        )
-      )
+    testClient.openDocument(
+      try sources.sourceCache.get(url),
+      uri: DocumentURI(url),
+      language: language
     )
   }
 
