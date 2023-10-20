@@ -48,20 +48,11 @@ final class DocumentSymbolTests: XCTestCase {
   // MARK: - Helpers
 
   private func performDocumentSymbolRequest(text: String) async throws -> DocumentSymbolResponse {
-    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
+    let uri = DocumentURI.for(.swift)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: DocumentURI(url),
-          language: .swift,
-          version: 17,
-          text: text
-        )
-      )
-    )
+    testClient.openDocument(text, uri: uri)
 
-    let request = DocumentSymbolRequest(textDocument: TextDocumentIdentifier(url))
+    let request = DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri))
     return try await testClient.send(request)!
   }
 

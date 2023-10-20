@@ -52,20 +52,11 @@ final class PullDiagnosticsTests: XCTestCase {
   // MARK: - Tests
 
   func performDiagnosticRequest(text: String) async throws -> [Diagnostic] {
-    let url = URL(fileURLWithPath: "/PullDiagnostics/\(UUID()).swift")
+    let uri = DocumentURI.for(.swift)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: DocumentURI(url),
-          language: .swift,
-          version: 17,
-          text: text
-        )
-      )
-    )
+    testClient.openDocument(text, uri: uri)
 
-    let request = DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(url))
+    let request = DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
 
     let report: DocumentDiagnosticReport
     do {

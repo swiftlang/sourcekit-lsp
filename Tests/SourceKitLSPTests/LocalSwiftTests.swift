@@ -62,23 +62,11 @@ final class LocalSwiftTests: XCTestCase {
   // MARK: - Tests
 
   func testEditing() async throws {
-    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
-    let uri = DocumentURI(url)
+    let uri = DocumentURI.for(.swift)
 
     let documentManager = await testClient.server._documentManager
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 12,
-          text: """
-            func
-            """
-        )
-      )
-    )
+    testClient.openDocument("func", uri: uri, version: 12)
 
     let openDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openDiags.diagnostics.count, 1)
@@ -200,18 +188,7 @@ final class LocalSwiftTests: XCTestCase {
 
     let documentManager = await testClient.server._documentManager
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 12,
-          text: """
-            func
-            """
-        )
-      )
-    )
+    testClient.openDocument("func", uri: uri, language: .swift)
 
     let openDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openDiags.diagnostics.count, 1)
@@ -335,33 +312,11 @@ final class LocalSwiftTests: XCTestCase {
 
     let excludedURI = DocumentURI(string: "git:/a.swift")
 
-    let text = """
-      func
-      """
-
     // Open the excluded URI first so our later notification handlers can confirm
     // that no diagnostics were emitted for this excluded URI.
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: excludedURI,
-          language: .swift,
-          version: 1,
-          text: text
-        )
-      )
-    )
+    testClient.openDocument("func", uri: excludedURI, language: .swift)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: includedURI,
-          language: .swift,
-          version: 1,
-          text: text
-        )
-      )
-    )
+    testClient.openDocument("func", uri: includedURI, language: .swift)
     let diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.uri, includedURI)
   }
@@ -372,18 +327,7 @@ final class LocalSwiftTests: XCTestCase {
     let uriA = DocumentURI(urlA)
     let uriB = DocumentURI(urlB)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uriA,
-          language: .swift,
-          version: 12,
-          text: """
-            foo()
-            """
-        )
-      )
-    )
+    testClient.openDocument("foo()", uri: uriA)
 
     let openADiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openADiags.diagnostics.count, 1)
@@ -392,18 +336,7 @@ final class LocalSwiftTests: XCTestCase {
       Position(line: 0, utf16index: 0)
     )
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uriB,
-          language: .swift,
-          version: 12,
-          text: """
-            bar()
-            """
-        )
-      )
-    )
+    testClient.openDocument("bar()", uri: uriB)
 
     let openBDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openBDiags.diagnostics.count, 1)
@@ -429,18 +362,7 @@ final class LocalSwiftTests: XCTestCase {
     let urlA = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uriA = DocumentURI(urlA)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uriA,
-          language: .swift,
-          version: 12,
-          text: """
-            foo()
-            """
-        )
-      )
-    )
+    testClient.openDocument("foo()", uri: uriA)
 
     let open1Diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(open1Diags.diagnostics.count, 1)
@@ -451,18 +373,7 @@ final class LocalSwiftTests: XCTestCase {
 
     testClient.send(DidCloseTextDocumentNotification(textDocument: .init(urlA)))
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uriA,
-          language: .swift,
-          version: 13,
-          text: """
-            var
-            """
-        )
-      )
-    )
+    testClient.openDocument("var", uri: uriA)
 
     let open2Diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(open2Diags.diagnostics.count, 1)
@@ -476,16 +387,7 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 12,
-          text: "@propertyWrapper struct Bar {}"
-        )
-      )
-    )
+    testClient.openDocument("@propertyWrapper struct Bar {}", uri: uri)
 
     let diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 1)
@@ -498,19 +400,13 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 12,
-          text: """
-            func foo() {
-              let a = 2
-            }
-            """
-        )
-      )
+    testClient.openDocument(
+      """
+      func foo() {
+        let a = 2
+      }
+      """,
+      uri: uri
     )
 
     let diags = try await testClient.nextDiagnosticsNotification()
@@ -541,19 +437,13 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 12,
-          text: """
-            func foo(a: Int?) {
-              _ = a.bigEndian
-            }
-            """
-        )
-      )
+    testClient.openDocument(
+      """
+      func foo(a: Int?) {
+        _ = a.bigEndian
+      }
+      """,
+      uri: uri
     )
 
     let diags = try await testClient.nextDiagnosticsNotification()
@@ -610,19 +500,13 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 12,
-          text: """
-            func foo() {
-              print("")print("")
-            }
-            """
-        )
-      )
+    testClient.openDocument(
+      """
+      func foo() {
+        print("")print("")
+      }
+      """,
+      uri: uri
     )
 
     let diags = try await testClient.nextDiagnosticsNotification()
@@ -659,25 +543,18 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    var diagnostic: Diagnostic? = nil
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 12,
-          text: """
-            func foo() {
-              let a = 2
-            }
-            """
-        )
-      )
+    testClient.openDocument(
+      """
+      func foo() {
+        let a = 2
+      }
+      """,
+      uri: uri
     )
 
     let diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 1)
-    diagnostic = diags.diagnostics.first
+    let diagnostic = diags.diagnostics.first
 
     let request = CodeActionRequest(
       range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 11),
@@ -723,25 +600,18 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    var diagnostic: Diagnostic?
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 12,
-          text: """
-            func foo(a: Int?) {
-              _ = a.bigEndian
-            }
-            """
-        )
-      )
+    testClient.openDocument(
+      """
+      func foo(a: Int?) {
+        _ = a.bigEndian
+      }
+      """,
+      uri: uri
     )
 
     let diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 1)
-    diagnostic = diags.diagnostics.first
+    let diagnostic = diags.diagnostics.first
 
     let request = CodeActionRequest(
       range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 11),
@@ -788,24 +658,17 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    var diagnostic: Diagnostic?
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 12,
-          text: """
-            @available(*, introduced: 10, deprecated: 11)
-            func foo() {}
-            """
-        )
-      )
+    testClient.openDocument(
+      """
+      @available(*, introduced: 10, deprecated: 11)
+      func foo() {}
+      """,
+      uri: uri
     )
 
     let diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 1)
-    diagnostic = diags.diagnostics.first
+    let diagnostic = diags.diagnostics.first
 
     let request = CodeActionRequest(
       range: Position(line: 0, utf16index: 1)..<Position(line: 0, utf16index: 10),
@@ -841,27 +704,20 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    var diagnostic: Diagnostic?
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 12,
-          text: """
-            @available(*, deprecated, renamed: "new(_:hotness:)")
-            func old(and: Int, busted: Int) {}
-            func test() {
-              old(and: 1, busted: 2)
-            }
-            """
-        )
-      )
+    testClient.openDocument(
+      """
+      @available(*, deprecated, renamed: "new(_:hotness:)")
+      func old(and: Int, busted: Int) {}
+      func test() {
+        old(and: 1, busted: 2)
+      }
+      """,
+      uri: uri
     )
 
     let diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 1)
-    diagnostic = diags.diagnostics.first!
+    let diagnostic = diags.diagnostics.first!
 
     let request = CodeActionRequest(
       range: Position(line: 3, utf16index: 2)..<Position(line: 3, utf16index: 2),
@@ -1319,22 +1175,16 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 1,
-          text: """
-            import Foundation
-            struct S {
-              func foo() {
-                var local = 1
-              }
-            }
-            """
-        )
-      )
+    testClient.openDocument(
+      """
+      import Foundation
+      struct S {
+        func foo() {
+          var local = 1
+        }
+      }
+      """,
+      uri: uri
     )
 
     do {
@@ -1430,20 +1280,14 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 1,
-          text: """
-            /// This is a doc comment for S.
-            ///
-            /// Details.
-            struct S {}
-            """
-        )
-      )
+    testClient.openDocument(
+      """
+      /// This is a doc comment for S.
+      ///
+      /// Details.
+      struct S {}
+      """,
+      uri: uri
     )
 
     do {
@@ -1494,28 +1338,22 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testHoverNameEscaping() async throws {
-    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
+    let uri = DocumentURI.for(.swift)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: DocumentURI(url),
-          language: .swift,
-          version: 1,
-          text: """
-            /// this is **bold** documentation
-            func test(_ a: Int, _ b: Int) { }
-            /// this is *italic* documentation
-            func *%*(lhs: String, rhs: String) { }
-            """
-        )
-      )
+    testClient.openDocument(
+      """
+      /// this is **bold** documentation
+      func test(_ a: Int, _ b: Int) { }
+      /// this is *italic* documentation
+      func *%*(lhs: String, rhs: String) { }
+      """,
+      uri: uri
     )
 
     do {
       let resp = try await testClient.send(
         HoverRequest(
-          textDocument: TextDocumentIdentifier(url),
+          textDocument: TextDocumentIdentifier(uri),
           position: Position(line: 1, utf16index: 7)
         )
       )
@@ -1546,7 +1384,7 @@ final class LocalSwiftTests: XCTestCase {
     do {
       let resp = try await testClient.send(
         HoverRequest(
-          textDocument: TextDocumentIdentifier(url),
+          textDocument: TextDocumentIdentifier(uri),
           position: Position(line: 3, utf16index: 7)
         )
       )
@@ -1579,23 +1417,17 @@ final class LocalSwiftTests: XCTestCase {
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 1,
-          text: """
-            func test() {
-              let a = 1
-              let b = 2
-              let ccc = 3
-              _ = b
-              _ = ccc + ccc
-            }
-            """
-        )
-      )
+    testClient.openDocument(
+      """
+      func test() {
+        let a = 1
+        let b = 2
+        let ccc = 3
+        _ = b
+        _ = ccc + ccc
+      }
+      """,
+      uri: uri
     )
 
     do {
@@ -1738,20 +1570,14 @@ final class LocalSwiftTests: XCTestCase {
       reusedNodeCallback.fulfill()
     }
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 0,
-          text: """
-            func foo() {
-            }
-            class bar {
-            }
-            """
-        )
-      )
+    testClient.openDocument(
+      """
+      func foo() {
+      }
+      class bar {
+      }
+      """,
+      uri: uri
     )
 
     // Send a request that triggers a syntax tree to be built.
@@ -1793,18 +1619,7 @@ final class LocalSwiftTests: XCTestCase {
     )
 
     let uri = DocumentURI(URL(fileURLWithPath: "/\(UUID())/a.swift"))
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: 0,
-          text: """
-            foo
-            """
-        )
-      )
-    )
+    testClient.openDocument("foo", uri: uri)
 
     let edit = TextDocumentContentChangeEvent(
       range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 3),

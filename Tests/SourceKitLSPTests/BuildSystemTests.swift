@@ -139,13 +139,8 @@ final class BuildSystemTests: XCTestCase {
 
     guard haveClangd else { return }
 
-    #if os(Windows)
-    let url = URL(fileURLWithPath: "C:/\(UUID())/file.m")
-    #else
-    let url = URL(fileURLWithPath: "/\(UUID())/file.m")
-    #endif
-    let doc = DocumentURI(url)
-    let args = [url.path, "-DDEBUG"]
+    let doc = DocumentURI.for(.objective_c)
+    let args = [doc.pseudoPath, "-DDEBUG"]
     let text = """
       #ifdef FOO
       static void foo() {}
@@ -161,16 +156,8 @@ final class BuildSystemTests: XCTestCase {
 
     let documentManager = await self.testClient.server._documentManager
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: doc,
-          language: .objective_c,
-          version: 12,
-          text: text
-        )
-      )
-    )
+    testClient.openDocument(text, uri: doc)
+
     let diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 1)
     XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
@@ -191,8 +178,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testSwiftDocumentUpdatedBuildSettings() async throws {
-    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
-    let doc = DocumentURI(url)
+    let doc = DocumentURI.for(.swift)
     let args = FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!.compilerArguments
 
     buildSystem.buildSettingsByFile[doc] = FileBuildSettings(compilerArguments: args)
@@ -207,16 +193,7 @@ final class BuildSystemTests: XCTestCase {
 
     let documentManager = await self.testClient.server._documentManager
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: doc,
-          language: .swift,
-          version: 12,
-          text: text
-        )
-      )
-    )
+    testClient.openDocument(text, uri: doc)
     let diags1 = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags1.diagnostics.count, 1)
     XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
@@ -236,13 +213,8 @@ final class BuildSystemTests: XCTestCase {
   func testClangdDocumentFallbackWithholdsDiagnostics() async throws {
     try XCTSkipIf(!haveClangd)
 
-    #if os(Windows)
-    let url = URL(fileURLWithPath: "C:/\(UUID())/file.m")
-    #else
-    let url = URL(fileURLWithPath: "/\(UUID())/file.m")
-    #endif
-    let doc = DocumentURI(url)
-    let args = [url.path, "-DDEBUG"]
+    let doc = DocumentURI.for(.objective_c)
+    let args = [doc.pseudoPath, "-DDEBUG"]
     let text = """
         #ifdef FOO
         static void foo() {}
@@ -256,16 +228,7 @@ final class BuildSystemTests: XCTestCase {
 
     let documentManager = await self.testClient.server._documentManager
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: doc,
-          language: .objective_c,
-          version: 12,
-          text: text
-        )
-      )
-    )
+    testClient.openDocument(text, uri: doc)
     let openDiags = try await testClient.nextDiagnosticsNotification()
     // Expect diagnostics to be withheld.
     XCTAssertEqual(openDiags.diagnostics.count, 0)
@@ -284,8 +247,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testSwiftDocumentFallbackWithholdsSemanticDiagnostics() async throws {
-    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
-    let doc = DocumentURI(url)
+    let doc = DocumentURI.for(.swift)
 
     // Primary settings must be different than the fallback settings.
     var primarySettings = FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!
@@ -302,16 +264,7 @@ final class BuildSystemTests: XCTestCase {
 
     let documentManager = await self.testClient.server._documentManager
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: doc,
-          language: .swift,
-          version: 12,
-          text: text
-        )
-      )
-    )
+    testClient.openDocument(text, uri: doc)
     let openDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openDiags.diagnostics.count, 1)
     XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)

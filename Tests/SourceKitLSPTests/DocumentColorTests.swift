@@ -45,20 +45,11 @@ final class DocumentColorTests: XCTestCase {
   // MARK: - Helpers
 
   private func performDocumentColorRequest(text: String) async throws -> [ColorInformation] {
-    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
+    let uri = DocumentURI.for(.swift)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: DocumentURI(url),
-          language: .swift,
-          version: 12,
-          text: text
-        )
-      )
-    )
+    testClient.openDocument(text, uri: uri)
 
-    let request = DocumentColorRequest(textDocument: TextDocumentIdentifier(url))
+    let request = DocumentColorRequest(textDocument: TextDocumentIdentifier(uri))
     return try await testClient.send(request)
   }
 
@@ -67,21 +58,12 @@ final class DocumentColorTests: XCTestCase {
     color: Color,
     range: Range<Position>
   ) async throws -> [ColorPresentation] {
-    let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
+    let uri = DocumentURI.for(.swift)
 
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: DocumentURI(url),
-          language: .swift,
-          version: 12,
-          text: text
-        )
-      )
-    )
+    testClient.openDocument(text, uri: uri)
 
     let request = ColorPresentationRequest(
-      textDocument: TextDocumentIdentifier(url),
+      textDocument: TextDocumentIdentifier(uri),
       color: color,
       range: range
     )

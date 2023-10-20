@@ -56,20 +56,6 @@ final class PublishDiagnosticsTests: XCTestCase {
 
   // MARK: - Helpers
 
-  private func openDocument(text: String) {
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: uri,
-          language: .swift,
-          version: version,
-          text: text
-        )
-      )
-    )
-    version += 1
-  }
-
   private func editDocument(changes: [TextDocumentContentChangeEvent]) {
     testClient.send(
       DidChangeTextDocumentNotification(
@@ -86,12 +72,13 @@ final class PublishDiagnosticsTests: XCTestCase {
   // MARK: - Tests
 
   func testUnknownIdentifierDiagnostic() async throws {
-    openDocument(
-      text: """
-        func foo() {
-          invalid
-        }
-        """
+    testClient.openDocument(
+      """
+      func foo() {
+        invalid
+      }
+      """,
+      uri: uri
     )
 
     let diags = try await testClient.nextDiagnosticsNotification()
@@ -103,12 +90,13 @@ final class PublishDiagnosticsTests: XCTestCase {
   }
 
   func testRangeShiftAfterNewlineAdded() async throws {
-    openDocument(
-      text: """
-        func foo() {
-          invalid
-        }
-        """
+    testClient.openDocument(
+      """
+      func foo() {
+        invalid
+      }
+      """,
+      uri: uri
     )
 
     let openDiags = try await testClient.nextDiagnosticsNotification()
@@ -135,13 +123,14 @@ final class PublishDiagnosticsTests: XCTestCase {
   }
 
   func testRangeShiftAfterNewlineRemoved() async throws {
-    openDocument(
-      text: """
+    testClient.openDocument(
+      """
 
-        func foo() {
-          invalid
-        }
-        """
+      func foo() {
+        invalid
+      }
+      """,
+      uri: uri
     )
 
     let openDiags = try await testClient.nextDiagnosticsNotification()
