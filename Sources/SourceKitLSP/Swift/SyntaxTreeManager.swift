@@ -19,7 +19,7 @@ actor SyntaxTreeManager {
   /// A task that parses a SwiftSyntax tree from a source file, producing both
   /// the syntax tree and the lookahead ranges that are needed for a subsequent
   /// incremental parse.
-  private typealias SyntaxTreeComputation = Task<(tree: SourceFileSyntax, lookaheadRanges: LookaheadRanges), Never>
+  private typealias SyntaxTreeComputation = Task<IncrementalParseResult, Never>
 
   /// The tasks that compute syntax trees.
   ///
@@ -101,9 +101,8 @@ actor SyntaxTreeManager {
       // a new, full, from-scratch parse.
       let oldParseResult = await preEditTreeComputation.value
       let parseTransition = IncrementalParseTransition(
-        previousTree: oldParseResult.tree,
+        previousIncrementalParseResult: oldParseResult,
         edits: edits,
-        lookaheadRanges: oldParseResult.lookaheadRanges,
         reusedNodeCallback: reusedNodeCallback
       )
       return Parser.parseIncrementally(source: postEditSnapshot.text, parseTransition: parseTransition)
