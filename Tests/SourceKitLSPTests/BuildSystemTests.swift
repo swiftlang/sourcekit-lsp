@@ -239,6 +239,7 @@ final class BuildSystemTests: XCTestCase {
 
     // Primary settings must be different than the fallback settings.
     var primarySettings = FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!
+    primarySettings.isFallback = false
     primarySettings.compilerArguments.append("-DPRIMARY")
 
     let text = """

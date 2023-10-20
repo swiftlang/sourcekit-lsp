@@ -115,7 +115,7 @@ extension BuildSystemManager {
   private func buildSettings(
     for document: DocumentURI,
     language: Language
-  ) async -> (buildSettings: FileBuildSettings, isFallback: Bool)? {
+  ) async -> FileBuildSettings? {
     do {
       // FIXME: (async) We should only wait `fallbackSettingsTimeout` for build
       // settings and return fallback afterwards. I am not sure yet, how best to
@@ -123,19 +123,21 @@ extension BuildSystemManager {
       // For now, this should be fine because all build systems return
       // very quickly from `settings(for:language:)`.
       if let settings = try await buildSystem?.buildSettings(for: document, language: language) {
-        return (buildSettings: settings, isFallback: false)
+        return settings
       }
     } catch {
       logger.error("Getting build settings failed: \(error.forLogging)")
     }
-    if let settings = fallbackBuildSystem?.buildSettings(for: document, language: language) {
+    guard var settings = fallbackBuildSystem?.buildSettings(for: document, language: language) else {
+      return nil
+    }
+    if buildSystem == nil {
       // If there is no build system and we only have the fallback build system,
       // we will never get real build settings. Consider the build settings
       // non-fallback.
-      return (buildSettings: settings, isFallback: buildSystem != nil)
-    } else {
-      return nil
+      settings.isFallback = false
     }
+    return settings
   }
 
   /// Returns the build settings for the given document.
@@ -148,34 +150,34 @@ extension BuildSystemManager {
   public func buildSettingsInferredFromMainFile(
     for document: DocumentURI,
     language: Language
-  ) async -> (buildSettings: FileBuildSettings, isFallback: Bool)? {
+  ) async -> FileBuildSettings? {
     let mainFile = mainFile(for: document)
-    var buildSettings = await buildSettings(for: mainFile, language: language)
-    if mainFile != document, let settings = buildSettings?.buildSettings {
+    guard var settings = await buildSettings(for: mainFile, language: language) else {
+      return nil
+    }
+    if mainFile != document {
       // If the main file isn't the file itself, we need to patch the build settings
       // to reference `document` instead of `mainFile`.
-      buildSettings?.buildSettings = settings.patching(newFile: document.pseudoPath, originalFile: mainFile.pseudoPath)
+      settings = settings.patching(newFile: document.pseudoPath, originalFile: mainFile.pseudoPath)
     }
-    if let buildSettings {
-      let log = """
-        Compiler Arguments:
-        \(buildSettings.buildSettings.compilerArguments.joined(separator: "\n"))
+    let log = """
+      Compiler Arguments:
+      \(settings.compilerArguments.joined(separator: "\n"))
 
-        Working directory:
-        \(buildSettings.buildSettings.workingDirectory ?? "<nil>")
+      Working directory:
+      \(settings.workingDirectory ?? "<nil>")
+      """
+
+    let chunks = splitLongMultilineMessage(message: log, maxChunkSize: 800)
+    for (index, chunk) in chunks.enumerated() {
+      logger.log(
         """
-
-      let chunks = splitLongMultilineMessage(message: log, maxChunkSize: 800)
-      for (index, chunk) in chunks.enumerated() {
-        logger.log(
-          """
-          Build settings for \(document.forLogging) (\(index + 1)/\(chunks.count))
-          \(chunk)
-          """
-        )
-      }
+        Build settings for \(document.forLogging) (\(index + 1)/\(chunks.count))
+        \(chunk)
+        """
+      )
     }
-    return buildSettings
+    return settings
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {

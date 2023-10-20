@@ -52,14 +52,17 @@ public final class FallbackBuildSystem {
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
   public func buildSettings(for uri: DocumentURI, language: Language) -> FileBuildSettings? {
+    var fileBuildSettings: FileBuildSettings?
     switch language {
     case .swift:
-      return settingsSwift(uri.pseudoPath)
+      fileBuildSettings = settingsSwift(uri.pseudoPath)
     case .c, .cpp, .objective_c, .objective_cpp:
-      return settingsClang(uri.pseudoPath, language)
+      fileBuildSettings = settingsClang(uri.pseudoPath, language)
     default:
-      return nil
+      fileBuildSettings = nil
     }
+    fileBuildSettings?.isFallback = true
+    return fileBuildSettings
   }
 
   func settingsSwift(_ file: String) -> FileBuildSettings {

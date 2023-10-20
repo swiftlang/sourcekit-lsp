@@ -75,7 +75,7 @@ public struct SwiftCompileCommand: Equatable {
   /// fallback arguments and represent the file state differently.
   public let isFallback: Bool
 
-  public init(_ settings: FileBuildSettings, isFallback: Bool = false) {
+  public init(_ settings: FileBuildSettings) {
     let baseArgs = settings.compilerArguments
     // Add working directory arguments if needed.
     if let workingDirectory = settings.workingDirectory, !baseArgs.contains("-working-directory") {
@@ -83,7 +83,7 @@ public struct SwiftCompileCommand: Equatable {
     } else {
       self.compilerArgs = baseArgs
     }
-    self.isFallback = isFallback
+    self.isFallback = settings.isFallback
   }
 }
 
@@ -177,7 +177,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
       for: document,
       language: .swift
     ) {
-      return SwiftCompileCommand(settings.buildSettings, isFallback: settings.isFallback)
+      return SwiftCompileCommand(settings)
     } else {
       return nil
     }

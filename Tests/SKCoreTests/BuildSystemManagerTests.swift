@@ -105,7 +105,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings, bs.map[a]!)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), bs.map[a]!)
 
     bs.map[a] = nil
     let changed = expectation(description: "changed settings")
@@ -127,7 +127,7 @@ final class BuildSystemManagerTests: XCTestCase {
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    assertNil(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings)
+    assertNil(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift))
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
     let changed = expectation(description: "changed settings")
@@ -151,7 +151,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let del = await BSMDelegate(bsm)
     let fallbackSettings = fallback.buildSettings(for: a, language: .swift)
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings, fallbackSettings)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), fallbackSettings)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["non-fallback", "args"])
     let changed = expectation(description: "changed settings")
@@ -183,9 +183,9 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
     bs.map[b] = FileBuildSettings(compilerArguments: ["y"])
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings, bs.map[a]!)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), bs.map[a]!)
     await bsm.registerForChangeNotifications(for: b, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: b, language: .swift)?.buildSettings, bs.map[b]!)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: b, language: .swift), bs.map[b]!)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["xx"])
     bs.map[b] = FileBuildSettings(compilerArguments: ["yy"])
@@ -225,10 +225,10 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[b] = FileBuildSettings(compilerArguments: ["b"])
 
     await bsm.registerForChangeNotifications(for: a, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings, bs.map[a]!)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), bs.map[a]!)
 
     await bsm.registerForChangeNotifications(for: b, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: b, language: .swift)?.buildSettings, bs.map[b]!)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: b, language: .swift), bs.map[b]!)
 
     bs.map[a] = nil
     bs.map[b] = nil
@@ -262,7 +262,7 @@ final class BuildSystemManagerTests: XCTestCase {
     bs.map[cpp2] = FileBuildSettings(compilerArguments: ["C++ 2"])
 
     await bsm.registerForChangeNotifications(for: h, language: .c)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h, language: .c)?.buildSettings, bs.map[cpp1]!)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h, language: .c), bs.map[cpp1]!)
 
     mainFiles.mainFiles[h] = Set([cpp2])
 
@@ -320,8 +320,8 @@ final class BuildSystemManagerTests: XCTestCase {
 
     let expectedArgsH1 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h1.pseudoPath])
     let expectedArgsH2 = FileBuildSettings(compilerArguments: ["-xc++", cppArg, h2.pseudoPath])
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h1, language: .c)?.buildSettings, expectedArgsH1)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h2, language: .c)?.buildSettings, expectedArgsH2)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h1, language: .c), expectedArgsH1)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: h2, language: .c), expectedArgsH2)
 
     let newCppArg = "New C++ Main File"
     bs.map[cpp] = FileBuildSettings(compilerArguments: [newCppArg, cpp.pseudoPath])
@@ -360,9 +360,9 @@ final class BuildSystemManagerTests: XCTestCase {
     await bsm.registerForChangeNotifications(for: a, language: .swift)
     await bsm.registerForChangeNotifications(for: b, language: .swift)
     await bsm.registerForChangeNotifications(for: c, language: .swift)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings, bs.map[a]!)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: b, language: .swift)?.buildSettings, bs.map[b]!)
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: c, language: .swift)?.buildSettings, bs.map[c]!)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), bs.map[a]!)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: b, language: .swift), bs.map[b]!)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: c, language: .swift), bs.map[c]!)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["new-a"])
     bs.map[b] = FileBuildSettings(compilerArguments: ["new-b"])
@@ -397,7 +397,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let del = await BSMDelegate(bsm)
 
     bs.map[a] = FileBuildSettings(compilerArguments: ["x"])
-    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift)?.buildSettings, bs.map[a]!)
+    assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), bs.map[a]!)
 
     await bsm.registerForChangeNotifications(for: a, language: .swift)
 
@@ -507,7 +507,7 @@ private actor BSMDelegate: BuildSystemDelegate {
       }
 
       XCTAssertEqual(uri, expected.uri, file: expected.file, line: expected.line)
-      let settings = await bsm.buildSettingsInferredFromMainFile(for: uri, language: expected.language)?.buildSettings
+      let settings = await bsm.buildSettingsInferredFromMainFile(for: uri, language: expected.language)
       XCTAssertEqual(settings, expected.settings, file: expected.file, line: expected.line)
       expected.expectation.fulfill()
     }
