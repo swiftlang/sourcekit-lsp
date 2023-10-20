@@ -32,8 +32,14 @@ extension SwiftLanguageServer {
     skreq[keys.compilerargs] = buildSettings.compilerArgs
 
     let dict = try await sourcekitd.send(skreq)
-    print(dict.description)
-    return semanticTokens(of: dict, for: snapshot)
+
+    guard let skTokens: SKDResponseArray = dict[keys.semantic_tokens] else {
+      return nil
+    }
+    let tokenParser = SyntaxHighlightingTokenParser(sourcekitd: sourcekitd)
+    var tokens: [SyntaxHighlightingToken] = []
+    tokenParser.parseTokens(skTokens, in: snapshot, into: &tokens)
+    return tokens
   }
 
   /// Computes an array of syntax highlighting tokens from the syntax tree that

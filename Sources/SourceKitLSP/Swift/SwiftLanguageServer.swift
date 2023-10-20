@@ -192,21 +192,6 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   ) {
     self.stateChangeHandlers.append(handler)
   }
-
-  /// Returns the semantic tokens in `response` for the given `snapshot`.
-  func semanticTokens(
-    of response: SKDResponseDictionary,
-    for snapshot: DocumentSnapshot
-  ) -> [SyntaxHighlightingToken]? {
-    guard let skTokens: SKDResponseArray = response[keys.annotations] else {
-      return nil
-    }
-    let tokenParser = SyntaxHighlightingTokenParser(sourcekitd: sourcekitd)
-    var tokens: [SyntaxHighlightingToken] = []
-    tokenParser.parseTokens(skTokens, in: snapshot, into: &tokens)
-
-    return tokens
-  }
 }
 
 extension SwiftLanguageServer {
@@ -343,6 +328,7 @@ extension SwiftLanguageServer {
     req[keys.request] = self.requests.editor_open
     req[keys.name] = note.textDocument.uri.pseudoPath
     req[keys.sourcetext] = snapshot.text
+    req[keys.syntactic_only] = 1
 
     let compileCommand = await self.buildSettings(for: snapshot.uri)
 
@@ -430,6 +416,7 @@ extension SwiftLanguageServer {
       let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       req[keys.request] = self.requests.editor_replacetext
       req[keys.name] = note.textDocument.uri.pseudoPath
+      req[keys.syntactic_only] = 1
 
       if let range = edit.range {
         guard let offset = before.utf8OffsetOf(line: range.lowerBound.line, utf16Column: range.lowerBound.utf16index),
