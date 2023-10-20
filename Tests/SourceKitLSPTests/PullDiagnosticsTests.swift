@@ -16,86 +16,59 @@ import SKTestSupport
 import XCTest
 
 final class PullDiagnosticsTests: XCTestCase {
-  enum Error: Swift.Error {
-    case unexpectedDiagnosticReport
-  }
-
-  /// The mock client used to communicate with the SourceKit-LSP server.
-  ///
-  /// - Note: Set before each test run in `setUp`.
-  private var testClient: TestSourceKitLSPClient! = nil
-
-  override func setUp() async throws {
-    testClient = TestSourceKitLSPClient()
-    _ = try await self.testClient.send(
-      InitializeRequest(
-        processId: nil,
-        rootPath: nil,
-        rootURI: nil,
-        initializationOptions: nil,
-        capabilities: ClientCapabilities(
-          workspace: nil,
-          textDocument: .init(
-            codeAction: .init(codeActionLiteralSupport: .init(codeActionKind: .init(valueSet: [.quickFix])))
-          )
-        ),
-        trace: .off,
-        workspaceFolders: nil
-      )
-    )
-  }
-
-  override func tearDown() {
-    testClient = nil
-  }
-
-  // MARK: - Tests
-
-  func performDiagnosticRequest(text: String) async throws -> [Diagnostic] {
+  func testUnknownIdentifierDiagnostic() async throws {
+    let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
 
-    testClient.openDocument(text, uri: uri)
-
-    let request = DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
-
-    let report: DocumentDiagnosticReport
-    do {
-      report = try await testClient.send(request)
-    } catch let error as ResponseError where error.message.contains("unknown request: source.request.diagnostics") {
-      throw XCTSkip("toolchain does not support source.request.diagnostics request")
-    }
-
-    guard case .full(let fullReport) = report else {
-      throw Error.unexpectedDiagnosticReport
-    }
-
-    return fullReport.items
-  }
-
-  func testUnknownIdentifierDiagnostic() async throws {
-    let diagnostics = try await performDiagnosticRequest(
-      text: """
-        func foo() {
-          invalid
-        }
-        """
+    testClient.openDocument(
+      """
+      func foo() {
+        invalid
+      }
+      """,
+      uri: uri
     )
-    XCTAssertEqual(diagnostics.count, 1)
-    let diagnostic = try XCTUnwrap(diagnostics.first)
+
+    let report = try await testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
+    guard case .full(let fullReport) = report else {
+      XCTFail("Expected full diagnostics report")
+      return
+    }
+
+    XCTAssertEqual(fullReport.items.count, 1)
+    let diagnostic = try XCTUnwrap(fullReport.items.first)
     XCTAssertEqual(diagnostic.range, Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9))
   }
 
   /// Test that we can get code actions for pulled diagnostics (https://github.com/apple/sourcekit-lsp/issues/776)
   func testCodeActions() async throws {
-    let diagnostics = try await performDiagnosticRequest(
-      text: """
-        protocol MyProtocol {
-          func bar()
-        }
-
-        struct Test: MyProtocol {}
-        """
+    let testClient = try await TestSourceKitLSPClient(
+      capabilities: ClientCapabilities(
+        workspace: nil,
+        textDocument: .init(
+          codeAction: .init(codeActionLiteralSupport: .init(codeActionKind: .init(valueSet: [.quickFix])))
+        )
+      )
     )
+    let uri = DocumentURI.for(.swift)
+
+    testClient.openDocument(
+      """
+      protocol MyProtocol {
+        func bar()
+      }
+
+      struct Test: MyProtocol {}
+      """,
+      uri: uri
+    )
+    let report = try await testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
+    guard case .full(let fullReport) = report else {
+      XCTFail("Expected full diagnostics report")
+      return
+    }
+    let diagnostics = fullReport.items
+
     XCTAssertEqual(diagnostics.count, 1)
     let diagnostic = try XCTUnwrap(diagnostics.first)
     XCTAssertEqual(diagnostic.range, Position(line: 4, utf16index: 7)..<Position(line: 4, utf16index: 7))

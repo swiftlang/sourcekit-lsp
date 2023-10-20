@@ -62,9 +62,22 @@ public final class TestSourceKitLSPClient: MessageHandler {
   private var requestHandlers: [Any] = []
 
   /// - Parameters:
+  ///   - serverOptions: The equivalent of the command line options with which sourcekit-lsp should be started
   ///   - useGlobalModuleCache: If `false`, the server will use its own module
   ///     cache in an empty temporary directory instead of the global module cache.
-  public init(serverOptions: SourceKitServer.Options = .testDefault, useGlobalModuleCache: Bool = true) {
+  ///   - initialize: Whether an `InitializeRequest` should be automatically sent to the SourceKit-LSP server.
+  ///     `true` by default
+  ///   - initializationOptions: Initialization options to pass to the SourceKit-LSP server.
+  ///   - capabilities: The test client's capabilities.
+  ///   - workspaceFolders: Workspace folders to open.
+  public init(
+    serverOptions: SourceKitServer.Options = .testDefault,
+    useGlobalModuleCache: Bool = true,
+    initialize: Bool = true,
+    initializationOptions: LSPAny? = nil,
+    capabilities: ClientCapabilities = ClientCapabilities(),
+    workspaceFolders: [WorkspaceFolder]? = nil
+  ) async throws {
     if !useGlobalModuleCache {
       moduleCache = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
     } else {
@@ -92,6 +105,20 @@ public final class TestSourceKitLSPClient: MessageHandler {
     )
 
     self.serverToClientConnection.start(handler: WeakMessageHandler(self))
+
+    if initialize {
+      _ = try await self.send(
+        InitializeRequest(
+          processId: nil,
+          rootPath: nil,
+          rootURI: nil,
+          initializationOptions: initializationOptions,
+          capabilities: capabilities,
+          trace: .off,
+          workspaceFolders: workspaceFolders
+        )
+      )
+    }
   }
 
   deinit {

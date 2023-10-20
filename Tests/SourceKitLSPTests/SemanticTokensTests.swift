@@ -38,34 +38,25 @@ final class SemanticTokensTests: XCTestCase {
   override func setUp() async throws {
     version = 0
     uri = DocumentURI(URL(fileURLWithPath: "/SemanticTokensTests/\(UUID()).swift"))
-    testClient = TestSourceKitLSPClient()
-    _ = try await self.testClient.send(
-      InitializeRequest(
-        processId: nil,
-        rootPath: nil,
-        rootURI: nil,
-        initializationOptions: nil,
-        capabilities: ClientCapabilities(
-          workspace: .init(
-            semanticTokens: .init(
-              refreshSupport: true
-            )
-          ),
-          textDocument: .init(
-            semanticTokens: .init(
-              dynamicRegistration: true,
-              requests: .init(
-                range: .bool(true),
-                full: .bool(true)
-              ),
-              tokenTypes: Token.Kind.allCases.map(\._lspName),
-              tokenModifiers: Token.Modifiers.allModifiers.map { $0._lspName! },
-              formats: [.relative]
-            )
+    testClient = try await TestSourceKitLSPClient(
+      capabilities: ClientCapabilities(
+        workspace: .init(
+          semanticTokens: .init(
+            refreshSupport: true
           )
         ),
-        trace: .off,
-        workspaceFolders: nil
+        textDocument: .init(
+          semanticTokens: .init(
+            dynamicRegistration: true,
+            requests: .init(
+              range: .bool(true),
+              full: .bool(true)
+            ),
+            tokenTypes: Token.Kind.allCases.map(\._lspName),
+            tokenModifiers: Token.Modifiers.allModifiers.map { $0._lspName! },
+            formats: [.relative]
+          )
+        )
       )
     )
   }

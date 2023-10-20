@@ -17,33 +17,10 @@ import SourceKitLSP
 import XCTest
 
 final class InlayHintTests: XCTestCase {
-  /// The mock client used to communicate with the SourceKit-LSP server.
-  ///
-  /// - Note: Set before each test run in `setUp`.
-  private var testClient: TestSourceKitLSPClient! = nil
-
-  override func setUp() async throws {
-    testClient = TestSourceKitLSPClient()
-    _ = try await testClient.send(
-      InitializeRequest(
-        processId: nil,
-        rootPath: nil,
-        rootURI: nil,
-        initializationOptions: nil,
-        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
-        trace: .off,
-        workspaceFolders: nil
-      )
-    )
-  }
-
-  override func tearDown() {
-    testClient = nil
-  }
-
   // MARK: - Helpers
 
   func performInlayHintRequest(text: String, range: Range<Position>? = nil) async throws -> [InlayHint] {
+    let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
 
     testClient.openDocument(text, uri: uri)

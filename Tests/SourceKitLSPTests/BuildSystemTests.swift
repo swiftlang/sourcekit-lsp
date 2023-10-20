@@ -94,7 +94,7 @@ final class BuildSystemTests: XCTestCase {
 
   override func setUp() async throws {
     haveClangd = ToolchainRegistry.shared.toolchains.contains { $0.clangd != nil }
-    testClient = TestSourceKitLSPClient()
+    testClient = try await TestSourceKitLSPClient()
     buildSystem = TestBuildSystem()
 
     let server = testClient.server
@@ -112,18 +112,6 @@ final class BuildSystemTests: XCTestCase {
 
     await server.setWorkspaces([workspace])
     await workspace.buildSystemManager.setDelegate(server)
-
-    _ = try await testClient.send(
-      InitializeRequest(
-        processId: nil,
-        rootPath: nil,
-        rootURI: nil,
-        initializationOptions: nil,
-        capabilities: ClientCapabilities(workspace: nil, textDocument: nil),
-        trace: .off,
-        workspaceFolders: nil
-      )
-    )
   }
 
   override func tearDown() {
