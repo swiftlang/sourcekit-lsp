@@ -74,15 +74,6 @@ final class SemanticTokensTests: XCTestCase {
     testClient = nil
   }
 
-  private func expectSemanticTokensRefresh() -> XCTestExpectation {
-    let refreshExpectation = expectation(description: "\(#function) - refresh received")
-    testClient.handleNextRequest { (req: WorkspaceSemanticTokensRefreshRequest) -> VoidResponse in
-      refreshExpectation.fulfill()
-      return VoidResponse()
-    }
-    return refreshExpectation
-  }
-
   private func openDocument(text: String) {
     // We will wait for the server to dynamically register semantic tokens
 
@@ -99,23 +90,15 @@ final class SemanticTokensTests: XCTestCase {
 
     // We will wait for the first refresh request to make sure that the semantic tokens are ready
 
-    let refreshExpectation = expectSemanticTokensRefresh()
-
     testClient.openDocument(text, uri: uri)
     version += 1
 
-    wait(for: [registerCapabilityExpectation, refreshExpectation], timeout: defaultTimeout)
+    wait(for: [registerCapabilityExpectation], timeout: defaultTimeout)
   }
 
   private func editDocument(changes: [TextDocumentContentChangeEvent], expectRefresh: Bool = true) {
     // We wait for the semantic tokens again
     // Note that we assume to already have called openDocument before
-
-    var expectations: [XCTestExpectation] = []
-
-    if expectRefresh {
-      expectations.append(expectSemanticTokensRefresh())
-    }
 
     testClient.send(
       DidChangeTextDocumentNotification(
@@ -127,8 +110,6 @@ final class SemanticTokensTests: XCTestCase {
       )
     )
     version += 1
-
-    wait(for: expectations, timeout: defaultTimeout)
   }
 
   private func editDocument(range: Range<Position>, text: String, expectRefresh: Bool = true) {

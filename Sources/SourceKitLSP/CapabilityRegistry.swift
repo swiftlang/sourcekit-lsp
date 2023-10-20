@@ -75,10 +75,6 @@ public final class CapabilityRegistry {
     clientCapabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration == true
   }
 
-  public var clientHasSemanticTokenRefreshSupport: Bool {
-    clientCapabilities.workspace?.semanticTokens?.refreshSupport == true
-  }
-
   public var clientHasDiagnosticsCodeDescriptionSupport: Bool {
     clientCapabilities.textDocument?.publishDiagnostics?.codeDescriptionSupport == true
   }

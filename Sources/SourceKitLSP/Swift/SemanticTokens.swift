@@ -15,8 +15,27 @@ import LanguageServerProtocol
 import SwiftIDEUtils
 import SwiftParser
 import SwiftSyntax
+import SourceKitD
 
 extension SwiftLanguageServer {
+  /// Requests the semantic highlighting tokens for the given snapshot from sourcekitd.
+  private func semanticHighlightingTokens(for snapshot: DocumentSnapshot) async throws -> [SyntaxHighlightingToken]? {
+    guard let buildSettings = await self.buildSettings(for: snapshot.uri), !buildSettings.isFallback else {
+      return nil
+    }
+    
+    let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+    skreq[keys.request] = requests.semantic_tokens
+    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
+
+    // FIXME: SourceKit should probably cache this for us.
+    skreq[keys.compilerargs] = buildSettings.compilerArgs
+
+    let dict = try await sourcekitd.send(skreq)
+    print(dict.description)
+    return semanticTokens(of: dict, for: snapshot)
+  }
+
   /// Computes an array of syntax highlighting tokens from the syntax tree that
   /// have been merged with any semantic tokens from SourceKit. If the provided
   /// range is non-empty, this function restricts its output to only those
@@ -29,13 +48,16 @@ extension SwiftLanguageServer {
     for snapshot: DocumentSnapshot,
     in range: Range<Position>? = nil
   ) async -> [SyntaxHighlightingToken] {
-    let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    let semanticTokens = await semanticTokensManager.semanticTokens(for: snapshot.id)
-    let range =
-      range.flatMap({ $0.byteSourceRange(in: snapshot) })
-      ?? ByteSourceRange(offset: 0, length: tree.totalLength.utf8Length)
+    async let tree = syntaxTreeManager.syntaxTree(for: snapshot)
+    async let semanticTokens = await orLog { try await semanticHighlightingTokens(for: snapshot) }
+    
+    let range = if let range = range.flatMap({ $0.byteSourceRange(in: snapshot) }) {
+      range
+    } else {
+      ByteSourceRange(offset: 0, length: await tree.totalLength.utf8Length)
+    }
     return
-      tree
+      await tree
       .classifications(in: range)
       .flatMap({ $0.highlightingTokens(in: snapshot) })
       .mergingTokens(with: semanticTokens ?? [])

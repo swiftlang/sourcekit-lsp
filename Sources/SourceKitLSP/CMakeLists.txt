@@ -3,7 +3,6 @@ add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
   DocumentManager.swift
   IndexStoreDB+MainFilesProvider.swift
-  RangeAdjuster.swift
   ResponseError+Init.swift
   Sequence+AsyncMap.swift
   SourceKitIndexDelegate.swift
@@ -25,7 +24,6 @@ target_sources(SourceKitLSP PRIVATE
   Swift/SemanticRefactorCommand.swift
   Swift/SemanticRefactoring.swift
   Swift/SemanticTokens.swift
-  Swift/SemanticTokensManager.swift
   Swift/SourceKitD+ResponseError.swift
   Swift/SwiftCommand.swift
   Swift/SwiftLanguageServer.swift
