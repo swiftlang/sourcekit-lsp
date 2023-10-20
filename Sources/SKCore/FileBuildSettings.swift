@@ -25,9 +25,13 @@ public struct FileBuildSettings: Equatable {
   /// The working directory to resolve any relative paths in `compilerArguments`.
   public var workingDirectory: String? = nil
 
-  public init(compilerArguments: [String], workingDirectory: String? = nil) {
+  /// Whether the build settings were computed from a real build system or whether they are synthesized fallback arguments while the build system is still busy computing build settings.
+  public var isFallback: Bool
+
+  public init(compilerArguments: [String], workingDirectory: String? = nil, isFallback: Bool = false) {
     self.compilerArguments = compilerArguments
     self.workingDirectory = workingDirectory
+    self.isFallback = isFallback
   }
 }
 
@@ -74,6 +78,6 @@ public extension FileBuildSettings {
         arguments.insert("-xobjective-c++", at: 0)
       }
     }
-    return FileBuildSettings(compilerArguments: arguments, workingDirectory: self.workingDirectory)
+    return FileBuildSettings(compilerArguments: arguments, workingDirectory: self.workingDirectory, isFallback: self.isFallback)
   }
 }

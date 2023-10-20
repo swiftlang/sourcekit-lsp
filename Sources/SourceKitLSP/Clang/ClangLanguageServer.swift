@@ -142,7 +142,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     else {
       return nil
     }
-    return ClangBuildSettings(settings.buildSettings, clangPath: clangdPath, isFallback: settings.isFallback)
+    return ClangBuildSettings(settings, clangPath: clangdPath)
   }
 
   nonisolated func canHandle(workspace: Workspace) -> Bool {
@@ -600,7 +600,7 @@ private struct ClangBuildSettings: Equatable {
   /// fallback arguments and represent the file state differently.
   public let isFallback: Bool
 
-  public init(_ settings: FileBuildSettings, clangPath: AbsolutePath?, isFallback: Bool = false) {
+  public init(_ settings: FileBuildSettings, clangPath: AbsolutePath?) {
     var arguments = [clangPath?.pathString ?? "clang"] + settings.compilerArguments
     if arguments.contains("-fmodules") {
       // Clangd is not built with support for the 'obj' format.
@@ -619,7 +619,7 @@ private struct ClangBuildSettings: Equatable {
 
     self.compilerArgs = arguments
     self.workingDirectory = settings.workingDirectory ?? ""
-    self.isFallback = isFallback
+    self.isFallback = settings.isFallback
   }
 
   public var compileCommand: ClangCompileCommand {
