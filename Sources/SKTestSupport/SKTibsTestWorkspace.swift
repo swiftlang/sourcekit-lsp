@@ -24,6 +24,7 @@ import XCTest
 import enum PackageLoading.Platform
 import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath
+import struct TSCBasic.RelativePath
 
 public typealias URL = Foundation.URL
 
@@ -83,7 +84,10 @@ public final class SKTibsTestWorkspace {
 
   func initWorkspace(clientCapabilities: ClientCapabilities) async throws {
     let buildPath = try AbsolutePath(validating: builder.buildRoot.path)
-    let buildSystem = CompilationDatabaseBuildSystem(projectRoot: buildPath)
+    let buildSystem = CompilationDatabaseBuildSystem(
+      projectRoot: buildPath,
+      searchPaths: try [RelativePath(validating: ".")]
+    )
     let indexDelegate = SourceKitIndexDelegate()
     tibsWorkspace.delegate = indexDelegate
 

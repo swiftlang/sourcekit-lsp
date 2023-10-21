@@ -15,6 +15,7 @@ import SKSupport
 
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
+import struct TSCBasic.RelativePath
 import var TSCBasic.localFileSystem
 import func TSCBasic.resolveSymlinks
 
@@ -67,14 +68,28 @@ public protocol CompilationDatabase {
   var allCommands: AnySequence<Command> { get }
 }
 
-/// Loads the compilation database located in `directory`, if any.
+/// Loads the compilation database located in `directory`, if one can be found in `additionalSearchPaths` or in the default search paths of "." and "build".
 public func tryLoadCompilationDatabase(
   directory: AbsolutePath,
+  additionalSearchPaths: [RelativePath] = [],
   _ fileSystem: FileSystem = localFileSystem
 ) -> CompilationDatabase? {
+  let searchPaths =
+    additionalSearchPaths + [
+      // These default search paths match the behavior of `clangd`
+      try! RelativePath(validating: "."),
+      try! RelativePath(validating: "build"),
+    ]
   return
-    (try? JSONCompilationDatabase(directory: directory, fileSystem))
-    ?? (try? FixedCompilationDatabase(directory: directory, fileSystem))
+    try! searchPaths
+    .lazy
+    .map { directory.appending($0) }
+    .compactMap {
+      try
+        (JSONCompilationDatabase(directory: $0, fileSystem)
+        ?? FixedCompilationDatabase(directory: $0, fileSystem))
+    }
+    .first
 }
 
 /// Fixed clang-compatible compilation database (compile_flags.txt).
@@ -99,13 +114,21 @@ public struct FixedCompilationDatabase: CompilationDatabase, Equatable {
 }
 
 extension FixedCompilationDatabase {
-  public init(directory: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+  /// Loads the compilation database located in `directory`, if any.
+  /// - Returns: `nil` if `compile_flags.txt` was not found
+  public init?(directory: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
     let path = directory.appending(component: "compile_flags.txt")
     try self.init(file: path, fileSystem)
   }
 
-  public init(file: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+  /// Loads the compilation database from `file`
+  /// - Returns: `nil` if the file does not exist
+  public init?(file: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
     self.directory = file.dirname
+
+    guard fileSystem.exists(file) else {
+      return nil
+    }
     let bytes = try fileSystem.readFileContents(file)
 
     var fixedArgs: [String] = ["clang"]
@@ -185,12 +208,20 @@ extension JSONCompilationDatabase: Codable {
 }
 
 extension JSONCompilationDatabase {
-  public init(directory: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+  /// Loads the compilation database located in `directory`, if any.
+  ///
+  /// - Returns: `nil` if `compile_commands.json` was not found
+  public init?(directory: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
     let path = directory.appending(component: "compile_commands.json")
     try self.init(file: path, fileSystem)
   }
 
-  public init(file: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+  /// Loads the compilation database from `file`
+  /// - Returns: `nil` if the file does not exist
+  public init?(file: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) throws {
+    guard fileSystem.exists(file) else {
+      return nil
+    }
     let bytes = try fileSystem.readFileContents(file)
     try bytes.withUnsafeData { data in
       self = try JSONDecoder().decode(JSONCompilationDatabase.self, from: data)

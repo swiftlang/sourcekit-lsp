@@ -597,7 +597,7 @@ private var notificationIDForLogging: Int = 0
 
 /// On every call, returns a new unique number that can be used to identify a notification.
 ///
-/// This is needed so we can consistently refer to a notification using the `category` of the logger. 
+/// This is needed so we can consistently refer to a notification using the `category` of the logger.
 /// Requests don't need this since they already have a unique ID in the LSP protocol.
 private func getNextNotificationIDForLogging() -> Int {
   return notificationIDForLoggingLock.withLock {
@@ -648,7 +648,7 @@ extension SourceKitServer: MessageHandler {
       await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
     case let notification as DidSaveTextDocumentNotification:
       await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.didSaveDocument)
-      // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
+    // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
     default:
       break
     }
@@ -771,7 +771,7 @@ extension SourceKitServer: MessageHandler {
         requestHandler: self.documentDiagnostic,
         fallback: .full(.init(items: []))
       )
-      // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
+    // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
     default:
       reply(.failure(ResponseError.methodNotFound(R.method)))
     }
@@ -860,6 +860,7 @@ extension SourceKitServer {
       capabilityRegistry: capabilityRegistry,
       toolchainRegistry: self.toolchainRegistry,
       buildSetup: self.options.buildSetup,
+      compilationDatabaseSearchPaths: self.options.compilationDatabaseSearchPaths,
       indexOptions: self.options.indexOptions,
       reloadPackageStatusCallback: { status in
         guard capabilityRegistry.clientCapabilities.window?.workDoneProgress ?? false else {

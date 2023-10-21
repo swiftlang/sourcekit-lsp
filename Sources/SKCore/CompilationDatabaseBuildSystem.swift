@@ -19,6 +19,7 @@ import SKSupport
 import struct Foundation.URL
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
+import struct TSCBasic.RelativePath
 import var TSCBasic.localFileSystem
 
 /// A `BuildSystem` based on loading clang-compatible compilation database(s).
@@ -43,6 +44,8 @@ public actor CompilationDatabaseBuildSystem {
   }
 
   let projectRoot: AbsolutePath?
+
+  let searchPaths: [RelativePath]
 
   let fileSystem: FileSystem
 
@@ -70,11 +73,12 @@ public actor CompilationDatabaseBuildSystem {
     return nil
   }
 
-  public init(projectRoot: AbsolutePath? = nil, fileSystem: FileSystem = localFileSystem) {
+  public init(projectRoot: AbsolutePath? = nil, searchPaths: [RelativePath], fileSystem: FileSystem = localFileSystem) {
     self.fileSystem = fileSystem
     self.projectRoot = projectRoot
+    self.searchPaths = searchPaths
     if let path = projectRoot {
-      self.compdb = tryLoadCompilationDatabase(directory: path, fileSystem)
+      self.compdb = tryLoadCompilationDatabase(directory: path, additionalSearchPaths: searchPaths, fileSystem)
     }
   }
 }
@@ -122,7 +126,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
       var dir = path
       while !dir.isRoot {
         dir = dir.parentDirectory
-        if let db = tryLoadCompilationDatabase(directory: dir, fileSystem) {
+        if let db = tryLoadCompilationDatabase(directory: dir, additionalSearchPaths: searchPaths, fileSystem) {
           compdb = db
           break
         }
@@ -150,7 +154,11 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
   private func reloadCompilationDatabase() async {
     guard let projectRoot = self.projectRoot else { return }
 
-    self.compdb = tryLoadCompilationDatabase(directory: projectRoot, self.fileSystem)
+    self.compdb = tryLoadCompilationDatabase(
+      directory: projectRoot,
+      additionalSearchPaths: searchPaths,
+      self.fileSystem
+    )
 
     if let delegate = self.delegate {
       var changedFiles = Set<DocumentURI>()

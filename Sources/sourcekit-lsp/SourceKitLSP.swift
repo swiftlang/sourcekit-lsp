@@ -22,6 +22,7 @@ import SKSupport
 import SourceKitLSP
 
 import struct TSCBasic.AbsolutePath
+import struct TSCBasic.RelativePath
 import var TSCBasic.localFileSystem
 
 extension AbsolutePath: ExpressibleByArgument {
@@ -45,6 +46,18 @@ extension AbsolutePath: ExpressibleByArgument {
     // This type is most commonly used to select a directory, not a file.
     // Specify '.file()' in an argument declaration when necessary.
     .directory
+  }
+}
+
+extension RelativePath: ExpressibleByArgument {
+  public init?(argument: String) {
+    let path = try? RelativePath(validating: argument)
+
+    guard let path = path else {
+      return nil
+    }
+
+    self = path
   }
 }
 
@@ -138,6 +151,14 @@ struct SourceKitLSP: ParsableCommand {
   var indexPrefixMappings = [PathPrefixMapping]()
 
   @Option(
+    name: .customLong("compilation-db-search-path"),
+    parsing: .singleValue,
+    help:
+      "Specify a relative path where sourcekit-lsp should search for `compile_commands.json` or `compile_flags.txt` relative to the root of a workspace. Multiple search paths may be specified by repeating this option."
+  )
+  var compilationDatabaseSearchPaths = [RelativePath]()
+
+  @Option(
     help: "Specify the directory where generated interfaces will be stored"
   )
   var generatedInterfacesPath = defaultDirectoryForGeneratedInterfaces
@@ -157,6 +178,7 @@ struct SourceKitLSP: ParsableCommand {
     serverOptions.buildSetup.flags.linkerFlags = buildFlagsLinker
     serverOptions.buildSetup.flags.swiftCompilerFlags = buildFlagsSwift
     serverOptions.clangdOptions = clangdOptions
+    serverOptions.compilationDatabaseSearchPaths = compilationDatabaseSearchPaths
     serverOptions.indexOptions.indexStorePath = indexStorePath
     serverOptions.indexOptions.indexDatabasePath = indexDatabasePath
     serverOptions.indexOptions.indexPrefixMappings = indexPrefixMappings

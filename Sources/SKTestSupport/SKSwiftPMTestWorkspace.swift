@@ -55,7 +55,7 @@ public final class SKSwiftPMTestWorkspace {
   /// Connection to the language server.
   public let testClient: TestSourceKitLSPClient
 
-  /// When `testServer` is not `nil`, the workspace will be opened in that server, otherwise a new server will be created for the workspace
+  /// When `testClient` is not `nil`, the workspace will be opened in that client's server, otherwise a new client will be created for the workspace
   public init(
     projectDir: URL,
     tmpDir: URL,
