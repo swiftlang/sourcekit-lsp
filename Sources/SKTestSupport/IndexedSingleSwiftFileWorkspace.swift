@@ -30,22 +30,12 @@ public struct IndexedSingleSwiftFileWorkspace {
     _ markedText: String,
     testName: String = #function
   ) async throws {
-
-    // Build file paths
-
-    let testBaseName = testName.prefix(while: \.isLetter)
-    let testWorkspaceDirectory = FileManager.default.temporaryDirectory
-      .realpath
-      .appendingPathComponent(String(testBaseName))
-      .appendingPathComponent(UUID().uuidString)
-
-    try FileManager.default.createDirectory(at: testWorkspaceDirectory, withIntermediateDirectories: true)
+    let testWorkspaceDirectory = try testScratchDirName(testName)
 
     let testFileURL = testWorkspaceDirectory.appendingPathComponent("test.swift")
     let indexURL = testWorkspaceDirectory.appendingPathComponent("index")
     let indexDBURL = testWorkspaceDirectory.appendingPathComponent("index-db")
-    let toolchain = ToolchainRegistry.shared.default!
-    guard let swiftc = toolchain.swiftc?.asURL else {
+    guard let swiftc = ToolchainRegistry.shared.default?.swiftc?.asURL else {
       throw Error.swiftcNotFound
     }
 
@@ -103,30 +93,5 @@ public struct IndexedSingleSwiftFileWorkspace {
     // Open the document
     self.fileURI = DocumentURI(testFileURL)
     self.positions = testClient.openDocument(markedText, uri: fileURI)
-  }
-}
-
-fileprivate extension URL {
-  /// Assuming this is a file URL, resolves all symlinks in the path.
-  ///
-  /// - Note: We need this because `URL.resolvingSymlinksInPath()` not only resolves symlinks but also standardizes the
-  ///   path by stripping away `private` prefixes. Since sourcekitd is not performing this standardization, using
-  ///   `resolvingSymlinksInPath` can lead to slightly mismatched URLs between the sourcekit-lsp response and the test
-  ///   assertion.
-  var realpath: URL {
-    #if canImport(Darwin)
-    return self.path.withCString { path in
-      guard let realpath = Darwin.realpath(path, nil) else {
-        return self
-      }
-      let result = URL(fileURLWithPath: String(cString: realpath))
-      free(realpath)
-      return result
-    }
-    #else
-    // Non-Darwin platforms don't have the `/private` stripping issue, so we can just use `self.resolvingSymlinksInPath`
-    // here.
-    return self.resolvingSymlinksInPath()
-    #endif
   }
 }

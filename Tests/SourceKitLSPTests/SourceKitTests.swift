@@ -182,12 +182,25 @@ final class SKTests: XCTestCase {
   }
 
   func testCodeCompleteSwiftTibs() async throws {
-    guard let ws = try await staticSourceKitTibsWorkspace(name: "CodeCompleteSingleModule") else { return }
-    let loc = ws.testLoc("cc:A")
-    try ws.openDocument(loc.url, language: .swift)
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "a.swift": """
+        struct A {
+          func method(a b: Int) {}
+        }
+        """,
+        "b.swift": """
+        func test(a: A) {
+          a.1️⃣
+        }
+        """,
+      ]
+    )
+    let (uri, positions) = try ws.openDocument("b.swift")
 
+    let testPosition = positions["1️⃣"]
     let results = try await ws.testClient.send(
-      CompletionRequest(textDocument: loc.docIdentifier, position: loc.position)
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: testPosition)
     )
 
     XCTAssertEqual(
@@ -204,7 +217,7 @@ final class SKTests: XCTestCase {
           insertTextFormat: .plain,
           textEdit: .textEdit(
             TextEdit(
-              range: Position(line: 1, utf16index: 14)..<Position(line: 1, utf16index: 14),
+              range: Range(testPosition),
               newText: "method(a: )"
             )
           )
@@ -219,7 +232,7 @@ final class SKTests: XCTestCase {
           insertText: "self",
           insertTextFormat: .plain,
           textEdit: .textEdit(
-            TextEdit(range: Position(line: 1, utf16index: 14)..<Position(line: 1, utf16index: 14), newText: "self")
+            TextEdit(range: Range(testPosition), newText: "self")
           )
         ),
       ]
