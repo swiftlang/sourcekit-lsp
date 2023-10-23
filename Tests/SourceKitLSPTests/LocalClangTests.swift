@@ -181,15 +181,20 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testCodeAction() async throws {
-    guard let ws = try await staticSourceKitTibsWorkspace(name: "CodeActionCxx") else { return }
-    if ToolchainRegistry.shared.default?.clangd == nil { return }
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.cpp)
+    let positions = testClient.openDocument(
+      """
+      enum Color { RED, GREEN, BLUE };
 
-    let loc = ws.testLoc("SwitchColor")
-    let endLoc = ws.testLoc("SwitchColor:end")
+      void someFunction(Color color) {
+      switch 1️⃣(color)2️⃣ {}
+      }
+      """,
+      uri: uri
+    )
 
-    try ws.openDocument(loc.url, language: .cpp)
-
-    let diagnostics = try await ws.testClient.nextDiagnosticsNotification().diagnostics
+    let diagnostics = try await testClient.nextDiagnosticsNotification().diagnostics
     // It seems we either get no diagnostics or a `-Wswitch` warning. Either is fine
     // as long as our code action works properly.
     XCTAssert(
@@ -198,11 +203,11 @@ final class LocalClangTests: XCTestCase {
     )
 
     let codeAction = CodeActionRequest(
-      range: Position(loc)..<Position(endLoc),
+      range: positions["1️⃣"]..<positions["2️⃣"],
       context: CodeActionContext(),
-      textDocument: loc.docIdentifier
+      textDocument: TextDocumentIdentifier(uri)
     )
-    guard let reply = try await ws.testClient.send(codeAction) else {
+    guard let reply = try await testClient.send(codeAction) else {
       XCTFail("CodeActionRequest had nil reply")
       return
     }
@@ -217,7 +222,7 @@ final class LocalClangTests: XCTestCase {
     XCTAssertEqual(command.command, "clangd.applyTweak")
 
     let applyEdit = XCTestExpectation(description: "applyEdit")
-    ws.testClient.handleNextRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
+    testClient.handleNextRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
       XCTAssertNotNil(request.edit.changes)
       applyEdit.fulfill()
       return ApplyEditResponse(applied: true, failureReason: nil)
@@ -227,7 +232,7 @@ final class LocalClangTests: XCTestCase {
       command: command.command,
       arguments: command.arguments
     )
-    _ = try await ws.testClient.send(executeCommand)
+    _ = try await testClient.send(executeCommand)
 
     try await fulfillmentOfOrThrow([applyEdit])
   }
