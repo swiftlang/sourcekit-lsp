@@ -1,4 +1,0 @@
-{
-  "clang_flags": ["-fno-modules", "-Wunused-variable"],
-  "sources": ["main.cpp"]
-}
