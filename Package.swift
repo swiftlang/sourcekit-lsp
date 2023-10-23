@@ -224,7 +224,7 @@ let package = Package(
         "LSPLogging",
         "SKCore",
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
-        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
       exclude: ["CMakeLists.txt"]
     ),
@@ -245,6 +245,7 @@ let package = Package(
       dependencies: [
         "CSKTestSupport",
         "LSPTestSupport",
+        "SKCore",
         "SourceKitLSP",
         .product(name: "ISDBTestSupport", package: "indexstore-db"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),

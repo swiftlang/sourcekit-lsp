@@ -18,4 +18,6 @@
 public struct PollIndexRequest: RequestType {
   public static var method: String = "workspace/_pollIndex"
   public typealias Response = VoidResponse
+
+  public init() {}
 }
