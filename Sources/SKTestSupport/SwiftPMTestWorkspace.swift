@@ -38,7 +38,7 @@ public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
   public init(
     files: [String: String],
     manifest: String = SwiftPMTestWorkspace.defaultPackageManifest,
-    index: Bool = false,
+    build: Bool = false,
     testName: String = #function
   ) async throws {
     var filesByPath: [RelativeFileLocation: String] = [:]
@@ -55,8 +55,15 @@ public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
       throw Error.swiftNotFound
     }
 
-    if index {
-      try await Process.checkNonZeroExit(arguments: [swift.path, "build", "--package-path", scratchDirectory.path])
+    if build {
+      let arguments = [
+        swift.path,
+        "build",
+        "--package-path", scratchDirectory.path,
+        "-Xswiftc", "-index-ignore-system-modules",
+        "-Xcc", "-index-ignore-system-symbols",
+      ]
+      try await Process.checkNonZeroExit(arguments: arguments)
     }
     // Wait for the indexstore-db to finish indexing
     _ = try await testClient.send(PollIndexRequest())

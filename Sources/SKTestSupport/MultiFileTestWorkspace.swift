@@ -28,7 +28,8 @@ public struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {
   }
 
   public init(stringLiteral value: String) {
-    self.init(value)
+    let components = value.components(separatedBy: "/")
+    self.init(directories: components.dropLast(), components.last!)
   }
 }
 
