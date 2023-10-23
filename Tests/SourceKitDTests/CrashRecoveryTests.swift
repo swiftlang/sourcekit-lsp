@@ -218,21 +218,35 @@ final class CrashRecoveryTests: XCTestCase {
   func testClangdCrashRecoveryReopensWithCorrectBuildSettings() async throws {
     try XCTSkipIf(longTestsDisabled)
 
-    let ws = try await staticSourceKitTibsWorkspace(name: "ClangCrashRecoveryBuildSettings")!
-    let loc = ws.testLoc("loc")
+    let ws = try await MultiFileTestWorkspace(files: [
+      "main.cpp": """
+      #if FOO
+      void 1️⃣foo2️⃣() {}
+      #else
+      void foo() {}
+      #endif
 
-    try ws.openDocument(loc.url, language: .cpp)
+      int main() {
+        3️⃣foo4️⃣();
+      }
+      """,
+      "compile_flags.txt": """
+      -DFOO
+      """,
+    ])
+
+    let (mainUri, positions) = try ws.openDocument("main.cpp")
 
     // Do a sanity check and verify that we get the expected result from a hover response before crashing clangd.
 
     let expectedHighlightResponse = [
-      DocumentHighlight(range: Position(line: 3, utf16index: 5)..<Position(line: 3, utf16index: 8), kind: .text),
-      DocumentHighlight(range: Position(line: 9, utf16index: 2)..<Position(line: 9, utf16index: 5), kind: .text),
+      DocumentHighlight(range: positions["1️⃣"]..<positions["2️⃣"], kind: .text),
+      DocumentHighlight(range: positions["3️⃣"]..<positions["4️⃣"], kind: .text),
     ]
 
     let highlightRequest = DocumentHighlightRequest(
-      textDocument: loc.docIdentifier,
-      position: Position(line: 9, utf16index: 3)
+      textDocument: TextDocumentIdentifier(mainUri),
+      position: positions["3️⃣"]
     )
     let preCrashHighlightResponse = try await ws.testClient.send(highlightRequest)
     precondition(
@@ -242,7 +256,7 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Crash clangd
 
-    try await crashClangd(for: ws.testClient, document: loc.docUri)
+    try await crashClangd(for: ws.testClient, document: mainUri)
 
     // Check that we have re-opened the document with the correct build settings
     // If we did not recover the correct build settings, document highlight would

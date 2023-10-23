@@ -62,6 +62,7 @@ public class MultiFileTestWorkspace {
 
   public init(
     files: [RelativeFileLocation: String],
+    workspaces: (URL) -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
     testName: String = #function
   ) async throws {
     scratchDirectory = try testScratchDir(testName: testName)
@@ -92,9 +93,7 @@ public class MultiFileTestWorkspace {
     self.fileData = fileData
 
     self.testClient = try await TestSourceKitLSPClient(
-      workspaceFolders: [
-        WorkspaceFolder(uri: DocumentURI(scratchDirectory))
-      ],
+      workspaceFolders: workspaces(scratchDirectory),
       cleanUp: { [scratchDirectory] in
         try? FileManager.default.removeItem(at: scratchDirectory)
       }

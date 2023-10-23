@@ -118,37 +118,51 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testMultipleClangdWorkspaces() async throws {
-    guard let ws = try await staticSourceKitTibsWorkspace(name: "ClangModules") else { return }
+    let ws = try await MultiFileTestWorkspace(
+      files: [
+        "WorkspaceA/main.cpp": """
+        #if FOO
+        void 1️⃣foo2️⃣() {}
+        #else
+        void foo() {}
+        #endif
 
-    let loc = ws.testLoc("main_file")
+        int main() {
+          3️⃣foo4️⃣();
+        }
+        """,
+        "WorkspaceA/compile_flags.txt": """
+        -DFOO
+        """,
+        "WorkspaceB/test.m": "",
+      ],
+      workspaces: { scratchDir in
+        return [
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("WorkspaceA"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("WorkspaceB"))),
+        ]
+      }
+    )
 
-    try ws.openDocument(loc.url, language: .objective_c)
+    _ = try ws.openDocument("test.m")
 
     let diags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 0)
 
-    let otherWs = try await staticSourceKitTibsWorkspace(
-      name: "ClangCrashRecoveryBuildSettings",
-      testClient: ws.testClient
-    )!
-    assert(ws.testClient === otherWs.testClient, "Sanity check: The two workspaces should be opened in the same server")
-    let otherLoc = otherWs.testLoc("loc")
-
-    try otherWs.openDocument(otherLoc.url, language: .cpp)
-
-    // Do a sanity check and verify that we get the expected result from a hover response before crashing clangd.
-
-    let expectedHighlightResponse = [
-      DocumentHighlight(range: Position(line: 3, utf16index: 5)..<Position(line: 3, utf16index: 8), kind: .text),
-      DocumentHighlight(range: Position(line: 9, utf16index: 2)..<Position(line: 9, utf16index: 5), kind: .text),
-    ]
+    let (mainUri, positions) = try ws.openDocument("main.cpp")
 
     let highlightRequest = DocumentHighlightRequest(
-      textDocument: otherLoc.docIdentifier,
-      position: Position(line: 9, utf16index: 3)
+      textDocument: TextDocumentIdentifier(mainUri),
+      position: positions["3️⃣"]
     )
-    let highlightResponse = try await otherWs.testClient.send(highlightRequest)
-    XCTAssertEqual(highlightResponse, expectedHighlightResponse)
+    let highlightResponse = try await ws.testClient.send(highlightRequest)
+    XCTAssertEqual(
+      highlightResponse,
+      [
+        DocumentHighlight(range: positions["1️⃣"]..<positions["2️⃣"], kind: .text),
+        DocumentHighlight(range: positions["3️⃣"]..<positions["4️⃣"], kind: .text),
+      ]
+    )
   }
 
   func testRecomputeFileWorkspaceMembershipOnPackageSwiftChange() async throws {
