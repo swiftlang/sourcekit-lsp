@@ -174,10 +174,6 @@ final class CodingTests: XCTestCase {
     )
 
     checkCoding(
-      WorkspaceSettingsChange.clangd(ClangWorkspaceSettings(compilationDatabasePath: nil)),
-      json: "{\n\n}"
-    )
-    checkCoding(
       WorkspaceSettingsChange.clangd(ClangWorkspaceSettings(compilationDatabasePath: "foo")),
       json: """
         {
@@ -186,14 +182,13 @@ final class CodingTests: XCTestCase {
         """
     )
 
-    // FIXME: should probably be "unknown"; see comment in WorkspaceSettingsChange decoder.
     checkDecoding(
       json: """
         {
           "hi": "there"
         }
         """,
-      expected: WorkspaceSettingsChange.clangd(ClangWorkspaceSettings(compilationDatabasePath: nil))
+      expected: WorkspaceSettingsChange.unknown(LSPAny.dictionary(["hi": LSPAny.string("there")]))
     )
 
     // experimental can be anything

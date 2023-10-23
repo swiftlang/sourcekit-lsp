@@ -19,10 +19,7 @@ public enum WorkspaceSettingsChange: Codable, Hashable {
   case unknown(LSPAny)
 
   public init(from decoder: Decoder) throws {
-    // FIXME: doing trial deserialization only works if we have at least one non-optional unique
-    // key, which we don't yet.  For now, assume that if we add another kind of workspace settings
-    // it will rectify this issue.
-    if let settings = try? ClangWorkspaceSettings(from: decoder) {
+    if let settings = try? ClangWorkspaceSettings(from: decoder), settings.isValid {
       self = .clangd(settings)
     } else {
       let settings = try LSPAny(from: decoder)
@@ -58,6 +55,13 @@ public struct ClangWorkspaceSettings: Codable, Hashable {
   ) {
     self.compilationDatabasePath = compilationDatabasePath
     self.compilationDatabaseChanges = compilationDatabaseChanges
+  }
+
+  var isValid: Bool {
+    switch (compilationDatabasePath, compilationDatabaseChanges) {
+      case (nil, .some), (.some, nil): return true
+      default: return false
+    }
   }
 }
 
