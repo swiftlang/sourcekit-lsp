@@ -1,8 +1,0 @@
-{
-  "sources": [
-    "FoldingRangeBase.swift",
-    "FoldingRangeEmptyFile.swift",
-    "FoldingRangeMultilineDocLineComment.swift",
-    "FoldingRangeDuplicateRanges.swift"
-  ]
-}
