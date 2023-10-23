@@ -12,6 +12,7 @@
 
 import Foundation
 import LanguageServerProtocol
+import SKCore
 
 extension Language {
   var fileExtension: String {
@@ -44,7 +45,7 @@ extension DocumentURI {
 }
 
 /// An empty directory in which a test with `#function` name `testName` can store temporary data.
-func testScratchDirName(_ testName: String) throws -> URL {
+public func testScratchDir(testName: String = #function) throws -> URL {
   let testBaseName = testName.prefix(while: \.isLetter)
 
   let url = FileManager.default.temporaryDirectory
@@ -80,3 +81,5 @@ fileprivate extension URL {
     #endif
   }
 }
+
+public let hasClangd = ToolchainRegistry.shared.default?.clangd != nil

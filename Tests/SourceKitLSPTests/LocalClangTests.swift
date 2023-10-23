@@ -269,21 +269,27 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testSemanticHighlighting() async throws {
-    guard haveClangd else { return }
-    guard let ws = try await staticSourceKitTibsWorkspace(name: "BasicCXX") else {
-      return
-    }
-    let mainLoc = ws.testLoc("Object:include:main")
+    try XCTSkipIf(!hasClangd)
 
-    try ws.openDocument(mainLoc.url, language: .c)
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.c)
 
-    let diags = try await ws.testClient.nextDiagnosticsNotification()
+    testClient.openDocument(
+      """
+      int main(int argc, const char *argv[]) {
+      }
+      """,
+      uri: uri
+    )
+
+    let diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 0)
 
-    let request = DocumentSemanticTokensRequest(textDocument: mainLoc.docIdentifier)
+    let request = DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri))
     do {
-      let reply = try await ws.testClient.send(request)
-      XCTAssertNotNil(reply)
+      let reply = try await testClient.send(request)
+      let data = try XCTUnwrap(reply?.data)
+      XCTAssertGreaterThanOrEqual(data.count, 0)
     } catch let e {
       if let error = e as? ResponseError {
         try XCTSkipIf(
@@ -296,32 +302,49 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testDocumentDependenciesUpdated() async throws {
-    let ws = try await mutableSourceKitTibsTestWorkspace(name: "BasicCXX")!
+    try XCTSkipIf(!hasClangd)
 
-    let cFileLoc = ws.testLoc("Object:ref:main")
+    let ws = try await MultiFileTestWorkspace(files: [
+      "Object.h": """
+      struct Object {
+        int field;
+      };
 
-    try ws.openDocument(cFileLoc.url, language: .cpp)
+      struct Object * newObject();
+      """,
+      "main.c": """
+      #include "Object.h"
+
+      int main(int argc, const char *argv[]) {
+        struct Object *obj = 1️⃣newObject();
+      }
+      """,
+      "compile_flags.txt": "",
+    ])
+
+    let (mainUri, _) = try ws.openDocument("main.c")
+    let headerUri = try ws.uri(for: "Object.h")
 
     // Initially the workspace should build fine.
     let initialDiags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssert(initialDiags.diagnostics.isEmpty)
 
     // We rename Object to MyObject in the header.
-    _ = try ws.sources.edit { builder in
-      let headerFilePath = ws.sources.rootDirectory.appendingPathComponent("Object.h")
-      var headerFile = try String(contentsOf: headerFilePath, encoding: .utf8)
-      let targetMarkerRange = headerFile.range(of: "/*Object*/")!
-      headerFile.replaceSubrange(targetMarkerRange, with: "My")
-      builder.write(headerFile, to: headerFilePath)
-    }
+    try """
+    struct MyObject {
+      int field;
+    };
+
+    struct MyObject * newObject();
+    """.write(to: headerUri.fileURL!, atomically: false, encoding: .utf8)
 
     let clangdServer = await ws.testClient.server._languageService(
-      for: cFileLoc.docUri,
-      .cpp,
-      in: ws.testClient.server.workspaceForDocument(uri: cFileLoc.docUri)!
+      for: mainUri,
+      .c,
+      in: ws.testClient.server.workspaceForDocument(uri: mainUri)!
     )!
 
-    await clangdServer.documentDependenciesUpdated(cFileLoc.docUri)
+    await clangdServer.documentDependenciesUpdated(mainUri)
 
     // Now we should get a diagnostic in main.c file because `Object` is no longer defined.
     let editedDiags = try await ws.testClient.nextDiagnosticsNotification()

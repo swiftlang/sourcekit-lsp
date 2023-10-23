@@ -30,7 +30,7 @@ public struct IndexedSingleSwiftFileWorkspace {
     _ markedText: String,
     testName: String = #function
   ) async throws {
-    let testWorkspaceDirectory = try testScratchDirName(testName)
+    let testWorkspaceDirectory = try testScratchDir(testName: testName)
 
     let testFileURL = testWorkspaceDirectory.appendingPathComponent("test.swift")
     let indexURL = testWorkspaceDirectory.appendingPathComponent("index")

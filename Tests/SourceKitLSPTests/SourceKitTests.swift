@@ -299,19 +299,20 @@ final class SKTests: XCTestCase {
   }
 
   func testClangdGoToInclude() async throws {
-    guard let ws = try await staticSourceKitTibsWorkspace(name: "BasicCXX") else { return }
-    guard ToolchainRegistry.shared.default?.clangd != nil else { return }
+    try XCTSkipIf(!hasClangd)
 
-    let mainLoc = ws.testLoc("Object:include:main")
-    let expectedDoc = ws.testLoc("Object").docIdentifier.uri
-    let includePosition =
-      Position(line: mainLoc.position.line, utf16index: mainLoc.utf16Column + 2)
-
-    try ws.openDocument(mainLoc.url, language: .c)
+    let ws = try await MultiFileTestWorkspace(files: [
+      "Object.h": "",
+      "main.c": """
+      #include 1️⃣"Object.h"
+      """,
+    ])
+    let (mainUri, positions) = try ws.openDocument("main.c")
+    let headerUri = try ws.uri(for: "Object.h")
 
     let goToInclude = DefinitionRequest(
-      textDocument: mainLoc.docIdentifier,
-      position: includePosition
+      textDocument: TextDocumentIdentifier(mainUri),
+      position: positions["1️⃣"]
     )
     let resp = try await ws.testClient.send(goToInclude)
 
@@ -320,29 +321,40 @@ final class SKTests: XCTestCase {
     case .locations(let locations):
       XCTAssert(!locations.isEmpty, "Found no locations for go-to-#include")
       if let loc = locations.first {
-        XCTAssertEqual(loc.uri, expectedDoc)
+        XCTAssertEqual(loc.uri, headerUri)
       }
     case .locationLinks(let locationLinks):
       XCTAssert(!locationLinks.isEmpty, "Found no location links for go-to-#include")
       if let link = locationLinks.first {
-        XCTAssertEqual(link.targetUri, expectedDoc)
+        XCTAssertEqual(link.targetUri, headerUri)
       }
     }
   }
 
   func testClangdGoToDefinitionWithoutIndex() async throws {
-    guard let ws = try await staticSourceKitTibsWorkspace(name: "BasicCXX") else { return }
-    guard ToolchainRegistry.shared.default?.clangd != nil else { return }
+    try XCTSkipIf(!hasClangd)
 
-    let refLoc = ws.testLoc("Object:ref:main")
-    let expectedDoc = try ws.testLoc("Object").docIdentifier.uri.nativeURI
-    let refPos = Position(line: refLoc.position.line, utf16index: refLoc.utf16Column + 2)
+    let ws = try await MultiFileTestWorkspace(files: [
+      "Object.h": """
+      struct Object {
+        int field;
+      };
+      """,
+      "main.c": """
+      #include "Object.h"
 
-    try ws.openDocument(refLoc.url, language: .c)
+      int main(int argc, const char *argv[]) {
+        struct 1️⃣Object *obj;
+      }
+      """,
+    ])
+
+    let (mainUri, positions) = try ws.openDocument("main.c")
+    let headerUri = try ws.uri(for: "Object.h")
 
     let goToDefinition = DefinitionRequest(
-      textDocument: refLoc.docIdentifier,
-      position: refPos
+      textDocument: TextDocumentIdentifier(mainUri),
+      position: positions["1️⃣"]
     )
     let resp = try await ws.testClient.send(goToDefinition)
 
@@ -351,30 +363,42 @@ final class SKTests: XCTestCase {
     case .locations(let locations):
       XCTAssert(!locations.isEmpty, "Found no locations for go-to-definition")
       if let loc = locations.first {
-        XCTAssertEqual(loc.uri, expectedDoc)
+        XCTAssertEqual(loc.uri, headerUri)
       }
     case .locationLinks(let locationLinks):
       XCTAssert(!locationLinks.isEmpty, "Found no location links for go-to-definition")
       if let link = locationLinks.first {
-        XCTAssertEqual(link.targetUri, expectedDoc)
+        XCTAssertEqual(link.targetUri, headerUri)
       }
     }
   }
 
   func testClangdGoToDeclaration() async throws {
-    guard let ws = try await staticSourceKitTibsWorkspace(name: "BasicCXX") else { return }
-    guard ToolchainRegistry.shared.default?.clangd != nil else { return }
+    try XCTSkipIf(!hasClangd)
 
-    let mainLoc = ws.testLoc("Object:ref:newObject")
-    let expectedDoc = ws.testLoc("Object:decl:newObject").docIdentifier.uri
-    let includePosition =
-      Position(line: mainLoc.position.line, utf16index: mainLoc.utf16Column + 2)
+    let ws = try await MultiFileTestWorkspace(files: [
+      "Object.h": """
+      struct Object {
+        int field;
+      };
 
-    try ws.openDocument(mainLoc.url, language: .c)
+      struct Object * newObject();
+      """,
+      "main.c": """
+      #include "Object.h"
+
+      int main(int argc, const char *argv[]) {
+        struct Object *obj = 1️⃣newObject();
+      }
+      """,
+    ])
+
+    let (mainUri, positions) = try ws.openDocument("main.c")
+    let headerUri = try ws.uri(for: "Object.h")
 
     let goToInclude = DeclarationRequest(
-      textDocument: mainLoc.docIdentifier,
-      position: includePosition
+      textDocument: TextDocumentIdentifier(mainUri),
+      position: positions["1️⃣"]
     )
     let resp = try await ws.testClient.send(goToInclude)
 
@@ -383,12 +407,12 @@ final class SKTests: XCTestCase {
     case .locations(let locations):
       XCTAssert(!locations.isEmpty, "Found no locations for go-to-declaration")
       if let loc = locations.first {
-        XCTAssertEqual(loc.uri, expectedDoc)
+        XCTAssertEqual(loc.uri, headerUri)
       }
     case .locationLinks(let locationLinks):
       XCTAssert(!locationLinks.isEmpty, "Found no location links for go-to-declaration")
       if let link = locationLinks.first {
-        XCTAssertEqual(link.targetUri, expectedDoc)
+        XCTAssertEqual(link.targetUri, headerUri)
       }
     }
   }
