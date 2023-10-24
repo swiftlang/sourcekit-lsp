@@ -13,45 +13,64 @@
 import ISDBTestSupport
 import LSPTestSupport
 import LanguageServerProtocol
+import SKTestSupport
 import TSCBasic
 import XCTest
 
 final class CallHierarchyTests: XCTestCase {
   func testCallHierarchy() async throws {
-    let ws = try await staticSourceKitTibsWorkspace(name: "CallHierarchy")!
-    try ws.buildAndIndex()
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      func 1️⃣a() {}
 
-    try ws.openDocument(ws.testLoc("a.swift").url, language: .swift)
+      func 2️⃣b(x: String) {
+        3️⃣a()
+        4️⃣c()
+        5️⃣b(x: "test")
+      }
 
-    // Requests
+      func 6️⃣c() {
+        7️⃣a()
+        if 8️⃣d() {
+          9️⃣c()
+        }
+      }
 
-    func callHierarchy(at testLoc: TestLocation) async throws -> [CallHierarchyItem] {
-      let textDocument = testLoc.docIdentifier
-      let request = CallHierarchyPrepareRequest(textDocument: textDocument, position: Position(testLoc))
+      func 🔟d() -> Bool {
+        false
+      }
+
+      a()
+      b(x: "test")
+      """
+    )
+
+    func callHierarchy(at position: Position) async throws -> [CallHierarchyItem] {
+      let request = CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(ws.fileURI), position: position)
       return try await ws.testClient.send(request) ?? []
     }
 
-    func incomingCalls(at testLoc: TestLocation) async throws -> [CallHierarchyIncomingCall] {
-      guard let item = try await callHierarchy(at: testLoc).first else {
-        XCTFail("call hierarchy at \(testLoc) was empty")
+    func incomingCalls(at position: Position) async throws -> [CallHierarchyIncomingCall] {
+      guard let item = try await callHierarchy(at: position).first else {
+        XCTFail("call hierarchy at \(position) was empty")
         return []
       }
       let request = CallHierarchyIncomingCallsRequest(item: item)
       return try await ws.testClient.send(request) ?? []
     }
 
-    func outgoingCalls(at testLoc: TestLocation) async throws -> [CallHierarchyOutgoingCall] {
-      guard let item = try await callHierarchy(at: testLoc).first else {
-        XCTFail("call hierarchy at \(testLoc) was empty")
+    func outgoingCalls(at position: Position) async throws -> [CallHierarchyOutgoingCall] {
+      guard let item = try await callHierarchy(at: position).first else {
+        XCTFail("call hierarchy at \(position) was empty")
         return []
       }
       let request = CallHierarchyOutgoingCallsRequest(item: item)
       return try await ws.testClient.send(request) ?? []
     }
 
-    func usr(at testLoc: TestLocation) async throws -> String {
-      guard let item = try await callHierarchy(at: testLoc).first else {
-        XCTFail("call hierarchy at \(testLoc) was empty")
+    func usr(at position: Position) async throws -> String {
+      guard let item = try await callHierarchy(at: position).first else {
+        XCTFail("call hierarchy at \(position) was empty")
         return ""
       }
       guard case let .dictionary(data) = item.data,
@@ -65,95 +84,102 @@ final class CallHierarchyTests: XCTestCase {
 
     // Convenience functions
 
-    func testLoc(_ name: String) -> TestLocation {
-      ws.testLoc(name)
-    }
-
-    func loc(_ name: String) -> Location {
-      Location(badUTF16: ws.testLoc(name))
-    }
-
     func item(
       _ name: String,
       _ kind: SymbolKind,
-      detail: String = "main",
+      detail: String = "test",
       usr: String,
-      at locName: String
-    ) throws -> CallHierarchyItem {
-      let location = loc(locName)
+      at position: Position
+    ) -> CallHierarchyItem {
       return CallHierarchyItem(
         name: name,
         kind: kind,
         tags: nil,
         detail: detail,
-        uri: try location.uri.nativeURI,
-        range: location.range,
-        selectionRange: location.range,
+        uri: ws.fileURI,
+        range: Range(position),
+        selectionRange: Range(position),
         data: .dictionary([
           "usr": .string(usr),
-          "uri": .string(try location.uri.nativeURI.stringValue),
+          "uri": .string(ws.fileURI.stringValue),
         ])
       )
     }
 
-    func inCall(_ item: CallHierarchyItem, at locName: String) -> CallHierarchyIncomingCall {
-      CallHierarchyIncomingCall(
-        from: item,
-        fromRanges: [loc(locName).range]
-      )
-    }
-
-    func outCall(_ item: CallHierarchyItem, at locName: String) -> CallHierarchyOutgoingCall {
-      CallHierarchyOutgoingCall(
-        to: item,
-        fromRanges: [loc(locName).range]
-      )
-    }
-
-    let aUsr = try await usr(at: testLoc("a"))
-    let bUsr = try await usr(at: testLoc("b"))
-    let cUsr = try await usr(at: testLoc("c"))
-    let dUsr = try await usr(at: testLoc("d"))
+    let aUsr = try await usr(at: ws.positions["1️⃣"])
+    let bUsr = try await usr(at: ws.positions["2️⃣"])
+    let cUsr = try await usr(at: ws.positions["6️⃣"])
+    let dUsr = try await usr(at: ws.positions["🔟"])
 
     // Test outgoing call hierarchy
 
-    assertEqual(try await outgoingCalls(at: testLoc("a")), [])
+    assertEqual(try await outgoingCalls(at: ws.positions["1️⃣"]), [])
     assertEqual(
-      try await outgoingCalls(at: testLoc("b")),
+      try await outgoingCalls(at: ws.positions["2️⃣"]),
       [
-        outCall(try item("a()", .function, usr: aUsr, at: "a"), at: "b->a"),
-        outCall(try item("c()", .function, usr: cUsr, at: "c"), at: "b->c"),
-        outCall(try item("b(x:)", .function, usr: bUsr, at: "b"), at: "b->b"),
+        CallHierarchyOutgoingCall(
+          to: item("a()", .function, usr: aUsr, at: ws.positions["1️⃣"]),
+          fromRanges: [Range(ws.positions["3️⃣"])]
+        ),
+        CallHierarchyOutgoingCall(
+          to: item("c()", .function, usr: cUsr, at: ws.positions["6️⃣"]),
+          fromRanges: [Range(ws.positions["4️⃣"])]
+        ),
+        CallHierarchyOutgoingCall(
+          to: item("b(x:)", .function, usr: bUsr, at: ws.positions["2️⃣"]),
+          fromRanges: [Range(ws.positions["5️⃣"])]
+        ),
       ]
     )
     assertEqual(
-      try await outgoingCalls(at: testLoc("c")),
+      try await outgoingCalls(at: ws.positions["6️⃣"]),
       [
-        outCall(try item("a()", .function, usr: aUsr, at: "a"), at: "c->a"),
-        outCall(try item("d()", .function, usr: dUsr, at: "d"), at: "c->d"),
-        outCall(try item("c()", .function, usr: cUsr, at: "c"), at: "c->c"),
+        CallHierarchyOutgoingCall(
+          to: item("a()", .function, usr: aUsr, at: ws.positions["1️⃣"]),
+          fromRanges: [Range(ws.positions["7️⃣"])]
+        ),
+        CallHierarchyOutgoingCall(
+          to: item("d()", .function, usr: dUsr, at: ws.positions["🔟"]),
+          fromRanges: [Range(ws.positions["8️⃣"])]
+        ),
+        CallHierarchyOutgoingCall(
+          to: item("c()", .function, usr: cUsr, at: ws.positions["6️⃣"]),
+          fromRanges: [Range(ws.positions["9️⃣"])]
+        ),
       ]
     )
 
     // Test incoming call hierarchy
 
     assertEqual(
-      try await incomingCalls(at: testLoc("a")),
+      try await incomingCalls(at: ws.positions["1️⃣"]),
       [
-        inCall(try item("b(x:)", .function, usr: bUsr, at: "b"), at: "b->a"),
-        inCall(try item("c()", .function, usr: cUsr, at: "c"), at: "c->a"),
+        CallHierarchyIncomingCall(
+          from: item("b(x:)", .function, usr: bUsr, at: ws.positions["2️⃣"]),
+          fromRanges: [Range(ws.positions["3️⃣"])]
+        ),
+        CallHierarchyIncomingCall(
+          from: item("c()", .function, usr: cUsr, at: ws.positions["6️⃣"]),
+          fromRanges: [Range(ws.positions["7️⃣"])]
+        ),
       ]
     )
     assertEqual(
-      try await incomingCalls(at: testLoc("b")),
+      try await incomingCalls(at: ws.positions["2️⃣"]),
       [
-        inCall(try item("b(x:)", .function, usr: bUsr, at: "b"), at: "b->b")
+        CallHierarchyIncomingCall(
+          from: item("b(x:)", .function, usr: bUsr, at: ws.positions["2️⃣"]),
+          fromRanges: [Range(ws.positions["5️⃣"])]
+        )
       ]
     )
     assertEqual(
-      try await incomingCalls(at: testLoc("d")),
+      try await incomingCalls(at: ws.positions["🔟"]),
       [
-        inCall(try item("c()", .function, usr: cUsr, at: "c"), at: "c->d")
+        CallHierarchyIncomingCall(
+          from: item("c()", .function, usr: cUsr, at: ws.positions["6️⃣"]),
+          fromRanges: [Range(ws.positions["8️⃣"])]
+        )
       ]
     )
   }

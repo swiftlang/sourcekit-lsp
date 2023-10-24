@@ -118,37 +118,51 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testMultipleClangdWorkspaces() async throws {
-    guard let ws = try await staticSourceKitTibsWorkspace(name: "ClangModules") else { return }
+    let ws = try await MultiFileTestWorkspace(
+      files: [
+        "WorkspaceA/main.cpp": """
+        #if FOO
+        void 1️⃣foo2️⃣() {}
+        #else
+        void foo() {}
+        #endif
 
-    let loc = ws.testLoc("main_file")
+        int main() {
+          3️⃣foo4️⃣();
+        }
+        """,
+        "WorkspaceA/compile_flags.txt": """
+        -DFOO
+        """,
+        "WorkspaceB/test.m": "",
+      ],
+      workspaces: { scratchDir in
+        return [
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("WorkspaceA"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("WorkspaceB"))),
+        ]
+      }
+    )
 
-    try ws.openDocument(loc.url, language: .objective_c)
+    _ = try ws.openDocument("test.m")
 
     let diags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 0)
 
-    let otherWs = try await staticSourceKitTibsWorkspace(
-      name: "ClangCrashRecoveryBuildSettings",
-      testClient: ws.testClient
-    )!
-    assert(ws.testClient === otherWs.testClient, "Sanity check: The two workspaces should be opened in the same server")
-    let otherLoc = otherWs.testLoc("loc")
-
-    try otherWs.openDocument(otherLoc.url, language: .cpp)
-
-    // Do a sanity check and verify that we get the expected result from a hover response before crashing clangd.
-
-    let expectedHighlightResponse = [
-      DocumentHighlight(range: Position(line: 3, utf16index: 5)..<Position(line: 3, utf16index: 8), kind: .text),
-      DocumentHighlight(range: Position(line: 9, utf16index: 2)..<Position(line: 9, utf16index: 5), kind: .text),
-    ]
+    let (mainUri, positions) = try ws.openDocument("main.cpp")
 
     let highlightRequest = DocumentHighlightRequest(
-      textDocument: otherLoc.docIdentifier,
-      position: Position(line: 9, utf16index: 3)
+      textDocument: TextDocumentIdentifier(mainUri),
+      position: positions["3️⃣"]
     )
-    let highlightResponse = try await otherWs.testClient.send(highlightRequest)
-    XCTAssertEqual(highlightResponse, expectedHighlightResponse)
+    let highlightResponse = try await ws.testClient.send(highlightRequest)
+    XCTAssertEqual(
+      highlightResponse,
+      [
+        DocumentHighlight(range: positions["1️⃣"]..<positions["2️⃣"], kind: .text),
+        DocumentHighlight(range: positions["3️⃣"]..<positions["4️⃣"], kind: .text),
+      ]
+    )
   }
 
   func testRecomputeFileWorkspaceMembershipOnPackageSwiftChange() async throws {
@@ -239,42 +253,67 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testChangeWorkspaceFolders() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "ChangeWorkspaceFolders") else { return }
-    // Build the package. We can't use ws.buildAndIndex() because that doesn't put the build products in .build where SourceKit-LSP expects them.
+    let ws = try await MultiFileTestWorkspace(
+      files: [
+        "subdir/Sources/otherPackage/otherPackage.swift": """
+        import package
+
+        func test() {
+          Package().1️⃣helloWorld()
+        }
+        """,
+        "subdir/Sources/package/package.swift": """
+        public struct Package {
+          public init() {}
+
+          public func helloWorld() {
+            print("Hello world!")
+          }
+        }
+        """,
+        "subdir/Package.swift": """
+        // swift-tools-version: 5.5
+
+        import PackageDescription
+
+        let package = Package(
+          name: "package",
+          products: [
+            .library(name: "package", targets: ["package"]),
+            .library(name: "otherPackage", targets: ["otherPackage"]),
+          ],
+          targets: [
+            .target(
+              name: "package",
+              dependencies: []
+            ),
+            .target(
+              name: "otherPackage",
+              dependencies: ["package"]
+            ),
+          ]
+        )
+        """,
+      ]
+    )
+
+    let packageDir = try ws.uri(for: "Package.swift").fileURL!.deletingLastPathComponent()
+
     try await TSCBasic.Process.checkNonZeroExit(arguments: [
       ToolchainRegistry.shared.default!.swift!.pathString,
       "build",
-      "--package-path", ws.sources.rootDirectory.path,
+      "--package-path", packageDir.path,
       "-Xswiftc", "-index-ignore-system-modules",
       "-Xcc", "-index-ignore-system-symbols",
     ])
 
-    let otherPackLoc = ws.testLoc("otherPackage:call")
+    let (otherPackageUri, positions) = try ws.openDocument("otherPackage.swift")
+    let testPosition = positions["1️⃣"]
 
-    let testClient = try await TestSourceKitLSPClient(
-      capabilities: ClientCapabilities(
-        workspace: .init(workspaceFolders: true)
-      ),
-      workspaceFolders: [WorkspaceFolder(uri: DocumentURI(ws.sources.rootDirectory.deletingLastPathComponent()))]
-    )
-
-    let docString = try String(data: Data(contentsOf: otherPackLoc.url), encoding: .utf8)!
-
-    testClient.send(
-      DidOpenTextDocumentNotification(
-        textDocument: TextDocumentItem(
-          uri: otherPackLoc.docUri,
-          language: .swift,
-          version: 1,
-          text: docString
-        )
-      )
-    )
-
-    let preChangeWorkspaceResponse = try await testClient.send(
+    let preChangeWorkspaceResponse = try await ws.testClient.send(
       CompletionRequest(
-        textDocument: TextDocumentIdentifier(otherPackLoc.docUri),
-        position: otherPackLoc.position
+        textDocument: TextDocumentIdentifier(otherPackageUri),
+        position: testPosition
       )
     )
 
@@ -284,18 +323,18 @@ final class WorkspaceTests: XCTestCase {
       "Did not expect to receive cross-module code completion results if we opened the parent directory of the package"
     )
 
-    testClient.send(
+    ws.testClient.send(
       DidChangeWorkspaceFoldersNotification(
         event: WorkspaceFoldersChangeEvent(added: [
-          WorkspaceFolder(uri: DocumentURI(ws.sources.rootDirectory))
+          WorkspaceFolder(uri: DocumentURI(packageDir))
         ])
       )
     )
 
-    let postChangeWorkspaceResponse = try await testClient.send(
+    let postChangeWorkspaceResponse = try await ws.testClient.send(
       CompletionRequest(
-        textDocument: TextDocumentIdentifier(otherPackLoc.docUri),
-        position: otherPackLoc.position
+        textDocument: TextDocumentIdentifier(otherPackageUri),
+        position: testPosition
       )
     )
 
@@ -314,7 +353,7 @@ final class WorkspaceTests: XCTestCase {
           insertTextFormat: .plain,
           textEdit: .textEdit(
             TextEdit(
-              range: otherPackLoc.position..<otherPackLoc.position,
+              range: Range(testPosition),
               newText: "helloWorld()"
             )
           )
@@ -331,7 +370,7 @@ final class WorkspaceTests: XCTestCase {
           insertTextFormat: .plain,
           textEdit: .textEdit(
             TextEdit(
-              range: otherPackLoc.position..<otherPackLoc.position,
+              range: Range(testPosition),
               newText: "self"
             )
           )

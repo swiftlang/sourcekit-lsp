@@ -287,24 +287,33 @@ final class CodeActionTests: XCTestCase {
   }
 
   func testCodeActionsRemovePlaceholders() async throws {
-    let capabilities = clientCapabilitiesWithCodeActionSupport()
-    let ws = try await staticSourceKitTibsWorkspace(name: "Fixit", clientCapabilities: capabilities)!
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let uri = DocumentURI.for(.swift)
 
-    let def = ws.testLoc("MyStruct:def")
+    let positions = testClient.openDocument(
+      """
+      protocol MyProto {
+        func foo()
+      }
 
-    try ws.openDocument(def.url, language: .swift)
+      struct 1️⃣MyStruct: MyProto {
 
-    let diags = try await ws.testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(diags.uri, def.docUri)
+      }
+      """,
+      uri: uri
+    )
+
+    let diags = try await testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.uri, uri)
     XCTAssertEqual(diags.diagnostics.count, 1)
 
-    let textDocument = TextDocumentIdentifier(def.url)
+    let textDocument = TextDocumentIdentifier(uri)
     let actionsRequest = CodeActionRequest(
-      range: def.position..<def.position,
+      range: positions["1️⃣"]..<positions["1️⃣"],
       context: .init(diagnostics: diags.diagnostics),
       textDocument: textDocument
     )
-    let actionResult = try await ws.testClient.send(actionsRequest)
+    let actionResult = try await testClient.send(actionsRequest)
 
     guard case .codeActions(let codeActions) = actionResult else {
       return XCTFail("Expected code actions, not commands as a response")
@@ -315,7 +324,7 @@ final class CodeActionTests: XCTestCase {
     guard let quickFixAction = codeActions.filter({ $0.kind == .quickFix }).spm_only else {
       return XCTFail("Expected exactly one quick fix action")
     }
-    guard let change = quickFixAction.edit?.changes?[def.docUri]?.spm_only else {
+    guard let change = quickFixAction.edit?.changes?[uri]?.spm_only else {
       return XCTFail("Expected exactly one change")
     }
     XCTAssertEqual(
@@ -339,11 +348,11 @@ final class CodeActionTests: XCTestCase {
 
     let editReceived = self.expectation(description: "Received ApplyEdit request")
 
-    ws.testClient.handleNextRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
+    testClient.handleNextRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
       defer {
         editReceived.fulfill()
       }
-      guard let change = request.edit.changes?[def.docUri]?.spm_only else {
+      guard let change = request.edit.changes?[uri]?.spm_only else {
         XCTFail("Expected exactly one edit")
         return ApplyEditResponse(applied: false, failureReason: "Expected exactly one edit")
       }
@@ -359,7 +368,7 @@ final class CodeActionTests: XCTestCase {
       )
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
-    _ = try await ws.testClient.send(ExecuteCommandRequest(command: command.command, arguments: command.arguments))
+    _ = try await testClient.send(ExecuteCommandRequest(command: command.command, arguments: command.arguments))
 
     try await fulfillmentOfOrThrow([editReceived])
   }

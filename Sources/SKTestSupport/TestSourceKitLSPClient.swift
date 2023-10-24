@@ -61,6 +61,11 @@ public final class TestSourceKitLSPClient: MessageHandler {
   /// since we can't express this in the Swift type system, we use `[Any]`.
   private var requestHandlers: [Any] = []
 
+  /// A closure that is called when the `TestSourceKitLSPClient` is destructed.
+  ///
+  /// This allows e.g. a `IndexedSingleSwiftFileWorkspace` to delete its temporary files when they are no longer needed.
+  private let cleanUp: () -> Void
+
   /// - Parameters:
   ///   - serverOptions: The equivalent of the command line options with which sourcekit-lsp should be started
   ///   - useGlobalModuleCache: If `false`, the server will use its own module
@@ -70,13 +75,17 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///   - initializationOptions: Initialization options to pass to the SourceKit-LSP server.
   ///   - capabilities: The test client's capabilities.
   ///   - workspaceFolders: Workspace folders to open.
+  ///   - cleanUp: A closure that is called when the `TestSourceKitLSPClient` is destructed.
+  ///     This allows e.g. a `IndexedSingleSwiftFileWorkspace` to delete its temporary files when they are no longer
+  ///     needed.
   public init(
     serverOptions: SourceKitServer.Options = .testDefault,
     useGlobalModuleCache: Bool = true,
     initialize: Bool = true,
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
-    workspaceFolders: [WorkspaceFolder]? = nil
+    workspaceFolders: [WorkspaceFolder]? = nil,
+    cleanUp: @escaping () -> Void = {}
   ) async throws {
     if !useGlobalModuleCache {
       moduleCache = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
@@ -104,6 +113,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
       }
     )
 
+    self.cleanUp = cleanUp
     self.serverToClientConnection.start(handler: WeakMessageHandler(self))
 
     if initialize {
@@ -135,6 +145,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
     if let moduleCache {
       try? FileManager.default.removeItem(at: moduleCache)
     }
+    cleanUp()
   }
 
   // MARK: - Sending messages
