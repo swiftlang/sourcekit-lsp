@@ -319,6 +319,11 @@ public struct DocumentPositions {
     }
   }
 
+  init(markedText: String) {
+    let (markers, textWithoutMarker) = extractMarkers(markedText)
+    self.init(markers: markers, textWithoutMarkers: textWithoutMarker)
+  }
+
   fileprivate init(positions: [String: Position]) {
     self.positions = positions
   }

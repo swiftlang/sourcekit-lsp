@@ -47,6 +47,7 @@ public struct IndexedSingleSwiftFileWorkspace {
       testFileURL.path,
       "-index-store-path", indexURL.path,
       "-index-ignore-system-modules",
+      "-typecheck",
       "-o", testWorkspaceDirectory.appendingPathComponent("test.o").path,
     ]
     if let sdk = TibsBuilder.defaultSDKPath {

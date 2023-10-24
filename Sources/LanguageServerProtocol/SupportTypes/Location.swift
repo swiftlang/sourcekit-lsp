@@ -13,7 +13,7 @@
 /// Range within a particular document.
 ///
 /// For a location where the document is implied, use `Position` or `Range<Position>`.
-public struct Location: ResponseType, Hashable, Codable {
+public struct Location: ResponseType, Hashable, Codable, CustomDebugStringConvertible {
 
   public var uri: DocumentURI
 
@@ -23,5 +23,9 @@ public struct Location: ResponseType, Hashable, Codable {
   public init(uri: DocumentURI, range: Range<Position>) {
     self.uri = uri
     self._range = CustomCodable<PositionRange>(wrappedValue: range)
+  }
+
+  public var debugDescription: String {
+    return "\(uri):\(range.lowerBound)-\(range.upperBound)"
   }
 }

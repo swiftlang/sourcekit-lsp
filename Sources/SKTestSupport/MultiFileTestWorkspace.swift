@@ -126,4 +126,12 @@ public class MultiFileTestWorkspace {
     }
     return fileData.uri
   }
+
+  /// Returns the position of the given marker in the given file.
+  public func position(of marker: String, in fileName: String) throws -> Position {
+    guard let fileData = self.fileData[fileName] else {
+      throw Error.fileNotFound
+    }
+    return DocumentPositions(markedText: fileData.markedText)[marker]
+  }
 }

@@ -13,81 +13,307 @@
 import ISDBTestSupport
 import LSPTestSupport
 import LanguageServerProtocol
+import SKTestSupport
 import TSCBasic
 import XCTest
 
 final class ImplementationTests: XCTestCase {
-  func testImplementation() async throws {
-    let ws = try await staticSourceKitTibsWorkspace(name: "Implementation")!
-    try ws.buildAndIndex()
+  // MARK: - Utilities
 
-    try ws.openDocument(ws.testLoc("a.swift").url, language: .swift)
-    try ws.openDocument(ws.testLoc("b.swift").url, language: .swift)
-
-    func impls(at testLoc: TestLocation) async throws -> Set<Location> {
-      let textDocument = testLoc.docIdentifier
-      let request = ImplementationRequest(textDocument: textDocument, position: Position(testLoc))
-      let response = try await ws.testClient.send(request)
-      guard case .locations(let implementations) = response else {
-        XCTFail("Response was not locations")
-        return []
-      }
-      return Set(implementations)
-    }
-    func testLoc(_ name: String) -> TestLocation {
-      ws.testLoc(name)
-    }
-    func loc(_ name: String) throws -> Location {
-      let location: TestLocation = ws.testLoc(name)
-      return Location(
-        badUTF16: TestLocation(
-          url: try location.docUri.nativeURI.fileURL!,
-          line: location.line,
-          utf8Column: location.utf8Column,
-          utf16Column: location.utf16Column
-        )
+  private func testImplementation(
+    _ markedText: String,
+    expectedLocations expectedLocationMarkers: [String] = ["2️⃣"],
+    testName: String = #function,
+    line: UInt = #line
+  ) async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(markedText, testName: testName)
+    let response = try await ws.testClient.send(
+      ImplementationRequest(
+        textDocument: TextDocumentIdentifier(ws.fileURI),
+        position: ws.positions["1️⃣"]
       )
+    )
+    guard case .locations(let implementations) = response else {
+      XCTFail("Response was not locations", line: line)
+      return
     }
+    let expectedLocations = expectedLocationMarkers.map {
+      Location(uri: ws.fileURI, range: Range(ws.positions[$0]))
+    }
+    XCTAssertEqual(implementations, expectedLocations, line: line)
+  }
 
-    try assertEqual(await impls(at: testLoc("Protocol")), [loc("StructConformance")])
-    try assertEqual(await impls(at: testLoc("ProtocolStaticVar")), [loc("StructStaticVar")])
-    try assertEqual(await impls(at: testLoc("ProtocolStaticFunction")), [loc("StructStaticFunction")])
-    try assertEqual(await impls(at: testLoc("ProtocolVariable")), [loc("StructVariable")])
-    try assertEqual(await impls(at: testLoc("ProtocolFunction")), [loc("StructFunction")])
-    try assertEqual(await impls(at: testLoc("Class")), [loc("SubclassConformance")])
-    try assertEqual(await impls(at: testLoc("ClassClassVar")), [loc("SubclassClassVar")])
-    try assertEqual(await impls(at: testLoc("ClassClassFunction")), [loc("SubclassClassFunction")])
-    try assertEqual(await impls(at: testLoc("ClassVariable")), [loc("SubclassVariable")])
-    try assertEqual(await impls(at: testLoc("ClassFunction")), [loc("SubclassFunction")])
+  // MARK: - Tests
 
-    try assertEqual(
-      await impls(at: testLoc("Sepulcidae")),
-      [loc("ParapamphiliinaeConformance"), loc("XyelulinaeConformance"), loc("TrematothoracinaeConformance")]
+  func testProtocolInheritance() async throws {
+    try await testImplementation(
+      """
+      protocol 1️⃣Protocol {}
+      struct Struct: 2️⃣Protocol {}
+      """
     )
-    try assertEqual(
-      await impls(at: testLoc("Parapamphiliinae")),
-      [loc("MicramphiliusConformance"), loc("PamparaphiliusConformance")]
-    )
-    try assertEqual(await impls(at: testLoc("Xyelulinae")), [loc("XyelulaConformance")])
-    try assertEqual(await impls(at: testLoc("Trematothoracinae")), [])
+  }
 
-    try assertEqual(await impls(at: testLoc("Prozaiczne")), [loc("MurkwiaConformance2"), loc("SepulkaConformance1")])
-    try assertEqual(
-      await impls(at: testLoc("Sepulkowate")),
-      [
-        loc("MurkwiaConformance1"), loc("SepulkaConformance2"), loc("PćmaŁagodnaConformance"),
-        loc("PćmaZwyczajnaConformance"),
-      ]
+  func testProtocolStaticVar() async throws {
+    try await testImplementation(
+      """
+      protocol Protocol {
+        static var 1️⃣staticVar: Int { get }
+      }
+      struct Struct: Protocol {
+        static var 2️⃣staticVar: Int { 123 }
+      }
+      """
     )
-    // FIXME: sourcekit returns wrong locations for the function (subclasses that don't override it, and extensions that don't implement it)
-    // try XCTAssertEqual(impls(at: testLoc("rozpocznijSepulenie")), [loc("MurkwiaFunc"), loc("SepulkaFunc"), loc("PćmaŁagodnaFunc"), loc("PćmaZwyczajnaFunc")])
-    try assertEqual(await impls(at: testLoc("Murkwia")), [])
-    try assertEqual(await impls(at: testLoc("MurkwiaFunc")), [])
-    try assertEqual(
-      await impls(at: testLoc("Sepulka")),
-      [loc("SepulkaDwuusznaConformance"), loc("SepulkaPrzechylnaConformance")]
+  }
+
+  func testProtocolStaticFunc() async throws {
+    try await testImplementation(
+      """
+      protocol Protocol {
+        static func 1️⃣staticFunction()
+      }
+      struct Struct: Protocol {
+        static func 2️⃣staticFunction() {}
+      }
+      """
     )
-    try assertEqual(await impls(at: testLoc("SepulkaVar")), [loc("SepulkaDwuusznaVar"), loc("SepulkaPrzechylnaVar")])
-    try assertEqual(await impls(at: testLoc("SepulkaFunc")), [])
+  }
+
+  func testProtocolVar() async throws {
+    try await testImplementation(
+      """
+      protocol Protocol {
+        var 1️⃣variable: Int { get }
+      }
+      struct Struct: Protocol {
+        var 2️⃣variable: Int { 123 }
+      }
+      """
+    )
+  }
+
+  func testProtocolFunc() async throws {
+    try await testImplementation(
+      """
+      protocol Protocol {
+        func 1️⃣function()
+      }
+      struct Struct: Protocol {
+        func 2️⃣function() {}
+      }
+      """
+    )
+  }
+
+  func testClassInheritance() async throws {
+    try await testImplementation(
+      """
+      class 1️⃣Class {}
+      class Subclass: 2️⃣Class {}
+      """
+    )
+  }
+
+  func testClassClassVar() async throws {
+    try await testImplementation(
+      """
+      class Class {
+        class var 1️⃣classVar: Int { 123 }
+      }
+      class Subclass: Class {
+        override class var 2️⃣classVar: Int { 123 }
+      }
+      """
+    )
+  }
+
+  func testClassClassFunc() async throws {
+    try await testImplementation(
+      """
+      class Class {
+        class func 1️⃣classFunction() {}
+      }
+      class Subclass: Class {
+        override class func 2️⃣classFunction() {}
+      }
+      """
+    )
+  }
+
+  func testClassVar() async throws {
+    try await testImplementation(
+      """
+      class Class {
+        var 1️⃣variable: Int { 123 }
+      }
+      class Subclass: Class {
+        override var 2️⃣variable: Int { 123 }
+      }
+      """
+    )
+  }
+
+  func testClassFunc() async throws {
+    try await testImplementation(
+      """
+      class Class {
+        func 1️⃣function() {}
+      }
+      class Subclass: Class {
+        override func 2️⃣function() {}
+      }
+      """
+    )
+  }
+
+  func testClassHierarchy() async throws {
+    try await testImplementation(
+      """
+      class 1️⃣MyClass {}
+      class SubA: 2️⃣MyClass {}
+      class SubASub: SubA {}
+      class SubB: 3️⃣MyClass {}
+      class SubC: 4️⃣MyClass {}
+      """,
+      expectedLocations: ["2️⃣", "3️⃣", "4️⃣"]
+    )
+  }
+
+  func testSubclassHierarchy() async throws {
+    try await testImplementation(
+      """
+      class MyClass {}
+      class 1️⃣Subclass: MyClass {}
+      class SubSubClassA: 2️⃣Subclass {}
+      class SubSubClassB: 3️⃣Subclass {}
+
+      """,
+      expectedLocations: ["2️⃣", "3️⃣"]
+    )
+  }
+
+  func testProtocolHierarchy() async throws {
+    try await testImplementation(
+      """
+      protocol 1️⃣MyProtocol {}
+      protocol OtherProtocol: 2️⃣MyProtocol {}
+
+      class ClassA: 3️⃣MyProtocol {}
+      class ClassB: OtherProtocol, 4️⃣MyProtocol {}
+      """,
+      expectedLocations: ["2️⃣", "3️⃣", "4️⃣"]
+    )
+  }
+
+  func testProtocolConformanceInExtension() async throws {
+    try await testImplementation(
+      """
+      protocol 1️⃣MyProtocol {}
+      class MyClass {}
+      extension MyClass: 2️⃣MyProtocol {}
+      """
+    )
+  }
+
+  func testStandaloneClass() async throws {
+    try await testImplementation(
+      """
+      class 1️⃣MyClass {}
+      """,
+      expectedLocations: []
+    )
+  }
+
+  func testStandaloneClassFunc() async throws {
+    try await testImplementation(
+      """
+      class MyClass {
+        func 1️⃣myFunc() {}
+      }
+      """,
+      expectedLocations: []
+    )
+  }
+
+  func testOverrideClassVar() async throws {
+    try await testImplementation(
+      """
+      class MyClass {
+        var 1️⃣member: String { "puszysta" }
+      }
+      class SubclassA: MyClass {
+        override var 2️⃣member: String { "glazurowana" }
+      }
+      class SubclassB: MyClass {
+        override var 3️⃣member: String { "piaskowana" }
+      }
+      """,
+      expectedLocations: ["2️⃣", "3️⃣"]
+    )
+  }
+
+  func testOverrideProtocolFunc() async throws {
+    // FIXME: We should not be reporting locations 4, 5 and 7 because they don't actually contain myFunc.
+    // We should, however, be reporting location 6
+
+    try await testImplementation(
+      """
+      protocol MyProto {
+        func 1️⃣myFunc()
+      }
+
+      class ClassA: MyProto {
+        func 2️⃣myFunc() {}
+      }
+      class ClassB: MyProto {
+        func 3️⃣myFunc() {}
+      }
+      class 4️⃣ClassBSubA: ClassB {}
+      class 5️⃣ClassBSubB: ClassB {}
+
+      class RetroactiveConformanceClassWithMyFuncInClassDecl {
+        func 6️⃣myFunc() { }
+      }
+      extension 7️⃣RetroactiveConformanceClassWithMyFuncInClassDecl: MyProto {}
+
+      class RetroactiveConformanceClassWithMyFuncInExtension {}
+      extension RetroactiveConformanceClassWithMyFuncInExtension: MyProto {
+        func 8️⃣myFunc() { }
+      }
+      """,
+      expectedLocations: ["2️⃣", "3️⃣", "4️⃣", "5️⃣", "7️⃣", "8️⃣"]
+    )
+  }
+
+  func testCrossFile() async throws {
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "a.swift": """
+        protocol 1️⃣MyProto {}
+        """,
+        "b.swift": """
+        struct MyStruct: 2️⃣MyProto {}
+        """,
+      ],
+      build: true
+    )
+
+    let (aUri, aPositions) = try ws.openDocument("a.swift")
+
+    let response = try await ws.testClient.send(
+      ImplementationRequest(
+        textDocument: TextDocumentIdentifier(aUri),
+        position: aPositions["1️⃣"]
+      )
+    )
+    guard case .locations(let implementations) = response else {
+      XCTFail("Response was not locations")
+      return
+    }
+    XCTAssertEqual(
+      implementations,
+      [Location(uri: try ws.uri(for: "b.swift"), range: Range(try ws.position(of: "2️⃣", in: "b.swift")))]
+    )
   }
 }
