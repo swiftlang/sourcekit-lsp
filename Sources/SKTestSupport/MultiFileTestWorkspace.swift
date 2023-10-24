@@ -60,6 +60,13 @@ public class MultiFileTestWorkspace {
   /// The directory in which the temporary files are being placed.
   let scratchDirectory: URL
 
+  /// Writes the specified files to a temporary directory on disk and creates a `TestSourceKitLSPClient` for that
+  /// temporary directory.
+  ///
+  /// The file contents can contain location markers, which are returned when opening a document using
+  /// ``openDocument(_:)``.
+  ///
+  /// File contents can also contain `$TEST_DIR`, which gets replaced by the temporary directory.
   public init(
     files: [RelativeFileLocation: String],
     workspaces: (URL) -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
@@ -70,6 +77,7 @@ public class MultiFileTestWorkspace {
 
     var fileData: [String: FileData] = [:]
     for (fileLocation, markedText) in files {
+      let markedText = markedText.replacingOccurrences(of: "$TEST_DIR", with: scratchDirectory.path)
       var fileURL = scratchDirectory
       for directory in fileLocation.directories {
         fileURL = fileURL.appendingPathComponent(directory)

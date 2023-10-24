@@ -257,12 +257,36 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testClangModules() async throws {
-    guard let ws = try await staticSourceKitTibsWorkspace(name: "ClangModules") else { return }
-    if ToolchainRegistry.shared.default?.clangd == nil { return }
+    try XCTSkipIf(!haveClangd)
 
-    let loc = ws.testLoc("main_file")
+    let ws = try await MultiFileTestWorkspace(files: [
+      "ClangModuleA.h": """
+      #ifndef ClangModuleA_h
+      #define ClangModuleA_h
 
-    try ws.openDocument(loc.url, language: .objective_c)
+      void func_ClangModuleA(void);
+
+      #endif
+      """,
+      "ClangModules_main.m": """
+      @import ClangModuleA;
+
+      void test(void) {
+        func_ClangModuleA();
+      }
+      """,
+      "module.modulemap": """
+      module ClangModuleA {
+        header "ClangModuleA.h"
+      }
+      """,
+      "compile_flags.txt": """
+      -I
+      $TEST_DIR
+      -fmodules
+      """
+    ])
+    _ = try ws.openDocument("ClangModules_main.m")
 
     let diags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 0)
