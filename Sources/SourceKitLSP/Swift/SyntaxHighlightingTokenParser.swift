@@ -22,7 +22,7 @@ struct SyntaxHighlightingTokenParser {
     self.sourcekitd = sourcekitd
   }
 
-  func parseTokens(
+  private func parseTokens(
     _ response: SKDResponseDictionary,
     in snapshot: DocumentSnapshot,
     into tokens: inout [SyntaxHighlightingToken]
@@ -67,7 +67,7 @@ struct SyntaxHighlightingTokenParser {
     }
   }
 
-  func parseTokens(
+  private func parseTokens(
     _ response: SKDResponseArray,
     in snapshot: DocumentSnapshot,
     into tokens: inout [SyntaxHighlightingToken]
@@ -76,6 +76,12 @@ struct SyntaxHighlightingTokenParser {
       parseTokens(value, in: snapshot, into: &tokens)
       return true
     }
+  }
+
+  func parseTokens(_ response: SKDResponseArray, in snapshot: DocumentSnapshot) -> [SyntaxHighlightingToken] {
+    var tokens: [SyntaxHighlightingToken] = []
+    parseTokens(response, in: snapshot, into: &tokens)
+    return tokens
   }
 
   private func parseKindAndModifiers(

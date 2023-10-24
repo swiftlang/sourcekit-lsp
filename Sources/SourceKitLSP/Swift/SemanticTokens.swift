@@ -12,10 +12,10 @@
 
 import LSPLogging
 import LanguageServerProtocol
+import SourceKitD
 import SwiftIDEUtils
 import SwiftParser
 import SwiftSyntax
-import SourceKitD
 
 extension SwiftLanguageServer {
   /// Requests the semantic highlighting tokens for the given snapshot from sourcekitd.
@@ -23,7 +23,7 @@ extension SwiftLanguageServer {
     guard let buildSettings = await self.buildSettings(for: snapshot.uri), !buildSettings.isFallback else {
       return nil
     }
-    
+
     let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     skreq[keys.request] = requests.semantic_tokens
     skreq[keys.sourcefile] = snapshot.uri.pseudoPath
@@ -36,10 +36,7 @@ extension SwiftLanguageServer {
     guard let skTokens: SKDResponseArray = dict[keys.semantic_tokens] else {
       return nil
     }
-    let tokenParser = SyntaxHighlightingTokenParser(sourcekitd: sourcekitd)
-    var tokens: [SyntaxHighlightingToken] = []
-    tokenParser.parseTokens(skTokens, in: snapshot, into: &tokens)
-    return tokens
+    return SyntaxHighlightingTokenParser(sourcekitd: sourcekitd).parseTokens(skTokens, in: snapshot)
   }
 
   /// Computes an array of syntax highlighting tokens from the syntax tree that
@@ -56,12 +53,13 @@ extension SwiftLanguageServer {
   ) async -> [SyntaxHighlightingToken] {
     async let tree = syntaxTreeManager.syntaxTree(for: snapshot)
     async let semanticTokens = await orLog { try await semanticHighlightingTokens(for: snapshot) }
-    
-    let range = if let range = range.flatMap({ $0.byteSourceRange(in: snapshot) }) {
-      range
-    } else {
-      ByteSourceRange(offset: 0, length: await tree.totalLength.utf8Length)
-    }
+
+    let range =
+      if let range = range.flatMap({ $0.byteSourceRange(in: snapshot) }) {
+        range
+      } else {
+        ByteSourceRange(offset: 0, length: await tree.totalLength.utf8Length)
+      }
     return
       await tree
       .classifications(in: range)
