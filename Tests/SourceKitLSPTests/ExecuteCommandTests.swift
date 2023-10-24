@@ -18,31 +18,37 @@ import XCTest
 
 final class ExecuteCommandTests: XCTestCase {
   func testLocationSemanticRefactoring() async throws {
-    guard let ws = try await staticSourceKitTibsWorkspace(name: "SemanticRefactor") else { return }
-    let loc = ws.testLoc("sr:string")
-    try ws.openDocument(loc.url, language: .swift)
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
 
-    let textDocument = TextDocumentIdentifier(loc.url)
+    let positions = testClient.openDocument(
+      """
+      func foo() {
+        1️⃣"hello2️⃣"3️⃣
+      }
+      """,
+      uri: uri
+    )
 
     let args = SemanticRefactorCommand(
       title: "Localize String",
       actionString: "source.refactoring.kind.localize.string",
-      positionRange: loc.position..<loc.position,
-      textDocument: textDocument
+      positionRange: Range(positions["2️⃣"]),
+      textDocument: TextDocumentIdentifier(uri)
     )
 
-    let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
+    let metadata = SourceKitLSPCommandMetadata(textDocument: TextDocumentIdentifier(uri))
 
     var command = try args.asCommand()
     command.arguments?.append(metadata.encodeToLSPAny())
 
     let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
 
-    ws.testClient.handleNextRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
+    testClient.handleNextRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
 
-    let result = try await ws.testClient.send(request)
+    let result = try await testClient.send(request)
 
     guard case .dictionary(let resultDict) = result else {
       XCTFail("Result is not a dictionary.")
@@ -52,13 +58,13 @@ final class ExecuteCommandTests: XCTestCase {
     XCTAssertEqual(
       WorkspaceEdit(fromLSPDictionary: resultDict),
       WorkspaceEdit(changes: [
-        DocumentURI(loc.url): [
+        uri: [
           TextEdit(
-            range: Position(line: 1, utf16index: 29)..<Position(line: 1, utf16index: 29),
+            range: Range(positions["1️⃣"]),
             newText: "NSLocalizedString("
           ),
           TextEdit(
-            range: Position(line: 1, utf16index: 44)..<Position(line: 1, utf16index: 44),
+            range: Range(positions["3️⃣"]),
             newText: ", comment: \"\")"
           ),
         ]
@@ -67,34 +73,38 @@ final class ExecuteCommandTests: XCTestCase {
   }
 
   func testRangeSemanticRefactoring() async throws {
-    guard let ws = try await staticSourceKitTibsWorkspace(name: "SemanticRefactor") else { return }
-    let loc = ws.testLoc("sr:foo")
-    try ws.openDocument(loc.url, language: .swift)
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
 
-    let textDocument = TextDocumentIdentifier(loc.url)
-
-    let startPosition = Position(line: 1, utf16index: 2)
-    let endPosition = Position(line: 2, utf16index: 10)
+    let positions = testClient.openDocument(
+      """
+      func foo() -> String {
+        1️⃣var a = "hello"
+        return a2️⃣
+      }
+      """,
+      uri: uri
+    )
 
     let args = SemanticRefactorCommand(
       title: "Extract Method",
       actionString: "source.refactoring.kind.extract.function",
-      positionRange: startPosition..<endPosition,
-      textDocument: textDocument
+      positionRange: positions["1️⃣"]..<positions["2️⃣"],
+      textDocument: TextDocumentIdentifier(uri)
     )
 
-    let metadata = SourceKitLSPCommandMetadata(textDocument: textDocument)
+    let metadata = SourceKitLSPCommandMetadata(textDocument: TextDocumentIdentifier(uri))
 
     var command = try args.asCommand()
     command.arguments?.append(metadata.encodeToLSPAny())
 
     let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
 
-    ws.testClient.handleNextRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
+    testClient.handleNextRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
 
-    let result = try await ws.testClient.send(request)
+    let result = try await testClient.send(request)
 
     guard case .dictionary(let resultDict) = result else {
       XCTFail("Result is not a dictionary.")
@@ -104,14 +114,21 @@ final class ExecuteCommandTests: XCTestCase {
     XCTAssertEqual(
       WorkspaceEdit(fromLSPDictionary: resultDict),
       WorkspaceEdit(changes: [
-        DocumentURI(loc.url): [
+        uri: [
           TextEdit(
-            range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 0),
+            range: Range(Position(line: 0, utf16index: 0)),
             newText:
-              "fileprivate func extractedFunc() -> String {\n/*sr:extractStart*/var a = \"/*sr:string*/\"\n  return a\n}\n\n"
+              """
+              fileprivate func extractedFunc() -> String {
+              var a = "hello"
+                return a
+              }
+
+
+              """
           ),
           TextEdit(
-            range: Position(line: 1, utf16index: 2)..<Position(line: 2, utf16index: 10),
+            range: positions["1️⃣"]..<positions["2️⃣"],
             newText: "return extractedFunc()"
           ),
         ]
