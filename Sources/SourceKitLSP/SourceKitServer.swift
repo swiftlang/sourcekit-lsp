@@ -707,20 +707,18 @@ extension SourceKitServer: MessageHandler {
       params,
       id: id,
       clientID: clientID,
-      reply: { [weak self] result in
+      reply: { result in
         reply(result)
         let endDate = Date()
-        if let self {
-          Task {
-            logger.debug(
-              """
-              Sending response (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-              Response<\(R.method, privacy: .public)(\(id, privacy: .public))>(
-                \(String(describing: result))
-              )
-              """
+        Task {
+          logger.debug(
+            """
+            Sending response (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
+            Response<\(R.method, privacy: .public)(\(id, privacy: .public))>(
+              \(String(describing: result))
             )
-          }
+            """
+          )
         }
       }
     )
