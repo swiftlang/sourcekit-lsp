@@ -267,18 +267,29 @@ final class SKTests: XCTestCase {
   }
 
   func testDependenciesUpdatedCXXTibs() async throws {
-    guard let ws = try await mutableSourceKitTibsTestWorkspace(name: "GeneratedHeader") else { return }
-    defer { withExtendedLifetime(ws) {} }  // Keep workspace alive for callbacks.
+    let ws = try await MultiFileTestWorkspace(files: [
+      "lib.c": """
+      int libX(int value) {
+        return value ? 22 : 0;
+      }
+      """,
+      "main.c": """
+      #include "lib-generated.h"
 
-    let moduleRef = ws.testLoc("libX:call:main")
+      int main(int argc, const char *argv[]) {
+        return libX(argc);
+      }
+      """,
+      "compile_flags.txt": "",
+    ])
 
-    let generatedHeaderURL = moduleRef.url.deletingLastPathComponent()
+    let generatedHeaderURL = try ws.uri(for: "main.c").fileURL!.deletingLastPathComponent()
       .appendingPathComponent("lib-generated.h", isDirectory: false)
 
     // Write an empty header file first since clangd doesn't handle missing header
     // files without a recently upstreamed extension.
     try "".write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
-    try ws.openDocument(moduleRef.url, language: .c)
+    let (mainUri, _) = try ws.openDocument("main.c")
 
     let openDiags = try await ws.testClient.nextDiagnosticsNotification()
     // Expect one error:
@@ -288,9 +299,8 @@ final class SKTests: XCTestCase {
     // Update the header file to have the proper contents for our code to build.
     let contents = "int libX(int value);"
     try contents.write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
-    try ws.buildAndIndex()
 
-    await ws.testClient.server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
+    await ws.testClient.server.filesDependenciesUpdated([mainUri])
 
     let updatedDiags = try await ws.testClient.nextDiagnosticsNotification()
     // No more errors expected, import should resolve since we the generated header file
