@@ -238,18 +238,57 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testMixedPackage() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "MixedPackage") else { return }
-    try ws.buildAndIndex()
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "clib/include/clib.h": """
+        #ifndef CLIB_H
+        #define CLIB_H
 
-    let cLoc = ws.testLoc("clib_func:body")
-    let swiftLoc = ws.testLoc("lib.swift:toplevel")
+        void clib_func(void);
+        void clib_other(void);
 
-    try ws.openDocument(swiftLoc.url, language: .swift)
-    try ws.openDocument(cLoc.url, language: .c)
+        #endif // CLIB_H
+        """,
+        "clib/clib.c": """
+        #include "clib.h"
 
-    await assertNoThrow {
-      _ = try await ws.testClient.send(CompletionRequest(textDocument: cLoc.docIdentifier, position: cLoc.position))
-    }
+        void clib_func(void) {1️⃣}
+        """,
+        "lib/lib.swift": """
+        public struct Lib {
+          public func foo() {}
+          public init() {}
+        }
+        2️⃣
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "lib", dependencies: []),
+            .target(name: "clib", dependencies: []),
+          ]
+        )
+        """
+    )
+
+    let (swiftUri, swiftPositions) = try ws.openDocument("lib.swift")
+    let (cUri, cPositions) = try ws.openDocument("clib.c")
+
+    let cCompletions = try await ws.testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(cUri), position: cPositions["1️⃣"])
+    )
+    XCTAssertGreaterThanOrEqual(cCompletions.items.count, 0)
+
+    let swiftCompletions = try await ws.testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(swiftUri), position: swiftPositions["2️⃣"])
+    )
+    XCTAssertGreaterThanOrEqual(swiftCompletions.items.count, 0)
   }
 
   func testChangeWorkspaceFolders() async throws {

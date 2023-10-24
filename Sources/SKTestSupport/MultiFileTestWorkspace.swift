@@ -17,10 +17,10 @@ import SKCore
 /// The location of a test file within test workspace.
 public struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {
   /// The subdirectories in which the file is located.
-  fileprivate let directories: [String]
+  let directories: [String]
 
   /// The file's name.
-  fileprivate let fileName: String
+  let fileName: String
 
   public init(directories: [String] = [], _ fileName: String) {
     self.directories = directories

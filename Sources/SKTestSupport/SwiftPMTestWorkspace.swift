@@ -36,14 +36,22 @@ public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
   ///
   /// If `index` is `true`, then the package will be built, indexing all modules within the package.
   public init(
-    files: [String: String],
+    files: [RelativeFileLocation: String],
     manifest: String = SwiftPMTestWorkspace.defaultPackageManifest,
     build: Bool = false,
     testName: String = #function
   ) async throws {
     var filesByPath: [RelativeFileLocation: String] = [:]
-    for (fileName, contents) in files {
-      filesByPath[RelativeFileLocation(directories: ["Sources", "MyLibrary"], fileName)] = contents
+    for (fileLocation, contents) in files {
+      let directories =
+        if fileLocation.directories.isEmpty {
+          ["Sources", "MyLibrary"]
+        } else if fileLocation.directories.first != "Sources" {
+          ["Sources"] + fileLocation.directories
+        } else {
+          fileLocation.directories
+        }
+      filesByPath[RelativeFileLocation(directories: directories, fileLocation.fileName)] = contents
     }
     filesByPath["Package.swift"] = manifest
     try await super.init(
