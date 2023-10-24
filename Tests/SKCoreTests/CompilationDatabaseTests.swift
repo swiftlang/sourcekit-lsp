@@ -206,7 +206,12 @@ final class CompilationDatabaseTests: XCTestCase {
   func testJSONCompilationDatabaseFromDirectory() throws {
     let fs = InMemoryFileSystem()
     try fs.createDirectory(AbsolutePath(validating: "/a"))
-    XCTAssertNil(tryLoadCompilationDatabase(directory: try AbsolutePath(validating: "/a"), fs))
+    XCTAssertNil(
+      try tryLoadCompilationDatabase(
+        directory: AbsolutePath(validating: "/a"),
+        fs
+      )
+    )
 
     try fs.writeFileContents(
       AbsolutePath(validating: "/a/compile_commands.json"),
@@ -221,13 +226,59 @@ final class CompilationDatabaseTests: XCTestCase {
         """
     )
 
-    XCTAssertNotNil(tryLoadCompilationDatabase(directory: try AbsolutePath(validating: "/a"), fs))
+    XCTAssertNotNil(
+      try tryLoadCompilationDatabase(
+        directory: AbsolutePath(validating: "/a"),
+        fs
+      )
+    )
+  }
+
+  func testJSONCompilationDatabaseFromCustomDirectory() throws {
+    let fs = InMemoryFileSystem()
+    let root = try AbsolutePath(validating: "/a")
+    try fs.createDirectory(root)
+    XCTAssertNil(tryLoadCompilationDatabase(directory: root, fs))
+
+    let customDir = try RelativePath(validating: "custom/build/dir")
+    try fs.createDirectory(root.appending(customDir), recursive: true)
+
+    try fs.writeFileContents(
+      root
+        .appending(customDir)
+        .appending(component: "compile_commands.json"),
+      bytes: """
+        [
+          {
+            "file": "/a/a.swift",
+            "directory": "/a",
+            "arguments": ["swiftc", "/a/a.swift"]
+          }
+        ]
+        """
+    )
+
+    XCTAssertNotNil(
+      try tryLoadCompilationDatabase(
+        directory: AbsolutePath(validating: "/a"),
+        additionalSearchPaths: [
+          RelativePath(validating: "."),
+          customDir,
+        ],
+        fs
+      )
+    )
   }
 
   func testFixedCompilationDatabase() throws {
     let fs = InMemoryFileSystem()
     try fs.createDirectory(try AbsolutePath(validating: "/a"))
-    XCTAssertNil(tryLoadCompilationDatabase(directory: try AbsolutePath(validating: "/a"), fs))
+    XCTAssertNil(
+      try tryLoadCompilationDatabase(
+        directory: AbsolutePath(validating: "/a"),
+        fs
+      )
+    )
 
     try fs.writeFileContents(
       try AbsolutePath(validating: "/a/compile_flags.txt"),
@@ -238,7 +289,10 @@ final class CompilationDatabaseTests: XCTestCase {
         """
     )
 
-    let db = tryLoadCompilationDatabase(directory: try AbsolutePath(validating: "/a"), fs)
+    let db = try tryLoadCompilationDatabase(
+      directory: AbsolutePath(validating: "/a"),
+      fs
+    )
     XCTAssertNotNil(db)
 
     XCTAssertEqual(
@@ -394,6 +448,10 @@ private func checkCompilationDatabaseBuildSystem(
   let fs = InMemoryFileSystem()
   try fs.createDirectory(AbsolutePath(validating: "/a"))
   try fs.writeFileContents(AbsolutePath(validating: "/a/compile_commands.json"), bytes: compdb)
-  let buildSystem = CompilationDatabaseBuildSystem(projectRoot: try AbsolutePath(validating: "/a"), fileSystem: fs)
+  let buildSystem = CompilationDatabaseBuildSystem(
+    projectRoot: try AbsolutePath(validating: "/a"),
+    searchPaths: try [RelativePath(validating: ".")],
+    fileSystem: fs
+  )
   try await block(buildSystem)
 }

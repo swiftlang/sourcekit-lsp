@@ -18,6 +18,7 @@ import SKSupport
 import SKSwiftPMWorkspace
 
 import struct TSCBasic.AbsolutePath
+import struct TSCBasic.RelativePath
 
 /// Same as `??` but allows the right-hand side of the operator to 'await'.
 fileprivate func firstNonNil<T>(_ optional: T?, _ defaultValue: @autoclosure () async throws -> T) async rethrows -> T {
@@ -102,6 +103,7 @@ public final class Workspace {
     capabilityRegistry: CapabilityRegistry,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
+    compilationDatabaseSearchPaths: [RelativePath],
     indexOptions: IndexOptions = IndexOptions(),
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
   ) async throws {
@@ -117,7 +119,7 @@ public final class Workspace {
       ) {
         buildSystem = swiftpm
       } else {
-        buildSystem = CompilationDatabaseBuildSystem(projectRoot: rootPath)
+        buildSystem = CompilationDatabaseBuildSystem(projectRoot: rootPath, searchPaths: compilationDatabaseSearchPaths)
       }
     } else {
       // We assume that workspaces are directories. This is only true for URLs not for URIs in general.

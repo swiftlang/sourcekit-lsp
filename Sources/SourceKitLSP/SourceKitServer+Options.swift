@@ -16,6 +16,7 @@ import SKCore
 import SKSupport
 
 import struct TSCBasic.AbsolutePath
+import struct TSCBasic.RelativePath
 
 extension SourceKitServer {
 
@@ -28,6 +29,9 @@ extension SourceKitServer {
 
     /// Additional arguments to pass to `clangd` on the command-line.
     public var clangdOptions: [String]
+
+    /// Additional paths to search for a compilation database, relative to a workspace root.
+    public var compilationDatabaseSearchPaths: [RelativePath]
 
     /// Additional options for the index.
     public var indexOptions: IndexOptions
@@ -48,6 +52,7 @@ extension SourceKitServer {
     public init(
       buildSetup: BuildSetup = .default,
       clangdOptions: [String] = [],
+      compilationDatabaseSearchPaths: [RelativePath] = [],
       indexOptions: IndexOptions = .init(),
       completionOptions: SKCompletionOptions = .init(),
       generatedInterfacesPath: AbsolutePath = defaultDirectoryForGeneratedInterfaces,
@@ -55,6 +60,7 @@ extension SourceKitServer {
     ) {
       self.buildSetup = buildSetup
       self.clangdOptions = clangdOptions
+      self.compilationDatabaseSearchPaths = compilationDatabaseSearchPaths
       self.indexOptions = indexOptions
       self.completionOptions = completionOptions
       self.generatedInterfacesPath = generatedInterfacesPath

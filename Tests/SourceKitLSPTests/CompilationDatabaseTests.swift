@@ -43,7 +43,11 @@ final class CompilationDatabaseTests: XCTestCase {
     let compilationDatabaseUrl = ws.builder.buildRoot.appendingPathComponent("compile_commands.json")
 
     _ = try ws.sources.edit({ builder in
-      let compilationDatabase = try JSONCompilationDatabase(file: AbsolutePath(validating: compilationDatabaseUrl.path))
+      let compilationDatabase = try XCTUnwrap(
+        JSONCompilationDatabase(
+          file: AbsolutePath(validating: compilationDatabaseUrl.path)
+        )
+      )
       let newCommands = compilationDatabase.allCommands.map {
         (command: CompilationDatabaseCompileCommand) -> CompilationDatabaseCompileCommand in
         var command = command
