@@ -1,4 +1,0 @@
-{
-  "clang_flags": ["-fno-modules", "-Wunused-variable"],
-  "sources": ["std_header_canary.cpp"]
-}

@@ -238,22 +238,31 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testClangStdHeaderCanary() async throws {
-    guard let ws = try await staticSourceKitTibsWorkspace(name: "ClangStdHeaderCanary") else { return }
-    if ToolchainRegistry.shared.default?.clangd == nil { return }
+    try XCTSkipIf(!haveClangd)
 
-    let loc = ws.testLoc("unused_b")
+    // Note: tests generally should avoid including system headers
+    // to keep them fast and portable. This test is specifically
+    // ensuring clangd can find libc++ and builtin headers.
+    let ws = try await MultiFileTestWorkspace(files: [
+      "main.cpp": """
+      #include <cstdint>
 
-    try ws.openDocument(loc.url, language: .cpp)
+      void test() {
+        uint64_t 1️⃣b2️⃣;
+      }
+      """,
+      "compile_flags.txt": "-Wunused-variable",
+    ])
+
+    let (_, positions) = try ws.openDocument("main.cpp")
 
     let diags = try await ws.testClient.nextDiagnosticsNotification()
     // Don't use exact equality because of differences in recent clang.
     XCTAssertEqual(diags.diagnostics.count, 1)
-    XCTAssertEqual(
-      diags.diagnostics.first?.range,
-      Position(loc)..<Position(ws.testLoc("unused_b:end"))
-    )
-    XCTAssertEqual(diags.diagnostics.first?.severity, .warning)
-    XCTAssertEqual(diags.diagnostics.first?.message, "Unused variable 'b'")
+    let diag = try XCTUnwrap(diags.diagnostics.first)
+    XCTAssertEqual(diag.range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(diag.severity, .warning)
+    XCTAssertEqual(diag.message, "Unused variable 'b'")
   }
 
   func testClangModules() async throws {
@@ -284,7 +293,7 @@ final class LocalClangTests: XCTestCase {
       -I
       $TEST_DIR
       -fmodules
-      """
+      """,
     ])
     _ = try ws.openDocument("ClangModules_main.m")
 
