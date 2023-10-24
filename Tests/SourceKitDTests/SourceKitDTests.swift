@@ -19,6 +19,8 @@ import SKSupport
 import SourceKitD
 import TSCBasic
 import XCTest
+import LanguageServerProtocol
+import SKTestSupport
 
 import enum PackageLoading.Platform
 import class TSCBasic.Process
@@ -35,10 +37,9 @@ final class SourceKitDTests: XCTestCase {
   }
 
   func testMultipleNotificationHandlers() throws {
-    let ws = try mutableTibsTestWorkspace(name: "proj1")!
     let sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: SourceKitDTests.sourcekitdPath)
     let keys = sourcekitd.keys
-    let path: String = ws.testLoc("c").url.path
+    let path = DocumentURI.for(.swift).pseudoPath
 
     let isExpectedNotification = { (response: SKDResponse) -> Bool in
       if let notification: sourcekitd_uid_t = response.value?[keys.notification],
