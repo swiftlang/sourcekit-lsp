@@ -36,6 +36,7 @@ public struct IndexedSingleSwiftFileWorkspace {
   ///   - cleanUp: Whether to remove the temporary directory when the SourceKit-LSP server shuts down.
   public init(
     _ markedText: String,
+    indexSystemModules: Bool = false,
     workspaceDirectory: URL? = nil,
     cleanUp: Bool = true,
     testName: String = #function
@@ -56,10 +57,12 @@ public struct IndexedSingleSwiftFileWorkspace {
     var compilerArguments: [String] = [
       testFileURL.path,
       "-index-store-path", indexURL.path,
-      "-index-ignore-system-modules",
-      "-typecheck",
-      "-o", testWorkspaceDirectory.appendingPathComponent("test.o").path,
+      "-typecheck"
     ]
+    if !indexSystemModules {
+      compilerArguments.append("-index-ignore-system-modules")
+    }
+
     if let sdk = TibsBuilder.defaultSDKPath {
       compilerArguments += ["-sdk", sdk]
     }
