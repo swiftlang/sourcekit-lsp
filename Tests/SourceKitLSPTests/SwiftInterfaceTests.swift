@@ -56,13 +56,40 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   func testOpenInterface() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
-    try ws.buildAndIndex()
-    let importedModule = ws.testLoc("lib:import")
-    try ws.openDocument(importedModule.url, language: .swift)
-    let openInterface = OpenInterfaceRequest(textDocument: importedModule.docIdentifier, name: "lib", symbolUSR: nil)
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "MyLibrary/MyLibrary.swift": """
+        public struct Lib {
+          public func foo() {}
+          public init() {}
+        }
+        """,
+        "Exec/main.swift": "import MyLibrary",
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "MyLibrary"),
+            .executableTarget(name: "Exec", dependencies: ["MyLibrary"])
+          ]
+        )
+        """,
+      build: true
+    )
+
+    let (mainUri, _) = try ws.openDocument("main.swift")
+    let openInterface = OpenInterfaceRequest(
+      textDocument: TextDocumentIdentifier(mainUri),
+      name: "MyLibrary",
+      symbolUSR: nil
+    )
     let interfaceDetails = try unwrap(await ws.testClient.send(openInterface))
-    XCTAssert(interfaceDetails.uri.pseudoPath.hasSuffix("/lib.swiftinterface"))
+    XCTAssert(interfaceDetails.uri.pseudoPath.hasSuffix("/MyLibrary.swiftinterface"))
     let fileContents = try XCTUnwrap(
       interfaceDetails.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) })
     )
@@ -139,15 +166,38 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   func testSwiftInterfaceAcrossModules() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
-    try ws.buildAndIndex()
-    let importedModule = ws.testLoc("lib:import")
-    try ws.openDocument(importedModule.url, language: .swift)
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "MyLibrary/MyLibrary.swift": """
+        public struct Lib {
+          public func foo() {}
+          public init() {}
+        }
+        """,
+        "Exec/main.swift": "import 1️⃣MyLibrary",
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "MyLibrary"),
+            .executableTarget(name: "Exec", dependencies: ["MyLibrary"])
+          ]
+        )
+        """,
+      build: true
+    )
+
+    let (mainUri, mainPositions) = try ws.openDocument("main.swift")
     let _resp =
       try await ws.testClient.send(
         DefinitionRequest(
-          textDocument: importedModule.docIdentifier,
-          position: importedModule.position
+          textDocument: TextDocumentIdentifier(mainUri),
+          position: mainPositions["1️⃣"]
         )
       )
     let resp = try XCTUnwrap(_resp)
@@ -157,7 +207,7 @@ final class SwiftInterfaceTests: XCTestCase {
     }
     XCTAssertEqual(locations.count, 1)
     let location = try XCTUnwrap(locations.first)
-    XCTAssertTrue(location.uri.pseudoPath.hasSuffix("/lib.swiftinterface"))
+    XCTAssertTrue(location.uri.pseudoPath.hasSuffix("/MyLibrary.swiftinterface"))
     let fileContents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
     XCTAssertTrue(
       fileContents.contains(
@@ -169,7 +219,8 @@ final class SwiftInterfaceTests: XCTestCase {
             public init()
         }
         """
-      )
+      ),
+      "Generated interface did not contain expected text.\n\(fileContents)"
     )
   }
 }
