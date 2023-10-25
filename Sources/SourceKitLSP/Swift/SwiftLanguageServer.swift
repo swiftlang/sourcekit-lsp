@@ -116,7 +116,6 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   private var inFlightPublishDiagnosticsTasks: [DocumentURI: Task<Void, Never>] = [:]
 
   let syntaxTreeManager = SyntaxTreeManager()
-  let semanticTokensManager = SemanticTokensManager()
 
   nonisolated var keys: sourcekitd_keys { return sourcekitd.keys }
   nonisolated var requests: sourcekitd_requests { return sourcekitd.requests }
@@ -192,63 +191,6 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
   ) {
     self.stateChangeHandlers.append(handler)
-  }
-
-  /// Returns the semantic tokens in `response` for the given `snapshot`.
-  private func semanticTokens(
-    of response: SKDResponseDictionary,
-    for snapshot: DocumentSnapshot
-  ) -> [SyntaxHighlightingToken]? {
-    guard let skTokens: SKDResponseArray = response[keys.annotations] else {
-      return nil
-    }
-    let tokenParser = SyntaxHighlightingTokenParser(sourcekitd: sourcekitd)
-    var tokens: [SyntaxHighlightingToken] = []
-    tokenParser.parseTokens(skTokens, in: snapshot, into: &tokens)
-
-    return tokens
-  }
-
-  /// Inform the client about changes to the syntax highlighting tokens.
-  private func requestTokensRefresh() async {
-    guard let sourceKitServer else {
-      logger.fault("Cannot request a token refresh because SourceKitServer has been destructed")
-      return
-    }
-    if capabilityRegistry.clientHasSemanticTokenRefreshSupport {
-      Task {
-        do {
-          _ = try await sourceKitServer.sendRequestToClient(WorkspaceSemanticTokensRefreshRequest())
-        } catch {
-          logger.error("refreshing tokens failed: \(error.forLogging)")
-        }
-      }
-    }
-  }
-
-  func handleDocumentUpdate(uri: DocumentURI) async {
-    guard let snapshot = documentManager.latestSnapshot(uri) else {
-      return
-    }
-    // Make the magic 0,0 replacetext request to update diagnostics and semantic tokens.
-
-    let req = SKDRequestDictionary(sourcekitd: sourcekitd)
-    req[keys.request] = requests.editor_replacetext
-    req[keys.name] = uri.pseudoPath
-    req[keys.offset] = 0
-    req[keys.length] = 0
-    req[keys.sourcetext] = ""
-
-    if let dict = try? self.sourcekitd.sendSync(req) {
-      let isSemaStage = dict[keys.diagnostic_stage] as sourcekitd_uid_t? == sourcekitd.values.diag_stage_sema
-      if isSemaStage, let semanticTokens = semanticTokens(of: dict, for: snapshot) {
-        // Only update semantic tokens if the 0,0 replacetext request returned semantic information.
-        await semanticTokensManager.setSemanticTokens(for: snapshot.id, semanticTokens: semanticTokens)
-      }
-      if isSemaStage {
-        await requestTokensRefresh()
-      }
-    }
   }
 }
 
@@ -386,6 +328,7 @@ extension SwiftLanguageServer {
     req[keys.request] = self.requests.editor_open
     req[keys.name] = note.textDocument.uri.pseudoPath
     req[keys.sourcetext] = snapshot.text
+    req[keys.syntactic_only] = 1
 
     let compileCommand = await self.buildSettings(for: snapshot.uri)
 
@@ -412,8 +355,6 @@ extension SwiftLanguageServer {
     req[keys.name] = uri.pseudoPath
 
     _ = try? self.sourcekitd.sendSync(req)
-
-    await semanticTokensManager.discardSemanticTokens(for: note.textDocument.uri)
   }
 
   /// Cancels any in-flight tasks to send a `PublishedDiagnosticsNotification` after edits.
@@ -475,6 +416,7 @@ extension SwiftLanguageServer {
       let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
       req[keys.request] = self.requests.editor_replacetext
       req[keys.name] = note.textDocument.uri.pseudoPath
+      req[keys.syntactic_only] = 1
 
       if let range = edit.range {
         guard let offset = before.utf8OffsetOf(line: range.lowerBound.line, utf16Column: range.lowerBound.utf16index),
@@ -507,11 +449,6 @@ extension SwiftLanguageServer {
       preEditSnapshot: preEditSnapshot,
       postEditSnapshot: postEditSnapshot,
       edits: ConcurrentEdits(fromSequential: edits)
-    )
-    await semanticTokensManager.registerEdit(
-      preEditSnapshot: preEditSnapshot.id,
-      postEditSnapshot: postEditSnapshot.id,
-      edits: note.contentChanges
     )
 
     publishDiagnosticsIfNeeded(for: note.textDocument.uri)
@@ -1343,54 +1280,12 @@ extension SwiftLanguageServer: SKDNotificationHandler {
       self.documentManager = DocumentManager()
     }
 
-    guard let dict = notification.value else {
-      logger.fault(
-        """
-        Could not decode sourcekitd notification
-        \(notification.forLogging)
-        """
-      )
-      return
-    }
-
     logger.debug(
       """
       Received notification from sourcekitd
       \(notification.forLogging)
       """
     )
-
-    if let kind: sourcekitd_uid_t = dict[self.keys.notification],
-      kind == self.values.notification_documentupdate,
-      let name: String = dict[self.keys.name]
-    {
-
-      let uri: DocumentURI
-
-      // Paths are expected to be absolute; on Windows, this means that the
-      // path is either drive letter prefixed (and thus `PathGetDriveNumberW`
-      // will provide the driver number OR it is a UNC path and `PathIsUNCW`
-      // will return `true`.  On Unix platforms, the path will start with `/`
-      // which takes care of both a regular absolute path and a POSIX
-      // alternate root path.
-
-      // TODO: this is not completely portable, e.g. MacOS 9 HFS paths are
-      // unhandled.
-      #if os(Windows)
-      let isPath: Bool = name.withCString(encodedAs: UTF16.self) {
-        !PathIsURLW($0)
-      }
-      #else
-      let isPath: Bool = name.starts(with: "/")
-      #endif
-      if isPath {
-        // If sourcekitd returns us a path, translate it back into a URL
-        uri = DocumentURI(URL(fileURLWithPath: name))
-      } else {
-        uri = DocumentURI(string: name)
-      }
-      await self.handleDocumentUpdate(uri: uri)
-    }
   }
 }
 
