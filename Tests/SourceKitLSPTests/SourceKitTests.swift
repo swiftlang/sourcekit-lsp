@@ -424,15 +424,15 @@ final class SKTests: XCTestCase {
       """
       class Foo {
         func slow(x: Invalid1, y: Invalid2) {
-          x / y / x / y / x / y / x / y . 1️⃣
+        1️⃣  x / y / x / y / x / y / x / y . 2️⃣
         }
 
         struct Foo {
-          let fooMember: String
+          let 3️⃣fooMember: String
         }
 
         func fast(a: Foo) {
-          a.2️⃣
+          a.4️⃣
         }
       }
       """,
@@ -443,7 +443,7 @@ final class SKTests: XCTestCase {
 
     let requestID = RequestID.string("cancellation-test")
     testClient.server.handle(
-      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"]),
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"]),
       id: requestID,
       from: ObjectIdentifier(self)
     ) { reply in
@@ -461,9 +461,26 @@ final class SKTests: XCTestCase {
 
     let fastStartDate = Date()
     let fastReply = try await testClient.send(
-      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["4️⃣"])
     )
     XCTAssert(!fastReply.items.isEmpty)
     XCTAssertLessThan(Date().timeIntervalSince(fastStartDate), 2, "Fast request wasn't actually fast")
+
+    // Remove the slow-to-typecheck line. This causes the implicit diagnostics request for the push diagnostics
+    // notification to get cancelled, which unblocks sourcekitd for later tests.
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(range: positions["1️⃣"]..<positions["2️⃣"], text: "")
+        ]
+      )
+    )
+
+    // Check that semantic functionality based on the AST is working again.
+    let symbolInfo = try await testClient.send(
+      SymbolInfoRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+    )
+    XCTAssertGreaterThan(symbolInfo.count, 0)
   }
 }
