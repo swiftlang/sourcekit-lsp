@@ -416,4 +416,54 @@ final class SKTests: XCTestCase {
       }
     }
   }
+
+  func testCancellation() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      class Foo {
+        func slow(x: Invalid1, y: Invalid2) {
+          x / y / x / y / x / y / x / y . 1️⃣
+        }
+
+        struct Foo {
+          let fooMember: String
+        }
+
+        func fast(a: Foo) {
+          a.2️⃣
+        }
+      }
+      """,
+      uri: uri
+    )
+
+    let completionRequestReplied = self.expectation(description: "completion request replied")
+
+    let requestID = RequestID.string("cancellation-test")
+    testClient.server.handle(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"]),
+      id: requestID,
+      from: ObjectIdentifier(self)
+    ) { reply in
+      switch reply {
+      case .success:
+        XCTFail("Expected completion request to fail because it was cancelled")
+      case .failure(let error):
+        XCTAssertEqual(error, ResponseError.cancelled)
+      }
+      completionRequestReplied.fulfill()
+    }
+    testClient.send(CancelRequestNotification(id: requestID))
+
+    try await fulfillmentOfOrThrow([completionRequestReplied])
+
+    let fastStartDate = Date()
+    let fastReply = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    XCTAssert(!fastReply.items.isEmpty)
+    XCTAssertLessThan(Date().timeIntervalSince(fastStartDate), 2, "Fast request wasn't actually fast")
+  }
 }

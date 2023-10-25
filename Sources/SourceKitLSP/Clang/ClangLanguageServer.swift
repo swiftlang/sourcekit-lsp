@@ -327,17 +327,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   ///
   /// The response of the request is  returned asynchronously as the return value.
   func forwardRequestToClangd<R: RequestType>(_ request: R) async throws -> R.Response {
-    try await withCheckedThrowingContinuation { continuation in
-      _ = clangd.send(request) { result in
-        switch result {
-        case .success(let response):
-          continuation.resume(returning: response)
-        case .failure(let error):
-          continuation.resume(throwing: error)
-        }
-      }
-    }
-    // FIXME: (async) Cancellation
+    return try await clangd.send(request)
   }
 
   func _crash() {

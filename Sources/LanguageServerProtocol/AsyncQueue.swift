@@ -88,7 +88,7 @@ public final class AsyncQueue<TaskMetadata: DependencyTracker> {
     let throwingTask = asyncThrowing(priority: priority, metadata: metadata, operation: operation)
     return Task {
       do {
-        return try await throwingTask.value
+        return try await throwingTask.valuePropagatingCancellation
       } catch {
         // We know this can never happen because `operation` does not throw.
         preconditionFailure("Executing a task threw an error even though the operation did not throw")
@@ -141,7 +141,7 @@ public final class AsyncQueue<TaskMetadata: DependencyTracker> {
 
 /// Convenience overloads for serial queues.
 extension AsyncQueue where TaskMetadata == Serial {
-  /// Same as ``async(priority:operation:)`` but specialized for serial queues 
+  /// Same as ``async(priority:operation:)`` but specialized for serial queues
   /// that don't specify any metadata.
   @discardableResult
   public func async<Success: Sendable>(
@@ -151,7 +151,7 @@ extension AsyncQueue where TaskMetadata == Serial {
     return self.async(priority: priority, metadata: Serial(), operation: operation)
   }
 
-  /// Same as ``asyncThrowing(priority:metadata:operation:)`` but specialized 
+  /// Same as ``asyncThrowing(priority:metadata:operation:)`` but specialized
   /// for serial queues that don't specify any metadata.
   public func asyncThrowing<Success: Sendable>(
     priority: TaskPriority? = nil,
