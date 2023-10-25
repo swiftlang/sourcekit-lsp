@@ -22,7 +22,7 @@ public typealias Notification = LanguageServerProtocol.Notification
 public final class TestJSONRPCConnection {
   public let clientToServer: Pipe = Pipe()
   public let serverToClient: Pipe = Pipe()
-  public let client: TestClient
+  public let client: TestMessageHandler
   public let clientConnection: JSONRPCConnection
   public let server: TestServer
   public let serverConnection: JSONRPCConnection
@@ -40,7 +40,7 @@ public final class TestJSONRPCConnection {
       outFD: serverToClient.fileHandleForWriting
     )
 
-    client = TestClient(server: clientConnection)
+    client = TestMessageHandler(server: clientConnection)
     server = TestServer(client: serverConnection)
 
     clientConnection.start(receiveHandler: client) {
@@ -62,13 +62,13 @@ public final class TestJSONRPCConnection {
 }
 
 public struct TestLocalConnection {
-  public let client: TestClient
+  public let client: TestMessageHandler
   public let clientConnection: LocalConnection = .init()
   public let server: TestServer
   public let serverConnection: LocalConnection = .init()
 
   public init() {
-    client = TestClient(server: serverConnection)
+    client = TestMessageHandler(server: serverConnection)
     server = TestServer(client: clientConnection)
 
     clientConnection.start(handler: client)
@@ -81,7 +81,7 @@ public struct TestLocalConnection {
   }
 }
 
-public final class TestClient: MessageHandler {
+public final class TestMessageHandler: MessageHandler {
   /// The connection to the language client.
   public let server: Connection
 
@@ -141,7 +141,7 @@ public final class TestClient: MessageHandler {
   }
 }
 
-extension TestClient: Connection {
+extension TestMessageHandler: Connection {
 
   /// Send a notification to the language server.
   public func send<Notification>(_ notification: Notification) where Notification: NotificationType {
