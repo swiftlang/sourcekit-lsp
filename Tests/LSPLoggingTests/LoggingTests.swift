@@ -57,7 +57,11 @@ fileprivate func assertLogging(
       )
       continue
     }
-    let messageContent = String(message[message.index(after: firstNewline)...])
+    guard message.hasSuffix("\n---") else {
+      XCTFail("Message is expected to end with `---`", file: file, line: line)
+      return
+    }
+    let messageContent = String(message[message.index(after: firstNewline)...].dropLast(4))
     XCTAssertEqual(messageContent, expected, "Message does not match expected", file: file, line: line)
   }
 
@@ -82,7 +86,7 @@ final class LoggingTests: XCTestCase {
       message.starts(with: "[org.swift.sourcekit-lsp:test] error"),
       "Message did not have expected header. Received \n\(message)"
     )
-    XCTAssert(message.hasSuffix("\nmy message"), "Message did not have expected body. Received \n\(message)")
+    XCTAssert(message.hasSuffix("\nmy message\n---"), "Message did not have expected body. Received \n\(message)")
   }
 
   func testLoggingBasic() {

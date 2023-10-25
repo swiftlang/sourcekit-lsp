@@ -291,6 +291,7 @@ public struct NonDarwinLogger {
         """
         [\(subsystem):\(category)] \(level) \(dateFormatter.string(from: date))
         \(message().value.string(for: self.privacyLevel))
+        ---
         """
       )
     }
