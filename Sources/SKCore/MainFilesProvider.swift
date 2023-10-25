@@ -23,7 +23,7 @@ public protocol MainFilesProvider: AnyObject {
   /// mainFilesContainingFile("foo.cpp") == Set(["foo.cpp"])
   /// mainFilesContainingFile("foo.h") == Set(["foo.cpp", "bar.cpp"])
   /// ```
-  func mainFilesContainingFile(_: DocumentURI) -> Set<DocumentURI>
+  func mainFilesContainingFile(_: DocumentURI) async -> Set<DocumentURI>
 }
 
 /// Delegate that responds to possible main file changes.
