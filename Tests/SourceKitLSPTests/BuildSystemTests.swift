@@ -123,8 +123,6 @@ final class BuildSystemTests: XCTestCase {
   // MARK: - Tests
 
   func testClangdDocumentUpdatedBuildSettings() async throws {
-    try XCTSkipIf(true, "rdar://115435598 - crashing on rebranch")
-
     guard haveClangd else { return }
 
     let doc = DocumentURI.for(.objective_c)
@@ -155,14 +153,17 @@ final class BuildSystemTests: XCTestCase {
     let newSettings = FileBuildSettings(compilerArguments: args + ["-DFOO"])
     buildSystem.buildSettingsByFile[doc] = newSettings
 
-    let expectation = XCTestExpectation(description: "refresh")
-    let refreshedDiags = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(refreshedDiags.diagnostics.count, 0)
-    XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
-
     await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
-    try await fulfillmentOfOrThrow([expectation])
+    var receivedCorrectDiagnostic = false
+    for _ in 0..<Int(defaultTimeout) {
+      let refreshedDiags = try await testClient.nextDiagnosticsNotification(timeout: 1)
+      if refreshedDiags.diagnostics.count == 0, text == documentManager.latestSnapshot(doc)!.text {
+        receivedCorrectDiagnostic = true
+        break
+      }
+    }
+    XCTAssert(receivedCorrectDiagnostic)
   }
 
   func testSwiftDocumentUpdatedBuildSettings() async throws {
@@ -269,18 +270,16 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testMainFilesChanged() async throws {
-    try XCTSkipIf(true, "rdar://115176405 - failing on rebranch due to extra published diagnostic")
-
     let ws = try await mutableSourceKitTibsTestWorkspace(name: "MainFiles")!
     let unique_h = ws.testLoc("unique").docIdentifier.uri
 
     try ws.openDocument(unique_h.fileURL!, language: .cpp)
 
-    let openDiags = try await testClient.nextDiagnosticsNotification()
+    let openDiags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openDiags.diagnostics.count, 0)
 
     try ws.buildAndIndex()
-    let diagsFromD = try await testClient.nextDiagnosticsNotification()
+    let diagsFromD = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diagsFromD.diagnostics.count, 1)
     let diagFromD = try XCTUnwrap(diagsFromD.diagnostics.first)
     XCTAssertEqual(diagFromD.severity, .warning)
@@ -301,11 +300,19 @@ final class BuildSystemTests: XCTestCase {
       )
     }
 
-    let diagsFromC = try await testClient.nextDiagnosticsNotification()
-    XCTAssertEqual(diagsFromC.diagnostics.count, 1)
-    let diagFromC = try XCTUnwrap(diagsFromC.diagnostics.first)
-    XCTAssertEqual(diagFromC.severity, .warning)
-    XCTAssertEqual(diagFromC.message, "UNIQUE_INCLUDED_FROM_C")
+    var receivedCorrectDiagnostic = false
+    for _ in 0..<Int(defaultTimeout) {
+      let diagsFromC = try await ws.testClient.nextDiagnosticsNotification(timeout: 1)
+      guard diagsFromC.diagnostics.count == 1, let diagFromC = diagsFromC.diagnostics.first else {
+        continue
+      }
+      guard diagFromC.severity == .warning, diagFromC.message == "UNIQUE_INCLUDED_FROM_C" else {
+        continue
+      }
+      receivedCorrectDiagnostic = true
+      break
+    }
+    XCTAssert(receivedCorrectDiagnostic)
   }
 
   private func clangBuildSettings(for uri: DocumentURI) -> FileBuildSettings {
