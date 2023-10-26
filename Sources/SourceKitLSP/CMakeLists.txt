@@ -10,7 +10,8 @@ add_library(SourceKitLSP STATIC
   SourceKitServer+Options.swift
   SourceKitServer.swift
   ToolchainLanguageServer.swift
-  Workspace.swift)
+  Workspace.swift
+)
 target_sources(SourceKitLSP PRIVATE
   Clang/ClangLanguageServer.swift)
 target_sources(SourceKitLSP PRIVATE
@@ -19,6 +20,7 @@ target_sources(SourceKitLSP PRIVATE
   Swift/CommentXML.swift
   Swift/CursorInfo.swift
   Swift/Diagnostic.swift
+  Swift/DocumentSymbols.swift
   Swift/EditorPlaceholder.swift
   Swift/OpenInterface.swift
   Swift/SemanticRefactorCommand.swift
@@ -30,7 +32,8 @@ target_sources(SourceKitLSP PRIVATE
   Swift/SyntaxHighlightingToken.swift
   Swift/SyntaxHighlightingTokenParser.swift
   Swift/SyntaxTreeManager.swift
-  Swift/VariableTypeInfo.swift)
+  Swift/VariableTypeInfo.swift
+)
 set_target_properties(SourceKitLSP PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 # TODO(compnerd) reduce the exposure here, why is everything PUBLIC-ly linked?

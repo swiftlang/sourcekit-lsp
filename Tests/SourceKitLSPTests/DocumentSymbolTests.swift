@@ -299,15 +299,15 @@ final class DocumentSymbolTests: XCTestCase {
   }
 
   func testMultiplePatternsInVariable() async throws {
-    try await assertDocumentSymbols("1️⃣var 2️⃣varA3️⃣: Int, 4️⃣varB5️⃣ = 06️⃣") { positions in
+    try await assertDocumentSymbols("var 1️⃣varA2️⃣: Int,3️⃣ 4️⃣varB5️⃣ = 06️⃣") { positions in
       [
         DocumentSymbol(
           name: "varA",
-          detail: "Int",
+          detail: nil,
           kind: .variable,
           deprecated: nil,
-          range: positions["1️⃣"]..<positions["6️⃣"],
-          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
+          range: positions["1️⃣"]..<positions["3️⃣"],
+          selectionRange: positions["1️⃣"]..<positions["2️⃣"],
           children: []
         ),
         DocumentSymbol(
@@ -315,7 +315,7 @@ final class DocumentSymbolTests: XCTestCase {
           detail: nil,
           kind: .variable,
           deprecated: nil,
-          range: positions["1️⃣"]..<positions["6️⃣"],
+          range: positions["4️⃣"]..<positions["6️⃣"],
           selectionRange: positions["4️⃣"]..<positions["5️⃣"],
           children: []
         )
@@ -344,7 +344,7 @@ final class DocumentSymbolTests: XCTestCase {
       [
         DocumentSymbol(
           name: "computedVariable",
-          detail: "Int",
+          detail: nil,
           kind: .variable,
           deprecated: nil,
           range: positions["1️⃣"]..<positions["4️⃣"],
@@ -359,9 +359,9 @@ final class DocumentSymbolTests: XCTestCase {
     try await assertDocumentSymbols("1️⃣func 2️⃣+(lhs: Struct, rhs: Struct)3️⃣ { }4️⃣") { positions in
       [
         DocumentSymbol(
-          name: "+(_:_:)",
+          name: "+(lhs:rhs:)",
           detail: nil,
-          kind: .function,
+          kind: .operator,
           deprecated: nil,
           range: positions["1️⃣"]..<positions["4️⃣"],
           selectionRange: positions["2️⃣"]..<positions["3️⃣"],
@@ -372,12 +372,12 @@ final class DocumentSymbolTests: XCTestCase {
   }
 
   func testPrefixOperatorFunc() async throws {
-    try await assertDocumentSymbols("prefix 1️⃣func 2️⃣-(rhs: Struct)3️⃣ { }4️⃣") { positions in
+    try await assertDocumentSymbols("1️⃣prefix func 2️⃣-(rhs: Struct)3️⃣ { }4️⃣") { positions in
       [
         DocumentSymbol(
-          name: "-(_:)",
+          name: "-(rhs:)",
           detail: nil,
-          kind: .function,
+          kind: .operator,
           deprecated: nil,
           range: positions["1️⃣"]..<positions["4️⃣"],
           selectionRange: positions["2️⃣"]..<positions["3️⃣"],
@@ -553,9 +553,9 @@ final class DocumentSymbolTests: XCTestCase {
           selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: [
             DocumentSymbol(
-              name: "init()",
+              name: "init",
               detail: nil,
-              kind: .method,
+              kind: .constructor,
               deprecated: nil,
               range: positions["4️⃣"]..<positions["6️⃣"],
               selectionRange: positions["4️⃣"]..<positions["5️⃣"],
