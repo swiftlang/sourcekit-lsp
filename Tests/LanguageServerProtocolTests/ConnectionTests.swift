@@ -14,9 +14,6 @@ import LSPTestSupport
 import LanguageServerProtocol
 import XCTest
 
-// Workaround ambiguity with Foundation.
-typealias Notification = LanguageServerProtocol.Notification
-
 class ConnectionTests: XCTestCase {
 
   var connection: TestLocalConnection! = nil
@@ -68,8 +65,8 @@ class ConnectionTests: XCTestCase {
     let client = connection.client
     let expectation = self.expectation(description: "note received")
 
-    client.appendOneShotNotificationHandler { (note: Notification<EchoNotification>) in
-      XCTAssertEqual(note.params.string, "hello!")
+    client.appendOneShotNotificationHandler { (note: EchoNotification) in
+      XCTAssertEqual(note.string, "hello!")
       expectation.fulfill()
     }
 

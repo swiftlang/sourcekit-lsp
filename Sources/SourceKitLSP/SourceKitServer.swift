@@ -617,9 +617,7 @@ extension SourceKitServer: MessageHandler {
     }
   }
 
-  private func handleImpl(_ params: some NotificationType, from clientID: ObjectIdentifier) async {
-    let notification = Notification(params, clientID: clientID)
-
+  private func handleImpl(_ notification: some NotificationType, from clientID: ObjectIdentifier) async {
     logger.log(
       """
       Received notification
@@ -627,7 +625,7 @@ extension SourceKitServer: MessageHandler {
       """
     )
 
-    switch notification.params {
+    switch notification {
     case let notification as InitializedNotification:
       self.clientInitialized(notification)
     case let notification as CancelRequestNotification:
@@ -2013,7 +2011,6 @@ private let minWorkspaceSymbolPatternLength = 3
 /// The maximum number of results to return from a `workspace/symbol` request.
 private let maxWorkspaceSymbolResults = 4096
 
-public typealias Notification = LanguageServerProtocol.Notification
 public typealias Diagnostic = LanguageServerProtocol.Diagnostic
 
 extension IndexSymbolKind {

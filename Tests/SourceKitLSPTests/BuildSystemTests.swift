@@ -25,9 +25,6 @@ fileprivate extension SourceKitServer {
   }
 }
 
-// Workaround ambiguity with Foundation.
-typealias LSPNotification = LanguageServerProtocol.Notification
-
 /// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitServer
 /// and other components.
 final class TestBuildSystem: BuildSystem {
