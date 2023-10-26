@@ -17,126 +17,68 @@ import SourceKitLSP
 import XCTest
 
 final class DocumentSymbolTests: XCTestCase {
-  // MARK: - Helpers
-
-  private func performDocumentSymbolRequest(text: String) async throws -> DocumentSymbolResponse {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
-
-    testClient.openDocument(text, uri: uri)
-
-    let request = DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri))
-    return try await testClient.send(request)!
-  }
-
-  private func range(from startTuple: (Int, Int), to endTuple: (Int, Int)) -> Range<Position> {
-    let startPos = Position(line: startTuple.0, utf16index: startTuple.1)
-    let endPos = Position(line: endTuple.0, utf16index: endTuple.1)
-    return startPos..<endPos
-  }
-
   // MARK: - Tests
 
   func testEmpty() async throws {
-    let text = ""
-    let symbols = try await performDocumentSymbolRequest(text: text)
-    XCTAssertEqual(symbols, .documentSymbols([]))
+    try await assertDocumentSymbols("") { positions in [] }
   }
 
-  func testStruct() async throws {
-    let text = """
-      struct Foo { }
-      """
-    let symbols = try await performDocumentSymbolRequest(text: text)
-
-    XCTAssertEqual(
-      symbols,
-      .documentSymbols([
-        DocumentSymbol(
-          name: "Foo",
-          detail: nil,
-          kind: .struct,
-          deprecated: nil,
-          range: range(from: (0, 0), to: (0, 14)),
-          selectionRange: range(from: (0, 7), to: (0, 10)),
-          children: []
-        )
-      ])
-    )
-  }
-
-  func testUnicode() async throws {
-    let text = """
-      struct Żółć { }
-      struct 🍰 { }
-      """
-    let symbols = try await performDocumentSymbolRequest(text: text)
-
-    // while not ascii, these are still single code unit
-    let żółćRange = range(from: (0, 0), to: (0, 15))
-    let żółćSelectionRange = range(from: (0, 7), to: (0, 11))
-    // but cake is two utf-16 code units
-    let cakeRange = range(from: (1, 0), to: (1, 13))
-    let cakeSelectionRange = range(from: (1, 7), to: (1, 9))
-    XCTAssertEqual(
-      symbols,
-      .documentSymbols([
+  func testUnicode1() async throws {
+    try await assertDocumentSymbols("1️⃣struct 2️⃣Żółć3️⃣ { }4️⃣") { positions in
+      [
         DocumentSymbol(
           name: "Żółć",
           detail: nil,
           kind: .struct,
           deprecated: nil,
-          range: żółćRange,
-          selectionRange: żółćSelectionRange,
+          range: positions["1️⃣"]..<positions["4️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: []
-        ),
+        )
+      ]
+    }
+  }
+
+  func testUnicode2() async throws {
+    try await assertDocumentSymbols("1️⃣struct 2️⃣🍰3️⃣ { }4️⃣") { positions in
+      [
         DocumentSymbol(
           name: "🍰",
           detail: nil,
           kind: .struct,
           deprecated: nil,
-          range: cakeRange,
-          selectionRange: cakeSelectionRange,
+          range: positions["1️⃣"]..<positions["4️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: []
-        ),
-      ])
-    )
+        )
+      ]
+    }
   }
 
-  func testEnum() async throws {
-    let text = """
-      enum Foo {
-        case first
-        case second, third
-        case fourth(Int), fifth
-        func notACase() { }; case sixth
-        case seventh, eight(Int, String)
-        enum SubEnum {
-          case a, b
-        }
-        case ninth(someName: Int)
-      }
+  func testEnumCase() async throws {
+    try await assertDocumentSymbols(
       """
-    let symbols = try await performDocumentSymbolRequest(text: text)
-
-    XCTAssertEqual(
-      symbols,
-      .documentSymbols([
+      1️⃣enum 2️⃣Foo3️⃣ {
+        case 4️⃣first5️⃣, 6️⃣second7️⃣
+      }8️⃣
+      """
+    ) { positions in
+      [
         DocumentSymbol(
           name: "Foo",
           detail: nil,
           kind: .enum,
           deprecated: nil,
-          range: range(from: (0, 0), to: (10, 1)),
-          selectionRange: range(from: (0, 5), to: (0, 8)),
+          range: positions["1️⃣"]..<positions["8️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: [
             DocumentSymbol(
               name: "first",
               detail: nil,
               kind: .enumMember,
               deprecated: nil,
-              range: range(from: (1, 7), to: (1, 12)),
-              selectionRange: range(from: (1, 7), to: (1, 12)),
+              range: positions["4️⃣"]..<positions["5️⃣"],
+              selectionRange: positions["4️⃣"]..<positions["5️⃣"],
               children: []
             ),
             DocumentSymbol(
@@ -144,471 +86,563 @@ final class DocumentSymbolTests: XCTestCase {
               detail: nil,
               kind: .enumMember,
               deprecated: nil,
-              range: range(from: (2, 7), to: (2, 13)),
-              selectionRange: range(from: (2, 7), to: (2, 13)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "third",
-              detail: nil,
-              kind: .enumMember,
-              deprecated: nil,
-              range: range(from: (2, 15), to: (2, 20)),
-              selectionRange: range(from: (2, 15), to: (2, 20)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "fourth(_:)",
-              detail: nil,
-              kind: .enumMember,
-              deprecated: nil,
-              range: range(from: (3, 7), to: (3, 18)),
-              selectionRange: range(from: (3, 7), to: (3, 18)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "fifth",
-              detail: nil,
-              kind: .enumMember,
-              deprecated: nil,
-              range: range(from: (3, 20), to: (3, 25)),
-              selectionRange: range(from: (3, 20), to: (3, 25)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "notACase()",
-              detail: nil,
-              kind: .method,
-              deprecated: nil,
-              range: range(from: (4, 2), to: (4, 21)),
-              selectionRange: range(from: (4, 7), to: (4, 17)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "sixth",
-              detail: nil,
-              kind: .enumMember,
-              deprecated: nil,
-              range: range(from: (4, 28), to: (4, 33)),
-              selectionRange: range(from: (4, 28), to: (4, 33)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "seventh",
-              detail: nil,
-              kind: .enumMember,
-              deprecated: nil,
-              range: range(from: (5, 7), to: (5, 14)),
-              selectionRange: range(from: (5, 7), to: (5, 14)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "eight(_:_:)",
-              detail: nil,
-              kind: .enumMember,
-              deprecated: nil,
-              range: range(from: (5, 16), to: (5, 34)),
-              selectionRange: range(from: (5, 16), to: (5, 34)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "SubEnum",
-              detail: nil,
-              kind: .enum,
-              deprecated: nil,
-              range: range(from: (6, 2), to: (8, 3)),
-              selectionRange: range(from: (6, 7), to: (6, 14)),
-              children: [
-                DocumentSymbol(
-                  name: "a",
-                  detail: nil,
-                  kind: .enumMember,
-                  deprecated: nil,
-                  range: range(from: (7, 9), to: (7, 10)),
-                  selectionRange: range(from: (7, 9), to: (7, 10)),
-                  children: []
-                ),
-                DocumentSymbol(
-                  name: "b",
-                  detail: nil,
-                  kind: .enumMember,
-                  deprecated: nil,
-                  range: range(from: (7, 12), to: (7, 13)),
-                  selectionRange: range(from: (7, 12), to: (7, 13)),
-                  children: []
-                ),
-              ]
-            ),
-            DocumentSymbol(
-              name: "ninth(someName:)",
-              detail: nil,
-              kind: .enumMember,
-              deprecated: nil,
-              range: range(from: (9, 7), to: (9, 27)),
-              selectionRange: range(from: (9, 7), to: (9, 27)),
+              range: positions["6️⃣"]..<positions["7️⃣"],
+              selectionRange: positions["6️⃣"]..<positions["7️⃣"],
               children: []
             ),
           ]
         )
-      ])
-    )
+      ]
+    }
   }
 
-  func testAll() async throws {
-    let text = """
+  func testEnumCaseWithAssociatedValue() async throws {
+    try await assertDocumentSymbols(
+      """
+      1️⃣enum 2️⃣Foo3️⃣ {
+        case 4️⃣first(Int)5️⃣
+      }6️⃣
+      """
+    ) { positions in
+      [
+        DocumentSymbol(
+          name: "Foo",
+          detail: nil,
+          kind: .enum,
+          deprecated: nil,
+          range: positions["1️⃣"]..<positions["6️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
+          children: [
+            DocumentSymbol(
+              name: "first(_:)",
+              detail: nil,
+              kind: .enumMember,
+              deprecated: nil,
+              range: positions["4️⃣"]..<positions["5️⃣"],
+              selectionRange: positions["4️⃣"]..<positions["5️⃣"],
+              children: []
+            )
+          ]
+        )
+      ]
+    }
+  }
+
+  func testEnumCaseWithNamedAssociatedValue() async throws {
+    try await assertDocumentSymbols(
+      """
+      1️⃣enum 2️⃣Foo3️⃣ {
+        case 4️⃣first(someName: Int)5️⃣
+      }6️⃣
+      """
+    ) { positions in
+      [
+        DocumentSymbol(
+          name: "Foo",
+          detail: nil,
+          kind: .enum,
+          deprecated: nil,
+          range: positions["1️⃣"]..<positions["6️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
+          children: [
+            DocumentSymbol(
+              name: "first(someName:)",
+              detail: nil,
+              kind: .enumMember,
+              deprecated: nil,
+              range: positions["4️⃣"]..<positions["5️⃣"],
+              selectionRange: positions["4️⃣"]..<positions["5️⃣"],
+              children: []
+            )
+          ]
+        )
+      ]
+    }
+  }
+
+  func testExtension() async throws {
+    try await assertDocumentSymbols(
+      """
       // struct ThisIsCommentedOut { }
       /* struct ThisOneToo { } */
-      extension Int { }
-      struct Struct { }
-      class Class { }
-      enum Enum { case enumMember }
-      protocol Interface { func f() }
-      func function() { }
-      var variable = 0
-      let constant = 0
-      var computedVariable: Int { return 0 }
-      func +(lhs: Struct, rhs: Struct) { }
-      prefix func -(rhs: Struct) { }
-      func f<TypeParameter>(type: TypeParameter.Type) { }
-      struct S<TypeParameter> { }
-      class Foo {
-        func method() { }
-        static func staticMethod() { }
-        class func classMethod() { }
-        var property = 0
-        let constantProperty = 0
-        var computedProperty: Int { return 0 }
-        init() { }
-        static var staticProperty = 0
-        static let staticConstantProperty = 0
-        static var staticComputedProperty: Int { return 0 }
-        class var classProperty: Int { return 0 }
-        func f() {
-          let localConstant = 0
-          var localVariable = 0
-          var localComputedVariable: Int { return 0 }
-          func localFunction() { }
-        }
-      }
+      1️⃣extension 2️⃣Int3️⃣ { }4️⃣
       """
-    let symbols = try await performDocumentSymbolRequest(text: text)
-
-    XCTAssertEqual(
-      symbols,
-      .documentSymbols([
+    ) { positions in
+      [
         DocumentSymbol(
           name: "Int",
           detail: nil,
           kind: .namespace,
           deprecated: nil,
-          range: range(from: (2, 0), to: (2, 17)),
-          selectionRange: range(from: (2, 10), to: (2, 13)),
+          range: positions["1️⃣"]..<positions["4️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: []
-        ),
+        )
+      ]
+    }
+  }
+
+  func testStruct() async throws {
+    try await assertDocumentSymbols("1️⃣struct 2️⃣Struct3️⃣ { }4️⃣") { positions in
+      [
         DocumentSymbol(
           name: "Struct",
           detail: nil,
           kind: .struct,
           deprecated: nil,
-          range: range(from: (3, 0), to: (3, 17)),
-          selectionRange: range(from: (3, 7), to: (3, 13)),
+          range: positions["1️⃣"]..<positions["4️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: []
-        ),
+        )
+      ]
+    }
+  }
+
+  func testClass() async throws {
+    try await assertDocumentSymbols("1️⃣class 2️⃣Class3️⃣ { }4️⃣") { positions in
+      [
         DocumentSymbol(
           name: "Class",
           detail: nil,
           kind: .class,
           deprecated: nil,
-          range: range(from: (4, 0), to: (4, 15)),
-          selectionRange: range(from: (4, 6), to: (4, 11)),
+          range: positions["1️⃣"]..<positions["4️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: []
-        ),
+        )
+      ]
+    }
+  }
+
+  func testEnum() async throws {
+    try await assertDocumentSymbols("1️⃣enum 2️⃣Enum3️⃣ { case 4️⃣enumMember5️⃣ }6️⃣") { positions in
+      [
         DocumentSymbol(
           name: "Enum",
           detail: nil,
           kind: .enum,
           deprecated: nil,
-          range: range(from: (5, 0), to: (5, 29)),
-          selectionRange: range(from: (5, 5), to: (5, 9)),
+          range: positions["1️⃣"]..<positions["6️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: [
             DocumentSymbol(
               name: "enumMember",
               detail: nil,
               kind: .enumMember,
               deprecated: nil,
-              range: range(from: (5, 17), to: (5, 27)),
-              selectionRange: range(from: (5, 17), to: (5, 27)),
+              range: positions["4️⃣"]..<positions["5️⃣"],
+              selectionRange: positions["4️⃣"]..<positions["5️⃣"],
               children: []
             )
           ]
-        ),
+        )
+      ]
+    }
+  }
+
+  func testProtocol() async throws {
+    try await assertDocumentSymbols("1️⃣protocol 2️⃣Interface3️⃣ { 4️⃣func 5️⃣f()6️⃣ }7️⃣") { positions in
+      [
         DocumentSymbol(
           name: "Interface",
           detail: nil,
           kind: .interface,
           deprecated: nil,
-          range: range(from: (6, 0), to: (6, 31)),
-          selectionRange: range(from: (6, 9), to: (6, 18)),
+          range: positions["1️⃣"]..<positions["7️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: [
             DocumentSymbol(
               name: "f()",
               detail: nil,
               kind: .method,
               deprecated: nil,
-              range: range(from: (6, 21), to: (6, 29)),
-              selectionRange: range(from: (6, 26), to: (6, 29)),
+              range: positions["4️⃣"]..<positions["6️⃣"],
+              selectionRange: positions["5️⃣"]..<positions["6️⃣"],
               children: []
             )
           ]
-        ),
+        )
+      ]
+    }
+  }
+
+  func testFunction() async throws {
+    try await assertDocumentSymbols("1️⃣func 2️⃣function()3️⃣ { }4️⃣") { positions in
+      [
         DocumentSymbol(
           name: "function()",
           detail: nil,
           kind: .function,
           deprecated: nil,
-          range: range(from: (7, 0), to: (7, 19)),
-          selectionRange: range(from: (7, 5), to: (7, 15)),
+          range: positions["1️⃣"]..<positions["4️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: []
-        ),
+        )
+      ]
+    }
+  }
+
+  func testVariable() async throws {
+    try await assertDocumentSymbols("1️⃣var 2️⃣variable3️⃣ = 04️⃣") { positions in
+      [
         DocumentSymbol(
           name: "variable",
           detail: nil,
           kind: .variable,
           deprecated: nil,
-          range: range(from: (8, 0), to: (8, 16)),
-          selectionRange: range(from: (8, 4), to: (8, 12)),
+          range: positions["1️⃣"]..<positions["4️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
+          children: []
+        )
+      ]
+    }
+  }
+
+  func testMultiplePatternsInVariable() async throws {
+    try await assertDocumentSymbols("var 1️⃣varA2️⃣: Int,3️⃣ 4️⃣varB5️⃣ = 06️⃣") { positions in
+      [
+        DocumentSymbol(
+          name: "varA",
+          detail: nil,
+          kind: .variable,
+          deprecated: nil,
+          range: positions["1️⃣"]..<positions["3️⃣"],
+          selectionRange: positions["1️⃣"]..<positions["2️⃣"],
           children: []
         ),
+        DocumentSymbol(
+          name: "varB",
+          detail: nil,
+          kind: .variable,
+          deprecated: nil,
+          range: positions["4️⃣"]..<positions["6️⃣"],
+          selectionRange: positions["4️⃣"]..<positions["5️⃣"],
+          children: []
+        )
+      ]
+    }
+  }
+
+  func testConstant() async throws {
+    try await assertDocumentSymbols("1️⃣let 2️⃣constant3️⃣ = 04️⃣") { positions in
+      [
         DocumentSymbol(
           name: "constant",
           detail: nil,
           kind: .variable,
           deprecated: nil,
-          range: range(from: (9, 0), to: (9, 16)),
-          selectionRange: range(from: (9, 4), to: (9, 12)),
+          range: positions["1️⃣"]..<positions["4️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: []
-        ),
+        )
+      ]
+    }
+  }
+
+  func testComputedVariable() async throws {
+    try await assertDocumentSymbols("1️⃣var 2️⃣computedVariable3️⃣: Int { return 0 }4️⃣") { positions in
+      [
         DocumentSymbol(
           name: "computedVariable",
-          detail: "Int",
+          detail: nil,
           kind: .variable,
           deprecated: nil,
-          range: range(from: (10, 0), to: (10, 38)),
-          selectionRange: range(from: (10, 4), to: (10, 20)),
+          range: positions["1️⃣"]..<positions["4️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: []
-        ),
+        )
+      ]
+    }
+  }
+
+  func testOperatorFunc() async throws {
+    try await assertDocumentSymbols("1️⃣func 2️⃣+(lhs: Struct, rhs: Struct)3️⃣ { }4️⃣") { positions in
+      [
         DocumentSymbol(
-          name: "+(_:_:)",
+          name: "+(lhs:rhs:)",
           detail: nil,
-          kind: .function,
+          kind: .operator,
           deprecated: nil,
-          range: range(from: (11, 0), to: (11, 36)),
-          selectionRange: range(from: (11, 5), to: (11, 32)),
+          range: positions["1️⃣"]..<positions["4️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: []
-        ),
+        )
+      ]
+    }
+  }
+
+  func testPrefixOperatorFunc() async throws {
+    try await assertDocumentSymbols("1️⃣prefix func 2️⃣-(rhs: Struct)3️⃣ { }4️⃣") { positions in
+      [
         DocumentSymbol(
-          name: "-(_:)",
+          name: "-(rhs:)",
           detail: nil,
-          kind: .function,
+          kind: .operator,
           deprecated: nil,
-          range: range(from: (12, 7), to: (12, 30)),
-          selectionRange: range(from: (12, 12), to: (12, 26)),
+          range: positions["1️⃣"]..<positions["4️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: []
-        ),
+        )
+      ]
+    }
+  }
+
+  func testGenericFunc() async throws {
+    try await assertDocumentSymbols("1️⃣func 2️⃣f<3️⃣TypeParameter4️⃣>(type: TypeParameter.Type)5️⃣ { }6️⃣") { positions in
+      [
         DocumentSymbol(
           name: "f(type:)",
           detail: nil,
           kind: .function,
           deprecated: nil,
-          range: range(from: (13, 0), to: (13, 51)),
-          selectionRange: range(from: (13, 5), to: (13, 47)),
+          range: positions["1️⃣"]..<positions["6️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["5️⃣"],
           children: [
             DocumentSymbol(
               name: "TypeParameter",
               detail: nil,
               kind: .typeParameter,
               deprecated: nil,
-              range: range(from: (13, 7), to: (13, 20)),
-              selectionRange: range(from: (13, 7), to: (13, 20)),
+              range: positions["3️⃣"]..<positions["4️⃣"],
+              selectionRange: positions["3️⃣"]..<positions["4️⃣"],
               children: []
             )
           ]
-        ),
+        )
+      ]
+    }
+  }
+
+  func testGenericStruct() async throws {
+    try await assertDocumentSymbols("1️⃣struct 2️⃣S3️⃣<4️⃣TypeParameter5️⃣> { }6️⃣") { positions in
+      [
         DocumentSymbol(
           name: "S",
           detail: nil,
           kind: .struct,
           deprecated: nil,
-          range: range(from: (14, 0), to: (14, 27)),
-          selectionRange: range(from: (14, 7), to: (14, 8)),
+          range: positions["1️⃣"]..<positions["6️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: [
             DocumentSymbol(
               name: "TypeParameter",
               detail: nil,
               kind: .typeParameter,
               deprecated: nil,
-              range: range(from: (14, 9), to: (14, 22)),
-              selectionRange: range(from: (14, 9), to: (14, 22)),
+              range: positions["4️⃣"]..<positions["5️⃣"],
+              selectionRange: positions["4️⃣"]..<positions["5️⃣"],
               children: []
             )
           ]
-        ),
+        )
+      ]
+    }
+  }
+
+  func testClassFunction() async throws {
+    try await assertDocumentSymbols(
+      """
+      1️⃣class 2️⃣Foo3️⃣ {
+        4️⃣func 5️⃣method()6️⃣ { }7️⃣
+      }8️⃣
+      """
+    ) { positions in
+      [
         DocumentSymbol(
           name: "Foo",
           detail: nil,
           kind: .class,
           deprecated: nil,
-          range: range(from: (15, 0), to: (33, 1)),
-          selectionRange: range(from: (15, 6), to: (15, 9)),
+          range: positions["1️⃣"]..<positions["8️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
           children: [
             DocumentSymbol(
               name: "method()",
               detail: nil,
               kind: .method,
               deprecated: nil,
-              range: range(from: (16, 2), to: (16, 19)),
-              selectionRange: range(from: (16, 7), to: (16, 15)),
+              range: positions["4️⃣"]..<positions["7️⃣"],
+              selectionRange: positions["5️⃣"]..<positions["6️⃣"],
               children: []
-            ),
+            )
+          ]
+        )
+      ]
+    }
+  }
+
+  func testStaticClassFunction() async throws {
+    try await assertDocumentSymbols(
+      """
+      1️⃣class 2️⃣Foo3️⃣ {
+        4️⃣static func 5️⃣staticMethod()6️⃣ { }7️⃣
+      }8️⃣
+      """
+    ) { positions in
+      [
+        DocumentSymbol(
+          name: "Foo",
+          detail: nil,
+          kind: .class,
+          deprecated: nil,
+          range: positions["1️⃣"]..<positions["8️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
+          children: [
             DocumentSymbol(
               name: "staticMethod()",
               detail: nil,
               kind: .method,
               deprecated: nil,
-              range: range(from: (17, 2), to: (17, 32)),
-              selectionRange: range(from: (17, 14), to: (17, 28)),
+              range: positions["4️⃣"]..<positions["7️⃣"],
+              selectionRange: positions["5️⃣"]..<positions["6️⃣"],
               children: []
-            ),
-            DocumentSymbol(
-              name: "classMethod()",
-              detail: nil,
-              kind: .method,
-              deprecated: nil,
-              range: range(from: (18, 2), to: (18, 30)),
-              selectionRange: range(from: (18, 13), to: (18, 26)),
-              children: []
-            ),
+            )
+          ]
+        )
+      ]
+    }
+  }
+
+  func testStaticClassProperty() async throws {
+    try await assertDocumentSymbols(
+      """
+      1️⃣class 2️⃣Foo3️⃣ {
+        4️⃣var 5️⃣property6️⃣ = 07️⃣
+      }8️⃣
+      """
+    ) { positions in
+      [
+        DocumentSymbol(
+          name: "Foo",
+          detail: nil,
+          kind: .class,
+          deprecated: nil,
+          range: positions["1️⃣"]..<positions["8️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
+          children: [
             DocumentSymbol(
               name: "property",
               detail: nil,
               kind: .property,
               deprecated: nil,
-              range: range(from: (19, 2), to: (19, 18)),
-              selectionRange: range(from: (19, 6), to: (19, 14)),
+              range: positions["4️⃣"]..<positions["7️⃣"],
+              selectionRange: positions["5️⃣"]..<positions["6️⃣"],
               children: []
-            ),
-            DocumentSymbol(
-              name: "constantProperty",
-              detail: nil,
-              kind: .property,
-              deprecated: nil,
-              range: range(from: (20, 2), to: (20, 26)),
-              selectionRange: range(from: (20, 6), to: (20, 22)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "computedProperty",
-              detail: "Int",
-              kind: .property,
-              deprecated: nil,
-              range: range(from: (21, 2), to: (21, 40)),
-              selectionRange: range(from: (21, 6), to: (21, 22)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "init()",
-              detail: nil,
-              kind: .method,
-              deprecated: nil,
-              range: range(from: (22, 2), to: (22, 12)),
-              selectionRange: range(from: (22, 2), to: (22, 8)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "staticProperty",
-              detail: nil,
-              kind: .property,
-              deprecated: nil,
-              range: range(from: (23, 2), to: (23, 31)),
-              selectionRange: range(from: (23, 13), to: (23, 27)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "staticConstantProperty",
-              detail: nil,
-              kind: .property,
-              deprecated: nil,
-              range: range(from: (24, 2), to: (24, 39)),
-              selectionRange: range(from: (24, 13), to: (24, 35)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "staticComputedProperty",
-              detail: "Int",
-              kind: .property,
-              deprecated: nil,
-              range: range(from: (25, 2), to: (25, 53)),
-              selectionRange: range(from: (25, 13), to: (25, 35)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "classProperty",
-              detail: "Int",
-              kind: .property,
-              deprecated: nil,
-              range: range(from: (26, 2), to: (26, 43)),
-              selectionRange: range(from: (26, 12), to: (26, 25)),
-              children: []
-            ),
-            DocumentSymbol(
-              name: "f()",
-              detail: nil,
-              kind: .method,
-              deprecated: nil,
-              range: range(from: (27, 2), to: (32, 3)),
-              selectionRange: range(from: (27, 7), to: (27, 10)),
-              children: [
-                DocumentSymbol(
-                  name: "localConstant",
-                  detail: nil,
-                  kind: .variable,
-                  deprecated: nil,
-                  range: range(from: (28, 4), to: (28, 25)),
-                  selectionRange: range(from: (28, 8), to: (28, 21)),
-                  children: []
-                ),
-                DocumentSymbol(
-                  name: "localVariable",
-                  detail: nil,
-                  kind: .variable,
-                  deprecated: nil,
-                  range: range(from: (29, 4), to: (29, 25)),
-                  selectionRange: range(from: (29, 8), to: (29, 21)),
-                  children: []
-                ),
-                DocumentSymbol(
-                  name: "localComputedVariable",
-                  detail: "Int",
-                  kind: .variable,
-                  deprecated: nil,
-                  range: range(from: (30, 4), to: (30, 47)),
-                  selectionRange: range(from: (30, 8), to: (30, 29)),
-                  children: []
-                ),
-                DocumentSymbol(
-                  name: "localFunction()",
-                  detail: nil,
-                  kind: .function,
-                  deprecated: nil,
-                  range: range(from: (31, 4), to: (31, 28)),
-                  selectionRange: range(from: (31, 9), to: (31, 24)),
-                  children: []
-                ),
-              ]
-            ),
+            )
           ]
-        ),
-      ])
-    )
+        )
+      ]
+    }
   }
+
+  func testInitializer() async throws {
+    try await assertDocumentSymbols(
+      """
+      1️⃣class 2️⃣Foo3️⃣ {
+        4️⃣init()5️⃣ { }6️⃣
+      }7️⃣
+      """
+    ) { positions in
+      [
+        DocumentSymbol(
+          name: "Foo",
+          detail: nil,
+          kind: .class,
+          deprecated: nil,
+          range: positions["1️⃣"]..<positions["7️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
+          children: [
+            DocumentSymbol(
+              name: "init",
+              detail: nil,
+              kind: .constructor,
+              deprecated: nil,
+              range: positions["4️⃣"]..<positions["6️⃣"],
+              selectionRange: positions["4️⃣"]..<positions["5️⃣"],
+              children: []
+            )
+          ]
+        )
+      ]
+    }
+  }
+
+  func testLocalVariable() async throws {
+    try await assertDocumentSymbols(
+      """
+      1️⃣func 2️⃣f()3️⃣ {
+        4️⃣let 5️⃣localConstant6️⃣ = 07️⃣
+      }8️⃣
+      """
+    ) { positions in
+      [
+        DocumentSymbol(
+          name: "f()",
+          detail: nil,
+          kind: .function,
+          deprecated: nil,
+          range: positions["1️⃣"]..<positions["8️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
+          children: [
+            DocumentSymbol(
+              name: "localConstant",
+              detail: nil,
+              kind: .variable,
+              deprecated: nil,
+              range: positions["4️⃣"]..<positions["7️⃣"],
+              selectionRange: positions["5️⃣"]..<positions["6️⃣"],
+              children: []
+            )
+          ]
+        )
+      ]
+    }
+  }
+
+  func testLocalFunction() async throws {
+    try await assertDocumentSymbols(
+      """
+      1️⃣func 2️⃣f()3️⃣ {
+        4️⃣func 5️⃣localFunction()6️⃣ { }7️⃣
+      }8️⃣
+      """
+    ) { positions in
+      [
+        DocumentSymbol(
+          name: "f()",
+          detail: nil,
+          kind: .function,
+          deprecated: nil,
+          range: positions["1️⃣"]..<positions["8️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
+          children: [
+            DocumentSymbol(
+              name: "localFunction()",
+              detail: nil,
+              kind: .function,
+              deprecated: nil,
+              range: positions["4️⃣"]..<positions["7️⃣"],
+              selectionRange: positions["5️⃣"]..<positions["6️⃣"],
+              children: []
+            )
+          ]
+        )
+      ]
+    }
+  }
+}
+
+fileprivate func assertDocumentSymbols(
+  _ markedText: String,
+  _ expectedDocumentSymbols: (DocumentPositions) -> [DocumentSymbol],
+  file: StaticString = #file,
+  line: UInt = #line
+) async throws {
+  let testClient = try await TestSourceKitLSPClient()
+  let uri = DocumentURI.for(.swift)
+
+  let positions = testClient.openDocument(markedText, uri: uri)
+  let symbols = try unwrap(try await testClient.send(DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri))))
+
+  XCTAssertEqual(symbols, .documentSymbols(expectedDocumentSymbols(positions)), file: file, line: line)
 }
