@@ -36,7 +36,7 @@ public func assertNoThrow<T>(
   }
 }
 
-/// Same as `XCTAssertThrows` but executes the trailing closure.
+/// Same as `XCTAssertThrows` but allows the expression to be async
 public func assertThrowsError<T>(
   _ expression: @autoclosure () async throws -> T,
   _ message: @autoclosure () -> String = "",

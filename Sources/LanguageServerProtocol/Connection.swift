@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Dispatch
+import SKSupport
 
 /// An abstract connection, allow messages to be sent to a (potentially remote) `MessageHandler`.
 public protocol Connection: AnyObject {
@@ -142,5 +143,25 @@ extension LocalConnection: Connection {
     }
 
     return id
+  }
+}
+
+extension Connection {
+  /// Send the given request to the connection and await its result.
+  ///
+  /// This method automatically sends a `CancelRequestNotification` to the
+  /// connection if the task it is executing in is being cancelled.
+  ///
+  /// - Warning: Because this message is `async`, it does not provide any ordering
+  ///   guarantees. If you need to gurantee that messages are sent in-order
+  ///   use the version with a completion handler.
+  public func send<R: RequestType>(_ request: R) async throws -> R.Response {
+    return try await withCancellableCheckedThrowingContinuation { continuation in
+      return self.send(request) { result in
+        continuation.resume(with: result)
+      }
+    } cancel: { requestID in
+      self.send(CancelRequestNotification(id: requestID))
+    }
   }
 }

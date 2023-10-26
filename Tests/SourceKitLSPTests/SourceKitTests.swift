@@ -416,4 +416,71 @@ final class SKTests: XCTestCase {
       }
     }
   }
+
+  func testCancellation() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      class Foo {
+        func slow(x: Invalid1, y: Invalid2) {
+        1️⃣  x / y / x / y / x / y / x / y . 2️⃣
+        }
+
+        struct Foo {
+          let 3️⃣fooMember: String
+        }
+
+        func fast(a: Foo) {
+          a.4️⃣
+        }
+      }
+      """,
+      uri: uri
+    )
+
+    let completionRequestReplied = self.expectation(description: "completion request replied")
+
+    let requestID = RequestID.string("cancellation-test")
+    testClient.server.handle(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"]),
+      id: requestID,
+      from: ObjectIdentifier(self)
+    ) { reply in
+      switch reply {
+      case .success:
+        XCTFail("Expected completion request to fail because it was cancelled")
+      case .failure(let error):
+        XCTAssertEqual(error, ResponseError.cancelled)
+      }
+      completionRequestReplied.fulfill()
+    }
+    testClient.send(CancelRequestNotification(id: requestID))
+
+    try await fulfillmentOfOrThrow([completionRequestReplied])
+
+    let fastStartDate = Date()
+    let fastReply = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["4️⃣"])
+    )
+    XCTAssert(!fastReply.items.isEmpty)
+    XCTAssertLessThan(Date().timeIntervalSince(fastStartDate), 2, "Fast request wasn't actually fast")
+
+    // Remove the slow-to-typecheck line. This causes the implicit diagnostics request for the push diagnostics
+    // notification to get cancelled, which unblocks sourcekitd for later tests.
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(range: positions["1️⃣"]..<positions["2️⃣"], text: "")
+        ]
+      )
+    )
+
+    // Check that semantic functionality based on the AST is working again.
+    let symbolInfo = try await testClient.send(
+      SymbolInfoRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+    )
+    XCTAssertGreaterThan(symbolInfo.count, 0)
+  }
 }

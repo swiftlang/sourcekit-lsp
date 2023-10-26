@@ -262,6 +262,12 @@ public actor SourceKitServer {
   /// The actual semantic handling of the message happens off this queue.
   private let messageHandlingQueue = AsyncQueue<TaskMetadata>()
 
+  /// The queue on which we start and stop keeping track of cancellation.
+  ///
+  /// Having a queue for this ensures that we started keeping track of a
+  /// request's task before handling any cancellation request for it.
+  private let cancellationMessageHandlingQueue = AsyncQueue<Serial>()
+
   /// The connection to the editor.
   public let client: Connection
 
@@ -303,6 +309,17 @@ public actor SourceKitServer {
     set {
       self.workspaces = newValue
     }
+  }
+
+  /// The requests that we are currently handling.
+  ///
+  /// Used to cancel the tasks if the client requests cancellation.
+  private var inProgressRequests: [RequestID: Task<(), Never>] = [:]
+
+  /// - Note: Needed so we can set an in-progress request from a different
+  ///   isolation context.
+  private func setInProgressRequest(for id: RequestID, task: Task<(), Never>?) {
+    self.inProgressRequests[id] = task
   }
 
   let fs: FileSystem
@@ -400,12 +417,7 @@ public actor SourceKitServer {
 
   /// Send the given request to the editor.
   public func sendRequestToClient<R: RequestType>(_ request: R) async throws -> R.Response {
-    try await withCheckedThrowingContinuation { continuation in
-      _ = client.send(request) { result in
-        continuation.resume(with: result)
-      }
-      // FIXME: (async) Handle cancellation
-    }
+    return try await client.send(request)
   }
 
   func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
@@ -608,6 +620,13 @@ private func getNextNotificationIDForLogging() -> Int {
 
 extension SourceKitServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+    if let params = params as? CancelRequestNotification {
+      // Request cancellation needs to be able to overtake any other message we
+      // are currently handling. Ordering is not important here. We thus don't
+      // need to execute it on `messageHandlingQueue`.
+      self.cancelRequest(params)
+    }
+
     messageHandlingQueue.async(metadata: TaskMetadata(params)) {
       let notificationID = getNextNotificationIDForLogging()
 
@@ -630,8 +649,6 @@ extension SourceKitServer: MessageHandler {
     switch notification.params {
     case let notification as InitializedNotification:
       self.clientInitialized(notification)
-    case let notification as CancelRequestNotification:
-      self.cancelRequest(notification)
     case let notification as ExitNotification:
       await self.exit(notification)
     case let notification as DidOpenTextDocumentNotification:
@@ -660,10 +677,21 @@ extension SourceKitServer: MessageHandler {
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
-    messageHandlingQueue.async(metadata: TaskMetadata(params)) {
+    let task = messageHandlingQueue.async(metadata: TaskMetadata(params)) {
       await withLoggingScope("request-\(id)") {
         await self.handleImpl(params, id: id, from: clientID, reply: reply)
       }
+      // We have handled the request and can't cancel it anymore.
+      // Stop keeping track of it to free the memory.
+      self.cancellationMessageHandlingQueue.async(priority: .background) {
+        await self.setInProgressRequest(for: id, task: nil)
+      }
+    }
+    // Keep track of the ID -> Task management with low priority. Once we cancel
+    // a request, the cancellation task runs with a high priority and depends on
+    // this task, which will elevate this task's priority.
+    cancellationMessageHandlingQueue.async(priority: .background) {
+      await self.setInProgressRequest(for: id, task: task)
     }
   }
 
@@ -675,13 +703,10 @@ extension SourceKitServer: MessageHandler {
   ) async {
     let startDate = Date()
 
-    let cancellationToken = CancellationToken()
-
     let request = Request(
       params,
       id: id,
       clientID: clientID,
-      cancellation: cancellationToken,
       reply: { [weak self] result in
         reply(result)
         let endDate = Date()
@@ -1077,8 +1102,18 @@ extension SourceKitServer {
     // Nothing to do.
   }
 
-  func cancelRequest(_ notification: CancelRequestNotification) {
-    // TODO: Implement cancellation
+  nonisolated func cancelRequest(_ notification: CancelRequestNotification) {
+    // Since the request is very cheap to execute and stops other requests
+    // from performing more work, we execute it with a high priority.
+    cancellationMessageHandlingQueue.async(priority: .high) {
+      guard let task = await self.inProgressRequests[notification.id] else {
+        logger.error(
+          "Cannot cancel request \(notification.id, privacy: .public) because it hasn't been scheduled for execution yet"
+        )
+        return
+      }
+      task.cancel()
+    }
   }
 
   /// The server is about to exit, and the server should flush any buffered state.

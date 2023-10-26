@@ -138,8 +138,7 @@ class CodeCompletionSession {
       return try await session.open(filterText: filterText, position: cursorPosition, in: snapshot, options: options)
     }
 
-    // FIXME: (async) Use valuePropagatingCancellation once we support cancellation
-    return try await task.value
+    return try await task.valuePropagatingCancellation
   }
 
   // MARK: - Implementation
