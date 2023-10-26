@@ -259,10 +259,10 @@ extension SwiftLanguageServer {
   }
 
   /// Tell sourcekitd to crash itself. For testing purposes only.
-  public func _crash() {
+  public func _crash() async {
     let req = SKDRequestDictionary(sourcekitd: sourcekitd)
     req[sourcekitd.keys.request] = sourcekitd.requests.crash_exit
-    _ = try? sourcekitd.sendSync(req)
+    _ = try? await sourcekitd.send(req)
   }
 
   // MARK: - Build System Integration
@@ -276,7 +276,7 @@ extension SwiftLanguageServer {
     let closeReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     closeReq[keys.request] = self.requests.editor_close
     closeReq[keys.name] = path
-    _ = try? self.sourcekitd.sendSync(closeReq)
+    _ = try? await self.sourcekitd.send(closeReq)
 
     let openReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     openReq[keys.request] = self.requests.editor_open
@@ -286,7 +286,7 @@ extension SwiftLanguageServer {
       openReq[keys.compilerargs] = compileCmd.compilerArgs
     }
 
-    _ = try? self.sourcekitd.sendSync(openReq)
+    _ = try? await self.sourcekitd.send(openReq)
 
     publishDiagnosticsIfNeeded(for: snapshot.uri)
   }
@@ -336,7 +336,7 @@ extension SwiftLanguageServer {
       req[keys.compilerargs] = compilerArgs
     }
 
-    _ = try? self.sourcekitd.sendSync(req)
+    _ = try? await self.sourcekitd.send(req)
     publishDiagnosticsIfNeeded(for: note.textDocument.uri)
   }
 
@@ -354,7 +354,7 @@ extension SwiftLanguageServer {
     req[keys.request] = self.requests.editor_close
     req[keys.name] = uri.pseudoPath
 
-    _ = try? self.sourcekitd.sendSync(req)
+    _ = try? await self.sourcekitd.send(req)
   }
 
   /// Cancels any in-flight tasks to send a `PublishedDiagnosticsNotification` after edits.

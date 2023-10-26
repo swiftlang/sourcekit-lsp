@@ -120,7 +120,7 @@ class CodeCompletionSession {
         }
         // The sessions aren't compatible. Close the existing session and open
         // a new one below.
-        session.close()
+        await session.close()
       }
       if mustReuse {
         logger.error("triggerFromIncompleteCompletions with no existing completion session")
@@ -264,7 +264,7 @@ class CodeCompletionSession {
     return dict
   }
 
-  private func close() {
+  private func close() async {
     switch self.state {
     case .closed:
       // Already closed, nothing to do.
@@ -275,7 +275,7 @@ class CodeCompletionSession {
       req[keys.offset] = self.utf8StartOffset
       req[keys.name] = self.snapshot.uri.pseudoPath
       logger.info("Closing code completion session: \(self, privacy: .private)")
-      _ = try? sourcekitd.sendSync(req)
+      _ = try? await sourcekitd.send(req)
       self.state = .closed
     }
   }
