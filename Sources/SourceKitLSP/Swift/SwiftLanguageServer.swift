@@ -389,12 +389,16 @@ extension SwiftLanguageServer {
         // Sleep for a little bit until triggering the diagnostic generation. This effectively de-bounces diagnostic
         // generation since any later edit will cancel the previous in-flight task, which will thus never go on to send
         // the `DocumentDiagnosticsRequest`.
-        try await Task.sleep(nanoseconds: UInt64(sourceKitServer.options.swiftPublishDiagnosticsDebounceDuration * 1_000_000_000))
+        try await Task.sleep(
+          nanoseconds: UInt64(sourceKitServer.options.swiftPublishDiagnosticsDebounceDuration * 1_000_000_000)
+        )
       } catch {
         return
       }
       do {
-        let diagnosticReport = try await self.fullDocumentDiagnosticReport(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(document)))
+        let diagnosticReport = try await self.fullDocumentDiagnosticReport(
+          DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(document))
+        )
 
         await sourceKitServer.sendNotificationToClient(
           PublishDiagnosticsNotification(
@@ -404,10 +408,12 @@ extension SwiftLanguageServer {
         )
       } catch is CancellationError {
       } catch {
-        logger.fault("""
+        logger.fault(
+          """
           Failed to get diagnostics
           \(error.forLogging)
-          """)
+          """
+        )
       }
     }
   }
@@ -1178,7 +1184,9 @@ extension SwiftLanguageServer {
     return try await .full(fullDocumentDiagnosticReport(req))
   }
 
-  private func fullDocumentDiagnosticReport(_ req: DocumentDiagnosticsRequest) async throws -> RelatedFullDocumentDiagnosticReport {
+  private func fullDocumentDiagnosticReport(
+    _ req: DocumentDiagnosticsRequest
+  ) async throws -> RelatedFullDocumentDiagnosticReport {
     guard let snapshot = documentManager.latestSnapshot(req.textDocument.uri) else {
       throw ResponseError.unknown("failed to find snapshot for url \(req.textDocument.uri.forLogging)")
     }
