@@ -367,6 +367,12 @@ extension SwiftLanguageServer {
   /// If the client doesn't support pull diagnostics, compute diagnostics for the latest version of the given document
   /// and send a `PublishDiagnosticsNotification` to the client for it.
   private func publishDiagnosticsIfNeeded(for document: DocumentURI) {
+    withLoggingScope("publish-diagnostics") {
+      publishDiagnosticsIfNeededImpl(for: document)
+    }
+  }
+
+  private func publishDiagnosticsIfNeededImpl(for document: DocumentURI) {
     guard enablePublishDiagnostics else {
       return
     }
