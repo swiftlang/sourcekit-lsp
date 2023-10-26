@@ -215,6 +215,8 @@ fileprivate enum TaskMetadata: DependencyTracker {
       self = .globalConfigurationChange
     case is WorkspaceSymbolsRequest:
       self = .freestanding
+    case is BarrierRequest:
+      self = .globalConfigurationChange
     case is PollIndexRequest:
       self = .globalConfigurationChange
     case let request as ExecuteCommandRequest:
@@ -734,6 +736,8 @@ extension SourceKitServer: MessageHandler {
       await self.handleRequest(request, handler: self.workspaceSymbols)
     case let request as Request<PollIndexRequest>:
       await self.handleRequest(request, handler: self.pollIndex)
+    case let request as Request<BarrierRequest>:
+      await self.handleRequest(request, handler: { _ in VoidResponse() })
     case let request as Request<ExecuteCommandRequest>:
       await self.handleRequest(request, handler: self.executeCommand)
     case let request as Request<CallHierarchyIncomingCallsRequest>:

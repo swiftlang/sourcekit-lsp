@@ -272,6 +272,9 @@ final class WorkspaceTests: XCTestCase {
       ])
     )
 
+    // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
+    _ = try await ws.testClient.send(BarrierRequest())
+
     // After updating Package.swift in PackageB, PackageB can provide proper build settings for MyExec/main.swift and
     // thus workspace membership should switch to PackageB.
 
