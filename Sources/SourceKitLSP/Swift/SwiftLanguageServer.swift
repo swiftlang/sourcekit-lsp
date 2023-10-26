@@ -607,106 +607,68 @@ extension SwiftLanguageServer {
   }
 
   public func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
-    let keys = self.keys
-
     guard let snapshot = self.documentManager.latestSnapshot(req.textDocument.uri) else {
       logger.error("failed to find snapshot for url \(req.textDocument.uri.forLogging)")
       return []
     }
 
-    let helperDocumentName = "DocumentColor:" + snapshot.uri.pseudoPath
-    let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-    skreq[keys.request] = self.requests.editor_open
-    skreq[keys.name] = helperDocumentName
-    skreq[keys.sourcetext] = snapshot.text
-    skreq[keys.syntactic_only] = 1
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
 
-    let dict = try await self.sourcekitd.send(skreq)
-    defer {
-      let closeHelperReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-      closeHelperReq[keys.request] = self.requests.editor_close
-      closeHelperReq[keys.name] = helperDocumentName
-      // FIXME: (async) We might receive two concurrent document color requests for the
-      // same document, in which race to open/close a document with the same name in
-      // sourcekitd. The solution is to either
-      //  - Not open the helper document and instead rely on the document that is already
-      //    open or
-      //  - Prefix the helper document with a UUID to make sure the two concurrent
-      //    requests operate on different documents as far as sourcekitd is concerned.
-      Task {
-        _ = try? await self.sourcekitd.send(closeHelperReq)
-      }
-    }
-
-    guard let results: SKDResponseArray = dict[self.keys.substructure] else {
-      return []
-    }
-
-    func colorInformation(dict: SKDResponseDictionary) -> ColorInformation? {
-      guard let kind: sourcekitd_uid_t = dict[self.keys.kind],
-        kind == self.values.expr_object_literal,
-        let name: String = dict[self.keys.name],
-        name == "colorLiteral",
-        let offset: Int = dict[self.keys.offset],
-        let start: Position = snapshot.positionOf(utf8Offset: offset),
-        let length: Int = dict[self.keys.length],
-        let end: Position = snapshot.positionOf(utf8Offset: offset + length),
-        let substructure: SKDResponseArray = dict[self.keys.substructure]
-      else {
-        return nil
-      }
-      var red, green, blue, alpha: Double?
-      substructure.forEach { (i: Int, value: SKDResponseDictionary) in
-        guard let name: String = value[self.keys.name],
-          let bodyoffset: Int = value[self.keys.bodyoffset],
-          let bodylength: Int = value[self.keys.bodylength]
-        else {
-          return true
-        }
-        let view = snapshot.text.utf8
-        let bodyStart = view.index(view.startIndex, offsetBy: bodyoffset)
-        let bodyEnd = view.index(view.startIndex, offsetBy: bodyoffset + bodylength)
-        let value = String(view[bodyStart..<bodyEnd]).flatMap(Double.init)
-        switch name {
-        case "red":
-          red = value
-        case "green":
-          green = value
-        case "blue":
-          blue = value
-        case "alpha":
-          alpha = value
-        default:
-          break
-        }
-        return true
-      }
-      if let red = red,
-        let green = green,
-        let blue = blue,
-        let alpha = alpha
-      {
-        let color = Color(red: red, green: green, blue: blue, alpha: alpha)
-        return ColorInformation(range: start..<end, color: color)
-      } else {
-        return nil
-      }
-    }
-
-    func colorInformation(array: SKDResponseArray) -> [ColorInformation] {
+    class ColorLiteralFinder: SyntaxVisitor {
+      let snapshot: DocumentSnapshot
       var result: [ColorInformation] = []
-      array.forEach { (i: Int, value: SKDResponseDictionary) in
-        if let documentSymbol = colorInformation(dict: value) {
-          result.append(documentSymbol)
-        } else if let substructure: SKDResponseArray = value[self.keys.substructure] {
-          result += colorInformation(array: substructure)
-        }
-        return true
+
+      init(snapshot: DocumentSnapshot) {
+        self.snapshot = snapshot
+        super.init(viewMode: .sourceAccurate)
       }
-      return result
+
+      override func visit(_ node: MacroExpansionExprSyntax) -> SyntaxVisitorContinueKind {
+        guard node.macroName.text == "colorLiteral" else {
+          return .visitChildren
+        }
+        func extractArgument(_ argumentName: String, from arguments: LabeledExprListSyntax) -> Double? {
+          for argument in arguments {
+            if argument.label?.text == argumentName {
+              if let integer = argument.expression.as(IntegerLiteralExprSyntax.self) {
+                return Double(integer.literal.text)
+              } else if let integer = argument.expression.as(FloatLiteralExprSyntax.self) {
+                return Double(integer.literal.text)
+              }
+            }
+          }
+          return nil
+        }
+        guard let red = extractArgument("red", from: node.arguments),
+          let green = extractArgument("green", from: node.arguments),
+          let blue = extractArgument("blue", from: node.arguments),
+          let alpha = extractArgument("alpha", from: node.arguments)
+        else {
+          return .skipChildren
+        }
+
+        guard let startPosition = snapshot.position(of: node.position),
+          let endPosition = snapshot.position(of: node.endPosition)
+        else {
+          return .skipChildren
+        }
+
+        result.append(
+          ColorInformation(
+            range: startPosition..<endPosition,
+            color: Color(red: red, green: green, blue: blue, alpha: alpha)
+          )
+        )
+
+        return .skipChildren
+      }
     }
 
-    return colorInformation(array: results)
+    try Task.checkCancellation()
+
+    let colorLiteralFinder = ColorLiteralFinder(snapshot: snapshot)
+    colorLiteralFinder.walk(syntaxTree)
+    return colorLiteralFinder.result
   }
 
   public func colorPresentation(_ req: ColorPresentationRequest) async throws -> [ColorPresentation] {
