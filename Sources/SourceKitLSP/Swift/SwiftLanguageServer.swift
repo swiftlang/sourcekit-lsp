@@ -402,6 +402,7 @@ extension SwiftLanguageServer {
             diagnostics: diagnosticReport.items
           )
         )
+      } catch is CancellationError {
       } catch {
         logger.fault("""
           Failed to get diagnostics
