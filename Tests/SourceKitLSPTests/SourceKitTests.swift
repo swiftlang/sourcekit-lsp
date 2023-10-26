@@ -46,22 +46,55 @@ final class SKTests: XCTestCase {
   }
 
   func testIndexSwiftModules() async throws {
-    guard let ws = try await staticSourceKitTibsWorkspace(name: "SwiftModules") else { return }
-    try ws.buildAndIndex()
-    defer { withExtendedLifetime(ws) {} }  // Keep workspace alive for callbacks.
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "LibA/LibA.swift": """
+        public func 1️⃣aaa() {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func bbb() {
+          2️⃣aaa()
+        }
+        """,
+        "LibC/LibC.swift": """
+        import LibA
+        public func ccc() {
+          3️⃣aaa()
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
 
-    let locDef = ws.testLoc("aaa:def")
-    let locRef = ws.testLoc("aaa:call:c")
+        import PackageDescription
 
-    try ws.openDocument(locDef.url, language: .swift)
-    try ws.openDocument(locRef.url, language: .swift)
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+           .target(name: "LibC", dependencies: ["LibA", "LibB"]),
+          ]
+        )
+        """,
+      build: true
+    )
+
+    let (libAUri, libAPositions) = try ws.openDocument("LibA.swift")
+    let libBUri = try ws.uri(for: "LibB.swift")
+    let (libCUri, libCPositions) = try ws.openDocument("LibC.swift")
+
+    let definitionPos = libAPositions["1️⃣"]
+    let referencePos = try ws.position(of: "2️⃣", in: "LibB.swift")
+    let callPos = libCPositions["3️⃣"]
 
     // MARK: Jump to definition
 
     let response = try await ws.testClient.send(
       DefinitionRequest(
-        textDocument: locRef.docIdentifier,
-        position: locRef.position
+        textDocument: TextDocumentIdentifier(libCUri),
+        position: libCPositions["3️⃣"]
       )
     )
     guard case .locations(let jump) = response else {
@@ -70,46 +103,33 @@ final class SKTests: XCTestCase {
     }
 
     XCTAssertEqual(jump.count, 1)
-    XCTAssertEqual(jump.first?.uri, try locDef.docUri.nativeURI)
-    XCTAssertEqual(jump.first?.range.lowerBound, locDef.position)
+    XCTAssertEqual(jump.first?.uri, libAUri)
+    XCTAssertEqual(jump.first?.range.lowerBound, definitionPos)
 
     // MARK: Find references
 
     let refs = try await ws.testClient.send(
       ReferencesRequest(
-        textDocument: locDef.docIdentifier,
-        position: locDef.position,
+        textDocument: TextDocumentIdentifier(libAUri),
+        position: definitionPos,
         context: ReferencesContext(includeDeclaration: true)
       )
     )
 
-    let call = ws.testLoc("aaa:call")
     XCTAssertEqual(
       Set(refs),
       [
         Location(
-          TestLocation(
-            url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: locDef.url.path)).pathString),
-            line: locDef.line,
-            utf8Column: locDef.utf8Column,
-            utf16Column: locDef.utf16Column
-          )
+          uri: libAUri,
+          range: Range(definitionPos)
         ),
         Location(
-          TestLocation(
-            url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: locRef.url.path)).pathString),
-            line: locRef.line,
-            utf8Column: locRef.utf8Column,
-            utf16Column: locRef.utf16Column
-          )
+          uri: libBUri,
+          range: Range(referencePos)
         ),
         Location(
-          TestLocation(
-            url: URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: call.url.path)).pathString),
-            line: call.line,
-            utf8Column: call.utf8Column,
-            utf16Column: call.utf16Column
-          )
+          uri: libCUri,
+          range: Range(callPos)
         ),
       ]
     )
@@ -117,35 +137,26 @@ final class SKTests: XCTestCase {
 
   func testIndexShutdown() async throws {
 
-    let tmpDir = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-      .appendingPathComponent("sk-test-data/\(testDirectoryName)", isDirectory: true)
-
     func listdir(_ url: URL) throws -> [URL] {
       try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil)
     }
 
-    func checkRunningIndex(build: Bool) async throws -> URL? {
-      guard
-        let ws = try await staticSourceKitTibsWorkspace(
-          name: "SwiftModules",
-          tmpDir: tmpDir,
-          removeTmpDir: false
-        )
-      else {
-        return nil
-      }
+    func checkRunningIndex(cleanUp: Bool, workspaceDirectory: URL) async throws -> URL? {
+      let ws = try await IndexedSingleSwiftFileWorkspace(
+        """
+        func 1️⃣foo() {}
 
-      if build {
-        try ws.buildAndIndex()
-      }
+        func bar() {
+          2️⃣foo()
+        }
+        """,
+        cleanUp: cleanUp
+      )
 
-      let locDef = ws.testLoc("aaa:def")
-      let locRef = ws.testLoc("aaa:call:c")
-      try ws.openDocument(locRef.url, language: .swift)
       let response = try await ws.testClient.send(
         DefinitionRequest(
-          textDocument: locRef.docIdentifier,
-          position: locRef.position
+          textDocument: TextDocumentIdentifier(ws.fileURI),
+          position: ws.positions["2️⃣"]
         )
       )
       guard case .locations(let jump) = response else {
@@ -153,10 +164,10 @@ final class SKTests: XCTestCase {
         return nil
       }
       XCTAssertEqual(jump.count, 1)
-      XCTAssertEqual(jump.first?.uri, try locDef.docUri.nativeURI)
-      XCTAssertEqual(jump.first?.range.lowerBound, locDef.position)
+      XCTAssertEqual(jump.first?.uri, ws.fileURI)
+      XCTAssertEqual(jump.first?.range.lowerBound, ws.positions["1️⃣"])
 
-      let tmpContents = try listdir(tmpDir)
+      let tmpContents = try listdir(ws.indexDBURL)
       guard let versionedPath = tmpContents.filter({ $0.lastPathComponent.starts(with: "v") }).spm_only else {
         XCTFail("expected one version path 'v[0-9]*', found \(tmpContents)")
         return nil
@@ -170,15 +181,15 @@ final class SKTests: XCTestCase {
       return versionedPath
     }
 
-    guard let versionedPath = try await checkRunningIndex(build: true) else { return }
+    let workspaceDirectory = try testScratchDir()
+
+    guard let versionedPath = try await checkRunningIndex(cleanUp: false, workspaceDirectory: workspaceDirectory) else { return }
 
     let versionContentsAfter = try listdir(versionedPath)
     XCTAssertEqual(versionContentsAfter.count, 1)
     XCTAssertEqual(versionContentsAfter.first?.lastPathComponent, "saved")
 
-    _ = try await checkRunningIndex(build: true)
-
-    try FileManager.default.removeItem(atPath: tmpDir.path)
+    _ = try await checkRunningIndex(cleanUp: true, workspaceDirectory: workspaceDirectory)
   }
 
   func testCodeCompleteSwiftTibs() async throws {
@@ -240,26 +251,51 @@ final class SKTests: XCTestCase {
   }
 
   func testDependenciesUpdatedSwiftTibs() async throws {
-    guard let ws = try await mutableSourceKitTibsTestWorkspace(name: "SwiftModules") else { return }
-    defer { withExtendedLifetime(ws) {} }  // Keep workspace alive for callbacks.
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "LibA/LibA.swift": """
+        public func aaa() {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func bbb() {
+          aaa()
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
 
-    let moduleRef = ws.testLoc("aaa:call:c")
+        import PackageDescription
 
-    try ws.openDocument(moduleRef.url, language: .swift)
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """
+    )
+
+    let (libBUri, _) = try ws.openDocument("LibB.swift")
 
     let initialDiags = try await ws.testClient.nextDiagnosticsNotification()
     // Semantic analysis: expect module import error.
     XCTAssertEqual(initialDiags.diagnostics.count, 1)
     if let diagnostic = initialDiags.diagnostics.first {
+      // FIXME: The error message for the missing module is misleading on Darwin
+      // https://github.com/apple/swift-package-manager/issues/5925
       XCTAssert(
-        diagnostic.message.contains("no such module"),
+        diagnostic.message.contains("could not build Objective-C module")
+          || diagnostic.message.contains("no such module"),
         "expected module import error but found \"\(diagnostic.message)\""
       )
     }
 
-    try ws.buildAndIndex()
+    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory)
 
-    await ws.testClient.server.filesDependenciesUpdated([DocumentURI(moduleRef.url)])
+    await ws.testClient.server.filesDependenciesUpdated([libBUri])
 
     let updatedDiags = try await ws.testClient.nextDiagnosticsNotification()
     // Semantic analysis: no more errors expected, import should resolve since we built.
