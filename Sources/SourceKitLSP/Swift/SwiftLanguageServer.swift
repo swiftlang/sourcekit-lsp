@@ -422,46 +422,66 @@ extension SwiftLanguageServer {
     cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
 
     let keys = self.keys
-    var edits: [IncrementalEdit] = []
+    struct Edit {
+      let offset: Int
+      let length: Int
+      let replacement: String
+    }
+
+    var edits: [Edit] = []
 
     let editResult = self.documentManager.edit(note) {
       (before: LineTable, edit: TextDocumentContentChangeEvent) in
-      let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-      req[keys.request] = self.requests.editor_replacetext
-      req[keys.name] = note.textDocument.uri.pseudoPath
-      req[keys.syntactic_only] = 1
-
       if let range = edit.range {
         guard let offset = before.utf8OffsetOf(line: range.lowerBound.line, utf16Column: range.lowerBound.utf16index),
           let end = before.utf8OffsetOf(line: range.upperBound.line, utf16Column: range.upperBound.utf16index)
         else {
           fatalError("invalid edit \(range)")
         }
-
-        let length = end - offset
-        req[keys.offset] = offset
-        req[keys.length] = length
-
-        edits.append(IncrementalEdit(offset: offset, length: length, replacementLength: edit.text.utf8.count))
+        edits.append(
+          Edit(
+            offset: offset,
+            length: end - offset,
+            replacement: edit.text
+          )
+        )
       } else {
-        // Full text
-        let length = before.content.utf8.count
-        req[keys.offset] = 0
-        req[keys.length] = length
-
-        edits.append(IncrementalEdit(offset: 0, length: length, replacementLength: edit.text.utf8.count))
+        edits.append(
+          Edit(
+            offset: 0,
+            length: before.content.utf8.count,
+            replacement: edit.text
+          )
+        )
       }
-
-      req[keys.sourcetext] = edit.text
-      _ = try? self.sourcekitd.sendSync(req)
     }
+    for edit in edits {
+      let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
+      req[keys.request] = self.requests.editor_replacetext
+      req[keys.name] = note.textDocument.uri.pseudoPath
+      req[keys.syntactic_only] = 1
+      req[keys.offset] = edit.offset
+      req[keys.length] = edit.length
+      req[keys.sourcetext] = edit.replacement
+      do {
+        _ = try await self.sourcekitd.send(req)
+      } catch {
+        fatalError("failed to apply edit")
+      }
+    }
+
     guard let (preEditSnapshot, postEditSnapshot) = editResult else {
       return
     }
+    let concurrentEdits = ConcurrentEdits(
+      fromSequential: edits.map {
+        IncrementalEdit(offset: $0.offset, length: $0.length, replacementLength: $0.replacement.utf8.count)
+      }
+    )
     await syntaxTreeManager.registerEdit(
       preEditSnapshot: preEditSnapshot,
       postEditSnapshot: postEditSnapshot,
-      edits: ConcurrentEdits(fromSequential: edits)
+      edits: concurrentEdits
     )
 
     publishDiagnosticsIfNeeded(for: note.textDocument.uri)
