@@ -96,6 +96,7 @@ public final class Notification<N: NotificationType> {
 fileprivate extension Encodable {
   var prettyPrintJSON: String {
     let encoder = JSONEncoder()
+    encoder.outputFormatting.insert(.sortedKeys)
     encoder.outputFormatting.insert(.prettyPrinted)
     guard let data = try? encoder.encode(self) else {
       return "\(self)"
