@@ -58,7 +58,7 @@ public class MultiFileTestWorkspace {
   }
 
   /// The directory in which the temporary files are being placed.
-  let scratchDirectory: URL
+  public let scratchDirectory: URL
 
   /// Writes the specified files to a temporary directory on disk and creates a `TestSourceKitLSPClient` for that
   /// temporary directory.
@@ -89,14 +89,16 @@ public class MultiFileTestWorkspace {
       )
       try extractMarkers(markedText).textWithoutMarkers.write(to: fileURL, atomically: false, encoding: .utf8)
 
-      precondition(
-        fileData[fileLocation.fileName] == nil,
-        "Files within a `MultiFileTestWorkspace` must have unique names"
-      )
-      fileData[fileLocation.fileName] = FileData(
-        uri: DocumentURI(fileURL),
-        markedText: markedText
-      )
+      if fileData[fileLocation.fileName] != nil {
+        // If we already have a file with this name, remove its data. That way we can't reference any of the two
+        // conflicting documents and will throw when trying to open them, instead of non-deterministically picking one.
+        fileData[fileLocation.fileName] = nil
+      } else {
+        fileData[fileLocation.fileName] = FileData(
+          uri: DocumentURI(fileURL),
+          markedText: markedText
+        )
+      }
     }
     self.fileData = fileData
 

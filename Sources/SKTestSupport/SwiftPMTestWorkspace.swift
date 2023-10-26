@@ -59,21 +59,25 @@ public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
       testName: testName
     )
 
-    guard let swift = ToolchainRegistry.shared.default?.swift?.asURL else {
-      throw Error.swiftNotFound
-    }
-
     if build {
-      let arguments = [
-        swift.path,
-        "build",
-        "--package-path", scratchDirectory.path,
-        "-Xswiftc", "-index-ignore-system-modules",
-        "-Xcc", "-index-ignore-system-symbols",
-      ]
-      try await Process.checkNonZeroExit(arguments: arguments)
+      try await Self.build(at: self.scratchDirectory)
     }
     // Wait for the indexstore-db to finish indexing
     _ = try await testClient.send(PollIndexRequest())
+  }
+
+  /// Build a SwiftPM package package manifest is located in the directory at `path`.
+  public static func build(at path: URL) async throws {
+    guard let swift = ToolchainRegistry.shared.default?.swift?.asURL else {
+      throw Error.swiftNotFound
+    }
+    let arguments = [
+      swift.path,
+      "build",
+      "--package-path", path.path,
+      "-Xswiftc", "-index-ignore-system-modules",
+      "-Xcc", "-index-ignore-system-symbols",
+    ]
+    try await Process.checkNonZeroExit(arguments: arguments)
   }
 }

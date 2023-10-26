@@ -22,23 +22,67 @@ import XCTest
 final class WorkspaceTests: XCTestCase {
 
   func testMultipleSwiftPMWorkspaces() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
-    try ws.buildAndIndex()
+    // The package manifest is the same for both packages we open.
+    let packageManifest = """
+      // swift-tools-version: 5.7
 
-    guard
-      let otherWs = try await staticSourceKitSwiftPMWorkspace(name: "OtherSwiftPMPackage", testClient: ws.testClient)
-    else { return }
-    try otherWs.buildAndIndex()
+      import PackageDescription
 
-    assert(ws.testClient === otherWs.testClient, "Sanity check: The two workspaces should be opened in the same server")
+      let package = Package(
+        name: "MyLibrary",
+        targets: [
+          .target(name: "MyLibrary"),
+          .executableTarget(name: "MyExec", dependencies: ["MyLibrary"])
+        ]
+      )
+      """
 
-    let call = ws.testLoc("Lib.foo:call")
-    let otherCall = otherWs.testLoc("FancyLib.sayHello:call")
+    let ws = try await MultiFileTestWorkspace(
+      files: [
+        // PackageA
+        "PackageA/Sources/MyLibrary/libA.swift": """
+        public struct FancyLib {
+          public init() {}
+          public func sayHello() {}
+        }
+        """,
 
-    try ws.openDocument(call.url, language: .swift)
+        "PackageA/Sources/MyExec/execA.swift": """
+        import MyLibrary
+
+        FancyLib().1️⃣sayHello()
+        """,
+
+        "PackageA/Package.swift": packageManifest,
+
+        // PackageB
+        "PackageB/Sources/MyLibrary/libB.swift": """
+        public struct Lib {
+          public init() {}
+          public func foo() {}
+        }
+        """,
+        "PackageB/Sources/MyExec/execB.swift": """
+        import MyLibrary
+        Lib().2️⃣foo()
+        """,
+        "PackageB/Package.swift": packageManifest,
+      ],
+      workspaces: { scratchDir in
+        return [
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageA"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageB"))),
+        ]
+      }
+    )
+
+    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory.appendingPathComponent("PackageA"))
+    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory.appendingPathComponent("PackageB"))
+
+    let (bUri, bPositions) = try ws.openDocument("execB.swift")
 
     let completions = try await ws.testClient.send(
-      CompletionRequest(textDocument: call.docIdentifier, position: call.position)
+      CompletionRequest(textDocument: TextDocumentIdentifier(bUri), position: bPositions["2️⃣"])
     )
 
     XCTAssertEqual(
@@ -54,7 +98,7 @@ final class WorkspaceTests: XCTestCase {
           insertText: "foo()",
           insertTextFormat: .plain,
           textEdit: .textEdit(
-            TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "foo()")
+            TextEdit(range: Range(bPositions["2️⃣"]), newText: "foo()")
           )
         ),
         CompletionItem(
@@ -67,16 +111,16 @@ final class WorkspaceTests: XCTestCase {
           insertText: "self",
           insertTextFormat: .plain,
           textEdit: .textEdit(
-            TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "self")
+            TextEdit(range: Range(bPositions["2️⃣"]), newText: "self")
           )
         ),
       ]
     )
 
-    try ws.openDocument(otherCall.url, language: .swift)
+    let (aUri, aPositions) = try ws.openDocument("execA.swift")
 
     let otherCompletions = try await ws.testClient.send(
-      CompletionRequest(textDocument: otherCall.docIdentifier, position: otherCall.position)
+      CompletionRequest(textDocument: TextDocumentIdentifier(aUri), position: aPositions["1️⃣"])
     )
 
     XCTAssertEqual(
@@ -93,10 +137,7 @@ final class WorkspaceTests: XCTestCase {
           insertText: "sayHello()",
           insertTextFormat: .plain,
           textEdit: .textEdit(
-            TextEdit(
-              range: Position(line: 7, utf16index: 41)..<Position(line: 7, utf16index: 41),
-              newText: "sayHello()"
-            )
+            TextEdit(range: Range(aPositions["1️⃣"]), newText: "sayHello()")
           )
         ),
         CompletionItem(
@@ -110,7 +151,7 @@ final class WorkspaceTests: XCTestCase {
           insertText: "self",
           insertTextFormat: .plain,
           textEdit: .textEdit(
-            TextEdit(range: Position(line: 7, utf16index: 41)..<Position(line: 7, utf16index: 41), newText: "self")
+            TextEdit(range: Range(aPositions["1️⃣"]), newText: "self")
           )
         ),
       ]
@@ -166,68 +207,81 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testRecomputeFileWorkspaceMembershipOnPackageSwiftChange() async throws {
-    guard let otherWs = try await staticSourceKitSwiftPMWorkspace(name: "OtherSwiftPMPackage") else { return }
-    try otherWs.buildAndIndex()
+    let ws = try await MultiFileTestWorkspace(
+      files: [
+        "PackageA/Sources/MyLibrary/libA.swift": "",
+        "PackageA/Package.swift": SwiftPMTestWorkspace.defaultPackageManifest,
 
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage", testClient: otherWs.testClient)
-    else {
-      return
-    }
-    try ws.buildAndIndex()
+        "PackageB/Sources/MyLibrary/libB.swift": """
+        public struct Lib {
+          public func foo() {}
+          public init() {}
+        }
+        """,
+        "PackageB/Sources/MyExec/main.swift": """
+        import MyLibrary
 
-    assert(ws.testClient === otherWs.testClient, "Sanity check: The two workspaces should be opened in the same server")
+        Lib().1️⃣
+        """,
+        "PackageB/Package.swift": SwiftPMTestWorkspace.defaultPackageManifest,
+      ],
+      workspaces: { scratchDir in
+        return [
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageA"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageB"))),
+        ]
+      }
+    )
 
-    let otherLib = ws.testLoc("OtherLib.topLevelFunction:libMember")
-    let packageTargets = ws.testLoc("Package.swift:targets")
+    let (mainUri, _) = try ws.openDocument("main.swift")
 
-    try ws.openDocument(otherLib.url, language: .swift)
-
-    // We open OtherSwiftPMPackage first. Thus, otherLib (which is a folder in
-    // SwiftPMPackage that hasn't been added to Package.swift yet) will belong
-    // to OtherSwiftPMPackage by default (because it provides fallback build
-    // settings for it).
+    // We open PackageA first. Thus, MyExec/main (which is a file in PackageB that hasn't been added to Package.swift
+    // yet) will belong to PackageA by default (because it provides fallback build settings for it).
     assertEqual(
-      await ws.testClient.server.workspaceForDocument(uri: otherLib.docUri)?.rootUri,
-      DocumentURI(otherWs.sources.rootDirectory)
+      await ws.testClient.server.workspaceForDocument(uri: mainUri)?.rootUri,
+      DocumentURI(ws.scratchDirectory.appendingPathComponent("PackageA"))
     )
 
     // Add the otherlib target to Package.swift
-    _ = try ws.sources.edit { builder in
-      let packageManifest = ws.sources.rootDirectory
-        .appendingPathComponent("Package.swift")
-      var packageManifestContents = try String(contentsOf: packageManifest, encoding: .utf8)
-      let targetMarkerRange = packageManifestContents.range(of: "/*Package.swift:targets*/")!
-      packageManifestContents.replaceSubrange(
-        targetMarkerRange,
-        with: """
-          .target(
-             name: "otherlib",
-             dependencies: ["lib"]
-          ),
-          /*Package.swift:targets*/
-          """
+    let newPackageManifest = """
+      // swift-tools-version: 5.7
+
+      import PackageDescription
+
+      let package = Package(
+        name: "MyLibrary",
+        targets: [
+          .target(name: "MyLibrary"),
+          .executableTarget(name: "MyExec", dependencies: ["MyLibrary"])
+        ]
       )
-      builder.write(packageManifestContents, to: packageManifest)
-    }
+      """
+
+    let packageBManifestPath = ws.scratchDirectory
+      .appendingPathComponent("PackageB")
+      .appendingPathComponent("Package.swift")
+    try newPackageManifest.write(
+      to: packageBManifestPath,
+      atomically: false,
+      encoding: .utf8
+    )
 
     ws.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
-        FileEvent(uri: packageTargets.docUri, type: .changed)
+        FileEvent(uri: DocumentURI(packageBManifestPath), type: .changed)
       ])
     )
 
-    // After updating Package.swift in SwiftPMPackage, SwiftPMPackage can
-    // provide proper build settings for otherLib and thus workspace
-    // membership should switch to SwiftPMPackage.
+    // After updating Package.swift in PackageB, PackageB can provide proper build settings for MyExec/main.swift and
+    // thus workspace membership should switch to PackageB.
 
     // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
     var didReceiveCorrectWorkspaceMembership = false
 
     // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
+    let packageBRootUri = DocumentURI(ws.scratchDirectory.appendingPathComponent("PackageB"))
     for _ in 0..<30 {
-      if await ws.testClient.server.workspaceForDocument(uri: otherLib.docUri)?.rootUri
-        == DocumentURI(ws.sources.rootDirectory)
-      {
+      if await ws.testClient.server.workspaceForDocument(uri: mainUri)?.rootUri == packageBRootUri {
         didReceiveCorrectWorkspaceMembership = true
         break
       }
