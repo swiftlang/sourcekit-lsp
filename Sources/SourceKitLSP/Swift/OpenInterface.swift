@@ -82,7 +82,7 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let dict = try await self.sourcekitd.send(skreq)
+    let dict = try await self.sourcekitd.send(skreq, fileContents: nil)
     return InterfaceInfo(contents: dict[keys.sourcetext] ?? "")
   }
 
@@ -103,7 +103,7 @@ extension SwiftLanguageServer {
       skreq[keys.sourcefile] = uri.pseudoPath
       skreq[keys.usr] = symbol
 
-      let dict = try await self.sourcekitd.send(skreq)
+      let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
       if let offset: Int = dict[keys.offset],
         let position = snapshot.positionOf(utf8Offset: offset)
       {

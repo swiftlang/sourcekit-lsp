@@ -88,14 +88,14 @@ final class SourceKitDTests: XCTestCase {
     args.append(path)
     req[keys.compilerargs] = args
 
-    _ = try await sourcekitd.send(req)
+    _ = try await sourcekitd.send(req, fileContents: nil)
 
     try await fulfillmentOfOrThrow([expectation1, expectation2])
 
     let close = SKDRequestDictionary(sourcekitd: sourcekitd)
     close[keys.request] = sourcekitd.requests.editor_close
     close[keys.name] = path
-    _ = try await sourcekitd.send(close)
+    _ = try await sourcekitd.send(close, fileContents: nil)
   }
 }
 

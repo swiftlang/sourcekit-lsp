@@ -262,7 +262,7 @@ extension SwiftLanguageServer {
   public func _crash() async {
     let req = SKDRequestDictionary(sourcekitd: sourcekitd)
     req[sourcekitd.keys.request] = sourcekitd.requests.crash_exit
-    _ = try? await sourcekitd.send(req)
+    _ = try? await sourcekitd.send(req, fileContents: nil)
   }
 
   // MARK: - Build System Integration
@@ -276,7 +276,7 @@ extension SwiftLanguageServer {
     let closeReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     closeReq[keys.request] = self.requests.editor_close
     closeReq[keys.name] = path
-    _ = try? await self.sourcekitd.send(closeReq)
+    _ = try? await self.sourcekitd.send(closeReq, fileContents: nil)
 
     let openReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     openReq[keys.request] = self.requests.editor_open
@@ -286,7 +286,7 @@ extension SwiftLanguageServer {
       openReq[keys.compilerargs] = compileCmd.compilerArgs
     }
 
-    _ = try? await self.sourcekitd.send(openReq)
+    _ = try? await self.sourcekitd.send(openReq, fileContents: snapshot.text)
 
     publishDiagnosticsIfNeeded(for: snapshot.uri)
   }
@@ -336,7 +336,7 @@ extension SwiftLanguageServer {
       req[keys.compilerargs] = compilerArgs
     }
 
-    _ = try? await self.sourcekitd.send(req)
+    _ = try? await self.sourcekitd.send(req, fileContents: snapshot.text)
     publishDiagnosticsIfNeeded(for: note.textDocument.uri)
   }
 
@@ -354,7 +354,7 @@ extension SwiftLanguageServer {
     req[keys.request] = self.requests.editor_close
     req[keys.name] = uri.pseudoPath
 
-    _ = try? await self.sourcekitd.send(req)
+    _ = try? await self.sourcekitd.send(req, fileContents: nil)
   }
 
   /// Cancels any in-flight tasks to send a `PublishedDiagnosticsNotification` after edits.
@@ -464,7 +464,7 @@ extension SwiftLanguageServer {
       req[keys.length] = edit.length
       req[keys.sourcetext] = edit.replacement
       do {
-        _ = try await self.sourcekitd.send(req)
+        _ = try await self.sourcekitd.send(req, fileContents: nil)
       } catch {
         fatalError("failed to apply edit")
       }
@@ -639,7 +639,7 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let dict = try await self.sourcekitd.send(skreq)
+    let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
 
     guard let results: SKDResponseArray = dict[self.keys.results] else {
       return []
@@ -1090,7 +1090,7 @@ extension SwiftLanguageServer {
     // FIXME: SourceKit should probably cache this for us.
     skreq[keys.compilerargs] = buildSettings.compilerArgs
 
-    let dict = try await self.sourcekitd.send(skreq)
+    let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
 
     try Task.checkCancellation()
     guard (try? documentManager.latestSnapshot(req.textDocument.uri).id) == snapshot.id else {

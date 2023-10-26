@@ -104,7 +104,7 @@ extension SwiftLanguageServer {
       skreq[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let dict = try await self.sourcekitd.send(skreq)
+    let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
     guard let skVariableTypeInfos: SKDResponseArray = dict[keys.variable_type_list] else {
       return []
     }

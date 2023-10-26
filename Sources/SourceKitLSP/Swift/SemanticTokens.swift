@@ -31,7 +31,7 @@ extension SwiftLanguageServer {
     // FIXME: SourceKit should probably cache this for us.
     skreq[keys.compilerargs] = buildSettings.compilerArgs
 
-    let dict = try await sourcekitd.send(skreq)
+    let dict = try await sourcekitd.send(skreq, fileContents: snapshot.text)
 
     guard let skTokens: SKDResponseArray = dict[keys.semantic_tokens] else {
       return nil

@@ -666,12 +666,7 @@ extension SourceKitServer: MessageHandler {
   }
 
   private func handleImpl(_ notification: some NotificationType, from clientID: ObjectIdentifier) async {
-    logger.log(
-      """
-      Received notification
-      \(notification.forLogging)
-      """
-    )
+    logger.log("Received notification: \(notification.forLogging)")
 
     switch notification {
     case let notification as InitializedNotification:
