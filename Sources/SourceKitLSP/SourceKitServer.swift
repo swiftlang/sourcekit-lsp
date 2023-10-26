@@ -713,14 +713,24 @@ extension SourceKitServer: MessageHandler {
         reply(result)
         let endDate = Date()
         Task {
-          logger.debug(
-            """
-            Sending response (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-            Response<\(R.method, privacy: .public)(\(id, privacy: .public))>(
-              \(String(describing: result))
+          switch result {
+          case .success(let response):
+            logger.log(
+              """
+              Succeeded (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
+              \(R.method, privacy: .public)
+              \(response.forLogging)
+              """
             )
-            """
-          )
+          case .failure(let error):
+             logger.log(
+              """
+              Failed (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
+              \(R.method, privacy: .public)(\(id, privacy: .public))
+              \(error.forLogging, privacy: .private)
+              """
+            ) 
+          }
         }
       }
     )
