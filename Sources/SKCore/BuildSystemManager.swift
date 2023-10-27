@@ -72,25 +72,6 @@ public actor BuildSystemManager {
   }
 }
 
-/// Splits `message` on newline characters such that each chunk is at most `maxChunkSize` bytes long.
-///
-/// The intended use case for this is to split compiler arguments into multiple chunks so that each chunk doesn't exceed
-/// the maximum message length of `os_log` and thus won't get truncated.
-///
-///  - Note: This will only split along newline boundary. If a single line is longer than `maxChunkSize`, it won't be
-///    split. This is fine for compiler argument splitting since a single argument is rarely longer than 800 characters.
-private func splitLongMultilineMessage(message: String, maxChunkSize: Int) -> [String] {
-  var chunks: [String] = []
-  for line in message.split(separator: "\n", omittingEmptySubsequences: false) {
-    if let lastChunk = chunks.last, lastChunk.utf8.count + line.utf8.count < maxChunkSize {
-      chunks[chunks.count - 1] += "\n" + line
-    } else {
-      chunks.append(String(line))
-    }
-  }
-  return chunks
-}
-
 extension BuildSystemManager {
   public var delegate: BuildSystemDelegate? {
     get { _delegate }
@@ -160,23 +141,7 @@ extension BuildSystemManager {
       // to reference `document` instead of `mainFile`.
       settings = settings.patching(newFile: document.pseudoPath, originalFile: mainFile.pseudoPath)
     }
-    let log = """
-      Compiler Arguments:
-      \(settings.compilerArguments.joined(separator: "\n"))
-
-      Working directory:
-      \(settings.workingDirectory ?? "<nil>")
-      """
-
-    let chunks = splitLongMultilineMessage(message: log, maxChunkSize: 800)
-    for (index, chunk) in chunks.enumerated() {
-      logger.log(
-        """
-        Build settings for \(document.forLogging) (\(index + 1)/\(chunks.count))
-        \(chunk)
-        """
-      )
-    }
+    await BuildSettingsLogger.shared.log(settings: settings, for: document)
     return settings
   }
 
@@ -332,5 +297,57 @@ extension BuildSystemManager {
   /// *For Testing* Returns the main file used for `uri`, if this is a registered file.
   public func _cachedMainFile(for uri: DocumentURI) -> DocumentURI? {
     return self.watchedFiles[uri]?.mainFile
+  }
+}
+
+// MARK: - Build settings logger
+
+/// Shared logger that only logs build settings for a file once unless they change
+fileprivate actor BuildSettingsLogger {
+  static let shared = BuildSettingsLogger()
+
+  private var loggedSettings: [DocumentURI: FileBuildSettings] = [:]
+
+  func log(settings: FileBuildSettings, for uri: DocumentURI) {
+    guard loggedSettings[uri] != settings else {
+      return
+    }
+    loggedSettings[uri] = settings
+    let log = """
+      Compiler Arguments:
+      \(settings.compilerArguments.joined(separator: "\n"))
+
+      Working directory:
+      \(settings.workingDirectory ?? "<nil>")
+      """
+
+    let chunks = splitLongMultilineMessage(message: log, maxChunkSize: 800)
+    for (index, chunk) in chunks.enumerated() {
+      logger.log(
+        """
+        Build settings for \(uri.forLogging) (\(index + 1)/\(chunks.count))
+        \(chunk)
+        """
+      )
+    }
+  }
+
+  /// Splits `message` on newline characters such that each chunk is at most `maxChunkSize` bytes long.
+  ///
+  /// The intended use case for this is to split compiler arguments into multiple chunks so that each chunk doesn't exceed
+  /// the maximum message length of `os_log` and thus won't get truncated.
+  ///
+  ///  - Note: This will only split along newline boundary. If a single line is longer than `maxChunkSize`, it won't be
+  ///    split. This is fine for compiler argument splitting since a single argument is rarely longer than 800 characters.
+  private func splitLongMultilineMessage(message: String, maxChunkSize: Int) -> [String] {
+    var chunks: [String] = []
+    for line in message.split(separator: "\n", omittingEmptySubsequences: false) {
+      if let lastChunk = chunks.last, lastChunk.utf8.count + line.utf8.count < maxChunkSize {
+        chunks[chunks.count - 1] += "\n" + line
+      } else {
+        chunks.append(String(line))
+      }
+    }
+    return chunks
   }
 }
