@@ -1,11 +1,14 @@
 
 add_library(SKSupport STATIC
+  AsyncQueue.swift
   AsyncUtils.swift
   BuildConfiguration.swift
   ByteString.swift
+  Connection+Send.swift
   dlopen.swift
   FileSystem.swift
   LineTable.swift
+  LoggableMessageTypes.swift
   Random.swift
   Result.swift
   ThreadSafeBox.swift

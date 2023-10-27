@@ -11,27 +11,13 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import LSPLogging
 
-import struct TSCBasic.AbsolutePath
-import func TSCBasic.resolveSymlinks
-
-public struct DocumentURI: Codable, Hashable, CustomLogStringConvertible {
+public struct DocumentURI: Codable, Hashable {
   /// The URL that store the URIs value
   private let storage: URL
 
   public var description: String {
     return storage.description
-  }
-
-  public var redactedDescription: String {
-    return "<DocumentURI length=\(storage.description.count) hash=\(description.hashForLogging)>"
-  }
-
-  public var nativeURI: Self {
-    get throws {
-      DocumentURI(URL(fileURLWithPath: try resolveSymlinks(AbsolutePath(validating: self.pseudoPath)).pathString))
-    }
   }
 
   public var fileURL: URL? {

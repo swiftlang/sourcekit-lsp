@@ -14,6 +14,7 @@ import Dispatch
 import LSPLogging
 import LanguageServerProtocol
 import SourceKitD
+import SKSupport
 
 /// Represents a code-completion session for a given source location that can be efficiently
 /// re-filtered by calling `update()`.
