@@ -43,7 +43,7 @@ public protocol ToolchainLanguageServer: AnyObject {
 
   // MARK: - Lifetime
 
-  func initializeSync(_ initialize: InitializeRequest) async throws -> InitializeResult
+  func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult
   func clientInitialized(_ initialized: InitializedNotification) async
 
   /// Shut the server down and return once the server has finished shutting down

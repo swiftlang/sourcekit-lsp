@@ -516,7 +516,7 @@ public actor SourceKitServer {
       }
 
       let pid = Int(ProcessInfo.processInfo.processIdentifier)
-      let resp = try await service.initializeSync(
+      let resp = try await service.initialize(
         InitializeRequest(
           processId: pid,
           rootPath: nil,

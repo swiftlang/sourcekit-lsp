@@ -196,7 +196,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
 extension SwiftLanguageServer {
 
-  public func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult {
+  public func initialize(_ initialize: InitializeRequest) throws -> InitializeResult {
     sourcekitd.addNotificationHandler(self)
 
     return InitializeResult(
