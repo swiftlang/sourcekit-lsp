@@ -293,7 +293,7 @@ extension SwiftLanguageServer {
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
     // We may not have a snapshot if this is called just before `openDocument`.
-    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
+    guard let snapshot = try? self.documentManager.latestSnapshot(uri) else {
       return
     }
 
@@ -303,7 +303,7 @@ extension SwiftLanguageServer {
   }
 
   public func documentDependenciesUpdated(_ uri: DocumentURI) async {
-    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
+    guard let snapshot = try? self.documentManager.latestSnapshot(uri) else {
       return
     }
 
@@ -530,10 +530,7 @@ extension SwiftLanguageServer {
   }
 
   public func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
-    guard let snapshot = self.documentManager.latestSnapshot(req.textDocument.uri) else {
-      logger.error("failed to find snapshot for url \(req.textDocument.uri.forLogging)")
-      return []
-    }
+    let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
 
@@ -605,12 +602,7 @@ extension SwiftLanguageServer {
   }
 
   public func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
-    let keys = self.keys
-
-    guard let snapshot = self.documentManager.latestSnapshot(req.textDocument.uri) else {
-      logger.error("failed to find snapshot for url \(req.textDocument.uri.forLogging)")
-      return nil
-    }
+    let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 
     guard let offset = snapshot.utf8Offset(of: req.position) else {
       logger.error("invalid position \(req.position, privacy: .public)")
@@ -658,11 +650,7 @@ extension SwiftLanguageServer {
 
   public func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {
     let foldingRangeCapabilities = capabilityRegistry.clientCapabilities.textDocument?.foldingRange
-    let uri = req.textDocument.uri
-    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-      logger.error("failed to find snapshot for url \(req.textDocument.uri.forLogging)")
-      return nil
-    }
+    let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 
     let sourceFile = await syntaxTreeManager.syntaxTree(for: snapshot)
 
@@ -1059,9 +1047,7 @@ extension SwiftLanguageServer {
   private func fullDocumentDiagnosticReport(
     _ req: DocumentDiagnosticsRequest
   ) async throws -> RelatedFullDocumentDiagnosticReport {
-    guard let snapshot = documentManager.latestSnapshot(req.textDocument.uri) else {
-      throw ResponseError.unknown("failed to find snapshot for url \(req.textDocument.uri.forLogging)")
-    }
+    let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
     guard let buildSettings = await self.buildSettings(for: req.textDocument.uri), !buildSettings.isFallback else {
       logger.log(
         "Producing syntactic diagnostics from the built-in swift-syntax because we have fallback arguments"
@@ -1087,7 +1073,7 @@ extension SwiftLanguageServer {
     let dict = try await self.sourcekitd.send(skreq)
 
     try Task.checkCancellation()
-    guard documentManager.latestSnapshot(req.textDocument.uri)?.id == snapshot.id else {
+    guard (try? documentManager.latestSnapshot(req.textDocument.uri).id) == snapshot.id else {
       // Check that the document wasn't modified while we were getting diagnostics. This could happen because we are
       // calling `fullDocumentDiagnosticReport` from `publishDiagnosticsIfNeeded` outside of `messageHandlingQueue`
       // and thus a concurrent edit is possible while we are waiting for the sourcekitd request to return a result.

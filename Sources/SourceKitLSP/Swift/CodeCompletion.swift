@@ -18,10 +18,7 @@ import SourceKitD
 extension SwiftLanguageServer {
 
   public func completion(_ req: CompletionRequest) async throws -> CompletionList {
-    guard let snapshot = documentManager.latestSnapshot(req.textDocument.uri) else {
-      logger.error("failed to find snapshot for url \(req.textDocument.uri.forLogging)")
-      return CompletionList(isIncomplete: true, items: [])
-    }
+    let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
 
     guard let completionPos = adjustCompletionLocation(req.position, in: snapshot) else {
       logger.error("invalid completion position \(req.position, privacy: .public)")

@@ -84,10 +84,6 @@ struct SemanticRefactoring {
 
 /// An error from a semantic refactoring request.
 enum SemanticRefactoringError: Error {
-
-  /// The given URL is not a known document.
-  case unknownDocument(DocumentURI)
-
   /// The given position range is invalid.
   case invalidRange(Range<Position>)
 
@@ -104,8 +100,6 @@ enum SemanticRefactoringError: Error {
 extension SemanticRefactoringError: CustomStringConvertible {
   var description: String {
     switch self {
-    case .unknownDocument(let url):
-      return "failed to find snapshot for url \(url)"
     case .invalidRange(let range):
       return "failed to refactor due to invalid range: \(range)"
     case .failedToRetrieveOffset(let range):
@@ -134,9 +128,7 @@ extension SwiftLanguageServer {
     let keys = self.keys
 
     let uri = refactorCommand.textDocument.uri
-    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-      throw SemanticRefactoringError.unknownDocument(uri)
-    }
+    let snapshot = try self.documentManager.latestSnapshot(uri)
     guard let offsetRange = snapshot.utf8OffsetRange(of: refactorCommand.positionRange) else {
       throw SemanticRefactoringError.failedToRetrieveOffset(refactorCommand.positionRange)
     }
