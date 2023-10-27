@@ -73,12 +73,16 @@ public actor CompilationDatabaseBuildSystem {
     return nil
   }
 
-  public init(projectRoot: AbsolutePath? = nil, searchPaths: [RelativePath], fileSystem: FileSystem = localFileSystem) {
+  public init?(projectRoot: AbsolutePath? = nil, searchPaths: [RelativePath], fileSystem: FileSystem = localFileSystem) {
     self.fileSystem = fileSystem
     self.projectRoot = projectRoot
     self.searchPaths = searchPaths
-    if let path = projectRoot {
-      self.compdb = tryLoadCompilationDatabase(directory: path, additionalSearchPaths: searchPaths, fileSystem)
+    if let path = projectRoot,
+      let compdb = tryLoadCompilationDatabase(directory: path, additionalSearchPaths: searchPaths, fileSystem)
+    {
+      self.compdb = compdb
+    } else {
+      return nil
     }
   }
 }

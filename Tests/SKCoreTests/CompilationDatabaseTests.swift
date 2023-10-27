@@ -453,5 +453,5 @@ private func checkCompilationDatabaseBuildSystem(
     searchPaths: try [RelativePath(validating: ".")],
     fileSystem: fs
   )
-  try await block(buildSystem)
+  try await block(XCTUnwrap(buildSystem))
 }

@@ -118,8 +118,16 @@ public final class Workspace {
         reloadPackageStatusCallback: reloadPackageStatusCallback
       ) {
         buildSystem = swiftpm
+      } else if let compdb = CompilationDatabaseBuildSystem(
+        projectRoot: rootPath,
+        searchPaths: compilationDatabaseSearchPaths
+      ) {
+        buildSystem = compdb
       } else {
-        buildSystem = CompilationDatabaseBuildSystem(projectRoot: rootPath, searchPaths: compilationDatabaseSearchPaths)
+        logger.error(
+          "Could not set up a build system for workspace at '\(rootUri.forLogging)'"
+        )
+        buildSystem = nil
       }
     } else {
       // We assume that workspaces are directories. This is only true for URLs not for URIs in general.

@@ -554,7 +554,7 @@ private func findPackageDirectory(
 extension Basics.Diagnostic.Severity {
   var asLogLevel: LogLevel {
     switch self {
-    case .error, .warning: return .error
+    case .error, .warning: return .default
     case .info: return .info
     case .debug: return .debug
     }
