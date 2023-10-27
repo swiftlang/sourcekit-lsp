@@ -17,10 +17,10 @@ import SKCore
 /// The location of a test file within test workspace.
 public struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {
   /// The subdirectories in which the file is located.
-  fileprivate let directories: [String]
+  let directories: [String]
 
   /// The file's name.
-  fileprivate let fileName: String
+  let fileName: String
 
   public init(directories: [String] = [], _ fileName: String) {
     self.directories = directories
@@ -58,8 +58,15 @@ public class MultiFileTestWorkspace {
   }
 
   /// The directory in which the temporary files are being placed.
-  let scratchDirectory: URL
+  public let scratchDirectory: URL
 
+  /// Writes the specified files to a temporary directory on disk and creates a `TestSourceKitLSPClient` for that
+  /// temporary directory.
+  ///
+  /// The file contents can contain location markers, which are returned when opening a document using
+  /// ``openDocument(_:)``.
+  ///
+  /// File contents can also contain `$TEST_DIR`, which gets replaced by the temporary directory.
   public init(
     files: [RelativeFileLocation: String],
     workspaces: (URL) -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
@@ -70,6 +77,7 @@ public class MultiFileTestWorkspace {
 
     var fileData: [String: FileData] = [:]
     for (fileLocation, markedText) in files {
+      let markedText = markedText.replacingOccurrences(of: "$TEST_DIR", with: scratchDirectory.path)
       var fileURL = scratchDirectory
       for directory in fileLocation.directories {
         fileURL = fileURL.appendingPathComponent(directory)
@@ -81,14 +89,16 @@ public class MultiFileTestWorkspace {
       )
       try extractMarkers(markedText).textWithoutMarkers.write(to: fileURL, atomically: false, encoding: .utf8)
 
-      precondition(
-        fileData[fileLocation.fileName] == nil,
-        "Files within a `MultiFileTestWorkspace` must have unique names"
-      )
-      fileData[fileLocation.fileName] = FileData(
-        uri: DocumentURI(fileURL),
-        markedText: markedText
-      )
+      if fileData[fileLocation.fileName] != nil {
+        // If we already have a file with this name, remove its data. That way we can't reference any of the two
+        // conflicting documents and will throw when trying to open them, instead of non-deterministically picking one.
+        fileData[fileLocation.fileName] = nil
+      } else {
+        fileData[fileLocation.fileName] = FileData(
+          uri: DocumentURI(fileURL),
+          markedText: markedText
+        )
+      }
     }
     self.fileData = fileData
 
@@ -117,5 +127,13 @@ public class MultiFileTestWorkspace {
       throw Error.fileNotFound
     }
     return fileData.uri
+  }
+
+  /// Returns the position of the given marker in the given file.
+  public func position(of marker: String, in fileName: String) throws -> Position {
+    guard let fileData = self.fileData[fileName] else {
+      throw Error.fileNotFound
+    }
+    return DocumentPositions(markedText: fileData.markedText)[marker]
   }
 }

@@ -25,16 +25,27 @@ public struct IndexedSingleSwiftFileWorkspace {
   public let testClient: TestSourceKitLSPClient
   public let fileURI: DocumentURI
   public let positions: DocumentPositions
+  public let indexDBURL: URL
 
+  /// Writes a single file to a temporary directory on disk and compiles it to index it.
+  ///
+  /// - Parameters:
+  ///   - markedText: The contents of the source file including location markers.
+  ///   - workspaceDirectory: If specified, the temporary files will be put in this directory. If `nil` a temporary
+  ///     scratch directory will be created based on `testName`.
+  ///   - cleanUp: Whether to remove the temporary directory when the SourceKit-LSP server shuts down.
   public init(
     _ markedText: String,
+    indexSystemModules: Bool = false,
+    workspaceDirectory: URL? = nil,
+    cleanUp: Bool = true,
     testName: String = #function
   ) async throws {
-    let testWorkspaceDirectory = try testScratchDir(testName: testName)
+    let testWorkspaceDirectory = try workspaceDirectory ?? testScratchDir(testName: testName)
 
     let testFileURL = testWorkspaceDirectory.appendingPathComponent("test.swift")
     let indexURL = testWorkspaceDirectory.appendingPathComponent("index")
-    let indexDBURL = testWorkspaceDirectory.appendingPathComponent("index-db")
+    self.indexDBURL = testWorkspaceDirectory.appendingPathComponent("index-db")
     guard let swiftc = ToolchainRegistry.shared.default?.swiftc?.asURL else {
       throw Error.swiftcNotFound
     }
@@ -46,9 +57,12 @@ public struct IndexedSingleSwiftFileWorkspace {
     var compilerArguments: [String] = [
       testFileURL.path,
       "-index-store-path", indexURL.path,
-      "-index-ignore-system-modules",
-      "-o", testWorkspaceDirectory.appendingPathComponent("test.o").path,
+      "-typecheck"
     ]
+    if !indexSystemModules {
+      compilerArguments.append("-index-ignore-system-modules")
+    }
+
     if let sdk = TibsBuilder.defaultSDKPath {
       compilerArguments += ["-sdk", sdk]
     }
@@ -83,7 +97,9 @@ public struct IndexedSingleSwiftFileWorkspace {
         WorkspaceFolder(uri: DocumentURI(testWorkspaceDirectory))
       ],
       cleanUp: {
-        try? FileManager.default.removeItem(at: testWorkspaceDirectory)
+        if cleanUp {
+          try? FileManager.default.removeItem(at: testWorkspaceDirectory)
+        }
       }
     )
 

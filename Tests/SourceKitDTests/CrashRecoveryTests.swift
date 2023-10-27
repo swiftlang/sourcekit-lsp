@@ -48,39 +48,22 @@ final class CrashRecoveryTests: XCTestCase {
     try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
     try XCTSkipIf(longTestsDisabled)
 
-    let ws = try await staticSourceKitTibsWorkspace(name: "sourcekitdCrashRecovery")!
-    let loc = ws.testLoc("loc")
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
 
-    // Open the document. Wait for the semantic diagnostics to know it has been fully opened and we are not entering any data races about outstanding diagnostics when we crash sourcekitd.
-
-    try ws.openDocument(loc.url, language: .swift)
+    let positions = testClient.openDocument("""
+      func 1️⃣foo() {
+        print("Hello world")
+      }
+      """, uri: uri)
 
     // Wait for diagnostics to be produced to make sure the document open got handled by sourcekitd.
-    _ = try await ws.testClient.nextDiagnosticsNotification()
-
-    // Make a change to the file that's not saved to disk. This way we can check that we re-open the correct in-memory state.
-
-    let addFuncChange = TextDocumentContentChangeEvent(
-      range: loc.position..<loc.position,
-      rangeLength: 0,
-      text: """
-
-        func foo() {
-          print("Hello world")
-        }
-        """
-    )
-    ws.testClient.send(
-      DidChangeTextDocumentNotification(
-        textDocument: VersionedTextDocumentIdentifier(loc.docUri, version: 2),
-        contentChanges: [addFuncChange]
-      )
-    )
+    _ = try await testClient.nextDiagnosticsNotification()
 
     // Do a sanity check and verify that we get the expected result from a hover response before crashing sourcekitd.
 
-    let hoverRequest = HoverRequest(textDocument: loc.docIdentifier, position: Position(line: 1, utf16index: 6))
-    let preCrashHoverResponse = try await ws.testClient.send(hoverRequest)
+    let hoverRequest = HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    let preCrashHoverResponse = try await testClient.send(hoverRequest)
     precondition(
       preCrashHoverResponse?.contains(string: "foo()") ?? false,
       "Sanity check failed. The Hover response did not contain foo(), even before crashing sourcekitd. Received response: \(String(describing: preCrashHoverResponse))"
@@ -89,10 +72,10 @@ final class CrashRecoveryTests: XCTestCase {
     // Crash sourcekitd
 
     let sourcekitdServer =
-      await ws.testClient.server._languageService(
-        for: loc.docUri,
+      await testClient.server._languageService(
+        for: uri,
         .swift,
-        in: ws.testClient.server.workspaceForDocument(uri: loc.docUri)!
+        in: testClient.server.workspaceForDocument(uri: uri)!
       ) as! SwiftLanguageServer
 
     let sourcekitdCrashed = expectation(description: "sourcekitd has crashed")
@@ -119,18 +102,18 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Check that we have syntactic functionality again
 
-    _ = try await ws.testClient.send(FoldingRangeRequest(textDocument: loc.docIdentifier))
+    _ = try await testClient.send(FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri)))
 
     // sourcekitd's semantic request timer is only started when the first semantic request comes in.
     // Send a hover request (which will fail) to trigger that timer.
     // Afterwards wait for semantic functionality to be restored.
-    _ = try? await ws.testClient.send(hoverRequest)
+    _ = try? await testClient.send(hoverRequest)
     try await fulfillmentOfOrThrow([semanticFunctionalityRestored], timeout: 30)
 
     // Check that we get the same hover response from the restored in-memory state
 
     await assertNoThrow {
-      let postCrashHoverResponse = try await ws.testClient.send(hoverRequest)
+      let postCrashHoverResponse = try await testClient.send(hoverRequest)
       XCTAssertTrue(postCrashHoverResponse?.contains(string: "foo()") ?? false)
     }
   }

@@ -36,14 +36,22 @@ public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
   ///
   /// If `index` is `true`, then the package will be built, indexing all modules within the package.
   public init(
-    files: [String: String],
+    files: [RelativeFileLocation: String],
     manifest: String = SwiftPMTestWorkspace.defaultPackageManifest,
     build: Bool = false,
     testName: String = #function
   ) async throws {
     var filesByPath: [RelativeFileLocation: String] = [:]
-    for (fileName, contents) in files {
-      filesByPath[RelativeFileLocation(directories: ["Sources", "MyLibrary"], fileName)] = contents
+    for (fileLocation, contents) in files {
+      let directories =
+        if fileLocation.directories.isEmpty {
+          ["Sources", "MyLibrary"]
+        } else if fileLocation.directories.first != "Sources" {
+          ["Sources"] + fileLocation.directories
+        } else {
+          fileLocation.directories
+        }
+      filesByPath[RelativeFileLocation(directories: directories, fileLocation.fileName)] = contents
     }
     filesByPath["Package.swift"] = manifest
     try await super.init(
@@ -51,21 +59,25 @@ public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
       testName: testName
     )
 
-    guard let swift = ToolchainRegistry.shared.default?.swift?.asURL else {
-      throw Error.swiftNotFound
-    }
-
     if build {
-      let arguments = [
-        swift.path,
-        "build",
-        "--package-path", scratchDirectory.path,
-        "-Xswiftc", "-index-ignore-system-modules",
-        "-Xcc", "-index-ignore-system-symbols",
-      ]
-      try await Process.checkNonZeroExit(arguments: arguments)
+      try await Self.build(at: self.scratchDirectory)
     }
     // Wait for the indexstore-db to finish indexing
     _ = try await testClient.send(PollIndexRequest())
+  }
+
+  /// Build a SwiftPM package package manifest is located in the directory at `path`.
+  public static func build(at path: URL) async throws {
+    guard let swift = ToolchainRegistry.shared.default?.swift?.asURL else {
+      throw Error.swiftNotFound
+    }
+    let arguments = [
+      swift.path,
+      "build",
+      "--package-path", path.path,
+      "-Xswiftc", "-index-ignore-system-modules",
+      "-Xcc", "-index-ignore-system-symbols",
+    ]
+    try await Process.checkNonZeroExit(arguments: arguments)
   }
 }

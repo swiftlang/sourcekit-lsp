@@ -12,227 +12,241 @@
 
 import ISDBTestSupport
 import LanguageServerProtocol
+import SKTestSupport
 import TSCBasic
 import XCTest
 
 final class TypeHierarchyTests: XCTestCase {
-  func testTypeHierarchy() async throws {
-    let ws = try await staticSourceKitTibsWorkspace(name: "TypeHierarchy")!
-    try ws.buildAndIndex()
+  func testRootClassSupertypes() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      class 1️⃣MyClass {}
+      """
+    )
 
-    try ws.openDocument(ws.testLoc("a.swift").url, language: .swift)
+    let item = try await ws.prepareTypeHierarchy(at: "1️⃣")
+    let supertypes = try await ws.testClient.send(TypeHierarchySupertypesRequest(item: item))
+    assertEqualIgnoringData(supertypes, [])
+  }
 
-    // Requests
+  func testSupertypesOfClass() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      class 1️⃣MyClass {}
+      protocol 2️⃣MyProtocol {}
+      class 3️⃣MySubclass: MyClass, MyProtocol {}
+      """
+    )
 
-    func typeHierarchy(at testLoc: TestLocation) async throws -> [TypeHierarchyItem] {
-      let textDocument = testLoc.docIdentifier
-      let request = TypeHierarchyPrepareRequest(textDocument: textDocument, position: Position(testLoc))
-      let items = try await ws.testClient.send(request)
-      return items ?? []
-    }
+    let item = try await ws.prepareTypeHierarchy(at: "3️⃣")
+    let supertypes = try await ws.testClient.send(TypeHierarchySupertypesRequest(item: item))
+    assertEqualIgnoringData(
+      supertypes,
+      [
+        TypeHierarchyItem(name: "MyClass", kind: .class, location: "1️⃣", in: ws),
+        TypeHierarchyItem(name: "MyProtocol", kind: .interface, location: "2️⃣", in: ws),
+      ]
+    )
+  }
 
-    func supertypes(at testLoc: TestLocation) async throws -> [TypeHierarchyItem] {
-      guard let item = try await typeHierarchy(at: testLoc).first else {
-        XCTFail("Type hierarchy at \(testLoc) was empty")
-        return []
+  func testConformedProtocolsOfStruct() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      protocol 1️⃣MyProtocol {}
+      protocol 2️⃣MyOtherProtocol {}
+      struct 3️⃣MyStruct: MyProtocol {}
+      extension MyStruct: MyOtherProtocol {}
+      """
+    )
+
+    let item = try await ws.prepareTypeHierarchy(at: "3️⃣")
+    let supertypes = try await ws.testClient.send(TypeHierarchySupertypesRequest(item: item))
+    assertEqualIgnoringData(
+      supertypes,
+      [
+        TypeHierarchyItem(name: "MyProtocol", kind: .interface, location: "1️⃣", in: ws),
+        TypeHierarchyItem(name: "MyOtherProtocol", kind: .interface, location: "2️⃣", in: ws),
+      ]
+    )
+  }
+
+  func testSubtypesOfClass() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      class MySuperclass {}
+      class 1️⃣MyClass: MySuperclass {}
+      class 2️⃣SubclassA: MyClass {}
+      class 3️⃣SubclassB: MyClass {}
+      """
+    )
+
+    let item = try await ws.prepareTypeHierarchy(at: "1️⃣")
+    let subtypes = try await ws.testClient.send(TypeHierarchySubtypesRequest(item: item))
+    assertEqualIgnoringData(
+      subtypes,
+      [
+        TypeHierarchyItem(name: "SubclassA", kind: .class, location: "2️⃣", in: ws),
+        TypeHierarchyItem(name: "SubclassB", kind: .class, location: "3️⃣", in: ws),
+      ]
+    )
+  }
+
+  func testProtocolConformancesAsSubtypes() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      protocol 1️⃣MyProtocol {}
+      class 2️⃣MyClass: MyProtocol {}
+      struct 3️⃣MyStruct: MyProtocol {}
+      enum 4️⃣MyEnum: MyProtocol {}
+      """
+    )
+
+    let item = try await ws.prepareTypeHierarchy(at: "1️⃣")
+    let subtypes = try await ws.testClient.send(TypeHierarchySubtypesRequest(item: item))
+    assertEqualIgnoringData(
+      subtypes,
+      [
+        TypeHierarchyItem(name: "MyClass", kind: .class, location: "2️⃣", in: ws),
+        TypeHierarchyItem(name: "MyStruct", kind: .struct, location: "3️⃣", in: ws),
+        TypeHierarchyItem(name: "MyEnum", kind: .enum, location: "4️⃣", in: ws),
+      ]
+    )
+  }
+
+  func testExtensionsWithConformancesAsSubtypes() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      protocol MyProtocol {}
+      enum 1️⃣MyEnum {}
+      extension 2️⃣MyEnum {
+        func foo() {}
       }
-      let request = TypeHierarchySupertypesRequest(item: item)
-      let types = try await ws.testClient.send(request)
-      return types ?? []
-    }
+      extension 3️⃣MyEnum: MyProtocol {}
+      """
+    )
 
-    func subtypes(at testLoc: TestLocation) async throws -> [TypeHierarchyItem] {
-      guard let item = try await typeHierarchy(at: testLoc).first else {
-        XCTFail("Type hierarchy at \(testLoc) was empty")
-        return []
-      }
-      let request = TypeHierarchySubtypesRequest(item: item)
-      let types = try await ws.testClient.send(request)
-      return types ?? []
-    }
+    let item = try await ws.prepareTypeHierarchy(at: "1️⃣")
+    let subtypes = try await ws.testClient.send(TypeHierarchySubtypesRequest(item: item))
+    assertEqualIgnoringData(
+      subtypes,
+      [
+        TypeHierarchyItem(name: "MyEnum", kind: .null, detail: "Extension at test.swift:3", location: "2️⃣", in: ws),
+        TypeHierarchyItem(
+          name: "MyEnum: MyProtocol",
+          kind: .null,
+          detail: "Extension at test.swift:6",
+          location: "3️⃣",
+          in: ws
+        ),
+      ]
+    )
+  }
 
-    // Convenience functions
+  func testRetroactiveConformancesAsSubtypes() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      protocol 1️⃣MyProtocol {}
+      struct MyStruct {}
+      extension 2️⃣MyStruct: MyProtocol {}
+      """
+    )
 
-    func testLoc(_ name: String) -> TestLocation {
-      ws.testLoc(name)
-    }
+    let item = try await ws.prepareTypeHierarchy(at: "1️⃣")
+    let subtypes = try await ws.testClient.send(TypeHierarchySubtypesRequest(item: item))
+    assertEqualIgnoringData(
+      subtypes,
+      [
+        TypeHierarchyItem(
+          name: "MyStruct: MyProtocol",
+          kind: .null,
+          detail: "Extension at test.swift:3",
+          location: "2️⃣",
+          in: ws
+        )
+      ]
+    )
+  }
 
-    func loc(_ name: String) -> Location {
-      Location(badUTF16: ws.testLoc(name))
-    }
+  func testSupertypesFromCall() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      class 1️⃣MyClass {}
+      class MySubclass: MyClass {}
 
-    func withoutData(_ item: TypeHierarchyItem) -> TypeHierarchyItem {
-      var item = item
-      item.data = nil
-      return item
-    }
+      let x = 2️⃣MySubclass()
+      """
+    )
+    let item = try await ws.prepareTypeHierarchy(at: "2️⃣")
+    let supertypes = try await ws.testClient.send(TypeHierarchySupertypesRequest(item: item))
+    assertEqualIgnoringData(
+      supertypes,
+      [
+        TypeHierarchyItem(name: "MyClass", kind: .class, location: "1️⃣", in: ws)
+      ]
+    )
+  }
+}
 
-    /// Compares the given type hierarchies ignoring the implementation-specific
-    /// data field (which includes e.g. USRs that are difficult to test, especially
-    /// in the presence of extensions, and are not user-visible anyway).
-    func assertEqualIgnoringData(
-      _ actual: [TypeHierarchyItem],
-      _ expected: [TypeHierarchyItem],
-      file: StaticString = #file,
-      line: UInt = #line
-    ) {
-      XCTAssertEqual(
-        actual.map(withoutData),
-        expected.map(withoutData),
-        file: file,
-        line: line
+// MARK: - Utilities
+
+fileprivate extension TypeHierarchyItem {
+  var withoutData: TypeHierarchyItem {
+    var item = self
+    item.data = nil
+    return item
+  }
+}
+
+/// Compares the given type hierarchies ignoring the implementation-specific
+/// data field (which includes e.g. USRs that are difficult to test, especially
+/// in the presence of extensions, and are not user-visible anyway).
+fileprivate func assertEqualIgnoringData(
+  _ actual: [TypeHierarchyItem]?,
+  _ expected: [TypeHierarchyItem],
+  file: StaticString = #file,
+  line: UInt = #line
+) {
+  guard let actual else {
+    XCTFail("Expected non-nil type hierarchy", file: file, line: line)
+    return
+  }
+  XCTAssertEqual(
+    actual.map(\.withoutData),
+    expected.map(\.withoutData),
+    file: file,
+    line: line
+  )
+}
+
+fileprivate extension TypeHierarchyItem {
+  init(
+    name: String,
+    kind: SymbolKind,
+    detail: String = "test",
+    location locationMarker: String,
+    in ws: IndexedSingleSwiftFileWorkspace
+  ) {
+    self.init(
+      name: name,
+      kind: kind,
+      tags: nil,
+      detail: detail,
+      uri: ws.fileURI,
+      range: Range(ws.positions[locationMarker]),
+      selectionRange: Range(ws.positions[locationMarker])
+    )
+  }
+}
+
+fileprivate extension IndexedSingleSwiftFileWorkspace {
+  func prepareTypeHierarchy(at locationMarker: String, line: UInt = #line) async throws -> TypeHierarchyItem {
+    let items = try await testClient.send(
+      TypeHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(self.fileURI),
+        position: self.positions[locationMarker]
       )
-    }
-
-    func item(
-      _ name: String,
-      _ kind: SymbolKind,
-      detail: String = "main",
-      at locName: String
-    ) throws -> TypeHierarchyItem {
-      let location = loc(locName)
-      return TypeHierarchyItem(
-        name: name,
-        kind: kind,
-        tags: nil,
-        detail: detail,
-        uri: try location.uri.nativeURI,
-        range: location.range,
-        selectionRange: location.range
-      )
-    }
-
-    // Test type hierarchy preparation
-
-    assertEqualIgnoringData(
-      try await typeHierarchy(at: testLoc("P")),
-      [
-        try item("P", .interface, at: "P")
-      ]
     )
-    assertEqualIgnoringData(
-      try await typeHierarchy(at: testLoc("A")),
-      [
-        try item("A", .class, at: "A")
-      ]
-    )
-    assertEqualIgnoringData(
-      try await typeHierarchy(at: testLoc("S")),
-      [
-        try item("S", .struct, at: "S")
-      ]
-    )
-    assertEqualIgnoringData(
-      try await typeHierarchy(at: testLoc("E")),
-      [
-        try item("E", .enum, at: "E")
-      ]
-    )
-
-    // Test supertype hierarchy
-
-    assertEqualIgnoringData(try await supertypes(at: testLoc("A")), [])
-    assertEqualIgnoringData(
-      try await supertypes(at: testLoc("B")),
-      [
-        try item("A", .class, at: "A"),
-        try item("P", .interface, at: "P"),
-      ]
-    )
-    assertEqualIgnoringData(
-      try await supertypes(at: testLoc("C")),
-      [
-        try item("B", .class, at: "B")
-      ]
-    )
-    assertEqualIgnoringData(
-      try await supertypes(at: testLoc("D")),
-      [
-        try item("A", .class, at: "A")
-      ]
-    )
-    assertEqualIgnoringData(
-      try await supertypes(at: testLoc("S")),
-      [
-        try item("P", .interface, at: "P"),
-        try item("X", .interface, at: "X"),  // Retroactive conformance
-      ]
-    )
-    assertEqualIgnoringData(
-      try await supertypes(at: testLoc("E")),
-      [
-        try item("P", .interface, at: "P"),
-        try item("Y", .interface, at: "Y"),  // Retroactive conformance
-        try item("Z", .interface, at: "Z"),  // Retroactive conformance
-      ]
-    )
-
-    // Test subtype hierarchy (includes extensions)
-
-    assertEqualIgnoringData(
-      try await subtypes(at: testLoc("A")),
-      [
-        try item("B", .class, at: "B"),
-        try item("D", .class, at: "D"),
-      ]
-    )
-    assertEqualIgnoringData(
-      try await subtypes(at: testLoc("B")),
-      [
-        try item("C", .class, at: "C")
-      ]
-    )
-    assertEqualIgnoringData(
-      try await subtypes(at: testLoc("P")),
-      [
-        try item("B", .class, at: "B"),
-        try item("S", .struct, at: "S"),
-        try item("E", .enum, at: "E"),
-      ]
-    )
-    assertEqualIgnoringData(
-      try await subtypes(at: testLoc("E")),
-      [
-        try item("E: Y, Z", .null, detail: "Extension at a.swift:19", at: "extE:Y,Z")
-      ]
-    )
-    assertEqualIgnoringData(
-      try await subtypes(at: testLoc("S")),
-      [
-        try item("S: X", .null, detail: "Extension at a.swift:15", at: "extS:X"),
-        try item("S", .null, detail: "Extension at a.swift:16", at: "extS"),
-      ]
-    )
-    assertEqualIgnoringData(
-      try await subtypes(at: testLoc("X")),
-      [
-        try item("S: X", .null, detail: "Extension at a.swift:15", at: "extS:X")
-      ]
-    )
-    assertEqualIgnoringData(
-      try await subtypes(at: testLoc("Y")),
-      [
-        try item("E: Y, Z", .null, detail: "Extension at a.swift:19", at: "extE:Y,Z")
-      ]
-    )
-    assertEqualIgnoringData(
-      try await subtypes(at: testLoc("Z")),
-      [
-        try item("E: Y, Z", .null, detail: "Extension at a.swift:19", at: "extE:Y,Z")
-      ]
-    )
-
-    // Ensure that type hierarchies can be fetched from uses too
-
-    for name in ["A", "S"] {
-      for occurrence in ["type", "init"] {
-        let declLoc = testLoc(name)
-        let occurLoc = testLoc(occurrence + name)
-
-        try assertEqualIgnoringData(await typeHierarchy(at: occurLoc), await typeHierarchy(at: declLoc))
-        try assertEqualIgnoringData(await supertypes(at: occurLoc), await supertypes(at: declLoc))
-        try assertEqualIgnoringData(await subtypes(at: occurLoc), await subtypes(at: declLoc))
-      }
-    }
+    XCTAssertEqual(items?.count, 1, "Expected exactly one item from the type hierarchy preapre", line: line)
+    return try XCTUnwrap(items?.first, line: line)
   }
 }

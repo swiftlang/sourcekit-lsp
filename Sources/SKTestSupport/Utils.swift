@@ -53,6 +53,7 @@ public func testScratchDir(testName: String = #function) throws -> URL {
     .appendingPathComponent("sourcekit-lsp-test-scratch")
     .appendingPathComponent(UUID().uuidString)
     .appendingPathComponent(String(testBaseName))
+  try? FileManager.default.removeItem(at: url)
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url
 }

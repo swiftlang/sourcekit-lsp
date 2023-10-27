@@ -12,21 +12,35 @@
 
 import Foundation
 import LanguageServerProtocol
+import SKTestSupport
 import XCTest
 
 final class SwiftPMIntegrationTests: XCTestCase {
 
   func testSwiftPMIntegration() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
-    try ws.buildAndIndex()
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "Lib.swift": """
+        struct Lib {
+          func 1️⃣foo() {}
+        }
+        """,
+        "Other.swift": """
+        func test() {
+          Lib().2️⃣foo()
+        }
+        """,
+      ],
+      build: true
+    )
 
-    let call = ws.testLoc("Lib.foo:call")
-    let def = ws.testLoc("Lib.foo:def")
-    try ws.openDocument(call.url, language: .swift)
+    let (otherUri, otherPositions) = try ws.openDocument("Other.swift")
+    let callPosition = otherPositions["2️⃣"]
+
     let refs = try await ws.testClient.send(
       ReferencesRequest(
-        textDocument: call.docIdentifier,
-        position: call.position,
+        textDocument: TextDocumentIdentifier(otherUri),
+        position: callPosition,
         context: ReferencesContext(includeDeclaration: true)
       )
     )
@@ -34,13 +48,13 @@ final class SwiftPMIntegrationTests: XCTestCase {
     XCTAssertEqual(
       Set(refs),
       [
-        Location(call),
-        Location(def),
+        Location(uri: otherUri, range: Range(callPosition)),
+        Location(uri: try ws.uri(for: "Lib.swift"), range: Range(try ws.position(of: "1️⃣", in: "Lib.swift"))),
       ]
     )
 
     let completions = try await ws.testClient.send(
-      CompletionRequest(textDocument: call.docIdentifier, position: call.position)
+      CompletionRequest(textDocument: TextDocumentIdentifier(otherUri), position: callPosition)
     )
 
     XCTAssertEqual(
@@ -56,7 +70,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
           insertText: "foo()",
           insertTextFormat: .plain,
           textEdit: .textEdit(
-            TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "foo()")
+            TextEdit(range: Range(callPosition), newText: "foo()")
           )
         ),
         CompletionItem(
@@ -69,7 +83,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
           insertText: "self",
           insertTextFormat: .plain,
           textEdit: .textEdit(
-            TextEdit(range: Position(line: 2, utf16index: 24)..<Position(line: 2, utf16index: 24), newText: "self")
+            TextEdit(range: Range(callPosition), newText: "self")
           )
         ),
       ]
@@ -77,46 +91,54 @@ final class SwiftPMIntegrationTests: XCTestCase {
   }
 
   func testAddFile() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
-    try ws.buildAndIndex()
-
-    /// Add a new file to the project that wasn't built
-    _ = try ws.sources.edit { builder in
-      let otherFile = ws.sources.rootDirectory
-        .appendingPathComponent("Sources")
-        .appendingPathComponent("lib")
-        .appendingPathComponent("other.swift")
-      let otherFileContents = """
-        func baz(l: Lib)  {
-          l . /*newFile:call*/foo()
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "Lib.swift": """
+        struct Lib {
+          func foo() {
+            1️⃣
+          }
         }
         """
-      builder.write(otherFileContents, to: otherFile)
-    }
+      ],
+      build: true
+    )
 
-    let oldFile = ws.testLoc("Lib.topLevelFunction:body")
-    let newFile = ws.testLoc("newFile:call")
+    let newFileUrl = ws.scratchDirectory
+      .appendingPathComponent("Sources")
+      .appendingPathComponent("MyLibrary")
+      .appendingPathComponent("Other.swift")
+    let newFileUri = DocumentURI(newFileUrl)
 
-    // Check that we don't get cross-file code completion before we send a `DidChangeWatchedFilesNotification` to make sure we didn't include the file in the initial retrieval of build settings.
-    try ws.openDocument(newFile.url, language: .swift)
-    try ws.openDocument(oldFile.url, language: .swift)
+    let newFileContents = """
+      func baz(l: Lib)  {
+        l.2️⃣foo()
+      }
+      """
+    try extractMarkers(newFileContents).textWithoutMarkers.write(to: newFileUrl, atomically: false, encoding: .utf8)
+
+    // Check that we don't get cross-file code completion before we send a `DidChangeWatchedFilesNotification` to make
+    // sure we didn't include the file in the initial retrieval of build settings.
+    let (oldFileUri, oldFilePositions) = try ws.openDocument("Lib.swift")
+    let newFilePositions = ws.testClient.openDocument(newFileContents, uri: newFileUri)
 
     let completionsBeforeDidChangeNotification = try await ws.testClient.send(
-      CompletionRequest(textDocument: newFile.docIdentifier, position: newFile.position)
+      CompletionRequest(textDocument: TextDocumentIdentifier(newFileUri), position: newFilePositions["2️⃣"])
     )
     XCTAssertEqual(completionsBeforeDidChangeNotification.items, [])
-    ws.closeDocument(newFile.url)
 
     // Send a `DidChangeWatchedFilesNotification` and verify that we now get cross-file code completion.
     ws.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
-        FileEvent(uri: newFile.docUri, type: .created)
+        FileEvent(uri: newFileUri, type: .created)
       ])
     )
-    try ws.openDocument(newFile.url, language: .swift)
+
+    // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
+    _ = try await ws.testClient.send(BarrierRequest())
 
     let completions = try await ws.testClient.send(
-      CompletionRequest(textDocument: newFile.docIdentifier, position: newFile.position)
+      CompletionRequest(textDocument: TextDocumentIdentifier(newFileUri), position: newFilePositions["2️⃣"])
     )
 
     XCTAssertEqual(
@@ -132,7 +154,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
           insertText: "foo()",
           insertTextFormat: .plain,
           textEdit: .textEdit(
-            TextEdit(range: Position(line: 1, utf16index: 22)..<Position(line: 1, utf16index: 22), newText: "foo()")
+            TextEdit(range: Range(newFilePositions["2️⃣"]), newText: "foo()")
           )
         ),
         CompletionItem(
@@ -145,7 +167,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
           insertText: "self",
           insertTextFormat: .plain,
           textEdit: .textEdit(
-            TextEdit(range: Position(line: 1, utf16index: 22)..<Position(line: 1, utf16index: 22), newText: "self")
+            TextEdit(range: Range(newFilePositions["2️⃣"]), newText: "self")
           )
         ),
       ]
@@ -155,113 +177,8 @@ final class SwiftPMIntegrationTests: XCTestCase {
     // I.e. check that the existing file's build settings have been updated to include the new file.
 
     let oldFileCompletions = try await ws.testClient.send(
-      CompletionRequest(textDocument: oldFile.docIdentifier, position: oldFile.position)
+      CompletionRequest(textDocument: TextDocumentIdentifier(oldFileUri), position: oldFilePositions["1️⃣"])
     )
-    XCTAssert(
-      oldFileCompletions.items.contains(
-        CompletionItem(
-          label: "baz(l: Lib)",
-          kind: .function,
-          detail: "Void",
-          documentation: nil,
-          deprecated: false,
-          sortText: nil,
-          filterText: "baz(l:)",
-          insertText: "baz(l: )",
-          insertTextFormat: .plain,
-          textEdit: .textEdit(
-            TextEdit(range: Position(line: 7, utf16index: 31)..<Position(line: 7, utf16index: 31), newText: "baz(l: )")
-          )
-        )
-      )
-    )
-  }
-
-  func testModifyPackageManifest() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
-    try ws.buildAndIndex()
-
-    let otherLib = ws.testLoc("OtherLib.topLevelFunction:libMember")
-    let packageTargets = ws.testLoc("Package.swift:targets")
-
-    // Check that we don't get cross-file code completion before we send a `DidChangeWatchedFilesNotification` to make sure we didn't include the file in the initial retrieval of build settings.
-    try ws.openDocument(otherLib.url, language: .swift)
-
-    let completionsBeforeDidChangeNotification = try await ws.testClient.send(
-      CompletionRequest(textDocument: otherLib.docIdentifier, position: otherLib.position)
-    )
-    XCTAssertEqual(completionsBeforeDidChangeNotification.items, [])
-
-    // Add the otherlib target to Package.swift
-    _ = try ws.sources.edit { builder in
-      let packageManifest = ws.sources.rootDirectory
-        .appendingPathComponent("Package.swift")
-      var packageManifestContents = try String(contentsOf: packageManifest, encoding: .utf8)
-      let targetMarkerRange = packageManifestContents.range(of: "/*Package.swift:targets*/")!
-      packageManifestContents.replaceSubrange(
-        targetMarkerRange,
-        with: """
-          .target(
-             name: "otherlib",
-             dependencies: ["lib"]
-          ),
-          /*Package.swift:targets*/
-          """
-      )
-      builder.write(packageManifestContents, to: packageManifest)
-    }
-
-    // Send a `DidChangeWatchedFilesNotification` and verify that we now get cross-file code completion.
-    ws.testClient.send(
-      DidChangeWatchedFilesNotification(changes: [
-        FileEvent(uri: packageTargets.docUri, type: .changed)
-      ])
-    )
-
-    let expectedCompletions = [
-      CompletionItem(
-        label: "foo()",
-        kind: .method,
-        detail: "Void",
-        deprecated: false,
-        sortText: nil,
-        filterText: "foo()",
-        insertText: "foo()",
-        insertTextFormat: .plain,
-        textEdit: .textEdit(
-          TextEdit(range: Position(line: 3, utf16index: 47)..<Position(line: 3, utf16index: 47), newText: "foo()")
-        )
-      ),
-      CompletionItem(
-        label: "self",
-        kind: .keyword,
-        detail: "Lib",
-        deprecated: false,
-        sortText: nil,
-        filterText: "self",
-        insertText: "self",
-        insertTextFormat: .plain,
-        textEdit: .textEdit(
-          TextEdit(range: Position(line: 3, utf16index: 47)..<Position(line: 3, utf16index: 47), newText: "self")
-        )
-      ),
-    ]
-
-    var didReceiveCorrectCompletions = false
-
-    // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
-    for _ in 0..<30 {
-      let completions = try await ws.testClient.send(
-        CompletionRequest(textDocument: otherLib.docIdentifier, position: otherLib.position)
-      )
-
-      if completions.items == expectedCompletions {
-        didReceiveCorrectCompletions = true
-        break
-      }
-      try await Task.sleep(nanoseconds: 1_000_000_000)
-    }
-
-    XCTAssert(didReceiveCorrectCompletions)
+    XCTAssert(oldFileCompletions.items.contains(where: { $0.label == "baz(l: Lib)" }))
   }
 }

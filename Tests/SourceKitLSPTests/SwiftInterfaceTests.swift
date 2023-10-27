@@ -56,13 +56,40 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   func testOpenInterface() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
-    try ws.buildAndIndex()
-    let importedModule = ws.testLoc("lib:import")
-    try ws.openDocument(importedModule.url, language: .swift)
-    let openInterface = OpenInterfaceRequest(textDocument: importedModule.docIdentifier, name: "lib", symbolUSR: nil)
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "MyLibrary/MyLibrary.swift": """
+        public struct Lib {
+          public func foo() {}
+          public init() {}
+        }
+        """,
+        "Exec/main.swift": "import MyLibrary",
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "MyLibrary"),
+            .executableTarget(name: "Exec", dependencies: ["MyLibrary"])
+          ]
+        )
+        """,
+      build: true
+    )
+
+    let (mainUri, _) = try ws.openDocument("main.swift")
+    let openInterface = OpenInterfaceRequest(
+      textDocument: TextDocumentIdentifier(mainUri),
+      name: "MyLibrary",
+      symbolUSR: nil
+    )
     let interfaceDetails = try unwrap(await ws.testClient.send(openInterface))
-    XCTAssert(interfaceDetails.uri.pseudoPath.hasSuffix("/lib.swiftinterface"))
+    XCTAssert(interfaceDetails.uri.pseudoPath.hasSuffix("/MyLibrary.swiftinterface"))
     let fileContents = try XCTUnwrap(
       interfaceDetails.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) })
     )
@@ -81,73 +108,113 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   /// Used by testDefinitionInSystemModuleInterface
-  func testSystemSwiftInterface(
-    _ testLoc: TestLocation,
-    ws: SKSwiftPMTestWorkspace,
+  private func testSystemSwiftInterface(
+    uri: DocumentURI,
+    position: Position,
+    testClient: TestSourceKitLSPClient,
     swiftInterfaceFile: String,
-    linePrefix: String
+    linePrefix: String,
+    line: UInt = #line
   ) async throws {
-    try ws.openDocument(testLoc.url, language: .swift)
-    let definition = try await ws.testClient.send(
+    let definition = try await testClient.send(
       DefinitionRequest(
-        textDocument: testLoc.docIdentifier,
-        position: testLoc.position
+        textDocument: TextDocumentIdentifier(uri),
+        position: position
       )
     )
     guard case .locations(let jump) = definition else {
-      XCTFail("Response is not locations")
+      XCTFail("Response is not locations", line: line)
       return
     }
     let location = try XCTUnwrap(jump.first)
-    XCTAssertTrue(location.uri.pseudoPath.hasSuffix(swiftInterfaceFile), "Path was: '\(location.uri.pseudoPath)'")
+    XCTAssertTrue(
+      location.uri.pseudoPath.hasSuffix(swiftInterfaceFile),
+      "Path was: '\(location.uri.pseudoPath)'",
+      line: line
+    )
     // load contents of swiftinterface
     let contents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
     let lineTable = LineTable(contents)
-    let line = lineTable[location.range.lowerBound.line]
-    XCTAssert(line.hasPrefix(linePrefix), "Full line was: '\(line)'")
-    ws.closeDocument(testLoc.url)
+    let destinationLine = lineTable[location.range.lowerBound.line]
+    XCTAssert(destinationLine.hasPrefix(linePrefix), "Full line was: '\(destinationLine)'", line: line)
   }
 
   func testDefinitionInSystemModuleInterface() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SystemSwiftInterface") else { return }
-    try ws.buildAndIndex(withSystemSymbols: true)
-    let stringRef = ws.testLoc("lib.string")
-    let intRef = ws.testLoc("lib.integer")
-    let withTaskGroupRef = ws.testLoc("lib.withTaskGroup")
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      public func libFunc() async {
+        let a: 1️⃣String = "test"
+        let i: 2️⃣Int = 2
+        await 3️⃣withTaskGroup(of: Void.self) { group in
+          group.addTask {
+            print(a)
+            print(i)
+          }
+        }
+      }
+      """,
+      indexSystemModules: true
+    )
 
     // Test stdlib with one submodule
     try await testSystemSwiftInterface(
-      stringRef,
-      ws: ws,
+      uri: ws.fileURI,
+      position: ws.positions["1️⃣"],
+      testClient: ws.testClient,
       swiftInterfaceFile: "/Swift.String.swiftinterface",
       linePrefix: "@frozen public struct String"
     )
     // Test stdlib with two submodules
     try await testSystemSwiftInterface(
-      intRef,
-      ws: ws,
+      uri: ws.fileURI,
+      position: ws.positions["2️⃣"],
+      testClient: ws.testClient,
       swiftInterfaceFile: "/Swift.Math.Integers.swiftinterface",
       linePrefix: "@frozen public struct Int"
     )
     // Test concurrency
     try await testSystemSwiftInterface(
-      withTaskGroupRef,
-      ws: ws,
+      uri: ws.fileURI,
+      position: ws.positions["3️⃣"],
+      testClient: ws.testClient,
       swiftInterfaceFile: "/_Concurrency.swiftinterface",
       linePrefix: "@inlinable public func withTaskGroup"
     )
   }
 
   func testSwiftInterfaceAcrossModules() async throws {
-    guard let ws = try await staticSourceKitSwiftPMWorkspace(name: "SwiftPMPackage") else { return }
-    try ws.buildAndIndex()
-    let importedModule = ws.testLoc("lib:import")
-    try ws.openDocument(importedModule.url, language: .swift)
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "MyLibrary/MyLibrary.swift": """
+        public struct Lib {
+          public func foo() {}
+          public init() {}
+        }
+        """,
+        "Exec/main.swift": "import 1️⃣MyLibrary",
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "MyLibrary"),
+            .executableTarget(name: "Exec", dependencies: ["MyLibrary"])
+          ]
+        )
+        """,
+      build: true
+    )
+
+    let (mainUri, mainPositions) = try ws.openDocument("main.swift")
     let _resp =
       try await ws.testClient.send(
         DefinitionRequest(
-          textDocument: importedModule.docIdentifier,
-          position: importedModule.position
+          textDocument: TextDocumentIdentifier(mainUri),
+          position: mainPositions["1️⃣"]
         )
       )
     let resp = try XCTUnwrap(_resp)
@@ -157,7 +224,7 @@ final class SwiftInterfaceTests: XCTestCase {
     }
     XCTAssertEqual(locations.count, 1)
     let location = try XCTUnwrap(locations.first)
-    XCTAssertTrue(location.uri.pseudoPath.hasSuffix("/lib.swiftinterface"))
+    XCTAssertTrue(location.uri.pseudoPath.hasSuffix("/MyLibrary.swiftinterface"))
     let fileContents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
     XCTAssertTrue(
       fileContents.contains(
@@ -169,7 +236,8 @@ final class SwiftInterfaceTests: XCTestCase {
             public init()
         }
         """
-      )
+      ),
+      "Generated interface did not contain expected text.\n\(fileContents)"
     )
   }
 }

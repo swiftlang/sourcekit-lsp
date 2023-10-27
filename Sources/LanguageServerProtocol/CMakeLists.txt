@@ -27,6 +27,7 @@ add_library(LanguageServerProtocol STATIC
   Notifications/WorkDoneProgress.swift
 
   Requests/ApplyEditRequest.swift
+  Requests/BarrierRequest.swift
   Requests/CallHierarchyIncomingCallsRequest.swift
   Requests/CallHierarchyOutgoingCallsRequest.swift
   Requests/CallHierarchyPrepareRequest.swift
