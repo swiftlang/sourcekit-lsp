@@ -102,7 +102,6 @@ let package = Package(
     .target(
       name: "LanguageServerProtocol",
       dependencies: [
-        "LSPLogging",
         "SKSupport",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],

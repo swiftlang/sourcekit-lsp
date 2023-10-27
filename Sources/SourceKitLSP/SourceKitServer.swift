@@ -54,6 +54,35 @@ enum LanguageServerType: Hashable {
   }
 }
 
+/// A request and a callback that returns the request's reply
+fileprivate final class RequestAndReply<Params: RequestType> {
+  let params: Params
+  private let replyBlock: (LSPResult<Params.Response>) -> Void
+
+  /// Whether a reply has been made. Every request must reply exactly once.
+  private var replied: Bool = false
+
+  public init(_ request: Params, reply: @escaping (LSPResult<Params.Response>) -> Void) {
+    self.params = request
+    self.replyBlock = reply
+  }
+
+  deinit {
+    precondition(replied, "request never received a reply")
+  }
+
+  /// Call the `replyBlock` with the result produced by the given closure.
+  func reply(_ body: () async throws -> Params.Response) async {
+    precondition(!replied, "replied to request more than once")
+    replied = true
+    do {
+      replyBlock(.success(try await body()))
+    } catch {
+      replyBlock(.failure(ResponseError(error)))
+    }
+  }
+}
+
 /// Keeps track of the state to send work done progress updates to the client
 final actor WorkDoneProgressState {
   private enum State {
@@ -387,19 +416,12 @@ public actor SourceKitServer {
     await notificationHandler(notification, languageService)
   }
 
-  private func handleRequest<R: RequestType>(_ request: Request<R>, handler: (R) async throws -> R.Response) async {
-    do {
-      request.reply(try await handler(request.params))
-    } catch {
-      request.reply(.failure(ResponseError(error)))
-    }
-  }
-
   private func handleRequest<RequestType: TextDocumentRequest>(
-    for request: Request<RequestType>,
+    for request: RequestAndReply<RequestType>,
     requestHandler: @escaping (RequestType, Workspace, ToolchainLanguageServer) async throws -> RequestType.Response
   ) async {
-    await handleRequest(request) { request in
+    await request.reply {
+      let request = request.params
       let doc = request.textDocument.uri
       guard let workspace = await self.workspaceForDocument(uri: request.textDocument.uri) else {
         throw ResponseError.workspaceNotOpen(request.textDocument.uri)
@@ -702,100 +724,95 @@ extension SourceKitServer: MessageHandler {
   ) async {
     let startDate = Date()
 
-    let request = Request(
-      params,
-      id: id,
-      clientID: clientID,
-      reply: { result in
-        reply(result)
-        let endDate = Date()
-        Task {
-          switch result {
-          case .success(let response):
-            logger.log(
-              """
-              Succeeded (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-              \(R.method, privacy: .public)
-              \(response.forLogging)
-              """
-            )
-          case .failure(let error):
-             logger.log(
-              """
-              Failed (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
-              \(R.method, privacy: .public)(\(id, privacy: .public))
-              \(error.forLogging, privacy: .private)
-              """
-            ) 
-          }
+    let request = RequestAndReply(params) { result in
+      reply(result)
+      let endDate = Date()
+      Task {
+        switch result {
+        case .success(let response):
+          logger.log(
+            """
+            Succeeded (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
+            \(R.method, privacy: .public)
+            \(response.forLogging)
+            """
+          )
+        case .failure(let error):
+          logger.log(
+            """
+            Failed (took \(endDate.timeIntervalSince(startDate) * 1000, privacy: .public)ms)
+            \(R.method, privacy: .public)(\(id, privacy: .public))
+            \(error.forLogging, privacy: .private)
+            """
+          )
         }
       }
-    )
+    }
 
-    logger.log("Received request: \(request.forLogging)")
+    logger.log("Received request: \(params.forLogging)")
 
     switch request {
-    case let request as Request<InitializeRequest>:
-      await self.handleRequest(request, handler: self.initialize)
-    case let request as Request<ShutdownRequest>:
-      await self.handleRequest(request, handler: self.shutdown)
-    case let request as Request<WorkspaceSymbolsRequest>:
-      await self.handleRequest(request, handler: self.workspaceSymbols)
-    case let request as Request<PollIndexRequest>:
-      await self.handleRequest(request, handler: self.pollIndex)
-    case let request as Request<BarrierRequest>:
-      await self.handleRequest(request, handler: { _ in VoidResponse() })
-    case let request as Request<ExecuteCommandRequest>:
-      await self.handleRequest(request, handler: self.executeCommand)
-    case let request as Request<CallHierarchyIncomingCallsRequest>:
-      await self.handleRequest(request, handler: self.incomingCalls)
-    case let request as Request<CallHierarchyOutgoingCallsRequest>:
-      await self.handleRequest(request, handler: self.outgoingCalls)
-    case let request as Request<TypeHierarchySupertypesRequest>:
-      await self.handleRequest(request, handler: self.supertypes)
-    case let request as Request<TypeHierarchySubtypesRequest>:
-      await self.handleRequest(request, handler: self.subtypes)
-    case let request as Request<CompletionRequest>:
+    case let request as RequestAndReply<InitializeRequest>:
+      await request.reply { try await initialize(request.params) }
+    case let request as RequestAndReply<ShutdownRequest>:
+      await request.reply { try await shutdown(request.params) }
+    case let request as RequestAndReply<WorkspaceSymbolsRequest>:
+      await request.reply { try await workspaceSymbols(request.params) }
+    case let request as RequestAndReply<PollIndexRequest>:
+      await request.reply { try await pollIndex(request.params) }
+    case let request as RequestAndReply<BarrierRequest>:
+      await request.reply { VoidResponse() }
+    case let request as RequestAndReply<ExecuteCommandRequest>:
+      await request.reply { try await executeCommand(request.params) }
+    case let request as RequestAndReply<CallHierarchyIncomingCallsRequest>:
+      await request.reply { try await incomingCalls(request.params) }
+    case let request as RequestAndReply<CallHierarchyOutgoingCallsRequest>:
+      await request.reply { try await outgoingCalls(request.params) }
+    case let request as RequestAndReply<TypeHierarchySupertypesRequest>:
+      await request.reply { try await supertypes(request.params) }
+    case let request as RequestAndReply<TypeHierarchySubtypesRequest>:
+      await request.reply { try await subtypes(request.params) }
+    case let request as RequestAndReply<CompletionRequest>:
       await self.handleRequest(for: request, requestHandler: self.completion)
-    case let request as Request<HoverRequest>:
+    case let request as RequestAndReply<HoverRequest>:
       await self.handleRequest(for: request, requestHandler: self.hover)
-    case let request as Request<OpenInterfaceRequest>:
+    case let request as RequestAndReply<OpenInterfaceRequest>:
       await self.handleRequest(for: request, requestHandler: self.openInterface)
-    case let request as Request<DeclarationRequest>:
+    case let request as RequestAndReply<DeclarationRequest>:
       await self.handleRequest(for: request, requestHandler: self.declaration)
-    case let request as Request<DefinitionRequest>:
+    case let request as RequestAndReply<DefinitionRequest>:
       await self.handleRequest(for: request, requestHandler: self.definition)
-    case let request as Request<ReferencesRequest>:
+    case let request as RequestAndReply<ReferencesRequest>:
       await self.handleRequest(for: request, requestHandler: self.references)
-    case let request as Request<ImplementationRequest>:
+    case let request as RequestAndReply<ImplementationRequest>:
       await self.handleRequest(for: request, requestHandler: self.implementation)
-    case let request as Request<CallHierarchyPrepareRequest>:
+    case let request as RequestAndReply<CallHierarchyPrepareRequest>:
       await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy)
-    case let request as Request<TypeHierarchyPrepareRequest>:
+    case let request as RequestAndReply<TypeHierarchyPrepareRequest>:
       await self.handleRequest(for: request, requestHandler: self.prepareTypeHierarchy)
-    case let request as Request<SymbolInfoRequest>:
+    case let request as RequestAndReply<SymbolInfoRequest>:
       await self.handleRequest(for: request, requestHandler: self.symbolInfo)
-    case let request as Request<DocumentHighlightRequest>:
+    case let request as RequestAndReply<DocumentHighlightRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight)
-    case let request as Request<FoldingRangeRequest>:
+    case let request as RequestAndReply<FoldingRangeRequest>:
       await self.handleRequest(for: request, requestHandler: self.foldingRange)
-    case let request as Request<DocumentSymbolRequest>:
+    case let request as RequestAndReply<DocumentSymbolRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentSymbol)
-    case let request as Request<DocumentColorRequest>:
+    case let request as RequestAndReply<DocumentColorRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentColor)
-    case let request as Request<DocumentSemanticTokensRequest>:
+    case let request as RequestAndReply<DocumentSemanticTokensRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentSemanticTokens)
-    case let request as Request<DocumentSemanticTokensDeltaRequest>:
+    case let request as RequestAndReply<DocumentSemanticTokensDeltaRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensDelta)
-    case let request as Request<DocumentSemanticTokensRangeRequest>:
+    case let request as RequestAndReply<DocumentSemanticTokensRangeRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensRange)
-    case let request as Request<ColorPresentationRequest>:
+    case let request as RequestAndReply<ColorPresentationRequest>:
       await self.handleRequest(for: request, requestHandler: self.colorPresentation)
-    case let request as Request<CodeActionRequest>:
+    case let request as RequestAndReply<CodeActionRequest>:
       await self.handleRequest(for: request, requestHandler: self.codeAction)
-    case let request as Request<InlayHintRequest>:
+    case let request as RequestAndReply<InlayHintRequest>:
       await self.handleRequest(for: request, requestHandler: self.inlayHint)
-    case let request as Request<DocumentDiagnosticsRequest>:
+    case let request as RequestAndReply<DocumentDiagnosticsRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentDiagnostic)
     // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
     default:

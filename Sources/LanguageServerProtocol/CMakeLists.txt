@@ -7,7 +7,6 @@ add_library(LanguageServerProtocol STATIC
   MessageRegistry.swift
   Messages.swift
   PositionRange.swift
-  Request.swift
   RequestID.swift
 
   Notifications/CancelRequestNotification.swift

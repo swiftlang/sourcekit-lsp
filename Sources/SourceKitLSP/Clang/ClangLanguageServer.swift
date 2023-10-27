@@ -294,26 +294,18 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
     clangdMessageHandlingQueue.async {
-      let request = Request(
-        params,
-        id: id,
-        clientID: clientID,
-        reply: { result in
-          reply(result)
-        }
-      )
       guard let sourceKitServer = await self.sourceKitServer else {
         // `SourceKitServer` has been destructed. We are tearing down the language
         // server. Nothing left to do.
-        request.reply(.failure(.unknown("Connection to the editor closed")))
+        reply(.failure(.unknown("Connection to the editor closed")))
         return
       }
 
       do {
-        let result = try await sourceKitServer.sendRequestToClient(request.params)
-        request.reply(.success(result))
+        let result = try await sourceKitServer.sendRequestToClient(params)
+        reply(.success(result))
       } catch {
-        request.reply(.failure(ResponseError(error)))
+        reply(.failure(ResponseError(error)))
       }
     }
   }
