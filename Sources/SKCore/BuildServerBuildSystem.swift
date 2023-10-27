@@ -193,9 +193,9 @@ public actor BuildServerBuildSystem: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
     bspMessageHandlingQueue.async {
       if let params = params as? BuildTargetsChangedNotification {
-        await self.handleBuildTargetsChanged(Notification(params, clientID: clientID))
+        await self.handleBuildTargetsChanged(params)
       } else if let params = params as? FileOptionsChangedNotification {
-        await self.handleFileOptionsChanged(Notification(params, clientID: clientID))
+        await self.handleFileOptionsChanged(params)
       }
     }
   }
@@ -213,20 +213,20 @@ public actor BuildServerBuildSystem: MessageHandler {
   }
 
   func handleBuildTargetsChanged(
-    _ notification: LanguageServerProtocol.Notification<BuildTargetsChangedNotification>
+    _ notification: BuildTargetsChangedNotification
   ) async {
-    await self.delegate?.buildTargetsChanged(notification.params.changes)
+    await self.delegate?.buildTargetsChanged(notification.changes)
   }
 
   func handleFileOptionsChanged(
-    _ notification: LanguageServerProtocol.Notification<FileOptionsChangedNotification>
+    _ notification: FileOptionsChangedNotification
   ) async {
-    let result = notification.params.updatedOptions
+    let result = notification.updatedOptions
     let settings = FileBuildSettings(
       compilerArguments: result.options,
       workingDirectory: result.workingDirectory
     )
-    await self.buildSettingsChanged(for: notification.params.uri, settings: settings)
+    await self.buildSettingsChanged(for: notification.uri, settings: settings)
   }
 
   /// Record the new build settings for the given document and inform the delegate

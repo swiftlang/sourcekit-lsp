@@ -19,9 +19,6 @@ import XCTest
 import WinSDK
 #endif
 
-// Workaround ambiguity with Foundation.
-typealias Notification = LanguageServerProtocol.Notification
-
 class ConnectionTests: XCTestCase {
 
   var connection: TestJSONRPCConnection! = nil
@@ -60,8 +57,8 @@ class ConnectionTests: XCTestCase {
     let clientConnection = connection.clientConnection
     let expectation = self.expectation(description: "note received")
 
-    client.appendOneShotNotificationHandler { (note: Notification<EchoNotification>) in
-      XCTAssertEqual(note.params.string, "hello!")
+    client.appendOneShotNotificationHandler { (note: EchoNotification) in
+      XCTAssertEqual(note.string, "hello!")
       expectation.fulfill()
     }
 
@@ -83,8 +80,8 @@ class ConnectionTests: XCTestCase {
 
     let expectation2 = self.expectation(description: "note received")
 
-    client.appendOneShotNotificationHandler { (note: Notification<EchoNotification>) in
-      XCTAssertEqual(note.params.string, "no way!")
+    client.appendOneShotNotificationHandler { (note: EchoNotification) in
+      XCTAssertEqual(note.string, "no way!")
       expectation2.fulfill()
     }
 
@@ -125,8 +122,8 @@ class ConnectionTests: XCTestCase {
     let client = connection.client
     let expectation = self.expectation(description: "note received")
 
-    client.appendOneShotNotificationHandler { (note: Notification<EchoNotification>) in
-      XCTAssertEqual(note.params.string, "hello!")
+    client.appendOneShotNotificationHandler { (note: EchoNotification) in
+      XCTAssertEqual(note.string, "hello!")
       expectation.fulfill()
     }
 
@@ -218,7 +215,7 @@ class ConnectionTests: XCTestCase {
     let server = connection.server
 
     let expectation = self.expectation(description: "received notification")
-    client.appendOneShotNotificationHandler { (note: Notification<EchoNotification>) in
+    client.appendOneShotNotificationHandler { (note: EchoNotification) in
       expectation.fulfill()
     }
 
@@ -232,7 +229,7 @@ class ConnectionTests: XCTestCase {
     let client = connection.client
 
     let expectation = self.expectation(description: "received notification")
-    client.appendOneShotNotificationHandler { (note: Notification<EchoNotification>) in
+    client.appendOneShotNotificationHandler { (note: EchoNotification) in
       expectation.fulfill()
     }
     let notification = EchoNotification(string: "about to close!")

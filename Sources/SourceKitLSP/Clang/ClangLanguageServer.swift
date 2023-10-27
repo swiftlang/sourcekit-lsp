@@ -274,7 +274,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     clangdMessageHandlingQueue.async {
       switch params {
       case let publishDiags as PublishDiagnosticsNotification:
-        await self.publishDiagnostics(Notification(publishDiags, clientID: clientID))
+        await self.publishDiagnostics(publishDiags)
       default:
         // We don't know how to handle any other notifications and ignore them.
         logger.error("Ignoring unknown notification \(type(of: params))")
@@ -356,8 +356,7 @@ extension ClangLanguageServerShim {
 
   /// Intercept clangd's `PublishDiagnosticsNotification` to withold it if we're using fallback
   /// build settings.
-  func publishDiagnostics(_ note: Notification<PublishDiagnosticsNotification>) async {
-    let params = note.params
+  func publishDiagnostics(_ notification: PublishDiagnosticsNotification) async {
     // Technically, the publish diagnostics notification could still originate
     // from when we opened the file with fallback build settings and we could
     // have received real build settings since, which haven't been acknowledged
@@ -369,7 +368,7 @@ extension ClangLanguageServerShim {
     // short and we expect clangd to send us new diagnostics with the updated
     // non-fallback settings very shortly after, which will override the
     // incorrect result, making it very temporary.
-    let buildSettings = await self.buildSettings(for: params.uri)
+    let buildSettings = await self.buildSettings(for: notification.uri)
     guard let sourceKitServer else {
       logger.fault("Cannot publish diagnostics because SourceKitServer has been destroyed")
       return
@@ -378,13 +377,13 @@ extension ClangLanguageServerShim {
       // Fallback: send empty publish notification instead.
       await sourceKitServer.sendNotificationToClient(
         PublishDiagnosticsNotification(
-          uri: params.uri,
-          version: params.version,
+          uri: notification.uri,
+          version: notification.version,
           diagnostics: []
         )
       )
     } else {
-      await sourceKitServer.sendNotificationToClient(note.params)
+      await sourceKitServer.sendNotificationToClient(notification)
     }
   }
 

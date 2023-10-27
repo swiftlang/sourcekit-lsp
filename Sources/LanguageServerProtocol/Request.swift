@@ -68,23 +68,6 @@ public final class Request<R: RequestType> {
   }
 }
 
-/// A request object, wrapping the parameters of a `NotificationType`.
-public final class Notification<N: NotificationType> {
-
-  public typealias Params = N
-
-  /// The client of the request.
-  public let clientID: ObjectIdentifier
-
-  /// The request parameters.
-  public let params: Params
-
-  public init(_ notification: Params, clientID: ObjectIdentifier) {
-    self.clientID = clientID
-    self.params = notification
-  }
-}
-
 fileprivate extension Encodable {
   var prettyPrintJSON: String {
     let encoder = JSONEncoder()
@@ -116,16 +99,24 @@ extension Request: CustomStringConvertible, CustomLogStringConvertible {
   }
 }
 
-extension Notification: CustomStringConvertible, CustomLogStringConvertible {
+fileprivate struct AnyNotificationType: CustomLogStringConvertible {
+  let notification: any NotificationType
+
   public var description: String {
     return """
-      \(N.method)
-      \(params.prettyPrintJSON)
+      \(type(of: notification))
+      \(notification.prettyPrintJSON)
       """
   }
 
   public var redactedDescription: String {
     // FIXME: (logging) Log the non-critical parts of the notification
-    return "Notification<\(N.method)>"
+    return "\(type(of: notification))"
+  }
+}
+
+extension NotificationType {
+  public var forLogging: CustomLogStringConvertibleWrapper {
+    return AnyNotificationType(notification: self).forLogging
   }
 }

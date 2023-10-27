@@ -16,9 +16,6 @@ import XCTest
 
 import class Foundation.Pipe
 
-// Workaround ambiguity with Foundation.
-public typealias Notification = LanguageServerProtocol.Notification
-
 public final class TestJSONRPCConnection {
   public let clientToServer: Pipe = Pipe()
   public let serverToClient: Pipe = Pipe()
@@ -94,9 +91,9 @@ public final class TestMessageHandler: MessageHandler {
 
   public var allowUnexpectedNotification: Bool = true
 
-  public func appendOneShotNotificationHandler<N>(_ handler: @escaping (Notification<N>) -> Void) {
+  public func appendOneShotNotificationHandler<N: NotificationType>(_ handler: @escaping (N) -> Void) {
     oneShotNotificationHandlers.append({ anyNote in
-      guard let note = anyNote as? Notification<N> else {
+      guard let note = anyNote as? N else {
         fatalError("received notification of the wrong type \(anyNote); expected \(N.self)")
       }
       handler(note)
@@ -112,9 +109,7 @@ public final class TestMessageHandler: MessageHandler {
     })
   }
 
-  public func handle<N>(_ params: N, from clientID: ObjectIdentifier) where N: NotificationType {
-    let notification = Notification(params, clientID: clientID)
-
+  public func handle(_ notification: some NotificationType, from clientID: ObjectIdentifier) {
     guard !oneShotNotificationHandlers.isEmpty else {
       if allowUnexpectedNotification { return }
       fatalError("unexpected notification \(notification)")
@@ -142,7 +137,7 @@ public final class TestMessageHandler: MessageHandler {
 extension TestMessageHandler: Connection {
 
   /// Send a notification to the language server.
-  public func send<Notification>(_ notification: Notification) where Notification: NotificationType {
+  public func send(_ notification: some NotificationType) {
     server.send(notification)
   }
 
@@ -162,10 +157,9 @@ public final class TestServer: MessageHandler {
     self.client = client
   }
 
-  public func handle<N: NotificationType>(_ params: N, from clientID: ObjectIdentifier) {
-    let note = Notification(params, clientID: clientID)
+  public func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
     if params is EchoNotification {
-      self.client.send(note.params)
+      self.client.send(params)
     } else {
       fatalError("Unhandled notification")
     }

@@ -20,9 +20,6 @@ import SwiftParser
 import SwiftSyntax
 import XCTest
 
-// Workaround ambiguity with Foundation.
-typealias Notification = LanguageServerProtocol.Notification
-
 final class LocalSwiftTests: XCTestCase {
   private let quickFixCapabilities = ClientCapabilities(
     textDocument: TextDocumentClientCapabilities(
