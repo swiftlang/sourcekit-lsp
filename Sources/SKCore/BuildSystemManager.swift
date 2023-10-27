@@ -151,7 +151,7 @@ extension BuildSystemManager {
     for document: DocumentURI,
     language: Language
   ) async -> FileBuildSettings? {
-    let mainFile = await mainFile(for: document)
+    let mainFile = await mainFile(for: document, language: language)
     guard var settings = await buildSettings(for: mainFile, language: language) else {
       return nil
     }
@@ -182,7 +182,7 @@ extension BuildSystemManager {
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
     logger.debug("registerForChangeNotifications(\(uri.forLogging))")
-    let mainFile = await mainFile(for: uri)
+    let mainFile = await mainFile(for: uri, language: language)
     self.watchedFiles[uri] = (mainFile, language)
 
     // Register for change notifications of the main file in the underlying build
@@ -274,7 +274,7 @@ extension BuildSystemManager: MainFilesDelegate {
   public func mainFilesChanged() async {
     var changedMainFileAssociations: Set<DocumentURI> = []
     for (file, (oldMainFile, language)) in self.watchedFiles {
-      let newMainFile = await self.mainFile(for: file, useCache: false)
+      let newMainFile = await self.mainFile(for: file, language: language, useCache: false)
       if newMainFile != oldMainFile {
         self.watchedFiles[file] = (newMainFile, language)
         changedMainFileAssociations.insert(file)
@@ -303,7 +303,11 @@ extension BuildSystemManager: MainFilesDelegate {
   /// For Swift or normal C files, this will be the file itself. For header
   /// files, we pick a main file that includes the header since header files
   /// don't have build settings by themselves.
-  private func mainFile(for uri: DocumentURI, useCache: Bool = true) async -> DocumentURI {
+  private func mainFile(for uri: DocumentURI, language: Language, useCache: Bool = true) async -> DocumentURI {
+    if language == .swift {
+      // Swift doesn't have main files. Skip the main file provider query.
+      return uri
+    }
     if useCache, let mainFile = self.watchedFiles[uri]?.mainFile {
       // Performance optimization: We did already compute the main file and have
       // it cached. We can just return it.
