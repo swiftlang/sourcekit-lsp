@@ -397,8 +397,7 @@ public actor SourceKitServer {
 
   private func handleRequest<RequestType: TextDocumentRequest>(
     for request: Request<RequestType>,
-    requestHandler: @escaping (RequestType, Workspace, ToolchainLanguageServer) async throws -> RequestType.Response,
-    fallback: RequestType.Response
+    requestHandler: @escaping (RequestType, Workspace, ToolchainLanguageServer) async throws -> RequestType.Response
   ) async {
     await handleRequest(request) { request in
       let doc = request.textDocument.uri
@@ -406,7 +405,7 @@ public actor SourceKitServer {
         throw ResponseError.workspaceNotOpen(request.textDocument.uri)
       }
       guard let languageService = workspace.documentService[doc] else {
-        return fallback
+        throw ResponseError.unknown("No language service for '\(request.textDocument.uri)' found")
       }
       return try await requestHandler(request, workspace, languageService)
     }
@@ -757,55 +756,47 @@ extension SourceKitServer: MessageHandler {
     case let request as Request<TypeHierarchySubtypesRequest>:
       await self.handleRequest(request, handler: self.subtypes)
     case let request as Request<CompletionRequest>:
-      await self.handleRequest(
-        for: request,
-        requestHandler: self.completion,
-        fallback: CompletionList(isIncomplete: false, items: [])
-      )
+      await self.handleRequest(for: request, requestHandler: self.completion)
     case let request as Request<HoverRequest>:
-      await self.handleRequest(for: request, requestHandler: self.hover, fallback: nil)
+      await self.handleRequest(for: request, requestHandler: self.hover)
     case let request as Request<OpenInterfaceRequest>:
-      await self.handleRequest(for: request, requestHandler: self.openInterface, fallback: nil)
+      await self.handleRequest(for: request, requestHandler: self.openInterface)
     case let request as Request<DeclarationRequest>:
-      await self.handleRequest(for: request, requestHandler: self.declaration, fallback: nil)
+      await self.handleRequest(for: request, requestHandler: self.declaration)
     case let request as Request<DefinitionRequest>:
-      await self.handleRequest(for: request, requestHandler: self.definition, fallback: .locations([]))
+      await self.handleRequest(for: request, requestHandler: self.definition)
     case let request as Request<ReferencesRequest>:
-      await self.handleRequest(for: request, requestHandler: self.references, fallback: [])
+      await self.handleRequest(for: request, requestHandler: self.references)
     case let request as Request<ImplementationRequest>:
-      await self.handleRequest(for: request, requestHandler: self.implementation, fallback: .locations([]))
+      await self.handleRequest(for: request, requestHandler: self.implementation)
     case let request as Request<CallHierarchyPrepareRequest>:
-      await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy, fallback: [])
+      await self.handleRequest(for: request, requestHandler: self.prepareCallHierarchy)
     case let request as Request<TypeHierarchyPrepareRequest>:
-      await self.handleRequest(for: request, requestHandler: self.prepareTypeHierarchy, fallback: [])
+      await self.handleRequest(for: request, requestHandler: self.prepareTypeHierarchy)
     case let request as Request<SymbolInfoRequest>:
-      await self.handleRequest(for: request, requestHandler: self.symbolInfo, fallback: [])
+      await self.handleRequest(for: request, requestHandler: self.symbolInfo)
     case let request as Request<DocumentHighlightRequest>:
-      await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight, fallback: nil)
+      await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight)
     case let request as Request<FoldingRangeRequest>:
-      await self.handleRequest(for: request, requestHandler: self.foldingRange, fallback: nil)
+      await self.handleRequest(for: request, requestHandler: self.foldingRange)
     case let request as Request<DocumentSymbolRequest>:
-      await self.handleRequest(for: request, requestHandler: self.documentSymbol, fallback: nil)
+      await self.handleRequest(for: request, requestHandler: self.documentSymbol)
     case let request as Request<DocumentColorRequest>:
-      await self.handleRequest(for: request, requestHandler: self.documentColor, fallback: [])
+      await self.handleRequest(for: request, requestHandler: self.documentColor)
     case let request as Request<DocumentSemanticTokensRequest>:
-      await self.handleRequest(for: request, requestHandler: self.documentSemanticTokens, fallback: nil)
+      await self.handleRequest(for: request, requestHandler: self.documentSemanticTokens)
     case let request as Request<DocumentSemanticTokensDeltaRequest>:
-      await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensDelta, fallback: nil)
+      await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensDelta)
     case let request as Request<DocumentSemanticTokensRangeRequest>:
-      await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensRange, fallback: nil)
+      await self.handleRequest(for: request, requestHandler: self.documentSemanticTokensRange)
     case let request as Request<ColorPresentationRequest>:
-      await self.handleRequest(for: request, requestHandler: self.colorPresentation, fallback: [])
+      await self.handleRequest(for: request, requestHandler: self.colorPresentation)
     case let request as Request<CodeActionRequest>:
-      await self.handleRequest(for: request, requestHandler: self.codeAction, fallback: nil)
+      await self.handleRequest(for: request, requestHandler: self.codeAction)
     case let request as Request<InlayHintRequest>:
-      await self.handleRequest(for: request, requestHandler: self.inlayHint, fallback: [])
+      await self.handleRequest(for: request, requestHandler: self.inlayHint)
     case let request as Request<DocumentDiagnosticsRequest>:
-      await self.handleRequest(
-        for: request,
-        requestHandler: self.documentDiagnostic,
-        fallback: .full(.init(items: []))
-      )
+      await self.handleRequest(for: request, requestHandler: self.documentDiagnostic)
     // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
     default:
       reply(.failure(ResponseError.methodNotFound(R.method)))
