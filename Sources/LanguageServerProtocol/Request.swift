@@ -120,3 +120,26 @@ extension NotificationType {
     return AnyNotificationType(notification: self).forLogging
   }
 }
+
+fileprivate struct AnyResponseType: CustomLogStringConvertible {
+  let response: any ResponseType
+
+  var description: String {
+    return """
+      \(type(of: response))
+      \(response.prettyPrintJSON)
+      """
+  }
+
+  var redactedDescription: String {
+    return """
+      \(type(of: response))
+      """
+  }
+}
+
+extension ResponseType {
+  public var forLogging: CustomLogStringConvertibleWrapper {
+    return AnyResponseType(response: self).forLogging
+  }
+}
