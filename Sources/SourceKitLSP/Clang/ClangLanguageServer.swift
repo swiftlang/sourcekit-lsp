@@ -127,7 +127,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     self.workspace = WeakWorkspace(workspace)
     self.state = .connected
     self.sourceKitServer = sourceKitServer
-    try startClangdProcesss()
+    try startClangdProcess()
   }
 
   private func buildSettings(for document: DocumentURI) async -> ClangBuildSettings? {
@@ -172,7 +172,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   }
 
   /// Start the `clangd` process, either on creation of the `ClangLanguageServerShim` or after `clangd` has crashed.
-  private func startClangdProcesss() throws {
+  private func startClangdProcess() throws {
     // Since we are starting a new clangd process, reset the list of open document
     openDocuments = [:]
 
@@ -248,11 +248,11 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
       try await Task.sleep(nanoseconds: UInt64(restartDelay) * 1_000_000_000)
       self.clangRestartScheduled = false
       do {
-        try self.startClangdProcesss()
-        // FIXME: We assume that clangd will return the same capabilites after restarting.
+        try self.startClangdProcess()
+        // FIXME: We assume that clangd will return the same capabilities after restarting.
         // Theoretically they could have changed and we would need to inform SourceKitServer about them.
         // But since SourceKitServer more or less ignores them right now anyway, this should be fine for now.
-        _ = try self.initializeSync(initializeRequest)
+        _ = try await self.initialize(initializeRequest)
         self.clientInitialized(InitializedNotification())
         if let sourceKitServer {
           await sourceKitServer.reopenDocuments(for: self)
@@ -393,11 +393,11 @@ extension ClangLanguageServerShim {
 
 extension ClangLanguageServerShim {
 
-  func initializeSync(_ initialize: InitializeRequest) throws -> InitializeResult {
+  func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
     // Store the initialize request so we can replay it in case clangd crashes
     self.initializeRequest = initialize
 
-    let result = try clangd.sendSync(initialize)
+    let result = try await clangd.send(initialize)
     self.capabilities = result.capabilities
     return result
   }

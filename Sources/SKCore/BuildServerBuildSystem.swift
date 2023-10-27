@@ -102,7 +102,7 @@ public actor BuildServerBuildSystem: MessageHandler {
     self.buildFolder = buildFolder
     self.projectRoot = projectRoot
     self.serverConfig = config
-    try self.initializeBuildServer()
+    try await self.initializeBuildServer()
   }
 
   /// Creates a build system using the Build Server Protocol config.
@@ -134,7 +134,7 @@ public actor BuildServerBuildSystem: MessageHandler {
     }
   }
 
-  private func initializeBuildServer() throws {
+  private func initializeBuildServer() async throws {
     var serverPath = try AbsolutePath(validating: serverConfig.argv[0], relativeTo: projectRoot)
     var flags = Array(serverConfig.argv[1...])
     if serverPath.suffix == ".py" {
@@ -172,7 +172,7 @@ public actor BuildServerBuildSystem: MessageHandler {
     )
 
     let buildServer = try makeJSONRPCBuildServer(client: self, serverPath: serverPath, serverFlags: flags)
-    let response = try buildServer.sendSync(initializeRequest)
+    let response = try await buildServer.send(initializeRequest)
     buildServer.send(InitializedBuildNotification())
     logger.log("initialized build server \(response.displayName)")
 

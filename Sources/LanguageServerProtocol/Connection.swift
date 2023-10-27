@@ -17,29 +17,13 @@ import SKSupport
 public protocol Connection: AnyObject {
 
   /// Send a notification without a reply.
-  func send<Notification>(_: Notification) where Notification: NotificationType
+  func send(_ notification: some NotificationType)
 
   /// Send a request and (asynchronously) receive a reply.
   func send<Request: RequestType>(
     _: Request,
     reply: @escaping (LSPResult<Request.Response>) -> Void
   ) -> RequestID
-
-  /// Send a request synchronously. **Use wisely**.
-  func sendSync<Request>(_: Request) throws -> Request.Response where Request: RequestType
-}
-
-extension Connection {
-  public func sendSync<Request>(_ request: Request) throws -> Request.Response where Request: RequestType {
-    var result: LSPResult<Request.Response>? = nil
-    let semaphore = DispatchSemaphore(value: 0)
-    _ = send(request) { _result in
-      result = _result
-      semaphore.signal()
-    }
-    semaphore.wait()
-    return try result!.get()
-  }
 }
 
 /// An abstract message handler, such as a language server or client.
