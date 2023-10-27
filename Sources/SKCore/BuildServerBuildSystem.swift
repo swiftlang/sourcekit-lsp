@@ -256,7 +256,7 @@ extension BuildServerBuildSystem: BuildSystem {
     return buildSettings[document]
   }
 
-  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
+  public func registerForChangeNotifications(for uri: DocumentURI) {
     let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request) { result in
       if let error = result.failure {

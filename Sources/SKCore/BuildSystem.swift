@@ -70,7 +70,7 @@ public protocol BuildSystem: AnyObject {
   /// IMPORTANT: When first receiving a register request, the `BuildSystem` MUST asynchronously
   /// inform its delegate of any initial settings for the given file via the
   /// `fileBuildSettingsChanged` method, even if unavailable.
-  func registerForChangeNotifications(for: DocumentURI, language: Language) async
+  func registerForChangeNotifications(for: DocumentURI) async
 
   /// Unregister the given file for build-system level change notifications,
   /// such as command line flag changes, dependency changes, etc.
