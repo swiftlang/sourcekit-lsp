@@ -14,6 +14,7 @@ import LSPTestSupport
 import LanguageServerProtocol
 import SKTestSupport
 import SourceKitLSP
+import SourceKitD
 import XCTest
 
 private typealias Token = SyntaxHighlightingToken
@@ -29,7 +30,7 @@ final class SemanticTokensTests: XCTestCase {
   /// - Note: This URI is set to a unique value before each test case in `setUp`.
   private var uri: DocumentURI!
 
-  /// The current verion of the document being opened.
+  /// The current version of the document being opened.
   ///
   /// - Note: This gets reset to 0 in `setUp` and incremented on every call to
   ///   `openDocument` and `editDocument`.
@@ -141,7 +142,16 @@ final class SemanticTokensTests: XCTestCase {
     range: Range<Position>? = nil
   ) async throws -> [Token] {
     openDocument(text: text)
-    return try await performSemanticTokensRequest(range: range)
+    do {
+      return try await performSemanticTokensRequest(range: range)
+    } catch let error as ResponseError {
+      // FIXME: Remove when the semantic tokens request is widely available in sourcekitd
+      if error.message.contains("unknown request: source.request.semantic_tokens") {
+        throw XCTSkip("semantic tokens request not supported by sourcekitd")
+      } else {
+        throw error
+      }
+    }
   }
 
   func testIntArrayCoding() {
