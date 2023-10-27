@@ -425,4 +425,51 @@ final class CodeActionTests: XCTestCase {
 
     try await fulfillmentOfOrThrow([editReceived])
   }
+
+  func testCodeActionForFixItsProducedBySwiftSyntax() async throws {
+    let ws = try await MultiFileTestWorkspace(files: [
+      "test.swift": "protocol 1️⃣Multi 2️⃣ident 3️⃣{}",
+      "compile_commands.json": "[]",
+    ])
+
+    let (uri, positions) = try ws.openDocument("test.swift")
+
+    let report = try await ws.testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
+    guard case .full(let fullReport) = report else {
+      XCTFail("Expected full diagnostics report")
+      return
+    }
+
+    XCTAssertEqual(fullReport.items.count, 1)
+    let diagnostic = try XCTUnwrap(fullReport.items.first)
+    let codeActions = try XCTUnwrap(diagnostic.codeActions)
+
+    let expectedCodeActions = [
+      CodeAction(
+        title: "Join the identifiers together",
+        kind: .quickFix,
+        edit: WorkspaceEdit(
+          changes: [
+            uri: [
+              TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "Multiident "),
+              TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
+            ]
+          ]
+        )
+      ),
+      CodeAction(
+        title: "Join the identifiers together with camel-case",
+        kind: .quickFix,
+        edit: WorkspaceEdit(
+          changes: [
+            uri: [
+              TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "MultiIdent "),
+              TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
+            ]
+          ]
+        )
+      ),
+    ]
+    XCTAssertEqual(expectedCodeActions, codeActions)
+  }
 }
