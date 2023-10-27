@@ -1186,9 +1186,6 @@ extension SourceKitServer {
   }
 
   private func openDocument(_ note: DidOpenTextDocumentNotification, workspace: Workspace) async {
-    if documentManager.latestSnapshot(note.textDocument.uri) != nil {
-      logger.fault("Document '\(note.textDocument.uri.forLogging)' is already open!")
-    }
     // Immediately open the document even if the build system isn't ready. This is important since
     // we check that the document is open when we receive messages from the build system.
     documentManager.open(note)

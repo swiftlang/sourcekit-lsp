@@ -300,7 +300,6 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI) async {
-    assert(!self.watchedFiles.contains(uri), "Registered twice for change notifications of the same URI")
     self.watchedFiles.insert(uri)
   }
 
