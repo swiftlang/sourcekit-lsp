@@ -36,7 +36,7 @@ final class SourceKitDTests: XCTestCase {
       .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
-  func testMultipleNotificationHandlers() throws {
+  func testMultipleNotificationHandlers() async throws {
     let sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: SourceKitDTests.sourcekitdPath)
     let keys = sourcekitd.keys
     let path = DocumentURI.for(.swift).pseudoPath
@@ -88,14 +88,14 @@ final class SourceKitDTests: XCTestCase {
     args.append(path)
     req[keys.compilerargs] = args
 
-    _ = try sourcekitd.sendSync(req)
+    _ = try await sourcekitd.send(req)
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation1, expectation2])
 
     let close = SKDRequestDictionary(sourcekitd: sourcekitd)
     close[keys.request] = sourcekitd.requests.editor_close
     close[keys.name] = path
-    _ = try sourcekitd.sendSync(close)
+    _ = try await sourcekitd.send(close)
   }
 }
 

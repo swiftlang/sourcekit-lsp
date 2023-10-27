@@ -65,21 +65,6 @@ extension SourceKitD {
 
   // MARK: - Convenience API for requests.
 
-  /// Send the given request and synchronously receive a reply dictionary (or error).
-  public func sendSync(_ req: SKDRequestDictionary) throws -> SKDResponseDictionary {
-    logRequest(req)
-
-    let resp = SKDResponse(api.send_request_sync(req.dict), sourcekitd: self)
-
-    logResponse(resp)
-
-    guard let dict = resp.value else {
-      throw resp.error!
-    }
-
-    return dict
-  }
-
   public func send(_ req: SKDRequestDictionary) async throws -> SKDResponseDictionary {
     logRequest(req)
 
