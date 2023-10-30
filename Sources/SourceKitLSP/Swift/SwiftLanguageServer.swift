@@ -528,12 +528,12 @@ extension SwiftLanguageServer {
     if let doc = cursorInfo.documentationXML {
       result += """
 
-        \(orLog { try xmlDocumentationToMarkdown(doc) } ?? doc)
+        \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(doc) } ?? doc)
         """
     } else if let annotated: String = cursorInfo.annotatedDeclaration {
       result += """
 
-        \(orLog { try xmlDocumentationToMarkdown(annotated) } ?? annotated)
+        \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(annotated) } ?? annotated)
         """
     }
 

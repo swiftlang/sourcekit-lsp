@@ -23,7 +23,7 @@ private func logError(prefix: String, error: Error, level: LogLevel) {
 
 /// Like `try?`, but logs the error on failure.
 public func orLog<R>(
-  _ prefix: String = "",
+  _ prefix: String,
   level: LogLevel = .error,
   _ block: () throws -> R?
 ) -> R? {
@@ -39,7 +39,7 @@ public func orLog<R>(
 ///
 /// - SeeAlso: ``orLog(_:level:_:)-66i2z``
 public func orLog<R>(
-  _ prefix: String = "",
+  _ prefix: String,
   level: LogLevel = .error,
   _ block: () async throws -> R?
 ) async -> R? {
