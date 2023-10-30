@@ -17,10 +17,15 @@ import Foundation
 public enum LogConfig {
   /// The globally set log level
   fileprivate static let logLevel: NonDarwinLogLevel = {
-    guard let envVar = ProcessInfo.processInfo.environment["SOURCEKITLSP_LOG_LEVEL"] else {
-      return .default
+    if let envVar = ProcessInfo.processInfo.environment["SOURCEKITLSP_LOG_LEVEL"],
+      let logLevel = NonDarwinLogLevel(envVar) {
+      return logLevel
     }
-    return NonDarwinLogLevel(envVar) ?? .default
+    #if DEBUG
+    return .debug
+    #else
+    return .default
+    #endif
   }()
 
   /// The globally set privacy level
