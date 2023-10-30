@@ -44,15 +44,20 @@ extension DocumentURI {
   }
 }
 
+public let cleanScratchDirectories = (ProcessInfo.processInfo.environment["SOURCEKITLSP_KEEP_TEST_SCRATCH_DIR"] == nil)
+
 /// An empty directory in which a test with `#function` name `testName` can store temporary data.
 public func testScratchDir(testName: String = #function) throws -> URL {
   let testBaseName = testName.prefix(while: \.isLetter)
 
+  var uuid = UUID().uuidString[...]
+  if let firstDash = uuid.firstIndex(of: "-") {
+    uuid = uuid[..<firstDash]
+  }
   let url = FileManager.default.temporaryDirectory
     .realpath
     .appendingPathComponent("sourcekit-lsp-test-scratch")
-    .appendingPathComponent(UUID().uuidString)
-    .appendingPathComponent(String(testBaseName))
+    .appendingPathComponent("\(testBaseName)-\(uuid)")
   try? FileManager.default.removeItem(at: url)
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url
