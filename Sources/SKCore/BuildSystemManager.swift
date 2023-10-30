@@ -154,7 +154,7 @@ extension BuildSystemManager {
     // system. That way, iff the main file changes, we will also notify the
     // delegate about build setting changes of all header files that are based
     // on that main file.
-    await buildSystem?.registerForChangeNotifications(for: mainFile, language: language)
+    await buildSystem?.registerForChangeNotifications(for: mainFile)
   }
 
   public func unregisterForChangeNotifications(for uri: DocumentURI) async {

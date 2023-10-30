@@ -437,7 +437,7 @@ class ManualBuildSystem: BuildSystem {
     return map[uri]
   }
 
-  func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
+  func registerForChangeNotifications(for uri: DocumentURI) async {
   }
 
   func unregisterForChangeNotifications(for: DocumentURI) {

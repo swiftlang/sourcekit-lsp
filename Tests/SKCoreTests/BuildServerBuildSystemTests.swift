@@ -53,7 +53,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
       _fixLifetime(buildSystemDelegate)
     }
     await buildSystem.setDelegate(buildSystemDelegate)
-    await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl), language: .swift)
+    await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
 
     XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: defaultTimeout), .completed)
   }
@@ -76,7 +76,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
       _fixLifetime(buildSystemDelegate)
     }
     await buildSystem.setDelegate(buildSystemDelegate)
-    await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl), language: .swift)
+    await buildSystem.registerForChangeNotifications(for: DocumentURI(fileUrl))
 
     try await fulfillmentOfOrThrow([expectation])
   }

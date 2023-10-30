@@ -80,7 +80,7 @@ public actor SwiftPMWorkspace {
 
   /// The URIs for which the delegate has registered for change notifications,
   /// mapped to the language the delegate specified when registering for change notifications.
-  var watchedFiles: [DocumentURI: Language] = [:]
+  var watchedFiles: Set<DocumentURI> = []
 
   /// This callback is informed when `reloadPackage` starts and ends executing.
   var reloadPackageStatusCallback: (ReloadPackageStatus) async -> Void
@@ -245,8 +245,7 @@ extension SwiftPMWorkspace {
       await reloadPackageStatusCallback(.end)
       return
     }
-    let changedFiles = Set<DocumentURI>(self.watchedFiles.keys)
-    await delegate.fileBuildSettingsChanged(changedFiles)
+    await delegate.fileBuildSettingsChanged(self.watchedFiles)
     await delegate.fileHandlingCapabilityChanged()
     await reloadPackageStatusCallback(.end)
   }
@@ -300,15 +299,14 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     return nil
   }
 
-  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
-    assert(self.watchedFiles[uri] == nil, "Registered twice for change notifications of the same URI")
-    self.watchedFiles[uri] = language
+  public func registerForChangeNotifications(for uri: DocumentURI) async {
+    self.watchedFiles.insert(uri)
   }
 
   /// Unregister the given file for build-system level change notifications, such as command
   /// line flag changes, dependency changes, etc.
   public func unregisterForChangeNotifications(for uri: DocumentURI) {
-    self.watchedFiles[uri] = nil
+    self.watchedFiles.remove(uri)
   }
 
   /// Returns the resolved target description for the given file, if one is known.

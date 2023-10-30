@@ -51,7 +51,7 @@ public actor CompilationDatabaseBuildSystem {
 
   /// The URIs for which the delegate has registered for change notifications,
   /// mapped to the language the delegate specified when registering for change notifications.
-  var watchedFiles: [DocumentURI: Language] = [:]
+  var watchedFiles: Set<DocumentURI> = []
 
   private var _indexStorePath: AbsolutePath?
   public var indexStorePath: AbsolutePath? {
@@ -109,13 +109,13 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     )
   }
 
-  public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
-    self.watchedFiles[uri] = language
+  public func registerForChangeNotifications(for uri: DocumentURI) async {
+    self.watchedFiles.insert(uri)
   }
 
   /// We don't support change watching.
   public func unregisterForChangeNotifications(for uri: DocumentURI) {
-    self.watchedFiles[uri] = nil
+    self.watchedFiles.remove(uri)
   }
 
   private func database(for url: URL) -> CompilationDatabase? {
@@ -165,11 +165,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     )
 
     if let delegate = self.delegate {
-      var changedFiles = Set<DocumentURI>()
-      for (uri, _) in self.watchedFiles {
-        changedFiles.insert(uri)
-      }
-      await delegate.fileBuildSettingsChanged(changedFiles)
+      await delegate.fileBuildSettingsChanged(self.watchedFiles)
     }
   }
 
