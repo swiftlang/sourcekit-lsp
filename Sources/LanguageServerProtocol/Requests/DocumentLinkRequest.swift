@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// The document links request is sent from the client to the server to request the location of links in a document.
-public struct DocumentLinkRequest: RequestType {
+public struct DocumentLinkRequest: TextDocumentRequest {
   public static let method: String = "textDocument/documentLink"
   public typealias Response = [DocumentLink]?
 
