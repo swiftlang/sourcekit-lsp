@@ -48,17 +48,20 @@ public func withCancellableCheckedThrowingContinuation<Handle, Result>(
     }
   }
 
-  return try await withTaskCancellationHandler(operation: {
-    try Task.checkCancellation()
-    return try await withCheckedThrowingContinuation { continuation in
-      handleWrapper.value = operation(continuation)
+  return try await withTaskCancellationHandler(
+    operation: {
+      try Task.checkCancellation()
+      return try await withCheckedThrowingContinuation { continuation in
+        handleWrapper.value = operation(continuation)
 
-      // Check if the task was cancelled. This ensures we send a
-      // CancelNotification even if the task gets cancelled after we register
-      // the cancellation handler but before we set the `requestID`.
-      if Task.isCancelled {
-        callCancel()
+        // Check if the task was cancelled. This ensures we send a
+        // CancelNotification even if the task gets cancelled after we register
+        // the cancellation handler but before we set the `requestID`.
+        if Task.isCancelled {
+          callCancel()
+        }
       }
-    }
-  }, onCancel: callCancel)
+    },
+    onCancel: callCancel
+  )
 }

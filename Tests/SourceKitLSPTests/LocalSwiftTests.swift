@@ -1503,7 +1503,9 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testEditorPlaceholderParsing() {
-    var text = "<#basic placeholder" + "#>"  // Need to end this in another line so Xcode doesn't treat it as a real placeholder
+    var text =
+      "<#basic placeholder"  // Need to end this in another line so Xcode doesn't treat it as a real placeholder
+      + "#>"
     var data = EditorPlaceholder(text)
     XCTAssertNotNil(data)
     if let data = data {

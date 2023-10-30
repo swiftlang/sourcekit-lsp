@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPLogging
 import LanguageServerProtocol
 import SwiftSyntax
-import LSPLogging
 
 extension SwiftLanguageServer {
   public func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
@@ -82,19 +82,20 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
     guard let node = node.asProtocol(NamedDeclSyntax.self) else {
       return .visitChildren
     }
-    let symbolKind: SymbolKind? = switch node.kind {
-    case .actorDecl: .class
-    case .associatedTypeDecl: .typeParameter
-    case .classDecl: .class
-    case .enumDecl: .enum
-    case .macroDecl: .function // LSP doesn't have a macro symbol kind. Function is the closest.
-    case .operatorDecl: .operator
-    case .precedenceGroupDecl: .operator // LSP doesn't have a precedence group symbol kind. Operator is the closest.
-    case .protocolDecl: .interface
-    case .structDecl: .struct
-    case .typeAliasDecl: .typeParameter // LSP doesn't have a typealias symbol kind. Type parameter is the closest.
-    default: nil
-    }
+    let symbolKind: SymbolKind? =
+      switch node.kind {
+      case .actorDecl: .class
+      case .associatedTypeDecl: .typeParameter
+      case .classDecl: .class
+      case .enumDecl: .enum
+      case .macroDecl: .function  // LSP doesn't have a macro symbol kind. `function`` is closest.
+      case .operatorDecl: .operator
+      case .precedenceGroupDecl: .operator  // LSP doesn't have a precedence group symbol kind. `operator` is closest.
+      case .protocolDecl: .interface
+      case .structDecl: .struct
+      case .typeAliasDecl: .typeParameter  // LSP doesn't have a typealias symbol kind. `typeParameter` is closest.
+      default: nil
+      }
 
     guard let symbolKind else {
       return .visitChildren
@@ -136,13 +137,14 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
   }
 
   override func visit(_ node: FunctionDeclSyntax) -> SyntaxVisitorContinueKind {
-    let kind: SymbolKind = if node.name.tokenKind.isOperator {
-      .operator
-    } else if node.parent?.is(MemberBlockItemSyntax.self) ?? false {
-      .method
-    } else {
-      .function
-    }
+    let kind: SymbolKind =
+      if node.name.tokenKind.isOperator {
+        .operator
+      } else if node.parent?.is(MemberBlockItemSyntax.self) ?? false {
+        .method
+      } else {
+        .function
+      }
     return record(
       node: node,
       name: node.declName,
@@ -181,7 +183,7 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
     guard let variableDecl = node.parent?.parent?.as(VariableDeclSyntax.self) else {
       return .visitChildren
     }
-    let rangeNode: Syntax = variableDecl.bindings.count == 1  ? Syntax(variableDecl) : Syntax(node)
+    let rangeNode: Syntax = variableDecl.bindings.count == 1 ? Syntax(variableDecl) : Syntax(node)
 
     return record(
       node: node,

@@ -14,13 +14,13 @@ import Foundation
 import ISDBTestSupport
 import ISDBTibs
 import LSPTestSupport
+import LanguageServerProtocol
 import SKCore
 import SKSupport
+import SKTestSupport
 import SourceKitD
 import TSCBasic
 import XCTest
-import LanguageServerProtocol
-import SKTestSupport
 
 import enum PackageLoading.Platform
 import class TSCBasic.Process

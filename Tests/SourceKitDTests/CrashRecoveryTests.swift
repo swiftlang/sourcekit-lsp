@@ -51,11 +51,14 @@ final class CrashRecoveryTests: XCTestCase {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
 
-    let positions = testClient.openDocument("""
+    let positions = testClient.openDocument(
+      """
       func 1️⃣foo() {
         print("Hello world")
       }
-      """, uri: uri)
+      """,
+      uri: uri
+    )
 
     // Wait for diagnostics to be produced to make sure the document open got handled by sourcekitd.
     _ = try await testClient.nextDiagnosticsNotification()

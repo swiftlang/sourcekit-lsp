@@ -40,10 +40,10 @@ fileprivate class ClangdStderrLogForwarder {
     self.buffer += newData
     while let newlineIndex = self.buffer.firstIndex(of: UInt8(ascii: "\n")) {
       // Output a separate log message for every line in clangd's stderr.
-      // The reason why we don't output multiple lines in a single log message is that 
+      // The reason why we don't output multiple lines in a single log message is that
       //  a) os_log truncates log messages at about 1000 bytes. The assumption is that a single line is usually less
       //     than 1000 bytes long but if we merge multiple lines into one message, we might easily exceed this limit.
-      //  b) It might be confusing why sometimes a single log message contains one line while sometimes it contains 
+      //  b) It might be confusing why sometimes a single log message contains one line while sometimes it contains
       //     multiple.
       let logger = Logger(subsystem: subsystem, category: "clangd-stderr")
       logger.info("\(String(data: self.buffer[...newlineIndex], encoding: .utf8) ?? "<invalid UTF-8>")")

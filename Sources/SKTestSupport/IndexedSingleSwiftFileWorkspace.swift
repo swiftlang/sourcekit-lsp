@@ -57,7 +57,7 @@ public struct IndexedSingleSwiftFileWorkspace {
     var compilerArguments: [String] = [
       testFileURL.path,
       "-index-store-path", indexURL.path,
-      "-typecheck"
+      "-typecheck",
     ]
     if !indexSystemModules {
       compilerArguments.append("-index-ignore-system-modules")

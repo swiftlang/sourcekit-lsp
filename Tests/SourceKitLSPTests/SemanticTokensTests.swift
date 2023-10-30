@@ -13,8 +13,8 @@
 import LSPTestSupport
 import LanguageServerProtocol
 import SKTestSupport
-import SourceKitLSP
 import SourceKitD
+import SourceKitLSP
 import XCTest
 
 private typealias Token = SyntaxHighlightingToken

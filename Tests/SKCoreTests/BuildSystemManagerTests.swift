@@ -58,7 +58,7 @@ final class BuildSystemManagerTests: XCTestCase {
 
     await mainFiles.updateMainFiles(for: a, to: [a])
     await mainFiles.updateMainFiles(for: b, to: [c, d, a])
-  
+
     await assertEqual(bsm._cachedMainFile(for: a), c)
     await assertEqual(bsm._cachedMainFile(for: b), bMain)
     await assertEqual(bsm._cachedMainFile(for: c), c)
@@ -236,7 +236,7 @@ final class BuildSystemManagerTests: XCTestCase {
     let cpp2 = DocumentURI(string: "bsm:other.cpp")
     let mainFiles = ManualMainFilesProvider(
       [
-      h: [cpp1],
+        h: [cpp1],
         cpp1: [cpp1],
         cpp2: [cpp2],
       ]
@@ -411,7 +411,7 @@ private final actor ManualMainFilesProvider: MainFilesProvider {
     self.mainFiles = mainFiles
   }
 
-  func updateMainFiles(for file: DocumentURI, to mainFiles: Set<DocumentURI>)async {
+  func updateMainFiles(for file: DocumentURI, to mainFiles: Set<DocumentURI>) async {
     self.mainFiles[file] = mainFiles
   }
 

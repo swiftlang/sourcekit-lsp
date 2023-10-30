@@ -183,7 +183,9 @@ final class SKTests: XCTestCase {
 
     let workspaceDirectory = try testScratchDir()
 
-    guard let versionedPath = try await checkRunningIndex(cleanUp: false, workspaceDirectory: workspaceDirectory) else { return }
+    guard let versionedPath = try await checkRunningIndex(cleanUp: false, workspaceDirectory: workspaceDirectory) else {
+      return
+    }
 
     let versionContentsAfter = try listdir(versionedPath)
     XCTAssertEqual(versionContentsAfter.count, 1)

@@ -13,8 +13,8 @@
 import Dispatch
 import LSPLogging
 import LanguageServerProtocol
-import SourceKitD
 import SKSupport
+import SourceKitD
 
 /// Represents a code-completion session for a given source location that can be efficiently
 /// re-filtered by calling `update()`.
@@ -52,7 +52,7 @@ class CodeCompletionSession {
   /// Modification of code completion sessions should only happen on
   /// `completionQueue`.
   private static var completionSessions: [ObjectIdentifier: CodeCompletionSession] = [:]
-  
+
   /// Gets the code completion results for the given parameters.
   ///
   /// If a code completion session that is compatible with the parameters
@@ -99,16 +99,20 @@ class CodeCompletionSession {
   ) async throws -> CompletionList {
     let task = completionQueue.asyncThrowing {
       if let session = completionSessions[ObjectIdentifier(sourcekitd)], session.state == .open {
-        let isCompatible = session.snapshot.uri == snapshot.uri &&
-        session.utf8StartOffset == completionUtf8Offset &&
-        session.position == completionPosition &&
-        session.compileCommand == compileCommand &&
-        session.clientSupportsSnippets == clientSupportsSnippets
+        let isCompatible =
+          session.snapshot.uri == snapshot.uri && session.utf8StartOffset == completionUtf8Offset
+          && session.position == completionPosition && session.compileCommand == compileCommand
+          && session.clientSupportsSnippets == clientSupportsSnippets
 
         if isCompatible {
-          return try await session.update(filterText: filterText, position: cursorPosition, in: snapshot, options: options)
+          return try await session.update(
+            filterText: filterText,
+            position: cursorPosition,
+            in: snapshot,
+            options: options
+          )
         }
-        
+
         if mustReuse {
           logger.error(
             """
