@@ -105,6 +105,7 @@ public let builtinNotifications: [NotificationType.Type] = [
   DidOpenTextDocumentNotification.self,
   DidRenameFilesNotification.self,
   DidSaveNotebookDocumentNotification.self,
+  DidSaveTextDocumentNotification.self,
   ExitNotification.self,
   InitializedNotification.self,
   LogMessageNotification.self,
@@ -112,6 +113,7 @@ public let builtinNotifications: [NotificationType.Type] = [
   PublishDiagnosticsNotification.self,
   SetTraceNotification.self,
   ShowMessageNotification.self,
+  WillSaveTextDocumentNotification.self,
   WorkDoneProgress.self,
 ]
 

@@ -259,10 +259,10 @@ extension BuildServerBuildSystem: BuildSystem {
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) {
     let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request) { result in
-      Task {
-        if let error = result.failure {
-          logger.error("error registering \(uri): \(error.forLogging)")
+      if let error = result.failure {
+        logger.error("error registering \(uri): \(error.forLogging)")
 
+        Task {
           // BuildServer registration failed, so tell our delegate that no build
           // settings are available.
           await self.buildSettingsChanged(for: uri, settings: nil)
