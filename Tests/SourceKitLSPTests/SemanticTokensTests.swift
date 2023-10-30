@@ -181,7 +181,7 @@ final class SemanticTokensTests: XCTestCase {
     XCTAssertEqual(decoded, tokens)
   }
 
-  func testRangeSplitting() async {
+  func testRangeSplitting() async throws {
     let text = """
       struct X {
         let x: Int
@@ -192,9 +192,7 @@ final class SemanticTokensTests: XCTestCase {
       """
     openDocument(text: text)
 
-    guard let snapshot = await testClient.server._documentManager.latestSnapshot(uri) else {
-      fatalError("Could not fetch document snapshot for \(#function)")
-    }
+    let snapshot = try await testClient.server._documentManager.latestSnapshot(uri)
 
     let empty = Position(line: 0, utf16index: 1)..<Position(line: 0, utf16index: 1)
     XCTAssertEqual(empty._splitToSingleLineRanges(in: snapshot), [])

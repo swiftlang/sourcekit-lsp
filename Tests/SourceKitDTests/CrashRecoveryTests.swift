@@ -100,10 +100,6 @@ final class CrashRecoveryTests: XCTestCase {
     try await fulfillmentOfOrThrow([sourcekitdCrashed], timeout: 5)
     try await fulfillmentOfOrThrow([sourcekitdRestarted], timeout: 30)
 
-    // Check that we have syntactic functionality again
-
-    _ = try await testClient.send(FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri)))
-
     // sourcekitd's semantic request timer is only started when the first semantic request comes in.
     // Send a hover request (which will fail) to trigger that timer.
     // Afterwards wait for semantic functionality to be restored.

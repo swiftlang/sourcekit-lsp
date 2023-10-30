@@ -16,10 +16,7 @@ import LSPLogging
 
 extension SwiftLanguageServer {
   public func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
-    guard let snapshot = self.documentManager.latestSnapshot(req.textDocument.uri) else {
-      logger.error("failed to find snapshot for url \(req.textDocument.uri.forLogging)")
-      return nil
-    }
+    let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
 

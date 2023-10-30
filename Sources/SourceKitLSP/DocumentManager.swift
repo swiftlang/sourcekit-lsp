@@ -184,10 +184,10 @@ public final class DocumentManager {
     }
   }
 
-  public func latestSnapshot(_ uri: DocumentURI) -> DocumentSnapshot? {
-    return queue.sync {
+  public func latestSnapshot(_ uri: DocumentURI) throws -> DocumentSnapshot {
+    return try queue.sync {
       guard let document = documents[uri] else {
-        return nil
+        throw ResponseError.unknown("Failed to find snapshot for '\(uri)'")
       }
       return document.latestSnapshot
     }

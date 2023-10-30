@@ -29,7 +29,7 @@ extension SwiftLanguageServer {
     let interfaceFilePath = self.generatedInterfacesPath.appendingPathComponent("\(name).swiftinterface")
     let interfaceDocURI = DocumentURI(interfaceFilePath)
     // has interface already been generated
-    if let snapshot = self.documentManager.latestSnapshot(interfaceDocURI) {
+    if let snapshot = try? self.documentManager.latestSnapshot(interfaceDocURI) {
       return await self.interfaceDetails(request: request, uri: interfaceDocURI, snapshot: snapshot, symbol: symbol)
     } else {
       // generate interface

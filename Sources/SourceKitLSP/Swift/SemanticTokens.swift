@@ -71,12 +71,7 @@ extension SwiftLanguageServer {
   public func documentSemanticTokens(
     _ req: DocumentSemanticTokensRequest
   ) async throws -> DocumentSemanticTokensResponse? {
-    let uri = req.textDocument.uri
-
-    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-      logger.error("failed to find snapshot for uri \(uri.forLogging)")
-      return DocumentSemanticTokensResponse(data: [])
-    }
+    let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 
     let tokens = await mergedAndSortedTokens(for: snapshot)
     let encodedTokens = tokens.lspEncoded
@@ -93,15 +88,9 @@ extension SwiftLanguageServer {
   public func documentSemanticTokensRange(
     _ req: DocumentSemanticTokensRangeRequest
   ) async throws -> DocumentSemanticTokensResponse? {
-    let uri = req.textDocument.uri
-    let range = req.range
+    let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 
-    guard let snapshot = self.documentManager.latestSnapshot(uri) else {
-      logger.error("failed to find snapshot for uri \(uri.forLogging)")
-      return DocumentSemanticTokensResponse(data: [])
-    }
-
-    let tokens = await mergedAndSortedTokens(for: snapshot, in: range)
+    let tokens = await mergedAndSortedTokens(for: snapshot, in: req.range)
     let encodedTokens = tokens.lspEncoded
 
     return DocumentSemanticTokensResponse(data: encodedTokens)

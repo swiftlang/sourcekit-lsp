@@ -76,14 +76,6 @@ struct VariableTypeInfo {
   }
 }
 
-enum VariableTypeInfoError: Error, Equatable {
-  /// The given URL is not a known document.
-  case unknownDocument(DocumentURI)
-
-  /// The underlying sourcekitd request failed with the given error.
-  case responseError(ResponseError)
-}
-
 extension SwiftLanguageServer {
   /// Provides typed variable declarations in a document.
   ///
@@ -93,11 +85,7 @@ extension SwiftLanguageServer {
     _ uri: DocumentURI,
     _ range: Range<Position>? = nil
   ) async throws -> [VariableTypeInfo] {
-    guard let snapshot = documentManager.latestSnapshot(uri) else {
-      throw VariableTypeInfoError.unknownDocument(uri)
-    }
-
-    let keys = self.keys
+    let snapshot = try documentManager.latestSnapshot(uri)
 
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.variable_type

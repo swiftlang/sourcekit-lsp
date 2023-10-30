@@ -47,7 +47,7 @@ final class LocalSwiftTests: XCTestCase {
       openDiags.diagnostics.first?.range.lowerBound,
       Position(line: 0, utf16index: 4)
     )
-    XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
+    XCTAssertEqual("func", try documentManager.latestSnapshot(uri).text)
 
     testClient.send(
       DidChangeTextDocumentNotification(
@@ -59,7 +59,7 @@ final class LocalSwiftTests: XCTestCase {
     )
     let edit1Diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit1Diags.diagnostics.count, 0)
-    XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
+    XCTAssertEqual("func foo() {}\n", try documentManager.latestSnapshot(uri).text)
 
     testClient.send(
       DidChangeTextDocumentNotification(
@@ -81,7 +81,7 @@ final class LocalSwiftTests: XCTestCase {
       func foo() {}
       bar()
       """,
-      documentManager.latestSnapshot(uri)!.text
+      try documentManager.latestSnapshot(uri).text
     )
 
     testClient.send(
@@ -100,7 +100,7 @@ final class LocalSwiftTests: XCTestCase {
       func foo() {}
       foo()
       """,
-      documentManager.latestSnapshot(uri)!.text
+      try documentManager.latestSnapshot(uri).text
     )
 
     testClient.send(
@@ -123,7 +123,7 @@ final class LocalSwiftTests: XCTestCase {
       func foo() {}
       fooTypo()
       """,
-      documentManager.latestSnapshot(uri)!.text
+      try documentManager.latestSnapshot(uri).text
     )
 
     testClient.send(
@@ -152,7 +152,7 @@ final class LocalSwiftTests: XCTestCase {
       func bar() {}
       foo()
       """,
-      documentManager.latestSnapshot(uri)!.text
+      try documentManager.latestSnapshot(uri).text
     )
   }
 
@@ -170,7 +170,7 @@ final class LocalSwiftTests: XCTestCase {
       openDiags.diagnostics.first?.range.lowerBound,
       Position(line: 0, utf16index: 4)
     )
-    XCTAssertEqual("func", documentManager.latestSnapshot(uri)!.text)
+    try XCTAssertEqual("func", documentManager.latestSnapshot(uri).text)
 
     testClient.send(
       DidChangeTextDocumentNotification(
@@ -183,7 +183,7 @@ final class LocalSwiftTests: XCTestCase {
 
     let edit1Diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(edit1Diags.diagnostics.count, 0)
-    XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri)!.text)
+    try XCTAssertEqual("func foo() {}\n", documentManager.latestSnapshot(uri).text)
 
     testClient.send(
       DidChangeTextDocumentNotification(
@@ -205,7 +205,7 @@ final class LocalSwiftTests: XCTestCase {
       func foo() {}
       bar()
       """,
-      documentManager.latestSnapshot(uri)!.text
+      try documentManager.latestSnapshot(uri).text
     )
 
     testClient.send(
@@ -224,7 +224,7 @@ final class LocalSwiftTests: XCTestCase {
       func foo() {}
       foo()
       """,
-      documentManager.latestSnapshot(uri)!.text
+      try documentManager.latestSnapshot(uri).text
     )
 
     testClient.send(
@@ -246,7 +246,7 @@ final class LocalSwiftTests: XCTestCase {
       func foo() {}
       fooTypo()
       """,
-      documentManager.latestSnapshot(uri)!.text
+      try documentManager.latestSnapshot(uri).text
     )
 
     testClient.send(
@@ -275,7 +275,7 @@ final class LocalSwiftTests: XCTestCase {
       func bar() {}
       foo()
       """,
-      documentManager.latestSnapshot(uri)!.text
+      try documentManager.latestSnapshot(uri).text
     )
 
   }

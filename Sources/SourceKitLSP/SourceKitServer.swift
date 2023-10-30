@@ -456,7 +456,7 @@ public actor SourceKitServer {
       guard workspace.documentService[documentUri] === languageService else {
         continue
       }
-      guard let snapshot = self.documentManager.latestSnapshot(documentUri) else {
+      guard let snapshot = try? self.documentManager.latestSnapshot(documentUri) else {
         // The document has been closed since we retrieved its URI. We don't care about it anymore.
         continue
       }
@@ -1293,7 +1293,7 @@ extension SourceKitServer {
       let oldWorkspace = preChangeWorkspaces[docUri]
       let newWorkspace = await self.workspaceForDocument(uri: docUri)
       if newWorkspace !== oldWorkspace {
-        guard let snapshot = documentManager.latestSnapshot(docUri) else {
+        guard let snapshot = try? documentManager.latestSnapshot(docUri) else {
           continue
         }
         if let oldWorkspace = oldWorkspace {

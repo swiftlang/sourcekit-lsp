@@ -143,7 +143,7 @@ final class BuildSystemTests: XCTestCase {
 
     let diags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 1)
-    XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+    XCTAssertEqual(text, try documentManager.latestSnapshot(doc).text)
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
@@ -155,7 +155,7 @@ final class BuildSystemTests: XCTestCase {
     var receivedCorrectDiagnostic = false
     for _ in 0..<Int(defaultTimeout) {
       let refreshedDiags = try await testClient.nextDiagnosticsNotification(timeout: 1)
-      if refreshedDiags.diagnostics.count == 0, text == documentManager.latestSnapshot(doc)!.text {
+      if refreshedDiags.diagnostics.count == 0, try text == documentManager.latestSnapshot(doc).text {
         receivedCorrectDiagnostic = true
         break
       }
@@ -182,7 +182,7 @@ final class BuildSystemTests: XCTestCase {
     testClient.openDocument(text, uri: doc)
     let diags1 = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags1.diagnostics.count, 1)
-    XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+    XCTAssertEqual(text, try documentManager.latestSnapshot(doc).text)
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
@@ -218,7 +218,7 @@ final class BuildSystemTests: XCTestCase {
     let openDiags = try await testClient.nextDiagnosticsNotification()
     // Expect diagnostics to be withheld.
     XCTAssertEqual(openDiags.diagnostics.count, 0)
-    XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+    XCTAssertEqual(text, try documentManager.latestSnapshot(doc).text)
 
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should see a diagnostic.
@@ -229,7 +229,7 @@ final class BuildSystemTests: XCTestCase {
 
     let refreshedDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(refreshedDiags.diagnostics.count, 1)
-    XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+    XCTAssertEqual(text, try documentManager.latestSnapshot(doc).text)
   }
 
   func testSwiftDocumentFallbackWithholdsSemanticDiagnostics() async throws {
@@ -254,7 +254,7 @@ final class BuildSystemTests: XCTestCase {
     testClient.openDocument(text, uri: doc)
     let openDiags = try await testClient.nextDiagnosticsNotification()
     XCTAssertEqual(openDiags.diagnostics.count, 1)
-    XCTAssertEqual(text, documentManager.latestSnapshot(doc)!.text)
+    XCTAssertEqual(text, try documentManager.latestSnapshot(doc).text)
 
     // Swap from fallback settings to primary build system settings.
     buildSystem.buildSettingsByFile[doc] = primarySettings

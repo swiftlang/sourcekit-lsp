@@ -50,10 +50,6 @@ struct CursorInfo {
 
 /// An error from a cursor info request.
 enum CursorInfoError: Error, Equatable {
-
-  /// The given URL is not a known document.
-  case unknownDocument(DocumentURI)
-
   /// The given range is not valid in the document snapshot.
   case invalidRange(Range<Position>)
 
@@ -64,8 +60,6 @@ enum CursorInfoError: Error, Equatable {
 extension CursorInfoError: CustomStringConvertible {
   var description: String {
     switch self {
-    case .unknownDocument(let url):
-      return "failed to find snapshot for url \(url)"
     case .invalidRange(let range):
       return "invalid range \(range)"
     case .responseError(let error):
@@ -90,9 +84,7 @@ extension SwiftLanguageServer {
     _ range: Range<Position>,
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil
   ) async throws -> CursorInfo? {
-    guard let snapshot = documentManager.latestSnapshot(uri) else {
-      throw CursorInfoError.unknownDocument(uri)
-    }
+    let snapshot = try documentManager.latestSnapshot(uri)
 
     guard let offsetRange = snapshot.utf8OffsetRange(of: range) else {
       throw CursorInfoError.invalidRange(range)
