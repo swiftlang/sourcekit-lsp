@@ -118,7 +118,7 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
 
     return record(
       node: node,
-      name: node.qualifiedDeclName,
+      name: node.declName,
       symbolKind: .enumMember,
       range: node.name.positionAfterSkippingLeadingTrivia..<rangeEnd,
       selection: node.name.positionAfterSkippingLeadingTrivia..<rangeEnd
@@ -145,7 +145,7 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
     }
     return record(
       node: node,
-      name: node.qualifiedDeclName,
+      name: node.declName,
       symbolKind: kind,
       range: node.rangeWithoutTrivia,
       selection: node.name
@@ -196,7 +196,7 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
 // MARK: - Syntax Utilities
 
 fileprivate extension EnumCaseElementSyntax {
-  var qualifiedDeclName: String {
+  var declName: String {
     var result = self.name.text
     if let parameterClause {
       result += "("
@@ -210,7 +210,7 @@ fileprivate extension EnumCaseElementSyntax {
 }
 
 fileprivate extension FunctionDeclSyntax {
-  var qualifiedDeclName: String {
+  var declName: String {
     var result = self.name.text
     result += "("
     for parameter in self.signature.parameterClause.parameters {
