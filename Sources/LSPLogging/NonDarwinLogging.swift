@@ -53,19 +53,24 @@ public enum NonDarwinLogLevel: Comparable, CustomStringConvertible {
     case "default": self = .`default`
     case "error": self = .error
     case "fault": self = .fault
-    default: break
+    default:
+      if let int = Int(value) {
+        self.init(int)
+      } else {
+        return nil
+      }
     }
+  }
 
-    switch Int(value) {
+  public init?(_ value: Int) {
+    switch value {
     case 0: self = .fault
     case 1: self = .error
     case 2: self = .default
     case 3: self = .info
     case 4: self = .debug
-    default: break
+    default: return nil
     }
-
-    return nil
   }
 
   public var description: String {
