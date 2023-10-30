@@ -192,7 +192,7 @@ final class SKTests: XCTestCase {
     _ = try await checkRunningIndex(cleanUp: true, workspaceDirectory: workspaceDirectory)
   }
 
-  func testCodeCompleteSwiftTibs() async throws {
+  func testCodeCompleteSwiftPackage() async throws {
     let ws = try await SwiftPMTestWorkspace(
       files: [
         "a.swift": """
@@ -250,7 +250,7 @@ final class SKTests: XCTestCase {
     )
   }
 
-  func testDependenciesUpdatedSwiftTibs() async throws {
+  func testDependenciesUpdatedSwift() async throws {
     let ws = try await SwiftPMTestWorkspace(
       files: [
         "LibA/LibA.swift": """
@@ -302,7 +302,7 @@ final class SKTests: XCTestCase {
     XCTAssertEqual(updatedDiags.diagnostics.count, 0)
   }
 
-  func testDependenciesUpdatedCXXTibs() async throws {
+  func testDependenciesUpdatedCXX() async throws {
     let ws = try await MultiFileTestWorkspace(files: [
       "lib.c": """
       int libX(int value) {
