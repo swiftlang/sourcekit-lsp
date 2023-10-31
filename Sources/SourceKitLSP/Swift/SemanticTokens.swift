@@ -50,9 +50,9 @@ extension SwiftLanguageServer {
   private func mergedAndSortedTokens(
     for snapshot: DocumentSnapshot,
     in range: Range<Position>? = nil
-  ) async -> [SyntaxHighlightingToken] {
+  ) async throws -> [SyntaxHighlightingToken] {
     async let tree = syntaxTreeManager.syntaxTree(for: snapshot)
-    async let semanticTokens = await orLog("Loading semantic tokens") { try await semanticHighlightingTokens(for: snapshot) }
+    async let semanticTokens = semanticHighlightingTokens(for: snapshot)
 
     let range =
       if let range = range.flatMap({ $0.byteSourceRange(in: snapshot) }) {
@@ -64,7 +64,7 @@ extension SwiftLanguageServer {
       await tree
       .classifications(in: range)
       .flatMap({ $0.highlightingTokens(in: snapshot) })
-      .mergingTokens(with: semanticTokens ?? [])
+      .mergingTokens(with: try semanticTokens ?? [])
       .sorted { $0.start < $1.start }
   }
 
@@ -73,7 +73,7 @@ extension SwiftLanguageServer {
   ) async throws -> DocumentSemanticTokensResponse? {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 
-    let tokens = await mergedAndSortedTokens(for: snapshot)
+    let tokens = try await mergedAndSortedTokens(for: snapshot)
     let encodedTokens = tokens.lspEncoded
 
     return DocumentSemanticTokensResponse(data: encodedTokens)
@@ -89,8 +89,7 @@ extension SwiftLanguageServer {
     _ req: DocumentSemanticTokensRangeRequest
   ) async throws -> DocumentSemanticTokensResponse? {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
-
-    let tokens = await mergedAndSortedTokens(for: snapshot, in: req.range)
+    let tokens = try await mergedAndSortedTokens(for: snapshot, in: req.range)
     let encodedTokens = tokens.lspEncoded
 
     return DocumentSemanticTokensResponse(data: encodedTokens)
