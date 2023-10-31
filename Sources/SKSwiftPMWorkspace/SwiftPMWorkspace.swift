@@ -348,7 +348,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
 
   public func filesDidChange(_ events: [FileEvent]) async {
     if events.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
-      await orLog {
+      await orLog("Reloading package") {
         // TODO: It should not be necessary to reload the entire package just to get build settings for one file.
         try await self.reloadPackage()
       }

@@ -52,7 +52,7 @@ extension SwiftLanguageServer {
     in range: Range<Position>? = nil
   ) async -> [SyntaxHighlightingToken] {
     async let tree = syntaxTreeManager.syntaxTree(for: snapshot)
-    async let semanticTokens = await orLog { try await semanticHighlightingTokens(for: snapshot) }
+    async let semanticTokens = await orLog("Loading semantic tokens") { try await semanticHighlightingTokens(for: snapshot) }
 
     let range =
       if let range = range.flatMap({ $0.byteSourceRange(in: snapshot) }) {
