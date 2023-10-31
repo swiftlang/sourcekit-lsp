@@ -68,6 +68,10 @@ extension SourceKitD {
   public func send(_ req: SKDRequestDictionary) async throws -> SKDResponseDictionary {
     logRequest(req)
 
+    let signposter = logger.makeSignposter()
+    let signpostID = signposter.makeSignpostID()
+    let signposterState = signposter.beginInterval("sourcekitd-request", id: signpostID, "Start")
+
     let sourcekitdResponse: SKDResponse = try await withCancellableCheckedThrowingContinuation { continuation in
       var handle: sourcekitd_request_handle_t? = nil
       api.send_request(req.dict, &handle) { _resp in
@@ -81,9 +85,11 @@ extension SourceKitD {
     logResponse(sourcekitdResponse)
 
     guard let dict = sourcekitdResponse.value else {
+      signposter.endInterval("sourcekitd-request", signposterState, "Error")
       throw sourcekitdResponse.error!
     }
 
+    signposter.endInterval("sourcekitd-request", signposterState, "Done")
     return dict
   }
 }
