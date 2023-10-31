@@ -107,7 +107,7 @@ extension SwiftLanguageServer {
 
     appendAdditionalParameters?(skreq)
 
-    let dict = try await self.sourcekitd.send(skreq)
+    let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
 
     guard let kind: sourcekitd_uid_t = dict[keys.kind] else {
       // Nothing to report.

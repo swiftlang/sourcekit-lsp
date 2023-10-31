@@ -65,7 +65,11 @@ extension SourceKitD {
 
   // MARK: - Convenience API for requests.
 
-  public func send(_ req: SKDRequestDictionary) async throws -> SKDResponseDictionary {
+  /// - Parameters:
+  ///   - req: The request to send to sourcekitd.
+  ///   - fileContents: The contents of the file that the request operates on. If sourcekitd crashes, the file contents
+  ///     will be logged.
+  public func send(_ req: SKDRequestDictionary, fileContents: String?) async throws -> SKDResponseDictionary {
     logRequest(req)
 
     let signposter = logger.makeSignposter()
@@ -86,6 +90,24 @@ extension SourceKitD {
 
     guard let dict = sourcekitdResponse.value else {
       signposter.endInterval("sourcekitd-request", signposterState, "Error")
+      if sourcekitdResponse.error == .connectionInterrupted {
+        let log = """
+          Request:
+          \(req.description)
+
+          File contents:
+          \(fileContents ?? "<nil>")
+          """
+        let chunks = splitLongMultilineMessage(message: log)
+        for (index, chunk) in chunks.enumerated() {
+          logger.fault(
+            """
+            sourcekitd crashed (\(index + 1)/\(chunks.count))
+            \(chunk)
+            """
+          )
+        }
+      }
       throw sourcekitdResponse.error!
     }
 
@@ -95,9 +117,7 @@ extension SourceKitD {
 }
 
 private func logRequest(_ request: SKDRequestDictionary) {
-  // FIXME: Ideally we could log the request key here at the info level but the dictionary is
-  // readonly.
-  logger.log(
+  logger.info(
     """
     Sending sourcekitd request:
     \(request.forLogging)

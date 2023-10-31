@@ -197,7 +197,7 @@ class CodeCompletionSession {
       req[keys.compilerargs] = compileCommand.compilerArgs
     }
 
-    let dict = try await sourcekitd.send(req)
+    let dict = try await sourcekitd.send(req, fileContents: snapshot.text)
     self.state = .open
 
     guard let completions: SKDResponseArray = dict[keys.results] else {
@@ -230,7 +230,7 @@ class CodeCompletionSession {
     req[keys.name] = uri.pseudoPath
     req[keys.codecomplete_options] = optionsDictionary(filterText: filterText, options: options)
 
-    let dict = try await sourcekitd.send(req)
+    let dict = try await sourcekitd.send(req, fileContents: snapshot.text)
     guard let completions: SKDResponseArray = dict[keys.results] else {
       return CompletionList(isIncomplete: false, items: [])
     }
@@ -275,7 +275,7 @@ class CodeCompletionSession {
       req[keys.offset] = self.utf8StartOffset
       req[keys.name] = self.snapshot.uri.pseudoPath
       logger.info("Closing code completion session: \(self, privacy: .private)")
-      _ = try? await sourcekitd.send(req)
+      _ = try? await sourcekitd.send(req, fileContents: nil)
       self.state = .closed
     }
   }
