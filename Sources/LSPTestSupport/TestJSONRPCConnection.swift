@@ -87,7 +87,6 @@ public final class TestMessageHandler: MessageHandler {
   }
 
   var oneShotNotificationHandlers: [((Any) -> Void)] = []
-  var oneShotRequestHandlers: [((Any) -> Void)] = []
 
   public var allowUnexpectedNotification: Bool = true
 
@@ -97,15 +96,6 @@ public final class TestMessageHandler: MessageHandler {
         fatalError("received notification of the wrong type \(anyNote); expected \(N.self)")
       }
       handler(note)
-    })
-  }
-
-  public func appendOneShotRequestHandler<R>(_ handler: @escaping (Request<R>) -> Void) {
-    oneShotRequestHandlers.append({ anyRequest in
-      guard let request = anyRequest as? Request<R> else {
-        fatalError("received request of the wrong type \(anyRequest); expected \(R.self)")
-      }
-      handler(request)
     })
   }
 
@@ -124,13 +114,7 @@ public final class TestMessageHandler: MessageHandler {
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
-    let request = Request(params, id: id, clientID: clientID, reply: reply)
-
-    guard !oneShotRequestHandlers.isEmpty else {
-      fatalError("unexpected request \(request)")
-    }
-    let handler = oneShotRequestHandlers.removeFirst()
-    handler(request)
+    reply(.failure(.methodNotFound(R.method)))
   }
 }
 
@@ -172,28 +156,12 @@ public final class TestServer: MessageHandler {
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
     if let params = params as? EchoRequest {
-      let req = Request(
-        params,
-        id: id,
-        clientID: clientID,
-        reply: { result in
-          reply(result.map({ $0 as! R.Response }))
-        }
-      )
-      req.reply(req.params.string)
+      reply(.success(params.string as! R.Response))
     } else if let params = params as? EchoError {
-      let req = Request(
-        params,
-        id: id,
-        clientID: clientID,
-        reply: { result in
-          reply(result.map({ $0 as! R.Response }))
-        }
-      )
-      if let code = req.params.code {
-        req.reply(.failure(ResponseError(code: code, message: req.params.message!)))
+      if let code = params.code {
+        reply(.failure(ResponseError(code: code, message: params.message!)))
       } else {
-        req.reply(VoidResponse())
+        reply(.success(VoidResponse() as! R.Response))
       }
     } else {
       fatalError("Unhandled request")
