@@ -31,6 +31,16 @@ fileprivate extension Encodable {
   }
 }
 
+// MARK: - DocumentURI
+
+extension DocumentURI: CustomLogStringConvertible {
+  public var redactedDescription: String {
+    return "<DocumentURI length=\(description.count) hash=\(description.hashForLogging)>"
+  }
+}
+
+// MARK: - RequestType
+
 fileprivate struct AnyRequestType: CustomLogStringConvertible {
   let request: any RequestType
 
@@ -52,6 +62,8 @@ extension RequestType {
   }
 }
 
+// MARK: - NotificationType
+
 fileprivate struct AnyNotificationType: CustomLogStringConvertible {
   let notification: any NotificationType
 
@@ -72,6 +84,8 @@ extension NotificationType {
     return AnyNotificationType(notification: self).forLogging
   }
 }
+
+// MARK: - ResponseType
 
 fileprivate struct AnyResponseType: CustomLogStringConvertible {
   let response: any ResponseType

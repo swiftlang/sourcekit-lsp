@@ -3,7 +3,6 @@ add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
   DocumentManager.swift
   IndexStoreDB+MainFilesProvider.swift
-  LoggableMessageTypes.swift
   ResponseError+Init.swift
   Sequence+AsyncMap.swift
   SourceKitIndexDelegate.swift

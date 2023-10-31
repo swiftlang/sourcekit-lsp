@@ -1,5 +1,4 @@
 add_library(LanguageServerProtocol STATIC
-  AsyncQueue.swift
   Connection.swift
   CustomCodable.swift
   Error.swift

@@ -24,7 +24,7 @@ extension Task: AnyTask {
   }
 }
 
-extension NSLock {
+fileprivate extension NSLock {
   /// NOTE: Keep in sync with SwiftPM's 'Sources/Basics/NSLock+Extensions.swift'
   func withLock<T>(_ body: () throws -> T) rethrows -> T {
     lock()
@@ -48,7 +48,7 @@ public struct Serial: DependencyTracker {
   }
 }
 
-/// A queue that allows the execution of asyncronous blocks of code.
+/// A queue that allows the execution of asynchronous blocks of code.
 public final class AsyncQueue<TaskMetadata: DependencyTracker> {
   private struct PendingTask {
     /// The task that is pending.
@@ -109,7 +109,7 @@ public final class AsyncQueue<TaskMetadata: DependencyTracker> {
     let id = UUID()
 
     return pendingTasksLock.withLock {
-      // Build the list of tasks that need to finishe exeuction before this one
+      // Build the list of tasks that need to finished execution before this one
       // can be executed
       let dependencies: [PendingTask] = pendingTasks.filter { $0.metadata.isDependency(of: metadata) }
 
