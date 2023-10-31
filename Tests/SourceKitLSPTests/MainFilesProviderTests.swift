@@ -19,78 +19,202 @@ import SourceKitLSP
 import XCTest
 
 final class MainFilesProviderTests: XCTestCase {
-
-  func testMainFilesChanged() async throws {
-    let ws = try await mutableSourceKitTibsTestWorkspace(name: "MainFiles")!
-    let indexDelegate = SourceKitIndexDelegate()
-    ws.tibsWorkspace.delegate = indexDelegate
-
-    final class TestMainFilesDelegate: MainFilesDelegate {
-      var expectation: XCTestExpectation
-      init(_ expectation: XCTestExpectation) { self.expectation = expectation }
-      func mainFilesChanged() {
-        expectation.fulfill()
-      }
-    }
-
-    let mainFilesDelegate = TestMainFilesDelegate(expectation(description: "main files changed"))
-    indexDelegate.registerMainFileChanged(mainFilesDelegate)
-
-    let a = ws.testLoc("a_func").docIdentifier.uri
-    let b = ws.testLoc("b_func").docIdentifier.uri
-    let c = ws.testLoc("c_func").docIdentifier.uri
-    let d = ws.testLoc("d_func").docIdentifier.uri
-    let unique_h = ws.testLoc("unique").docIdentifier.uri
-    let shared_h = ws.testLoc("shared").docIdentifier.uri
-    let bridging = ws.testLoc("bridging").docIdentifier.uri
-
-    XCTAssertEqual(ws.index.mainFilesContainingFile(a), [])
-    XCTAssertEqual(ws.index.mainFilesContainingFile(b), [])
-    XCTAssertEqual(ws.index.mainFilesContainingFile(c), [])
-    XCTAssertEqual(ws.index.mainFilesContainingFile(d), [])
-    XCTAssertEqual(ws.index.mainFilesContainingFile(unique_h), [])
-    XCTAssertEqual(ws.index.mainFilesContainingFile(shared_h), [])
-    XCTAssertEqual(ws.index.mainFilesContainingFile(bridging), [])
-
-    try ws.buildAndIndex()
-
-    XCTAssertEqual(ws.index.mainFilesContainingFile(a), [a])
-    XCTAssertEqual(ws.index.mainFilesContainingFile(b), [b])
-    XCTAssertEqual(ws.index.mainFilesContainingFile(c), [c])
-    XCTAssertEqual(ws.index.mainFilesContainingFile(d), [d])
-    XCTAssertEqual(ws.index.mainFilesContainingFile(unique_h), [d])
-    XCTAssertEqual(ws.index.mainFilesContainingFile(shared_h), [c, d])
-    XCTAssertEqual(ws.index.mainFilesContainingFile(bridging), [c])
-
-    try await fulfillmentOfOrThrow([mainFilesDelegate.expectation])
-
-    try ws.edit { changes, _ in
-      changes.write(
-        """
-        #include "bridging.h"
-        void d_new(void) { bridging(); }
+  func testMainFileForHeaderInPackageTarget() async throws {
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "MyLibrary/include/MyLibrary.h": """
+        void bridging(void) {
+          int VARIABLE_NAME = 1;
+        }
         """,
-        to: d.fileURL!
-      )
-
-      changes.write(
-        """
-        #include "unique.h"
-        void c_new(void) { unique(); }
+        "MyLibrary/MyLibrary.c": """
+        #include "shared.h"
         """,
-        to: c.fileURL!
-      )
-    }
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
 
-    mainFilesDelegate.expectation = expectation(description: "main files changed after edit")
-    try ws.buildAndIndex()
+        import PackageDescription
 
-    XCTAssertEqual(ws.index.mainFilesContainingFile(unique_h), [c])
-    XCTAssertEqual(ws.index.mainFilesContainingFile(shared_h), [])
-    XCTAssertEqual(ws.index.mainFilesContainingFile(bridging), [d])
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(
+              name: "MyLibrary", 
+              cSettings: [.define("VARIABLE_NAME", to: "fromMyLibrary"), .unsafeFlags(["-Wunused-variable"])]
+            )
+          ]
+        )
+        """,
+      build: false
+    )
 
-    try await fulfillmentOfOrThrow([mainFilesDelegate.expectation])
+    // Use the definition of `VARIABLE_NAME` together with `-Wunused-variable` to check that we are getting compiler
+    // arguments from the target.
+    _ = try ws.openDocument("MyLibrary.h", language: .c)
+    let diags = try await ws.testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.diagnostics.count, 1)
+    let diag = try XCTUnwrap(diags.diagnostics.first)
+    XCTAssertEqual(diag.message, "Unused variable 'fromMyLibrary'")
+  }
 
-    XCTAssertEqual(ws.index.mainFilesContainingFile(DocumentURI(string: "not:file")), [])
+  func testMainFileForHeaderOutsideOfTarget() async throws {
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "Sources/shared.h": """
+        void bridging(void) {
+          int VARIABLE_NAME = 1;
+        }
+        """,
+        "Sources/MyLibrary/include/dummy.h": "",
+        "Sources/MyLibrary/MyLibrary.c": """
+        #include "$TEST_DIR/Sources/shared.h"
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(
+              name: "MyLibrary",
+              cSettings: [.define("VARIABLE_NAME", to: "fromMyLibrary"), .unsafeFlags(["-Wunused-variable"])]
+            )
+          ]
+        )
+        """,
+      build: false
+    )
+
+    _ = try ws.openDocument("shared.h", language: .c)
+
+    // Before we build, we shouldn't have an index and thus we don't infer the build setting for 'shared.h' form
+    // 'MyLibrary.c'. Hence, we don't have the '-Wunused-variable' build setting and thus no diagnostics.
+    let preBuildDiags = try await ws.testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(preBuildDiags.diagnostics.count, 0)
+
+    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory)
+
+    // After building we know that 'shared.h' is included from 'MyLibrary.c' and thus we use its build settings, 
+    // defining `VARIABLE_NAME` to `fromMyLibrary`.
+    let postBuildDiags = try await ws.testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(postBuildDiags.diagnostics.count, 1)
+    let diag = try XCTUnwrap(postBuildDiags.diagnostics.first)
+    XCTAssertEqual(diag.message, "Unused variable 'fromMyLibrary'")
+  }
+
+  func testMainFileForSharedHeaderOutsideOfTarget() async throws {
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "Sources/shared.h": """
+        void bridging(void) {
+          int VARIABLE_NAME = 1;
+        }
+        """,
+        "Sources/MyLibrary/include/dummy.h": "",
+        "Sources/MyLibrary/MyLibrary.c": """
+        #include "$TEST_DIR/Sources/shared.h"
+        """,
+        "Sources/MyFancyLibrary/include/dummy.h": "",
+        "Sources/MyFancyLibrary/MyFancyLibrary.c": """
+        #include "$TEST_DIR/Sources/shared.h"
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(
+              name: "MyLibrary",
+              cSettings: [.define("VARIABLE_NAME", to: "fromMyLibrary"), .unsafeFlags(["-Wunused-variable"])]
+            ),
+            .target(
+              name: "MyFancyLibrary",
+              cSettings: [.define("VARIABLE_NAME", to: "fromMyFancyLibrary"), .unsafeFlags(["-Wunused-variable"])]
+            )
+          ]
+        )
+        """,
+      build: true
+    )
+
+    _ = try ws.openDocument("shared.h", language: .c)
+
+    // We could pick build settings from either 'MyLibrary.c' or 'MyFancyLibrary.c'. We currently pick the
+    // lexicographically first to be deterministic, which is 'MyFancyLibrary'. Thus `VARIABLE_NAME` is set to 
+    // `fromMyFancyLibrary`.
+    let diags = try await ws.testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diags.diagnostics.count, 1)
+    let diag = try XCTUnwrap(diags.diagnostics.first)
+    XCTAssertEqual(diag.message, "Unused variable 'fromMyFancyLibrary'")
+  }
+
+  func testMainFileChangesIfIncludeIsAdded() async throws {
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "Sources/shared.h": """
+        void bridging(void) {
+          int VARIABLE_NAME = 1;
+        }
+        """,
+        "Sources/MyLibrary/include/dummy.h": "",
+        "Sources/MyLibrary/MyLibrary.c": """
+        #include "$TEST_DIR/Sources/shared.h"
+        """,
+        "Sources/MyFancyLibrary/include/dummy.h": "",
+        "Sources/MyFancyLibrary/MyFancyLibrary.c": "",
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(
+              name: "MyLibrary",
+              cSettings: [.define("VARIABLE_NAME", to: "fromMyLibrary"), .unsafeFlags(["-Wunused-variable"])]
+            ),
+            .target(
+              name: "MyFancyLibrary",
+              cSettings: [.define("VARIABLE_NAME", to: "fromMyFancyLibrary"), .unsafeFlags(["-Wunused-variable"])]
+            )
+          ]
+        )
+        """,
+      build: true
+    )
+
+    _ = try ws.openDocument("shared.h", language: .c)
+
+    // 'MyLibrary.c' is the only file that includes 'shared.h' at first. So we use build settings from MyLibrary and 
+    // define `VARIABLE_NAME` to `fromMyLibrary`.
+    let preEditDiags = try await ws.testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(preEditDiags.diagnostics.count, 1)
+    let preEditDiag = try XCTUnwrap(preEditDiags.diagnostics.first)
+    XCTAssertEqual(preEditDiag.message, "Unused variable 'fromMyLibrary'")
+
+    let newFancyLibraryContents = """
+      #include "\(ws.scratchDirectory.path)/Sources/shared.h"
+      """
+    let fancyLibraryURL = try ws.uri(for: "MyFancyLibrary.c").fileURL!
+    try newFancyLibraryContents.write(to: fancyLibraryURL, atomically: false, encoding: .utf8)
+
+    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory)
+
+    // 'MyFancyLibrary.c' now also includes 'shared.h'. Since it lexicographically preceeds MyLibrary, we should use its
+    // build settings.
+    let postEditDiags = try await ws.testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(postEditDiags.diagnostics.count, 1)
+    let postEditDiag = try XCTUnwrap(postEditDiags.diagnostics.first)
+    XCTAssertEqual(postEditDiag.message, "Unused variable 'fromMyFancyLibrary'")
   }
 }

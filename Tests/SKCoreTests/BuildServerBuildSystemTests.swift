@@ -12,6 +12,7 @@
 
 import BuildServerProtocol
 import Foundation
+import ISDBTestSupport
 import LSPTestSupport
 import LanguageServerProtocol
 import SKCore
@@ -20,10 +21,33 @@ import TSCBasic
 import XCTest
 
 final class BuildServerBuildSystemTests: XCTestCase {
+  /// The path to the INPUTS directory of shared test projects.
+  private static var skTestSupportInputsDirectory: URL = {
+    #if os(macOS)
+    // FIXME: Use Bundle.module.resourceURL once the fix for SR-12912 is released.
 
-  var root: AbsolutePath {
+    var resources = XCTestCase.productsDirectory
+      .appendingPathComponent("SourceKitLSP_SKTestSupport.bundle")
+      .appendingPathComponent("Contents")
+      .appendingPathComponent("Resources")
+    if !FileManager.default.fileExists(atPath: resources.path) {
+      // Xcode and command-line swiftpm differ about the path.
+      resources.deleteLastPathComponent()
+      resources.deleteLastPathComponent()
+    }
+    #else
+    let resources = XCTestCase.productsDirectory
+      .appendingPathComponent("SourceKitLSP_SKTestSupport.resources")
+    #endif
+    guard FileManager.default.fileExists(atPath: resources.path) else {
+      fatalError("missing resources \(resources.path)")
+    }
+    return resources.appendingPathComponent("INPUTS", isDirectory: true).standardizedFileURL
+  }()
+
+  private var root: AbsolutePath {
     try! AbsolutePath(
-      validating: XCTestCase.sklspInputsDirectory
+      validating: Self.skTestSupportInputsDirectory
         .appendingPathComponent(testDirectoryName, isDirectory: true).path
     )
   }

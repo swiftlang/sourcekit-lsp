@@ -115,11 +115,13 @@ public class MultiFileTestWorkspace {
   /// Opens the document with the given file name in the SourceKit-LSP server.
   ///
   /// - Returns: The URI for the opened document and the positions of the location markers.
-  public func openDocument(_ fileName: String) throws -> (uri: DocumentURI, positions: DocumentPositions) {
+  public func openDocument(_ fileName: String, language: Language? = nil) throws -> (
+    uri: DocumentURI, positions: DocumentPositions
+  ) {
     guard let fileData = self.fileData[fileName] else {
       throw Error.fileNotFound
     }
-    let positions = testClient.openDocument(fileData.markedText, uri: fileData.uri)
+    let positions = testClient.openDocument(fileData.markedText, uri: fileData.uri, language: language)
     return (fileData.uri, positions)
   }
 
