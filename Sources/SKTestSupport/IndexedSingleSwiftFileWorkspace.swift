@@ -38,7 +38,7 @@ public struct IndexedSingleSwiftFileWorkspace {
     _ markedText: String,
     indexSystemModules: Bool = false,
     workspaceDirectory: URL? = nil,
-    cleanUp: Bool = true,
+    cleanUp: Bool = cleanScratchDirectories,
     testName: String = #function
   ) async throws {
     let testWorkspaceDirectory = try workspaceDirectory ?? testScratchDir(testName: testName)

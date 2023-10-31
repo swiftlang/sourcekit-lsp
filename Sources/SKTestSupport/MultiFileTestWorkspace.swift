@@ -105,7 +105,9 @@ public class MultiFileTestWorkspace {
     self.testClient = try await TestSourceKitLSPClient(
       workspaceFolders: workspaces(scratchDirectory),
       cleanUp: { [scratchDirectory] in
-        try? FileManager.default.removeItem(at: scratchDirectory)
+        if cleanScratchDirectories {
+          try? FileManager.default.removeItem(at: scratchDirectory)
+        }
       }
     )
   }
