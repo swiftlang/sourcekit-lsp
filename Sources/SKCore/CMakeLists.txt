@@ -20,6 +20,8 @@ target_link_libraries(SKCore PRIVATE
   BuildServerProtocol
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
-  PackageModel
+  LSPLogging
   SKSupport
-  SourceKitD)
+  SourceKitD
+  PackageModel
+  TSCBasic)

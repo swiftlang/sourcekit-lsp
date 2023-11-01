@@ -2,10 +2,13 @@
 add_executable(sourcekit-lsp
   SourceKitLSP.swift)
 target_link_libraries(sourcekit-lsp PRIVATE
-  ArgumentParser
+  LanguageServerProtocol
   LanguageServerProtocolJSONRPC
   SKCore
-  SourceKitLSP)
+  SKSupport
+  SourceKitLSP
+  ArgumentParser
+  TSCBasic)
 target_compile_options(sourcekit-lsp PRIVATE
   -parse-as-library)
 target_link_libraries(sourcekit-lsp PRIVATE
