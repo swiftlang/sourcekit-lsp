@@ -205,55 +205,55 @@ fileprivate enum TaskMetadata: DependencyTracker {
 
   init(_ notification: any NotificationType) {
     switch notification {
-    case is CancelRequestNotification: 
+    case is CancelRequestNotification:
       self = .freestanding
-    case is CancelWorkDoneProgressNotification: 
+    case is CancelWorkDoneProgressNotification:
       self = .freestanding
-    case is DidChangeConfigurationNotification: 
+    case is DidChangeConfigurationNotification:
       self = .globalConfigurationChange
-    case let notification as DidChangeNotebookDocumentNotification: 
+    case let notification as DidChangeNotebookDocumentNotification:
       self = .documentUpdate(notification.notebookDocument.uri)
-    case let notification as DidChangeTextDocumentNotification: 
+    case let notification as DidChangeTextDocumentNotification:
       self = .documentUpdate(notification.textDocument.uri)
-    case is DidChangeWatchedFilesNotification: 
+    case is DidChangeWatchedFilesNotification:
       self = .freestanding
-    case is DidChangeWorkspaceFoldersNotification: 
+    case is DidChangeWorkspaceFoldersNotification:
       self = .globalConfigurationChange
-    case let notification as DidCloseNotebookDocumentNotification: 
+    case let notification as DidCloseNotebookDocumentNotification:
       self = .documentUpdate(notification.notebookDocument.uri)
-    case let notification as DidCloseTextDocumentNotification: 
+    case let notification as DidCloseTextDocumentNotification:
       self = .documentUpdate(notification.textDocument.uri)
-    case is DidCreateFilesNotification: 
+    case is DidCreateFilesNotification:
       self = .freestanding
-    case is DidDeleteFilesNotification: 
+    case is DidDeleteFilesNotification:
       self = .freestanding
-    case let notification as DidOpenNotebookDocumentNotification: 
+    case let notification as DidOpenNotebookDocumentNotification:
       self = .documentUpdate(notification.notebookDocument.uri)
-    case let notification as DidOpenTextDocumentNotification: 
+    case let notification as DidOpenTextDocumentNotification:
       self = .documentUpdate(notification.textDocument.uri)
-    case is DidRenameFilesNotification: 
+    case is DidRenameFilesNotification:
       self = .freestanding
-    case let notification as DidSaveNotebookDocumentNotification: 
+    case let notification as DidSaveNotebookDocumentNotification:
       self = .documentUpdate(notification.notebookDocument.uri)
-    case let notification as DidSaveTextDocumentNotification: 
+    case let notification as DidSaveTextDocumentNotification:
       self = .documentUpdate(notification.textDocument.uri)
-    case is ExitNotification: 
+    case is ExitNotification:
       self = .globalConfigurationChange
-    case is InitializedNotification: 
+    case is InitializedNotification:
       self = .globalConfigurationChange
-    case is LogMessageNotification: 
+    case is LogMessageNotification:
       self = .freestanding
-    case is LogTraceNotification: 
+    case is LogTraceNotification:
       self = .freestanding
-    case is PublishDiagnosticsNotification: 
+    case is PublishDiagnosticsNotification:
       self = .freestanding
-    case is SetTraceNotification: 
+    case is SetTraceNotification:
       self = .globalConfigurationChange
-    case is ShowMessageNotification: 
+    case is ShowMessageNotification:
       self = .freestanding
-    case let notification as WillSaveTextDocumentNotification: 
+    case let notification as WillSaveTextDocumentNotification:
       self = .documentUpdate(notification.textDocument.uri)
-    case is WorkDoneProgress: 
+    case is WorkDoneProgress:
       self = .freestanding
     default:
       logger.error(
@@ -269,71 +269,71 @@ fileprivate enum TaskMetadata: DependencyTracker {
   init(_ request: any RequestType) {
     switch request {
     case let request as any TextDocumentRequest: self = .documentRequest(request.textDocument.uri)
-    case is ApplyEditRequest: 
+    case is ApplyEditRequest:
       self = .freestanding
-    case is BarrierRequest: 
+    case is BarrierRequest:
       self = .globalConfigurationChange
-    case is CallHierarchyIncomingCallsRequest: 
+    case is CallHierarchyIncomingCallsRequest:
       self = .freestanding
-    case is CallHierarchyOutgoingCallsRequest: 
+    case is CallHierarchyOutgoingCallsRequest:
       self = .freestanding
-    case is CodeActionResolveRequest: 
+    case is CodeActionResolveRequest:
       self = .freestanding
-    case is CodeLensRefreshRequest: 
+    case is CodeLensRefreshRequest:
       self = .freestanding
-    case is CodeLensResolveRequest: 
+    case is CodeLensResolveRequest:
       self = .freestanding
-    case is CompletionItemResolveRequest: 
+    case is CompletionItemResolveRequest:
       self = .freestanding
-    case is CreateWorkDoneProgressRequest: 
+    case is CreateWorkDoneProgressRequest:
       self = .freestanding
-    case is DiagnosticsRefreshRequest: 
+    case is DiagnosticsRefreshRequest:
       self = .freestanding
-    case is DocumentLinkResolveRequest: 
+    case is DocumentLinkResolveRequest:
       self = .freestanding
-    case let request as ExecuteCommandRequest: 
+    case let request as ExecuteCommandRequest:
       if let uri = request.textDocument?.uri {
         self = .documentRequest(uri)
       } else {
         self = .freestanding
       }
-    case is InitializeRequest: 
+    case is InitializeRequest:
       self = .globalConfigurationChange
-    case is InlayHintRefreshRequest: 
+    case is InlayHintRefreshRequest:
       self = .freestanding
-    case is InlayHintResolveRequest: 
+    case is InlayHintResolveRequest:
       self = .freestanding
-    case is InlineValueRefreshRequest: 
+    case is InlineValueRefreshRequest:
       self = .freestanding
-    case is PollIndexRequest: 
+    case is PollIndexRequest:
       self = .globalConfigurationChange
-    case is RegisterCapabilityRequest: 
+    case is RegisterCapabilityRequest:
       self = .globalConfigurationChange
-    case is ShowMessageRequest: 
+    case is ShowMessageRequest:
       self = .freestanding
-    case is ShutdownRequest: 
+    case is ShutdownRequest:
       self = .globalConfigurationChange
-    case is TypeHierarchySubtypesRequest: 
+    case is TypeHierarchySubtypesRequest:
       self = .freestanding
-    case is TypeHierarchySupertypesRequest: 
+    case is TypeHierarchySupertypesRequest:
       self = .freestanding
-    case is UnregisterCapabilityRequest: 
+    case is UnregisterCapabilityRequest:
       self = .globalConfigurationChange
-    case is WillCreateFilesRequest: 
+    case is WillCreateFilesRequest:
       self = .freestanding
-    case is WillDeleteFilesRequest: 
+    case is WillDeleteFilesRequest:
       self = .freestanding
-    case is WillRenameFilesRequest: 
+    case is WillRenameFilesRequest:
       self = .freestanding
-    case is WorkspaceDiagnosticsRequest: 
+    case is WorkspaceDiagnosticsRequest:
       self = .freestanding
-    case is WorkspaceFoldersRequest: 
+    case is WorkspaceFoldersRequest:
       self = .freestanding
-    case is WorkspaceSemanticTokensRefreshRequest: 
+    case is WorkspaceSemanticTokensRefreshRequest:
       self = .freestanding
-    case is WorkspaceSymbolResolveRequest: 
+    case is WorkspaceSymbolResolveRequest:
       self = .freestanding
-    case is WorkspaceSymbolsRequest: 
+    case is WorkspaceSymbolsRequest:
       self = .freestanding
     default:
       logger.error(

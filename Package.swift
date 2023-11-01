@@ -199,7 +199,7 @@ let package = Package(
       dependencies: [
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
         "LanguageServerProtocol",
-        "LSPLogging"
+        "LSPLogging",
       ],
       exclude: ["CMakeLists.txt"]
     ),

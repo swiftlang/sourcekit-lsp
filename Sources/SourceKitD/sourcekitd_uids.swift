@@ -345,8 +345,12 @@ public struct sourcekitd_values {
     ref_function_accessor_didset = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.didset")!
     decl_function_accessor_address = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.address")!
     ref_function_accessor_address = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.address")!
-    decl_function_accessor_mutableaddress = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.mutableaddress")!
-    ref_function_accessor_mutableaddress = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.mutableaddress")!
+    decl_function_accessor_mutableaddress = api.uid_get_from_cstr(
+      "source.lang.swift.decl.function.accessor.mutableaddress"
+    )!
+    ref_function_accessor_mutableaddress = api.uid_get_from_cstr(
+      "source.lang.swift.ref.function.accessor.mutableaddress"
+    )!
     decl_function_accessor_read = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.read")!
     ref_function_accessor_read = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.read")!
     decl_function_accessor_modify = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.modify")!
@@ -412,7 +416,9 @@ public struct sourcekitd_values {
     syntaxtype_operator = api.uid_get_from_cstr("source.lang.swift.syntaxtype.operator")!
     syntaxtype_number = api.uid_get_from_cstr("source.lang.swift.syntaxtype.number")!
     syntaxtype_string = api.uid_get_from_cstr("source.lang.swift.syntaxtype.string")!
-    syntaxtype_string_interpolation_anchor = api.uid_get_from_cstr("source.lang.swift.syntaxtype.string_interpolation_anchor")!
+    syntaxtype_string_interpolation_anchor = api.uid_get_from_cstr(
+      "source.lang.swift.syntaxtype.string_interpolation_anchor"
+    )!
     syntaxtype_type_identifier = api.uid_get_from_cstr("source.lang.swift.syntaxtype.typeidentifier")!
     syntaxtype_identifier = api.uid_get_from_cstr("source.lang.swift.syntaxtype.identifier")!
     expr_object_literal = api.uid_get_from_cstr("source.lang.swift.expr.object_literal")!

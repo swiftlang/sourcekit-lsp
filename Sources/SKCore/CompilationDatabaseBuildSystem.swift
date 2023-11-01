@@ -73,7 +73,11 @@ public actor CompilationDatabaseBuildSystem {
     return nil
   }
 
-  public init?(projectRoot: AbsolutePath? = nil, searchPaths: [RelativePath], fileSystem: FileSystem = localFileSystem) {
+  public init?(
+    projectRoot: AbsolutePath? = nil,
+    searchPaths: [RelativePath],
+    fileSystem: FileSystem = localFileSystem
+  ) {
     self.fileSystem = fileSystem
     self.projectRoot = projectRoot
     self.searchPaths = searchPaths

@@ -59,8 +59,8 @@ public struct ClangWorkspaceSettings: Codable, Hashable {
 
   var isValid: Bool {
     switch (compilationDatabasePath, compilationDatabaseChanges) {
-      case (nil, .some), (.some, nil): return true
-      default: return false
+    case (nil, .some), (.some, nil): return true
+    default: return false
     }
   }
 }

@@ -18,7 +18,8 @@ public enum LogConfig {
   /// The globally set log level
   fileprivate static let logLevel: NonDarwinLogLevel = {
     if let envVar = ProcessInfo.processInfo.environment["SOURCEKITLSP_LOG_LEVEL"],
-      let logLevel = NonDarwinLogLevel(envVar) {
+      let logLevel = NonDarwinLogLevel(envVar)
+    {
       return logLevel
     }
     #if DEBUG

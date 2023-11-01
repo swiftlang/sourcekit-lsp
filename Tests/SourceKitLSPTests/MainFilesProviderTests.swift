@@ -98,7 +98,7 @@ final class MainFilesProviderTests: XCTestCase {
 
     try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory)
 
-    // After building we know that 'shared.h' is included from 'MyLibrary.c' and thus we use its build settings, 
+    // After building we know that 'shared.h' is included from 'MyLibrary.c' and thus we use its build settings,
     // defining `VARIABLE_NAME` to `fromMyLibrary`.
     let postBuildDiags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(postBuildDiags.diagnostics.count, 1)
@@ -148,7 +148,7 @@ final class MainFilesProviderTests: XCTestCase {
     _ = try ws.openDocument("shared.h", language: .c)
 
     // We could pick build settings from either 'MyLibrary.c' or 'MyFancyLibrary.c'. We currently pick the
-    // lexicographically first to be deterministic, which is 'MyFancyLibrary'. Thus `VARIABLE_NAME` is set to 
+    // lexicographically first to be deterministic, which is 'MyFancyLibrary'. Thus `VARIABLE_NAME` is set to
     // `fromMyFancyLibrary`.
     let diags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 1)
@@ -195,7 +195,7 @@ final class MainFilesProviderTests: XCTestCase {
 
     _ = try ws.openDocument("shared.h", language: .c)
 
-    // 'MyLibrary.c' is the only file that includes 'shared.h' at first. So we use build settings from MyLibrary and 
+    // 'MyLibrary.c' is the only file that includes 'shared.h' at first. So we use build settings from MyLibrary and
     // define `VARIABLE_NAME` to `fromMyLibrary`.
     let preEditDiags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(preEditDiags.diagnostics.count, 1)

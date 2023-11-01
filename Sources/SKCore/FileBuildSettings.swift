@@ -78,6 +78,10 @@ public extension FileBuildSettings {
         arguments.insert("-xobjective-c++", at: 0)
       }
     }
-    return FileBuildSettings(compilerArguments: arguments, workingDirectory: self.workingDirectory, isFallback: self.isFallback)
+    return FileBuildSettings(
+      compilerArguments: arguments,
+      workingDirectory: self.workingDirectory,
+      isFallback: self.isFallback
+    )
   }
 }

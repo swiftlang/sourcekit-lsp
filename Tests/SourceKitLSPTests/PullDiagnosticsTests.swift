@@ -112,7 +112,7 @@ final class PullDiagnosticsTests: XCTestCase {
     // for test.swift so that we fall back to producing diagnostics from the built-in swift-syntax.
     let ws = try await MultiFileTestWorkspace(files: [
       "test.swift": "func foo() 1️⃣{2️⃣",
-      "compile_commands.json": "[]"
+      "compile_commands.json": "[]",
     ])
 
     let (uri, positions) = try ws.openDocument("test.swift")
@@ -126,7 +126,7 @@ final class PullDiagnosticsTests: XCTestCase {
     let diagnostic = try XCTUnwrap(fullReport.items.first)
     XCTAssertEqual(diagnostic.message, "expected '}' to end function")
     XCTAssertEqual(diagnostic.range, Range(positions["2️⃣"]))
-    
+
     XCTAssertEqual(diagnostic.relatedInformation?.count, 1)
     let note = try XCTUnwrap(diagnostic.relatedInformation?.first)
     XCTAssertEqual(note.message, "to match this opening '{'")

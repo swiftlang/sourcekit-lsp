@@ -43,7 +43,8 @@ extension SwiftLanguageServer {
 
     let filterText = String(snapshot.text[start..<end])
 
-    let clientSupportsSnippets = capabilityRegistry.clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport ?? false
+    let clientSupportsSnippets =
+      capabilityRegistry.clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport ?? false
     let buildSettings = await buildSettings(for: snapshot.uri)
     return try await CodeCompletionSession.completionList(
       sourcekitd: sourcekitd,
@@ -59,7 +60,7 @@ extension SwiftLanguageServer {
     )
   }
 
-   /// Adjust completion position to the start of identifier characters.
+  /// Adjust completion position to the start of identifier characters.
   private func adjustCompletionLocation(_ pos: Position, in snapshot: DocumentSnapshot) -> Position? {
     guard pos.line < snapshot.lineTable.count else {
       // Line out of range.
