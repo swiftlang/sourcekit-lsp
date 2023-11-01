@@ -106,4 +106,30 @@ final class PullDiagnosticsTests: XCTestCase {
       ].contains(action.title)
     )
   }
+
+  func testNotesFromIntegratedSwiftSyntaxDiagnostics() async throws {
+    // Create a workspace that has compile_commands.json so that it has a build system but no compiler arguments
+    // for test.swift so that we fall back to producing diagnostics from the built-in swift-syntax.
+    let ws = try await MultiFileTestWorkspace(files: [
+      "test.swift": "func foo() 1️⃣{2️⃣",
+      "compile_commands.json": "[]"
+    ])
+
+    let (uri, positions) = try ws.openDocument("test.swift")
+
+    let report = try await ws.testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
+    guard case .full(let fullReport) = report else {
+      XCTFail("Expected full diagnostics report")
+      return
+    }
+    XCTAssertEqual(fullReport.items.count, 1)
+    let diagnostic = try XCTUnwrap(fullReport.items.first)
+    XCTAssertEqual(diagnostic.message, "expected '}' to end function")
+    XCTAssertEqual(diagnostic.range, Range(positions["2️⃣"]))
+    
+    XCTAssertEqual(diagnostic.relatedInformation?.count, 1)
+    let note = try XCTUnwrap(diagnostic.relatedInformation?.first)
+    XCTAssertEqual(note.message, "to match this opening '{'")
+    XCTAssertEqual(note.location.range, positions["1️⃣"]..<positions["2️⃣"])
+  }
 }
