@@ -6,6 +6,8 @@ set_target_properties(SKSwiftPMWorkspace PROPERTIES
 target_link_libraries(SKSwiftPMWorkspace PRIVATE
   BuildServerProtocol
   LanguageServerProtocol
-  SKCore)
+  LSPLogging
+  SKCore
+  TSCBasic)
 target_link_libraries(SKSwiftPMWorkspace PUBLIC
   Build)

@@ -12,8 +12,9 @@ add_library(SourceKitD STATIC
   sourcekitd_uids.swift)
 set_target_properties(SourceKitD PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
+target_link_libraries(SourceKitD PUBLIC
+  Csourcekitd)
 target_link_libraries(SourceKitD PRIVATE
-  Csourcekitd
   LSPLogging
   SKSupport
   TSCBasic

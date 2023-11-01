@@ -38,21 +38,21 @@ set_target_properties(SourceKitLSP PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 # TODO(compnerd) reduce the exposure here, why is everything PUBLIC-ly linked?
 target_link_libraries(SourceKitLSP PUBLIC
-  Csourcekitd
   BuildServerProtocol
-  IndexStoreDB
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
+  LSPLogging
   SKCore
+  SKSupport
   SKSwiftPMWorkspace
   SourceKitD
+  IndexStoreDB
   SwiftSyntax::SwiftBasicFormat
   SwiftSyntax::SwiftDiagnostics
   SwiftSyntax::SwiftIDEUtils
   SwiftSyntax::SwiftParser
   SwiftSyntax::SwiftParserDiagnostics
-  SwiftSyntax::SwiftSyntax
-)
+  SwiftSyntax::SwiftSyntax)
 target_link_libraries(SourceKitLSP PRIVATE
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 
