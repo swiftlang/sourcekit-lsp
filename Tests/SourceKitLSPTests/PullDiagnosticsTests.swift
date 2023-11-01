@@ -101,8 +101,8 @@ final class PullDiagnosticsTests: XCTestCase {
     // toolchains that don't contain the change yet.
     XCTAssert(
       [
-        "add stubs for conformance",
-        "do you want to add protocol stubs?",
+        "Add stubs for conformance",
+        "Do you want to add protocol stubs?",
       ].contains(action.title)
     )
   }

@@ -125,6 +125,19 @@ extension TextEdit {
   }
 }
 
+fileprivate extension String {
+  /// Returns this string with the first letter uppercased.
+  ///
+  /// If the string does not start with a letter, no change is made to it.
+  func withFirstLetterUppercased() -> String {
+    if let firstLetter = self.first {
+      return firstLetter.uppercased() + self.dropFirst()
+    } else {
+      return self
+    }
+  }
+}
+
 extension Diagnostic {
 
   /// Creates a diagnostic from a sourcekitd response dictionary.
@@ -138,7 +151,7 @@ extension Diagnostic {
     let keys = diag.sourcekitd.keys
     let values = diag.sourcekitd.values
 
-    guard let message: String = diag[keys.description] else { return nil }
+    guard let message: String = diag[keys.description]?.withFirstLetterUppercased() else { return nil }
 
     var range: Range<Position>? = nil
     if let line: Int = diag[keys.line],
@@ -309,7 +322,7 @@ extension DiagnosticRelatedInformation {
       return nil
     }
 
-    guard let message: String = diag[keys.description] else { return nil }
+    guard let message: String = diag[keys.description]?.withFirstLetterUppercased() else { return nil }
 
     var actions: [CodeAction]? = nil
     if let skfixits: SKDResponseArray = diag[keys.fixits],

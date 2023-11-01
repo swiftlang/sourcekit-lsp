@@ -287,8 +287,8 @@ final class SKTests: XCTestCase {
       // FIXME: The error message for the missing module is misleading on Darwin
       // https://github.com/apple/swift-package-manager/issues/5925
       XCTAssert(
-        diagnostic.message.contains("could not build Objective-C module")
-          || diagnostic.message.contains("no such module"),
+        diagnostic.message.contains("Could not build Objective-C module")
+          || diagnostic.message.contains("No such module"),
         "expected module import error but found \"\(diagnostic.message)\""
       )
     }
