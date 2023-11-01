@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-struct InlineValueRefreshRequest: RequestType {
-  static var method: String = "workspace/inlineValue/refresh"
-  typealias Response = VoidResponse
+public struct InlineValueRefreshRequest: RequestType {
+  public static var method: String = "workspace/inlineValue/refresh"
+  public typealias Response = VoidResponse
 
   public init() {}
 }
