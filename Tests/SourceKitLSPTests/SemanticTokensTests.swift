@@ -117,33 +117,25 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   private func performSemanticTokensRequest(range: Range<Position>? = nil) async throws -> [Token] {
-    let response: DocumentSemanticTokensResponse!
-
-    if let range = range {
-      response = try await testClient.send(
-        DocumentSemanticTokensRangeRequest(
-          textDocument: TextDocumentIdentifier(uri),
-          range: range
-        )
-      )
-    } else {
-      response = try await testClient.send(
-        DocumentSemanticTokensRequest(
-          textDocument: TextDocumentIdentifier(uri)
-        )
-      )
-    }
-
-    return [Token](lspEncodedTokens: response.data)
-  }
-
-  private func openAndPerformSemanticTokensRequest(
-    text: String,
-    range: Range<Position>? = nil
-  ) async throws -> [Token] {
-    openDocument(text: text)
     do {
-      return try await performSemanticTokensRequest(range: range)
+      let response: DocumentSemanticTokensResponse!
+
+      if let range = range {
+        response = try await testClient.send(
+          DocumentSemanticTokensRangeRequest(
+            textDocument: TextDocumentIdentifier(uri),
+            range: range
+          )
+        )
+      } else {
+        response = try await testClient.send(
+          DocumentSemanticTokensRequest(
+            textDocument: TextDocumentIdentifier(uri)
+          )
+        )
+      }
+
+      return [Token](lspEncodedTokens: response.data)
     } catch let error as ResponseError {
       // FIXME: Remove when the semantic tokens request is widely available in sourcekitd
       if error.message.contains("unknown request: source.request.semantic_tokens") {
@@ -152,6 +144,14 @@ final class SemanticTokensTests: XCTestCase {
         throw error
       }
     }
+  }
+
+  private func openAndPerformSemanticTokensRequest(
+    text: String,
+    range: Range<Position>? = nil
+  ) async throws -> [Token] {
+    openDocument(text: text)
+    return try await performSemanticTokensRequest(range: range)
   }
 
   func testIntArrayCoding() {
