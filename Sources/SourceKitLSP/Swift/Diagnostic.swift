@@ -44,22 +44,10 @@ extension CodeAction {
     if let fromNote = fromNote {
       title = fromNote
     } else {
-      guard let startIndex = snapshot.index(of: edits[0].range.lowerBound),
-        let endIndex = snapshot.index(of: edits[0].range.upperBound),
-        startIndex <= endIndex,
-        snapshot.text.indices.contains(startIndex),
-        endIndex <= snapshot.text.endIndex
-      else {
-        logger.fault("position mapped, but indices failed for edit range \(String(reflecting: edits[0]))")
+      guard let generatedTitle = Self.title(for: edits, in: snapshot) else {
         return nil
       }
-      let oldText = String(snapshot.text[startIndex..<endIndex])
-      let description = Self.fixitTitle(replace: oldText, with: edits[0].newText)
-      if edits.count == 1 {
-        title = description
-      } else {
-        title = description + "..."
-      }
+      title = generatedTitle
     }
 
     self.init(
@@ -71,10 +59,43 @@ extension CodeAction {
   }
 
   init?(_ fixIt: FixIt, in snapshot: DocumentSnapshot) {
-    // FIXME: Once https://github.com/apple/swift-syntax/pull/2226 is merged and
-    // FixItApplier is public, use it to compute the edits that should be
-    // applied to the source.
-    return nil
+    var textEdits = [TextEdit]()
+    for edit in fixIt.edits {
+      guard let startPosition = snapshot.position(of: edit.range.lowerBound),
+        let endPosition = snapshot.position(of: edit.range.upperBound)
+      else {
+        continue
+      }
+      textEdits.append(TextEdit(range: startPosition..<endPosition, newText: edit.replacement))
+    }
+
+    self.init(
+      title: fixIt.message.message.withFirstLetterUppercased(),
+      kind: .quickFix,
+      diagnostics: nil,
+      edit: WorkspaceEdit(changes: [snapshot.uri: textEdits])
+    )
+  }
+
+  private static func title(for edits: [TextEdit], in snapshot: DocumentSnapshot) -> String? {
+    if edits.isEmpty {
+      return nil
+    }
+    guard let startIndex = snapshot.index(of: edits[0].range.lowerBound),
+      let endIndex = snapshot.index(of: edits[0].range.upperBound),
+      startIndex <= endIndex,
+      snapshot.text.indices.contains(startIndex),
+      endIndex <= snapshot.text.endIndex
+    else {
+      logger.fault("position mapped, but indices failed for edit range \(String(reflecting: edits[0]))")
+      return nil
+    }
+    let oldText = String(snapshot.text[startIndex..<endIndex])
+    let description = Self.fixitTitle(replace: oldText, with: edits[0].newText)
+    if edits.count == 1 {
+      return description
+    }
+    return description + "..."
   }
 
   /// Describe a fixit's edit briefly.
