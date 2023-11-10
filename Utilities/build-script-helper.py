@@ -214,7 +214,7 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
     additional_env['SOURCEKITLSP_LOG_PRIVACY_LEVEL'] = 'sensitive'
 
     # Log with the highest log level to simplify debugging of CI failures.
-    additional_env['SOURCEKITLSP_LOG_LEVEL'] = 'debug'
+    additional_env['SOURCEKITLSP_LOG_LEVEL'] = 'info'
 
     bin_path = swiftpm_bin_path(swift_exec, swiftpm_args, additional_env=additional_env)
     tests = os.path.join(bin_path, 'sk-tests')
