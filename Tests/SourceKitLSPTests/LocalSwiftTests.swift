@@ -86,7 +86,7 @@ final class LocalSwiftTests: XCTestCase {
 
     testClient.send(
       DidChangeTextDocumentNotification(
-        textDocument: .init(uri, version: 14),
+        textDocument: .init(uri, version: 15),
         contentChanges: [
           .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "foo")
         ]
@@ -105,7 +105,7 @@ final class LocalSwiftTests: XCTestCase {
 
     testClient.send(
       DidChangeTextDocumentNotification(
-        textDocument: .init(uri, version: 15),
+        textDocument: .init(uri, version: 16),
         contentChanges: [
           .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "fooTypo")
         ]
@@ -128,7 +128,7 @@ final class LocalSwiftTests: XCTestCase {
 
     testClient.send(
       DidChangeTextDocumentNotification(
-        textDocument: .init(uri, version: 16),
+        textDocument: .init(uri, version: 17),
         contentChanges: [
           .init(
             range: nil,
@@ -210,7 +210,7 @@ final class LocalSwiftTests: XCTestCase {
 
     testClient.send(
       DidChangeTextDocumentNotification(
-        textDocument: .init(uri, version: 14),
+        textDocument: .init(uri, version: 15),
         contentChanges: [
           .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "foo")
         ]
@@ -229,7 +229,7 @@ final class LocalSwiftTests: XCTestCase {
 
     testClient.send(
       DidChangeTextDocumentNotification(
-        textDocument: .init(uri, version: 15),
+        textDocument: .init(uri, version: 16),
         contentChanges: [
           .init(range: Position(line: 1, utf16index: 0)..<Position(line: 1, utf16index: 3), text: "fooTypo")
         ]
@@ -251,7 +251,7 @@ final class LocalSwiftTests: XCTestCase {
 
     testClient.send(
       DidChangeTextDocumentNotification(
-        textDocument: .init(uri, version: 16),
+        textDocument: .init(uri, version: 17),
         contentChanges: [
           .init(
             range: nil,

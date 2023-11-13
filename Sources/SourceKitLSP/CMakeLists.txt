@@ -22,6 +22,7 @@ target_sources(SourceKitLSP PRIVATE
   Swift/CommentXML.swift
   Swift/CursorInfo.swift
   Swift/Diagnostic.swift
+  Swift/DiagnosticReportManager.swift
   Swift/DocumentSymbols.swift
   Swift/EditorPlaceholder.swift
   Swift/FoldingRange.swift
