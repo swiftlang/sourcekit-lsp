@@ -98,7 +98,7 @@ public struct ResponseError: Error, Codable, Hashable {
 }
 
 extension ResponseError {
-  // MARK: Convencience properties for common errors.
+  // MARK: Convenience properties for common errors.
 
   public static var cancelled: ResponseError = ResponseError(code: .cancelled, message: "request cancelled by client")
 
