@@ -25,7 +25,7 @@ import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 import var TSCBasic.localFileSystem
 
-extension AbsolutePath: ExpressibleByArgument {
+extension AbsolutePath {
   public init?(argument: String) {
     let path: AbsolutePath?
 
@@ -48,8 +48,13 @@ extension AbsolutePath: ExpressibleByArgument {
     .directory
   }
 }
+#if swift(<5.10)
+extension AbsolutePath: ExpressibleByArgument {}
+#else
+extension AbsolutePath: @retroactive ExpressibleByArgument {}
+#endif
 
-extension RelativePath: ExpressibleByArgument {
+extension RelativePath {
   public init?(argument: String) {
     let path = try? RelativePath(validating: argument)
 
@@ -60,8 +65,13 @@ extension RelativePath: ExpressibleByArgument {
     self = path
   }
 }
+#if swift(<5.10)
+extension RelativePath: ExpressibleByArgument {}
+#else
+extension RelativePath: @retroactive ExpressibleByArgument {}
+#endif
 
-extension PathPrefixMapping: ExpressibleByArgument {
+extension PathPrefixMapping {
   public init?(argument: String) {
     guard let eqIndex = argument.firstIndex(of: "=") else { return nil }
     self.init(
@@ -70,8 +80,17 @@ extension PathPrefixMapping: ExpressibleByArgument {
     )
   }
 }
+#if swift(<5.10)
+extension PathPrefixMapping: ExpressibleByArgument {}
+#else
+extension PathPrefixMapping: @retroactive ExpressibleByArgument {}
+#endif
 
+#if swift(<5.10)
 extension BuildConfiguration: ExpressibleByArgument {}
+#else
+extension BuildConfiguration: @retroactive ExpressibleByArgument {}
+#endif
 
 @main
 struct SourceKitLSP: ParsableCommand {

@@ -176,7 +176,11 @@ private let testMessageRegistry = MessageRegistry(
   notifications: [EchoNotification.self]
 )
 
+#if swift(<5.10)
 extension String: ResponseType {}
+#else
+extension String: @retroactive ResponseType {}
+#endif
 
 public struct EchoRequest: RequestType {
   public static var method: String = "test_server/echo"
