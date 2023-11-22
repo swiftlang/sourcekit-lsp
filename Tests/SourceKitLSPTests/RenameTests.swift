@@ -39,16 +39,17 @@ private func assertRename(
   file: StaticString = #file,
   line: UInt = #line
 ) async throws {
-  // FIXME: syntactic rename does not support in-memory files... It should
-  let ws = try await IndexedSingleSwiftFileWorkspace(markedSource)
-  let response = try await ws.testClient.send(
+  let testClient = try await TestSourceKitLSPClient()
+  let uri = DocumentURI.for(.swift)
+  let positions = testClient.openDocument(markedSource, uri: uri)
+  let response = try await testClient.send(
     RenameRequest(
-      textDocument: TextDocumentIdentifier(ws.fileURI),
-      position: ws.positions["1️⃣"],
+      textDocument: TextDocumentIdentifier(uri),
+      position: positions["1️⃣"],
       newName: newName
     )
   )
-  let edits = try XCTUnwrap(response?.changes?[ws.fileURI], file: file, line: line)
+  let edits = try XCTUnwrap(response?.changes?[uri], file: file, line: line)
   let source = extractMarkers(markedSource).textWithoutMarkers
   let renamed = apply(edits: edits, to: source)
   XCTAssertEqual(renamed, expected, file: file, line: line)

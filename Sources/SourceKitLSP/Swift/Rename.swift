@@ -302,6 +302,9 @@ extension SwiftLanguageServer {
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.find_syntactic_rename_ranges
     skreq[keys.sourcefile] = snapshot.uri.pseudoPath
+    // find-syntactic-rename-ranges is a syntactic sourcekitd request that doesn't use the in-memory file snapshot.
+    // We need to send the source text again.
+    skreq[keys.sourcetext] = snapshot.text
     skreq[keys.renamelocations] = renameLocations
 
     let syntacticRenameRangesResponse = try await sourcekitd.send(skreq, fileContents: snapshot.text)
