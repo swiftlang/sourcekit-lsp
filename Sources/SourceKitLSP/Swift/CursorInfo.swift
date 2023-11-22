@@ -94,6 +94,7 @@ extension SwiftLanguageServer {
 
     let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
     skreq[keys.request] = requests.cursorinfo
+    skreq[keys.cancelOnSubsequentRequest] = 0
     skreq[keys.offset] = offsetRange.lowerBound
     if offsetRange.upperBound != offsetRange.lowerBound {
       skreq[keys.length] = offsetRange.count
