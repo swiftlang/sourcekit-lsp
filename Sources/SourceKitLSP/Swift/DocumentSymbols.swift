@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import LSPLogging
 import LanguageServerProtocol
 import SwiftSyntax
@@ -107,6 +108,45 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
       range: node.rangeWithoutTrivia,
       selection: node.name.rangeWithoutTrivia
     )
+  }
+
+  private func visit(_ trivia: Trivia, position: AbsolutePosition) {
+    let markPrefix = "MARK: "
+    var position = position
+    for piece in trivia.pieces {
+      defer {
+        position = position.advanced(by: piece.sourceLength.utf8Length)
+      }
+      switch piece {
+      case .lineComment(let commentText), .blockComment(let commentText):
+        let trimmedComment = commentText.trimmingCharacters(in: CharacterSet(["/", "*"]).union(.whitespaces))
+        if trimmedComment.starts(with: markPrefix) {
+          let markText = trimmedComment.dropFirst(markPrefix.count)
+          guard let rangeLowerBound = snapshot.position(of: position),
+            let rangeUpperBound = snapshot.position(of: position.advanced(by: piece.sourceLength.utf8Length))
+          else {
+            break
+          }
+          result.append(
+            DocumentSymbol(
+              name: String(markText),
+              kind: .namespace,
+              range: rangeLowerBound..<rangeUpperBound,
+              selectionRange: rangeLowerBound..<rangeUpperBound,
+              children: nil
+            )
+          )
+        }
+      default:
+        break
+      }
+    }
+  }
+
+  override func visit(_ node: TokenSyntax) -> SyntaxVisitorContinueKind {
+    self.visit(node.leadingTrivia, position: node.position)
+    self.visit(node.trailingTrivia, position: node.endPositionBeforeTrailingTrivia)
+    return .skipChildren
   }
 
   override func visit(_ node: EnumCaseElementSyntax) -> SyntaxVisitorContinueKind {
@@ -235,13 +275,13 @@ fileprivate extension SyntaxProtocol {
   var isMemberOrTopLevelDeclaration: Bool {
     if self.parent?.is(MemberBlockItemSyntax.self) ?? false {
       return true
-    } else if let codeBlockItem = self.parent?.as(CodeBlockItemSyntax.self),
+    }
+    if let codeBlockItem = self.parent?.as(CodeBlockItemSyntax.self),
       codeBlockItem.parent?.parent?.is(SourceFileSyntax.self) ?? false
     {
       return true
-    } else {
-      return false
     }
+    return false
   }
 }
 

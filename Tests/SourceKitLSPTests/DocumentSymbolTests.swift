@@ -620,6 +620,80 @@ final class DocumentSymbolTests: XCTestCase {
       ]
     }
   }
+
+  func testIncludeMarkComments() async throws {
+    try await assertDocumentSymbols(
+      """
+      1️⃣// MARK: Marker2️⃣
+      """
+    ) { positions in
+      [
+        DocumentSymbol(
+          name: "Marker",
+          kind: .namespace,
+          range: positions["1️⃣"]..<positions["2️⃣"],
+          selectionRange: positions["1️⃣"]..<positions["2️⃣"]
+        )
+      ]
+    }
+
+    try await assertDocumentSymbols(
+      """
+      1️⃣// MARK: - Marker2️⃣
+      """
+    ) { positions in
+      [
+        DocumentSymbol(
+          name: "- Marker",
+          kind: .namespace,
+          range: positions["1️⃣"]..<positions["2️⃣"],
+          selectionRange: positions["1️⃣"]..<positions["2️⃣"]
+        )
+      ]
+    }
+
+    try await assertDocumentSymbols(
+      """
+      1️⃣/* MARK: Marker */2️⃣
+      """
+    ) { positions in
+      [
+        DocumentSymbol(
+          name: "Marker",
+          kind: .namespace,
+          range: positions["1️⃣"]..<positions["2️⃣"],
+          selectionRange: positions["1️⃣"]..<positions["2️⃣"]
+        )
+      ]
+    }
+  }
+
+  func testIncludeNestedMarkComments() async throws {
+    try await assertDocumentSymbols(
+      """
+      1️⃣struct 2️⃣Foo3️⃣ {
+        4️⃣// MARK: Marker5️⃣
+      }6️⃣
+      """
+    ) { positions in
+      [
+        DocumentSymbol(
+          name: "Foo",
+          kind: .struct,
+          range: positions["1️⃣"]..<positions["6️⃣"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
+          children: [
+            DocumentSymbol(
+              name: "Marker",
+              kind: .namespace,
+              range: positions["4️⃣"]..<positions["5️⃣"],
+              selectionRange: positions["4️⃣"]..<positions["5️⃣"]
+            )
+          ]
+        )
+      ]
+    }
+  }
 }
 
 fileprivate func assertDocumentSymbols(
