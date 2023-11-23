@@ -739,5 +739,5 @@ private func buildPath(
   platform: String
 ) -> AbsolutePath {
   let buildPath = config.path ?? root.appending(component: ".build")
-  return buildPath.appending(components: platform, "\(config.configuration)")
+  return buildPath.appending(components: platform, "\(config.configuration ?? .debug)")
 }

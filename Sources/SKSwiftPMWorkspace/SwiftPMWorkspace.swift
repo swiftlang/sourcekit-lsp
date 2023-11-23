@@ -136,7 +136,7 @@ public actor SwiftPMWorkspace {
 
     let buildConfiguration: PackageModel.BuildConfiguration
     switch buildSetup.configuration {
-    case .debug:
+    case .debug, nil:
       buildConfiguration = .debug
     case .release:
       buildConfiguration = .release
