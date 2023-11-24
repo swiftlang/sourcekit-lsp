@@ -29,6 +29,7 @@ target_sources(SourceKitLSP PRIVATE
   Swift/SourceKitD+ResponseError.swift
   Swift/SwiftCommand.swift
   Swift/SwiftLanguageServer.swift
+  Swift/SymbolInfo.swift
   Swift/SyntaxHighlightingToken.swift
   Swift/SyntaxHighlightingTokenParser.swift
   Swift/SyntaxTreeManager.swift

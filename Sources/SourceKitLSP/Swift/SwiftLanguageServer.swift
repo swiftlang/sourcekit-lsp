@@ -540,15 +540,6 @@ extension SwiftLanguageServer {
     return HoverResponse(contents: .markupContent(MarkupContent(kind: .markdown, value: result)), range: nil)
   }
 
-  public func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
-    let uri = req.textDocument.uri
-    let position = req.position
-    guard let cursorInfo = try await cursorInfo(uri, position..<position) else {
-      return []
-    }
-    return [cursorInfo.symbolInfo]
-  }
-
   public func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 
@@ -1220,6 +1211,13 @@ extension DocumentSnapshot {
       return nil
     }
     return lowerBound..<upperBound
+  }
+
+  func position(of position: Position) -> AbsolutePosition? {
+    guard let offset = utf8Offset(of: position) else {
+      return nil
+    }
+    return AbsolutePosition(utf8Offset: offset)
   }
 
   func indexOf(utf8Offset: Int) -> String.Index? {
