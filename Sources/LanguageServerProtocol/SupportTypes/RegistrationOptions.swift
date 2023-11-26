@@ -37,6 +37,19 @@ public struct TextDocumentRegistrationOptions: RegistrationOptions, Hashable {
     self.documentSelector = documentSelector
   }
 
+  public init(fromLSPAny value: LSPAny) {
+    guard case let .dictionary(dict) = value else {
+      return
+    }
+
+    var documentSelector: DocumentSelector?
+    if let value = dict["documentSelector"] {
+      documentSelector = DocumentSelector(fromLSPArray: value)
+    }
+
+    self.documentSelector = documentSelector
+  }
+
   public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
     guard let documentSelector = documentSelector else { return }
     dict["documentSelector"] = documentSelector.encodeToLSPAny()
@@ -104,6 +117,80 @@ public struct SemanticTokensRegistrationOptions: RegistrationOptions, TextDocume
     self.textDocumentRegistrationOptions =
       TextDocumentRegistrationOptions(documentSelector: documentSelector)
     self.semanticTokenOptions = semanticTokenOptions
+  }
+
+  public init?(fromLSPAny value: LSPAny) {
+    guard case let .dictionary(dict) = value else {
+      return nil
+    }
+
+    textDocumentRegistrationOptions = TextDocumentRegistrationOptions(fromLSPAny: value)
+
+    var range: ValueOrBool<SemanticTokensOptions.SemanticTokensRangeOptions>?
+    if let rangeLSPAny = dict["range"] {
+      switch rangeLSPAny {
+      case let .bool(value):
+        range = .bool(value)
+      case .dictionary:
+        range = .value(SemanticTokensOptions.SemanticTokensRangeOptions())
+      default:
+        break
+      }
+    }
+
+    var full: ValueOrBool<SemanticTokensOptions.SemanticTokensFullOptions>?
+    if let fullLSPAny = dict["full"] {
+      switch fullLSPAny {
+      case let .bool(value):
+        full = .bool(value)
+      case let .dictionary(optionsDict):
+        var delta: Bool?
+        if let value = optionsDict["delta"],
+           case let .bool(deltaValue) = value
+        {
+          delta = deltaValue
+        }
+
+        full = .value(SemanticTokensOptions.SemanticTokensFullOptions(delta: delta))
+      default:
+        break
+      }
+    }
+
+    guard case let .dictionary(legendDict) = dict["legend"] else {
+      return nil
+    }
+
+    var tokenTypes: [String] = []
+    if case let .array(types) = legendDict["tokenTypes"] {
+      tokenTypes = types.compactMap {
+        if case let .string(string) = $0 {
+          return string
+        }
+        return nil
+      }
+    }
+
+    var tokenModifiers: [String] = []
+    if case let .array(types) = legendDict["tokenModifiers"] {
+      tokenModifiers = types.compactMap {
+        if case let .string(string) = $0 {
+          return string
+        }
+        return nil
+      }
+    }
+
+    let legend = SemanticTokensLegend(
+      tokenTypes: tokenTypes,
+      tokenModifiers: tokenModifiers
+    )
+
+    semanticTokenOptions = SemanticTokensOptions(
+      legend: legend,
+      range: range,
+      full: full
+    )
   }
 
   public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
