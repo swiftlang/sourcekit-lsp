@@ -838,6 +838,65 @@ final class SwiftCompletionTests: XCTestCase {
     let result = try await testClient.send(forSomeComplete)
     XCTAssertEqual(2, countFs(result))
   }
+
+  func testCodeCompleteSwiftPackage() async throws {
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "a.swift": """
+        struct A {
+          func method(a b: Int) {}
+        }
+        """,
+        "b.swift": """
+        func test(a: A) {
+          a.1️⃣
+        }
+        """,
+      ]
+    )
+    let (uri, positions) = try ws.openDocument("b.swift")
+
+    let testPosition = positions["1️⃣"]
+    let results = try await ws.testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: testPosition)
+    )
+
+    XCTAssertEqual(
+      results.items,
+      [
+        CompletionItem(
+          label: "method(a: Int)",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          sortText: nil,
+          filterText: "method(a:)",
+          insertText: "method(a: )",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(
+              range: Range(testPosition),
+              newText: "method(a: )"
+            )
+          )
+        ),
+        CompletionItem(
+          label: "self",
+          kind: .keyword,
+          detail: "A",
+          deprecated: false,
+          sortText: nil,
+          filterText: "self",
+          insertText: "self",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Range(testPosition), newText: "self")
+          )
+        ),
+      ]
+    )
+  }
+
 }
 
 private func countFs(_ response: CompletionList) -> Int {
