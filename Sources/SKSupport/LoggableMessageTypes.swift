@@ -33,11 +33,16 @@ fileprivate extension Encodable {
 
 // MARK: - DocumentURI
 
-extension DocumentURI: CustomLogStringConvertible {
+extension DocumentURI {
   public var redactedDescription: String {
     return "<DocumentURI length=\(description.count) hash=\(description.hashForLogging)>"
   }
 }
+#if swift(<5.10)
+extension DocumentURI: CustomLogStringConvertible {}
+#else
+extension DocumentURI: @retroactive CustomLogStringConvertible {}
+#endif
 
 // MARK: - RequestType
 

@@ -15,7 +15,7 @@ import LSPLogging
 import LanguageServerProtocol
 import SKCore
 
-extension IndexStoreDB: MainFilesProvider {
+extension IndexStoreDB {
   public func mainFilesContainingFile(_ uri: DocumentURI) -> Set<DocumentURI> {
     let mainFiles: Set<DocumentURI>
     if let url = uri.fileURL {
@@ -30,3 +30,9 @@ extension IndexStoreDB: MainFilesProvider {
     return mainFiles
   }
 }
+
+#if swift(<5.10)
+extension IndexStoreDB: MainFilesProvider {}
+#else
+extension IndexStoreDB: @retroactive MainFilesProvider {}
+#endif
