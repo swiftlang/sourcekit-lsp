@@ -20,6 +20,7 @@ public struct sourcekitd_keys {
   public let associated_usrs: sourcekitd_uid_t
   public let bodylength: sourcekitd_uid_t
   public let bodyoffset: sourcekitd_uid_t
+  public let cancelOnSubsequentRequest: sourcekitd_uid_t
   public let categories: sourcekitd_uid_t
   public let categorizededits: sourcekitd_uid_t
   public let column: sourcekitd_uid_t
@@ -97,6 +98,7 @@ public struct sourcekitd_keys {
     associated_usrs = api.uid_get_from_cstr("key.associated_usrs")!
     bodylength = api.uid_get_from_cstr("key.bodylength")!
     bodyoffset = api.uid_get_from_cstr("key.bodyoffset")!
+    cancelOnSubsequentRequest = api.uid_get_from_cstr("key.cancel_on_subsequent_request")!
     categories = api.uid_get_from_cstr("key.categories")!
     categorizededits = api.uid_get_from_cstr("key.categorizededits")!
     column = api.uid_get_from_cstr("key.column")!

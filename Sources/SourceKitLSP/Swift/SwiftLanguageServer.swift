@@ -631,6 +631,7 @@ extension SwiftLanguageServer {
 
     let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
     skreq[keys.request] = self.requests.relatedidents
+    skreq[keys.cancelOnSubsequentRequest] = 0
     skreq[keys.offset] = offset
     skreq[keys.sourcefile] = snapshot.uri.pseudoPath
 
