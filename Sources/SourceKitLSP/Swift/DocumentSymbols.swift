@@ -180,7 +180,9 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
     // If there is only one pattern binding within the variable decl, consider the entire variable decl as the
     // referenced range. If there are multiple, consider each pattern binding separately since the `var` keyword doesn't
     // belong to any pattern binding in particular.
-    guard let variableDecl = node.parent?.parent?.as(VariableDeclSyntax.self) else {
+    guard let variableDecl = node.parent?.parent?.as(VariableDeclSyntax.self),
+      variableDecl.isMemberOrTopLevelDeclaration
+    else {
       return .visitChildren
     }
     let rangeNode: Syntax = variableDecl.bindings.count == 1 ? Syntax(variableDecl) : Syntax(node)
@@ -227,6 +229,19 @@ fileprivate extension SyntaxProtocol {
   /// The position range of this node without its leading and trailing trivia.
   var rangeWithoutTrivia: Range<AbsolutePosition> {
     return positionAfterSkippingLeadingTrivia..<endPositionBeforeTrailingTrivia
+  }
+
+  /// Whether this is a top-level constant or a member of a type, ie. if this is not a local variable.
+  var isMemberOrTopLevelDeclaration: Bool {
+    if self.parent?.is(MemberBlockItemSyntax.self) ?? false {
+      return true
+    } else if let codeBlockItem = self.parent?.as(CodeBlockItemSyntax.self),
+      codeBlockItem.parent?.parent?.is(SourceFileSyntax.self) ?? false
+    {
+      return true
+    } else {
+      return false
+    }
   }
 }
 

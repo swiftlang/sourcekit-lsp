@@ -571,8 +571,8 @@ final class DocumentSymbolTests: XCTestCase {
     try await assertDocumentSymbols(
       """
       1️⃣func 2️⃣f()3️⃣ {
-        4️⃣let 5️⃣localConstant6️⃣ = 07️⃣
-      }8️⃣
+        let localConstant = 0
+      }4️⃣
       """
     ) { positions in
       [
@@ -581,19 +581,9 @@ final class DocumentSymbolTests: XCTestCase {
           detail: nil,
           kind: .function,
           deprecated: nil,
-          range: positions["1️⃣"]..<positions["8️⃣"],
+          range: positions["1️⃣"]..<positions["4️⃣"],
           selectionRange: positions["2️⃣"]..<positions["3️⃣"],
-          children: [
-            DocumentSymbol(
-              name: "localConstant",
-              detail: nil,
-              kind: .variable,
-              deprecated: nil,
-              range: positions["4️⃣"]..<positions["7️⃣"],
-              selectionRange: positions["5️⃣"]..<positions["6️⃣"],
-              children: []
-            )
-          ]
+          children: []
         )
       ]
     }
