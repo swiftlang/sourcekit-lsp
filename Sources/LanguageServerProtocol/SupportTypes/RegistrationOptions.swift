@@ -29,13 +29,11 @@ public struct TextDocumentRegistrationOptions: RegistrationOptions, Hashable {
   }
 
   public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
-    var documentSelector: DocumentSelector?
-
     if let value = dictionary["documentSelector"] {
-      documentSelector = DocumentSelector(fromLSPArray: value)
+      self.documentSelector = DocumentSelector(fromLSPArray: value)
+    } else {
+      self.documentSelector = nil
     }
-
-    self.documentSelector = documentSelector
   }
 
   public func encodeToLSPAny() -> LSPAny {
