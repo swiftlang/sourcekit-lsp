@@ -847,7 +847,7 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable,
     }
 
     public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
-      nil
+      self = SemanticTokensRangeOptions()
     }
 
     public func encodeToLSPAny() -> LSPAny {
