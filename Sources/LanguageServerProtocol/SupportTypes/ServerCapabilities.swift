@@ -431,11 +431,9 @@ public struct CompletionItemOptions: LSPAnyCodable, Codable, Hashable {
   }
 
   public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
-    guard case .bool(let labelDetailsSupport) = dictionary["labelDetailsSupport"] else {
-      return nil
+    if case .bool(let labelDetailsSupport) = dictionary["labelDetailsSupport"] {
+      self.labelDetailsSupport = labelDetailsSupport
     }
-
-    self.labelDetailsSupport = labelDetailsSupport
   }
 
   public func encodeToLSPAny() -> LSPAny {
@@ -873,7 +871,7 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable,
 
     public func encodeToLSPAny() -> LSPAny {
       guard let delta else {
-        return .null
+        return .dictionary([:])
       }
 
       return .dictionary(["delta": .bool(delta)])
@@ -1066,15 +1064,15 @@ public struct DiagnosticOptions: WorkDoneProgressOptions, LSPAnyCodable, Codable
       self.identifier = value
     }
 
-    self.interFileDependencies = false
-    if case .bool(let value) = dictionary["interFileDependencies"] {
-      self.interFileDependencies = value
+    guard case .bool(let interFileDependencies) = dictionary["interFileDependencies"] else {
+      return nil
     }
+    self.interFileDependencies = interFileDependencies
 
-    self.workspaceDiagnostics = false
-    if case .bool(let value) = dictionary["workspaceDiagnostics"] {
-      self.workspaceDiagnostics = value
+    guard case .bool(let workspaceDiagnostics) = dictionary["workspaceDiagnostics"] else {
+      return nil
     }
+    self.workspaceDiagnostics = workspaceDiagnostics
 
     if case .string(let value) = dictionary["id"] {
       self.id = value
@@ -1094,6 +1092,7 @@ public struct DiagnosticOptions: WorkDoneProgressOptions, LSPAnyCodable, Codable
 
     dict["interFileDependencies"] = .bool(interFileDependencies)
     dict["workspaceDiagnostics"] = .bool(workspaceDiagnostics)
+    
     if let id {
       dict["id"] = .string(id)
     }
