@@ -947,14 +947,12 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable,
     dict["legend"] = legend.encodeToLSPAny()
 
     if let range {
-      let encodedRange: LSPAny
-      switch range {
+      dict["range"] =  switch range {
       case .bool(let value):
-        encodedRange = .bool(value)
+        .bool(value)
       case .value(let rangeOptions):
-        encodedRange = rangeOptions.encodeToLSPAny()
+        rangeOptions.encodeToLSPAny()
       }
-      dict["range"] = encodedRange
     }
 
     if let full {
