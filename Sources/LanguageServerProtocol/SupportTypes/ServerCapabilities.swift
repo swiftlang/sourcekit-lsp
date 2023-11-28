@@ -917,20 +917,22 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable,
     case .bool(let value):
       self.range = .bool(value)
     case .dictionary(let dict):
-      self.range = .value(SemanticTokensRangeOptions(fromLSPDictionary: dict))
+      if let value = SemanticTokensRangeOptions(fromLSPDictionary: dict) {
+        self.range = .value(value)
+      }
     default:
       self.range = nil
     }
 
-    self.full = nil
-    if case .bool(let value) = dictionary["full"] {
+    switch dictionary["full"] {
+    case .bool(let value):
       self.full = .bool(value)
-    }
-
-    if case .dictionary(let dict) = dictionary["range"],
-       let value = SemanticTokensFullOptions(fromLSPDictionary: dict)
-    {
-      self.full = .value(value)
+    case .dictionary(let dict):
+      if let value = SemanticTokensFullOptions(fromLSPDictionary: dict) {
+        self.full = .value(value)
+      }
+    default:
+      self.full = nil
     }
 
     if case .bool(let value) = dictionary["workDoneProgress"] {
@@ -944,7 +946,7 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable,
     dict["legend"] = legend.encodeToLSPAny()
 
     if let range {
-      dict["range"] =  switch range {
+      dict["range"] = switch range {
       case .bool(let value):
         .bool(value)
       case .value(let rangeOptions):
@@ -954,8 +956,10 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable,
 
     if let full {
       dict["full"] = switch full {
-      case .bool(let value): .bool(value)
-      case .value(let fullOptions): fullOptions.encodeToLSPAny()
+      case .bool(let value):
+        .bool(value)
+      case .value(let fullOptions):
+        fullOptions.encodeToLSPAny()
       }
     }
 
