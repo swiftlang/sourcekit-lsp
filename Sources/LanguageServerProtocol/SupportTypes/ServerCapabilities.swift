@@ -913,16 +913,13 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable,
 
     self.legend = legend
 
-    self.range = nil
-
-    if case .bool(let value) = dictionary["range"] {
+    switch dictionary["range"] {
+    case .bool(let value):
       self.range = .bool(value)
-    }
-
-    if case .dictionary(let dict) = dictionary["range"],
-       let value = SemanticTokensRangeOptions(fromLSPDictionary: dict)
-    {
-      self.range = .value(value)
+    case .dictionary(let dict):
+      self.range = .value(SemanticTokensRangeOptions(fromLSPDictionary: dict))
+    default:
+      self.range = nil
     }
 
     self.full = nil
