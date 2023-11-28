@@ -956,13 +956,10 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable,
     }
 
     if let full {
-      let encodedFull: LSPAny
-      switch full {
-      case .bool(let value): encodedFull = .bool(value)
-      case .value(let fullOptions):
-        encodedFull = fullOptions.encodeToLSPAny()
+      dict["full"] = switch full {
+      case .bool(let value): .bool(value)
+      case .value(let fullOptions): fullOptions.encodeToLSPAny()
       }
-      dict["full"] = encodedFull
     }
 
     if let workDoneProgress {
