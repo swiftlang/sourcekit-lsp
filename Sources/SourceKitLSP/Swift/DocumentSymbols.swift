@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
 import LSPLogging
 import LanguageServerProtocol
 import SwiftSyntax
@@ -109,6 +110,45 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
     )
   }
 
+  private func visit(_ trivia: Trivia, position: AbsolutePosition) {
+    let markPrefix = "MARK: "
+    var position = position
+    for piece in trivia.pieces {
+      defer {
+        position = position.advanced(by: piece.sourceLength.utf8Length)
+      }
+      switch piece {
+      case .lineComment(let commentText), .blockComment(let commentText):
+        let trimmedComment = commentText.trimmingCharacters(in: CharacterSet(["/", "*"]).union(.whitespaces))
+        if trimmedComment.starts(with: markPrefix) {
+          let markText = trimmedComment.dropFirst(markPrefix.count)
+          guard let rangeLowerBound = snapshot.position(of: position),
+            let rangeUpperBound = snapshot.position(of: position.advanced(by: piece.sourceLength.utf8Length))
+          else {
+            break
+          }
+          result.append(
+            DocumentSymbol(
+              name: String(markText),
+              kind: .namespace,
+              range: rangeLowerBound..<rangeUpperBound,
+              selectionRange: rangeLowerBound..<rangeUpperBound,
+              children: nil
+            )
+          )
+        }
+      default:
+        break
+      }
+    }
+  }
+
+  override func visit(_ node: TokenSyntax) -> SyntaxVisitorContinueKind {
+    self.visit(node.leadingTrivia, position: node.position)
+    self.visit(node.trailingTrivia, position: node.endPositionBeforeTrailingTrivia)
+    return .skipChildren
+  }
+
   override func visit(_ node: EnumCaseElementSyntax) -> SyntaxVisitorContinueKind {
     let rangeEnd =
       if let parameterClause = node.parameterClause {
@@ -180,7 +220,9 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
     // If there is only one pattern binding within the variable decl, consider the entire variable decl as the
     // referenced range. If there are multiple, consider each pattern binding separately since the `var` keyword doesn't
     // belong to any pattern binding in particular.
-    guard let variableDecl = node.parent?.parent?.as(VariableDeclSyntax.self) else {
+    guard let variableDecl = node.parent?.parent?.as(VariableDeclSyntax.self),
+      variableDecl.isMemberOrTopLevelDeclaration
+    else {
       return .visitChildren
     }
     let rangeNode: Syntax = variableDecl.bindings.count == 1 ? Syntax(variableDecl) : Syntax(node)
@@ -227,6 +269,19 @@ fileprivate extension SyntaxProtocol {
   /// The position range of this node without its leading and trailing trivia.
   var rangeWithoutTrivia: Range<AbsolutePosition> {
     return positionAfterSkippingLeadingTrivia..<endPositionBeforeTrailingTrivia
+  }
+
+  /// Whether this is a top-level constant or a member of a type, ie. if this is not a local variable.
+  var isMemberOrTopLevelDeclaration: Bool {
+    if self.parent?.is(MemberBlockItemSyntax.self) ?? false {
+      return true
+    }
+    if let codeBlockItem = self.parent?.as(CodeBlockItemSyntax.self),
+      codeBlockItem.parent?.parent?.is(SourceFileSyntax.self) ?? false
+    {
+      return true
+    }
+    return false
   }
 }
 
