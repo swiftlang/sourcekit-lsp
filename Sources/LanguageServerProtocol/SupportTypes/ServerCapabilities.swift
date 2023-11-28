@@ -1108,21 +1108,6 @@ public struct DiagnosticOptions: WorkDoneProgressOptions, LSPAnyCodable, Codable
 
     return .dictionary(dict)
   }
-
-  @available(*, deprecated, message: "Deprecated")
-  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
-    if let identifier = identifier {
-      dict["identifier"] = .string(identifier)
-    }
-    dict["interFileDependencies"] = .bool(interFileDependencies)
-    dict["workspaceDiagnostics"] = .bool(workspaceDiagnostics)
-    if let id = id {
-      dict["id"] = .string(id)
-    }
-    if let workDoneProgress = workDoneProgress {
-      dict["workDoneProgress"] = .bool(workDoneProgress)
-    }
-  }
 }
 
 public struct WorkspaceServerCapabilities: Codable, Hashable {
