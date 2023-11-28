@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// The legend for a server's encoding of semantic tokens.
-public struct SemanticTokensLegend: Codable, Hashable {
+public struct SemanticTokensLegend: Codable, Hashable, LSPAnyCodable {
   /// The token types for a server.
   ///
   /// Token types are looked up by indexing into this array, e.g. a `tokenType`
@@ -30,6 +30,29 @@ public struct SemanticTokensLegend: Codable, Hashable {
   public init(tokenTypes: [String], tokenModifiers: [String]) {
     self.tokenTypes = tokenTypes
     self.tokenModifiers = tokenModifiers
+  }
+
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    self.tokenTypes = []
+    if let tokenTypesAny = dictionary["tokenTypes"],
+       let tokenTypes = [String](fromLSPArray: tokenTypesAny)
+    {
+      self.tokenTypes = tokenTypes
+    }
+
+    self.tokenModifiers = []
+    if let tokenModifiersAny = dictionary["tokenModifiers"],
+       let tokenModifiers = [String](fromLSPArray: tokenModifiersAny)
+    {
+      self.tokenModifiers = tokenModifiers
+    }
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    .dictionary([
+      "tokenTypes": tokenTypes.encodeToLSPAny(),
+      "tokenModifiers": tokenModifiers.encodeToLSPAny()
+    ])
   }
 }
 

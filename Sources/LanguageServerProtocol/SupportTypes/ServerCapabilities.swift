@@ -418,7 +418,7 @@ public struct HoverOptions: WorkDoneProgressOptions, Codable, Hashable {
   }
 }
 
-public struct CompletionItemOptions: Codable, Hashable {
+public struct CompletionItemOptions: LSPAnyCodable, Codable, Hashable {
   /// The server has support for completion item label
   /// details (see also `CompletionItemLabelDetails`) when receiving
   /// a completion item in a resolve call.
@@ -429,9 +429,27 @@ public struct CompletionItemOptions: Codable, Hashable {
   ) {
     self.labelDetailsSupport = labelDetailsSupport
   }
+
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    guard case .bool(let labelDetailsSupport) = dictionary["labelDetailsSupport"] else {
+      return nil
+    }
+
+    self.labelDetailsSupport = labelDetailsSupport
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    var dict: [String: LSPAny] = [:]
+
+    if let labelDetailsSupport {
+      dict["labelDetailsSupport"] = .bool(labelDetailsSupport)
+    }
+
+    return .dictionary(dict)
+  }
 }
 
-public struct CompletionOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct CompletionOptions: WorkDoneProgressOptions, Codable, LSPAnyCodable, Hashable {
   /// Whether to use `textDocument/resolveCompletion`
   public var resolveProvider: Bool?
 
@@ -458,6 +476,54 @@ public struct CompletionOptions: WorkDoneProgressOptions, Codable, Hashable {
     self.allCommitCharacters = allCommitCharacters
     self.completionItem = completionItem
     self.workDoneProgress = workDoneProgress
+  }
+
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    if case .bool(let value) = dictionary["resolveProvider"] {
+      resolveProvider = value
+    }
+
+    if let arrayAny = dictionary["triggerCharacters"] {
+      triggerCharacters = [String](fromLSPArray: arrayAny)
+    }
+
+    if let arrayAny = dictionary["allCommitCharacters"] {
+      allCommitCharacters = [String](fromLSPArray: arrayAny)
+    }
+
+    if case .dictionary(let dict) = dictionary["completionItem"] {
+      completionItem = CompletionItemOptions(fromLSPDictionary: dict)
+    }
+
+    if case .bool(let value) = dictionary["workDoneProgress"] {
+      workDoneProgress = value
+    }
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    var dict: [String: LSPAny] = [:]
+    
+    if let resolveProvider {
+      dict["resolveProvider"] = .bool(resolveProvider)
+    }
+    
+    if let triggerCharacters {
+      dict["triggerCharacters"] = triggerCharacters.encodeToLSPAny()
+    }
+
+    if let allCommitCharacters {
+      dict["allCommitCharacters"] = allCommitCharacters.encodeToLSPAny()
+    }
+
+    if let completionItem {
+      dict["completionItem"] = completionItem.encodeToLSPAny()
+    }
+
+    if let workDoneProgress {
+      dict["workDoneProgress"] = .bool(workDoneProgress)
+    }
+
+    return .dictionary(dict)
   }
 }
 
@@ -773,20 +839,44 @@ public struct DocumentLinkOptions: WorkDoneProgressOptions, Codable, Hashable {
   }
 }
 
-public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable, LSPAnyCodable {
 
-  public struct SemanticTokensRangeOptions: Equatable, Hashable, Codable {
+  public struct SemanticTokensRangeOptions: Equatable, Hashable, Codable, LSPAnyCodable {
     public init() {
       // Empty in the LSP 3.16 spec.
     }
+
+    public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+      nil
+    }
+
+    public func encodeToLSPAny() -> LSPAny {
+      .dictionary([:])
+    }
   }
 
-  public struct SemanticTokensFullOptions: Equatable, Hashable, Codable {
+  public struct SemanticTokensFullOptions: Equatable, Hashable, Codable, LSPAnyCodable {
     /// The server supports deltas for full documents.
     public var delta: Bool?
 
     public init(delta: Bool? = nil) {
       self.delta = delta
+    }
+
+    public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+      self.delta = nil
+
+      if case .bool(let value) = dictionary["delta"] {
+        self.delta = value
+      }
+    }
+
+    public func encodeToLSPAny() -> LSPAny {
+      guard let delta else {
+        return .null
+      }
+
+      return .dictionary(["delta": .bool(delta)])
     }
   }
 
@@ -813,6 +903,77 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable 
     self.full = full
     self.workDoneProgress = workDoneProgress
   }
+
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    guard case .dictionary(let dict) = dictionary["legend"],
+          let legend = SemanticTokensLegend(fromLSPDictionary: dict)
+    else {
+      return nil
+    }
+
+    self.legend = legend
+
+    self.range = nil
+
+    if case .bool(let value) = dictionary["range"] {
+      self.range = .bool(value)
+    }
+
+    if case .dictionary(let dict) = dictionary["range"],
+       let value = SemanticTokensRangeOptions(fromLSPDictionary: dict)
+    {
+      self.range = .value(value)
+    }
+
+    self.full = nil
+    if case .bool(let value) = dictionary["full"] {
+      self.full = .bool(value)
+    }
+
+    if case .dictionary(let dict) = dictionary["range"],
+       let value = SemanticTokensFullOptions(fromLSPDictionary: dict)
+    {
+      self.full = .value(value)
+    }
+
+    if case .bool(let value) = dictionary["workDoneProgress"] {
+      self.workDoneProgress = value
+    }
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    var dict: [String: LSPAny] = [:]
+
+    dict["legend"] = legend.encodeToLSPAny()
+
+    if let range {
+      let encodedRange: LSPAny
+      switch range {
+      case .bool(let value):
+        encodedRange = .bool(value)
+      case .value(let rangeOptions):
+        encodedRange = rangeOptions.encodeToLSPAny()
+      }
+      dict["range"] = encodedRange
+    }
+
+    if let full {
+      let encodedFull: LSPAny
+      switch full {
+      case .bool(let value): encodedFull = .bool(value)
+      case .value(let fullOptions):
+        encodedFull = fullOptions.encodeToLSPAny()
+      }
+      dict["full"] = encodedFull
+    }
+
+    if let workDoneProgress {
+      dict["workDoneProgress"] = .bool(workDoneProgress)
+    }
+
+    return .dictionary(dict)
+  }
+
 }
 
 public struct InlayHintOptions: WorkDoneProgressOptions, Codable, Hashable {
@@ -872,7 +1033,7 @@ public struct MonikerOptions: WorkDoneProgressOptions, Codable, Hashable {
   }
 }
 
-public struct DiagnosticOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct DiagnosticOptions: WorkDoneProgressOptions, LSPAnyCodable, Codable, Hashable {
   /// An optional identifier under which the diagnostics are managed by the client.
   public var identifier: String?
 
@@ -904,6 +1065,51 @@ public struct DiagnosticOptions: WorkDoneProgressOptions, Codable, Hashable {
     self.workDoneProgress = workDoneProgress
   }
 
+  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    if case .string(let value) = dictionary["identifier"] {
+      self.identifier = value
+    }
+
+    self.interFileDependencies = false
+    if case .bool(let value) = dictionary["interFileDependencies"] {
+      self.interFileDependencies = value
+    }
+
+    self.workspaceDiagnostics = false
+    if case .bool(let value) = dictionary["workspaceDiagnostics"] {
+      self.workspaceDiagnostics = value
+    }
+
+    if case .string(let value) = dictionary["id"] {
+      self.id = value
+    }
+
+    if case .bool(let value) = dictionary["workDoneProgress"] {
+      self.workDoneProgress = value
+    }
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    var dict: [String: LSPAny] = [:]
+
+    if let identifier {
+      dict["identifier"] = .string(identifier)
+    }
+
+    dict["interFileDependencies"] = .bool(interFileDependencies)
+    dict["workspaceDiagnostics"] = .bool(workspaceDiagnostics)
+    if let id {
+      dict["id"] = .string(id)
+    }
+
+    if let workDoneProgress = workDoneProgress {
+      dict["workDoneProgress"] = .bool(workDoneProgress)
+    }
+
+    return .dictionary(dict)
+  }
+
+  @available(*, deprecated, message: "Deprecated")
   public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
     if let identifier = identifier {
       dict["identifier"] = .string(identifier)
