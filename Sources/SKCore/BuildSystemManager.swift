@@ -268,7 +268,7 @@ extension BuildSystemManager: MainFilesDelegate {
   /// For Swift or normal C files, this will be the file itself. For header
   /// files, we pick a main file that includes the header since header files
   /// don't have build settings by themselves.
-  private func mainFile(for uri: DocumentURI, language: Language, useCache: Bool = true) async -> DocumentURI {
+  public func mainFile(for uri: DocumentURI, language: Language, useCache: Bool = true) async -> DocumentURI {
     if language == .swift {
       // Swift doesn't have main files. Skip the main file provider query.
       return uri

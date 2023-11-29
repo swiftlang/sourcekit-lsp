@@ -50,6 +50,7 @@ add_library(LanguageServerProtocol STATIC
   Requests/DocumentSemanticTokensRangeRequest.swift
   Requests/DocumentSemanticTokensRequest.swift
   Requests/DocumentSymbolRequest.swift
+  Requests/DocumentTestsRequest.swift
   Requests/ExecuteCommandRequest.swift
   Requests/FoldingRangeRequest.swift
   Requests/FormattingRequests.swift

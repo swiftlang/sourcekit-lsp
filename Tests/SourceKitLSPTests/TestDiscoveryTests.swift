@@ -14,7 +14,7 @@ import LanguageServerProtocol
 import SKTestSupport
 import XCTest
 
-final class WorkspaceTestsTests: XCTestCase {
+final class TestDiscoveryTests: XCTestCase {
   func testWorkspaceTests() async throws {
     try XCTSkipIf(longTestsDisabled)
 
@@ -64,6 +64,71 @@ final class WorkspaceTestsTests: XCTestCase {
             location: Location(
               uri: try ws.uri(for: "MyTests.swift"),
               range: Range(try ws.position(of: "2️⃣", in: "MyTests.swift"))
+            ),
+            containerName: "MyTests"
+          )
+        ),
+      ]
+    )
+  }
+
+  func testDocumentTests() async throws {
+    try XCTSkipIf(longTestsDisabled)
+
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "Tests/MyLibraryTests/MyTests.swift": """
+        import XCTest
+
+        class 1️⃣MyTests: XCTestCase {
+          func 2️⃣testMyLibrary() {}
+          func unrelatedFunc() {}
+          var testVariable: Int = 0
+        }
+        """,
+        "Tests/MyLibraryTests/MoreTests.swift": """
+        import XCTest
+
+        class MoreTests: XCTestCase {
+          func testSomeMore() {}
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [.testTarget(name: "MyLibraryTests")]
+        )
+        """,
+      build: true
+    )
+
+    let (uri, positions) = try ws.openDocument("MyTests.swift")
+    let tests = try await ws.testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        WorkspaceSymbolItem.symbolInformation(
+          SymbolInformation(
+            name: "MyTests",
+            kind: .class,
+            location: Location(
+              uri: uri,
+              range: Range(positions["1️⃣"])
+            )
+          )
+        ),
+        WorkspaceSymbolItem.symbolInformation(
+          SymbolInformation(
+            name: "testMyLibrary()",
+            kind: .method,
+            location: Location(
+              uri: try ws.uri(for: "MyTests.swift"),
+              range: Range(positions["2️⃣"])
             ),
             containerName: "MyTests"
           )

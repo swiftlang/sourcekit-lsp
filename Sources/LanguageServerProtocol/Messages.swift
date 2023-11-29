@@ -45,6 +45,7 @@ public let builtinRequests: [_RequestType.Type] = [
   DocumentSemanticTokensRangeRequest.self,
   DocumentSemanticTokensRequest.self,
   DocumentSymbolRequest.self,
+  DocumentTestsRequest.self,
   ExecuteCommandRequest.self,
   FoldingRangeRequest.self,
   HoverRequest.self,

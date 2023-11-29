@@ -384,7 +384,7 @@ public actor SourceKitServer {
 
   var languageServices: [LanguageServerType: [ToolchainLanguageServer]] = [:]
 
-  private let documentManager = DocumentManager()
+  let documentManager = DocumentManager()
 
   private var packageLoadingWorkDoneProgress = WorkDoneProgressState(
     "SourceKitLSP.SourceKitServer.reloadPackage",
@@ -400,7 +400,7 @@ public actor SourceKitServer {
   /// Must only be accessed from `queue`.
   private var uriToWorkspaceCache: [DocumentURI: WeakWorkspace] = [:]
 
-  private var workspaces: [Workspace] = [] {
+  private(set) var workspaces: [Workspace] = [] {
     didSet {
       uriToWorkspaceCache = [:]
     }
@@ -841,6 +841,8 @@ extension SourceKitServer: MessageHandler {
       await request.reply { try await workspaceSymbols(request.params) }
     case let request as RequestAndReply<WorkspaceTestsRequest>:
       await request.reply { try await workspaceTests(request.params) }
+    case let request as RequestAndReply<DocumentTestsRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentTests)
     case let request as RequestAndReply<PollIndexRequest>:
       await request.reply { try await pollIndex(request.params) }
     case let request as RequestAndReply<BarrierRequest>:
@@ -1532,16 +1534,6 @@ extension SourceKitServer {
   func workspaceSymbols(_ req: WorkspaceSymbolsRequest) async throws -> [WorkspaceSymbolItem]? {
     let symbols = findWorkspaceSymbols(matching: req.query).map(WorkspaceSymbolItem.init)
     return symbols
-  }
-
-  func workspaceTests(_ req: WorkspaceTestsRequest) async throws -> [WorkspaceSymbolItem]? {
-    let testSymbols = workspaces.flatMap { (workspace) -> [SymbolOccurrence] in
-      guard let index = workspace.index else {
-        return []
-      }
-      return index.unitTests()
-    }
-    return testSymbols.map(WorkspaceSymbolItem.init)
   }
 
   /// Forwards a SymbolInfoRequest to the appropriate toolchain service for this document.
@@ -2286,7 +2278,7 @@ fileprivate func transitiveSubtypeClosure(ofUsrs usrs: [String], index: IndexSto
   return result
 }
 
-fileprivate extension WorkspaceSymbolItem {
+extension WorkspaceSymbolItem {
   init(_ symbolOccurrence: SymbolOccurrence) {
     let symbolPosition = Position(
       line: symbolOccurrence.location.line - 1,  // 1-based -> 0-based
