@@ -1667,7 +1667,7 @@ extension SourceKitServer {
     symbols: [SymbolDetails],
     index: IndexStoreDB?,
     useLocalFallback: Bool = false,
-    extractOccurrences: (String, IndexStoreDB) -> [SymbolOccurrence]
+    extractOccurrences: (SymbolDetails, IndexStoreDB) -> [SymbolOccurrence]
   ) -> [(occurrence: SymbolOccurrence?, location: Location)] {
     guard let symbol = symbols.first else {
       return []
@@ -1680,11 +1680,11 @@ extension SourceKitServer {
       fallback = []
     }
 
-    guard let usr = symbol.usr, let index = index else {
+    guard let index = index else {
       return fallback
     }
 
-    let occurs = extractOccurrences(usr, index)
+    let occurs = extractOccurrences(symbol, index)
     let resolved = occurs.compactMap { occur in
       indexToLSPLocation(occur.location).map {
         (occurrence: occur, location: $0)
@@ -1725,11 +1725,23 @@ extension SourceKitServer {
     }
 
     let resolved = self.extractIndexedOccurrences(symbols: symbols, index: index, useLocalFallback: true) {
-      (usr, index) in
+      (symbolDetails, index) in
+      guard symbolDetails.isDynamic ?? false else {
+        // If the symbol isn't dynamic, we won't get more information from the index compared to what we already have
+        // in the symbolDetails response. Return an empty array so that `extractIndexedOccurrences` falls back to the
+        // location in the symbol details response.
+        return []
+      }
+      guard let usr = symbolDetails.usr else { return [] }
       logger.info("performing indexed jump-to-def with usr \(usr)")
       var occurs = index.occurrences(ofUSR: usr, roles: [.definition])
       if occurs.isEmpty {
         occurs = index.occurrences(ofUSR: usr, roles: [.declaration])
+      }
+      if symbolDetails.isDynamic ?? false {
+        occurs += occurs.flatMap {
+          index.occurrences(relatedToUSR: $0.symbol.usr, roles: .overrideOf)
+        }
       }
       return occurs
     }
@@ -1783,7 +1795,8 @@ extension SourceKitServer {
       )
     )
     let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
-    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
+    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (symbolDetails, index) in
+      guard let usr = symbolDetails.usr else { return [] }
       var occurs = index.occurrences(ofUSR: usr, roles: .baseOf)
       if occurs.isEmpty {
         occurs = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
@@ -1806,7 +1819,8 @@ extension SourceKitServer {
       )
     )
     let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
-    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
+    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (symbolDetails, index) in
+      guard let usr = symbolDetails.usr else { return [] }
       logger.info("performing indexed jump-to-def with usr \(usr)")
       var roles: SymbolRole = [.reference]
       if req.context.includeDeclaration {
@@ -1852,8 +1866,9 @@ extension SourceKitServer {
     )
     let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
     // For call hierarchy preparation we only locate the definition
-    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
-      index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
+    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (symbolDetails, index) in
+      guard let usr = symbolDetails.usr else { return [] }
+      return index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
     }
     return extractedResult.compactMap { info -> CallHierarchyItem? in
       guard let occurrence = info.occurrence else {
@@ -2009,8 +2024,9 @@ extension SourceKitServer {
     guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
       return []
     }
-    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
-      index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
+    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (symbolDetails, index) in
+      guard let usr = symbolDetails.usr else { return [] }
+      return index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
     }
     return extractedResult.compactMap { info -> TypeHierarchyItem? in
       guard let occurrence = info.occurrence else {

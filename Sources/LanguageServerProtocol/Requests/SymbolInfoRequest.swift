@@ -81,17 +81,25 @@ public struct SymbolDetails: ResponseType, Hashable {
   /// The kind of the symbol
   public var kind: SymbolKind?
 
+  /// Whether the symbol is a dynamic call for which it isn't known which method will be invoked at runtime. This is
+  /// the case for protocol methods and class functions.
+  ///
+  /// Optional because `clangd` does not return whether a symbol is dynamic.
+  public var isDynamic: Bool?
+
   public init(
     name: String?,
-    containerName: String? = nil,
+    containerName: String?,
     usr: String?,
-    bestLocalDeclaration: Location? = nil,
-    kind: SymbolKind? = nil
+    bestLocalDeclaration: Location?,
+    kind: SymbolKind?,
+    isDynamic: Bool
   ) {
     self.name = name
     self.containerName = containerName
     self.usr = usr
     self.bestLocalDeclaration = bestLocalDeclaration
     self.kind = kind
+    self.isDynamic = isDynamic
   }
 }

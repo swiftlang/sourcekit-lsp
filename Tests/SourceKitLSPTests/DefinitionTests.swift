@@ -36,4 +36,37 @@ class DefinitionTests: XCTestCase {
     }
     XCTAssertEqual(locations, [Location(uri: uri, range: Range(positions["1️⃣"]))])
   }
+
+  func testJumpToDefinitionIncludesOverrides() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      protocol TestProtocol {
+        func 1️⃣doThing()
+      }
+
+      struct TestImpl: TestProtocol { 
+        func 2️⃣doThing() { }
+      }
+
+      func anyTestProtocol(value: any TestProtocol) {
+        value.3️⃣doThing()
+      }
+      """
+    )
+
+    let response = try await ws.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(ws.fileURI), position: ws.positions["3️⃣"])
+    )
+    guard case .locations(let locations) = response else {
+      XCTFail("Expected locations response")
+      return
+    }
+    XCTAssertEqual(
+      locations,
+      [
+        Location(uri: ws.fileURI, range: Range(ws.positions["1️⃣"])),
+        Location(uri: ws.fileURI, range: Range(ws.positions["2️⃣"])),
+      ]
+    )
+  }
 }

@@ -131,7 +131,8 @@ extension SwiftLanguageServer {
         containerName: nil,
         usr: dict[keys.usr],
         bestLocalDeclaration: location,
-        kind: kind.asSymbolKind(self.sourcekitd.values)
+        kind: kind.asSymbolKind(self.sourcekitd.values),
+        isDynamic: dict[keys.isDynamic] ?? false
       ),
       annotatedDeclaration: dict[keys.annotated_decl],
       documentationXML: dict[keys.doc_full_as_xml],
