@@ -430,7 +430,7 @@ public struct CompletionItemOptions: LSPAnyCodable, Codable, Hashable {
     self.labelDetailsSupport = labelDetailsSupport
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     if case .bool(let labelDetailsSupport) = dictionary["labelDetailsSupport"] {
       self.labelDetailsSupport = labelDetailsSupport
     }
@@ -476,7 +476,7 @@ public struct CompletionOptions: WorkDoneProgressOptions, Codable, LSPAnyCodable
     self.workDoneProgress = workDoneProgress
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     if case .bool(let value) = dictionary["resolveProvider"] {
       resolveProvider = value
     }
@@ -500,11 +500,11 @@ public struct CompletionOptions: WorkDoneProgressOptions, Codable, LSPAnyCodable
 
   public func encodeToLSPAny() -> LSPAny {
     var dict: [String: LSPAny] = [:]
-    
+
     if let resolveProvider {
       dict["resolveProvider"] = .bool(resolveProvider)
     }
-    
+
     if let triggerCharacters {
       dict["triggerCharacters"] = triggerCharacters.encodeToLSPAny()
     }
@@ -844,7 +844,7 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable,
       // Empty in the LSP 3.16 spec.
     }
 
-    public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
       self.init()
     }
 
@@ -861,7 +861,7 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable,
       self.delta = delta
     }
 
-    public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+    public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
       self.delta = nil
 
       if case .bool(let value) = dictionary["delta"] {
@@ -902,9 +902,9 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable,
     self.workDoneProgress = workDoneProgress
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard case .dictionary(let dict) = dictionary["legend"],
-          let legend = SemanticTokensLegend(fromLSPDictionary: dict)
+      let legend = SemanticTokensLegend(fromLSPDictionary: dict)
     else {
       return nil
     }
@@ -944,21 +944,23 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable,
     dict["legend"] = legend.encodeToLSPAny()
 
     if let range {
-      dict["range"] = switch range {
-      case .bool(let value):
-        .bool(value)
-      case .value(let rangeOptions):
-        rangeOptions.encodeToLSPAny()
-      }
+      dict["range"] =
+        switch range {
+        case .bool(let value):
+          .bool(value)
+        case .value(let rangeOptions):
+          rangeOptions.encodeToLSPAny()
+        }
     }
 
     if let full {
-      dict["full"] = switch full {
-      case .bool(let value):
-        .bool(value)
-      case .value(let fullOptions):
-        fullOptions.encodeToLSPAny()
-      }
+      dict["full"] =
+        switch full {
+        case .bool(let value):
+          .bool(value)
+        case .value(let fullOptions):
+          fullOptions.encodeToLSPAny()
+        }
     }
 
     if let workDoneProgress {
@@ -1059,7 +1061,7 @@ public struct DiagnosticOptions: WorkDoneProgressOptions, LSPAnyCodable, Codable
     self.workDoneProgress = workDoneProgress
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     if case .string(let value) = dictionary["identifier"] {
       self.identifier = value
     }
@@ -1092,7 +1094,7 @@ public struct DiagnosticOptions: WorkDoneProgressOptions, LSPAnyCodable, Codable
 
     dict["interFileDependencies"] = .bool(interFileDependencies)
     dict["workspaceDiagnostics"] = .bool(workspaceDiagnostics)
-    
+
     if let id {
       dict["id"] = .string(id)
     }

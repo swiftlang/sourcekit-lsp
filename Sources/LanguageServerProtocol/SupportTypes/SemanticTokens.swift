@@ -32,17 +32,17 @@ public struct SemanticTokensLegend: Codable, Hashable, LSPAnyCodable {
     self.tokenModifiers = tokenModifiers
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     self.tokenTypes = []
     if let tokenTypesAny = dictionary["tokenTypes"],
-       let tokenTypes = [String](fromLSPArray: tokenTypesAny)
+      let tokenTypes = [String](fromLSPArray: tokenTypesAny)
     {
       self.tokenTypes = tokenTypes
     }
 
     self.tokenModifiers = []
     if let tokenModifiersAny = dictionary["tokenModifiers"],
-       let tokenModifiers = [String](fromLSPArray: tokenModifiersAny)
+      let tokenModifiers = [String](fromLSPArray: tokenModifiersAny)
     {
       self.tokenModifiers = tokenModifiers
     }
@@ -51,7 +51,7 @@ public struct SemanticTokensLegend: Codable, Hashable, LSPAnyCodable {
   public func encodeToLSPAny() -> LSPAny {
     .dictionary([
       "tokenTypes": tokenTypes.encodeToLSPAny(),
-      "tokenModifiers": tokenModifiers.encodeToLSPAny()
+      "tokenModifiers": tokenModifiers.encodeToLSPAny(),
     ])
   }
 }

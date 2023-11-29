@@ -172,7 +172,7 @@ extension Array: LSPAnyCodable where Element: LSPAnyCodable {
 }
 
 extension String: LSPAnyCodable {
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     nil
   }
 

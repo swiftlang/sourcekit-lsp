@@ -28,7 +28,7 @@ public struct TextDocumentRegistrationOptions: RegistrationOptions, Hashable {
     self.documentSelector = documentSelector
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     if let value = dictionary["documentSelector"] {
       self.documentSelector = DocumentSelector(fromLSPArray: value)
     } else {
@@ -61,7 +61,7 @@ public struct CompletionRegistrationOptions: RegistrationOptions, TextDocumentRe
     self.completionOptions = completionOptions
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard let completionOptions = CompletionOptions(fromLSPDictionary: dictionary) else {
       return nil
     }
@@ -76,7 +76,7 @@ public struct CompletionRegistrationOptions: RegistrationOptions, TextDocumentRe
   }
 
   public func encodeToLSPAny() -> LSPAny {
-    var dict: [String : LSPAny] = [:]
+    var dict: [String: LSPAny] = [:]
 
     if case .dictionary(let dictionary) = completionOptions.encodeToLSPAny() {
       dict.merge(dictionary) { (current, _) in current }
@@ -101,7 +101,7 @@ public struct FoldingRangeRegistrationOptions: RegistrationOptions, TextDocument
     self.foldingRangeOptions = foldingRangeOptions
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard let textDocumentRegistrationOptions = TextDocumentRegistrationOptions(fromLSPDictionary: dictionary) else {
       return nil
     }
@@ -133,7 +133,7 @@ public struct SemanticTokensRegistrationOptions: RegistrationOptions, TextDocume
     self.semanticTokenOptions = semanticTokenOptions
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard let textDocumentRegistrationOptions = TextDocumentRegistrationOptions(fromLSPDictionary: dictionary) else {
       return nil
     }
@@ -174,7 +174,7 @@ public struct InlayHintRegistrationOptions: RegistrationOptions, TextDocumentReg
     self.inlayHintOptions = inlayHintOptions
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     self.inlayHintOptions = InlayHintOptions()
 
     if case .bool(let resolveProvider) = dictionary["resolveProvider"] {
@@ -189,7 +189,7 @@ public struct InlayHintRegistrationOptions: RegistrationOptions, TextDocumentReg
   }
 
   public func encodeToLSPAny() -> LSPAny {
-    var dict: [String : LSPAny] = [:]
+    var dict: [String: LSPAny] = [:]
 
     if let resolveProvider = inlayHintOptions.resolveProvider {
       dict["resolveProvider"] = .bool(resolveProvider)
@@ -216,7 +216,7 @@ public struct DiagnosticRegistrationOptions: RegistrationOptions, TextDocumentRe
     self.diagnosticOptions = diagnosticOptions
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard let textDocumentRegistrationOptions = TextDocumentRegistrationOptions(fromLSPDictionary: dictionary) else {
       return nil
     }
@@ -230,7 +230,7 @@ public struct DiagnosticRegistrationOptions: RegistrationOptions, TextDocumentRe
   }
 
   public func encodeToLSPAny() -> LSPAny {
-    var dict: [String : LSPAny] = [:]
+    var dict: [String: LSPAny] = [:]
     if case .dictionary(let dictionary) = textDocumentRegistrationOptions.encodeToLSPAny() {
       dict.merge(dictionary) { (current, _) in current }
     }
@@ -251,9 +251,9 @@ public struct DidChangeWatchedFilesRegistrationOptions: RegistrationOptions {
     self.watchers = watchers
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard let watchersArray = dictionary["watchers"],
-          let watchers = [FileSystemWatcher](fromLSPArray: watchersArray)
+      let watchers = [FileSystemWatcher](fromLSPArray: watchersArray)
     else {
       return nil
     }
@@ -275,9 +275,9 @@ public struct ExecuteCommandRegistrationOptions: RegistrationOptions {
     self.commands = commands
   }
 
-  public init?(fromLSPDictionary dictionary: [String : LSPAny]) {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
     guard let commandsArray = dictionary["commands"],
-          let commands = [String](fromLSPArray: commandsArray)
+      let commands = [String](fromLSPArray: commandsArray)
     else {
       return nil
     }
