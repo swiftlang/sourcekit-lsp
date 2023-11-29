@@ -117,10 +117,15 @@ extension SwiftLanguageServer {
 
     var location: Location? = nil
     if let filepath: String = dict[keys.filepath],
-      let offset: Int = dict[keys.offset],
-      let pos = snapshot.positionOf(utf8Offset: offset)
+      let line: Int = dict[keys.line],
+      let column: Int = dict[keys.column]
     {
-      location = Location(uri: DocumentURI(URL(fileURLWithPath: filepath)), range: Range(pos))
+      let position = Position(
+        line: line - 1,
+        // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+        utf16index: column - 1
+      )
+      location = Location(uri: DocumentURI(URL(fileURLWithPath: filepath)), range: Range(position))
     }
 
     let refactorActionsArray: SKDResponseArray? = dict[keys.refactor_actions]
