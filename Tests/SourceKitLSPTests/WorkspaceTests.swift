@@ -474,4 +474,43 @@ final class WorkspaceTests: XCTestCase {
       ]
     )
   }
+
+  public func testWorkspaceSpecificBuildSettings() async throws {
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "test.swift": """
+        #if MY_FLAG
+        let a: Int = ""
+        #endif
+        """
+      ],
+      workspaces: {
+        [
+          WorkspaceFolder(
+            uri: DocumentURI($0),
+            buildSetup: WorkspaceBuildSetup(
+              buildConfiguration: nil,
+              scratchPath: nil,
+              cFlags: nil,
+              cxxFlags: nil,
+              linkerFlags: nil,
+              swiftFlags: ["-DMY_FLAG"]
+            )
+          )
+        ]
+      }
+    )
+
+    _ = try ws.openDocument("test.swift")
+    let report = try await ws.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(ws.uri(for: "test.swift")))
+    )
+    guard case .full(let fullReport) = report else {
+      XCTFail("Expected full diagnostics report")
+      return
+    }
+    XCTAssertEqual(fullReport.items.count, 1)
+    let diag = try XCTUnwrap(fullReport.items.first)
+    XCTAssertEqual(diag.message, "Cannot convert value of type 'String' to specified type 'Int'")
+  }
 }

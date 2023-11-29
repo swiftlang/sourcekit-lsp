@@ -21,6 +21,7 @@ import SKCore
 import SKSupport
 import SourceKitD
 
+import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 import var TSCBasic.localFileSystem
@@ -963,24 +964,57 @@ extension SourceKitServer: BuildSystemDelegate {
   }
 }
 
+extension LanguageServerProtocol.BuildConfiguration {
+  /// Convert `LanguageServerProtocol.BuildConfiguration` to `SKSupport.BuildConfiguration`.
+  var configuration: SKSupport.BuildConfiguration {
+    switch self {
+    case .debug: return .debug
+    case .release: return .release
+    }
+  }
+}
+
 // MARK: - Request and notification handling
 
 extension SourceKitServer {
 
   // MARK: - General
 
+  /// Returns the build setup for the parameters specified for the given `WorkspaceFolder`.
+  private func buildSetup(for workspaceFolder: WorkspaceFolder) -> BuildSetup {
+    let buildParams = workspaceFolder.buildSetup
+    let scratchPath: AbsolutePath?
+    if let scratchPathParam = buildParams?.scratchPath {
+      scratchPath = try? AbsolutePath(validating: scratchPathParam.pseudoPath)
+    } else {
+      scratchPath = nil
+    }
+    return SKCore.BuildSetup(
+      configuration: buildParams?.buildConfiguration?.configuration,
+      path: scratchPath,
+      flags: BuildFlags(
+        cCompilerFlags: buildParams?.cFlags ?? [],
+        cxxCompilerFlags: buildParams?.cxxFlags ?? [],
+        swiftCompilerFlags: buildParams?.swiftFlags ?? [],
+        linkerFlags: buildParams?.linkerFlags ?? [],
+        xcbuildFlags: []
+      )
+    )
+  }
+
   /// Creates a workspace at the given `uri`.
-  private func createWorkspace(uri: DocumentURI) async -> Workspace? {
+  private func createWorkspace(_ workspaceFolder: WorkspaceFolder) async -> Workspace? {
     guard let capabilityRegistry = capabilityRegistry else {
       logger.log("Cannot open workspace before server is initialized")
       return nil
     }
+    let workspaceBuildSetup = self.buildSetup(for: workspaceFolder)
     return try? await Workspace(
       documentManager: self.documentManager,
-      rootUri: uri,
+      rootUri: workspaceFolder.uri,
       capabilityRegistry: capabilityRegistry,
       toolchainRegistry: self.toolchainRegistry,
-      buildSetup: self.options.buildSetup,
+      buildSetup: self.options.buildSetup.merging(workspaceBuildSetup),
       compilationDatabaseSearchPaths: self.options.compilationDatabaseSearchPaths,
       indexOptions: self.options.indexOptions,
       reloadPackageStatusCallback: { status in
@@ -1020,13 +1054,15 @@ extension SourceKitServer {
     capabilityRegistry = CapabilityRegistry(clientCapabilities: req.capabilities)
 
     if let workspaceFolders = req.workspaceFolders {
-      self.workspaces += await workspaceFolders.asyncCompactMap { await self.createWorkspace(uri: $0.uri) }
+      self.workspaces += await workspaceFolders.asyncCompactMap { await self.createWorkspace($0) }
     } else if let uri = req.rootURI {
-      if let workspace = await self.createWorkspace(uri: uri) {
+      let workspaceFolder = WorkspaceFolder(uri: uri)
+      if let workspace = await self.createWorkspace(workspaceFolder) {
         self.workspaces.append(workspace)
       }
     } else if let path = req.rootPath {
-      if let workspace = await self.createWorkspace(uri: DocumentURI(URL(fileURLWithPath: path))) {
+      let workspaceFolder = WorkspaceFolder(uri: DocumentURI(URL(fileURLWithPath: path)))
+      if let workspace = await self.createWorkspace(workspaceFolder) {
         self.workspaces.append(workspace)
       }
     }
@@ -1375,7 +1411,7 @@ extension SourceKitServer {
       }
     }
     if let added = notification.event.added {
-      let newWorkspaces = await added.asyncCompactMap { await self.createWorkspace(uri: $0.uri) }
+      let newWorkspaces = await added.asyncCompactMap { await self.createWorkspace($0) }
       for workspace in newWorkspaces {
         await workspace.buildSystemManager.setDelegate(self)
       }

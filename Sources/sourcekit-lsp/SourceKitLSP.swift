@@ -87,9 +87,9 @@ extension PathPrefixMapping: @retroactive ExpressibleByArgument {}
 #endif
 
 #if swift(<5.10)
-extension BuildConfiguration: ExpressibleByArgument {}
+extension SKSupport.BuildConfiguration: ExpressibleByArgument {}
 #else
-extension BuildConfiguration: @retroactive ExpressibleByArgument {}
+extension SKSupport.BuildConfiguration: @retroactive ExpressibleByArgument {}
 #endif
 
 @main

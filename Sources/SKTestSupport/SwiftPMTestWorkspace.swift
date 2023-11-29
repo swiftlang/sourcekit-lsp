@@ -38,6 +38,7 @@ public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
   public init(
     files: [RelativeFileLocation: String],
     manifest: String = SwiftPMTestWorkspace.defaultPackageManifest,
+    workspaces: (URL) -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
     build: Bool = false,
     testName: String = #function
   ) async throws {
@@ -56,6 +57,7 @@ public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
     filesByPath["Package.swift"] = manifest
     try await super.init(
       files: filesByPath,
+      workspaces: workspaces,
       testName: testName
     )
 
