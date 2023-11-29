@@ -57,6 +57,7 @@ public struct sourcekitd_keys {
   public let num_bytes_to_erase: sourcekitd_uid_t
   public let offset: sourcekitd_uid_t
   public let ranges: sourcekitd_uid_t
+  public let receivers: sourcekitd_uid_t
   public let refactor_actions: sourcekitd_uid_t
   public let request: sourcekitd_uid_t
   public let results: sourcekitd_uid_t
@@ -136,6 +137,7 @@ public struct sourcekitd_keys {
     num_bytes_to_erase = api.uid_get_from_cstr("key.num_bytes_to_erase")!
     offset = api.uid_get_from_cstr("key.offset")!
     ranges = api.uid_get_from_cstr("key.ranges")!
+    receivers = api.uid_get_from_cstr("key.receivers")!
     refactor_actions = api.uid_get_from_cstr("key.refactor_actions")!
     request = api.uid_get_from_cstr("key.request")!
     results = api.uid_get_from_cstr("key.results")!

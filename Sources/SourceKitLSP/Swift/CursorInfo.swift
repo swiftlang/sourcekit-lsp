@@ -130,6 +130,9 @@ extension SwiftLanguageServer {
 
     let refactorActionsArray: SKDResponseArray? = dict[keys.refactor_actions]
 
+    let receiversArray: SKDResponseArray? = dict[keys.receivers]
+    let receiverUsrs = receiversArray?.compactMap { $0[keys.usr] as String? } ?? []
+
     return CursorInfo(
       SymbolDetails(
         name: dict[keys.name],
@@ -137,7 +140,8 @@ extension SwiftLanguageServer {
         usr: dict[keys.usr],
         bestLocalDeclaration: location,
         kind: kind.asSymbolKind(self.sourcekitd.values),
-        isDynamic: dict[keys.isDynamic] ?? false
+        isDynamic: dict[keys.isDynamic] ?? false,
+        receiverUsrs: receiverUsrs
       ),
       annotatedDeclaration: dict[keys.annotated_decl],
       documentationXML: dict[keys.doc_full_as_xml],

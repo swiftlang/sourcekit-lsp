@@ -1709,8 +1709,18 @@ extension SourceKitServer {
       occurances = index.occurrences(ofUSR: usr, roles: [.declaration])
     }
     if symbol.isDynamic ?? false {
+      lazy var transitiveReceiverUsrs: [String] = transitiveSubtypeClosure(
+        ofUsrs: symbol.receiverUsrs ?? [],
+        index: index
+      )
       occurances += occurances.flatMap {
-        index.occurrences(relatedToUSR: $0.symbol.usr, roles: .overrideOf)
+        let overrides = index.occurrences(relatedToUSR: $0.symbol.usr, roles: .overrideOf)
+        // Only contain overrides that are children of one of the receiver types or their subtypes.
+        return overrides.filter { override in
+          override.relations.contains(where: {
+            $0.roles.contains(.childOf) && transitiveReceiverUsrs.contains($0.symbol.usr)
+          })
+        }
       }
     }
 
@@ -2205,4 +2215,18 @@ fileprivate struct DocumentNotificationRequestQueue {
     }
     queue = []
   }
+}
+
+/// Returns the USRs of the subtypes of `usrs` as well as their subtypes, transitively.
+fileprivate func transitiveSubtypeClosure(ofUsrs usrs: [String], index: IndexStoreDB) -> [String] {
+  var result: [String] = []
+  for usr in usrs {
+    result.append(usr)
+    let directSubtypes = index.occurrences(ofUSR: usr, roles: .baseOf).flatMap { occurance in
+      occurance.relations.filter { $0.roles.contains(.baseOf) }.map(\.symbol.usr)
+    }
+    let transitiveSubtypes = transitiveSubtypeClosure(ofUsrs: directSubtypes, index: index)
+    result += transitiveSubtypes
+  }
+  return result
 }
