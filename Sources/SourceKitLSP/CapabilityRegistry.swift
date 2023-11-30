@@ -333,9 +333,7 @@ public final class CapabilityRegistry {
   }
 
   private func encode<T: RegistrationOptions>(_ options: T) -> LSPAny {
-    var dict = [String: LSPAny]()
-    options.encodeIntoLSPAny(dict: &dict)
-    return .dictionary(dict)
+    options.encodeToLSPAny()
   }
 
   /// Return a registration in `registrations` for one or more of the given

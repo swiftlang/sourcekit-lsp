@@ -14,17 +14,8 @@ import Foundation
 
 /// Protocol for capability registration options, which must be encodable to
 /// `LSPAny` so they can be included in a `Registration`.
-public protocol RegistrationOptions: Hashable {
-  func encodeIntoLSPAny(dict: inout [String: LSPAny])
-}
+public protocol RegistrationOptions: Hashable, LSPAnyCodable {
 
-fileprivate func encode(strings: [String]) -> LSPAny {
-  var values = [LSPAny]()
-  values.reserveCapacity(strings.count)
-  for str in strings {
-    values.append(.string(str))
-  }
-  return .array(values)
 }
 
 /// General text document registration options.
@@ -37,9 +28,20 @@ public struct TextDocumentRegistrationOptions: RegistrationOptions, Hashable {
     self.documentSelector = documentSelector
   }
 
-  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
-    guard let documentSelector = documentSelector else { return }
-    dict["documentSelector"] = documentSelector.encodeToLSPAny()
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    if let value = dictionary["documentSelector"] {
+      self.documentSelector = DocumentSelector(fromLSPArray: value)
+    } else {
+      self.documentSelector = nil
+    }
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    guard let documentSelector = documentSelector else {
+      return .dictionary([:])
+    }
+
+    return .dictionary(["documentSelector": documentSelector.encodeToLSPAny()])
   }
 }
 
@@ -59,18 +61,32 @@ public struct CompletionRegistrationOptions: RegistrationOptions, TextDocumentRe
     self.completionOptions = completionOptions
   }
 
-  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
-    textDocumentRegistrationOptions.encodeIntoLSPAny(dict: &dict)
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    guard let completionOptions = CompletionOptions(fromLSPDictionary: dictionary) else {
+      return nil
+    }
 
-    if let resolveProvider = completionOptions.resolveProvider {
-      dict["resolveProvider"] = .bool(resolveProvider)
+    self.completionOptions = completionOptions
+
+    guard let textDocumentRegistrationOptions = TextDocumentRegistrationOptions(fromLSPDictionary: dictionary) else {
+      return nil
     }
-    if let triggerCharacters = completionOptions.triggerCharacters {
-      dict["triggerCharacters"] = encode(strings: triggerCharacters)
+
+    self.textDocumentRegistrationOptions = textDocumentRegistrationOptions
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    var dict: [String: LSPAny] = [:]
+
+    if case .dictionary(let dictionary) = completionOptions.encodeToLSPAny() {
+      dict.merge(dictionary) { (current, _) in current }
     }
-    if let allCommitCharacters = completionOptions.allCommitCharacters {
-      dict["allCommitCharacters"] = encode(strings: allCommitCharacters)
+
+    if case .dictionary(let dictionary) = textDocumentRegistrationOptions.encodeToLSPAny() {
+      dict.merge(dictionary) { (current, _) in current }
     }
+
+    return .dictionary(dict)
   }
 }
 
@@ -85,8 +101,19 @@ public struct FoldingRangeRegistrationOptions: RegistrationOptions, TextDocument
     self.foldingRangeOptions = foldingRangeOptions
   }
 
-  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
-    textDocumentRegistrationOptions.encodeIntoLSPAny(dict: &dict)
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    guard let textDocumentRegistrationOptions = TextDocumentRegistrationOptions(fromLSPDictionary: dictionary) else {
+      return nil
+    }
+
+    self.textDocumentRegistrationOptions = textDocumentRegistrationOptions
+
+    /// Currently empty in the spec.
+    self.foldingRangeOptions = FoldingRangeOptions()
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    textDocumentRegistrationOptions.encodeToLSPAny()
     // foldingRangeOptions is currently empty.
   }
 }
@@ -106,34 +133,32 @@ public struct SemanticTokensRegistrationOptions: RegistrationOptions, TextDocume
     self.semanticTokenOptions = semanticTokenOptions
   }
 
-  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
-    textDocumentRegistrationOptions.encodeIntoLSPAny(dict: &dict)
-    let legend = semanticTokenOptions.legend
-    dict["legend"] = .dictionary([
-      "tokenTypes": encode(strings: legend.tokenTypes),
-      "tokenModifiers": encode(strings: legend.tokenModifiers),
-    ])
-    if let range = semanticTokenOptions.range {
-      let encodedRange: LSPAny
-      switch range {
-      case .bool(let value): encodedRange = .bool(value)
-      case .value(_): encodedRange = .dictionary([:])
-      }
-      dict["range"] = encodedRange
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    guard let textDocumentRegistrationOptions = TextDocumentRegistrationOptions(fromLSPDictionary: dictionary) else {
+      return nil
     }
-    if let full = semanticTokenOptions.full {
-      let encodedFull: LSPAny
-      switch full {
-      case .bool(let value): encodedFull = .bool(value)
-      case .value(let fullOptions):
-        var encodedOptions: [String: LSPAny] = [:]
-        if let delta = fullOptions.delta {
-          encodedOptions["delta"] = .bool(delta)
-        }
-        encodedFull = .dictionary(encodedOptions)
-      }
-      dict["full"] = encodedFull
+
+    self.textDocumentRegistrationOptions = textDocumentRegistrationOptions
+
+    guard let semanticTokenOptions = SemanticTokensOptions(fromLSPDictionary: dictionary) else {
+      return nil
     }
+
+    self.semanticTokenOptions = semanticTokenOptions
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    var dict: [String: LSPAny] = [:]
+
+    if case .dictionary(let dictionary) = textDocumentRegistrationOptions.encodeToLSPAny() {
+      dict.merge(dictionary) { (current, _) in current }
+    }
+
+    if case .dictionary(let dictionary) = semanticTokenOptions.encodeToLSPAny() {
+      dict.merge(dictionary) { (current, _) in current }
+    }
+
+    return .dictionary(dict)
   }
 }
 
@@ -149,11 +174,32 @@ public struct InlayHintRegistrationOptions: RegistrationOptions, TextDocumentReg
     self.inlayHintOptions = inlayHintOptions
   }
 
-  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
-    textDocumentRegistrationOptions.encodeIntoLSPAny(dict: &dict)
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    self.inlayHintOptions = InlayHintOptions()
+
+    if case .bool(let resolveProvider) = dictionary["resolveProvider"] {
+      self.inlayHintOptions.resolveProvider = resolveProvider
+    }
+
+    guard let textDocumentRegistrationOptions = TextDocumentRegistrationOptions(fromLSPDictionary: dictionary) else {
+      return nil
+    }
+
+    self.textDocumentRegistrationOptions = textDocumentRegistrationOptions
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    var dict: [String: LSPAny] = [:]
+
     if let resolveProvider = inlayHintOptions.resolveProvider {
       dict["resolveProvider"] = .bool(resolveProvider)
     }
+
+    if case .dictionary(let dictionary) = textDocumentRegistrationOptions.encodeToLSPAny() {
+      dict.merge(dictionary) { (current, _) in current }
+    }
+
+    return .dictionary(dict)
   }
 }
 
@@ -170,9 +216,29 @@ public struct DiagnosticRegistrationOptions: RegistrationOptions, TextDocumentRe
     self.diagnosticOptions = diagnosticOptions
   }
 
-  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
-    textDocumentRegistrationOptions.encodeIntoLSPAny(dict: &dict)
-    diagnosticOptions.encodeIntoLSPAny(dict: &dict)
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    guard let textDocumentRegistrationOptions = TextDocumentRegistrationOptions(fromLSPDictionary: dictionary) else {
+      return nil
+    }
+
+    self.textDocumentRegistrationOptions = textDocumentRegistrationOptions
+
+    guard let diagnosticOptions = DiagnosticOptions(fromLSPDictionary: dictionary) else {
+      return nil
+    }
+    self.diagnosticOptions = diagnosticOptions
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    var dict: [String: LSPAny] = [:]
+    if case .dictionary(let dictionary) = textDocumentRegistrationOptions.encodeToLSPAny() {
+      dict.merge(dictionary) { (current, _) in current }
+    }
+
+    if case .dictionary(let dictionary) = diagnosticOptions.encodeToLSPAny() {
+      dict.merge(dictionary) { (current, _) in current }
+    }
+    return .dictionary(dict)
   }
 }
 
@@ -185,8 +251,18 @@ public struct DidChangeWatchedFilesRegistrationOptions: RegistrationOptions {
     self.watchers = watchers
   }
 
-  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
-    dict["watchers"] = watchers.encodeToLSPAny()
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    guard let watchersArray = dictionary["watchers"],
+      let watchers = [FileSystemWatcher](fromLSPArray: watchersArray)
+    else {
+      return nil
+    }
+
+    self.watchers = watchers
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    .dictionary(["watchers": watchers.encodeToLSPAny()])
   }
 }
 
@@ -199,7 +275,17 @@ public struct ExecuteCommandRegistrationOptions: RegistrationOptions {
     self.commands = commands
   }
 
-  public func encodeIntoLSPAny(dict: inout [String: LSPAny]) {
-    dict["commands"] = encode(strings: commands)
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    guard let commandsArray = dictionary["commands"],
+      let commands = [String](fromLSPArray: commandsArray)
+    else {
+      return nil
+    }
+
+    self.commands = commands
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    .dictionary(["commands": commands.encodeToLSPAny()])
   }
 }

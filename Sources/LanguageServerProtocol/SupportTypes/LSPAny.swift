@@ -171,5 +171,15 @@ extension Array: LSPAnyCodable where Element: LSPAnyCodable {
   }
 }
 
+extension String: LSPAnyCodable {
+  public init?(fromLSPDictionary dictionary: [String: LSPAny]) {
+    nil
+  }
+
+  public func encodeToLSPAny() -> LSPAny {
+    .string(self)
+  }
+}
+
 public typealias LSPObject = [String: LSPAny]
 public typealias LSPArray = [LSPAny]
