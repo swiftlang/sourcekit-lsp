@@ -1053,7 +1053,20 @@ extension SwiftLanguageServer {
   }
 
   public func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
-    return try await .full(fullDocumentDiagnosticReport(req))
+    do {
+      return try await .full(fullDocumentDiagnosticReport(req))
+    } catch {
+      // VS Code does not request diagnostics again for a document if the diagnostics request failed.
+      // Since sourcekit-lsp usually recovers from failures (e.g. after sourcekitd crashes), this is undesirable.
+      // Instead of returning an error, return empty results.
+      logger.error(
+        """
+        Loading diagnostic failed with the following error. Returning empty diagnostics. 
+        \(error.forLogging)
+        """
+      )
+      return .full(RelatedFullDocumentDiagnosticReport(items: []))
+    }
   }
 
   private func fullDocumentDiagnosticReport(
