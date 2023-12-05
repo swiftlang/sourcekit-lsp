@@ -1682,9 +1682,8 @@ extension SourceKitServer {
       return []
     }
 
-    if let symbol = symbols.first, let bestLocalDeclaration = symbol.bestLocalDeclaration, !(symbol.isDynamic ?? false)
-    {
-      // If we have a non-dynamic symbol, we don't need to do an index lookup
+    if let bestLocalDeclaration = symbol.bestLocalDeclaration, !(symbol.isDynamic ?? true) {
+      // If we have a known non-dynamic symbol, we don't need to do an index lookup
       return [bestLocalDeclaration]
     }
 
@@ -1704,38 +1703,49 @@ extension SourceKitServer {
     }
     guard let usr = symbol.usr else { return [] }
     logger.info("performing indexed jump-to-def with usr \(usr)")
-    var occurances = index.occurrences(ofUSR: usr, roles: [.definition])
-    if occurances.isEmpty {
-      occurances = index.occurrences(ofUSR: usr, roles: [.declaration])
+    var occurrences = index.occurrences(ofUSR: usr, roles: [.definition])
+    if occurrences.isEmpty {
+      occurrences = index.occurrences(ofUSR: usr, roles: [.declaration])
     }
-    if symbol.isDynamic ?? false {
-      lazy var transitiveReceiverUsrs: [String] = transitiveSubtypeClosure(
-        ofUsrs: symbol.receiverUsrs ?? [],
-        index: index
-      )
-      occurances += occurances.flatMap {
+    if symbol.isDynamic ?? true {
+      lazy var transitiveReceiverUsrs: [String]? = {
+        if let receiverUsrs = symbol.receiverUsrs {
+          return transitiveSubtypeClosure(
+            ofUsrs: receiverUsrs,
+            index: index
+          )
+        } else {
+          return nil
+        }
+      }()
+      occurrences += occurrences.flatMap {
         let overrides = index.occurrences(relatedToUSR: $0.symbol.usr, roles: .overrideOf)
         // Only contain overrides that are children of one of the receiver types or their subtypes.
         return overrides.filter { override in
           override.relations.contains(where: {
-            $0.roles.contains(.childOf) && transitiveReceiverUsrs.contains($0.symbol.usr)
+            guard $0.roles.contains(.childOf) else {
+              return false
+            }
+            if let transitiveReceiverUsrs, !transitiveReceiverUsrs.contains($0.symbol.usr) {
+              return false
+            }
+            return true
           })
         }
       }
     }
 
-    return try await occurances.asyncCompactMap { occurance in
-      if URL(fileURLWithPath: occurance.location.path).pathExtension == "swiftinterface" {
-        // if first resolved location is in `.swiftinterface` file. Use moduleName to return
-        // textual interface
+    return try await occurrences.asyncCompactMap { occurrence in
+      if URL(fileURLWithPath: occurrence.location.path).pathExtension == "swiftinterface" {
+        // If the location is in `.swiftinterface` file, use moduleName to return textual interface.
         return try await self.definitionInInterface(
           req,
-          moduleName: occurance.location.moduleName,
-          symbolUSR: occurance.symbol.usr,
+          moduleName: occurrence.location.moduleName,
+          symbolUSR: occurrence.symbol.usr,
           languageService: languageService
         )
       }
-      return indexToLSPLocation(occurance.location)
+      return indexToLSPLocation(occurrence.location)
     }
   }
 
@@ -1747,10 +1757,14 @@ extension SourceKitServer {
     let indexBasedResponse = try await indexBasedDefinition(req, workspace: workspace, languageService: languageService)
     // If we're unable to handle the definition request using our index, see if the
     // language service can handle it (e.g. clangd can provide AST based definitions).
+    // We are on only calling the language service's `definition` function if your index-based lookup failed.
+    // If this fallback request fails, its error is usually not very enlightening. For example the `SwiftLanguageServer`
+    // will always respond with `unsupported method`. Thus, only log such a failure instead of returning it to the
+    // client.
     if indexBasedResponse.isEmpty {
-      do {
+      return await orLog("Fallback definition request") {
         return try await languageService.definition(req)
-      } catch {}
+      }
     }
     return .locations(indexBasedResponse)
   }

@@ -105,4 +105,42 @@ class DefinitionTests: XCTestCase {
       ]
     )
   }
+
+  func testDynamicJumpToDefinitionInClang() async throws {
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "Sources/MyLibrary/include/dummy.h": "",
+        "test.cpp": """
+        struct Base {
+          virtual void 1️⃣doStuff() {}
+        };
+
+        struct Sub: Base {
+          void 2️⃣doStuff() override {}
+        };
+
+        void test(Base base) {
+          base.3️⃣doStuff();
+        }
+        """,
+      ],
+      build: true
+    )
+    let (uri, positions) = try ws.openDocument("test.cpp")
+
+    let response = try await ws.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+    )
+    guard case .locations(let locations) = response else {
+      XCTFail("Expected locations response")
+      return
+    }
+    XCTAssertEqual(
+      locations,
+      [
+        Location(uri: uri, range: Range(positions["1️⃣"])),
+        Location(uri: uri, range: Range(positions["2️⃣"])),
+      ]
+    )
+  }
 }
