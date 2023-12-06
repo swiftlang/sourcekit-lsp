@@ -143,4 +143,56 @@ class DefinitionTests: XCTestCase {
       ]
     )
   }
+
+  func testJumpToCDefinitionFromSwift() async throws {
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "Sources/MyLibrary/include/test.h": """
+        void myFunc(void);
+        """,
+        "Sources/MyLibrary/test.c": """
+        #include "test.h"
+
+        void 1️⃣myFunc(void) {}
+        """,
+        "Sources/MySwiftLibrary/main.swift":
+          """
+        import MyLibrary
+
+        2️⃣myFunc()
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "MyLibrary"),
+            .target(name: "MySwiftLibrary", dependencies: ["MyLibrary"])
+          ]
+        )
+        """,
+      build: true
+    )
+
+    let (uri, positions) = try ws.openDocument("main.swift")
+
+    let response = try await ws.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    guard case .locations(let locations) = response else {
+      XCTFail("Expected locations response")
+      return
+    }
+
+    XCTAssertEqual(locations.count, 1)
+    let location = try XCTUnwrap(locations.first)
+    XCTAssertEqual(
+      location,
+      Location(uri: try ws.uri(for: "test.c"), range: Range(try ws.position(of: "1️⃣", in: "test.c")))
+    )
+  }
 }
