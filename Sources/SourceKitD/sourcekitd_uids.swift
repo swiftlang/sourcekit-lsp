@@ -44,6 +44,7 @@ public struct sourcekitd_keys {
   public let groupname: sourcekitd_uid_t
   public let id: sourcekitd_uid_t
   public let is_system: sourcekitd_uid_t
+  public let isDynamic: sourcekitd_uid_t
   public let kind: sourcekitd_uid_t
   public let length: sourcekitd_uid_t
   public let line: sourcekitd_uid_t
@@ -56,6 +57,7 @@ public struct sourcekitd_keys {
   public let num_bytes_to_erase: sourcekitd_uid_t
   public let offset: sourcekitd_uid_t
   public let ranges: sourcekitd_uid_t
+  public let receivers: sourcekitd_uid_t
   public let refactor_actions: sourcekitd_uid_t
   public let request: sourcekitd_uid_t
   public let results: sourcekitd_uid_t
@@ -122,6 +124,7 @@ public struct sourcekitd_keys {
     groupname = api.uid_get_from_cstr("key.groupname")!
     id = api.uid_get_from_cstr("key.id")!
     is_system = api.uid_get_from_cstr("key.is_system")!
+    isDynamic = api.uid_get_from_cstr("key.is_dynamic")!
     kind = api.uid_get_from_cstr("key.kind")!
     length = api.uid_get_from_cstr("key.length")!
     line = api.uid_get_from_cstr("key.line")!
@@ -134,6 +137,7 @@ public struct sourcekitd_keys {
     num_bytes_to_erase = api.uid_get_from_cstr("key.num_bytes_to_erase")!
     offset = api.uid_get_from_cstr("key.offset")!
     ranges = api.uid_get_from_cstr("key.ranges")!
+    receivers = api.uid_get_from_cstr("key.receivers")!
     refactor_actions = api.uid_get_from_cstr("key.refactor_actions")!
     request = api.uid_get_from_cstr("key.request")!
     results = api.uid_get_from_cstr("key.results")!

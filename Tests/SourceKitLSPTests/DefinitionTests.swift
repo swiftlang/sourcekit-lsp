@@ -36,4 +36,111 @@ class DefinitionTests: XCTestCase {
     }
     XCTAssertEqual(locations, [Location(uri: uri, range: Range(positions["1️⃣"]))])
   }
+
+  func testJumpToDefinitionIncludesOverrides() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      protocol TestProtocol {
+        func 1️⃣doThing()
+      }
+
+      struct TestImpl: TestProtocol { 
+        func 2️⃣doThing() { }
+      }
+
+      func anyTestProtocol(value: any TestProtocol) {
+        value.3️⃣doThing()
+      }
+      """
+    )
+
+    let response = try await ws.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(ws.fileURI), position: ws.positions["3️⃣"])
+    )
+    guard case .locations(let locations) = response else {
+      XCTFail("Expected locations response")
+      return
+    }
+    XCTAssertEqual(
+      locations,
+      [
+        Location(uri: ws.fileURI, range: Range(ws.positions["1️⃣"])),
+        Location(uri: ws.fileURI, range: Range(ws.positions["2️⃣"])),
+      ]
+    )
+  }
+
+  func testJumpToDefinitionFiltersByReceiver() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      class A {
+        func 1️⃣doThing() {}
+      }
+      class B: A {}
+      class C: B {
+        override func 2️⃣doThing() {}
+      }
+      class D: A {
+        override func doThing() {}
+      }
+
+      func test(value: B) {
+        value.3️⃣doThing()
+      }
+      """
+    )
+
+    let response = try await ws.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(ws.fileURI), position: ws.positions["3️⃣"])
+    )
+    guard case .locations(let locations) = response else {
+      XCTFail("Expected locations response")
+      return
+    }
+    XCTAssertEqual(
+      locations,
+      [
+        Location(uri: ws.fileURI, range: Range(ws.positions["1️⃣"])),
+        Location(uri: ws.fileURI, range: Range(ws.positions["2️⃣"])),
+      ]
+    )
+  }
+
+  func testDynamicJumpToDefinitionInClang() async throws {
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "Sources/MyLibrary/include/dummy.h": "",
+        "test.cpp": """
+        struct Base {
+          virtual void 1️⃣doStuff() {}
+        };
+
+        struct Sub: Base {
+          void 2️⃣doStuff() override {}
+        };
+
+        void test(Base base) {
+          base.3️⃣doStuff();
+        }
+        """,
+      ],
+      build: true
+    )
+    let (uri, positions) = try ws.openDocument("test.cpp")
+
+    let response = try await ws.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+    )
+    guard case .locations(let locations) = response else {
+      XCTFail("Expected locations response")
+      return
+    }
+    XCTAssertEqual(
+      locations,
+      [
+        Location(uri: uri, range: Range(positions["1️⃣"])),
+        Location(uri: uri, range: Range(positions["2️⃣"])),
+      ]
+    )
+  }
 }

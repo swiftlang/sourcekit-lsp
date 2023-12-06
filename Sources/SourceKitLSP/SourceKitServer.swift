@@ -1690,46 +1690,6 @@ extension SourceKitServer {
     )
   }
 
-  /// Extracts the locations of an indexed symbol's occurrences,
-  /// e.g. for definition or reference lookups.
-  ///
-  /// - Parameters:
-  ///   - result: The symbol to look up
-  ///   - index: The index in which the occurrences will be looked up
-  ///   - useLocalFallback: Whether to consider the best known local declaration if no other locations are found
-  ///   - extractOccurrences: A function fetching the occurrences by the desired roles given a usr from the index
-  /// - Returns: The resolved symbol locations
-  private func extractIndexedOccurrences(
-    symbols: [SymbolDetails],
-    index: IndexStoreDB?,
-    useLocalFallback: Bool = false,
-    extractOccurrences: (String, IndexStoreDB) -> [SymbolOccurrence]
-  ) -> [(occurrence: SymbolOccurrence?, location: Location)] {
-    guard let symbol = symbols.first else {
-      return []
-    }
-
-    let fallback: [(occurrence: SymbolOccurrence?, location: Location)]
-    if useLocalFallback, let bestLocalDeclaration = symbol.bestLocalDeclaration {
-      fallback = [(occurrence: nil, location: bestLocalDeclaration)]
-    } else {
-      fallback = []
-    }
-
-    guard let usr = symbol.usr, let index = index else {
-      return fallback
-    }
-
-    let occurs = extractOccurrences(usr, index)
-    let resolved = occurs.compactMap { occur in
-      indexToLSPLocation(occur.location).map {
-        (occurrence: occur, location: $0)
-      }
-    }
-
-    return resolved.isEmpty ? fallback : resolved
-  }
-
   func declaration(
     _ req: DeclarationRequest,
     workspace: Workspace,
@@ -1738,58 +1698,111 @@ extension SourceKitServer {
     return try await languageService.declaration(req)
   }
 
-  func definition(
+  /// Returns the result of a `DefinitionRequest` by running a `SymbolInfoRequest`, inspecting
+  /// its result and doing index lookups, if necessary.
+  ///
+  /// In contrast to `definition`, this does not fall back to sending a `DefinitionRequest` to the
+  /// toolchain language server.
+  private func indexBasedDefinition(
     _ req: DefinitionRequest,
     workspace: Workspace,
     languageService: ToolchainLanguageServer
-  ) async throws -> LocationsOrLocationLinksResponse? {
+  ) async throws -> [Location] {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
         textDocument: req.textDocument,
         position: req.position
       )
     )
-    let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
+    guard let symbol = symbols.first else {
+      return []
+    }
+
+    if let bestLocalDeclaration = symbol.bestLocalDeclaration, !(symbol.isDynamic ?? true) {
+      // If we have a known non-dynamic symbol, we don't need to do an index lookup
+      return [bestLocalDeclaration]
+    }
+
     // If this symbol is a module then generate a textual interface
-    if let symbol = symbols.first, symbol.kind == .module, let name = symbol.name {
-      return try await self.definitionInInterface(
+    if symbol.kind == .module, let name = symbol.name {
+      let interfaceLocation = try await self.definitionInInterface(
         req,
         moduleName: name,
         symbolUSR: nil,
         languageService: languageService
       )
+      return [interfaceLocation]
     }
 
-    let resolved = self.extractIndexedOccurrences(symbols: symbols, index: index, useLocalFallback: true) {
-      (usr, index) in
-      logger.info("performing indexed jump-to-def with usr \(usr)")
-      var occurs = index.occurrences(ofUSR: usr, roles: [.definition])
-      if occurs.isEmpty {
-        occurs = index.occurrences(ofUSR: usr, roles: [.declaration])
+    guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
+      return []
+    }
+    guard let usr = symbol.usr else { return [] }
+    logger.info("performing indexed jump-to-def with usr \(usr)")
+    var occurrences = index.occurrences(ofUSR: usr, roles: [.definition])
+    if occurrences.isEmpty {
+      occurrences = index.occurrences(ofUSR: usr, roles: [.declaration])
+    }
+    if symbol.isDynamic ?? true {
+      lazy var transitiveReceiverUsrs: [String]? = {
+        if let receiverUsrs = symbol.receiverUsrs {
+          return transitiveSubtypeClosure(
+            ofUsrs: receiverUsrs,
+            index: index
+          )
+        } else {
+          return nil
+        }
+      }()
+      occurrences += occurrences.flatMap {
+        let overrides = index.occurrences(relatedToUSR: $0.symbol.usr, roles: .overrideOf)
+        // Only contain overrides that are children of one of the receiver types or their subtypes.
+        return overrides.filter { override in
+          override.relations.contains(where: {
+            guard $0.roles.contains(.childOf) else {
+              return false
+            }
+            if let transitiveReceiverUsrs, !transitiveReceiverUsrs.contains($0.symbol.usr) {
+              return false
+            }
+            return true
+          })
+        }
       }
-      return occurs
     }
 
-    // if first resolved location is in `.swiftinterface` file. Use moduleName to return
-    // textual interface
-    if let firstResolved = resolved.first,
-      let moduleName = firstResolved.occurrence?.location.moduleName,
-      firstResolved.location.uri.fileURL?.pathExtension == "swiftinterface"
-    {
-      return try await self.definitionInInterface(
-        req,
-        moduleName: moduleName,
-        symbolUSR: firstResolved.occurrence?.symbol.usr,
-        languageService: languageService
-      )
+    return try await occurrences.asyncCompactMap { occurrence in
+      if URL(fileURLWithPath: occurrence.location.path).pathExtension == "swiftinterface" {
+        // If the location is in `.swiftinterface` file, use moduleName to return textual interface.
+        return try await self.definitionInInterface(
+          req,
+          moduleName: occurrence.location.moduleName,
+          symbolUSR: occurrence.symbol.usr,
+          languageService: languageService
+        )
+      }
+      return indexToLSPLocation(occurrence.location)
     }
-    let locs = resolved.map(\.location)
+  }
+
+  func definition(
+    _ req: DefinitionRequest,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) async throws -> LocationsOrLocationLinksResponse? {
+    let indexBasedResponse = try await indexBasedDefinition(req, workspace: workspace, languageService: languageService)
     // If we're unable to handle the definition request using our index, see if the
     // language service can handle it (e.g. clangd can provide AST based definitions).
-    if locs.isEmpty {
-      return try await languageService.definition(req)
+    // We are on only calling the language service's `definition` function if your index-based lookup failed.
+    // If this fallback request fails, its error is usually not very enlightening. For example the `SwiftLanguageServer`
+    // will always respond with `unsupported method`. Thus, only log such a failure instead of returning it to the
+    // client.
+    if indexBasedResponse.isEmpty {
+      return await orLog("Fallback definition request") {
+        return try await languageService.definition(req)
+      }
     }
-    return .locations(locs)
+    return .locations(indexBasedResponse)
   }
 
   func definitionInInterface(
@@ -1797,14 +1810,14 @@ extension SourceKitServer {
     moduleName: String,
     symbolUSR: String?,
     languageService: ToolchainLanguageServer
-  ) async throws -> LocationsOrLocationLinksResponse? {
+  ) async throws -> Location {
     let openInterface = OpenInterfaceRequest(textDocument: req.textDocument, name: moduleName, symbolUSR: symbolUSR)
     guard let interfaceDetails = try await languageService.openInterface(openInterface) else {
       throw ResponseError.unknown("Could not generate Swift Interface for \(moduleName)")
     }
     let position = interfaceDetails.position ?? Position(line: 0, utf16index: 0)
     let loc = Location(uri: interfaceDetails.uri, range: Range(position))
-    return .locations([loc])
+    return loc
   }
 
   func implementation(
@@ -1818,16 +1831,18 @@ extension SourceKitServer {
         position: req.position
       )
     )
-    let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
-    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
-      var occurs = index.occurrences(ofUSR: usr, roles: .baseOf)
-      if occurs.isEmpty {
-        occurs = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
-      }
-      return occurs
+    guard let symbol = symbols.first,
+      let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
+    else {
+      return nil
+    }
+    guard let usr = symbol.usr else { return nil }
+    var occurrances = index.occurrences(ofUSR: usr, roles: .baseOf)
+    if occurrances.isEmpty {
+      occurrances = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
     }
 
-    return .locations(extractedResult.map(\.location))
+    return .locations(occurrances.compactMap { indexToLSPLocation($0.location) })
   }
 
   func references(
@@ -1841,17 +1856,17 @@ extension SourceKitServer {
         position: req.position
       )
     )
-    let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
-    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
-      logger.info("performing indexed jump-to-def with usr \(usr)")
-      var roles: SymbolRole = [.reference]
-      if req.context.includeDeclaration {
-        roles.formUnion([.declaration, .definition])
-      }
-      return index.occurrences(ofUSR: usr, roles: roles)
+    guard let symbol = symbols.first, let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
+    else {
+      return []
     }
-
-    return extractedResult.map(\.location)
+    guard let usr = symbol.usr else { return [] }
+    logger.info("performing indexed jump-to-def with usr \(usr)")
+    var roles: SymbolRole = [.reference]
+    if req.context.includeDeclaration {
+      roles.formUnion([.declaration, .definition])
+    }
+    return index.occurrences(ofUSR: usr, roles: roles).compactMap { indexToLSPLocation($0.location) }
   }
 
   private func indexToLSPCallHierarchyItem(
@@ -1886,22 +1901,23 @@ extension SourceKitServer {
         position: req.position
       )
     )
-    let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
+    guard let symbol = symbols.first, let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
+    else {
+      return nil
+    }
     // For call hierarchy preparation we only locate the definition
-    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
-      index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
-    }
-    return extractedResult.compactMap { info -> CallHierarchyItem? in
-      guard let occurrence = info.occurrence else {
-        return nil
+    guard let usr = symbol.usr else { return nil }
+    return index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
+      .compactMap { info -> CallHierarchyItem? in
+        guard let location = indexToLSPLocation(info.location) else {
+          return nil
+        }
+        return self.indexToLSPCallHierarchyItem(
+          symbol: info.symbol,
+          moduleName: info.location.moduleName,
+          location: location
+        )
       }
-      let symbol = occurrence.symbol
-      return self.indexToLSPCallHierarchyItem(
-        symbol: symbol,
-        moduleName: occurrence.location.moduleName,
-        location: info.location
-      )
-    }
   }
 
   /// Extracts our implementation-specific data about a call hierarchy
@@ -2042,24 +2058,25 @@ extension SourceKitServer {
         position: req.position
       )
     )
+    guard let symbol = symbols.first else {
+      return nil
+    }
     guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
-      return []
+      return nil
     }
-    let extractedResult = self.extractIndexedOccurrences(symbols: symbols, index: index) { (usr, index) in
-      index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
-    }
-    return extractedResult.compactMap { info -> TypeHierarchyItem? in
-      guard let occurrence = info.occurrence else {
-        return nil
+    guard let usr = symbol.usr else { return nil }
+    return index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
+      .compactMap { info -> TypeHierarchyItem? in
+        guard let location = indexToLSPLocation(info.location) else {
+          return nil
+        }
+        return self.indexToLSPTypeHierarchyItem(
+          symbol: info.symbol,
+          moduleName: info.location.moduleName,
+          location: location,
+          index: index
+        )
       }
-      let symbol = occurrence.symbol
-      return self.indexToLSPTypeHierarchyItem(
-        symbol: symbol,
-        moduleName: occurrence.location.moduleName,
-        location: info.location,
-        index: index
-      )
-    }
   }
 
   /// Extracts our implementation-specific data about a type hierarchy
@@ -2248,4 +2265,18 @@ fileprivate struct DocumentNotificationRequestQueue {
     }
     queue = []
   }
+}
+
+/// Returns the USRs of the subtypes of `usrs` as well as their subtypes, transitively.
+fileprivate func transitiveSubtypeClosure(ofUsrs usrs: [String], index: IndexStoreDB) -> [String] {
+  var result: [String] = []
+  for usr in usrs {
+    result.append(usr)
+    let directSubtypes = index.occurrences(ofUSR: usr, roles: .baseOf).flatMap { occurance in
+      occurance.relations.filter { $0.roles.contains(.baseOf) }.map(\.symbol.usr)
+    }
+    let transitiveSubtypes = transitiveSubtypeClosure(ofUsrs: directSubtypes, index: index)
+    result += transitiveSubtypes
+  }
+  return result
 }

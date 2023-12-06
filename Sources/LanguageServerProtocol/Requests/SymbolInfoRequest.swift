@@ -81,17 +81,52 @@ public struct SymbolDetails: ResponseType, Hashable {
   /// The kind of the symbol
   public var kind: SymbolKind?
 
+  /// Whether the symbol is a dynamic call for which it isn't known which method will be invoked at runtime. This is
+  /// the case for protocol methods and class functions.
+  ///
+  /// Optional because `clangd` does not return whether a symbol is dynamic.
+  public var isDynamic: Bool?
+
+  /// If the symbol is dynamic, the USRs of the types that might be called.
+  ///
+  /// This is relevant in the following cases
+  /// ```swift
+  /// class A {
+  ///   func doThing() {}
+  /// }
+  /// class B: A {}
+  /// class C: B {
+  ///   override func doThing() {}
+  /// }
+  /// class D: A {
+  ///   override func doThing() {}
+  /// }
+  /// func test(value: B) {
+  ///   value.doThing()
+  /// }
+  /// ```
+  ///
+  /// The USR of the called function in `value.doThing` is `A.doThing` (or its
+  /// mangled form) but it can never call `D.doThing`. In this case, the
+  /// receiver USR would be `B`, indicating that only overrides of subtypes in
+  /// `B` may be called dynamically.
+  public var receiverUsrs: [String]?
+
   public init(
     name: String?,
-    containerName: String? = nil,
+    containerName: String?,
     usr: String?,
-    bestLocalDeclaration: Location? = nil,
-    kind: SymbolKind? = nil
+    bestLocalDeclaration: Location?,
+    kind: SymbolKind?,
+    isDynamic: Bool?,
+    receiverUsrs: [String]?
   ) {
     self.name = name
     self.containerName = containerName
     self.usr = usr
     self.bestLocalDeclaration = bestLocalDeclaration
     self.kind = kind
+    self.isDynamic = isDynamic
+    self.receiverUsrs = receiverUsrs
   }
 }

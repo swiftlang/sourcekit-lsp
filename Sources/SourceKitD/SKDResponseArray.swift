@@ -55,6 +55,27 @@ public final class SKDResponseArray {
     return true
   }
 
+  public func map<T>(_ transform: (SKDResponseDictionary) -> T) -> [T] {
+    var result: [T] = []
+    result.reserveCapacity(self.count)
+    self.forEach { _, element in
+      result.append(transform(element))
+      return true
+    }
+    return result
+  }
+
+  public func compactMap<T>(_ transform: (SKDResponseDictionary) -> T?) -> [T] {
+    var result: [T] = []
+    self.forEach { _, element in
+      if let transformed = transform(element) {
+        result.append(transformed)
+      }
+      return true
+    }
+    return result
+  }
+
   /// Attempt to access the item at `index` as a string.
   public subscript(index: Int) -> String? {
     if let cstr = sourcekitd.api.variant_array_get_string(array, index) {
