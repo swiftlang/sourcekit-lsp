@@ -86,6 +86,7 @@ add_library(LanguageServerProtocol STATIC
   Requests/WorkspaceSemanticTokensRefreshRequest.swift
   Requests/WorkspaceSymbolResolveRequest.swift
   Requests/WorkspaceSymbolsRequest.swift
+  Requests/WorkspaceTestsRequest.swift
 
   SupportTypes/CallHierarchyItem.swift
   SupportTypes/ClientCapabilities.swift

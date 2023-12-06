@@ -82,6 +82,7 @@ public let builtinRequests: [_RequestType.Type] = [
   WorkspaceSemanticTokensRefreshRequest.self,
   WorkspaceSymbolResolveRequest.self,
   WorkspaceSymbolsRequest.self,
+  WorkspaceTestsRequest.self,
 ]
 
 /// The set of known notifications.

@@ -45,13 +45,15 @@ public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
     var filesByPath: [RelativeFileLocation: String] = [:]
     for (fileLocation, contents) in files {
       let directories =
-        if fileLocation.directories.isEmpty {
-          ["Sources", "MyLibrary"]
-        } else if fileLocation.directories.first != "Sources" {
-          ["Sources"] + fileLocation.directories
-        } else {
+        switch fileLocation.directories.first {
+        case "Sources", "Tests":
           fileLocation.directories
+        case nil:
+          ["Sources", "MyLibrary"]
+        default:
+          ["Sources"] + fileLocation.directories
         }
+
       filesByPath[RelativeFileLocation(directories: directories, fileLocation.fileName)] = contents
     }
     filesByPath["Package.swift"] = manifest
@@ -77,6 +79,7 @@ public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
       swift.path,
       "build",
       "--package-path", path.path,
+      "--build-tests",
       "-Xswiftc", "-index-ignore-system-modules",
       "-Xcc", "-index-ignore-system-symbols",
     ]
