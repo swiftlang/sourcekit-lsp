@@ -177,7 +177,7 @@ struct SourceKitLSP: ParsableCommand {
 
   @Option(
     name: .customLong("workspace-type"),
-    help: "Override default workspace type selection"
+    help: "Override default workspace type selection; one of 'swiftpm', 'compdb', or 'buildserver'"
   )
   var workspaceType: WorkspaceType?
 
