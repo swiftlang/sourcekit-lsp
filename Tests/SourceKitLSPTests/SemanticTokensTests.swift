@@ -430,7 +430,7 @@ final class SemanticTokensTests: XCTestCase {
       [
         Token(line: 0, utf16index: 0, length: 4, kind: .keyword),
         Token(line: 0, utf16index: 5, length: 1, kind: .identifier),
-        Token(line: 0, utf16index: 7, length: 1, kind: .identifier),
+        Token(line: 0, utf16index: 7, length: 1, kind: .function),
         Token(line: 0, utf16index: 10, length: 3, kind: .struct, modifiers: .defaultLibrary),
         Token(line: 0, utf16index: 17, length: 1, kind: .identifier),
         Token(line: 0, utf16index: 20, length: 6, kind: .struct, modifiers: .defaultLibrary),
@@ -833,10 +833,49 @@ final class SemanticTokensTests: XCTestCase {
         Token(line: 2, utf16index: 7, length: 8, kind: .identifier),
         Token(line: 4, utf16index: 0, length: 4, kind: .keyword),
         Token(line: 4, utf16index: 5, length: 1, kind: .identifier),
-        Token(line: 5, utf16index: 4, length: 1, kind: .identifier),
+        Token(line: 5, utf16index: 4, length: 1, kind: .function),
         Token(line: 5, utf16index: 7, length: 7, kind: .actor),
-        Token(line: 6, utf16index: 4, length: 1, kind: .identifier),
+        Token(line: 6, utf16index: 4, length: 1, kind: .function),
         Token(line: 6, utf16index: 7, length: 8, kind: .struct),
+      ]
+    )
+  }
+
+  func testArgumentLabels() async throws {
+    let text = """
+      func foo(arg: Int) {}
+      foo(arg: 1)
+      """
+
+    let tokens = try await openAndPerformSemanticTokensRequest(text: text)
+    XCTAssertEqual(
+      tokens,
+      [
+        Token(line: 0, utf16index: 0, length: 4, kind: .keyword),
+        Token(line: 0, utf16index: 5, length: 3, kind: .identifier),
+        Token(line: 0, utf16index: 9, length: 3, kind: .function),
+        Token(line: 0, utf16index: 14, length: 3, kind: .struct, modifiers: .defaultLibrary),
+        Token(line: 1, utf16index: 0, length: 3, kind: .function),
+        Token(line: 1, utf16index: 4, length: 3, kind: .function),
+        Token(line: 1, utf16index: 9, length: 1, kind: .number),
+      ]
+    )
+  }
+
+  func testFunctionDeclarationWithFirstAndSecondName() async throws {
+    let text = """
+      func foo(arg internalName: Int) {}
+      """
+
+    let tokens = try await openAndPerformSemanticTokensRequest(text: text)
+    XCTAssertEqual(
+      tokens,
+      [
+        Token(line: 0, utf16index: 0, length: 4, kind: .keyword),
+        Token(line: 0, utf16index: 5, length: 3, kind: .identifier),
+        Token(line: 0, utf16index: 9, length: 3, kind: .function),
+        Token(line: 0, utf16index: 13, length: 12, kind: .identifier),
+        Token(line: 0, utf16index: 27, length: 3, kind: .struct, modifiers: .defaultLibrary),
       ]
     )
   }

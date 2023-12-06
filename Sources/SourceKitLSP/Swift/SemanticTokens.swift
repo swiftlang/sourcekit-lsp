@@ -155,6 +155,8 @@ extension SyntaxClassification {
       return (.comment, [])
     case .docLineComment, .docBlockComment:
       return (.comment, .documentation)
+    case .argumentLabel:
+      return (.function, [])
     }
   }
 }
