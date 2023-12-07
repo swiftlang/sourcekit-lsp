@@ -163,7 +163,7 @@ final actor WorkDoneProgressState {
 fileprivate enum TaskMetadata: DependencyTracker {
   /// A task that changes the global configuration of sourcekit-lsp in any way.
   ///
-  /// No other tasks must execute simulateneously with this task since they
+  /// No other tasks must execute simultaneously with this task since they
   /// might be relying on this task to take effect.
   case globalConfigurationChange
 
@@ -336,6 +336,8 @@ fileprivate enum TaskMetadata: DependencyTracker {
       self = .freestanding
     case is WorkspaceSymbolsRequest:
       self = .freestanding
+    case is WorkspaceTestsRequest:
+      self = .freestanding
     default:
       logger.error(
         """
@@ -382,7 +384,7 @@ public actor SourceKitServer {
 
   var languageServices: [LanguageServerType: [ToolchainLanguageServer]] = [:]
 
-  private let documentManager = DocumentManager()
+  let documentManager = DocumentManager()
 
   private var packageLoadingWorkDoneProgress = WorkDoneProgressState(
     "SourceKitLSP.SourceKitServer.reloadPackage",
@@ -398,7 +400,7 @@ public actor SourceKitServer {
   /// Must only be accessed from `queue`.
   private var uriToWorkspaceCache: [DocumentURI: WeakWorkspace] = [:]
 
-  private var workspaces: [Workspace] = [] {
+  private(set) var workspaces: [Workspace] = [] {
     didSet {
       uriToWorkspaceCache = [:]
     }
@@ -837,6 +839,10 @@ extension SourceKitServer: MessageHandler {
       await request.reply { try await shutdown(request.params) }
     case let request as RequestAndReply<WorkspaceSymbolsRequest>:
       await request.reply { try await workspaceSymbols(request.params) }
+    case let request as RequestAndReply<WorkspaceTestsRequest>:
+      await request.reply { try await workspaceTests(request.params) }
+    case let request as RequestAndReply<DocumentTestsRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentTests)
     case let request as RequestAndReply<PollIndexRequest>:
       await request.reply { try await pollIndex(request.params) }
     case let request as RequestAndReply<BarrierRequest>:
@@ -1499,7 +1505,7 @@ extension SourceKitServer {
     guard matching.count >= minWorkspaceSymbolPatternLength else {
       return []
     }
-    var symbolOccurenceResults: [SymbolOccurrence] = []
+    var symbolOccurrenceResults: [SymbolOccurrence] = []
     for workspace in workspaces {
       workspace.index?.forEachCanonicalSymbolOccurrence(
         containing: matching,
@@ -1511,45 +1517,22 @@ extension SourceKitServer {
         guard !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) else {
           return true
         }
-        symbolOccurenceResults.append(symbol)
+        symbolOccurrenceResults.append(symbol)
         // FIXME: Once we have cancellation support, we should fetch all results and take the top
         // `maxWorkspaceSymbolResults` symbols but bail if cancelled.
         //
         // Until then, take the first `maxWorkspaceSymbolResults` symbols to limit the impact of
         // queries which match many symbols.
-        return symbolOccurenceResults.count < maxWorkspaceSymbolResults
+        return symbolOccurrenceResults.count < maxWorkspaceSymbolResults
       }
     }
-    return symbolOccurenceResults
+    return symbolOccurrenceResults
   }
 
   /// Handle a workspace/symbol request, returning the SymbolInformation.
   /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
   func workspaceSymbols(_ req: WorkspaceSymbolsRequest) async throws -> [WorkspaceSymbolItem]? {
-    let symbols = findWorkspaceSymbols(
-      matching: req.query
-    ).map({ symbolOccurrence -> WorkspaceSymbolItem in
-      let symbolPosition = Position(
-        line: symbolOccurrence.location.line - 1,  // 1-based -> 0-based
-        // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
-        utf16index: symbolOccurrence.location.utf8Column - 1
-      )
-
-      let symbolLocation = Location(
-        uri: DocumentURI(URL(fileURLWithPath: symbolOccurrence.location.path)),
-        range: Range(symbolPosition)
-      )
-
-      return .symbolInformation(
-        SymbolInformation(
-          name: symbolOccurrence.symbol.name,
-          kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
-          deprecated: nil,
-          location: symbolLocation,
-          containerName: symbolOccurrence.getContainerName()
-        )
-      )
-    })
+    let symbols = findWorkspaceSymbols(matching: req.query).map(WorkspaceSymbolItem.init)
     return symbols
   }
 
@@ -2293,4 +2276,29 @@ fileprivate func transitiveSubtypeClosure(ofUsrs usrs: [String], index: IndexSto
     result += transitiveSubtypes
   }
   return result
+}
+
+extension WorkspaceSymbolItem {
+  init(_ symbolOccurrence: SymbolOccurrence) {
+    let symbolPosition = Position(
+      line: symbolOccurrence.location.line - 1,  // 1-based -> 0-based
+      // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+      utf16index: symbolOccurrence.location.utf8Column - 1
+    )
+
+    let symbolLocation = Location(
+      uri: DocumentURI(URL(fileURLWithPath: symbolOccurrence.location.path)),
+      range: Range(symbolPosition)
+    )
+
+    self = .symbolInformation(
+      SymbolInformation(
+        name: symbolOccurrence.symbol.name,
+        kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
+        deprecated: nil,
+        location: symbolLocation,
+        containerName: symbolOccurrence.getContainerName()
+      )
+    )
+  }
 }
