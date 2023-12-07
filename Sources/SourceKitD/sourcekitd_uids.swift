@@ -37,12 +37,13 @@ public struct sourcekitd_keys {
   public let endline: sourcekitd_uid_t
   public let expression_length: sourcekitd_uid_t
   public let expression_offset: sourcekitd_uid_t
-  public let expression_type: sourcekitd_uid_t
   public let expression_type_list: sourcekitd_uid_t
+  public let expression_type: sourcekitd_uid_t
   public let filepath: sourcekitd_uid_t
   public let fixits: sourcekitd_uid_t
   public let groupname: sourcekitd_uid_t
   public let id: sourcekitd_uid_t
+  public let includeNonEditableBaseNames: sourcekitd_uid_t
   public let is_system: sourcekitd_uid_t
   public let isDynamic: sourcekitd_uid_t
   public let kind: sourcekitd_uid_t
@@ -52,6 +53,7 @@ public struct sourcekitd_keys {
   public let name: sourcekitd_uid_t
   public let namelength: sourcekitd_uid_t
   public let nameoffset: sourcekitd_uid_t
+  public let nameType: sourcekitd_uid_t
   public let not_recommended: sourcekitd_uid_t
   public let notification: sourcekitd_uid_t
   public let num_bytes_to_erase: sourcekitd_uid_t
@@ -68,17 +70,21 @@ public struct sourcekitd_keys {
   public let sourcetext: sourcekitd_uid_t
   public let substructure: sourcekitd_uid_t
   public let syntactic_only: sourcekitd_uid_t
+  public let syntacticRenameCall: sourcekitd_uid_t
+  public let syntacticRenameDefinition: sourcekitd_uid_t
+  public let syntacticRenameReference: sourcekitd_uid_t
+  public let syntacticRenameUnknown: sourcekitd_uid_t
   public let syntaxmap: sourcekitd_uid_t
   public let synthesizedextensions: sourcekitd_uid_t
   public let enablesyntaxmap: sourcekitd_uid_t
   public let text: sourcekitd_uid_t
   public let typename: sourcekitd_uid_t
   public let usr: sourcekitd_uid_t
-  public let variable_offset: sourcekitd_uid_t
   public let variable_length: sourcekitd_uid_t
-  public let variable_type: sourcekitd_uid_t
+  public let variable_offset: sourcekitd_uid_t
   public let variable_type_explicit: sourcekitd_uid_t
   public let variable_type_list: sourcekitd_uid_t
+  public let variable_type: sourcekitd_uid_t
 
   // Code Completion options.
   public let codecomplete_options: sourcekitd_uid_t
@@ -113,6 +119,7 @@ public struct sourcekitd_keys {
     doc_full_as_xml = api.uid_get_from_cstr("key.doc.full_as_xml")!
     edits = api.uid_get_from_cstr("key.edits")!
     educational_note_paths = api.uid_get_from_cstr("key.educational_note_paths")!
+    enablesyntaxmap = api.uid_get_from_cstr("key.enablesyntaxmap")!
     endcolumn = api.uid_get_from_cstr("key.endcolumn")!
     endline = api.uid_get_from_cstr("key.endline")!
     expression_length = api.uid_get_from_cstr("key.expression_length")!
@@ -123,6 +130,7 @@ public struct sourcekitd_keys {
     fixits = api.uid_get_from_cstr("key.fixits")!
     groupname = api.uid_get_from_cstr("key.groupname")!
     id = api.uid_get_from_cstr("key.id")!
+    includeNonEditableBaseNames = api.uid_get_from_cstr("key.include_non_editable_base_names")!
     is_system = api.uid_get_from_cstr("key.is_system")!
     isDynamic = api.uid_get_from_cstr("key.is_dynamic")!
     kind = api.uid_get_from_cstr("key.kind")!
@@ -132,6 +140,7 @@ public struct sourcekitd_keys {
     name = api.uid_get_from_cstr("key.name")!
     namelength = api.uid_get_from_cstr("key.namelength")!
     nameoffset = api.uid_get_from_cstr("key.nameoffset")!
+    nameType = api.uid_get_from_cstr("key.nametype")!
     not_recommended = api.uid_get_from_cstr("key.not_recommended")!
     notification = api.uid_get_from_cstr("key.notification")!
     num_bytes_to_erase = api.uid_get_from_cstr("key.num_bytes_to_erase")!
@@ -148,14 +157,17 @@ public struct sourcekitd_keys {
     sourcetext = api.uid_get_from_cstr("key.sourcetext")!
     substructure = api.uid_get_from_cstr("key.substructure")!
     syntactic_only = api.uid_get_from_cstr("key.syntactic_only")!
+    syntacticRenameCall = api.uid_get_from_cstr("source.syntacticrename.call")!
+    syntacticRenameDefinition = api.uid_get_from_cstr("source.syntacticrename.definition")!
+    syntacticRenameReference = api.uid_get_from_cstr("source.syntacticrename.reference")!
+    syntacticRenameUnknown = api.uid_get_from_cstr("source.syntacticrename.unknown")!
     syntaxmap = api.uid_get_from_cstr("key.syntaxmap")!
-    enablesyntaxmap = api.uid_get_from_cstr("key.enablesyntaxmap")!
     synthesizedextensions = api.uid_get_from_cstr("key.synthesizedextensions")!
     text = api.uid_get_from_cstr("key.text")!
     typename = api.uid_get_from_cstr("key.typename")!
     usr = api.uid_get_from_cstr("key.usr")!
-    variable_offset = api.uid_get_from_cstr("key.variable_offset")!
     variable_length = api.uid_get_from_cstr("key.variable_length")!
+    variable_offset = api.uid_get_from_cstr("key.variable_offset")!
     variable_type = api.uid_get_from_cstr("key.variable_type")!
     variable_type_explicit = api.uid_get_from_cstr("key.variable_type_explicit")!
     variable_type_list = api.uid_get_from_cstr("key.variable_type_list")!
