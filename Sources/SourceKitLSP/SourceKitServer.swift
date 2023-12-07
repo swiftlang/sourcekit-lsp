@@ -1718,8 +1718,14 @@ extension SourceKitServer {
       return []
     }
 
-    if let bestLocalDeclaration = symbol.bestLocalDeclaration, !(symbol.isDynamic ?? true) {
-      // If we have a known non-dynamic symbol, we don't need to do an index lookup
+    if let bestLocalDeclaration = symbol.bestLocalDeclaration,
+      !(symbol.isDynamic ?? true),
+      symbol.usr?.hasPrefix("s:") ?? false /* Swift symbols have USRs starting with s: */
+    {
+      // If we have a known non-dynamic symbol within Swift, we don't need to do an index lookup.
+      // For non-Swift symbols, we need to perform an index lookup because the best local declaration will point to
+      // a header file but jump-to-definition should prefer the implementation (there's the declaration request to jump
+      // to the function's declaration).
       return [bestLocalDeclaration]
     }
 
@@ -1735,7 +1741,11 @@ extension SourceKitServer {
     }
 
     guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
-      return []
+      if let bestLocalDeclaration = symbol.bestLocalDeclaration {
+        return [bestLocalDeclaration]
+      } else {
+        return []
+      }
     }
     guard let usr = symbol.usr else { return [] }
     logger.info("performing indexed jump-to-def with usr \(usr)")
@@ -1769,6 +1779,10 @@ extension SourceKitServer {
           })
         }
       }
+    }
+
+    if occurrences.isEmpty, let bestLocalDeclaration = symbol.bestLocalDeclaration {
+      return [bestLocalDeclaration]
     }
 
     return try await occurrences.asyncCompactMap { occurrence in
