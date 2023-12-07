@@ -449,7 +449,7 @@ extension SwiftPMWorkspace {
     }
     args += ["-c"]
     args += td.sources.map { $0.pathString }
-    args += ["-I", buildPath.pathString]
+    args += ["-I", td.moduleOutputPath.parentDirectory.pathString]
     args += try td.compileArguments()
 
     return FileBuildSettings(
