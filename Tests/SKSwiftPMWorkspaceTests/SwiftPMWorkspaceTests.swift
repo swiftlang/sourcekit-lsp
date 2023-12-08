@@ -159,7 +159,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       check("-target", hostTriple.tripleString, arguments: arguments)
       #endif
 
-      check("-I", build.appending(component: "Modules").pathString, arguments: arguments)
+      check("-I", build.pathString, arguments: arguments)
 
       check(aswift.pathString, arguments: arguments)
     }
