@@ -32,7 +32,7 @@ private func apply(edits: [TextEdit], to source: String) -> String {
   return lineTable.content
 }
 
-private func assertRename(
+private func assertSingleFileRename(
   _ markedSource: String,
   newName: String,
   expected: String,
@@ -57,7 +57,7 @@ private func assertRename(
 
 final class RenameTests: XCTestCase {
   func testRenameVariableBaseName() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       let 1️⃣foo = 1
       print(foo)
@@ -71,7 +71,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameFunctionBaseName() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo() {}
       foo()
@@ -85,7 +85,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameFunctionParameter() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(x: Int) {}
       foo(x: 1)
@@ -99,7 +99,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testSecondParameterNameIfMatches() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(x y: Int) {}
       foo(x: 1)
@@ -113,7 +113,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testIntroduceLabel() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(_ y: Int) {}
       foo(1)
@@ -127,7 +127,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRemoveLabel() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(x: Int) {}
       foo(x: 1)
@@ -141,7 +141,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRemoveLabelWithExistingInternalName() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(x a: Int) {}
       foo(x: 1)
@@ -155,7 +155,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameSubscript() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       struct Foo {
         1️⃣subscript(x x: Int) -> Int { x }
@@ -173,7 +173,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRemoveExternalLabelFromSubscript() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       struct Foo {
         1️⃣subscript(x x: Int) -> Int { x }
@@ -191,7 +191,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testIntroduceExternalLabelFromSubscript() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       struct Foo {
         1️⃣subscript(x: Int) -> Int { x }
@@ -209,7 +209,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testIgnoreRenameSubscriptBaseName() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       struct Foo {
         1️⃣subscript(x: Int) -> Int { x }
@@ -227,7 +227,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameInitializerLabels() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       struct Foo {
         1️⃣init(x: Int) {}
@@ -245,7 +245,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testIgnoreRenameOfInitBaseName() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       struct Foo {
         1️⃣init(x: Int) {}
@@ -263,7 +263,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameCompoundFunctionName() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(a: Int) {}
       _ = foo(a:)
@@ -277,7 +277,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRemoveLabelFromCompoundFunctionName() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(a: Int) {}
       _ = foo(a:)
@@ -291,7 +291,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testIntroduceLabelToCompoundFunctionName() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(_ a: Int) {}
       _ = foo(_:)
@@ -305,7 +305,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameFromReference() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func foo(_ a: Int) {}
       _ = 1️⃣foo(_:)
@@ -319,7 +319,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameMultipleParameters() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(a: Int, b: Int) {}
       foo(a: 1, b: 1)
@@ -333,7 +333,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testDontRenameParametersOmittedFromNewName() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(a: Int, b: Int) {}
       foo(a: 1, b: 1)
@@ -347,7 +347,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testIgnoreAdditionalParametersInNewName() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(a: Int) {}
       foo(a: 1)
@@ -361,7 +361,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testOnlySpecifyBaseNameWhenRenamingFunction() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(a: Int) {}
       foo(a: 1)
@@ -375,7 +375,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testIgnoreParametersInNewNameWhenRenamingVariable() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       let 1️⃣foo = 1
       _ = foo
@@ -421,7 +421,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testSpacesInNewParameterNames() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(a: Int) {}
       foo(a: 1)
@@ -435,7 +435,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameOperator() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       struct Foo {}
       func 1️⃣+(x: Foo, y: Foo) {}
@@ -451,7 +451,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameParameterToEmptyName() async throws {
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(x: Int) {}
       foo(x: 1)
@@ -468,7 +468,7 @@ final class RenameTests: XCTestCase {
     #if !canImport(Darwin)
     throw XCTSkip("#selector in test case doesn't compile without Objective-C runtime.")
     #endif
-    try await assertRename(
+    try await assertSingleFileRename(
       """
       import Foundation
       class Foo: NSObject {

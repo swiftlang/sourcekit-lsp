@@ -268,33 +268,47 @@ fileprivate struct SyntacticRenameName {
   }
 }
 
+struct RenameLocation {
+  /// The line of the identifier to be renamed (1-based).
+  let line: Int
+  /// The column of the identifier to be renamed in UTF-8 bytes (1-based).
+  let utf8Column: Int
+  let usage: RelatedIdentifier.Usage
+}
+
+private extension DocumentSnapshot {
+  init(_ url: URL, language: Language) throws {
+    let contents = try String(contentsOf: url)
+    self.init(uri: DocumentURI(url), language: language, version: 0, lineTable: LineTable(contents))
+  }
+}
+
 extension SwiftLanguageServer {
-  /// From a list of rename locations, provided by a related identifiers request, compute the list of
-  /// `SyntacticRenameName`s that define which ranges need to be edited to rename a compound decl name.
+  /// From a list of rename locations compute the list of `SyntacticRenameName`s that define which ranges need to be 
+  /// edited to rename a compound decl name.
+  ///  
+  /// - Parameters:
+  ///   - renameLocations: The locations to rename
+  ///   - oldName: The compound decl name that the declaration had before the rename. Used to verify that the rename 
+  ///     locations match that name. Eg. `myFunc(argLabel:otherLabel:)` or `myVar`
+  ///   - snapshot: If the document has been modified from the on-disk version, the current snapshot. `nil` to read the
+  ///     file contents from disk.
   private func getSyntacticRenameRanges(
-    relatedIdentifiers: RelatedIdentifiersResponse,
+    renameLocations: [RenameLocation],
+    oldName: String,
     in snapshot: DocumentSnapshot
   ) async throws -> [SyntacticRenameName] {
     let locations = SKDRequestArray(sourcekitd: sourcekitd)
-    for relatedIdentifier in relatedIdentifiers.relatedIdentifiers {
-      let position = relatedIdentifier.range.lowerBound
-      guard let utf8Column = snapshot.lineTable.utf8ColumnAt(line: position.line, utf16Column: position.utf16index)
-      else {
-        logger.fault("Unable to find UTF-8 column for \(position.line):\(position.utf16index)")
-        continue
-      }
-      let renameLocation = SKDRequestDictionary(sourcekitd: sourcekitd)
-      renameLocation[keys.line] = position.line + 1
-      renameLocation[keys.column] = utf8Column + 1
-      renameLocation[keys.nameType] = relatedIdentifier.usage.uid(keys: keys)
-      locations.append(renameLocation)
-    }
-    guard let name = relatedIdentifiers.name else {
-      throw ResponseError.unknown("Running sourcekit-lsp with a version of sourcekitd that does not support rename")
+    locations += renameLocations.map { renameLocation in
+      let skRenameLocation = SKDRequestDictionary(sourcekitd: sourcekitd)
+      skRenameLocation[keys.line] = renameLocation.line
+      skRenameLocation[keys.column] = renameLocation.utf8Column
+      skRenameLocation[keys.nameType] = renameLocation.usage.uid(keys: keys)
+      return skRenameLocation
     }
     let renameLocation = SKDRequestDictionary(sourcekitd: sourcekitd)
     renameLocation[keys.locations] = locations
-    renameLocation[keys.name] = name
+    renameLocation[keys.name] = oldName
 
     let renameLocations = SKDRequestArray(sourcekitd: sourcekitd)
     renameLocations.append(renameLocation)
@@ -323,22 +337,38 @@ extension SwiftLanguageServer {
       in: snapshot,
       includeNonEditableBaseNames: true
     )
-
+    guard let oldName = relatedIdentifiers.name else {
+      throw ResponseError.unknown("Running sourcekit-lsp with a version of sourcekitd that does not support rename")
+    }
+    
     try Task.checkCancellation()
 
-    let compoundRenameRanges = try await getSyntacticRenameRanges(relatedIdentifiers: relatedIdentifiers, in: snapshot)
-
-    try Task.checkCancellation()
-
-    let oldName =
-      if let name = relatedIdentifiers.name {
-        try CompoundDeclName(name)
-      } else {
-        throw ResponseError.unknown("Running sourcekit-lsp with a version of sourcekitd that does not support rename")
+    let renameLocations = relatedIdentifiers.relatedIdentifiers.compactMap { (relatedIdentifier) -> RenameLocation? in
+      let position = relatedIdentifier.range.lowerBound
+      guard let utf8Column = snapshot.lineTable.utf8ColumnAt(line: position.line, utf16Column: position.utf16index)
+      else {
+        logger.fault("Unable to find UTF-8 column for \(position.line):\(position.utf16index)")
+        return nil
       }
-    let newName = try CompoundDeclName(request.newName)
+      return RenameLocation(line: position.line + 1, utf8Column: utf8Column + 1, usage: relatedIdentifier.usage)
+    }
+    
+    try Task.checkCancellation()
 
-    let edits = compoundRenameRanges.flatMap { (compoundRenameRange) -> [TextEdit] in
+    let edits = try await renameRanges(from: renameLocations, in: snapshot, oldName: oldName, newName: try CompoundDeclName(request.newName))
+
+    return WorkspaceEdit(changes: [
+      snapshot.uri: edits
+    ])
+  }
+
+  private func renameRanges(from renameLocations: [RenameLocation], in snapshot: DocumentSnapshot, oldName oldNameString: String, newName: CompoundDeclName) async throws -> [TextEdit] {
+    let compoundRenameRanges = try await getSyntacticRenameRanges(renameLocations: renameLocations, oldName: oldNameString, in: snapshot)
+    let oldName = try CompoundDeclName(oldNameString)
+
+    try Task.checkCancellation()
+
+    return compoundRenameRanges.flatMap { (compoundRenameRange) -> [TextEdit] in
       switch compoundRenameRange.category {
       case .unmatched, .mismatch:
         // The location didn't match. Don't rename it
@@ -428,9 +458,6 @@ extension SwiftLanguageServer {
         }
       }
     }
-    return WorkspaceEdit(changes: [
-      snapshot.uri: edits
-    ])
   }
 }
 
