@@ -30,9 +30,6 @@ extension SourceKitServer {
     /// Additional arguments to pass to `clangd` on the command-line.
     public var clangdOptions: [String]
 
-    /// Overrides default workspace type selection.
-    public var workspaceType: WorkspaceType?
-
     /// Additional paths to search for a compilation database, relative to a workspace root.
     public var compilationDatabaseSearchPaths: [RelativePath]
 
@@ -55,7 +52,6 @@ extension SourceKitServer {
     public init(
       buildSetup: BuildSetup = .default,
       clangdOptions: [String] = [],
-      workspaceType: WorkspaceType? = nil,
       compilationDatabaseSearchPaths: [RelativePath] = [],
       indexOptions: IndexOptions = .init(),
       completionOptions: SKCompletionOptions = .init(),
@@ -64,7 +60,6 @@ extension SourceKitServer {
     ) {
       self.buildSetup = buildSetup
       self.clangdOptions = clangdOptions
-      self.workspaceType = workspaceType
       self.compilationDatabaseSearchPaths = compilationDatabaseSearchPaths
       self.indexOptions = indexOptions
       self.completionOptions = completionOptions

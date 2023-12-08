@@ -38,10 +38,6 @@ fileprivate func firstNonNil<T>(
   return try await defaultValue()
 }
 
-public enum WorkspaceType: String {
-  case buildserver, compdb, swiftpm
-}
-
 /// Represents the configuration and state of a project or combination of projects being worked on
 /// together.
 ///
@@ -107,64 +103,45 @@ public final class Workspace {
     capabilityRegistry: CapabilityRegistry,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
-    workspaceType: WorkspaceType?,
     compilationDatabaseSearchPaths: [RelativePath],
     indexOptions: IndexOptions = IndexOptions(),
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
   ) async throws {
     var buildSystem: BuildSystem? = nil
-    if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
-      if let workspaceType = workspaceType {
-        switch workspaceType {
-          case WorkspaceType.swiftpm:
-            if let swiftpm = await SwiftPMWorkspace(
-              url: rootUrl,
-              toolchainRegistry: toolchainRegistry,
-              buildSetup: buildSetup,
-              reloadPackageStatusCallback: reloadPackageStatusCallback
-            ) {
-              buildSystem = swiftpm
-            } else {
-              logger.error(
-                "Could not set up a swiftpm build system for workspace at '\(rootUri.forLogging)'"
-              )
-              buildSystem = nil
-            }
-          case WorkspaceType.buildserver:
-            if let buildServer = await BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
-              buildSystem = buildServer
-            } else {
-              logger.error(
-                "Could not set up a build server build system for workspace at '\(rootUri.forLogging)'"
-              )
-              buildSystem = nil
-            }
-          case WorkspaceType.compdb:
-            if let compdb = CompilationDatabaseBuildSystem(
-              projectRoot: rootPath,
-              searchPaths: compilationDatabaseSearchPaths
-            ) {
-              buildSystem = compdb
-            } else {
-              logger.error(
-                "Could not set up a compilation database build system for workspace at '\(rootUri.forLogging)'"
-              )
-              buildSystem = nil
-            }
-        }
-      } else if let buildServer = await BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup) {
-          buildSystem = buildServer
-      } else if let swiftpm = await SwiftPMWorkspace(
+
+    func buildSwiftPMWorkspace(rootUrl: URL) async -> SwiftPMWorkspace? {
+      return await SwiftPMWorkspace(
         url: rootUrl,
         toolchainRegistry: toolchainRegistry,
         buildSetup: buildSetup,
         reloadPackageStatusCallback: reloadPackageStatusCallback
-      ) {
-        buildSystem = swiftpm
-      } else if let compdb = CompilationDatabaseBuildSystem(
+      )
+    }
+
+    func buildCompDBWorkspace(rootPath: AbsolutePath) -> CompilationDatabaseBuildSystem? {
+      return CompilationDatabaseBuildSystem(
         projectRoot: rootPath,
         searchPaths: compilationDatabaseSearchPaths
-      ) {
+      )
+    }
+
+    func buildBuildServerWorkspace(rootPath: AbsolutePath) async -> BuildServerBuildSystem? {
+      return await BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup)
+    }
+
+    if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
+      if let defaultWorkspaceType = buildSetup.defaultWorkspaceType, let defaultBuildSystem: BuildSystem? =
+        switch defaultWorkspaceType {
+          case .buildserver: await buildBuildServerWorkspace(rootPath: rootPath)
+          case .compdb: buildCompDBWorkspace(rootPath: rootPath)
+          case .swiftpm: await buildSwiftPMWorkspace(rootUrl: rootUrl)
+      } {
+        buildSystem = defaultBuildSystem
+      } else if let buildServer = await buildBuildServerWorkspace(rootPath: rootPath) {
+        buildSystem = buildServer
+      } else if let swiftpm = await buildSwiftPMWorkspace(rootUrl: rootUrl) {
+        buildSystem = swiftpm
+      } else if let compdb = buildCompDBWorkspace(rootPath: rootPath) {
         buildSystem = compdb
       } else {
         logger.error(

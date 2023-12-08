@@ -12,6 +12,7 @@ add_library(SKSupport STATIC
   Random.swift
   Result.swift
   ThreadSafeBox.swift
+  WorkspaceType.swift
 )
 set_target_properties(SKSupport PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})

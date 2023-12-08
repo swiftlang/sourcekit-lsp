@@ -93,9 +93,9 @@ extension SKSupport.BuildConfiguration: @retroactive ExpressibleByArgument {}
 #endif
 
 #if swift(<5.10)
-extension WorkspaceType: ExpressibleByArgument {}
+extension SKSupport.WorkspaceType: ExpressibleByArgument {}
 #else
-extension WorkspaceType: @retroactive ExpressibleByArgument {}
+extension SKSupport.WorkspaceType: @retroactive ExpressibleByArgument {}
 #endif
 
 @main
@@ -176,10 +176,10 @@ struct SourceKitLSP: ParsableCommand {
   var indexPrefixMappings = [PathPrefixMapping]()
 
   @Option(
-    name: .customLong("workspace-type"),
+    name: .customLong("default-workspace-type"),
     help: "Override default workspace type selection; one of 'swiftpm', 'compdb', or 'buildserver'"
   )
-  var workspaceType: WorkspaceType?
+  var defaultWorkspaceType: SKSupport.WorkspaceType?
 
   @Option(
     name: .customLong("compilation-db-search-path"),
@@ -203,13 +203,13 @@ struct SourceKitLSP: ParsableCommand {
     var serverOptions = SourceKitServer.Options()
 
     serverOptions.buildSetup.configuration = buildConfiguration
+    serverOptions.buildSetup.defaultWorkspaceType = defaultWorkspaceType
     serverOptions.buildSetup.path = scratchPath
     serverOptions.buildSetup.flags.cCompilerFlags = buildFlagsCc
     serverOptions.buildSetup.flags.cxxCompilerFlags = buildFlagsCxx
     serverOptions.buildSetup.flags.linkerFlags = buildFlagsLinker
     serverOptions.buildSetup.flags.swiftCompilerFlags = buildFlagsSwift
     serverOptions.clangdOptions = clangdOptions
-    serverOptions.workspaceType = workspaceType
     serverOptions.compilationDatabaseSearchPaths = compilationDatabaseSearchPaths
     serverOptions.indexOptions.indexStorePath = indexStorePath
     serverOptions.indexOptions.indexDatabasePath = indexDatabasePath

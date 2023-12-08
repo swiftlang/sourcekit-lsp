@@ -21,6 +21,7 @@ public struct BuildSetup {
   /// Default configuration
   public static let `default` = BuildSetup(
     configuration: nil,
+    defaultWorkspaceType: nil,
     path: nil,
     flags: BuildFlags()
   )
@@ -28,14 +29,18 @@ public struct BuildSetup {
   /// Build configuration (debug|release).
   public var configuration: BuildConfiguration?
 
+  /// Default workspace type (buildserver|compdb|swiftpm). Overrides workspace type selection logic.
+  public var defaultWorkspaceType: WorkspaceType?
+
   /// Build artifacts directory path. If nil, the build system may choose a default value.
   public var path: AbsolutePath?
 
   /// Additional build flags
   public var flags: BuildFlags
 
-  public init(configuration: BuildConfiguration?, path: AbsolutePath?, flags: BuildFlags) {
+  public init(configuration: BuildConfiguration?, defaultWorkspaceType: WorkspaceType?, path: AbsolutePath?, flags: BuildFlags) {
     self.configuration = configuration
+    self.defaultWorkspaceType = defaultWorkspaceType
     self.path = path
     self.flags = flags
   }
@@ -49,6 +54,7 @@ public struct BuildSetup {
     flags = flags.merging(other.flags)
     return BuildSetup(
       configuration: other.configuration ?? self.configuration,
+      defaultWorkspaceType: other.defaultWorkspaceType ?? self.defaultWorkspaceType,
       path: other.path ?? self.path,
       flags: flags
     )
