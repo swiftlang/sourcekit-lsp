@@ -974,13 +974,13 @@ extension LanguageServerProtocol.BuildConfiguration {
   }
 }
 
-extension LanguageServerProtocol.WorkspaceType {
+private extension LanguageServerProtocol.WorkspaceType {
   /// Convert `LanguageServerProtocol.WorkspaceType` to `SkSupport.WorkspaceType`.
   var workspaceType: SKSupport.WorkspaceType {
     switch self {
-    case .buildserver: return .buildserver
-    case .compdb: return .compdb
-    case .swiftpm: return .swiftpm
+    case .buildServer: return .buildServer
+    case .compilationDatabase: return .compilationDatabase
+    case .swiftPM: return .swiftPM
     }
   }
 }

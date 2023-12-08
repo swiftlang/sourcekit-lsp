@@ -176,8 +176,7 @@ struct SourceKitLSP: ParsableCommand {
   var indexPrefixMappings = [PathPrefixMapping]()
 
   @Option(
-    name: .customLong("default-workspace-type"),
-    help: "Override default workspace type selection; one of 'swiftpm', 'compdb', or 'buildserver'"
+    help: "Override default workspace type selection; one of 'swiftPM', 'compilationDatabase', or 'buildServer'"
   )
   var defaultWorkspaceType: SKSupport.WorkspaceType?
 

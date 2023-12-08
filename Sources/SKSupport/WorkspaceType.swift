@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public enum WorkspaceType: String {
-  case buildserver
-  case compdb
-  case swiftpm
+  case buildServer
+  case compilationDatabase
+  case swiftPM
 }

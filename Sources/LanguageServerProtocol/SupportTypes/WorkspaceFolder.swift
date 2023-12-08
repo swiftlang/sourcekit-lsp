@@ -22,7 +22,7 @@ public enum BuildConfiguration: Hashable, Codable {
 ///
 /// **(LSP Extension)**
 public enum WorkspaceType: Hashable, Codable {
-  case buildserver, compdb, swiftpm
+  case buildServer, compilationDatabase, swiftPM
 }
 
 /// Build settings that should be used for a workspace.
