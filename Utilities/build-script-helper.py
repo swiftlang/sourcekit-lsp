@@ -226,7 +226,15 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
         '--disable-testable-imports',
         '--test-product', 'SourceKitLSPPackageTests'
     ] + swiftpm_args
-    check_call(cmd, additional_env=additional_env, verbose=args.verbose)
+
+    # Try running tests in parallel. If that fails, run tests in serial to get capture more readable output.
+    try:
+        check_call(cmd + ['--parallel'], additional_env=additional_env, verbose=args.verbose)
+    except:
+        print('--- Running tests in parallel failed. Re-running tests serially to capture more actionable output.')
+        check_call(cmd, additional_env=additional_env, verbose=args.verbose)
+        # Return with non-zero exit code even if serial test execution succeeds.
+        raise SystemExit(1)
 
 
 def install_binary(exe: str, source_dir: str, install_dir: str, verbose: bool) -> None:
