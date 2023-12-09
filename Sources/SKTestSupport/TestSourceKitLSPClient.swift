@@ -336,6 +336,11 @@ public struct DocumentPositions {
     }
     return position
   }
+
+  /// Returns all position makers within these `DocumentPositions`.
+  public var allMarkers: [String] {
+    return positions.keys.sorted()
+  }
 }
 
 // MARK: - WeakMessageHelper
