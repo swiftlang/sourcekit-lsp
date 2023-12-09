@@ -109,6 +109,8 @@ public protocol ToolchainLanguageServer: AnyObject {
 
   func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny?
 
+  func rename(_ request: RenameRequest) async throws -> WorkspaceEdit?
+
   /// Crash the language server. Should be used for crash recovery testing only.
   func _crash() async
 }

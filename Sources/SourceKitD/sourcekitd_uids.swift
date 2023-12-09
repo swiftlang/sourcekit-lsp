@@ -17,12 +17,15 @@ public struct sourcekitd_keys {
   public let actionuid: sourcekitd_uid_t
   public let annotated_decl: sourcekitd_uid_t
   public let annotations: sourcekitd_uid_t
+  public let argindex: sourcekitd_uid_t
   public let associated_usrs: sourcekitd_uid_t
   public let bodylength: sourcekitd_uid_t
   public let bodyoffset: sourcekitd_uid_t
   public let cancelOnSubsequentRequest: sourcekitd_uid_t
   public let categories: sourcekitd_uid_t
   public let categorizededits: sourcekitd_uid_t
+  public let categorizedranges: sourcekitd_uid_t
+  public let category: sourcekitd_uid_t
   public let column: sourcekitd_uid_t
   public let compilerargs: sourcekitd_uid_t
   public let context: sourcekitd_uid_t
@@ -33,6 +36,7 @@ public struct sourcekitd_keys {
   public let doc_full_as_xml: sourcekitd_uid_t
   public let edits: sourcekitd_uid_t
   public let educational_note_paths: sourcekitd_uid_t
+  public let enablesyntaxmap: sourcekitd_uid_t
   public let endcolumn: sourcekitd_uid_t
   public let endline: sourcekitd_uid_t
   public let expression_length: sourcekitd_uid_t
@@ -49,6 +53,7 @@ public struct sourcekitd_keys {
   public let kind: sourcekitd_uid_t
   public let length: sourcekitd_uid_t
   public let line: sourcekitd_uid_t
+  public let locations: sourcekitd_uid_t
   public let modulename: sourcekitd_uid_t
   public let name: sourcekitd_uid_t
   public let namelength: sourcekitd_uid_t
@@ -61,11 +66,28 @@ public struct sourcekitd_keys {
   public let ranges: sourcekitd_uid_t
   public let receivers: sourcekitd_uid_t
   public let refactor_actions: sourcekitd_uid_t
+  public let renamelocations: sourcekitd_uid_t
+  public let renameRangeBase: sourcekitd_uid_t
+  public let renameRangeCallArgColon: sourcekitd_uid_t
+  public let renameRangeCallArgCombined: sourcekitd_uid_t
+  public let renameRangeCallArgLabel: sourcekitd_uid_t
+  public let renameRangeDeclArgLabel: sourcekitd_uid_t
+  public let renameRangeKeywordBase: sourcekitd_uid_t
+  public let renameRangeNoncollapsibleParam: sourcekitd_uid_t
+  public let renameRangeParam: sourcekitd_uid_t
+  public let renameRangeSelectorArgLabel: sourcekitd_uid_t
   public let request: sourcekitd_uid_t
   public let results: sourcekitd_uid_t
   public let retrieve_refactor_actions: sourcekitd_uid_t
   public let semantic_tokens: sourcekitd_uid_t
   public let severity: sourcekitd_uid_t
+  public let sourceEditKindActive: sourcekitd_uid_t
+  public let sourceEditKindComment: sourcekitd_uid_t
+  public let sourceEditKindInactive: sourcekitd_uid_t
+  public let sourceEditKindMismatch: sourcekitd_uid_t
+  public let sourceEditKindSelector: sourcekitd_uid_t
+  public let sourceEditKindString: sourcekitd_uid_t
+  public let sourceEditKindUnknown: sourcekitd_uid_t
   public let sourcefile: sourcekitd_uid_t
   public let sourcetext: sourcekitd_uid_t
   public let substructure: sourcekitd_uid_t
@@ -76,7 +98,6 @@ public struct sourcekitd_keys {
   public let syntacticRenameUnknown: sourcekitd_uid_t
   public let syntaxmap: sourcekitd_uid_t
   public let synthesizedextensions: sourcekitd_uid_t
-  public let enablesyntaxmap: sourcekitd_uid_t
   public let text: sourcekitd_uid_t
   public let typename: sourcekitd_uid_t
   public let usr: sourcekitd_uid_t
@@ -103,12 +124,15 @@ public struct sourcekitd_keys {
     actionuid = api.uid_get_from_cstr("key.actionuid")!
     annotated_decl = api.uid_get_from_cstr("key.annotated_decl")!
     annotations = api.uid_get_from_cstr("key.annotations")!
+    argindex = api.uid_get_from_cstr("key.argindex")!
     associated_usrs = api.uid_get_from_cstr("key.associated_usrs")!
     bodylength = api.uid_get_from_cstr("key.bodylength")!
     bodyoffset = api.uid_get_from_cstr("key.bodyoffset")!
     cancelOnSubsequentRequest = api.uid_get_from_cstr("key.cancel_on_subsequent_request")!
     categories = api.uid_get_from_cstr("key.categories")!
+    category = api.uid_get_from_cstr("key.category")!
     categorizededits = api.uid_get_from_cstr("key.categorizededits")!
+    categorizedranges = api.uid_get_from_cstr("key.categorizedranges")!
     column = api.uid_get_from_cstr("key.column")!
     compilerargs = api.uid_get_from_cstr("key.compilerargs")!
     context = api.uid_get_from_cstr("key.context")!
@@ -136,6 +160,7 @@ public struct sourcekitd_keys {
     kind = api.uid_get_from_cstr("key.kind")!
     length = api.uid_get_from_cstr("key.length")!
     line = api.uid_get_from_cstr("key.line")!
+    locations = api.uid_get_from_cstr("key.locations")!
     modulename = api.uid_get_from_cstr("key.modulename")!
     name = api.uid_get_from_cstr("key.name")!
     namelength = api.uid_get_from_cstr("key.namelength")!
@@ -148,11 +173,28 @@ public struct sourcekitd_keys {
     ranges = api.uid_get_from_cstr("key.ranges")!
     receivers = api.uid_get_from_cstr("key.receivers")!
     refactor_actions = api.uid_get_from_cstr("key.refactor_actions")!
+    renamelocations = api.uid_get_from_cstr("key.renamelocations")!
+    renameRangeBase = api.uid_get_from_cstr("source.refactoring.range.kind.basename")!
+    renameRangeCallArgColon = api.uid_get_from_cstr("source.refactoring.range.kind.call-argument-colon")!
+    renameRangeCallArgCombined = api.uid_get_from_cstr("source.refactoring.range.kind.call-argument-combined")!
+    renameRangeCallArgLabel = api.uid_get_from_cstr("source.refactoring.range.kind.call-argument-label")!
+    renameRangeDeclArgLabel = api.uid_get_from_cstr("source.refactoring.range.kind.decl-argument-label")!
+    renameRangeKeywordBase = api.uid_get_from_cstr("source.refactoring.range.kind.keyword-basename")!
+    renameRangeNoncollapsibleParam = api.uid_get_from_cstr("source.refactoring.range.kind.noncollapsible-parameter")!
+    renameRangeParam = api.uid_get_from_cstr("source.refactoring.range.kind.parameter-and-whitespace")!
+    renameRangeSelectorArgLabel = api.uid_get_from_cstr("source.refactoring.range.kind.selector-argument-label")!
     request = api.uid_get_from_cstr("key.request")!
     results = api.uid_get_from_cstr("key.results")!
     retrieve_refactor_actions = api.uid_get_from_cstr("key.retrieve_refactor_actions")!
     semantic_tokens = api.uid_get_from_cstr("key.semantic_tokens")!
     severity = api.uid_get_from_cstr("key.severity")!
+    sourceEditKindActive = api.uid_get_from_cstr("source.edit.kind.active")!
+    sourceEditKindComment = api.uid_get_from_cstr("source.edit.kind.comment")!
+    sourceEditKindInactive = api.uid_get_from_cstr("source.edit.kind.inactive")!
+    sourceEditKindMismatch = api.uid_get_from_cstr("source.edit.kind.mismatch")!
+    sourceEditKindSelector = api.uid_get_from_cstr("source.edit.kind.selector")!
+    sourceEditKindString = api.uid_get_from_cstr("source.edit.kind.string")!
+    sourceEditKindUnknown = api.uid_get_from_cstr("source.edit.kind.unknown")!
     sourcefile = api.uid_get_from_cstr("key.sourcefile")!
     sourcetext = api.uid_get_from_cstr("key.sourcetext")!
     substructure = api.uid_get_from_cstr("key.substructure")!
@@ -204,6 +246,7 @@ public struct sourcekitd_requests {
   public let variable_type: sourcekitd_uid_t
   public let relatedidents: sourcekitd_uid_t
   public let semantic_refactoring: sourcekitd_uid_t
+  public let find_syntactic_rename_ranges: sourcekitd_uid_t
 
   public init(api: sourcekitd_functions_t) {
     crash_exit = api.uid_get_from_cstr("source.request.crash_exit")!
@@ -223,6 +266,7 @@ public struct sourcekitd_requests {
     variable_type = api.uid_get_from_cstr("source.request.variable.type")!
     relatedidents = api.uid_get_from_cstr("source.request.relatedidents")!
     semantic_refactoring = api.uid_get_from_cstr("source.request.semantic.refactoring")!
+    find_syntactic_rename_ranges = api.uid_get_from_cstr("source.request.find-syntactic-rename-ranges")!
   }
 }
 

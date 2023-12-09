@@ -55,6 +55,19 @@ extension RelatedIdentifier.Usage {
       return nil
     }
   }
+
+  func uid(keys: sourcekitd_keys) -> sourcekitd_uid_t {
+    switch self {
+    case .definition:
+      return keys.syntacticRenameDefinition
+    case .reference:
+      return keys.syntacticRenameReference
+    case .call:
+      return keys.syntacticRenameCall
+    case .unknown:
+      return keys.syntacticRenameUnknown
+    }
+  }
 }
 
 struct RelatedIdentifiersResponse {
