@@ -615,49 +615,17 @@ extension SwiftLanguageServer {
   public func documentSymbolHighlight(_ req: DocumentHighlightRequest) async throws -> [DocumentHighlight]? {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 
-    guard let offset = snapshot.utf8Offset(of: req.position) else {
-      logger.error("invalid position \(req.position, privacy: .public)")
-      return nil
+    let relatedIdentifiers = try await self.relatedIdentifiers(
+      at: req.position,
+      in: snapshot,
+      includeNonEditableBaseNames: false
+    )
+    return relatedIdentifiers.relatedIdentifiers.map {
+      DocumentHighlight(
+        range: $0.range,
+        kind: .read  // unknown
+      )
     }
-
-    let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-    skreq[keys.request] = self.requests.relatedidents
-    skreq[keys.cancelOnSubsequentRequest] = 0
-    skreq[keys.offset] = offset
-    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
-
-    // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = await self.buildSettings(for: snapshot.uri) {
-      skreq[keys.compilerargs] = compileCommand.compilerArgs
-    }
-
-    let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
-
-    guard let results: SKDResponseArray = dict[self.keys.results] else {
-      return []
-    }
-
-    try Task.checkCancellation()
-
-    var highlights: [DocumentHighlight] = []
-
-    results.forEach { _, value in
-      if let offset: Int = value[self.keys.offset],
-        let start: Position = snapshot.positionOf(utf8Offset: offset),
-        let length: Int = value[self.keys.length],
-        let end: Position = snapshot.positionOf(utf8Offset: offset + length)
-      {
-        highlights.append(
-          DocumentHighlight(
-            range: start..<end,
-            kind: .read  // unknown
-          )
-        )
-      }
-      return true
-    }
-
-    return highlights
   }
 
   public func foldingRange(_ req: FoldingRangeRequest) async throws -> [FoldingRange]? {

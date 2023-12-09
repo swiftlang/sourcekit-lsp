@@ -23,6 +23,7 @@ target_sources(SourceKitLSP PRIVATE
   Swift/DocumentSymbols.swift
   Swift/EditorPlaceholder.swift
   Swift/OpenInterface.swift
+  Swift/RelatedIdentifiers.swift
   Swift/SemanticRefactorCommand.swift
   Swift/SemanticRefactoring.swift
   Swift/SemanticTokens.swift
