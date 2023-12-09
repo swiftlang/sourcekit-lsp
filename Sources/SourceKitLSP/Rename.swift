@@ -25,18 +25,6 @@ import SourceKitD
 ///  - `foo(_:b:)`
 ///  - `foo` if no argument labels are specified, eg. for a variable.
 fileprivate struct CompoundDeclName {
-  enum CompoundDeclNameParsingError: Error, CustomStringConvertible {
-    case missingClosingParenthesis
-    case closingParenthesisNotAtEnd
-
-    var description: String {
-      switch self {
-      case .missingClosingParenthesis: "Name contains '(' but no matching ')'"
-      case .closingParenthesisNotAtEnd: "Additional text after ')'"
-      }
-    }
-  }
-
   /// The parameter of a compound decl name, which can either be the parameter's name or `_` to indicate that the
   /// parameter is unnamed.
   enum Parameter: Equatable {
@@ -62,7 +50,7 @@ fileprivate struct CompoundDeclName {
   let parameters: [Parameter]
 
   /// Parse a compound decl name into its base names and parameters.
-  init(_ compoundDeclName: String) throws {
+  init(_ compoundDeclName: String) {
     guard let openParen = compoundDeclName.firstIndex(of: "(") else {
       // We don't have a compound name. Everything is the base name
       self.baseName = compoundDeclName
@@ -70,12 +58,7 @@ fileprivate struct CompoundDeclName {
       return
     }
     self.baseName = String(compoundDeclName[..<openParen])
-    guard let closeParen = compoundDeclName.firstIndex(of: ")") else {
-      throw CompoundDeclNameParsingError.missingClosingParenthesis
-    }
-    guard compoundDeclName.index(after: closeParen) == compoundDeclName.endIndex else {
-      throw CompoundDeclNameParsingError.closingParenthesisNotAtEnd
-    }
+    let closeParen = compoundDeclName.firstIndex(of: ")") ?? compoundDeclName.endIndex
     let parametersText = compoundDeclName[compoundDeclName.index(after: openParen)..<closeParen]
     // Split by `:` to get the parameter names. Drop the last element so that we don't have a trailing empty element
     // after the last `:`.
@@ -548,8 +531,8 @@ extension SwiftLanguageServer {
       oldName: oldNameString,
       in: snapshot
     )
-    let oldName = try CompoundDeclName(oldNameString)
-    let newName = try CompoundDeclName(newNameString)
+    let oldName = CompoundDeclName(oldNameString)
+    let newName = CompoundDeclName(newNameString)
 
     try Task.checkCancellation()
 

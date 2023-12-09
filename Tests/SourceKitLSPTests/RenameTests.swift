@@ -366,40 +366,32 @@ final class RenameTests: XCTestCase {
     )
   }
 
-  func testErrorIfNewNameDoesntContainClosingParenthesis() async throws {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
-    let positions = testClient.openDocument(
+  func testNewNameDoesntContainClosingParenthesis() async throws {
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(a: Int) {}
       2️⃣foo(a: 1)
       """,
-      uri: uri
+      newName: "bar(x:",
+      expected: """
+        func bar(x: Int) {}
+        bar(x: 1)
+        """
     )
-    let request = RenameRequest(
-      textDocument: TextDocumentIdentifier(uri),
-      position: positions["1️⃣"],
-      newName: "bar(x:"
-    )
-    await assertThrowsError(try await testClient.send(request))
   }
 
-  func testErrorIfNewNameContainsTextAfterParenthesis() async throws {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
-    let positions = testClient.openDocument(
+  func testNewNameContainsTextAfterParenthesis() async throws {
+    try await assertSingleFileRename(
       """
       func 1️⃣foo(a: Int) {}
       2️⃣foo(a: 1)
       """,
-      uri: uri
+      newName: "bar(x:)other:",
+      expected: """
+        func bar(x: Int) {}
+        bar(x: 1)
+        """
     )
-    let request = RenameRequest(
-      textDocument: TextDocumentIdentifier(uri),
-      position: positions["1️⃣"],
-      newName: "bar(x:)other:"
-    )
-    await assertThrowsError(try await testClient.send(request))
   }
 
   func testSpacesInNewParameterNames() async throws {
