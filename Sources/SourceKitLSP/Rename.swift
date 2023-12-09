@@ -40,19 +40,19 @@ fileprivate struct CompoundDeclName {
   /// The parameter of a compound decl name, which can either be the parameter's name or `_` to indicate that the
   /// parameter is unnamed.
   enum Parameter: Equatable {
-    case label(String)
+    case named(String)
     case wildcard
 
     var stringOrWildcard: String {
       switch self {
-      case .label(let str): return str
+      case .named(let str): return str
       case .wildcard: return "_"
       }
     }
 
     var stringOrEmpty: String {
       switch self {
-      case .label(let str): return str
+      case .named(let str): return str
       case .wildcard: return ""
       }
     }
@@ -83,7 +83,7 @@ fileprivate struct CompoundDeclName {
     parameters = parameterStrings.map {
       switch $0 {
       case "", "_": return .wildcard
-      default: return .label(String($0))
+      default: return .named(String($0))
       }
     }
   }
@@ -434,18 +434,19 @@ extension SwiftLanguageServer {
   public func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?, oldName: String?) {
     let snapshot = try self.documentManager.latestSnapshot(request.textDocument.uri)
 
-    let relatedIdentifiers = try await self.relatedIdentifiers(
+    let relatedIdentifiersResponse = try await self.relatedIdentifiers(
       at: request.position,
       in: snapshot,
       includeNonEditableBaseNames: true
     )
-    guard let oldName = relatedIdentifiers.name else {
+    guard let oldName = relatedIdentifiersResponse.name else {
       throw ResponseError.unknown("Running sourcekit-lsp with a version of sourcekitd that does not support rename")
     }
 
     try Task.checkCancellation()
 
-    let renameLocations = relatedIdentifiers.relatedIdentifiers.compactMap { (relatedIdentifier) -> RenameLocation? in
+    let renameLocations = relatedIdentifiersResponse.relatedIdentifiers.compactMap {
+      (relatedIdentifier) -> RenameLocation? in
       let position = relatedIdentifier.range.lowerBound
       guard let utf8Column = snapshot.lineTable.utf8ColumnAt(line: position.line, utf16Column: position.utf16index)
       else {
@@ -471,6 +472,69 @@ extension SwiftLanguageServer {
       .only?.usr
 
     return (edits: WorkspaceEdit(changes: [snapshot.uri: edits]), usr: usr, oldName: oldName)
+  }
+
+  /// Return the edit that needs to be performed for the given syntactic rename piece to rename it from
+  /// `oldParameter` to `newParameter`.
+  /// Returns `nil` if no edit needs to be performed.
+  private func textEdit(
+    for piece: SyntacticRenamePiece,
+    in snapshot: DocumentSnapshot,
+    oldParameter: CompoundDeclName.Parameter,
+    newParameter: CompoundDeclName.Parameter
+  ) -> TextEdit? {
+    switch piece.kind {
+    case .parameterName:
+      if newParameter == .wildcard, piece.range.isEmpty, case .named(let oldParameterName) = oldParameter {
+        // We are changing a named parameter to an unnamed one. If the parameter didn't have an internal parameter
+        // name, we need to transfer the previously external parameter name to be the internal one.
+        // E.g. `func foo(a: Int)` becomes `func foo(_ a: Int)`.
+        return TextEdit(range: piece.range, newText: " " + oldParameterName)
+      }
+      if let original = snapshot.lineTable[piece.range],
+        case .named(let newParameterLabel) = newParameter,
+        newParameterLabel.trimmingCharacters(in: .whitespaces) == original.trimmingCharacters(in: .whitespaces)
+      {
+        // We are changing the external parameter name to be the same one as the internal parameter name. The
+        // internal name is thus no longer needed. Drop it.
+        // Eg. an old declaration `func foo(_ a: Int)` becomes `func foo(a: Int)` when renaming the parameter to `a`
+        return TextEdit(range: piece.range, newText: "")
+      }
+      // In all other cases, don't touch the internal parameter name. It's not part of the public API.
+      return nil
+    case .noncollapsibleParameterName:
+      // Noncollapsible parameter names should never be renamed because they are the same as `parameterName` but
+      // never fall into one of the two categories above.
+      return nil
+    case .declArgumentLabel:
+      if piece.range.isEmpty {
+        // If we are inserting a new external argument label where there wasn't one before, add a space after it to
+        // separate it from the internal name.
+        // E.g. `subscript(a: Int)` becomes `subscript(a a: Int)`.
+        return TextEdit(range: piece.range, newText: newParameter.stringOrWildcard + " ")
+      }
+      // Otherwise, just update the name.
+      return TextEdit(range: piece.range, newText: newParameter.stringOrWildcard)
+    case .callArgumentLabel:
+      // Argument labels of calls are just updated.
+      return TextEdit(range: piece.range, newText: newParameter.stringOrEmpty)
+    case .callArgumentColon:
+      if case .wildcard = newParameter {
+        // If the parameter becomes unnamed, remove the colon after the argument name.
+        return TextEdit(range: piece.range, newText: "")
+      }
+      return nil
+    case .callArgumentCombined:
+      if case .named(let newParameterName) = newParameter {
+        // If an unnamed parameter becomes named, insert the new name and a colon.
+        return TextEdit(range: piece.range, newText: newParameterName + ": ")
+      }
+      return nil
+    case .selectorArgumentLabel:
+      return TextEdit(range: piece.range, newText: newParameter.stringOrWildcard)
+    case .baseName, .keywordBaseName:
+      preconditionFailure("Handled above")
+    }
   }
 
   public func editsToRename(
@@ -520,63 +584,13 @@ extension SwiftLanguageServer {
           // renaming `func foo(a: Int, b: Int)` and the user specified `bar(x:)` as the new name.
           return nil
         }
-        let newParameterName = newName.parameters[parameterIndex]
-        let oldParameterName = oldName.parameters[parameterIndex]
-        switch piece.kind {
-        case .parameterName:
-          if newParameterName == .wildcard, piece.range.isEmpty, case .label(let oldParameterLabel) = oldParameterName {
-            // We are changing a named parameter to an unnamed one. If the parameter didn't have an internal parameter
-            // name, we need to transfer the previously external parameter name to be the internal one.
-            // E.g. `func foo(a: Int)` becomes `func foo(_ a: Int)`.
-            return TextEdit(range: piece.range, newText: " " + oldParameterLabel)
-          } else if let original = snapshot.lineTable[piece.range],
-            case .label(let newParameterLabel) = newParameterName,
-            newParameterLabel.trimmingCharacters(in: .whitespaces) == original.trimmingCharacters(in: .whitespaces)
-          {
-            // We are changing the external parameter name to be the same one as the internal parameter name. The
-            // internal name is thus no longer needed. Drop it.
-            // Eg. an old declaration `func foo(_ a: Int)` becomes `func foo(a: Int)` when renaming the parameter to `a`
-            return TextEdit(range: piece.range, newText: "")
-          } else {
-            // In all other cases, don't touch the internal parameter name. It's not part of the public API.
-            return nil
-          }
-        case .noncollapsibleParameterName:
-          // Noncollapsible parameter names should never be renamed because they are the same as `parameterName` but
-          // never fall into one of the two categories above.
-          return nil
-        case .declArgumentLabel:
-          if piece.range.isEmpty {
-            // If we are inserting a new external argument label where there wasn't one before, add a space after it to
-            // separate it from the internal name.
-            // E.g. `subscript(a: Int)` becomes `subscript(a a: Int)`.
-            return TextEdit(range: piece.range, newText: newParameterName.stringOrWildcard + " ")
-          } else {
-            // Otherwise, just update the name.
-            return TextEdit(range: piece.range, newText: newParameterName.stringOrWildcard)
-          }
-        case .callArgumentLabel:
-          // Argument labels of calls are just updated.
-          return TextEdit(range: piece.range, newText: newParameterName.stringOrEmpty)
-        case .callArgumentColon:
-          if case .wildcard = newParameterName {
-            // If the parameter becomes unnamed, remove the colon after the argument name.
-            return TextEdit(range: piece.range, newText: "")
-          } else {
-            return nil
-          }
-        case .callArgumentCombined:
-          if case .label(let newParameterLabel) = newParameterName {
-            // If an unnamed parameter becomes named, insert the new name and a colon.
-            return TextEdit(range: piece.range, newText: newParameterLabel + ": ")
-          } else {
-            return nil
-          }
-        case .selectorArgumentLabel:
-          return TextEdit(range: piece.range, newText: newParameterName.stringOrWildcard)
-        case .baseName, .keywordBaseName:
-          preconditionFailure("Handled above")
-        }
+
+        return self.textEdit(
+          for: piece,
+          in: snapshot,
+          oldParameter: oldName.parameters[parameterIndex],
+          newParameter: newName.parameters[parameterIndex]
+        )
       }
     }
   }
