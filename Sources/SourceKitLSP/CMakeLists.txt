@@ -4,6 +4,7 @@ add_library(SourceKitLSP STATIC
   DocumentManager.swift
   IndexStoreDB+MainFilesProvider.swift
   ResponseError+Init.swift
+  Rename.swift
   Sequence+AsyncMap.swift
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
@@ -25,7 +26,6 @@ target_sources(SourceKitLSP PRIVATE
   Swift/EditorPlaceholder.swift
   Swift/OpenInterface.swift
   Swift/RelatedIdentifiers.swift
-  Swift/Rename.swift
   Swift/SemanticRefactorCommand.swift
   Swift/SemanticRefactoring.swift
   Swift/SemanticTokens.swift

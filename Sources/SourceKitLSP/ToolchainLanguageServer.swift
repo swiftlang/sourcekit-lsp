@@ -24,6 +24,42 @@ public enum LanguageServerState {
   case semanticFunctionalityDisabled
 }
 
+public struct RenameLocation {
+  /// How the identifier at a given location is being used.
+  ///
+  /// This is primarily used to influence how argument labels should be renamed in Swift and if a location should be
+  /// rejected if argument labels don't match.
+  enum Usage {
+    /// The definition of a function/subscript/variable/...
+    case definition
+
+    /// The symbol is being referenced.
+    ///
+    /// This includes
+    ///  - References to variables
+    ///  - Unapplied references to functions (`myStruct.memberFunc`)
+    ///  - Calls to subscripts (`myArray[1]`, location is `[` here, length 1)
+    case reference
+
+    /// A function that is being called.
+    case call
+
+    /// Unknown name usage occurs if we don't have an entry in the index that
+    /// tells us whether the location is a call, reference or a definition. The
+    /// most common reasons why this happens is if the editor is adding syntactic
+    /// results (eg. from comments or string literals).
+    case unknown
+  }
+
+  /// The line of the identifier to be renamed (1-based).
+  let line: Int
+
+  /// The column of the identifier to be renamed in UTF-8 bytes (1-based).
+  let utf8Column: Int
+
+  let usage: Usage
+}
+
 /// A `LanguageServer` that exists within the context of the current process.
 public protocol ToolchainLanguageServer: AnyObject {
 
@@ -105,11 +141,29 @@ public protocol ToolchainLanguageServer: AnyObject {
   func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint]
   func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport
 
+  // MARK: - Rename
+
+  /// Entry point to perform rename.
+  ///
+  /// Rename is implemented as a two-step process:  This function returns all the edits it knows need to be performed.
+  /// For Swift these edits are those within the current file. In addition, it can return a USR + the old name of the
+  /// symbol to be renamed so that `SourceKitServer` can perform an index lookup to discover more locations to rename
+  /// within the entire workspace. `SourceKitServer` will transform those into edits by calling
+  /// `editsToRename(locations:in:oldName:newName:)` on the toolchain server to perform the actual rename.
+  func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?, oldName: String?)
+
+  /// Given a list of `locations``, return the list of edits that need to be performed to rename these occurrences from
+  /// `oldName` to `newName`.
+  func editsToRename(
+    locations renameLocations: [RenameLocation],
+    in snapshot: DocumentSnapshot,
+    oldName: String,
+    newName: String
+  ) async throws -> [TextEdit]
+
   // MARK: - Other
 
   func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny?
-
-  func rename(_ request: RenameRequest) async throws -> WorkspaceEdit?
 
   /// Crash the language server. Should be used for crash recovery testing only.
   func _crash() async

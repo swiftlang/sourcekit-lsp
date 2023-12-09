@@ -597,10 +597,6 @@ extension ClangLanguageServerShim {
   func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     return try await forwardRequestToClangd(req)
   }
-
-  func rename(_ request: RenameRequest) async throws -> WorkspaceEdit? {
-    return try await forwardRequestToClangd(request)
-  }
 }
 
 /// Clang build settings derived from a `FileBuildSettingsChange`.

@@ -10,10 +10,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+import IndexStoreDB
 import LSPLogging
 import LanguageServerProtocol
 import SKSupport
 import SourceKitD
+
+// MARK: - Helper types
 
 /// A parsed representation of a name that may be disambiguated by its argument labels.
 ///
@@ -268,12 +271,15 @@ fileprivate struct SyntacticRenameName {
   }
 }
 
-struct RenameLocation {
-  /// The line of the identifier to be renamed (1-based).
-  let line: Int
-  /// The column of the identifier to be renamed in UTF-8 bytes (1-based).
-  let utf8Column: Int
-  let usage: RelatedIdentifier.Usage
+private extension LineTable {
+  subscript(range: Range<Position>) -> Substring? {
+    guard let start = self.stringIndexOf(line: range.lowerBound.line, utf16Column: range.lowerBound.utf16index),
+      let end = self.stringIndexOf(line: range.upperBound.line, utf16Column: range.upperBound.utf16index)
+    else {
+      return nil
+    }
+    return self.content[start..<end]
+  }
 }
 
 private extension DocumentSnapshot {
@@ -283,16 +289,112 @@ private extension DocumentSnapshot {
   }
 }
 
+private extension RenameLocation.Usage {
+  init(roles: SymbolRole) {
+    if roles.contains(.definition) || roles.contains(.declaration) {
+      self = .definition
+    } else if roles.contains(.call) {
+      self = .call
+    } else {
+      self = .reference
+    }
+  }
+}
+
+// MARK: - SourceKitServer
+
+extension SourceKitServer {
+  func rename(_ request: RenameRequest) async throws -> WorkspaceEdit? {
+    let uri = request.textDocument.uri
+    guard let workspace = await workspaceForDocument(uri: uri) else {
+      throw ResponseError.workspaceNotOpen(uri)
+    }
+    guard let languageService = workspace.documentService[uri] else {
+      return nil
+    }
+
+    // Determine the local edits and the USR to rename
+    let renameResult = try await languageService.rename(request)
+    var edits = renameResult.edits
+    if edits.changes == nil {
+      // Make sure `edits.changes` is non-nil so we can force-unwrap it below.
+      edits.changes = [:]
+    }
+
+    if let usr = renameResult.usr, let oldName = renameResult.oldName, let index = workspace.index {
+      // If we have a USR + old name, perform an index lookup to find workspace-wide symbols to rename.
+      // First, group all occurrences of that USR by the files they occur in.
+      var locationsByFile: [URL: [RenameLocation]] = [:]
+      let occurrences = index.occurrences(ofUSR: usr, roles: [.declaration, .definition, .reference])
+      for occurrence in occurrences {
+        let url = URL(fileURLWithPath: occurrence.location.path)
+        let renameLocation = RenameLocation(
+          line: occurrence.location.line,
+          utf8Column: occurrence.location.utf8Column,
+          usage: RenameLocation.Usage(roles: occurrence.roles)
+        )
+        locationsByFile[url, default: []].append(renameLocation)
+      }
+
+      // Now, call `editsToRename(locations:in:oldName:newName:)` on the language service to convert these ranges into
+      // edits.
+      await withTaskGroup(of: (DocumentURI, [TextEdit])?.self) { taskGroup in
+        for (url, renameLocations) in locationsByFile {
+          let uri = DocumentURI(url)
+          if edits.changes![uri] != nil {
+            // We already have edits for this document provided by the language service, so we don't need to compute 
+            // rename ranges for it.
+            continue
+          }
+          taskGroup.addTask {
+            // Create a document snapshot to operate on. If the document is open, load it from the document manager,
+            // otherwise conjure one from the file on disk. We need the file in memory to perform UTF-8 to UTF-16 column
+            // conversions.
+            // We should technically infer the language for the from-disk snapshot. But `editsToRename` doesn't care
+            // about it, so defaulting to Swift is good enough for now
+            // If we fail to get edits for one file, log an error and continue but don't fail rename completely.
+            guard
+              let snapshot = (try? self.documentManager.latestSnapshot(uri))
+                ?? (try? DocumentSnapshot(url, language: .swift))
+            else {
+              logger.error("Failed to get document snapshot for \(uri.forLogging)")
+              return nil
+            }
+            do {
+              let edits = try await languageService.editsToRename(
+                locations: renameLocations,
+                in: snapshot,
+                oldName: oldName,
+                newName: request.newName
+              )
+              return (uri, edits)
+            } catch {
+              logger.error("Failed to get edits for \(uri.forLogging): \(error.forLogging)")
+              return nil
+            }
+          }
+        }
+        for await case let (uri, textEdits)? in taskGroup where !textEdits.isEmpty {
+          precondition(edits.changes![uri] == nil, "We should create tasks for URIs that already have edits")
+          edits.changes![uri] = textEdits
+        }
+      }
+    }
+    return edits
+  }
+}
+
+// MARK: - Swift
+
 extension SwiftLanguageServer {
-  /// From a list of rename locations compute the list of `SyntacticRenameName`s that define which ranges need to be 
+  /// From a list of rename locations compute the list of `SyntacticRenameName`s that define which ranges need to be
   /// edited to rename a compound decl name.
-  ///  
+  ///
   /// - Parameters:
   ///   - renameLocations: The locations to rename
-  ///   - oldName: The compound decl name that the declaration had before the rename. Used to verify that the rename 
+  ///   - oldName: The compound decl name that the declaration had before the rename. Used to verify that the rename
   ///     locations match that name. Eg. `myFunc(argLabel:otherLabel:)` or `myVar`
-  ///   - snapshot: If the document has been modified from the on-disk version, the current snapshot. `nil` to read the
-  ///     file contents from disk.
+  ///   - snapshot: A `DocumentSnapshot` containing the contents of the file for which to compute the rename ranges.
   private func getSyntacticRenameRanges(
     renameLocations: [RenameLocation],
     oldName: String,
@@ -329,7 +431,7 @@ extension SwiftLanguageServer {
     return categorizedRanges.compactMap { SyntacticRenameName($0, in: snapshot, keys: keys) }
   }
 
-  public func rename(_ request: RenameRequest) async throws -> WorkspaceEdit? {
+  public func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?, oldName: String?) {
     let snapshot = try self.documentManager.latestSnapshot(request.textDocument.uri)
 
     let relatedIdentifiers = try await self.relatedIdentifiers(
@@ -340,7 +442,7 @@ extension SwiftLanguageServer {
     guard let oldName = relatedIdentifiers.name else {
       throw ResponseError.unknown("Running sourcekit-lsp with a version of sourcekitd that does not support rename")
     }
-    
+
     try Task.checkCancellation()
 
     let renameLocations = relatedIdentifiers.relatedIdentifiers.compactMap { (relatedIdentifier) -> RenameLocation? in
@@ -352,19 +454,38 @@ extension SwiftLanguageServer {
       }
       return RenameLocation(line: position.line + 1, utf8Column: utf8Column + 1, usage: relatedIdentifier.usage)
     }
-    
+
     try Task.checkCancellation()
 
-    let edits = try await renameRanges(from: renameLocations, in: snapshot, oldName: oldName, newName: try CompoundDeclName(request.newName))
+    let edits = try await editsToRename(
+      locations: renameLocations,
+      in: snapshot,
+      oldName: oldName,
+      newName: request.newName
+    )
 
-    return WorkspaceEdit(changes: [
-      snapshot.uri: edits
-    ])
+    try Task.checkCancellation()
+
+    let usr =
+      (try? await self.symbolInfo(SymbolInfoRequest(textDocument: request.textDocument, position: request.position)))?
+      .only?.usr
+
+    return (edits: WorkspaceEdit(changes: [snapshot.uri: edits]), usr: usr, oldName: oldName)
   }
 
-  private func renameRanges(from renameLocations: [RenameLocation], in snapshot: DocumentSnapshot, oldName oldNameString: String, newName: CompoundDeclName) async throws -> [TextEdit] {
-    let compoundRenameRanges = try await getSyntacticRenameRanges(renameLocations: renameLocations, oldName: oldNameString, in: snapshot)
+  public func editsToRename(
+    locations renameLocations: [RenameLocation],
+    in snapshot: DocumentSnapshot,
+    oldName oldNameString: String,
+    newName newNameString: String
+  ) async throws -> [TextEdit] {
+    let compoundRenameRanges = try await getSyntacticRenameRanges(
+      renameLocations: renameLocations,
+      oldName: oldNameString,
+      in: snapshot
+    )
     let oldName = try CompoundDeclName(oldNameString)
+    let newName = try CompoundDeclName(newNameString)
 
     try Task.checkCancellation()
 
@@ -461,13 +582,20 @@ extension SwiftLanguageServer {
   }
 }
 
-extension LineTable {
-  subscript(range: Range<Position>) -> Substring? {
-    guard let start = self.stringIndexOf(line: range.lowerBound.line, utf16Column: range.lowerBound.utf16index),
-      let end = self.stringIndexOf(line: range.upperBound.line, utf16Column: range.upperBound.utf16index)
-    else {
-      return nil
-    }
-    return self.content[start..<end]
+// MARK: - Clang
+
+extension ClangLanguageServerShim {
+  func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?, oldName: String?) {
+    let edits = try await forwardRequestToClangd(request)
+    return (edits ?? WorkspaceEdit(), nil, nil)
+  }
+
+  func editsToRename(
+    locations renameLocations: [RenameLocation],
+    in snapshot: DocumentSnapshot,
+    oldName oldNameString: String,
+    newName: String
+  ) async throws -> [TextEdit] {
+    throw ResponseError.internalError("Global rename not implemented for clangd")
   }
 }

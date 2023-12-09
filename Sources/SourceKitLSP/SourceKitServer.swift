@@ -1646,17 +1646,6 @@ extension SourceKitServer {
     return try await languageService.executeCommand(executeCommand)
   }
 
-  func rename(_ request: RenameRequest) async throws -> WorkspaceEdit? {
-    let uri = request.textDocument.uri
-    guard let workspace = await workspaceForDocument(uri: uri) else {
-      throw ResponseError.workspaceNotOpen(uri)
-    }
-    guard let languageService = workspace.documentService[uri] else {
-      return nil
-    }
-    return try await languageService.rename(request)
-  }
-
   func codeAction(
     _ req: CodeActionRequest,
     workspace: Workspace,
