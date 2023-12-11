@@ -1169,6 +1169,7 @@ extension SourceKitServer {
           supportsCodeActions: true
         )
       ),
+      renameProvider: .value(RenameOptions()),
       colorProvider: .bool(true),
       foldingRangeProvider: .bool(!registry.clientHasDynamicFoldingRangeRegistration),
       declarationProvider: .bool(true),

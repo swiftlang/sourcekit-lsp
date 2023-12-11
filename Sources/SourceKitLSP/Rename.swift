@@ -325,7 +325,7 @@ extension SourceKitServer {
         for (url, renameLocations) in locationsByFile {
           let uri = DocumentURI(url)
           if edits.changes![uri] != nil {
-            // We already have edits for this document provided by the language service, so we don't need to compute 
+            // We already have edits for this document provided by the language service, so we don't need to compute
             // rename ranges for it.
             continue
           }
