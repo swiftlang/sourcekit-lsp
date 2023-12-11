@@ -58,6 +58,7 @@ final class FallbackBuildSystemTests: XCTestCase {
 
     let buildSetup = BuildSetup(
       configuration: .debug,
+      defaultWorkspaceType: nil,
       path: nil,
       flags: BuildFlags(swiftCompilerFlags: [
         "-Xfrontend",
@@ -97,6 +98,7 @@ final class FallbackBuildSystemTests: XCTestCase {
 
     let buildSetup = BuildSetup(
       configuration: .debug,
+      defaultWorkspaceType: nil,
       path: nil,
       flags: BuildFlags(swiftCompilerFlags: [
         "-sdk",
@@ -169,6 +171,7 @@ final class FallbackBuildSystemTests: XCTestCase {
 
     let buildSetup = BuildSetup(
       configuration: .debug,
+      defaultWorkspaceType: nil,
       path: nil,
       flags: BuildFlags(cxxCompilerFlags: [
         "-v"
@@ -204,6 +207,7 @@ final class FallbackBuildSystemTests: XCTestCase {
 
     let buildSetup = BuildSetup(
       configuration: .debug,
+      defaultWorkspaceType: nil,
       path: nil,
       flags: BuildFlags(cxxCompilerFlags: [
         "-isysroot",
@@ -254,6 +258,7 @@ final class FallbackBuildSystemTests: XCTestCase {
 
     let buildSetup = BuildSetup(
       configuration: .debug,
+      defaultWorkspaceType: nil,
       path: nil,
       flags: BuildFlags(cCompilerFlags: [
         "-v"
