@@ -132,10 +132,10 @@ public final class Workspace {
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
       let defaultBuildSystem: BuildSystem? =
         switch buildSetup.defaultWorkspaceType {
-          case .buildServer: await buildBuildServerWorkspace(rootPath: rootPath)
-          case .compilationDatabase: buildCompDBWorkspace(rootPath: rootPath)
-          case .swiftPM: await buildSwiftPMWorkspace(rootUrl: rootUrl)
-          case nil: nil
+        case .buildServer: await buildBuildServerWorkspace(rootPath: rootPath)
+        case .compilationDatabase: buildCompDBWorkspace(rootPath: rootPath)
+        case .swiftPM: await buildSwiftPMWorkspace(rootUrl: rootUrl)
+        case nil: nil
         }
       if let defaultBuildSystem {
         buildSystem = defaultBuildSystem

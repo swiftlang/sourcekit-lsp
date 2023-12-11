@@ -38,7 +38,12 @@ public struct BuildSetup {
   /// Additional build flags
   public var flags: BuildFlags
 
-  public init(configuration: BuildConfiguration?, defaultWorkspaceType: WorkspaceType?, path: AbsolutePath?, flags: BuildFlags) {
+  public init(
+    configuration: BuildConfiguration?,
+    defaultWorkspaceType: WorkspaceType?,
+    path: AbsolutePath?,
+    flags: BuildFlags
+  ) {
     self.configuration = configuration
     self.defaultWorkspaceType = defaultWorkspaceType
     self.path = path
