@@ -221,6 +221,7 @@ struct SourceKitLSP: ParsableCommand {
     let realStdoutHandle = FileHandle(fileDescriptor: realStdout, closeOnDealloc: false)
 
     let clientConnection = JSONRPCConnection(
+      name: "client",
       protocol: MessageRegistry.lspProtocol,
       inFD: FileHandle.standardInput,
       outFD: realStdoutHandle,

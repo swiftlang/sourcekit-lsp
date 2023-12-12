@@ -252,6 +252,7 @@ class ConnectionTests: XCTestCase {
       expectation.assertForOverFulfill = true
 
       let conn = JSONRPCConnection(
+        name: "test",
         protocol: MessageRegistry(requests: [], notifications: []),
         inFD: to.fileHandleForReading,
         outFD: from.fileHandleForWriting

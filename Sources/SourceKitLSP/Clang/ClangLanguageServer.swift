@@ -200,6 +200,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     let clangdToUs: Pipe = Pipe()
 
     let connectionToClangd = JSONRPCConnection(
+      name: "clangd",
       protocol: MessageRegistry.lspProtocol,
       inFD: clangdToUs.fileHandleForReading,
       outFD: usToClangd.fileHandleForWriting
@@ -302,6 +303,12 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   ///
   /// We should either handle it ourselves or forward it to the editor.
   nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+    logger.info(
+      """
+      Received notification from clangd:
+      \(params.forLogging)
+      """
+    )
     clangdMessageHandlingQueue.async {
       switch params {
       case let publishDiags as PublishDiagnosticsNotification:
@@ -324,6 +331,12 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
+    logger.info(
+      """
+      Received request from clangd:
+      \(params.forLogging)
+      """
+    )
     clangdMessageHandlingQueue.async {
       guard let sourceKitServer = await self.sourceKitServer else {
         // `SourceKitServer` has been destructed. We are tearing down the language

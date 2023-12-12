@@ -24,6 +24,9 @@ import struct CDispatch.dispatch_fd_t
 /// For example, inside a language server, the `JSONRPCConnection` takes the language service implemenation as its `receiveHandler` and itself provides the client connection for sending notifications and callbacks.
 public final class JSONRPCConnection {
 
+  /// A name of the endpoint for this connection, used for logging, e.g. `clangd`.
+  let name: String
+
   var receiveHandler: MessageHandler? = nil
 
   /// The queue on which we read the data
@@ -66,11 +69,13 @@ public final class JSONRPCConnection {
   var closeHandler: (() async -> Void)? = nil
 
   public init(
+    name: String,
     protocol messageRegistry: MessageRegistry,
     inFD: FileHandle,
     outFD: FileHandle,
     syncRequests: Bool = false
   ) {
+    self.name = name
     #if os(Linux) || os(Android)
     // We receive a `SIGPIPE` if we write to a pipe that points to a crashed process. This in particular happens if the target of a `JSONRPCConnection` has crashed and we try to send it a message.
     // On Darwin, `DispatchIO` ignores `SIGPIPE` for the pipes handled by it, but that features is not available on Linux.
@@ -410,22 +415,36 @@ public final class JSONRPCConnection {
     _nextRequestID += 1
     return .number(_nextRequestID)
   }
-
 }
 
 extension JSONRPCConnection: Connection {
   // MARK: Connection interface
 
   public func send<Notification>(_ notification: Notification) where Notification: NotificationType {
-    guard readyToSend() else { return }
+    guard readyToSend() else {
+      logger.error(
+        """
+        Not sending notification to \(self.name, privacy: .public) because connection is not ready to send
+        \(notification.forLogging)
+        """
+      )
+      return
+    }
+    logger.info(
+      """
+      Sending notification to \(self.name, privacy: .public)
+      \(notification.forLogging)
+      """
+    )
     send { encoder in
       return try encoder.encode(JSONRPCMessage.notification(notification))
     }
   }
 
-  public func send<Request>(_ request: Request, reply: @escaping (LSPResult<Request.Response>) -> Void) -> RequestID
-  where Request: RequestType {
-
+  public func send<Request: RequestType>(
+    _ request: Request,
+    reply: @escaping (LSPResult<Request.Response>) -> Void
+  ) -> RequestID {
     let id: RequestID = self.queue.sync {
       let id = nextRequestID()
 
@@ -439,11 +458,35 @@ extension JSONRPCConnection: Connection {
         responseType: Request.Response.self,
         queue: queue,
         replyHandler: { anyResult in
-          reply(anyResult.map { $0 as! Request.Response })
+          let result = anyResult.map { $0 as! Request.Response }
+          switch result {
+          case .success(let response):
+            logger.info(
+              """
+              Received reply for request \(id, privacy: .public) from \(self.name, privacy: .public)
+              \(response.forLogging)
+              """
+            )
+          case .failure(let error):
+            logger.error(
+              """
+              Received error for request \(id, privacy: .public) from \(self.name, privacy: .public)
+              \(error.forLogging)
+              """
+            )
+          }
+          reply(result)
         }
       )
       return id
     }
+
+    logger.info(
+      """
+      Sending request to \(self.name, privacy: .public) (id: \(id, privacy: .public)):
+      \(request.forLogging)
+      """
+    )
 
     send { encoder in
       return try encoder.encode(JSONRPCMessage.request(request, id: id))

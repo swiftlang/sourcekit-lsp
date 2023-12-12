@@ -6,9 +6,9 @@ add_library(SKSupport STATIC
   ByteString.swift
   Connection+Send.swift
   dlopen.swift
+  DocumentURI+CustomLogStringConvertible.swift
   FileSystem.swift
   LineTable.swift
-  LoggableMessageTypes.swift
   Random.swift
   Result.swift
   ThreadSafeBox.swift
