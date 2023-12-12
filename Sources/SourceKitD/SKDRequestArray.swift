@@ -36,6 +36,10 @@ public final class SKDRequestArray {
   public func append(_ value: String) {
     sourcekitd.api.request_array_set_string(array, -1, value)
   }
+
+  public func append(_ value: SKDRequestDictionary) {
+    sourcekitd.api.request_array_set_value(array, -1, value.dict)
+  }
 }
 
 extension SKDRequestArray: CustomStringConvertible {

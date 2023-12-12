@@ -118,6 +118,10 @@ extension ResponseError {
   public static func unknown(_ message: String) -> ResponseError {
     return ResponseError(code: .unknownErrorCode, message: message)
   }
+
+  public static func internalError(_ message: String) -> ResponseError {
+    return ResponseError(code: .internalError, message: message)
+  }
 }
 
 /// An error during message decoding.

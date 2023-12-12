@@ -166,6 +166,16 @@ extension LineTable {
     return lineAndUTF16ColumnOf(content.utf8.index(content.startIndex, offsetBy: utf8Offset))
   }
 
+  @inlinable func lineAndUTF8ColumnOf(utf8Offset: Int) -> (line: Int, utf8Column: Int)? {
+    guard let (line, utf16Column) = lineAndUTF16ColumnOf(utf8Offset: utf8Offset) else {
+      return nil
+    }
+    guard let utf8Column = utf8ColumnAt(line: line, utf16Column: utf16Column) else {
+      return nil
+    }
+    return (line, utf8Column)
+  }
+
   /// Returns UTF16 column offset at UTF8 version of logical position.
   ///
   /// - parameter line: Line number (zero-based).

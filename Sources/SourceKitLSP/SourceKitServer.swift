@@ -308,6 +308,10 @@ fileprivate enum TaskMetadata: DependencyTracker {
       self = .freestanding
     case is PollIndexRequest:
       self = .globalConfigurationChange
+    case is RenameRequest:
+      // Rename might touch multiple files. Make it a global configuration change so that edits to all files that might
+      // be affected have been processed.
+      self = .globalConfigurationChange
     case is RegisterCapabilityRequest:
       self = .globalConfigurationChange
     case is ShowMessageRequest:
@@ -341,7 +345,7 @@ fileprivate enum TaskMetadata: DependencyTracker {
     default:
       logger.error(
         """
-        Unknown request \(type(of: request)). Treating as a freestanding notification. \
+        Unknown request \(type(of: request)). Treating as a freestanding request. \
         This might lead to out-of-order request handling
         """
       )
@@ -857,6 +861,8 @@ extension SourceKitServer: MessageHandler {
       await request.reply { try await supertypes(request.params) }
     case let request as RequestAndReply<TypeHierarchySubtypesRequest>:
       await request.reply { try await subtypes(request.params) }
+    case let request as RequestAndReply<RenameRequest>:
+      await request.reply { try await rename(request.params) }
     case let request as RequestAndReply<CompletionRequest>:
       await self.handleRequest(for: request, requestHandler: self.completion)
     case let request as RequestAndReply<HoverRequest>:
@@ -1626,6 +1632,17 @@ extension SourceKitServer {
       arguments: req.argumentsWithoutSourceKitMetadata
     )
     return try await languageService.executeCommand(executeCommand)
+  }
+
+  func rename(_ request: RenameRequest) async throws -> WorkspaceEdit? {
+    let uri = request.textDocument.uri
+    guard let workspace = await workspaceForDocument(uri: uri) else {
+      throw ResponseError.workspaceNotOpen(uri)
+    }
+    guard let languageService = workspace.documentService[uri] else {
+      return nil
+    }
+    return try await languageService.rename(request)
   }
 
   func codeAction(
