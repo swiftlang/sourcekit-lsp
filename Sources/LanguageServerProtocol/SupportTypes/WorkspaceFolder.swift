@@ -18,12 +18,22 @@ public enum BuildConfiguration: Hashable, Codable {
   case release
 }
 
+/// The type of workspace; default workspace type selection logic can be overridden.
+///
+/// **(LSP Extension)**
+public enum WorkspaceType: Hashable, Codable {
+  case buildServer, compilationDatabase, swiftPM
+}
+
 /// Build settings that should be used for a workspace.
 ///
 /// **(LSP Extension)**
 public struct WorkspaceBuildSetup: Hashable, Codable {
   /// The configuration that the workspace should be built in.
   public let buildConfiguration: BuildConfiguration?
+
+  /// The default workspace type to use for this workspace.
+  public let defaultWorkspaceType: WorkspaceType?
 
   /// The build directory for the workspace.
   public let scratchPath: DocumentURI?
@@ -42,6 +52,7 @@ public struct WorkspaceBuildSetup: Hashable, Codable {
 
   public init(
     buildConfiguration: BuildConfiguration? = nil,
+    defaultWorkspaceType: WorkspaceType? = nil,
     scratchPath: DocumentURI? = nil,
     cFlags: [String]? = nil,
     cxxFlags: [String]? = nil,
@@ -49,6 +60,7 @@ public struct WorkspaceBuildSetup: Hashable, Codable {
     swiftFlags: [String]? = nil
   ) {
     self.buildConfiguration = buildConfiguration
+    self.defaultWorkspaceType = defaultWorkspaceType
     self.scratchPath = scratchPath
     self.cFlags = cFlags
     self.cxxFlags = cxxFlags

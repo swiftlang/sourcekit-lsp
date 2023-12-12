@@ -92,6 +92,12 @@ extension SKSupport.BuildConfiguration: ExpressibleByArgument {}
 extension SKSupport.BuildConfiguration: @retroactive ExpressibleByArgument {}
 #endif
 
+#if swift(<5.10)
+extension SKSupport.WorkspaceType: ExpressibleByArgument {}
+#else
+extension SKSupport.WorkspaceType: @retroactive ExpressibleByArgument {}
+#endif
+
 @main
 struct SourceKitLSP: ParsableCommand {
   static let configuration = CommandConfiguration(
@@ -170,6 +176,11 @@ struct SourceKitLSP: ParsableCommand {
   var indexPrefixMappings = [PathPrefixMapping]()
 
   @Option(
+    help: "Override default workspace type selection; one of 'swiftPM', 'compilationDatabase', or 'buildServer'"
+  )
+  var defaultWorkspaceType: SKSupport.WorkspaceType?
+
+  @Option(
     name: .customLong("compilation-db-search-path"),
     parsing: .singleValue,
     help:
@@ -191,6 +202,7 @@ struct SourceKitLSP: ParsableCommand {
     var serverOptions = SourceKitServer.Options()
 
     serverOptions.buildSetup.configuration = buildConfiguration
+    serverOptions.buildSetup.defaultWorkspaceType = defaultWorkspaceType
     serverOptions.buildSetup.path = scratchPath
     serverOptions.buildSetup.flags.cCompilerFlags = buildFlagsCc
     serverOptions.buildSetup.flags.cxxCompilerFlags = buildFlagsCxx

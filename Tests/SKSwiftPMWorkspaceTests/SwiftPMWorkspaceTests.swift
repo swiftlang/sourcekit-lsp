@@ -186,6 +186,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let config = BuildSetup(
         configuration: .release,
+        defaultWorkspaceType: nil,
         path: packageRoot.appending(component: "non_default_build_path"),
         flags: BuildFlags(cCompilerFlags: ["-m32"], swiftCompilerFlags: ["-typecheck"])
       )

@@ -986,6 +986,17 @@ extension LanguageServerProtocol.BuildConfiguration {
   }
 }
 
+private extension LanguageServerProtocol.WorkspaceType {
+  /// Convert `LanguageServerProtocol.WorkspaceType` to `SkSupport.WorkspaceType`.
+  var workspaceType: SKSupport.WorkspaceType {
+    switch self {
+    case .buildServer: return .buildServer
+    case .compilationDatabase: return .compilationDatabase
+    case .swiftPM: return .swiftPM
+    }
+  }
+}
+
 // MARK: - Request and notification handling
 
 extension SourceKitServer {
@@ -1003,6 +1014,7 @@ extension SourceKitServer {
     }
     return SKCore.BuildSetup(
       configuration: buildParams?.buildConfiguration?.configuration,
+      defaultWorkspaceType: buildParams?.defaultWorkspaceType?.workspaceType,
       path: scratchPath,
       flags: BuildFlags(
         cCompilerFlags: buildParams?.cFlags ?? [],
