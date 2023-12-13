@@ -23,6 +23,7 @@ target_sources(SourceKitLSP PRIVATE
   Swift/Diagnostic.swift
   Swift/DocumentSymbols.swift
   Swift/EditorPlaceholder.swift
+  Swift/FoldingRange.swift
   Swift/OpenInterface.swift
   Swift/RelatedIdentifiers.swift
   Swift/Rename.swift
