@@ -119,6 +119,11 @@ public struct WillSaveTextDocumentNotification: TextDocumentNotification, Hashab
 
   /// Whether this is user-initiated save, auto-saved, etc.
   public var reason: TextDocumentSaveReason
+
+  public init(textDocument: TextDocumentIdentifier, reason: TextDocumentSaveReason) {
+    self.textDocument = textDocument
+    self.reason = reason
+  }
 }
 
 /// Notification that the given document was saved.
