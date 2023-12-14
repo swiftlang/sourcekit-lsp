@@ -28,6 +28,11 @@ public struct DocumentFormattingRequest: TextDocumentRequest, Hashable {
 
   /// Options to customize the formatting.
   public var options: FormattingOptions
+
+  public init(textDocument: TextDocumentIdentifier, options: FormattingOptions) {
+    self.textDocument = textDocument
+    self.options = options
+  }
 }
 
 /// Request to format a specified range within a document.
@@ -54,6 +59,12 @@ public struct DocumentRangeFormattingRequest: TextDocumentRequest, Hashable {
 
   /// Options to customize the formatting.
   public var options: FormattingOptions
+
+  public init(textDocument: TextDocumentIdentifier, range: Range<Position>, options: FormattingOptions) {
+    self.textDocument = textDocument
+    self.range = range
+    self.options = options
+  }
 }
 
 /// Request to format part of a document during typing.
@@ -87,6 +98,13 @@ public struct DocumentOnTypeFormattingRequest: TextDocumentRequest, Hashable {
 
   /// Options to customize the formatting.
   public var options: FormattingOptions
+
+  public init(textDocument: TextDocumentIdentifier, position: Position, ch: String, options: FormattingOptions) {
+    self.textDocument = textDocument
+    self.position = position
+    self.ch = ch
+    self.options = options
+  }
 }
 
 /// Options to customize how document formatting requests are performed.
@@ -106,4 +124,12 @@ public struct FormattingOptions: Codable, Hashable {
 
   /// Trim all newlines after the final newline at the end of the file.
   public var trimFinalNewlines: Bool?
+
+  public init(tabSize: Int, insertSpaces: Bool, trimTrailingWhitespace: Bool? = nil, insertFinalNewline: Bool? = nil, trimFinalNewlines: Bool? = nil) {
+    self.tabSize = tabSize
+    self.insertSpaces = insertSpaces
+    self.trimTrailingWhitespace = trimTrailingWhitespace
+    self.insertFinalNewline = insertFinalNewline
+    self.trimFinalNewlines = trimFinalNewlines
+  }
 }
