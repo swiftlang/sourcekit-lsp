@@ -513,4 +513,146 @@ final class WorkspaceTests: XCTestCase {
     let diag = try XCTUnwrap(fullReport.items.first)
     XCTAssertEqual(diag.message, "Cannot convert value of type 'String' to specified type 'Int'")
   }
+
+  func testIntegrationTest() async throws {
+    // This test is doing the same as `test-sourcekit-lsp` in the `swift-integration-tests` repo.
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "Sources/clib/include/clib.h": """
+        #ifndef CLIB_H
+        #define CLIB_H
+
+        void clib_func(void);
+        void clib_other(void);
+
+        #endif // CLIB_H
+        """,
+        "Sources/clib/clib.c": """
+        #include "clib.h"
+
+        void 1️⃣clib_func(void) {2️⃣}
+        """,
+        "Sources/exec/main.swift": """
+        import lib
+        import clib
+
+        Lib().3️⃣foo()
+        4️⃣clib_func()
+        """,
+        "Sources/lib/lib.swift": """
+        public struct Lib {
+          public func 5️⃣foo() {}
+          public init() {}
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version:5.5
+        import PackageDescription
+
+        let package = Package(
+          name: "pkg",
+          targets: [
+            .target(name: "exec", dependencies: ["lib", "clib"]),
+            .target(name: "lib", dependencies: []),
+            .target(name: "clib", dependencies: []),
+          ]
+        )
+        """,
+      build: true
+    )
+    let (mainUri, mainPositions) = try ws.openDocument("main.swift")
+    _ = try await ws.testClient.send(PollIndexRequest())
+
+    let fooDefinitionResponse = try await ws.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(mainUri), position: mainPositions["3️⃣"])
+    )
+    XCTAssertEqual(
+      fooDefinitionResponse,
+      .locations([
+        Location(uri: try ws.uri(for: "lib.swift"), range: try Range(ws.position(of: "5️⃣", in: "lib.swift")))
+      ])
+    )
+
+    let clibFuncDefinitionResponse = try await ws.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(mainUri), position: mainPositions["4️⃣"])
+    )
+    XCTAssertEqual(
+      clibFuncDefinitionResponse,
+      .locations([
+        Location(uri: try ws.uri(for: "clib.c"), range: try Range(ws.position(of: "1️⃣", in: "clib.c")))
+      ])
+    )
+
+    let swiftCompletionResponse = try await ws.testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(mainUri), position: mainPositions["3️⃣"])
+    )
+    XCTAssertEqual(
+      swiftCompletionResponse.items,
+      [
+        CompletionItem(
+          label: "foo()",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          filterText: "foo()",
+          insertText: "foo()",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(TextEdit(range: Range(mainPositions["3️⃣"]), newText: "foo()"))
+        ),
+        CompletionItem(
+          label: "self",
+          kind: .keyword,
+          detail: "Lib",
+          deprecated: false,
+          filterText: "self",
+          insertText: "self",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(TextEdit(range: Range(mainPositions["3️⃣"]), newText: "self"))
+        ),
+      ]
+    )
+
+    let (clibcUri, clibcPositions) = try ws.openDocument("clib.c")
+
+    let cCompletionResponse = try await ws.testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(clibcUri), position: clibcPositions["2️⃣"])
+    )
+    XCTAssertEqual(
+      cCompletionResponse.items,
+      [
+        // rdar://73762053: This should also suggest clib_other
+        CompletionItem(
+          label: " clib_func",
+          kind: .text,
+          deprecated: true,
+          sortText: "41b99800clib_func",
+          filterText: "clib_func",
+          insertText: "clib_func",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(TextEdit(range: Range(clibcPositions["2️⃣"]), newText: "clib_func"))
+        ),
+        CompletionItem(
+          label: " include",
+          kind: .text,
+          deprecated: true,
+          sortText: "41d85b70include",
+          filterText: "include",
+          insertText: "include",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(TextEdit(range: Range(clibcPositions["2️⃣"]), newText: "include"))
+        ),
+        CompletionItem(
+          label: " void",
+          kind: .text,
+          deprecated: true,
+          sortText: "41e677bbvoid",
+          filterText: "void",
+          insertText: "void",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(TextEdit(range: Range(clibcPositions["2️⃣"]), newText: "void"))
+        ),
+      ]
+    )
+  }
 }
