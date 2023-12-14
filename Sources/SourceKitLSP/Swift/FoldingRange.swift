@@ -134,6 +134,20 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
     return .visitChildren
   }
 
+  override func visit(_ node: ArrayExprSyntax) -> SyntaxVisitorContinueKind {
+    return self.addFoldingRange(
+      start: node.leftSquare.endPositionBeforeTrailingTrivia.utf8Offset,
+      end: node.rightSquare.positionAfterSkippingLeadingTrivia.utf8Offset
+    )
+  }
+
+  override func visit(_ node: DictionaryExprSyntax) -> SyntaxVisitorContinueKind {
+    return self.addFoldingRange(
+      start: node.leftSquare.endPositionBeforeTrailingTrivia.utf8Offset,
+      end: node.rightSquare.positionAfterSkippingLeadingTrivia.utf8Offset
+    )
+  }
+
   override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
     return self.addFoldingRange(
       start: node.arguments.position.utf8Offset,

@@ -66,7 +66,9 @@ func assertFoldingRanges(
       Expected \(expectedRanges.count) ranges but got \(foldingRanges.count)
 
       \(foldingRanges)
-      """
+      """,
+      file: file,
+      line: line
     )
     return
   }
@@ -258,7 +260,27 @@ final class FoldingRangeTests: XCTestCase {
     )
   }
 
-  func testFoldCollections() {
-    // let testClient
+  func testFoldCollections() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        let x = [1️⃣1, 2, 32️⃣]
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣")
+      ]
+    )
+
+    try await assertFoldingRanges(
+      markedSource: """
+        let x = [1️⃣
+          1: "one", 
+          2: "two", 
+          3: "three"
+        2️⃣]
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣")
+      ]
+    )
   }
 }
