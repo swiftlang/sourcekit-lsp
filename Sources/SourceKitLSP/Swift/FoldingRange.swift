@@ -51,27 +51,27 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
 
   private func addTrivia(from node: TokenSyntax, _ trivia: Trivia) {
     let pieces = trivia.pieces
-    var start = node.position.utf8Offset
+    var start = node.position
     /// The index of the trivia piece we are currently inspecting.
     var index = 0
 
     while index < pieces.count {
       let piece = pieces[index]
       defer {
-        start += pieces[index].sourceLength.utf8Length
+        start = start.advanced(by: pieces[index].sourceLength.utf8Length)
         index += 1
       }
       switch piece {
       case .blockComment:
         _ = self.addFoldingRange(
           start: start,
-          end: start + piece.sourceLength.utf8Length,
+          end: start.advanced(by: piece.sourceLength.utf8Length),
           kind: .comment
         )
       case .docBlockComment:
         _ = self.addFoldingRange(
           start: start,
-          end: start + piece.sourceLength.utf8Length,
+          end: start.advanced(by: piece.sourceLength.utf8Length),
           kind: .comment
         )
       case .lineComment, .docLineComment:
@@ -89,7 +89,7 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
           let piece = pieces[lookaheadIndex]
           defer {
             lookaheadIndex += 1
-            lookaheadStart += piece.sourceLength.utf8Length
+            lookaheadStart = lookaheadStart.advanced(by: piece.sourceLength.utf8Length)
           }
           switch piece {
           case .newlines(let count), .carriageReturns(let count), .carriageReturnLineFeeds(let count):
@@ -115,7 +115,7 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
         }
         _ = self.addFoldingRange(
           start: lineCommentBlockStart,
-          end: start + pieces[index].sourceLength.utf8Length,
+          end: start.advanced(by: pieces[index].sourceLength.utf8Length),
           kind: .comment
         )
       default:
@@ -127,8 +127,8 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
   override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
     if let braced = node.asProtocol(BracedSyntax.self) {
       return self.addFoldingRange(
-        start: braced.leftBrace.endPositionBeforeTrailingTrivia.utf8Offset,
-        end: braced.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset
+        start: braced.leftBrace.endPositionBeforeTrailingTrivia,
+        end: braced.rightBrace.positionAfterSkippingLeadingTrivia
       )
     }
     return .visitChildren
@@ -136,36 +136,45 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
 
   override func visit(_ node: ArrayExprSyntax) -> SyntaxVisitorContinueKind {
     return self.addFoldingRange(
-      start: node.leftSquare.endPositionBeforeTrailingTrivia.utf8Offset,
-      end: node.rightSquare.positionAfterSkippingLeadingTrivia.utf8Offset
+      start: node.leftSquare.endPositionBeforeTrailingTrivia,
+      end: node.rightSquare.positionAfterSkippingLeadingTrivia
     )
   }
 
   override func visit(_ node: DictionaryExprSyntax) -> SyntaxVisitorContinueKind {
     return self.addFoldingRange(
-      start: node.leftSquare.endPositionBeforeTrailingTrivia.utf8Offset,
-      end: node.rightSquare.positionAfterSkippingLeadingTrivia.utf8Offset
+      start: node.leftSquare.endPositionBeforeTrailingTrivia,
+      end: node.rightSquare.positionAfterSkippingLeadingTrivia
     )
   }
 
   override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
-    return self.addFoldingRange(
-      start: node.arguments.position.utf8Offset,
-      end: node.arguments.endPosition.utf8Offset
-    )
+    let start = node.leftParen?.endPositionBeforeTrailingTrivia ?? node.arguments.position
+    let end =
+      if !node.additionalTrailingClosures.isEmpty {
+        node.additionalTrailingClosures.endPositionBeforeTrailingTrivia
+      } else if let trailingClosure = node.trailingClosure {
+        trailingClosure.endPositionBeforeTrailingTrivia
+      } else if let rightParen = node.rightParen {
+        rightParen.positionAfterSkippingLeadingTrivia
+      } else {
+        // Should never happen because the call should have either a trailing closure or a closing ')'
+        node.arguments.endPositionBeforeTrailingTrivia
+      }
+    return self.addFoldingRange(start: start, end: end)
   }
 
   override func visit(_ node: SubscriptCallExprSyntax) -> SyntaxVisitorContinueKind {
     return self.addFoldingRange(
-      start: node.arguments.position.utf8Offset,
-      end: node.arguments.endPosition.utf8Offset
+      start: node.leftSquare.endPositionBeforeTrailingTrivia,
+      end: node.rightSquare.positionAfterSkippingLeadingTrivia
     )
   }
 
   override func visit(_ node: SwitchCaseSyntax) -> SyntaxVisitorContinueKind {
     return self.addFoldingRange(
-      start: node.label.endPositionBeforeTrailingTrivia.utf8Offset,
-      end: node.statements.endPosition.utf8Offset
+      start: node.label.endPositionBeforeTrailingTrivia,
+      end: node.statements.endPosition
     )
   }
 
@@ -173,15 +182,21 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
     return self.ranges
   }
 
-  private func addFoldingRange(start: Int, end: Int, kind: FoldingRangeKind? = nil) -> SyntaxVisitorContinueKind {
+  private func addFoldingRange(
+    start: AbsolutePosition,
+    end: AbsolutePosition,
+    kind: FoldingRangeKind? = nil
+  ) -> SyntaxVisitorContinueKind {
     if let limit = self.rangeLimit, self.ranges.count >= limit {
       return .skipChildren
     }
 
-    guard let start: Position = snapshot.positionOf(utf8Offset: start),
-      let end: Position = snapshot.positionOf(utf8Offset: end)
+    guard let start: Position = snapshot.positionOf(utf8Offset: start.utf8Offset),
+      let end: Position = snapshot.positionOf(utf8Offset: end.utf8Offset)
     else {
-      logger.error("folding range failed to retrieve position of \(self.snapshot.uri.forLogging): \(start)-\(end)")
+      logger.error(
+        "folding range failed to retrieve position of \(self.snapshot.uri.forLogging): \(start.utf8Offset)-\(end.utf8Offset)"
+      )
       return .visitChildren
     }
     let range: FoldingRange
