@@ -22,36 +22,20 @@ public final class LoggingScope {
   }
 }
 
-/// Append `subscope` to the current scope name, if any exists, otherwise return
-/// `subscope`.
-private func newLoggingScopeName(_ subscope: String) -> String {
-  if let existingScope = LoggingScope._scope {
-    return "\(existingScope).\(subscope)"
-  } else {
-    return subscope
-  }
-}
-
-/// Create a new logging scope, which will be used as the category in any log
-/// messages created from the operation.
+/// Create a new logging scope, which will be used as the category in any log messages created from the operation.
 ///
-/// The name of the new scope will be any existing scope with the new scope
-/// appended using a `.`.
-///
-/// For example if we are currently logging scope `handleRequest` and we start a
-/// new scope `sourcekitd`, then the new scope has the name `handleRequest.sourcekitd`.
-///
-/// Because `.` is used to separate scopes and sub-scopes, `subscope` should not
-/// contain any `.`.
+/// This overrides the current logging scope.
 ///
 /// - Note: Since this stores the logging scope in a task-local value, it only
 ///   works when run inside a task. Outside a task, this is a no-op.
+/// - Warning: Be very careful with the dynamic creation of logging scopes. The logging scope is used as the os_log
+///   category, os_log only supports 4000 different loggers and thus at most 4000 different scopes must be used.
 public func withLoggingScope<Result>(
-  _ subscope: String,
+  _ scope: String,
   _ operation: () throws -> Result
 ) rethrows -> Result {
   return try LoggingScope.$_scope.withValue(
-    newLoggingScopeName(subscope),
+    scope,
     operation: operation
   )
 }
@@ -60,11 +44,11 @@ public func withLoggingScope<Result>(
 ///
 /// - SeeAlso: ``withLoggingScope(_:_:)-6qtga``
 public func withLoggingScope<Result>(
-  _ subscope: String,
+  _ scope: String,
   _ operation: () async throws -> Result
 ) async rethrows -> Result {
   return try await LoggingScope.$_scope.withValue(
-    newLoggingScopeName(subscope),
+    scope,
     operation: operation
   )
 }
