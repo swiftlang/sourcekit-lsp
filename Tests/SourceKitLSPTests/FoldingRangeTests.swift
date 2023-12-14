@@ -233,7 +233,7 @@ final class FoldingRangeTests: XCTestCase {
   func testFoldGuardBody() async throws {
     try await assertFoldingRanges(
       markedSource: """
-        guard a > 0 else { 1️⃣return 2️⃣}
+        guard a > 0 else {1️⃣ return 2️⃣}
         """
       ,
       expectedRanges: [

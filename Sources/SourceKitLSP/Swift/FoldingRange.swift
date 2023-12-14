@@ -14,7 +14,7 @@ import LSPLogging
 import LanguageServerProtocol
 import SwiftSyntax
 
-fileprivate final class FoldingRangeFinder: SyntaxVisitor {
+fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
   private let snapshot: DocumentSnapshot
   /// Some ranges might occur multiple times.
   /// E.g. for `print("hi")`, `"hi"` is both the range of all call arguments and the range the first argument in the call.
@@ -124,39 +124,14 @@ fileprivate final class FoldingRangeFinder: SyntaxVisitor {
     }
   }
 
-  override func visit(_ node: CodeBlockSyntax) -> SyntaxVisitorContinueKind {
-    return self.addFoldingRange(
-      start: node.statements.position.utf8Offset,
-      end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset
-    )
-  }
-
-  override func visit(_ node: MemberBlockSyntax) -> SyntaxVisitorContinueKind {
-    return self.addFoldingRange(
-      start: node.members.position.utf8Offset,
-      end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset
-    )
-  }
-
-  override func visit(_ node: ClosureExprSyntax) -> SyntaxVisitorContinueKind {
-    return self.addFoldingRange(
-      start: node.statements.position.utf8Offset,
-      end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset
-    )
-  }
-
-  override func visit(_ node: AccessorBlockSyntax) -> SyntaxVisitorContinueKind {
-    return self.addFoldingRange(
-      start: node.accessors.position.utf8Offset,
-      end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset
-    )
-  }
-
-  override func visit(_ node: SwitchExprSyntax) -> SyntaxVisitorContinueKind {
-    return self.addFoldingRange(
-      start: node.cases.position.utf8Offset,
-      end: node.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset
-    )
+  override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
+    if let braced = node.asProtocol(BracedSyntax.self) {
+      return self.addFoldingRange(
+        start: braced.leftBrace.endPositionBeforeTrailingTrivia.utf8Offset,
+        end: braced.rightBrace.positionAfterSkippingLeadingTrivia.utf8Offset
+      )
+    }
+    return .visitChildren
   }
 
   override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
