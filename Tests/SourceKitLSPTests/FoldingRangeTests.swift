@@ -283,4 +283,24 @@ final class FoldingRangeTests: XCTestCase {
       ]
     )
   }
+
+  func testFoldSwitchCase() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        switch foo {1️⃣
+        case 1:2️⃣
+          break 3️⃣
+        default:4️⃣
+          let x = 1
+          print(5️⃣x6️⃣)7️⃣
+        8️⃣}
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "8️⃣"),
+        FoldingRangeSpec(from: "2️⃣", to: "3️⃣"),
+        FoldingRangeSpec(from: "4️⃣", to: "7️⃣"),
+        FoldingRangeSpec(from: "5️⃣", to: "6️⃣"),
+      ]
+    )
+  }
 }

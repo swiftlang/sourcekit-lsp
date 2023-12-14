@@ -162,6 +162,13 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
     )
   }
 
+  override func visit(_ node: SwitchCaseSyntax) -> SyntaxVisitorContinueKind {
+    return self.addFoldingRange(
+      start: node.label.endPositionBeforeTrailingTrivia.utf8Offset,
+      end: node.statements.endPosition.utf8Offset
+    )
+  }
+
   __consuming func finalize() -> Set<FoldingRange> {
     return self.ranges
   }
