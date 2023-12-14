@@ -317,13 +317,13 @@ final class FoldingRangeTests: XCTestCase {
   func testFoldCallWithTrailingClosure() async throws {
     try await assertFoldingRanges(
       markedSource: """
-        doSomething(1️⃣normalArg: 1) {2️⃣
+        doSomething(1️⃣normalArg: 12️⃣) {3️⃣
           _ = $0
-        3️⃣}4️⃣
+        4️⃣}
         """,
       expectedRanges: [
-        FoldingRangeSpec(from: "1️⃣", to: "4️⃣"),
-        FoldingRangeSpec(from: "2️⃣", to: "3️⃣"),
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣"),
+        FoldingRangeSpec(from: "3️⃣", to: "4️⃣"),
       ]
     )
   }
@@ -331,18 +331,30 @@ final class FoldingRangeTests: XCTestCase {
   func testFoldCallWithMultipleTrailingClosures() async throws {
     try await assertFoldingRanges(
       markedSource: """
-        doSomething(1️⃣normalArg: 1) {2️⃣
+        doSomething(1️⃣normalArg: 12️⃣) {3️⃣
           _ = $0
-        3️⃣}
-        additionalTrailing: {4️⃣
+        4️⃣}
+        additionalTrailing: {5️⃣
           _ = $0
-        5️⃣}6️⃣
+        6️⃣}
         """,
       expectedRanges: [
-        FoldingRangeSpec(from: "1️⃣", to: "6️⃣"),
-        FoldingRangeSpec(from: "2️⃣", to: "3️⃣"),
-        FoldingRangeSpec(from: "4️⃣", to: "5️⃣"),
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣"),
+        FoldingRangeSpec(from: "3️⃣", to: "4️⃣"),
+        FoldingRangeSpec(from: "5️⃣", to: "6️⃣"),
       ]
+    )
+  }
+
+  func testFoldArgumentsOfFunction() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        func foo(1️⃣
+          arg1: Int,
+          arg2: Int
+        2️⃣)
+        """,
+      expectedRanges: [FoldingRangeSpec(from: "1️⃣", to: "2️⃣")]
     )
   }
 }

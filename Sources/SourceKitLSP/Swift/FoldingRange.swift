@@ -131,6 +131,12 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
         end: braced.rightBrace.positionAfterSkippingLeadingTrivia
       )
     }
+    if let parenthesized = node.asProtocol(ParenthesizedSyntax.self) {
+      return self.addFoldingRange(
+        start: parenthesized.leftParen.endPositionBeforeTrailingTrivia,
+        end: parenthesized.rightParen.positionAfterSkippingLeadingTrivia
+      )
+    }
     return .visitChildren
   }
 
@@ -149,19 +155,13 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
   }
 
   override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
-    let start = node.leftParen?.endPositionBeforeTrailingTrivia ?? node.arguments.position
-    let end =
-      if !node.additionalTrailingClosures.isEmpty {
-        node.additionalTrailingClosures.endPositionBeforeTrailingTrivia
-      } else if let trailingClosure = node.trailingClosure {
-        trailingClosure.endPositionBeforeTrailingTrivia
-      } else if let rightParen = node.rightParen {
-        rightParen.positionAfterSkippingLeadingTrivia
-      } else {
-        // Should never happen because the call should have either a trailing closure or a closing ')'
-        node.arguments.endPositionBeforeTrailingTrivia
-      }
-    return self.addFoldingRange(start: start, end: end)
+    if let leftParen = node.leftParen, let rightParen = node.rightParen {
+      return self.addFoldingRange(
+        start: leftParen.endPositionBeforeTrailingTrivia,
+        end: rightParen.positionAfterSkippingLeadingTrivia
+      )
+    }
+    return .visitChildren
   }
 
   override func visit(_ node: SubscriptCallExprSyntax) -> SyntaxVisitorContinueKind {
