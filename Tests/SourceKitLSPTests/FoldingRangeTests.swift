@@ -221,13 +221,12 @@ final class FoldingRangeTests: XCTestCase {
         // And some more test 2️⃣
 
         3️⃣// And another comment separated by newlines4️⃣
-        func foo() {5️⃣}
+        func foo() {}
         """
       ,
       expectedRanges: [
         FoldingRangeSpec(from: "1️⃣", to: "2️⃣", kind: .comment),
         FoldingRangeSpec(from: "3️⃣", to: "4️⃣", kind: .comment),
-        FoldingRangeSpec(from: "5️⃣", to: "5️⃣"),
       ]
     )
   }

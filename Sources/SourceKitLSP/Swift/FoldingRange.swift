@@ -190,6 +190,10 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
     if let limit = self.rangeLimit, self.ranges.count >= limit {
       return .skipChildren
     }
+    if start == end {
+      // Don't report empty ranges
+      return .visitChildren
+    }
 
     guard let start: Position = snapshot.positionOf(utf8Offset: start.utf8Offset),
       let end: Position = snapshot.positionOf(utf8Offset: end.utf8Offset)
