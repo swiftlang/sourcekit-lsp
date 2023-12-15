@@ -10,195 +10,351 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPTestSupport
 import LanguageServerProtocol
 import SKTestSupport
 import XCTest
 
-final class FoldingRangeTests: XCTestCase {
-  private func clientCapabilities(rangeLimit: Int? = nil, lineFoldingOnly: Bool? = nil) -> ClientCapabilities {
-    return ClientCapabilities(
-      textDocument: TextDocumentClientCapabilities(
-        foldingRange: TextDocumentClientCapabilities.FoldingRange(
-          rangeLimit: rangeLimit,
-          lineFoldingOnly: lineFoldingOnly
-        )
+struct FoldingRangeSpec {
+  let startMarker: String
+  let endMarker: String
+  let kind: FoldingRangeKind?
+
+  /// The test file in which this ``FoldingRangeSpec`` was created
+  let originatorFile: StaticString
+  /// The line in which this ``FoldingRangeSpec`` was created
+  let originatorLine: UInt
+
+  init(
+    from startMarker: String,
+    to endMarker: String,
+    kind: FoldingRangeKind? = nil,
+    originatorFile: StaticString = #file,
+    originatorLine: UInt = #line
+  ) {
+    self.startMarker = startMarker
+    self.endMarker = endMarker
+    self.kind = kind
+    self.originatorFile = originatorFile
+    self.originatorLine = originatorLine
+  }
+}
+
+func assertFoldingRanges(
+  markedSource: String,
+  expectedRanges: [FoldingRangeSpec],
+  rangeLimit: Int? = nil,
+  lineFoldingOnly: Bool = false,
+  file: StaticString = #file,
+  line: UInt = #line
+) async throws {
+  let capabilities = ClientCapabilities(
+    textDocument: TextDocumentClientCapabilities(
+      foldingRange: TextDocumentClientCapabilities.FoldingRange(
+        rangeLimit: rangeLimit,
+        lineFoldingOnly: lineFoldingOnly
       )
+    )
+  )
+  let testClient = try await TestSourceKitLSPClient(capabilities: capabilities)
+  let uri = DocumentURI.for(.swift)
+  let positions = testClient.openDocument(markedSource, uri: uri)
+  let foldingRanges = try unwrap(await testClient.send(FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri))))
+  if foldingRanges.count != expectedRanges.count {
+    XCTFail(
+      """
+      Expected \(expectedRanges.count) ranges but got \(foldingRanges.count)
+
+      \(foldingRanges)
+      """,
+      file: file,
+      line: line
+    )
+    return
+  }
+  for (expected, actual) in zip(expectedRanges, foldingRanges) {
+    let startPosition = positions[expected.startMarker]
+    let endPosition = positions[expected.endMarker]
+    let expectedRange = FoldingRange(
+      startLine: startPosition.line,
+      startUTF16Index: lineFoldingOnly ? nil : startPosition.utf16index,
+      endLine: endPosition.line,
+      endUTF16Index: lineFoldingOnly ? nil : endPosition.utf16index,
+      kind: expected.kind,
+      collapsedText: nil
+    )
+    XCTAssertEqual(actual, expectedRange, file: expected.originatorFile, line: expected.originatorLine)
+  }
+}
+
+final class FoldingRangeTests: XCTestCase {
+  func testNoRanges() async throws {
+    try await assertFoldingRanges(markedSource: "", expectedRanges: [])
+  }
+
+  func testLineFolding() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        1️⃣func foo() {
+
+        2️⃣}
+        """
+      ,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣")
+      ],
+      lineFoldingOnly: true
     )
   }
 
-  let baseInputFile = """
-    /// DC1
-    /// - Returns: DC1
-
-    /**
-      DC2
-
-      - Parameter param: DC2
-
-      - Throws: DC2
-      DC2
-      DC2
-
-      - Returns: DC2
-    */
-    struct S {
-      //c1
-      //c2
-      /*
-       c3
-      */
-      var abc: Int
-
-      func test(a: Int) {
-        guard a > 0 else { return }
-        self.abc = a
-      }
-      /* c4 */
-    }
-
-    //
-    // MARK: - A mark! -
-    //
-
-    //
-    // FIXME: a fixme
-    //
-
-    // a https://www.example.com URL
-    """
-
-  func testPartialLineFolding() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilities(lineFoldingOnly: false))
-    let uri = DocumentURI.for(.swift)
-    testClient.openDocument(baseInputFile, uri: uri)
-
-    let ranges = try await testClient.send(FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri)))
-
-    let expected = [
-      FoldingRange(startLine: 0, startUTF16Index: 0, endLine: 1, endUTF16Index: 18, kind: .comment),
-      FoldingRange(startLine: 3, startUTF16Index: 0, endLine: 13, endUTF16Index: 2, kind: .comment),
-      FoldingRange(startLine: 14, startUTF16Index: 10, endLine: 27, endUTF16Index: 0, kind: nil),
-      FoldingRange(startLine: 15, startUTF16Index: 2, endLine: 16, endUTF16Index: 6, kind: .comment),
-      FoldingRange(startLine: 17, startUTF16Index: 2, endLine: 19, endUTF16Index: 4, kind: .comment),
-      FoldingRange(startLine: 22, startUTF16Index: 21, endLine: 25, endUTF16Index: 2, kind: nil),
-      FoldingRange(startLine: 23, startUTF16Index: 23, endLine: 23, endUTF16Index: 30, kind: nil),
-      FoldingRange(startLine: 26, startUTF16Index: 2, endLine: 26, endUTF16Index: 10, kind: .comment),
-      FoldingRange(startLine: 29, startUTF16Index: 0, endLine: 31, endUTF16Index: 2, kind: .comment),
-      FoldingRange(startLine: 33, startUTF16Index: 0, endLine: 35, endUTF16Index: 2, kind: .comment),
-      FoldingRange(startLine: 37, startUTF16Index: 0, endLine: 37, endUTF16Index: 32, kind: .comment),
-    ]
-
-    XCTAssertEqual(ranges, expected)
-  }
-
-  func testLineFoldingOnly() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilities(lineFoldingOnly: true))
-    let uri = DocumentURI.for(.swift)
-    testClient.openDocument(baseInputFile, uri: uri)
-
-    let ranges = try await testClient.send(FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri)))
-
-    let expected = [
-      FoldingRange(startLine: 0, endLine: 1, kind: .comment),
-      FoldingRange(startLine: 3, endLine: 13, kind: .comment),
-      FoldingRange(startLine: 14, endLine: 27, kind: nil),
-      FoldingRange(startLine: 15, endLine: 16, kind: .comment),
-      FoldingRange(startLine: 17, endLine: 19, kind: .comment),
-      FoldingRange(startLine: 22, endLine: 25, kind: nil),
-      FoldingRange(startLine: 29, endLine: 31, kind: .comment),
-      FoldingRange(startLine: 33, endLine: 35, kind: .comment),
-    ]
-
-    XCTAssertEqual(ranges, expected)
+  func testLineFoldingDoesntReportSingleLine() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        guard a > 0 else { 1️⃣return 2️⃣}
+        """
+      ,
+      expectedRanges: [],
+      lineFoldingOnly: true
+    )
   }
 
   func testRangeLimit() async throws {
-    func performTest(withRangeLimit limit: Int?, expecting expectedRanges: Int, line: UInt = #line) async throws {
-      let testClient = try await TestSourceKitLSPClient(
-        capabilities: clientCapabilities(
-          rangeLimit: limit,
-          lineFoldingOnly: false
-        )
-      )
-      let uri = DocumentURI.for(.swift)
-      testClient.openDocument(baseInputFile, uri: uri)
+    let input = """
+      func one() -> 1 {1️⃣
+        return 1
+      2️⃣}
 
-      let ranges = try await testClient.send(FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri)))
-      XCTAssertEqual(ranges?.count, expectedRanges, "Failed rangeLimit test", line: line)
-    }
+      func two() -> Int {3️⃣
+        return 2
+      4️⃣}
 
-    try await performTest(withRangeLimit: -100, expecting: 0)
-    try await performTest(withRangeLimit: 0, expecting: 0)
-    try await performTest(withRangeLimit: 4, expecting: 4)
-    try await performTest(withRangeLimit: 5000, expecting: 11)
-    try await performTest(withRangeLimit: nil, expecting: 11)
+      func three() -> Int {5️⃣
+        return 3
+      6️⃣}
+      """
+
+    try await assertFoldingRanges(markedSource: input, expectedRanges: [], rangeLimit: -100)
+    try await assertFoldingRanges(markedSource: input, expectedRanges: [], rangeLimit: 0)
+    try await assertFoldingRanges(
+      markedSource: input,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣")
+      ],
+      rangeLimit: 1
+    )
+    try await assertFoldingRanges(
+      markedSource: input,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣"),
+        FoldingRangeSpec(from: "3️⃣", to: "4️⃣"),
+      ],
+      rangeLimit: 2
+    )
+
+    let allRanges = [
+      FoldingRangeSpec(from: "1️⃣", to: "2️⃣"),
+      FoldingRangeSpec(from: "3️⃣", to: "4️⃣"),
+      FoldingRangeSpec(from: "5️⃣", to: "6️⃣"),
+    ]
+    try await assertFoldingRanges(markedSource: input, expectedRanges: allRanges, rangeLimit: 100)
+    try await assertFoldingRanges(markedSource: input, expectedRanges: allRanges, rangeLimit: nil)
+
   }
 
-  func testNoRanges() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilities())
-    let uri = DocumentURI.for(.swift)
-    testClient.openDocument("", uri: uri)
+  func testMultilineDocBlockComment() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        1️⃣/**
+        DC2
 
-    let ranges = try await testClient.send(FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri)))
+        - Parameter param: DC2
 
-    XCTAssertEqual(ranges?.count, 0)
+        - Throws: DC2
+        DC2
+        DC2
+
+        - Returns: DC2
+        */2️⃣
+        """
+      ,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣", kind: .comment)
+      ]
+    )
+  }
+
+  func testTwoDifferentCommentStyles() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        1️⃣//c1
+        //c22️⃣
+        3️⃣/*
+         c3
+        */4️⃣
+        """
+      ,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣", kind: .comment),
+        FoldingRangeSpec(from: "3️⃣", to: "4️⃣", kind: .comment),
+      ]
+    )
   }
 
   func testMultilineDocLineComment() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilities())
-    let uri = DocumentURI.for(.swift)
-    testClient.openDocument(
-      """
-      /// Do some fancy stuff
-      ///
-      /// This does very fancy stuff. Use it when building a great app.
-      func doStuff() {
-
-      }
-
-      // Some comment
-      // And some more test
-
-      // And another comment separated by newlines
-      func foo() {}
-      """,
-      uri: uri
+    try await assertFoldingRanges(
+      markedSource: """
+        1️⃣/// Do some fancy stuff
+        ///
+        /// This does very fancy stuff. Use it when building a great app.2️⃣
+        """
+      ,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣", kind: .comment)
+      ]
     )
+  }
 
-    let ranges = try await testClient.send(FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri)))
+  func testConsecutiveLineCommentsSeparatedByEmptyLine() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        1️⃣// Some comment
+        // And some more test 2️⃣
 
-    let expected = [
-      FoldingRange(startLine: 0, startUTF16Index: 0, endLine: 2, endUTF16Index: 65, kind: .comment),
-      FoldingRange(startLine: 3, startUTF16Index: 16, endLine: 5, endUTF16Index: 0),
-      FoldingRange(startLine: 7, startUTF16Index: 0, endLine: 8, endUTF16Index: 21, kind: .comment),
-      FoldingRange(startLine: 10, startUTF16Index: 0, endLine: 10, endUTF16Index: 44, kind: .comment),
-      FoldingRange(startLine: 11, startUTF16Index: 12, endLine: 11, endUTF16Index: 12),
-    ]
+        3️⃣// And another comment separated by newlines4️⃣
+        func foo() {}
+        """
+      ,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣", kind: .comment),
+        FoldingRangeSpec(from: "3️⃣", to: "4️⃣", kind: .comment),
+      ]
+    )
+  }
 
-    XCTAssertEqual(ranges, expected)
+  func testFoldGuardBody() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        guard a > 0 else {1️⃣ return 2️⃣}
+        """
+      ,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣")
+      ]
+    )
   }
 
   func testDontReportDuplicateRangesRanges() async throws {
-    // In this file the range of the call to `print` and the range of the argument "/*fr:duplicateRanges*/" are the same.
+    // In this file the range of the call to `print` and the range of the argument are the same.
     // Test that we only report the folding range once.
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilities())
-    let uri = DocumentURI.for(.swift)
-    testClient.openDocument(
-      """
-      func foo() {
-          print("hello world")
-      }
-      """,
-      uri: uri
+    try await assertFoldingRanges(
+      markedSource: """
+        func foo() {1️⃣
+          print(2️⃣"hello world"3️⃣)
+        4️⃣}
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "4️⃣"),
+        FoldingRangeSpec(from: "2️⃣", to: "3️⃣"),
+      ]
+    )
+  }
+
+  func testFoldCollections() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        let x = [1️⃣1, 2, 32️⃣]
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣")
+      ]
     )
 
-    let ranges = try await testClient.send(FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri)))
+    try await assertFoldingRanges(
+      markedSource: """
+        let x = [1️⃣
+          1: "one", 
+          2: "two", 
+          3: "three"
+        2️⃣]
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣")
+      ]
+    )
+  }
 
-    let expected = [
-      FoldingRange(startLine: 0, startUTF16Index: 12, endLine: 2, endUTF16Index: 0, kind: nil),
-      FoldingRange(startLine: 1, startUTF16Index: 10, endLine: 1, endUTF16Index: 23, kind: nil),
-    ]
+  func testFoldSwitchCase() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        switch foo {1️⃣
+        case 1:2️⃣
+          break 3️⃣
+        default:4️⃣
+          let x = 1
+          print(5️⃣x6️⃣)7️⃣
+        8️⃣}
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "8️⃣"),
+        FoldingRangeSpec(from: "2️⃣", to: "3️⃣"),
+        FoldingRangeSpec(from: "4️⃣", to: "7️⃣"),
+        FoldingRangeSpec(from: "5️⃣", to: "6️⃣"),
+      ]
+    )
+  }
 
-    XCTAssertEqual(ranges, expected)
+  func testFoldArgumentLabelsOnMultipleLines() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        print(1️⃣
+          "x"
+        2️⃣)
+        """,
+      expectedRanges: [FoldingRangeSpec(from: "1️⃣", to: "2️⃣")]
+    )
+  }
+
+  func testFoldCallWithTrailingClosure() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        doSomething(1️⃣normalArg: 12️⃣) {3️⃣
+          _ = $0
+        4️⃣}
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣"),
+        FoldingRangeSpec(from: "3️⃣", to: "4️⃣"),
+      ]
+    )
+  }
+
+  func testFoldCallWithMultipleTrailingClosures() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        doSomething(1️⃣normalArg: 12️⃣) {3️⃣
+          _ = $0
+        4️⃣}
+        additionalTrailing: {5️⃣
+          _ = $0
+        6️⃣}
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣"),
+        FoldingRangeSpec(from: "3️⃣", to: "4️⃣"),
+        FoldingRangeSpec(from: "5️⃣", to: "6️⃣"),
+      ]
+    )
+  }
+
+  func testFoldArgumentsOfFunction() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        func foo(1️⃣
+          arg1: Int,
+          arg2: Int
+        2️⃣)
+        """,
+      expectedRanges: [FoldingRangeSpec(from: "1️⃣", to: "2️⃣")]
+    )
   }
 }
