@@ -20,4 +20,6 @@
 public struct WorkspaceFoldersRequest: RequestType, Hashable {
   public static let method: String = "workspace/workspaceFolders"
   public typealias Response = [WorkspaceFolder]?
+
+  public init() {}
 }
