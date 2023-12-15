@@ -4,6 +4,7 @@ add_library(SKSupport STATIC
   AsyncUtils.swift
   BuildConfiguration.swift
   ByteString.swift
+  Collection+Only.swift
   Connection+Send.swift
   dlopen.swift
   FileSystem.swift

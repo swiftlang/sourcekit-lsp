@@ -15,32 +15,11 @@ import LanguageServerProtocol
 import SourceKitD
 
 struct RelatedIdentifier {
-  enum Usage {
-    /// The definition of a function/subscript/variable/...
-    case definition
-
-    /// The symbol is being referenced.
-    ///
-    /// This includes
-    ///  - References to variables
-    ///  - Unapplied references to functions (`myStruct.memberFunc`)
-    ///  - Calls to subscripts (`myArray[1]`, location is `[` here, length 1)
-    case reference
-
-    /// A function that is being called.
-    case call
-
-    /// Unknown name usage occurs if we don't have an entry in the index that
-    /// tells us whether the location is a call, reference or a definition. The
-    /// most common reasons why this happens is if the editor is adding syntactic
-    /// results (eg. from comments or string literals).
-    case unknown
-  }
   let range: Range<Position>
-  let usage: Usage
+  let usage: RenameLocation.Usage
 }
 
-extension RelatedIdentifier.Usage {
+extension RenameLocation.Usage {
   fileprivate init?(_ uid: sourcekitd_uid_t?, _ keys: sourcekitd_keys) {
     switch uid {
     case keys.syntacticRenameDefinition:
@@ -116,7 +95,7 @@ extension SwiftLanguageServer {
         let length: Int = value[keys.length],
         let end: Position = snapshot.positionOf(utf8Offset: offset + length)
       {
-        let usage = RelatedIdentifier.Usage(value[keys.nameType], keys) ?? .unknown
+        let usage = RenameLocation.Usage(value[keys.nameType], keys) ?? .unknown
         relatedIdentifiers.append(
           RelatedIdentifier(range: start..<end, usage: usage)
         )

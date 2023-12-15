@@ -89,7 +89,7 @@ public struct SwiftCompileCommand: Equatable {
 
 public actor SwiftLanguageServer: ToolchainLanguageServer {
   /// The ``SourceKitServer`` instance that created this `ClangLanguageServerShim`.
-  private weak var sourceKitServer: SourceKitServer?
+  weak var sourceKitServer: SourceKitServer?
 
   let sourcekitd: SourceKitD
 
