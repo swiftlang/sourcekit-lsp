@@ -125,7 +125,13 @@ public struct FormattingOptions: Codable, Hashable {
   /// Trim all newlines after the final newline at the end of the file.
   public var trimFinalNewlines: Bool?
 
-  public init(tabSize: Int, insertSpaces: Bool, trimTrailingWhitespace: Bool? = nil, insertFinalNewline: Bool? = nil, trimFinalNewlines: Bool? = nil) {
+  public init(
+    tabSize: Int,
+    insertSpaces: Bool,
+    trimTrailingWhitespace: Bool? = nil,
+    insertFinalNewline: Bool? = nil,
+    trimFinalNewlines: Bool? = nil
+  ) {
     self.tabSize = tabSize
     self.insertSpaces = insertSpaces
     self.trimTrailingWhitespace = trimTrailingWhitespace
