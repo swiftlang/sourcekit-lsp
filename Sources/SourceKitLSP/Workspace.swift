@@ -88,7 +88,7 @@ public final class Workspace {
       fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
       mainFilesProvider: index
     )
-    indexDelegate?.registerMainFileChanged(buildSystemManager)
+    await indexDelegate?.registerMainFileChanged(buildSystemManager)
   }
 
   /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
