@@ -736,7 +736,10 @@ extension SourceKitServer: MessageHandler {
     messageHandlingQueue.async(metadata: TaskMetadata(params)) {
       signposter.emitEvent("Start handling", id: signpostID)
 
-      await withLoggingScope("notification-\(notificationID)") {
+      // Only use the last two digits of the notification ID for the logging scope to avoid creating too many scopes.
+      // See comment in `withLoggingScope`.
+      // The last 2 digits should be sufficient to differentiate between multiple concurrently running notifications.
+      await withLoggingScope("notification-\(notificationID % 100)") {
         await self.handleImpl(params, from: clientID)
         signposter.endInterval("Notification", state, "Done")
       }
@@ -783,7 +786,10 @@ extension SourceKitServer: MessageHandler {
 
     let task = messageHandlingQueue.async(metadata: TaskMetadata(params)) {
       signposter.emitEvent("Start handling", id: signpostID)
-      await withLoggingScope("request-\(id)") {
+      // Only use the last two digits of the request ID for the logging scope to avoid creating too many scopes.
+      // See comment in `withLoggingScope`.
+      // The last 2 digits should be sufficient to differentiate between multiple concurrently running requests.
+      await withLoggingScope("request-\(id.numericValue % 100)") {
         await self.handleImpl(params, id: id, from: clientID, reply: reply)
         signposter.endInterval("Request", state, "Done")
       }
@@ -2319,5 +2325,18 @@ extension WorkspaceSymbolItem {
         containerName: symbolOccurrence.getContainerName()
       )
     )
+  }
+}
+
+fileprivate extension RequestID {
+  /// Returns a numeric value for this request ID.
+  ///
+  /// For request IDs that are numbers, this is straightforward. For string-based request IDs, this uses a hash to
+  /// convert the string into a number.
+  var numericValue: Int {
+    switch self {
+    case .number(let number): return number
+    case .string(let string): return Int(string) ?? string.hashValue
+    }
   }
 }
