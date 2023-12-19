@@ -13,14 +13,14 @@
 import Dispatch
 import IndexStoreDB
 import SKCore
+import SKSupport
 
 /// `IndexDelegate` for the SourceKit workspace.
 ///
 /// *Public for testing*.
-public final class SourceKitIndexDelegate: IndexDelegate {
+public actor SourceKitIndexDelegate: IndexDelegate {
 
-  /// Provides mutual exclusion for other members.
-  let queue: DispatchQueue = DispatchQueue(label: "\(SourceKitIndexDelegate.self)-queue")
+  let queue = AsyncQueue<Serial>()
 
   /// Registered `MainFilesDelegate`s to notify when main files change.
   var mainFilesDelegates: [MainFilesDelegate] = []
@@ -32,31 +32,38 @@ public final class SourceKitIndexDelegate: IndexDelegate {
 
   public init() {}
 
-  public func processingAddedPending(_ count: Int) {
-    queue.sync {
-      pendingUnitCount += count
+  nonisolated public func processingAddedPending(_ count: Int) {
+    queue.async {
+      await self.addPending(count)
     }
   }
 
-  public func processingCompleted(_ count: Int) {
-    queue.sync {
-      pendingUnitCount -= count
-      if pendingUnitCount == 0 {
-        _indexChanged()
-      }
+  private func addPending(_ count: Int) {
+    pendingUnitCount += count
+  }
 
-      if pendingUnitCount < 0 {
-        assertionFailure("pendingUnitCount = \(pendingUnitCount) < 0")
-        pendingUnitCount = 0
-        _indexChanged()
-      }
+  nonisolated public func processingCompleted(_ count: Int) {
+    queue.async {
+      await self.processCompleted(count)
     }
   }
 
-  /// *Must be called on queue*.
+  private func processCompleted(_ count: Int) {
+    pendingUnitCount -= count
+    if pendingUnitCount == 0 {
+      _indexChanged()
+    }
+
+    if pendingUnitCount < 0 {
+      assertionFailure("pendingUnitCount = \(pendingUnitCount) < 0")
+      pendingUnitCount = 0
+      _indexChanged()
+    }
+  }
+
   func _indexChanged() {
     for delegate in mainFilesDelegates {
-      Task {
+      queue.async {
         await delegate.mainFilesChanged()
       }
     }
@@ -64,15 +71,11 @@ public final class SourceKitIndexDelegate: IndexDelegate {
 
   /// Register a delegate to receive notifications when main files change.
   public func registerMainFileChanged(_ delegate: MainFilesDelegate) {
-    queue.sync {
-      mainFilesDelegates.append(delegate)
-    }
+    mainFilesDelegates.append(delegate)
   }
 
   /// Un-register a delegate to receive notifications when main files change.
   public func unregisterMainFileChanged(_ delegate: MainFilesDelegate) {
-    queue.sync {
-      mainFilesDelegates.removeAll(where: { $0 === delegate })
-    }
+    mainFilesDelegates.removeAll(where: { $0 === delegate })
   }
 }
