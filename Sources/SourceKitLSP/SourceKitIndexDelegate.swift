@@ -61,7 +61,6 @@ public actor SourceKitIndexDelegate: IndexDelegate {
     }
   }
 
-  /// *Must be called on queue*.
   func _indexChanged() {
     for delegate in mainFilesDelegates {
       queue.async {
