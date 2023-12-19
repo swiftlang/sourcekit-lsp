@@ -72,11 +72,11 @@ public actor SourceKitIndexDelegate: IndexDelegate {
 
   /// Register a delegate to receive notifications when main files change.
   public func registerMainFileChanged(_ delegate: MainFilesDelegate) {
-      mainFilesDelegates.append(delegate)
+    mainFilesDelegates.append(delegate)
   }
 
   /// Un-register a delegate to receive notifications when main files change.
   public func unregisterMainFileChanged(_ delegate: MainFilesDelegate) {
-      mainFilesDelegates.removeAll(where: { $0 === delegate })
+    mainFilesDelegates.removeAll(where: { $0 === delegate })
   }
 }
