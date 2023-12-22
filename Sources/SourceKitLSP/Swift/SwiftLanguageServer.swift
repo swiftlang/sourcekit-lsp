@@ -260,8 +260,9 @@ extension SwiftLanguageServer {
 
   /// Tell sourcekitd to crash itself. For testing purposes only.
   public func _crash() async {
-    let req = SKDRequestDictionary(sourcekitd: sourcekitd)
-    req[sourcekitd.keys.request] = sourcekitd.requests.crash_exit
+    let req = [
+      keys.request: sourcekitd.requests.crash_exit
+    ].skd(sourcekitd)
     _ = try? await sourcekitd.send(req, fileContents: nil)
   }
 
@@ -273,18 +274,18 @@ extension SwiftLanguageServer {
     let keys = self.keys
     let path = snapshot.uri.pseudoPath
 
-    let closeReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-    closeReq[keys.request] = self.requests.editor_close
-    closeReq[keys.name] = path
+    let closeReq = [
+      keys.request: requests.editor_close,
+      keys.name: path,
+    ].skd(sourcekitd)
     _ = try? await self.sourcekitd.send(closeReq, fileContents: nil)
 
-    let openReq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-    openReq[keys.request] = self.requests.editor_open
-    openReq[keys.name] = path
-    openReq[keys.sourcetext] = snapshot.text
-    if let compileCmd = compileCmd {
-      openReq[keys.compilerargs] = compileCmd.compilerArgs
-    }
+    let openReq = [
+      keys.request: self.requests.editor_open,
+      keys.name: path,
+      keys.sourcetext: snapshot.text,
+      keys.compilerargs: compileCmd?.compilerArgs as [SKDValue]?,
+    ].skd(sourcekitd)
 
     _ = try? await self.sourcekitd.send(openReq, fileContents: snapshot.text)
 
@@ -324,17 +325,13 @@ extension SwiftLanguageServer {
       return
     }
 
-    let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-    req[keys.request] = self.requests.editor_open
-    req[keys.name] = note.textDocument.uri.pseudoPath
-    req[keys.sourcetext] = snapshot.text
-    req[keys.syntactic_only] = 1
-
-    let compileCommand = await self.buildSettings(for: snapshot.uri)
-
-    if let compilerArgs = compileCommand?.compilerArgs {
-      req[keys.compilerargs] = compilerArgs
-    }
+    let req = [
+      keys.request: self.requests.editor_open,
+      keys.name: note.textDocument.uri.pseudoPath,
+      keys.sourcetext: snapshot.text,
+      keys.syntactic_only: 1,
+      keys.compilerargs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+    ].skd(sourcekitd)
 
     _ = try? await self.sourcekitd.send(req, fileContents: snapshot.text)
     publishDiagnosticsIfNeeded(for: note.textDocument.uri)
@@ -350,9 +347,10 @@ extension SwiftLanguageServer {
 
     let uri = note.textDocument.uri
 
-    let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-    req[keys.request] = self.requests.editor_close
-    req[keys.name] = uri.pseudoPath
+    let req = [
+      keys.request: self.requests.editor_close,
+      keys.name: uri.pseudoPath,
+    ].skd(sourcekitd)
 
     _ = try? await self.sourcekitd.send(req, fileContents: nil)
   }
@@ -456,13 +454,14 @@ extension SwiftLanguageServer {
       }
     }
     for edit in edits {
-      let req = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-      req[keys.request] = self.requests.editor_replacetext
-      req[keys.name] = note.textDocument.uri.pseudoPath
-      req[keys.syntactic_only] = 1
-      req[keys.offset] = edit.offset
-      req[keys.length] = edit.length
-      req[keys.sourcetext] = edit.replacement
+      let req = [
+        keys.request: self.requests.editor_replacetext,
+        keys.name: note.textDocument.uri.pseudoPath,
+        keys.syntactic_only: 1,
+        keys.offset: edit.offset,
+        keys.length: edit.length,
+        keys.sourcetext: edit.replacement,
+      ].skd(sourcekitd)
       do {
         _ = try await self.sourcekitd.send(req, fileContents: nil)
       } catch {
@@ -670,7 +669,7 @@ extension SwiftLanguageServer {
 
   func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
     let additionalCursorInfoParameters: ((SKDRequestDictionary) -> Void) = { skreq in
-      skreq[self.keys.retrieve_refactor_actions] = 1
+      skreq.set(self.keys.retrieve_refactor_actions, to: 1)
     }
 
     let cursorInfoResponse = try await cursorInfo(
@@ -827,12 +826,11 @@ extension SwiftLanguageServer {
 
     let keys = self.keys
 
-    let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-    skreq[keys.request] = requests.diagnostics
-    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
-
-    // FIXME: SourceKit should probably cache this for us.
-    skreq[keys.compilerargs] = buildSettings.compilerArgs
+    let skreq = [
+      keys.request: requests.diagnostics,
+      keys.sourcefile: snapshot.uri.pseudoPath,
+      keys.compilerargs: buildSettings.compilerArgs as [SKDValue],
+    ].skd(sourcekitd)
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
 

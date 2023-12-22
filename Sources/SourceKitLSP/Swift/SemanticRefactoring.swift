@@ -138,22 +138,19 @@ extension SwiftLanguageServer {
       throw SemanticRefactoringError.invalidRange(refactorCommand.positionRange)
     }
 
-    let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-    skreq[keys.request] = self.requests.semantic_refactoring
-    // Preferred name for e.g. an extracted variable.
-    // Empty string means sourcekitd chooses a name automatically.
-    skreq[keys.name] = ""
-    skreq[keys.sourcefile] = uri.pseudoPath
-    // LSP is zero based, but this request is 1 based.
-    skreq[keys.line] = line + 1
-    skreq[keys.column] = utf8Column + 1
-    skreq[keys.length] = offsetRange.count
-    skreq[keys.actionuid] = self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!
-
-    // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = await self.buildSettings(for: snapshot.uri) {
-      skreq[keys.compilerargs] = compileCommand.compilerArgs
-    }
+    let skreq = [
+      keys.request: self.requests.semantic_refactoring,
+      // Preferred name for e.g. an extracted variable.
+      // Empty string means sourcekitd chooses a name automatically.
+      keys.name: "",
+      keys.sourcefile: uri.pseudoPath,
+      // LSP is zero based, but this request is 1 based.
+      keys.line: line + 1,
+      keys.column: utf8Column + 1,
+      keys.length: offsetRange.count,
+      keys.actionuid: self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!,
+      keys.compilerargs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+    ].skd(sourcekitd)
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
     guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {

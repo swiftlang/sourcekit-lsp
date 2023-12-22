@@ -20,6 +20,17 @@ import Musl
 import CRT
 #endif
 
+extension Array<SKDValue> {
+  /// Create an `SKDRequestArray` from this array.
+  public func skd(_ sourcekitd: SourceKitD) -> SKDRequestArray {
+    let result = SKDRequestArray(sourcekitd: sourcekitd)
+    for element in self {
+      result.append(element)
+    }
+    return result
+  }
+}
+
 public final class SKDRequestArray {
   public let array: sourcekitd_object_t?
   public let sourcekitd: SourceKitD
@@ -33,15 +44,32 @@ public final class SKDRequestArray {
     sourcekitd.api.request_release(array)
   }
 
-  public func append(_ value: String) {
-    sourcekitd.api.request_array_set_string(array, -1, value)
+  public func append(_ newValue: SKDValue) {
+    switch newValue {
+    case let newValue as String:
+      sourcekitd.api.request_array_set_string(array, -1, newValue)
+    case let newValue as Int:
+      sourcekitd.api.request_array_set_int64(array, -1, Int64(newValue))
+    case let newValue as sourcekitd_uid_t:
+      sourcekitd.api.request_array_set_uid(array, -1, newValue)
+    case let newValue as SKDRequestDictionary:
+      sourcekitd.api.request_array_set_value(array, -1, newValue.dict)
+    case let newValue as SKDRequestArray:
+      sourcekitd.api.request_array_set_value(array, -1, newValue.array)
+    case let newValue as Array<SKDValue>:
+      self.append(newValue.skd(sourcekitd))
+    case let newValue as Dictionary<sourcekitd_uid_t, SKDValue>:
+      self.append(newValue.skd(sourcekitd))
+    case let newValue as Optional<SKDValue>:
+      if let newValue {
+        self.append(newValue)
+      }
+    default:
+      preconditionFailure("Unknown type conforming to SKDValueProtocol")
+    }
   }
 
-  public func append(_ value: SKDRequestDictionary) {
-    sourcekitd.api.request_array_set_value(array, -1, value.dict)
-  }
-
-  public static func += (array: SKDRequestArray, other: some Sequence<SKDRequestDictionary>) {
+  public static func += (array: SKDRequestArray, other: some Sequence<SKDValue>) {
     for item in other {
       array.append(item)
     }

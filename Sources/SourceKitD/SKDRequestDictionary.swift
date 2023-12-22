@@ -21,6 +21,36 @@ import Musl
 import CRT
 #endif
 
+/// Values that can be stored in a `SKDRequestDictionary`.
+///
+/// - Warning: `SKDRequestDictionary.subscript` and `SKDRequestArray.append`
+///   switch exhaustively over this protocol.
+///   Do not add new conformances without adding a new case in the subscript and
+///   `append` function.
+public protocol SKDValue {}
+
+extension String: SKDValue {}
+extension Int: SKDValue {}
+extension sourcekitd_uid_t: SKDValue {}
+extension SKDRequestDictionary: SKDValue {}
+extension SKDRequestArray: SKDValue {}
+extension Array<SKDValue>: SKDValue {}
+extension Dictionary<sourcekitd_uid_t, SKDValue>: SKDValue {}
+extension Optional: SKDValue where Wrapped: SKDValue {}
+
+extension Dictionary<sourcekitd_uid_t, SKDValue> {
+  /// Create an `SKDRequestDictionary` from this dictionary.
+  ///
+  /// If a value is `nil`, the corresponding key will not be added
+  public func skd(_ sourcekitd: SourceKitD) -> SKDRequestDictionary {
+    let result = SKDRequestDictionary(sourcekitd: sourcekitd)
+    for (key, value) in self {
+      result.set(key, to: value)
+    }
+    return result
+  }
+}
+
 public final class SKDRequestDictionary {
   public let dict: sourcekitd_object_t?
   public let sourcekitd: SourceKitD
@@ -34,33 +64,29 @@ public final class SKDRequestDictionary {
     sourcekitd.api.request_release(dict)
   }
 
-  public subscript(key: sourcekitd_uid_t?) -> String {
-    get { fatalError("request is set-only") }
-    set { sourcekitd.api.request_dictionary_set_string(dict, key, newValue) }
-  }
-  public subscript(key: sourcekitd_uid_t?) -> Int {
-    get { fatalError("request is set-only") }
-    set { sourcekitd.api.request_dictionary_set_int64(dict, key, Int64(newValue)) }
-  }
-  public subscript(key: sourcekitd_uid_t?) -> sourcekitd_uid_t? {
-    get { fatalError("request is set-only") }
-    set { sourcekitd.api.request_dictionary_set_uid(dict, key, newValue) }
-  }
-  public subscript(key: sourcekitd_uid_t?) -> SKDRequestDictionary {
-    get { fatalError("request is set-only") }
-    set { sourcekitd.api.request_dictionary_set_value(dict, key, newValue.dict) }
-  }
-  public subscript<S>(key: sourcekitd_uid_t?) -> S where S: Sequence, S.Element == String {
-    get { fatalError("request is set-only") }
-    set {
-      let array = SKDRequestArray(sourcekitd: sourcekitd)
-      newValue.forEach { array.append($0) }
-      sourcekitd.api.request_dictionary_set_value(dict, key, array.array)
+  public func set(_ key: sourcekitd_uid_t, to newValue: SKDValue) {
+    switch newValue {
+    case let newValue as String:
+      sourcekitd.api.request_dictionary_set_string(dict, key, newValue)
+    case let newValue as Int:
+      sourcekitd.api.request_dictionary_set_int64(dict, key, Int64(newValue))
+    case let newValue as sourcekitd_uid_t:
+      sourcekitd.api.request_dictionary_set_uid(dict, key, newValue)
+    case let newValue as SKDRequestDictionary:
+      sourcekitd.api.request_dictionary_set_value(dict, key, newValue.dict)
+    case let newValue as SKDRequestArray:
+      sourcekitd.api.request_dictionary_set_value(dict, key, newValue.array)
+    case let newValue as Array<SKDValue>:
+      self.set(key, to: newValue.skd(sourcekitd))
+    case let newValue as Dictionary<sourcekitd_uid_t, SKDValue>:
+      self.set(key, to: newValue.skd(sourcekitd))
+    case let newValue as Optional<SKDValue>:
+      if let newValue {
+        self.set(key, to: newValue)
+      }
+    default:
+      preconditionFailure("Unknown type conforming to SKDValueProtocol")
     }
-  }
-  public subscript(key: sourcekitd_uid_t?) -> SKDRequestArray {
-    get { fatalError("request is set-only") }
-    set { sourcekitd.api.request_dictionary_set_value(dict, key, newValue.array) }
   }
 }
 

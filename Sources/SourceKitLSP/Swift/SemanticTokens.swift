@@ -24,12 +24,11 @@ extension SwiftLanguageServer {
       return nil
     }
 
-    let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-    skreq[keys.request] = requests.semantic_tokens
-    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
-
-    // FIXME: SourceKit should probably cache this for us.
-    skreq[keys.compilerargs] = buildSettings.compilerArgs
+    let skreq = [
+      keys.request: requests.semantic_tokens,
+      keys.sourcefile: snapshot.uri.pseudoPath,
+      keys.compilerargs: buildSettings.compilerArgs as [SKDValue],
+    ].skd(sourcekitd)
 
     let dict = try await sourcekitd.send(skreq, fileContents: snapshot.text)
 

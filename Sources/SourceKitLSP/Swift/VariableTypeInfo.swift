@@ -87,21 +87,18 @@ extension SwiftLanguageServer {
   ) async throws -> [VariableTypeInfo] {
     let snapshot = try documentManager.latestSnapshot(uri)
 
-    let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
-    skreq[keys.request] = requests.variable_type
-    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
+    let skreq = [
+      keys.request: requests.variable_type,
+      keys.sourcefile: snapshot.uri.pseudoPath,
+      keys.compilerargs: await self.buildSettings(for: uri)?.compilerArgs as [SKDValue]?,
+    ].skd(sourcekitd)
 
     if let range = range,
       let start = snapshot.utf8Offset(of: range.lowerBound),
       let end = snapshot.utf8Offset(of: range.upperBound)
     {
-      skreq[keys.offset] = start
-      skreq[keys.length] = end - start
-    }
-
-    // FIXME: SourceKit should probably cache this for us
-    if let compileCommand = await self.buildSettings(for: uri) {
-      skreq[keys.compilerargs] = compileCommand.compilerArgs
+      skreq.set(keys.offset, to: start)
+      skreq.set(keys.length, to: end - start)
     }
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
