@@ -55,8 +55,7 @@ extension SwiftLanguageServer {
       compileCommand: buildSettings,
       options: options,
       clientSupportsSnippets: clientSupportsSnippets,
-      filterText: filterText,
-      mustReuse: req.context?.triggerKind == .triggerFromIncompleteCompletions
+      filterText: filterText
     )
   }
 

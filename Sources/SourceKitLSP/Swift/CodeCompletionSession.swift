@@ -94,8 +94,7 @@ class CodeCompletionSession {
     compileCommand: SwiftCompileCommand?,
     options: SKCompletionOptions,
     clientSupportsSnippets: Bool,
-    filterText: String,
-    mustReuse: Bool
+    filterText: String
   ) async throws -> CompletionList {
     let task = completionQueue.asyncThrowing {
       if let session = completionSessions[ObjectIdentifier(sourcekitd)], session.state == .open {
@@ -113,23 +112,9 @@ class CodeCompletionSession {
           )
         }
 
-        if mustReuse {
-          logger.error(
-            """
-              triggerFromIncompleteCompletions with incompatible completion session; expected \
-              \(session.uri.forLogging)@\(session.utf8StartOffset), \
-              but got \(snapshot.uri.forLogging)@\(completionUtf8Offset)
-            """
-          )
-          throw ResponseError.serverCancelled
-        }
         // The sessions aren't compatible. Close the existing session and open
         // a new one below.
         await session.close()
-      }
-      if mustReuse {
-        logger.error("triggerFromIncompleteCompletions with no existing completion session")
-        throw ResponseError.serverCancelled
       }
       let session = CodeCompletionSession(
         sourcekitd: sourcekitd,
