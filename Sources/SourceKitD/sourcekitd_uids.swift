@@ -79,6 +79,7 @@ public struct sourcekitd_keys {
   public let request: sourcekitd_uid_t
   public let results: sourcekitd_uid_t
   public let retrieve_refactor_actions: sourcekitd_uid_t
+  public let secondarySymbols: sourcekitd_uid_t
   public let semantic_tokens: sourcekitd_uid_t
   public let severity: sourcekitd_uid_t
   public let sourceEditKindActive: sourcekitd_uid_t
@@ -186,6 +187,7 @@ public struct sourcekitd_keys {
     request = api.uid_get_from_cstr("key.request")!
     results = api.uid_get_from_cstr("key.results")!
     retrieve_refactor_actions = api.uid_get_from_cstr("key.retrieve_refactor_actions")!
+    secondarySymbols = api.uid_get_from_cstr("key.secondary_symbols")!
     semantic_tokens = api.uid_get_from_cstr("key.semantic_tokens")!
     severity = api.uid_get_from_cstr("key.severity")!
     sourceEditKindActive = api.uid_get_from_cstr("source.edit.kind.active")!
