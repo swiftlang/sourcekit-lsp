@@ -152,12 +152,38 @@ extension Array: LSPAnyCodable where Element: LSPAnyCodable {
     guard case .array(let array) = array else {
       return nil
     }
+
     var result = [Element]()
-    for case .dictionary(let editDict) in array {
-      guard let element = Element.init(fromLSPDictionary: editDict) else {
-        return nil
+    for element in array {
+      switch element {
+      case .dictionary(let dict):
+        if let value = Element(fromLSPDictionary: dict) {
+          result.append(value)
+        }
+      case .array(let value):
+        if let value = value as? [Element] {
+          result.append(contentsOf: value)
+        }
+      case .string(let value):
+        if let value = value as? Element {
+          result.append(value)
+        }
+      case .int(let value):
+        if let value = value as? Element {
+          result.append(value)
+        }
+      case .double(let value):
+        if let value = value as? Element {
+          result.append(value)
+        }
+      case .bool(let value):
+        if let value = value as? Element {
+          result.append(value)
+        }
+      case .null:
+        // skip array of null
+        break
       }
-      result.append(element)
     }
     self = result
   }
