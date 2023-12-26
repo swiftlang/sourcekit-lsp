@@ -53,8 +53,8 @@ final class SemanticTokensTests: XCTestCase {
               range: .bool(true),
               full: .bool(true)
             ),
-            tokenTypes: Token.Kind.allCases.map(\._lspName),
-            tokenModifiers: Token.Modifiers.allModifiers.map { $0._lspName! },
+            tokenTypes: Token.Kind.all.map(\.name),
+            tokenModifiers: Token.Modifiers.all.compactMap(\.name),
             formats: [.relative]
           )
         )
@@ -176,13 +176,13 @@ final class SemanticTokensTests: XCTestCase {
         2,  // line delta
         3,  // char delta
         5,  // length
-        Token.Kind.string.rawValue,  // kind
+        Token.Kind.string.tokenType,  // kind
         0,  // modifiers
 
         2,  // line delta
         2,  // char delta
         1,  // length
-        Token.Kind.interface.rawValue,  // kind
+        Token.Kind.interface.tokenType,  // kind
         Token.Modifiers.deprecated.rawValue | Token.Modifiers.definition.rawValue,  // modifiers
       ]
     )
