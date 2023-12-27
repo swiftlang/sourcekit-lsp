@@ -18,6 +18,9 @@ public struct SKCompletionOptions: Codable, Hashable {
   /// The maximum number of completion results to return, or `nil` for unlimited.
   public var maxResults: Int?
 
+  @available(*, deprecated, message: "Not used")
+  public var serverSideFiltering: Bool = true
+
   public init(maxResults: Int? = 200) {
     self.maxResults = maxResults
   }
