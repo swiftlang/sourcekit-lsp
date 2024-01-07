@@ -439,11 +439,12 @@ public actor SourceKitServer {
   public init(
     client: Connection,
     fileSystem: FileSystem = localFileSystem,
+    toolchainRegistry: ToolchainRegistry,
     options: Options,
     onExit: @escaping () -> Void = {}
-  ) async {
+  ) {
     self.fs = fileSystem
-    self.toolchainRegistry = await ToolchainRegistry.shared
+    self.toolchainRegistry = toolchainRegistry
     self.options = options
     self.onExit = onExit
 

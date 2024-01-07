@@ -53,32 +53,21 @@ public final actor ToolchainRegistry {
   }()
 
   /// Creates an empty toolchain registry.
-  public init() {}
+  private init() {}
 
-  /// A task that produces the shared toolchain registry.
-  private static var sharedRegistryTask: Task<ToolchainRegistry, Never> = Task {
-    await ToolchainRegistry(localFileSystem)
-  }
-
-  /// The global toolchain registry, initially populated by scanning for toolchains.
-  ///
-  /// Scans for toolchains in:
-  /// * env SOURCEKIT_TOOLCHAIN_PATH <-- will override default toolchain
-  /// * (Darwin) The currently selected Xcode
-  /// * (Darwin) [~]/Library/Developer/Toolchains
-  /// * env SOURCEKIT_PATH, PATH
-  public static var shared: ToolchainRegistry {
+  /// A toolchain registry used for testing that scans for toolchains based on environment variables and Xcode
+  /// installations but not next to the `sourcekit-lsp` binary because there is no `sourcekit-lsp` binary during
+  /// testing.
+  @_spi(Testing)
+  public static var forTesting: ToolchainRegistry {
     get async {
-      return await sharedRegistryTask.value
+      await ToolchainRegistry(localFileSystem)
     }
   }
 
-  /// Set the globally shared toolchain registry.
-  public static func setSharedToolchainRegistry(_ toolchainRegistry: ToolchainRegistry) {
-    sharedRegistryTask = Task {
-      toolchainRegistry
-    }
-  }
+  /// A toolchain registry that doesn't contain any toolchains.
+  @_spi(Testing)
+  public static var empty: ToolchainRegistry { ToolchainRegistry() }
 
   /// Creates a toolchain registry populated by scanning for toolchains according to the given paths
   /// and variables.
@@ -99,7 +88,6 @@ public final actor ToolchainRegistry {
     installPath: AbsolutePath? = nil,
     _ fileSystem: FileSystem
   ) async {
-    self.init()
     scanForToolchains(installPath: installPath, fileSystem)
   }
 }

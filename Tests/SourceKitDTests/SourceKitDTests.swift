@@ -15,7 +15,7 @@ import ISDBTestSupport
 import ISDBTibs
 import LSPTestSupport
 import LanguageServerProtocol
-import SKCore
+@_spi(Testing) import SKCore
 import SKSupport
 import SKTestSupport
 import SourceKitD
@@ -27,7 +27,7 @@ import class TSCBasic.Process
 
 final class SourceKitDTests: XCTestCase {
   func testMultipleNotificationHandlers() async throws {
-    let sourcekitdPath = await ToolchainRegistry.shared.default!.sourcekitd!
+    let sourcekitdPath = await ToolchainRegistry.forTesting.default!.sourcekitd!
     let sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitdPath)
     let keys = sourcekitd.keys
     let path = DocumentURI.for(.swift).pseudoPath

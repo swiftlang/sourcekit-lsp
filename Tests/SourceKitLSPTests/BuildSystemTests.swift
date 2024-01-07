@@ -13,7 +13,7 @@
 import BuildServerProtocol
 import LSPTestSupport
 import LanguageServerProtocol
-import SKCore
+@_spi(Testing) import SKCore
 import SKTestSupport
 import SourceKitLSP
 import TSCBasic
@@ -99,7 +99,7 @@ final class BuildSystemTests: XCTestCase {
       documentManager: DocumentManager(),
       rootUri: nil,
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
-      toolchainRegistry: ToolchainRegistry.shared,
+      toolchainRegistry: ToolchainRegistry.forTesting,
       buildSetup: SourceKitServer.Options.testDefault.buildSetup,
       underlyingBuildSystem: buildSystem,
       index: nil,

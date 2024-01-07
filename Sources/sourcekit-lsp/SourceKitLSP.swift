@@ -241,10 +241,10 @@ struct SourceKitLSP: ParsableCommand {
     )
 
     let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
-    await ToolchainRegistry.setSharedToolchainRegistry(ToolchainRegistry(installPath: installPath, localFileSystem))
 
     let server = await SourceKitServer(
       client: clientConnection,
+      toolchainRegistry: ToolchainRegistry(installPath: installPath, localFileSystem),
       options: mapOptions(),
       onExit: {
         clientConnection.close()
