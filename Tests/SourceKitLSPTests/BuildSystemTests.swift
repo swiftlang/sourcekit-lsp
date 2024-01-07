@@ -90,7 +90,6 @@ final class BuildSystemTests: XCTestCase {
   private var haveClangd: Bool = false
 
   override func setUp() async throws {
-    haveClangd = ToolchainRegistry.shared.toolchains.contains { $0.clangd != nil }
     testClient = try await TestSourceKitLSPClient()
     buildSystem = TestBuildSystem()
 

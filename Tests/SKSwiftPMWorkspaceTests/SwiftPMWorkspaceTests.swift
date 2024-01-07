@@ -39,7 +39,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
-      let tr = ToolchainRegistry.shared
+      let tr = await ToolchainRegistry.shared
       await assertThrowsError(
         try await SwiftPMWorkspace(
           workspacePath: packageRoot,
@@ -66,7 +66,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
-      let tr = ToolchainRegistry.shared
+      let tr = await ToolchainRegistry.shared
       await assertThrowsError(
         try await SwiftPMWorkspace(
           workspacePath: packageRoot,
@@ -122,7 +122,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
-      let tr = ToolchainRegistry.shared
+      let tr = await ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
@@ -182,7 +182,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
-      let tr = ToolchainRegistry.shared
+      let tr = await ToolchainRegistry.shared
 
       let config = BuildSetup(
         configuration: .release,
@@ -228,7 +228,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
-      let tr = ToolchainRegistry.shared
+      let tr = await ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
@@ -262,7 +262,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
-      let tr = ToolchainRegistry.shared
+      let tr = await ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
@@ -306,7 +306,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
-      let tr = ToolchainRegistry.shared
+      let tr = await ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
@@ -368,7 +368,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
-      let tr = ToolchainRegistry.shared
+      let tr = await ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
@@ -404,7 +404,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
-      let tr = ToolchainRegistry.shared
+      let tr = await ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
@@ -544,7 +544,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString)
       )
 
-      let tr = ToolchainRegistry.shared
+      let tr = await ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
@@ -603,7 +603,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString)
       )
 
-      let tr = ToolchainRegistry.shared
+      let tr = await ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
@@ -648,7 +648,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
-      let tr = ToolchainRegistry.shared
+      let tr = await ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
@@ -684,7 +684,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(components: "pkg", "Sources", "lib"))
-      let tr = ToolchainRegistry.shared
+      let tr = await ToolchainRegistry.shared
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,

@@ -46,7 +46,7 @@ public struct IndexedSingleSwiftFileWorkspace {
     let testFileURL = testWorkspaceDirectory.appendingPathComponent("test.swift")
     let indexURL = testWorkspaceDirectory.appendingPathComponent("index")
     self.indexDBURL = testWorkspaceDirectory.appendingPathComponent("index-db")
-    guard let swiftc = ToolchainRegistry.shared.default?.swiftc?.asURL else {
+    guard let swiftc = await ToolchainRegistry.shared.default?.swiftc?.asURL else {
       throw Error.swiftcNotFound
     }
 

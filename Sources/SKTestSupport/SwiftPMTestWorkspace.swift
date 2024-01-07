@@ -72,7 +72,7 @@ public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
 
   /// Build a SwiftPM package package manifest is located in the directory at `path`.
   public static func build(at path: URL) async throws {
-    guard let swift = ToolchainRegistry.shared.default?.swift?.asURL else {
+    guard let swift = await ToolchainRegistry.shared.default?.swift?.asURL else {
       throw Error.swiftNotFound
     }
     let arguments = [

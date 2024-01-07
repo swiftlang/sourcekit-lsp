@@ -164,7 +164,7 @@ public final class Workspace {
 
     if let storePath = await firstNonNil(indexOptions.indexStorePath, await buildSystem?.indexStorePath),
       let dbPath = await firstNonNil(indexOptions.indexDatabasePath, await buildSystem?.indexDatabasePath),
-      let libPath = toolchainRegistry.default?.libIndexStore
+      let libPath = await toolchainRegistry.default?.libIndexStore
     {
       do {
         let lib = try IndexStoreLibrary(dylibPath: libPath.pathString)

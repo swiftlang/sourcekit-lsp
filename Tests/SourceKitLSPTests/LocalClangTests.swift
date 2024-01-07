@@ -17,28 +17,9 @@ import SKTestSupport
 import XCTest
 
 final class LocalClangTests: XCTestCase {
-
-  /// Whether to fail tests if clangd cannot be found.
-  ///
-  /// - Note: Swift CI doesn't build clangd on all jobs
-  private static let requireClangd: Bool = false
-
-  /// Whether clangd exists in the toolchain.
-  ///
-  /// - Note: Set before each test run in `setUp`.
-  private var haveClangd: Bool = false
-
-  override func setUp() async throws {
-    haveClangd = ToolchainRegistry.shared.toolchains.contains { $0.clangd != nil }
-    if LocalClangTests.requireClangd && !haveClangd {
-      XCTFail("cannot find clangd in toolchain")
-    }
-  }
-
   // MARK: - Tests
 
   func testSymbolInfo() async throws {
-    guard haveClangd else { return }
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.cpp)
 
@@ -114,7 +95,6 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testFoldingRange() async throws {
-    guard haveClangd else { return }
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.cpp)
 
@@ -142,7 +122,6 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testDocumentSymbols() async throws {
-    guard haveClangd else { return }
     let testClient = try await TestSourceKitLSPClient(
       capabilities: ClientCapabilities(
         textDocument: TextDocumentClientCapabilities(
@@ -238,8 +217,6 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testClangStdHeaderCanary() async throws {
-    try XCTSkipIf(!haveClangd)
-
     // Note: tests generally should avoid including system headers
     // to keep them fast and portable. This test is specifically
     // ensuring clangd can find libc++ and builtin headers.
@@ -266,8 +243,6 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testClangModules() async throws {
-    try XCTSkipIf(!haveClangd)
-
     let ws = try await MultiFileTestWorkspace(files: [
       "ClangModuleA.h": """
       #ifndef ClangModuleA_h
@@ -302,8 +277,6 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testSemanticHighlighting() async throws {
-    try XCTSkipIf(!hasClangd)
-
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.c)
 
@@ -335,8 +308,6 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testDocumentDependenciesUpdated() async throws {
-    try XCTSkipIf(!hasClangd)
-
     let ws = try await MultiFileTestWorkspace(files: [
       "Object.h": """
       struct Object {

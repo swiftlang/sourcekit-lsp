@@ -43,6 +43,14 @@ public enum ReloadPackageStatus {
   case end
 }
 
+/// Same as `toolchainRegistry.default`.
+///
+/// Needed to work around a compiler crash that prevents us from accessing `toolchainRegistry.default` in
+/// `SwiftPMWorkspace.init`.
+private func getDefaultToolchain(_ toolchainRegistry: ToolchainRegistry) async -> SKCore.Toolchain? {
+  return await toolchainRegistry.default
+}
+
 /// Swift Package Manager build system and workspace support.
 ///
 /// This class implements the `BuildSystem` interface to provide the build settings for a Swift
@@ -109,7 +117,7 @@ public actor SwiftPMWorkspace {
 
     self.packageRoot = try resolveSymlinks(packageRoot)
 
-    guard let destinationToolchainBinDir = toolchainRegistry.default?.swiftc?.parentDirectory else {
+    guard let destinationToolchainBinDir = await getDefaultToolchain(toolchainRegistry)?.swiftc?.parentDirectory else {
       throw Error.cannotDetermineHostToolchain
     }
 

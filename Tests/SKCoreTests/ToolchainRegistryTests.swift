@@ -10,47 +10,58 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SKCore
+import LSPTestSupport
+@_spi(Testing) import SKCore
 import SKSupport
 import TSCBasic
 import XCTest
 
 import enum PackageLoading.Platform
 
-final class ToolchainRegistryTests: XCTestCase {
-  func testDefaultBasic() throws {
-    let tr = ToolchainRegistry()
-    XCTAssertNil(tr.default)
-    try tr.registerToolchain(Toolchain(identifier: "a", displayName: "a", path: nil))
-    XCTAssertEqual(tr.default?.identifier, "a")
-    let b = Toolchain(identifier: "b", displayName: "b", path: nil)
-    try tr.registerToolchain(b)
-    XCTAssertEqual(tr.default?.identifier, "a")
-    tr.default = b
-    XCTAssertEqual(tr.default?.identifier, "b")
-    tr.default = nil
-    XCTAssertEqual(tr.default?.identifier, "a")
-    XCTAssert(tr.default === tr.toolchain(identifier: "a"))
+extension ToolchainRegistry {
+  func setDefault(_ newDefault: Toolchain?) {
+    self.default = newDefault
   }
 
-  func testDefaultDarwin() throws {
+  func setDarwinToolchainOverride(_ newValue: String?) {
+    self.darwinToolchainOverride = newValue
+  }
+}
+
+final class ToolchainRegistryTests: XCTestCase {
+  func testDefaultBasic() async throws {
+    let tr = ToolchainRegistry()
+    await assertNil(tr.default)
+    try await tr.registerToolchain(Toolchain(identifier: "a", displayName: "a", path: nil))
+    await assertEqual(tr.default?.identifier, "a")
+    let b = Toolchain(identifier: "b", displayName: "b", path: nil)
+    try await tr.registerToolchain(b)
+    await assertEqual(tr.default?.identifier, "a")
+    await tr.setDefault(b)
+    await assertEqual(tr.default?.identifier, "b")
+    await tr.setDefault(nil)
+    await assertEqual(tr.default?.identifier, "a")
+    await assertTrue(tr.default === tr.toolchain(identifier: "a"))
+  }
+
+  func testDefaultDarwin() async throws {
     let prevPlatform = Platform.current
     defer { Platform.current = prevPlatform }
     Platform.current = .darwin
 
     let tr = ToolchainRegistry()
-    tr.darwinToolchainOverride = nil
-    XCTAssertNil(tr.default)
+    await tr.setDarwinToolchainOverride(nil)
+    await assertNil(tr.default)
     let a = Toolchain(identifier: "a", displayName: "a", path: nil)
-    try tr.registerToolchain(a)
-    try tr.registerToolchain(
+    try await tr.registerToolchain(a)
+    try await tr.registerToolchain(
       Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier, displayName: "a", path: nil)
     )
-    XCTAssertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
-    tr.default = a
-    XCTAssertEqual(tr.default?.identifier, "a")
-    tr.default = nil
-    XCTAssertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
+    await assertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
+    await tr.setDefault(a)
+    await assertEqual(tr.default?.identifier, "a")
+    await tr.setDefault(nil)
+    await assertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
   }
 
   func testUnknownPlatform() throws {
@@ -69,12 +80,12 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNotNil(t.sourcekitd)
   }
 
-  func testSearchDarwin() throws {
+  func testSearchDarwin() async throws {
     // FIXME: requires PropertyListEncoder
     #if os(macOS)
     let fs = InMemoryFileSystem()
-    let tr1 = ToolchainRegistry(fs)
-    tr1.darwinToolchainOverride = nil
+    let tr1 = await ToolchainRegistry(fs)
+    await tr1.setDarwinToolchainOverride(nil)
 
     let xcodeDeveloper = ToolchainRegistry.currentXcodeDeveloperPath!
     let toolchains = xcodeDeveloper.appending(components: "Toolchains")
@@ -87,27 +98,27 @@ final class ToolchainRegistryTests: XCTestCase {
       sourcekitd: true
     )
 
-    XCTAssertNil(tr1.default)
-    XCTAssert(tr1.toolchains.isEmpty)
+    await assertNil(tr1.default)
+    await assertTrue(tr1.toolchains.isEmpty)
 
-    tr1.scanForToolchains(xcode: xcodeDeveloper, fs)
+    await tr1.scanForToolchains(xcode: xcodeDeveloper, fs)
 
-    XCTAssertEqual(tr1.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
-    XCTAssertEqual(tr1.default?.path, toolchains.appending(component: "XcodeDefault.xctoolchain"))
-    XCTAssertNotNil(tr1.default?.sourcekitd)
-    XCTAssertEqual(tr1.toolchains.count, 1)
+    await assertEqual(tr1.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
+    await assertEqual(tr1.default?.path, toolchains.appending(component: "XcodeDefault.xctoolchain"))
+    await assertNotNil(tr1.default?.sourcekitd)
+    await assertEqual(tr1.toolchains.count, 1)
 
-    let tr = ToolchainRegistry(fs)
-    tr.darwinToolchainOverride = nil
+    let tr = await ToolchainRegistry(fs)
+    await tr.setDarwinToolchainOverride(nil)
 
-    XCTAssertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
-    XCTAssertEqual(tr.default?.path, toolchains.appending(component: "XcodeDefault.xctoolchain"))
-    XCTAssertNotNil(tr.default?.sourcekitd)
-    XCTAssertEqual(tr.toolchains.count, 1)
+    await assertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
+    await assertEqual(tr.default?.path, toolchains.appending(component: "XcodeDefault.xctoolchain"))
+    await assertNotNil(tr.default?.sourcekitd)
+    await assertEqual(tr.toolchains.count, 1)
 
-    let defaultToolchain = tr.default!
+    let defaultToolchain = await tr.default!
 
-    XCTAssert(tr.toolchains.first === defaultToolchain)
+    await assertTrue(tr.toolchains.first === defaultToolchain)
 
     try makeXCToolchain(
       identifier: "com.apple.fake.A",
@@ -124,8 +135,8 @@ final class ToolchainRegistryTests: XCTestCase {
       sourcekitd: true
     )
 
-    tr.scanForToolchains(fs)
-    XCTAssertEqual(tr.toolchains.count, 3)
+    await tr.scanForToolchains(fs)
+    await assertEqual(tr.toolchains.count, 3)
 
     try makeXCToolchain(
       identifier: "com.apple.fake.C",
@@ -142,8 +153,8 @@ final class ToolchainRegistryTests: XCTestCase {
       sourcekitd: true
     )
 
-    tr.scanForToolchains(fs)
-    XCTAssertEqual(tr.toolchains.count, 3)
+    await tr.scanForToolchains(fs)
+    await assertEqual(tr.toolchains.count, 3)
 
     try makeXCToolchain(
       identifier: "com.apple.fake.A",
@@ -153,8 +164,8 @@ final class ToolchainRegistryTests: XCTestCase {
       sourcekitd: true
     )
 
-    tr.scanForToolchains(fs)
-    XCTAssertEqual(tr.toolchains.count, 3)
+    await tr.scanForToolchains(fs)
+    await assertEqual(tr.toolchains.count, 3)
 
     try makeXCToolchain(
       identifier: "org.fake.global.A",
@@ -171,8 +182,8 @@ final class ToolchainRegistryTests: XCTestCase {
       sourcekitd: true
     )
 
-    tr.scanForToolchains(fs)
-    XCTAssertEqual(tr.toolchains.count, 5)
+    await tr.scanForToolchains(fs)
+    await assertEqual(tr.toolchains.count, 5)
 
     let path = toolchains.appending(component: "Explicit.xctoolchain")
     try makeXCToolchain(
@@ -194,7 +205,7 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertEqual(tc?.displayName, tcBin?.displayName)
 
     let trInstall = ToolchainRegistry()
-    trInstall.scanForToolchains(
+    await trInstall.scanForToolchains(
       installPath: path.appending(components: "usr", "bin"),
       environmentVariables: [],
       xcodes: [],
@@ -202,28 +213,28 @@ final class ToolchainRegistryTests: XCTestCase {
       pathVariables: [],
       fs
     )
-    XCTAssertEqual(trInstall.default?.identifier, "org.fake.explicit")
-    XCTAssertEqual(trInstall.default?.path, path)
+    await assertEqual(trInstall.default?.identifier, "org.fake.explicit")
+    await assertEqual(trInstall.default?.path, path)
 
-    let overrideReg = ToolchainRegistry(fs)
-    overrideReg.darwinToolchainOverride = "org.fake.global.B"
-    XCTAssertEqual(overrideReg.darwinToolchainIdentifier, "org.fake.global.B")
-    XCTAssertEqual(overrideReg.default?.identifier, "org.fake.global.B")
+    let overrideReg = await ToolchainRegistry(fs)
+    await overrideReg.setDarwinToolchainOverride("org.fake.global.B")
+    await assertEqual(overrideReg.darwinToolchainIdentifier, "org.fake.global.B")
+    await assertEqual(overrideReg.default?.identifier, "org.fake.global.B")
 
     let checkByDir = ToolchainRegistry()
-    checkByDir.scanForToolchains(xctoolchainSearchPath: toolchains, fs)
-    XCTAssertEqual(checkByDir.toolchains.count, 4)
+    await checkByDir.scanForToolchains(xctoolchainSearchPath: toolchains, fs)
+    await assertEqual(checkByDir.toolchains.count, 4)
     #endif
   }
 
-  func testSearchPATH() throws {
+  func testSearchPATH() async throws {
     let fs = InMemoryFileSystem()
-    let tr = ToolchainRegistry(fs)
+    let tr = await ToolchainRegistry(fs)
     let binPath = try AbsolutePath(validating: "/foo/bar/my_toolchain/bin")
     try makeToolchain(binPath: binPath, fs, sourcekitd: true)
 
-    XCTAssertNil(tr.default)
-    XCTAssert(tr.toolchains.isEmpty)
+    await assertNil(tr.default)
+    await assertTrue(tr.toolchains.isEmpty)
 
     #if os(Windows)
     let separator: String = ";"
@@ -237,14 +248,14 @@ final class ToolchainRegistryTests: XCTestCase {
     )
     defer { try! ProcessEnv.setVar("SOURCEKIT_PATH", value: "") }
 
-    tr.scanForToolchains(fs)
+    await tr.scanForToolchains(fs)
 
-    guard let tc = tr.toolchains.first(where: { tc in tc.path == binPath }) else {
+    guard let tc = await tr.toolchains.first(where: { tc in tc.path == binPath }) else {
       XCTFail("couldn't find expected toolchain")
       return
     }
 
-    XCTAssertEqual(tr.default?.identifier, tc.identifier)
+    await assertEqual(tr.default?.identifier, tc.identifier)
     XCTAssertEqual(tc.identifier, binPath.pathString)
     XCTAssertNil(tc.clang)
     XCTAssertNil(tc.clangd)
@@ -258,37 +269,37 @@ final class ToolchainRegistryTests: XCTestCase {
       value: ["/bogus", binPath2.pathString, "bogus2"].joined(separator: separator)
     )
     try makeToolchain(binPath: binPath2, fs, sourcekitd: true)
-    tr.scanForToolchains(pathVariables: ["NOPE", "SOME_TEST_ENV_PATH", "MORE_NOPE"], fs)
+    await tr.scanForToolchains(pathVariables: ["NOPE", "SOME_TEST_ENV_PATH", "MORE_NOPE"], fs)
 
-    guard let tc2 = tr.toolchains.first(where: { tc in tc.path == binPath2 }) else {
+    guard let tc2 = await tr.toolchains.first(where: { tc in tc.path == binPath2 }) else {
       XCTFail("couldn't find expected toolchain")
       return
     }
 
-    XCTAssertEqual(tr.default?.identifier, tc.identifier)
+    await assertEqual(tr.default?.identifier, tc.identifier)
     XCTAssertEqual(tc2.identifier, binPath2.pathString)
     XCTAssertNotNil(tc2.sourcekitd)
   }
 
-  func testSearchExplicitEnvBuiltin() throws {
+  func testSearchExplicitEnvBuiltin() async throws {
     let fs = InMemoryFileSystem()
-    let tr = ToolchainRegistry(fs)
+    let tr = await ToolchainRegistry(fs)
     let binPath = try AbsolutePath(validating: "/foo/bar/my_toolchain/bin")
     try makeToolchain(binPath: binPath, fs, sourcekitd: true)
 
-    XCTAssertNil(tr.default)
-    XCTAssert(tr.toolchains.isEmpty)
+    await assertNil(tr.default)
+    await assertTrue(tr.toolchains.isEmpty)
 
     try ProcessEnv.setVar("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: binPath.parentDirectory.pathString)
 
-    tr.scanForToolchains(environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"], fs)
+    await tr.scanForToolchains(environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"], fs)
 
-    guard let tc = tr.toolchains.first(where: { tc in tc.path == binPath.parentDirectory }) else {
+    guard let tc = await tr.toolchains.first(where: { tc in tc.path == binPath.parentDirectory }) else {
       XCTFail("couldn't find expected toolchain")
       return
     }
 
-    XCTAssertEqual(tr.default?.identifier, tc.identifier)
+    await assertEqual(tr.default?.identifier, tc.identifier)
     XCTAssertEqual(tc.identifier, binPath.parentDirectory.pathString)
     XCTAssertNil(tc.clang)
     XCTAssertNil(tc.clangd)
@@ -297,24 +308,24 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tc.libIndexStore)
   }
 
-  func testSearchExplicitEnv() throws {
+  func testSearchExplicitEnv() async throws {
     let fs = InMemoryFileSystem()
-    let tr = ToolchainRegistry(fs)
+    let tr = await ToolchainRegistry(fs)
     let binPath = try AbsolutePath(validating: "/foo/bar/my_toolchain/bin")
     try makeToolchain(binPath: binPath, fs, sourcekitd: true)
 
-    XCTAssertNil(tr.default)
-    XCTAssert(tr.toolchains.isEmpty)
+    await assertNil(tr.default)
+    await assertTrue(tr.toolchains.isEmpty)
 
     try ProcessEnv.setVar("TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2", value: binPath.parentDirectory.pathString)
 
-    tr.scanForToolchains(
+    await tr.scanForToolchains(
       environmentVariables: ["TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2"],
       setDefault: false,
       fs
     )
 
-    guard let tc = tr.toolchains.first(where: { tc in tc.path == binPath.parentDirectory }) else {
+    guard let tc = await tr.toolchains.first(where: { tc in tc.path == binPath.parentDirectory }) else {
       XCTFail("couldn't find expected toolchain")
       return
     }
@@ -327,10 +338,10 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNil(tc.libIndexStore)
   }
 
-  func testFromDirectory() throws {
+  func testFromDirectory() async throws {
     // This test uses the real file system because the in-memory system doesn't support marking files executable.
     let fs = localFileSystem
-    try withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
       let path = tempDir.appending(components: "A.xctoolchain", "usr")
       try makeToolchain(
         binPath: path.appending(component: "bin"),
@@ -376,7 +387,7 @@ final class ToolchainRegistryTests: XCTestCase {
       XCTAssertNotNil(t2.swiftc)
 
       let tr = ToolchainRegistry()
-      let t3 = try tr.registerToolchain(path.parentDirectory, fs)
+      let t3 = try await tr.registerToolchain(path.parentDirectory, fs)
       XCTAssertEqual(t3.identifier, t2.identifier)
       XCTAssertEqual(t3.sourcekitd, t2.sourcekitd)
       XCTAssertEqual(t3.clang, t2.clang)
@@ -414,12 +425,12 @@ final class ToolchainRegistryTests: XCTestCase {
     XCTAssertNotNil(Toolchain(try AbsolutePath(validating: "/t3"), fs))
   }
 
-  func testDuplicateError() throws {
+  func testDuplicateError() async throws {
     let tr = ToolchainRegistry()
     let toolchain = Toolchain(identifier: "a", displayName: "a", path: nil)
-    try tr.registerToolchain(toolchain)
-    XCTAssertThrowsError(
-      try tr.registerToolchain(toolchain),
+    try await tr.registerToolchain(toolchain)
+    await assertThrowsError(
+      try await tr.registerToolchain(toolchain),
       "Expected error registering toolchain twice"
     ) { e in
       guard let error = e as? ToolchainRegistry.Error, error == .duplicateToolchainIdentifier else {
@@ -429,14 +440,14 @@ final class ToolchainRegistryTests: XCTestCase {
     }
   }
 
-  func testDuplicatePathError() throws {
+  func testDuplicatePathError() async throws {
     let tr = ToolchainRegistry()
     let path = try AbsolutePath(validating: "/foo/bar")
     let first = Toolchain(identifier: "a", displayName: "a", path: path)
     let second = Toolchain(identifier: "b", displayName: "b", path: path)
-    try tr.registerToolchain(first)
-    XCTAssertThrowsError(
-      try tr.registerToolchain(second),
+    try await tr.registerToolchain(first)
+    await assertThrowsError(
+      try await tr.registerToolchain(second),
       "Expected error registering toolchain twice"
     ) { e in
       guard let error = e as? ToolchainRegistry.Error, error == .duplicateToolchainPath else {
@@ -446,16 +457,16 @@ final class ToolchainRegistryTests: XCTestCase {
     }
   }
 
-  func testDuplicateXcodeError() throws {
+  func testDuplicateXcodeError() async throws {
     let tr = ToolchainRegistry()
     let xcodeToolchain = Toolchain(
       identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier,
       displayName: "a",
       path: try AbsolutePath(validating: "/versionA")
     )
-    try tr.registerToolchain(xcodeToolchain)
-    XCTAssertThrowsError(
-      try tr.registerToolchain(xcodeToolchain),
+    try await tr.registerToolchain(xcodeToolchain)
+    await assertThrowsError(
+      try await tr.registerToolchain(xcodeToolchain),
       "Expected error registering toolchain twice"
     ) { e in
       guard let error = e as? ToolchainRegistry.Error, error == .duplicateToolchainPath else {
@@ -465,7 +476,7 @@ final class ToolchainRegistryTests: XCTestCase {
     }
   }
 
-  func testMultipleXcodes() throws {
+  func testMultipleXcodes() async throws {
     let tr = ToolchainRegistry()
     let pathA = try AbsolutePath(validating: "/versionA")
     let xcodeA = Toolchain(
@@ -479,33 +490,33 @@ final class ToolchainRegistryTests: XCTestCase {
       displayName: "b",
       path: pathB
     )
-    try tr.registerToolchain(xcodeA)
-    try tr.registerToolchain(xcodeB)
-    XCTAssert(tr.toolchain(path: pathA) === xcodeA)
-    XCTAssert(tr.toolchain(path: pathB) === xcodeB)
+    try await tr.registerToolchain(xcodeA)
+    try await tr.registerToolchain(xcodeB)
+    await assertTrue(tr.toolchain(path: pathA) === xcodeA)
+    await assertTrue(tr.toolchain(path: pathB) === xcodeB)
 
-    let toolchains = tr.toolchains(identifier: xcodeA.identifier)
+    let toolchains = await tr.toolchains(identifier: xcodeA.identifier)
     XCTAssert(toolchains.count == 2)
     XCTAssert(toolchains[0] === xcodeA)
     XCTAssert(toolchains[1] === xcodeB)
   }
 
-  func testInstallPath() throws {
+  func testInstallPath() async throws {
     let fs = InMemoryFileSystem()
     try makeToolchain(binPath: try AbsolutePath(validating: "/t1/bin"), fs, sourcekitd: true)
 
-    let trEmpty = ToolchainRegistry(installPath: nil, fs)
-    XCTAssertNil(trEmpty.default)
+    let trEmpty = await ToolchainRegistry(installPath: nil, fs)
+    await assertNil(trEmpty.default)
 
-    let tr1 = ToolchainRegistry(installPath: try AbsolutePath(validating: "/t1/bin"), fs)
-    XCTAssertEqual(tr1.default?.path, try AbsolutePath(validating: "/t1/bin"))
-    XCTAssertNotNil(tr1.default?.sourcekitd)
+    let tr1 = await ToolchainRegistry(installPath: try AbsolutePath(validating: "/t1/bin"), fs)
+    await assertEqual(tr1.default?.path, try AbsolutePath(validating: "/t1/bin"))
+    await assertNotNil(tr1.default?.sourcekitd)
 
-    let tr2 = ToolchainRegistry(installPath: try AbsolutePath(validating: "/t2/bin"), fs)
-    XCTAssertNil(tr2.default)
+    let tr2 = await ToolchainRegistry(installPath: try AbsolutePath(validating: "/t2/bin"), fs)
+    await assertNil(tr2.default)
   }
 
-  func testInstallPathVsEnv() throws {
+  func testInstallPathVsEnv() async throws {
     let fs = InMemoryFileSystem()
     try makeToolchain(binPath: try AbsolutePath(validating: "/t1/bin"), fs, sourcekitd: true)
     try makeToolchain(binPath: try AbsolutePath(validating: "/t2/bin"), fs, sourcekitd: true)
@@ -513,15 +524,15 @@ final class ToolchainRegistryTests: XCTestCase {
     try ProcessEnv.setVar("TEST_SOURCEKIT_TOOLCHAIN_PATH_1", value: "/t2/bin")
 
     let tr = ToolchainRegistry()
-    tr.scanForToolchains(
+    await tr.scanForToolchains(
       installPath: try AbsolutePath(validating: "/t1/bin"),
       environmentVariables: ["TEST_SOURCEKIT_TOOLCHAIN_PATH_1"],
       fs
     )
-    XCTAssertEqual(tr.toolchains.count, 2)
+    await assertEqual(tr.toolchains.count, 2)
 
     // Env variable wins.
-    XCTAssertEqual(tr.default?.path, try AbsolutePath(validating: "/t2/bin"))
+    await assertEqual(tr.default?.path, try AbsolutePath(validating: "/t2/bin"))
   }
 }
 

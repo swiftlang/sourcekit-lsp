@@ -87,5 +87,3 @@ fileprivate extension URL {
     #endif
   }
 }
-
-public let hasClangd = ToolchainRegistry.shared.default?.clangd != nil
