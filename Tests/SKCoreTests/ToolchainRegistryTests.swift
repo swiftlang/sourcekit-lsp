@@ -20,10 +20,6 @@ import XCTest
 import enum PackageLoading.Platform
 
 extension ToolchainRegistry {
-  func setDefault(_ newDefault: Toolchain?) {
-    self.default = newDefault
-  }
-
   func setDarwinToolchainOverride(_ newValue: String?) {
     self.darwinToolchainOverride = newValue
   }
@@ -37,10 +33,6 @@ final class ToolchainRegistryTests: XCTestCase {
     await assertEqual(tr.default?.identifier, "a")
     let b = Toolchain(identifier: "b", displayName: "b", path: nil)
     try await tr.registerToolchain(b)
-    await assertEqual(tr.default?.identifier, "a")
-    await tr.setDefault(b)
-    await assertEqual(tr.default?.identifier, "b")
-    await tr.setDefault(nil)
     await assertEqual(tr.default?.identifier, "a")
     await assertTrue(tr.default === tr.toolchain(identifier: "a"))
   }
@@ -58,10 +50,6 @@ final class ToolchainRegistryTests: XCTestCase {
     try await tr.registerToolchain(
       Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier, displayName: "a", path: nil)
     )
-    await assertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
-    await tr.setDefault(a)
-    await assertEqual(tr.default?.identifier, "a")
-    await tr.setDefault(nil)
     await assertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
   }
 
@@ -322,7 +310,6 @@ final class ToolchainRegistryTests: XCTestCase {
 
     await tr.scanForToolchains(
       environmentVariables: ["TEST_ENV_SOURCEKIT_TOOLCHAIN_PATH_2"],
-      setDefault: false,
       fs
     )
 
@@ -388,8 +375,8 @@ final class ToolchainRegistryTests: XCTestCase {
       XCTAssertNotNil(t2.swiftc)
 
       let tr = ToolchainRegistry.empty
-      let t3 = try await tr.registerToolchain(path.parentDirectory, fs)
-      XCTAssertEqual(t3.identifier, t2.identifier)
+      try await tr.registerToolchain(path.parentDirectory, fs)
+      let t3 = try await unwrap(tr.toolchain(identifier: t2.identifier))
       XCTAssertEqual(t3.sourcekitd, t2.sourcekitd)
       XCTAssertEqual(t3.clang, t2.clang)
       XCTAssertEqual(t3.clangd, t2.clangd)

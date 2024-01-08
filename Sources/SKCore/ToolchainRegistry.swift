@@ -41,9 +41,6 @@ public final actor ToolchainRegistry {
   /// Note: Not all toolchains have a path.
   private var toolchainsByPath: [AbsolutePath: Toolchain] = [:]
 
-  /// The default toolchain.
-  private var _default: Toolchain? = nil
-
   /// The currently selected toolchain identifier on Darwin.
   public lazy var darwinToolchainOverride: String? = {
     if let id = ProcessEnv.vars["TOOLCHAINS"], !id.isEmpty, id != "default" {
@@ -90,9 +87,6 @@ public final actor ToolchainRegistry {
   ) async {
     scanForToolchains(installPath: installPath, fileSystem)
   }
-}
-
-extension ToolchainRegistry {
 
   /// The default toolchain.
   ///
@@ -103,26 +97,12 @@ extension ToolchainRegistry {
   /// The default toolchain must be only of the registered toolchains.
   public var `default`: Toolchain? {
     get {
-      if _default == nil {
-        if let tc = toolchainsByIdentifier[darwinToolchainIdentifier]?.first {
-          _default = tc
-        } else {
-          _default = toolchains.first
-        }
+      if let tc = toolchainsByIdentifier[darwinToolchainIdentifier]?.first {
+        return tc
+      } else {
+        return toolchains.first
       }
-      return _default
-    }
-
-    set {
-      guard let toolchain = newValue else {
-        _default = nil
-        return
-      }
-      precondition(
-        toolchains.contains { $0 === toolchain },
-        "default toolchain must be registered first"
-      )
-      _default = toolchain
+      return nil
     }
   }
 
@@ -206,12 +186,11 @@ extension ToolchainRegistry {
   public func registerToolchain(
     _ path: AbsolutePath,
     _ fileSystem: FileSystem = localFileSystem
-  ) throws -> Toolchain {
+  ) throws {
     guard let toolchain = Toolchain(path, fileSystem) else {
       throw Error.invalidToolchain
     }
     try registerToolchain(toolchain)
-    return toolchain
   }
 }
 
@@ -240,12 +219,9 @@ extension ToolchainRegistry {
         AbsolutePath(validating: "/Library/Developer/Toolchains"),
       ]
 
-    scanForToolchains(environmentVariables: environmentVariables, setDefault: true, fileSystem)
-    if let installPath = installPath,
-      let toolchain = try? registerToolchain(installPath, fileSystem),
-      _default == nil
-    {
-      _default = toolchain
+    scanForToolchains(environmentVariables: environmentVariables, fileSystem)
+    if let installPath = installPath {
+      try? registerToolchain(installPath, fileSystem)
     }
     for xcode in xcodes {
       scanForToolchains(xcode: xcode, fileSystem)
@@ -261,22 +237,16 @@ extension ToolchainRegistry {
   ///
   /// - parameters:
   ///   - environmentVariables: A list of environment variable names to search for toolchain paths.
-  ///   - setDefault: If true, the first toolchain found will be set as the default.
   @_spi(Testing)
   public func scanForToolchains(
     environmentVariables: [String],
-    setDefault: Bool,
     _ fileSystem: FileSystem = localFileSystem
   ) {
-    var shouldSetDefault = setDefault
     for envVar in environmentVariables {
       if let pathStr = ProcessEnv.vars[envVar],
-        let path = try? AbsolutePath(validating: pathStr),
-        let toolchain = try? registerToolchain(path, fileSystem),
-        shouldSetDefault
+        let path = try? AbsolutePath(validating: pathStr)
       {
-        shouldSetDefault = false
-        _default = toolchain
+        try? registerToolchain(path, fileSystem)
       }
     }
   }
@@ -285,7 +255,6 @@ extension ToolchainRegistry {
   ///
   /// - parameters:
   ///   - pathVariables: A list of PATH-like environment variable names to search.
-  ///   - setDefault: If true, the first toolchain found will be set as the default.
   @_spi(Testing)
   public func scanForToolchains(pathVariables: [String], _ fileSystem: FileSystem = localFileSystem) {
     pathVariables.lazy.flatMap { envVar in
