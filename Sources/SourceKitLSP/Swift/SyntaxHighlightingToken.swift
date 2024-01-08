@@ -23,9 +23,9 @@ public struct SyntaxHighlightingToken: Hashable {
     }
   }
   /// The token type.
-  public var kind: Kind
+  public var kind: SemanticTokenTypes
   /// Additional metadata about the token.
-  public var modifiers: Modifiers
+  public var modifiers: SemanticTokenModifiers
 
   /// The (inclusive) start position of the token.
   public var start: Position { range.lowerBound }
@@ -34,7 +34,7 @@ public struct SyntaxHighlightingToken: Hashable {
   /// The length of the token in UTF-16 code units.
   public var utf16length: Int { end.utf16index - start.utf16index }
 
-  public init(range: Range<Position>, kind: Kind, modifiers: Modifiers = []) {
+  public init(range: Range<Position>, kind: SemanticTokenTypes, modifiers: SemanticTokenModifiers = []) {
     assert(range.lowerBound.line == range.upperBound.line)
 
     self.range = range
@@ -42,13 +42,10 @@ public struct SyntaxHighlightingToken: Hashable {
     self.modifiers = modifiers
   }
 
-  public init(start: Position, utf16length: Int, kind: Kind, modifiers: Modifiers = []) {
+  public init(start: Position, utf16length: Int, kind: SemanticTokenTypes, modifiers: SemanticTokenModifiers = []) {
     let range = start..<Position(line: start.line, utf16index: start.utf16index + utf16length)
     self.init(range: range, kind: kind, modifiers: modifiers)
   }
-
-  public typealias Kind = SemanticTokenTypes
-  public typealias Modifiers = SemanticTokenModifiers
 }
 
 extension Array where Element == SyntaxHighlightingToken {
