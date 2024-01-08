@@ -86,6 +86,31 @@ public final class Toolchain {
     self.sourcekitd = sourcekitd
     self.libIndexStore = libIndexStore
   }
+
+  /// Returns `true` if this toolchain has strictly more tools than `other`.
+  ///
+  /// ### Examples
+  /// - A toolchain that contains both `swiftc` and  `clangd` is a superset of one that only contains `swiftc`.
+  /// - A toolchain that contains only `swiftc`, `clangd` is not a superset of a toolchain that contains `swiftc` and
+  ///   `libIndexStore`. These toolchains are not comparable.
+  /// - Two toolchains that both contain `swiftc` and `clangd` are supersets of each other.
+  func isSuperset(of other: Toolchain) -> Bool {
+    func isSuperset(for tool: KeyPath<Toolchain, AbsolutePath?>) -> Bool {
+      if self[keyPath: tool] == nil && other[keyPath: tool] != nil {
+        // This toolchain doesn't contain the tool but the other toolchain does. It is not a superset.
+        return false
+      } else {
+        return true
+      }
+    }
+    return isSuperset(for: \.clang) && isSuperset(for: \.swift) && isSuperset(for: \.swiftc)
+      && isSuperset(for: \.clangd) && isSuperset(for: \.sourcekitd) && isSuperset(for: \.libIndexStore)
+  }
+
+  /// Same as `isSuperset` but returns `false` if both toolchains have the same set of tools.
+  func isProperSuperset(of other: Toolchain) -> Bool {
+    return self.isSuperset(of: other) && !other.isSuperset(of: self)
+  }
 }
 
 extension Toolchain {
