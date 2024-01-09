@@ -86,7 +86,7 @@ struct SyntaxHighlightingTokenParser {
 
   private func parseKindAndModifiers(
     _ uid: sourcekitd_uid_t
-  ) -> (SyntaxHighlightingToken.Kind, SyntaxHighlightingToken.Modifiers)? {
+  ) -> (SemanticTokenTypes, SemanticTokenModifiers)? {
     let api = sourcekitd.api
     let values = sourcekitd.values
     switch uid {

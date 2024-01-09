@@ -116,7 +116,9 @@ add_library(LanguageServerProtocol STATIC
   SupportTypes/PositionEncoding.swift
   SupportTypes/ProgressToken.swift
   SupportTypes/RegistrationOptions.swift
+  SupportTypes/SemanticTokenModifiers.swift
   SupportTypes/SemanticTokens.swift
+  SupportTypes/SemanticTokenTypes.swift
   SupportTypes/ServerCapabilities.swift
   SupportTypes/SKCompletionOptions.swift
   SupportTypes/StringOrMarkupContent.swift

@@ -53,8 +53,8 @@ final class SemanticTokensTests: XCTestCase {
               range: .bool(true),
               full: .bool(true)
             ),
-            tokenTypes: Token.Kind.allCases.map(\._lspName),
-            tokenModifiers: Token.Modifiers.allModifiers.map { $0._lspName! },
+            tokenTypes: SemanticTokenTypes.all.map(\.name),
+            tokenModifiers: SemanticTokenModifiers.all.compactMap(\.name),
             formats: [.relative]
           )
         )
@@ -176,14 +176,14 @@ final class SemanticTokensTests: XCTestCase {
         2,  // line delta
         3,  // char delta
         5,  // length
-        Token.Kind.string.rawValue,  // kind
+        SemanticTokenTypes.string.tokenType,  // kind
         0,  // modifiers
 
         2,  // line delta
         2,  // char delta
         1,  // length
-        Token.Kind.interface.rawValue,  // kind
-        Token.Modifiers.deprecated.rawValue | Token.Modifiers.definition.rawValue,  // modifiers
+        SemanticTokenTypes.interface.tokenType,  // kind
+        SemanticTokenModifiers.deprecated.rawValue | SemanticTokenModifiers.definition.rawValue,  // modifiers
       ]
     )
 
@@ -886,8 +886,8 @@ extension Token {
     line: Int,
     utf16index: Int,
     length: Int,
-    kind: Token.Kind,
-    modifiers: Token.Modifiers = []
+    kind: SemanticTokenTypes,
+    modifiers: SemanticTokenModifiers = []
   ) {
     self.init(
       start: Position(line: line, utf16index: utf16index),

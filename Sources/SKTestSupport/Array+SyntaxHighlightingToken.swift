@@ -37,8 +37,8 @@ extension Array where Element == SyntaxHighlightingToken {
         current.utf16index = charDelta
       }
 
-      guard let kind = SyntaxHighlightingToken.Kind(rawValue: rawKind) else { continue }
-      let modifiers = SyntaxHighlightingToken.Modifiers(rawValue: rawModifiers)
+      let kind = SemanticTokenTypes.all[Int(rawKind)]
+      let modifiers = SemanticTokenModifiers(rawValue: rawModifiers)
 
       append(
         SyntaxHighlightingToken(

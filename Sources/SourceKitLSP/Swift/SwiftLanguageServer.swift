@@ -231,8 +231,8 @@ extension SwiftLanguageServer {
         ),
         semanticTokensProvider: SemanticTokensOptions(
           legend: SemanticTokensLegend(
-            tokenTypes: SyntaxHighlightingToken.Kind.allCases.map(\.lspName),
-            tokenModifiers: SyntaxHighlightingToken.Modifiers.allModifiers.map { $0.lspName! }
+            tokenTypes: SemanticTokenTypes.all.map(\.name),
+            tokenModifiers: SemanticTokenModifiers.all.compactMap(\.name)
           ),
           range: .bool(true),
           full: .bool(true)

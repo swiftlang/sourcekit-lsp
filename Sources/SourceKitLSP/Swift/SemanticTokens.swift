@@ -129,7 +129,7 @@ extension SyntaxClassifiedRange {
 }
 
 extension SyntaxClassification {
-  fileprivate var highlightingKindAndModifiers: (SyntaxHighlightingToken.Kind, SyntaxHighlightingToken.Modifiers)? {
+  fileprivate var highlightingKindAndModifiers: (SemanticTokenTypes, SemanticTokenModifiers)? {
     switch self {
     case .none:
       return nil
