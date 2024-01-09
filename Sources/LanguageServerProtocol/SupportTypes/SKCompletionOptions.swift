@@ -18,6 +18,13 @@ public struct SKCompletionOptions: Codable, Hashable {
   /// The maximum number of completion results to return, or `nil` for unlimited.
   public var maxResults: Int?
 
+  /// Older `sourcekit-lsp` binaries reject request sent from client to
+  /// server when the parameter is missing. By adding the parameter with default
+  /// value true the client that uses **LanguageServerProtocol** as model can still
+  /// interact with shipped `sourcekit-lsp` instances.
+  @available(*, deprecated, message: "Not used")
+  public private(set) var serverSideFiltering: Bool = true
+
   public init(maxResults: Int? = 200) {
     self.maxResults = maxResults
   }
