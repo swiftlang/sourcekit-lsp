@@ -191,16 +191,15 @@ class CodeCompletionSession {
       throw ResponseError(code: .invalidRequest, message: "open must use the original snapshot")
     }
 
-    let req = SKDRequestDictionary(sourcekitd: sourcekitd)
-    req[keys.request] = sourcekitd.requests.codecomplete_open
-    req[keys.offset] = utf8StartOffset
-    req[keys.name] = uri.pseudoPath
-    req[keys.sourcefile] = uri.pseudoPath
-    req[keys.sourcetext] = snapshot.text
-    req[keys.codecomplete_options] = optionsDictionary(filterText: filterText, options: options)
-    if let compileCommand = compileCommand {
-      req[keys.compilerargs] = compileCommand.compilerArgs
-    }
+    let req = sourcekitd.dictionary([
+      keys.request: sourcekitd.requests.codecomplete_open,
+      keys.offset: utf8StartOffset,
+      keys.name: uri.pseudoPath,
+      keys.sourcefile: uri.pseudoPath,
+      keys.sourcetext: snapshot.text,
+      keys.codecomplete_options: optionsDictionary(filterText: filterText, options: options),
+      keys.compilerargs: compileCommand?.compilerArgs as [SKDValue]?,
+    ])
 
     let dict = try await sourcekitd.send(req, fileContents: snapshot.text)
     self.state = .open
@@ -229,11 +228,12 @@ class CodeCompletionSession {
     // FIXME: Assertion for prefix of snapshot matching what we started with.
 
     logger.info("Updating code completion session: \(self, privacy: .private) filter=\(filterText)")
-    let req = SKDRequestDictionary(sourcekitd: sourcekitd)
-    req[keys.request] = sourcekitd.requests.codecomplete_update
-    req[keys.offset] = utf8StartOffset
-    req[keys.name] = uri.pseudoPath
-    req[keys.codecomplete_options] = optionsDictionary(filterText: filterText, options: options)
+    let req = sourcekitd.dictionary([
+      keys.request: sourcekitd.requests.codecomplete_update,
+      keys.offset: utf8StartOffset,
+      keys.name: uri.pseudoPath,
+      keys.codecomplete_options: optionsDictionary(filterText: filterText, options: options),
+    ])
 
     let dict = try await sourcekitd.send(req, fileContents: snapshot.text)
     guard let completions: SKDResponseArray = dict[keys.results] else {
@@ -253,19 +253,18 @@ class CodeCompletionSession {
     filterText: String,
     options: SKCompletionOptions
   ) -> SKDRequestDictionary {
-    let dict = SKDRequestDictionary(sourcekitd: sourcekitd)
-    // Sorting and priority options.
-    dict[keys.codecomplete_hideunderscores] = 0
-    dict[keys.codecomplete_hidelowpriority] = 0
-    dict[keys.codecomplete_hidebyname] = 0
-    dict[keys.codecomplete_addinneroperators] = 0
-    dict[keys.codecomplete_callpatternheuristics] = 0
-    dict[keys.codecomplete_showtopnonliteralresults] = 0
-    // Filtering options.
-    dict[keys.codecomplete_filtertext] = filterText
-    if let maxResults = options.maxResults {
-      dict[keys.codecomplete_requestlimit] = maxResults
-    }
+    let dict = sourcekitd.dictionary([
+      // Sorting and priority options.
+      keys.codecomplete_hideunderscores: 0,
+      keys.codecomplete_hidelowpriority: 0,
+      keys.codecomplete_hidebyname: 0,
+      keys.codecomplete_addinneroperators: 0,
+      keys.codecomplete_callpatternheuristics: 0,
+      keys.codecomplete_showtopnonliteralresults: 0,
+      // Filtering options.
+      keys.codecomplete_filtertext: filterText,
+      keys.codecomplete_requestlimit: options.maxResults,
+    ])
     return dict
   }
 
@@ -275,10 +274,11 @@ class CodeCompletionSession {
       // Already closed, nothing to do.
       break
     case .open:
-      let req = SKDRequestDictionary(sourcekitd: sourcekitd)
-      req[keys.request] = sourcekitd.requests.codecomplete_close
-      req[keys.offset] = self.utf8StartOffset
-      req[keys.name] = self.snapshot.uri.pseudoPath
+      let req = sourcekitd.dictionary([
+        keys.request: sourcekitd.requests.codecomplete_close,
+        keys.offset: utf8StartOffset,
+        keys.name: snapshot.uri.pseudoPath,
+      ])
       logger.info("Closing code completion session: \(self, privacy: .private)")
       _ = try? await sourcekitd.send(req, fileContents: nil)
       self.state = .closed

@@ -389,28 +389,28 @@ extension SwiftLanguageServer {
     oldName: String,
     in snapshot: DocumentSnapshot
   ) async throws -> [SyntacticRenameName] {
-    let locations = SKDRequestArray(sourcekitd: sourcekitd)
-    locations += renameLocations.map { renameLocation in
-      let skRenameLocation = SKDRequestDictionary(sourcekitd: sourcekitd)
-      skRenameLocation[keys.line] = renameLocation.line
-      skRenameLocation[keys.column] = renameLocation.utf8Column
-      skRenameLocation[keys.nameType] = renameLocation.usage.uid(keys: keys)
-      return skRenameLocation
-    }
-    let renameLocation = SKDRequestDictionary(sourcekitd: sourcekitd)
-    renameLocation[keys.locations] = locations
-    renameLocation[keys.name] = oldName
+    let locations = sourcekitd.array(
+      renameLocations.map { renameLocation in
+        sourcekitd.dictionary([
+          keys.line: renameLocation.line,
+          keys.column: renameLocation.utf8Column,
+          keys.nameType: renameLocation.usage.uid(keys: keys),
+        ])
+      }
+    )
+    let renameLocation = sourcekitd.dictionary([
+      keys.locations: locations,
+      keys.name: oldName,
+    ])
 
-    let renameLocations = SKDRequestArray(sourcekitd: sourcekitd)
-    renameLocations.append(renameLocation)
-
-    let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
-    skreq[keys.request] = requests.find_syntactic_rename_ranges
-    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
-    // find-syntactic-rename-ranges is a syntactic sourcekitd request that doesn't use the in-memory file snapshot.
-    // We need to send the source text again.
-    skreq[keys.sourcetext] = snapshot.text
-    skreq[keys.renamelocations] = renameLocations
+    let skreq = sourcekitd.dictionary([
+      keys.request: requests.find_syntactic_rename_ranges,
+      keys.sourcefile: snapshot.uri.pseudoPath,
+      // find-syntactic-rename-ranges is a syntactic sourcekitd request that doesn't use the in-memory file snapshot.
+      // We need to send the source text again.
+      keys.sourcetext: snapshot.text,
+      keys.renamelocations: [renameLocation],
+    ])
 
     let syntacticRenameRangesResponse = try await sourcekitd.send(skreq, fileContents: snapshot.text)
     guard let categorizedRanges: SKDResponseArray = syntacticRenameRangesResponse[keys.categorizedranges] else {

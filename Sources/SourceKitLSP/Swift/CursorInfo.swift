@@ -92,19 +92,14 @@ extension SwiftLanguageServer {
 
     let keys = self.keys
 
-    let skreq = SKDRequestDictionary(sourcekitd: sourcekitd)
-    skreq[keys.request] = requests.cursorinfo
-    skreq[keys.cancelOnSubsequentRequest] = 0
-    skreq[keys.offset] = offsetRange.lowerBound
-    if offsetRange.upperBound != offsetRange.lowerBound {
-      skreq[keys.length] = offsetRange.count
-    }
-    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
-
-    // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = await self.buildSettings(for: uri) {
-      skreq[keys.compilerargs] = compileCommand.compilerArgs
-    }
+    let skreq = sourcekitd.dictionary([
+      keys.request: requests.cursorinfo,
+      keys.cancelOnSubsequentRequest: 0,
+      keys.offset: offsetRange.lowerBound,
+      keys.length: offsetRange.upperBound != offsetRange.lowerBound ? offsetRange.count : nil,
+      keys.sourcefile: snapshot.uri.pseudoPath,
+      keys.compilerargs: await self.buildSettings(for: uri)?.compilerArgs as [SKDValue]?,
+    ])
 
     appendAdditionalParameters?(skreq)
 

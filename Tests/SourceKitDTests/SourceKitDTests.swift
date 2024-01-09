@@ -74,27 +74,29 @@ final class SourceKitDTests: XCTestCase {
     }
     sourcekitd.addNotificationHandler(handler2)
 
-    let req = SKDRequestDictionary(sourcekitd: sourcekitd)
-    req[keys.request] = sourcekitd.requests.editor_open
-    req[keys.name] = path
-    req[keys.sourcetext] = """
-      func foo() {}
-      """
     let args = SKDRequestArray(sourcekitd: sourcekitd)
     if let sdkpath = SourceKitDTests.sdkpath {
-      args.append("-sdk")
-      args.append(sdkpath)
+      args += ["-sdk", sdkpath]
     }
     args.append(path)
-    req[keys.compilerargs] = args
+
+    let req = sourcekitd.dictionary([
+      keys.request: sourcekitd.requests.editor_open,
+      keys.name: path,
+      keys.sourcetext: """
+      func foo() {}
+      """,
+      keys.compilerargs: args,
+    ])
 
     _ = try await sourcekitd.send(req, fileContents: nil)
 
     try await fulfillmentOfOrThrow([expectation1, expectation2])
 
-    let close = SKDRequestDictionary(sourcekitd: sourcekitd)
-    close[keys.request] = sourcekitd.requests.editor_close
-    close[keys.name] = path
+    let close = sourcekitd.dictionary([
+      keys.request: sourcekitd.requests.editor_close,
+      keys.name: path,
+    ])
     _ = try await sourcekitd.send(close, fileContents: nil)
   }
 }

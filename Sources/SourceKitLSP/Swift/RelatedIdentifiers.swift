@@ -66,17 +66,14 @@ extension SwiftLanguageServer {
       throw ResponseError.unknown("invalid position \(position)")
     }
 
-    let skreq = SKDRequestDictionary(sourcekitd: self.sourcekitd)
-    skreq[keys.request] = self.requests.relatedidents
-    skreq[keys.cancelOnSubsequentRequest] = 0
-    skreq[keys.offset] = offset
-    skreq[keys.sourcefile] = snapshot.uri.pseudoPath
-    skreq[keys.includeNonEditableBaseNames] = includeNonEditableBaseNames ? 1 : 0
-
-    // FIXME: SourceKit should probably cache this for us.
-    if let compileCommand = await self.buildSettings(for: snapshot.uri) {
-      skreq[keys.compilerargs] = compileCommand.compilerArgs
-    }
+    let skreq = sourcekitd.dictionary([
+      keys.request: requests.relatedidents,
+      keys.cancelOnSubsequentRequest: 0,
+      keys.offset: offset,
+      keys.sourcefile: snapshot.uri.pseudoPath,
+      keys.includeNonEditableBaseNames: includeNonEditableBaseNames ? 1 : 0,
+      keys.compilerargs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+    ])
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
 
