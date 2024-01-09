@@ -383,26 +383,28 @@ extension SwiftLanguageServer {
     oldName: String,
     in snapshot: DocumentSnapshot
   ) async throws -> [SyntacticRenameName] {
-    let locations = renameLocations.map { renameLocation in
-      [
-        keys.line: renameLocation.line,
-        keys.column: renameLocation.utf8Column,
-        keys.nameType: renameLocation.usage.uid(keys: keys),
-      ].skd(sourcekitd)
-    }.skd(sourcekitd)
-    let renameLocation = [
+    let locations = sourcekitd.array(
+      renameLocations.map { renameLocation in
+        sourcekitd.dictionary([
+          keys.line: renameLocation.line,
+          keys.column: renameLocation.utf8Column,
+          keys.nameType: renameLocation.usage.uid(keys: keys),
+        ])
+      }
+    )
+    let renameLocation = sourcekitd.dictionary([
       keys.locations: locations,
       keys.name: oldName,
-    ].skd(sourcekitd)
+    ])
 
-    let skreq = [
+    let skreq = sourcekitd.dictionary([
       keys.request: requests.find_syntactic_rename_ranges,
       keys.sourcefile: snapshot.uri.pseudoPath,
       // find-syntactic-rename-ranges is a syntactic sourcekitd request that doesn't use the in-memory file snapshot.
       // We need to send the source text again.
       keys.sourcetext: snapshot.text,
       keys.renamelocations: [renameLocation],
-    ].skd(sourcekitd)
+    ])
 
     let syntacticRenameRangesResponse = try await sourcekitd.send(skreq, fileContents: snapshot.text)
     guard let categorizedRanges: SKDResponseArray = syntacticRenameRangesResponse[keys.categorizedranges] else {

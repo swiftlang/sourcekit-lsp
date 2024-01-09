@@ -38,13 +38,11 @@ extension Array<SKDValue>: SKDValue {}
 extension Dictionary<sourcekitd_uid_t, SKDValue>: SKDValue {}
 extension Optional: SKDValue where Wrapped: SKDValue {}
 
-extension Dictionary<sourcekitd_uid_t, SKDValue> {
-  /// Create an `SKDRequestDictionary` from this dictionary.
-  ///
-  /// If a value is `nil`, the corresponding key will not be added
-  public func skd(_ sourcekitd: SourceKitD) -> SKDRequestDictionary {
-    let result = SKDRequestDictionary(sourcekitd: sourcekitd)
-    for (key, value) in self {
+extension SourceKitD {
+  /// Create a `SKDRequestDictionary` from the given dictionary.
+  public func dictionary(_ dict: [sourcekitd_uid_t: SKDValue]) -> SKDRequestDictionary {
+    let result = SKDRequestDictionary(sourcekitd: self)
+    for (key, value) in dict {
       result.set(key, to: value)
     }
     return result
@@ -77,9 +75,9 @@ public final class SKDRequestDictionary {
     case let newValue as SKDRequestArray:
       sourcekitd.api.request_dictionary_set_value(dict, key, newValue.array)
     case let newValue as Array<SKDValue>:
-      self.set(key, to: newValue.skd(sourcekitd))
+      self.set(key, to: sourcekitd.array(newValue))
     case let newValue as Dictionary<sourcekitd_uid_t, SKDValue>:
-      self.set(key, to: newValue.skd(sourcekitd))
+      self.set(key, to: sourcekitd.dictionary(newValue))
     case let newValue as Optional<SKDValue>:
       if let newValue {
         self.set(key, to: newValue)

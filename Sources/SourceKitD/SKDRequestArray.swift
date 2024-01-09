@@ -20,11 +20,11 @@ import Musl
 import CRT
 #endif
 
-extension Array<SKDValue> {
-  /// Create an `SKDRequestArray` from this array.
-  public func skd(_ sourcekitd: SourceKitD) -> SKDRequestArray {
-    let result = SKDRequestArray(sourcekitd: sourcekitd)
-    for element in self {
+extension SourceKitD {
+  /// Create a `SKDRequestArray` from the given array.
+  public func array(_ array: [SKDValue]) -> SKDRequestArray {
+    let result = SKDRequestArray(sourcekitd: self)
+    for element in array {
       result.append(element)
     }
     return result
@@ -57,9 +57,9 @@ public final class SKDRequestArray {
     case let newValue as SKDRequestArray:
       sourcekitd.api.request_array_set_value(array, -1, newValue.array)
     case let newValue as Array<SKDValue>:
-      self.append(newValue.skd(sourcekitd))
+      self.append(sourcekitd.array(newValue))
     case let newValue as Dictionary<sourcekitd_uid_t, SKDValue>:
-      self.append(newValue.skd(sourcekitd))
+      self.append(sourcekitd.dictionary(newValue))
     case let newValue as Optional<SKDValue>:
       if let newValue {
         self.append(newValue)

@@ -191,7 +191,7 @@ class CodeCompletionSession {
       throw ResponseError(code: .invalidRequest, message: "open must use the original snapshot")
     }
 
-    let req = [
+    let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.codecomplete_open,
       keys.offset: utf8StartOffset,
       keys.name: uri.pseudoPath,
@@ -199,7 +199,7 @@ class CodeCompletionSession {
       keys.sourcetext: snapshot.text,
       keys.codecomplete_options: optionsDictionary(filterText: filterText, options: options),
       keys.compilerargs: compileCommand?.compilerArgs as [SKDValue]?,
-    ].skd(sourcekitd)
+    ])
 
     let dict = try await sourcekitd.send(req, fileContents: snapshot.text)
     self.state = .open
@@ -228,12 +228,12 @@ class CodeCompletionSession {
     // FIXME: Assertion for prefix of snapshot matching what we started with.
 
     logger.info("Updating code completion session: \(self, privacy: .private) filter=\(filterText)")
-    let req = [
+    let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.codecomplete_update,
       keys.offset: utf8StartOffset,
       keys.name: uri.pseudoPath,
       keys.codecomplete_options: optionsDictionary(filterText: filterText, options: options),
-    ].skd(sourcekitd)
+    ])
 
     let dict = try await sourcekitd.send(req, fileContents: snapshot.text)
     guard let completions: SKDResponseArray = dict[keys.results] else {
@@ -253,7 +253,7 @@ class CodeCompletionSession {
     filterText: String,
     options: SKCompletionOptions
   ) -> SKDRequestDictionary {
-    let dict = [
+    let dict = sourcekitd.dictionary([
       // Sorting and priority options.
       keys.codecomplete_hideunderscores: 0,
       keys.codecomplete_hidelowpriority: 0,
@@ -264,7 +264,7 @@ class CodeCompletionSession {
       // Filtering options.
       keys.codecomplete_filtertext: filterText,
       keys.codecomplete_requestlimit: options.maxResults,
-    ].skd(sourcekitd)
+    ])
     return dict
   }
 
@@ -274,11 +274,11 @@ class CodeCompletionSession {
       // Already closed, nothing to do.
       break
     case .open:
-      let req = [
+      let req = sourcekitd.dictionary([
         keys.request: sourcekitd.requests.codecomplete_close,
         keys.offset: utf8StartOffset,
         keys.name: snapshot.uri.pseudoPath,
-      ].skd(sourcekitd)
+      ])
       logger.info("Closing code completion session: \(self, privacy: .private)")
       _ = try? await sourcekitd.send(req, fileContents: nil)
       self.state = .closed

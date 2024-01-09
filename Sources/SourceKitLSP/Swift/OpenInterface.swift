@@ -70,14 +70,14 @@ extension SwiftLanguageServer {
     interfaceURI: DocumentURI
   ) async throws -> InterfaceInfo {
     let keys = self.keys
-    let skreq = [
+    let skreq = sourcekitd.dictionary([
       keys.request: requests.editor_open_interface,
       keys.modulename: name,
       keys.groupname: request.groupNames.isEmpty ? nil : request.groupNames as [SKDValue],
       keys.name: interfaceURI.pseudoPath,
       keys.synthesizedextensions: 1,
       keys.compilerargs: await self.buildSettings(for: uri)?.compilerArgs as [SKDValue]?,
-    ].skd(sourcekitd)
+    ])
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: nil)
     return InterfaceInfo(contents: dict[keys.sourcetext] ?? "")
@@ -94,11 +94,11 @@ extension SwiftLanguageServer {
         return InterfaceDetails(uri: uri, position: nil)
       }
       let keys = self.keys
-      let skreq = [
+      let skreq = sourcekitd.dictionary([
         keys.request: requests.find_usr,
         keys.sourcefile: uri.pseudoPath,
         keys.usr: symbol,
-      ].skd(sourcekitd)
+      ])
 
       let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
       if let offset: Int = dict[keys.offset],

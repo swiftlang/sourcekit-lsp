@@ -138,7 +138,7 @@ extension SwiftLanguageServer {
       throw SemanticRefactoringError.invalidRange(refactorCommand.positionRange)
     }
 
-    let skreq = [
+    let skreq = sourcekitd.dictionary([
       keys.request: self.requests.semantic_refactoring,
       // Preferred name for e.g. an extracted variable.
       // Empty string means sourcekitd chooses a name automatically.
@@ -150,7 +150,7 @@ extension SwiftLanguageServer {
       keys.length: offsetRange.count,
       keys.actionuid: self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!,
       keys.compilerargs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
-    ].skd(sourcekitd)
+    ])
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
     guard let refactor = SemanticRefactoring(refactorCommand.title, dict, snapshot, self.keys) else {

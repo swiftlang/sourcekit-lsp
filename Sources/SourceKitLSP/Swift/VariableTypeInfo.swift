@@ -87,11 +87,11 @@ extension SwiftLanguageServer {
   ) async throws -> [VariableTypeInfo] {
     let snapshot = try documentManager.latestSnapshot(uri)
 
-    let skreq = [
+    let skreq = sourcekitd.dictionary([
       keys.request: requests.variable_type,
       keys.sourcefile: snapshot.uri.pseudoPath,
       keys.compilerargs: await self.buildSettings(for: uri)?.compilerArgs as [SKDValue]?,
-    ].skd(sourcekitd)
+    ])
 
     if let range = range,
       let start = snapshot.utf8Offset(of: range.lowerBound),

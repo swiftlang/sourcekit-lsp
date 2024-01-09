@@ -80,23 +80,23 @@ final class SourceKitDTests: XCTestCase {
     }
     args.append(path)
 
-    let req = [
+    let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.editor_open,
       keys.name: path,
       keys.sourcetext: """
       func foo() {}
       """,
       keys.compilerargs: args,
-    ].skd(sourcekitd)
+    ])
 
     _ = try await sourcekitd.send(req, fileContents: nil)
 
     try await fulfillmentOfOrThrow([expectation1, expectation2])
 
-    let close = [
+    let close = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.editor_close,
       keys.name: path,
-    ].skd(sourcekitd)
+    ])
     _ = try await sourcekitd.send(close, fileContents: nil)
   }
 }

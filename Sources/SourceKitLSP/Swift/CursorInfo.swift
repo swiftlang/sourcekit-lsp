@@ -92,14 +92,14 @@ extension SwiftLanguageServer {
 
     let keys = self.keys
 
-    let skreq = [
+    let skreq = sourcekitd.dictionary([
       keys.request: requests.cursorinfo,
       keys.cancelOnSubsequentRequest: 0,
       keys.offset: offsetRange.lowerBound,
       keys.length: offsetRange.upperBound != offsetRange.lowerBound ? offsetRange.count : nil,
       keys.sourcefile: snapshot.uri.pseudoPath,
       keys.compilerargs: await self.buildSettings(for: uri)?.compilerArgs as [SKDValue]?,
-    ].skd(sourcekitd)
+    ])
 
     appendAdditionalParameters?(skreq)
 

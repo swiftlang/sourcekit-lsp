@@ -260,9 +260,9 @@ extension SwiftLanguageServer {
 
   /// Tell sourcekitd to crash itself. For testing purposes only.
   public func _crash() async {
-    let req = [
+    let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.crash_exit
-    ].skd(sourcekitd)
+    ])
     _ = try? await sourcekitd.send(req, fileContents: nil)
   }
 
@@ -274,18 +274,18 @@ extension SwiftLanguageServer {
     let keys = self.keys
     let path = snapshot.uri.pseudoPath
 
-    let closeReq = [
+    let closeReq = sourcekitd.dictionary([
       keys.request: requests.editor_close,
       keys.name: path,
-    ].skd(sourcekitd)
+    ])
     _ = try? await self.sourcekitd.send(closeReq, fileContents: nil)
 
-    let openReq = [
+    let openReq = sourcekitd.dictionary([
       keys.request: self.requests.editor_open,
       keys.name: path,
       keys.sourcetext: snapshot.text,
       keys.compilerargs: compileCmd?.compilerArgs as [SKDValue]?,
-    ].skd(sourcekitd)
+    ])
 
     _ = try? await self.sourcekitd.send(openReq, fileContents: snapshot.text)
 
@@ -325,13 +325,13 @@ extension SwiftLanguageServer {
       return
     }
 
-    let req = [
+    let req = sourcekitd.dictionary([
       keys.request: self.requests.editor_open,
       keys.name: note.textDocument.uri.pseudoPath,
       keys.sourcetext: snapshot.text,
       keys.syntactic_only: 1,
       keys.compilerargs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
-    ].skd(sourcekitd)
+    ])
 
     _ = try? await self.sourcekitd.send(req, fileContents: snapshot.text)
     publishDiagnosticsIfNeeded(for: note.textDocument.uri)
@@ -347,10 +347,10 @@ extension SwiftLanguageServer {
 
     let uri = note.textDocument.uri
 
-    let req = [
+    let req = sourcekitd.dictionary([
       keys.request: self.requests.editor_close,
       keys.name: uri.pseudoPath,
-    ].skd(sourcekitd)
+    ])
 
     _ = try? await self.sourcekitd.send(req, fileContents: nil)
   }
@@ -454,14 +454,14 @@ extension SwiftLanguageServer {
       }
     }
     for edit in edits {
-      let req = [
+      let req = sourcekitd.dictionary([
         keys.request: self.requests.editor_replacetext,
         keys.name: note.textDocument.uri.pseudoPath,
         keys.syntactic_only: 1,
         keys.offset: edit.offset,
         keys.length: edit.length,
         keys.sourcetext: edit.replacement,
-      ].skd(sourcekitd)
+      ])
       do {
         _ = try await self.sourcekitd.send(req, fileContents: nil)
       } catch {
@@ -826,11 +826,11 @@ extension SwiftLanguageServer {
 
     let keys = self.keys
 
-    let skreq = [
+    let skreq = sourcekitd.dictionary([
       keys.request: requests.diagnostics,
       keys.sourcefile: snapshot.uri.pseudoPath,
       keys.compilerargs: buildSettings.compilerArgs as [SKDValue],
-    ].skd(sourcekitd)
+    ])
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
 
