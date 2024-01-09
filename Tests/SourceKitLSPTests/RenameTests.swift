@@ -38,11 +38,12 @@ private func assertSingleFileRename(
   _ markedSource: String,
   newName: String,
   expected: String,
+  testName: String = #function,
   file: StaticString = #file,
   line: UInt = #line
 ) async throws {
   let testClient = try await TestSourceKitLSPClient()
-  let uri = DocumentURI.for(.swift)
+  let uri = DocumentURI.for(.swift, testName: testName)
   let positions = testClient.openDocument(markedSource, uri: uri)
   for marker in positions.allMarkers {
     let response = try await testClient.send(
@@ -56,6 +57,90 @@ private func assertSingleFileRename(
     let source = extractMarkers(markedSource).textWithoutMarkers
     let renamed = apply(edits: edits, to: source)
     XCTAssertEqual(renamed, expected, "while performing rename at \(marker)", file: file, line: line)
+  }
+}
+
+/// Assert that applying changes to `originalFiles` results in `expected`.
+///
+/// Upon failure, `message` is added to the XCTest failure messages to provide context which rename failed.
+private func assertRenamedSourceMatches(
+  originalFiles: [RelativeFileLocation: String],
+  changes: [DocumentURI: [TextEdit]],
+  expected: [RelativeFileLocation: String],
+  in ws: MultiFileTestWorkspace,
+  message: String,
+  testName: String = #function,
+  file: StaticString = #file,
+  line: UInt = #line
+) throws {
+  for (expectedFileLocation, expectedRenamed) in expected {
+    let originalMarkedSource = try XCTUnwrap(
+      originalFiles[expectedFileLocation],
+      "No original source for \(expectedFileLocation.fileName) specified; \(message)",
+      file: file,
+      line: line
+    )
+    let originalSource = extractMarkers(originalMarkedSource).textWithoutMarkers
+    let edits = changes[try ws.uri(for: expectedFileLocation.fileName)] ?? []
+    let renamed = apply(edits: edits, to: originalSource)
+    XCTAssertEqual(
+      renamed,
+      expectedRenamed,
+      "applying edits did not match expected renamed source for \(expectedFileLocation.fileName); \(message)",
+      file: file,
+      line: line
+    )
+  }
+}
+
+/// Perform a rename request at every location marker except 0️⃣ in `files`, renaming it to `newName`. The location
+/// marker 0️⃣ is intended to be used as an anchor for `preRenameActions`.
+///
+/// Test that applying the edits returned from the requests always result in `expected`.
+///
+/// `preRenameActions` is executed after opening the workspace but before performing the rename. This allows a workspace
+/// to be placed in a state where there are in-memory changes that haven't been written to disk yet.
+private func assertMultiFileRename(
+  files: [RelativeFileLocation: String],
+  newName: String,
+  expected: [RelativeFileLocation: String],
+  manifest: String = SwiftPMTestWorkspace.defaultPackageManifest,
+  preRenameActions: (SwiftPMTestWorkspace) throws -> Void = { _ in },
+  testName: String = #function,
+  file: StaticString = #file,
+  line: UInt = #line
+) async throws {
+  let ws = try await SwiftPMTestWorkspace(
+    files: files,
+    manifest: manifest,
+    build: true,
+    testName: testName
+  )
+  try preRenameActions(ws)
+  for (fileLocation, markedSource) in files.sorted(by: { $0.key.fileName < $1.key.fileName }) {
+    let markers = extractMarkers(markedSource).markers.keys.sorted().filter { $0 != "0️⃣" }
+    if markers.isEmpty {
+      continue
+    }
+    let (uri, positions) = try ws.openDocument(fileLocation.fileName)
+    defer {
+      ws.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
+    }
+    for marker in markers {
+      let response = try await ws.testClient.send(
+        RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions[marker], newName: newName)
+      )
+      let changes = try XCTUnwrap(response?.changes)
+      try assertRenamedSourceMatches(
+        originalFiles: files,
+        changes: changes,
+        expected: expected,
+        in: ws,
+        message: "while performing rename at \(marker)",
+        file: file,
+        line: line
+      )
+    }
   }
 }
 
@@ -464,46 +549,53 @@ final class RenameTests: XCTestCase {
   }
 
   func testCrossFileSwiftRename() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    try await assertMultiFileRename(
       files: [
         "a.swift": """
-        func 1️⃣foo2️⃣() {}
+        func 1️⃣foo() {}
         """,
         "b.swift": """
         func test() {
-          3️⃣foo4️⃣()
+          2️⃣foo()
         }
         """,
       ],
-      build: true
-    )
-
-    let (aUri, aPositions) = try ws.openDocument("a.swift")
-    let response = try await ws.testClient.send(
-      RenameRequest(textDocument: TextDocumentIdentifier(aUri), position: aPositions["1️⃣"], newName: "bar")
-    )
-    let changes = try XCTUnwrap(response?.changes)
-    XCTAssertEqual(
-      changes,
-      [
-        aUri: [TextEdit(range: aPositions["1️⃣"]..<aPositions["2️⃣"], newText: "bar")],
-        try ws.uri(for: "b.swift"): [
-          TextEdit(range: try ws.position(of: "3️⃣", in: "b.swift")..<ws.position(of: "4️⃣", in: "b.swift"), newText: "bar")
-        ],
+      newName: "bar",
+      expected: [
+        "a.swift": """
+        func bar() {}
+        """,
+        "b.swift": """
+        func test() {
+          bar()
+        }
+        """,
       ]
     )
   }
 
   func testSwiftCrossModuleRename() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    try await assertMultiFileRename(
       files: [
         "LibA/LibA.swift": """
-        public func 1️⃣foo2️⃣(3️⃣argLabel4️⃣: Int) {}
+        public func 1️⃣foo(argLabel: Int) {}
         """,
         "LibB/LibB.swift": """
         import LibA
         public func test() {
-          5️⃣foo6️⃣(7️⃣argLabel8️⃣: 1)
+          5️⃣foo(argLabel: 1)
+        }
+        """,
+      ],
+      newName: "bar(new:)",
+      expected: [
+        "LibA/LibA.swift": """
+        public func bar(new: Int) {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test() {
+          bar(new: 1)
         }
         """,
       ],
@@ -519,53 +611,15 @@ final class RenameTests: XCTestCase {
            .target(name: "LibB", dependencies: ["LibA"]),
           ]
         )
-        """,
-      build: true
+        """
     )
-
-    let expectedChanges = [
-      try ws.uri(for: "LibA.swift"): [
-        TextEdit(
-          range: try ws.position(of: "1️⃣", in: "LibA.swift")..<ws.position(of: "2️⃣", in: "LibA.swift"),
-          newText: "bar"
-        ),
-        TextEdit(
-          range: try ws.position(of: "3️⃣", in: "LibA.swift")..<ws.position(of: "4️⃣", in: "LibA.swift"),
-          newText: "new"
-        ),
-      ],
-      try ws.uri(for: "LibB.swift"): [
-        TextEdit(
-          range: try ws.position(of: "5️⃣", in: "LibB.swift")..<ws.position(of: "6️⃣", in: "LibB.swift"),
-          newText: "bar"
-        ),
-        TextEdit(
-          range: try ws.position(of: "7️⃣", in: "LibB.swift")..<ws.position(of: "8️⃣", in: "LibB.swift"),
-          newText: "new"
-        ),
-      ],
-    ]
-
-    let (aUri, aPositions) = try ws.openDocument("LibA.swift")
-
-    let definitionResponse = try await ws.testClient.send(
-      RenameRequest(textDocument: TextDocumentIdentifier(aUri), position: aPositions["1️⃣"], newName: "bar(new:)")
-    )
-    XCTAssertEqual(try XCTUnwrap(definitionResponse?.changes), expectedChanges)
-
-    let (bUri, bPositions) = try ws.openDocument("LibB.swift")
-
-    let callResponse = try await ws.testClient.send(
-      RenameRequest(textDocument: TextDocumentIdentifier(bUri), position: bPositions["5️⃣"], newName: "bar(new:)")
-    )
-    XCTAssertEqual(try XCTUnwrap(callResponse?.changes), expectedChanges)
   }
 
   func testTryIndexLocationsDontMatchInMemoryLocations() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    try await assertMultiFileRename(
       files: [
         "a.swift": """
-        func 1️⃣foo2️⃣() {}
+        func 1️⃣foo() {}
         """,
         "b.swift": """
         0️⃣func test() {
@@ -573,71 +627,63 @@ final class RenameTests: XCTestCase {
         }
         """,
       ],
-      build: true
-    )
-
-    // Modify b.swift so that the locations from the index no longer match the in-memory document.
-    let (bUri, bPositions) = try ws.openDocument("b.swift")
-    ws.testClient.send(
-      DidChangeTextDocumentNotification(
-        textDocument: VersionedTextDocumentIdentifier(bUri, version: 1),
-        contentChanges: [TextDocumentContentChangeEvent(range: Range(bPositions["0️⃣"]), text: "\n")]
-      )
-    )
-
-    // We should notice that the locations from the index don't match the current state of b.swift and not include any
-    // edits in b.swift
-    let (aUri, aPositions) = try ws.openDocument("a.swift")
-    let response = try await ws.testClient.send(
-      RenameRequest(textDocument: TextDocumentIdentifier(aUri), position: aPositions["1️⃣"], newName: "bar")
-    )
-    let changes = try XCTUnwrap(response?.changes)
-    XCTAssertEqual(
-      changes,
-      [aUri: [TextEdit(range: aPositions["1️⃣"]..<aPositions["2️⃣"], newText: "bar")]]
+      newName: "bar",
+      expected: [
+        "a.swift": """
+        func bar() {}
+        """,
+        "b.swift": """
+        func test() {
+          foo()
+        }
+        """,
+      ],
+      preRenameActions: { ws in
+        let (bUri, bPositions) = try ws.openDocument("b.swift")
+        ws.testClient.send(
+          DidChangeTextDocumentNotification(
+            textDocument: VersionedTextDocumentIdentifier(bUri, version: 1),
+            contentChanges: [TextDocumentContentChangeEvent(range: Range(bPositions["0️⃣"]), text: "\n")]
+          )
+        )
+      }
     )
   }
 
   func testTryIndexLocationsDontMatchInMemoryLocationsByLineColumnButNotOffset() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    try await assertMultiFileRename(
       files: [
         "a.swift": """
-        func 1️⃣foo2️⃣() {}
+        func 1️⃣foo() {}
         """,
         "b.swift": """
         0️⃣func test() {
-          3️⃣foo4️⃣()
+          foo()
         }
         """,
       ],
-      build: true
-    )
-
-    // Modify b.swift so that the locations from the index no longer match the in-memory document based on offsets but
-    // without introducing new lines so that line/column references are still correct
-    let (bUri, bPositions) = try ws.openDocument("b.swift")
-    ws.testClient.send(
-      DidChangeTextDocumentNotification(
-        textDocument: VersionedTextDocumentIdentifier(bUri, version: 1),
-        contentChanges: [
-          TextDocumentContentChangeEvent(range: Range(bPositions["0️⃣"]), text: "/* this is just a comment */")
-        ]
-      )
-    )
-
-    // Index and find-syntactic-rename ranges work based on line/column so we should still be able to match the location
-    // of `foo` after the edit.
-    let (aUri, aPositions) = try ws.openDocument("a.swift")
-    let response = try await ws.testClient.send(
-      RenameRequest(textDocument: TextDocumentIdentifier(aUri), position: aPositions["1️⃣"], newName: "bar")
-    )
-    let changes = try XCTUnwrap(response?.changes)
-    XCTAssertEqual(
-      changes,
-      [
-        aUri: [TextEdit(range: aPositions["1️⃣"]..<aPositions["2️⃣"], newText: "bar")],
-        bUri: [TextEdit(range: bPositions["3️⃣"]..<bPositions["4️⃣"], newText: "bar")],
-      ]
+      newName: "bar",
+      expected: [
+        "a.swift": """
+        func bar() {}
+        """,
+        "b.swift": """
+        func test() {
+          bar()
+        }
+        """,
+      ],
+      preRenameActions: { ws in
+        let (bUri, bPositions) = try ws.openDocument("b.swift")
+        ws.testClient.send(
+          DidChangeTextDocumentNotification(
+            textDocument: VersionedTextDocumentIdentifier(bUri, version: 1),
+            contentChanges: [
+              TextDocumentContentChangeEvent(range: Range(bPositions["0️⃣"]), text: "/* this is just a comment */")
+            ]
+          )
+        )
+      }
     )
   }
 }

@@ -298,11 +298,7 @@ extension SourceKitServer {
 
     // Determine the local edits and the USR to rename
     let renameResult = try await languageService.rename(request)
-    var edits = renameResult.edits
-    if edits.changes == nil {
-      // Make sure `edits.changes` is non-nil so we can force-unwrap it below.
-      edits.changes = [:]
-    }
+    var changes = renameResult.edits.changes ?? [:]
 
     if let usr = renameResult.usr, let oldName = renameResult.oldName, let index = workspace.index {
       // If we have a USR + old name, perform an index lookup to find workspace-wide symbols to rename.
@@ -324,7 +320,7 @@ extension SourceKitServer {
       await withTaskGroup(of: (DocumentURI, [TextEdit])?.self) { taskGroup in
         for (url, renameLocations) in locationsByFile {
           let uri = DocumentURI(url)
-          if edits.changes![uri] != nil {
+          if changes[uri] != nil {
             // We already have edits for this document provided by the language service, so we don't need to compute
             // rename ranges for it.
             continue
@@ -358,11 +354,13 @@ extension SourceKitServer {
           }
         }
         for await case let (uri, textEdits)? in taskGroup where !textEdits.isEmpty {
-          precondition(edits.changes![uri] == nil, "We should create tasks for URIs that already have edits")
-          edits.changes![uri] = textEdits
+          precondition(changes[uri] == nil, "We should not create tasks for URIs that already have edits")
+          changes[uri] = textEdits
         }
       }
     }
+    var edits = renameResult.edits
+    edits.changes = changes
     return edits
   }
 }
