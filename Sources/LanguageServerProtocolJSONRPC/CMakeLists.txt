@@ -1,6 +1,7 @@
 add_library(LanguageServerProtocolJSONRPC STATIC
   DisableSigpipe.swift
   JSONRPCConnection.swift
+  LoggableMessageTypes.swift
   MessageCoding.swift
   MessageSplitting.swift)
 set_target_properties(LanguageServerProtocolJSONRPC PROPERTIES

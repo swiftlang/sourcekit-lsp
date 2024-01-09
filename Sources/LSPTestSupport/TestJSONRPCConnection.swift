@@ -26,12 +26,14 @@ public final class TestJSONRPCConnection {
 
   public init() {
     clientConnection = JSONRPCConnection(
+      name: "client",
       protocol: testMessageRegistry,
       inFD: serverToClient.fileHandleForReading,
       outFD: clientToServer.fileHandleForWriting
     )
 
     serverConnection = JSONRPCConnection(
+      name: "server",
       protocol: testMessageRegistry,
       inFD: clientToServer.fileHandleForReading,
       outFD: serverToClient.fileHandleForWriting

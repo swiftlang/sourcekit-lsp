@@ -191,6 +191,12 @@ public actor BuildServerBuildSystem: MessageHandler {
   ///
   /// We need to notify the delegate about any updated build settings.
   public nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+    logger.info(
+      """
+      Received notification from build server:
+      \(params.forLogging)
+      """
+    )
     bspMessageHandlingQueue.async {
       if let params = params as? BuildTargetsChangedNotification {
         await self.handleBuildTargetsChanged(params)
@@ -209,6 +215,12 @@ public actor BuildServerBuildSystem: MessageHandler {
     from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
+    logger.info(
+      """
+      Received request from build server:
+      \(params.forLogging)
+      """
+    )
     reply(.failure(ResponseError.methodNotFound(R.method)))
   }
 
@@ -339,6 +351,7 @@ private func makeJSONRPCBuildServer(
   let serverToClient = Pipe()
 
   let connection = JSONRPCConnection(
+    name: "build server",
     protocol: BuildServerProtocol.bspRegistry,
     inFD: serverToClient.fileHandleForReading,
     outFD: clientToServer.fileHandleForWriting

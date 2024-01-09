@@ -1,0 +1,28 @@
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the Swift.org open source project
+//
+// Copyright (c) 2014 - 2023 Apple Inc. and the Swift project authors
+// Licensed under Apache License v2.0 with Runtime Library Exception
+//
+// See https://swift.org/LICENSE.txt for license information
+// See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+//
+//===----------------------------------------------------------------------===//
+
+import Foundation
+import LSPLogging
+import LanguageServerProtocol
+
+// MARK: - DocumentURI
+
+extension DocumentURI {
+  public var redactedDescription: String {
+    return "<DocumentURI length=\(description.count) hash=\(description.hashForLogging)>"
+  }
+}
+#if swift(<5.10)
+extension DocumentURI: CustomLogStringConvertible {}
+#else
+extension DocumentURI: @retroactive CustomLogStringConvertible {}
+#endif
