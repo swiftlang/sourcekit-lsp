@@ -363,6 +363,14 @@ extension SourceKitServer {
     edits.changes = changes
     return edits
   }
+
+  func prepareRename(
+    _ request: PrepareRenameRequest,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) async throws -> PrepareRenameResponse? {
+    try await languageService.prepareRename(request)
+  }
 }
 
 // MARK: - Swift
@@ -575,6 +583,25 @@ extension SwiftLanguageServer {
       }
     }
   }
+
+  public func prepareRename(_ request: PrepareRenameRequest) async throws -> PrepareRenameResponse? {
+    let snapshot = try self.documentManager.latestSnapshot(request.textDocument.uri)
+
+    let response = try await self.relatedIdentifiers(
+      at: request.position,
+      in: snapshot,
+      includeNonEditableBaseNames: true
+    )
+    guard let name = response.name,
+      let range = response.relatedIdentifiers.first(where: { $0.range.contains(request.position) })?.range
+    else {
+      return nil
+    }
+    return PrepareRenameResponse(
+      range: range,
+      placeholder: name
+    )
+  }
 }
 
 // MARK: - Clang
@@ -592,5 +619,9 @@ extension ClangLanguageServerShim {
     newName: String
   ) async throws -> [TextEdit] {
     throw ResponseError.internalError("Global rename not implemented for clangd")
+  }
+
+  public func prepareRename(_ request: PrepareRenameRequest) async throws -> PrepareRenameResponse? {
+    return nil
   }
 }

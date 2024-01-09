@@ -686,4 +686,41 @@ final class RenameTests: XCTestCase {
       }
     )
   }
+
+  func testPrepeareRenameOnDefinition() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      func 1️⃣foo2️⃣(a: Int) {}
+      """,
+      uri: uri
+    )
+    let response = try await testClient.send(
+      PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let range = try XCTUnwrap(response?.range)
+    let placeholder = try XCTUnwrap(response?.placeholder)
+    XCTAssertEqual(range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(placeholder, "foo(a:)")
+  }
+
+  func testPrepeareRenameOnReference() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      func foo(a: Int, b: Int = 1) {}
+      1️⃣foo2️⃣(a: 1)
+      """,
+      uri: uri
+    )
+    let response = try await testClient.send(
+      PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let range = try XCTUnwrap(response?.range)
+    let placeholder = try XCTUnwrap(response?.placeholder)
+    XCTAssertEqual(range, positions["1️⃣"]..<positions["2️⃣"])
+    XCTAssertEqual(placeholder, "foo(a:b:)")
+  }
 }

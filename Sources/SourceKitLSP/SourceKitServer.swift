@@ -911,6 +911,8 @@ extension SourceKitServer: MessageHandler {
       await self.handleRequest(for: request, requestHandler: self.inlayHint)
     case let request as RequestAndReply<DocumentDiagnosticsRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentDiagnostic)
+    case let request as RequestAndReply<PrepareRenameRequest>:
+      await self.handleRequest(for: request, requestHandler: self.prepareRename)
     // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
     default:
       reply(.failure(ResponseError.methodNotFound(R.method)))
@@ -1175,7 +1177,7 @@ extension SourceKitServer {
           supportsCodeActions: true
         )
       ),
-      renameProvider: .value(RenameOptions()),
+      renameProvider: .value(RenameOptions(prepareProvider: true)),
       colorProvider: .bool(true),
       foldingRangeProvider: .bool(!registry.clientHasDynamicFoldingRangeRegistration),
       declarationProvider: .bool(true),
