@@ -46,13 +46,22 @@ private func assertSingleFileRename(
   let uri = DocumentURI.for(.swift, testName: testName)
   let positions = testClient.openDocument(markedSource, uri: uri)
   for marker in positions.allMarkers {
-    let response = try await testClient.send(
-      RenameRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        position: positions[marker],
-        newName: newName
+    let response: WorkspaceEdit?
+    do {
+      response = try await testClient.send(
+        RenameRequest(
+          textDocument: TextDocumentIdentifier(uri),
+          position: positions[marker],
+          newName: newName
+        )
       )
-    )
+    } catch let error as ResponseError {
+      if error.message == "Running sourcekit-lsp with a version of sourcekitd that does not support rename" {
+        throw XCTSkip(error.message)
+      } else {
+        throw error
+      }
+    }
     let edits = try XCTUnwrap(response?.changes?[uri], "while performing rename at \(marker)", file: file, line: line)
     let source = extractMarkers(markedSource).textWithoutMarkers
     let renamed = apply(edits: edits, to: source)
@@ -127,9 +136,18 @@ private func assertMultiFileRename(
       ws.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
     }
     for marker in markers {
-      let response = try await ws.testClient.send(
-        RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions[marker], newName: newName)
-      )
+      let response: WorkspaceEdit?
+      do {
+        response = try await ws.testClient.send(
+          RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions[marker], newName: newName)
+        )
+      } catch let error as ResponseError {
+        if error.message == "Running sourcekit-lsp with a version of sourcekitd that does not support rename" {
+          throw XCTSkip(error.message)
+        } else {
+          throw error
+        }
+      }
       let changes = try XCTUnwrap(response?.changes)
       try assertRenamedSourceMatches(
         originalFiles: files,
@@ -696,9 +714,18 @@ final class RenameTests: XCTestCase {
       """,
       uri: uri
     )
-    let response = try await testClient.send(
-      PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
-    )
+    let response: PrepareRenameResponse?
+    do {
+      response = try await testClient.send(
+        PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+    } catch let error as ResponseError {
+      if error.message == "Running sourcekit-lsp with a version of sourcekitd that does not support rename" {
+        throw XCTSkip(error.message)
+      } else {
+        throw error
+      }
+    }
     let range = try XCTUnwrap(response?.range)
     let placeholder = try XCTUnwrap(response?.placeholder)
     XCTAssertEqual(range, positions["1️⃣"]..<positions["2️⃣"])
@@ -715,9 +742,18 @@ final class RenameTests: XCTestCase {
       """,
       uri: uri
     )
-    let response = try await testClient.send(
-      PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
-    )
+    let response: PrepareRenameResponse?
+    do {
+      response = try await testClient.send(
+        PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+    } catch let error as ResponseError {
+      if error.message == "Running sourcekit-lsp with a version of sourcekitd that does not support rename" {
+        throw XCTSkip(error.message)
+      } else {
+        throw error
+      }
+    }
     let range = try XCTUnwrap(response?.range)
     let placeholder = try XCTUnwrap(response?.placeholder)
     XCTAssertEqual(range, positions["1️⃣"]..<positions["2️⃣"])
