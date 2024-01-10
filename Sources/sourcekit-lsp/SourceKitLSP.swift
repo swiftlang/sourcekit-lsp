@@ -219,7 +219,7 @@ struct SourceKitLSP: ParsableCommand {
     return serverOptions
   }
 
-  func run() throws {
+  func run() async throws {
     // Dup stdout and redirect the fd to stderr so that a careless print()
     // will not break our connection stream.
     let realStdout = dup(STDOUT_FILENO)
@@ -241,10 +241,10 @@ struct SourceKitLSP: ParsableCommand {
     )
 
     let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
-    ToolchainRegistry.shared = ToolchainRegistry(installPath: installPath, localFileSystem)
 
-    let server = SourceKitServer(
+    let server = await SourceKitServer(
       client: clientConnection,
+      toolchainRegistry: ToolchainRegistry(installPath: installPath, localFileSystem),
       options: mapOptions(),
       onExit: {
         clientConnection.close()

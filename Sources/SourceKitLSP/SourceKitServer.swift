@@ -439,11 +439,12 @@ public actor SourceKitServer {
   public init(
     client: Connection,
     fileSystem: FileSystem = localFileSystem,
+    toolchainRegistry: ToolchainRegistry,
     options: Options,
     onExit: @escaping () -> Void = {}
   ) {
     self.fs = fileSystem
-    self.toolchainRegistry = ToolchainRegistry.shared
+    self.toolchainRegistry = toolchainRegistry
     self.options = options
     self.onExit = onExit
 
@@ -521,7 +522,7 @@ public actor SourceKitServer {
     return try await client.send(request)
   }
 
-  func toolchain(for uri: DocumentURI, _ language: Language) -> Toolchain? {
+  func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
     let supportsLang = { (toolchain: Toolchain) -> Bool in
       // FIXME: the fact that we're looking at clangd/sourcekitd instead of the compiler indicates this method needs a parameter stating what kind of tool we're looking for.
       switch language {
@@ -534,11 +535,11 @@ public actor SourceKitServer {
       }
     }
 
-    if let toolchain = toolchainRegistry.default, supportsLang(toolchain) {
+    if let toolchain = await toolchainRegistry.default, supportsLang(toolchain) {
       return toolchain
     }
 
-    for toolchain in toolchainRegistry.toolchains {
+    for toolchain in await toolchainRegistry.toolchains {
       if supportsLang(toolchain) {
         return toolchain
       }
@@ -683,7 +684,7 @@ public actor SourceKitServer {
       return service
     }
 
-    guard let toolchain = toolchain(for: uri, language),
+    guard let toolchain = await toolchain(for: uri, language),
       let service = await languageService(for: toolchain, language, in: workspace)
     else {
       return nil

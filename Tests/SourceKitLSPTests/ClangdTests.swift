@@ -16,8 +16,6 @@ import XCTest
 
 final class ClangdTests: XCTestCase {
   func testClangdGoToInclude() async throws {
-    try XCTSkipIf(!hasClangd)
-
     let ws = try await MultiFileTestWorkspace(files: [
       "Object.h": "",
       "main.c": """
@@ -49,8 +47,6 @@ final class ClangdTests: XCTestCase {
   }
 
   func testClangdGoToDefinitionWithoutIndex() async throws {
-    try XCTSkipIf(!hasClangd)
-
     let ws = try await MultiFileTestWorkspace(files: [
       "Object.h": """
       struct Object {
@@ -91,8 +87,6 @@ final class ClangdTests: XCTestCase {
   }
 
   func testClangdGoToDeclaration() async throws {
-    try XCTSkipIf(!hasClangd)
-
     let ws = try await MultiFileTestWorkspace(files: [
       "Object.h": """
       struct Object {

@@ -15,7 +15,7 @@ import ISDBTestSupport
 import ISDBTibs
 import LSPTestSupport
 import LanguageServerProtocol
-import SKCore
+@_spi(Testing) import SKCore
 import SKSupport
 import SKTestSupport
 import SourceKitD
@@ -26,18 +26,9 @@ import enum PackageLoading.Platform
 import class TSCBasic.Process
 
 final class SourceKitDTests: XCTestCase {
-  static var sourcekitdPath: AbsolutePath! = nil
-  static var sdkpath: String? = nil
-
-  override class func setUp() {
-    sourcekitdPath = ToolchainRegistry.shared.default!.sourcekitd!
-    guard case .darwin? = Platform.current else { return }
-    sdkpath = try? Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx")
-      .trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-
   func testMultipleNotificationHandlers() async throws {
-    let sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: SourceKitDTests.sourcekitdPath)
+    let sourcekitdPath = await ToolchainRegistry.forTesting.default!.sourcekitd!
+    let sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitdPath)
     let keys = sourcekitd.keys
     let path = DocumentURI.for(.swift).pseudoPath
 
@@ -75,7 +66,10 @@ final class SourceKitDTests: XCTestCase {
     sourcekitd.addNotificationHandler(handler2)
 
     let args = SKDRequestArray(sourcekitd: sourcekitd)
-    if let sdkpath = SourceKitDTests.sdkpath {
+    if case .darwin? = Platform.current,
+      let sdkpath = try? await Process.checkNonZeroExit(args: "/usr/bin/xcrun", "--show-sdk-path", "--sdk", "macosx")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    {
       args += ["-sdk", sdkpath]
     }
     args.append(path)

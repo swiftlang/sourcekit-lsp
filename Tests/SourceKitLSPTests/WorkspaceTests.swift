@@ -13,7 +13,7 @@
 import Foundation
 import LSPTestSupport
 import LanguageServerProtocol
-import SKCore
+@_spi(Testing) import SKCore
 import SKTestSupport
 import SourceKitLSP
 import TSCBasic
@@ -396,7 +396,7 @@ final class WorkspaceTests: XCTestCase {
     let packageDir = try ws.uri(for: "Package.swift").fileURL!.deletingLastPathComponent()
 
     try await TSCBasic.Process.checkNonZeroExit(arguments: [
-      ToolchainRegistry.shared.default!.swift!.pathString,
+      ToolchainRegistry.forTesting.default!.swift!.pathString,
       "build",
       "--package-path", packageDir.path,
       "-Xswiftc", "-index-ignore-system-modules",

@@ -14,7 +14,7 @@ import Foundation
 import LSPTestSupport
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
-import SKCore
+@_spi(Testing) import SKCore
 import SKSupport
 import SourceKitLSP
 import SwiftSyntax
@@ -105,8 +105,9 @@ public final class TestSourceKitLSPClient: MessageHandler {
 
     let clientConnection = LocalConnection()
     self.serverToClientConnection = clientConnection
-    server = SourceKitServer(
+    server = await SourceKitServer(
       client: clientConnection,
+      toolchainRegistry: ToolchainRegistry.forTesting,
       options: serverOptions,
       onExit: {
         clientConnection.close()
