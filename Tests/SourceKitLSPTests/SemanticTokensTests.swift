@@ -71,11 +71,22 @@ final class SemanticTokensTests: XCTestCase {
 
     let registerCapabilityExpectation = expectation(description: "\(#function) - register semantic tokens capability")
     testClient.handleNextRequest { (req: RegisterCapabilityRequest) -> VoidResponse in
-      XCTAssert(
-        req.registrations.contains { reg in
-          reg.method == SemanticTokensRegistrationOptions.method
-        }
+      let capabilityRegistration = req.registrations.first { reg in
+        reg.method == SemanticTokensRegistrationOptions.method
+      }
+
+      guard case .dictionary(let registerOptionsDict) = capabilityRegistration?.registerOptions,
+        let registerOptions = SemanticTokensRegistrationOptions(fromLSPDictionary: registerOptionsDict)
+      else {
+        XCTFail("Expected semantic tokens registration options dictionary")
+        return VoidResponse()
+      }
+
+      XCTAssertFalse(
+        registerOptions.semanticTokenOptions.legend.tokenTypes.isEmpty,
+        "Expected semantic tokens legend"
       )
+
       registerCapabilityExpectation.fulfill()
       return VoidResponse()
     }
