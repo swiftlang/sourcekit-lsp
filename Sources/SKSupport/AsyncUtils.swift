@@ -10,6 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+import Foundation
+
 public extension Task {
   /// Awaits the value of the result.
   ///
@@ -64,4 +66,39 @@ public func withCancellableCheckedThrowingContinuation<Handle, Result>(
     },
     onCancel: callCancel
   )
+}
+
+extension Collection {
+  /// Transforms all elements in the collection concurrently and returns the transformed collection.
+  public func concurrentMap<TransformedElement>(
+    maxConcurrentTasks: Int = ProcessInfo.processInfo.processorCount,
+    _ transform: @escaping (Element) async -> TransformedElement
+  ) async -> [TransformedElement] {
+    let indexedResults = await withTaskGroup(of: (index: Int, element: TransformedElement).self) { taskGroup in
+      var indexedResults: [(index: Int, element: TransformedElement)] = []
+      for (index, element) in self.enumerated() {
+        if index >= maxConcurrentTasks {
+          // Wait for one item to finish being transformed so we don't exceed the maximum number of concurrent tasks.
+          if let (index, transformedElement) = await taskGroup.next() {
+            indexedResults.append((index, transformedElement))
+          }
+        }
+        taskGroup.addTask {
+          return (index, await transform(element))
+        }
+      }
+
+      // Wait for all remaining elements to be transformed.
+      for await (index, transformedElement) in taskGroup {
+        indexedResults.append((index, transformedElement))
+      }
+      return indexedResults
+    }
+    return Array<TransformedElement>(unsafeUninitializedCapacity: indexedResults.count) { buffer, count in
+      for (index, transformedElement) in indexedResults {
+        (buffer.baseAddress! + index).initialize(to: transformedElement)
+      }
+      count = indexedResults.count
+    }
+  }
 }

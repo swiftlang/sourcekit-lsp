@@ -647,24 +647,14 @@ extension SwiftLanguageServer {
     guard providers.isEmpty == false else {
       return []
     }
-    let codeActions = await withTaskGroup(of: [CodeAction].self) { taskGroup in
-      for provider in providers {
-        taskGroup.addTask {
-          do {
-            return try await provider(req)
-          } catch {
-            // Ignore any providers that failed to provide refactoring actions.
-            return []
-          }
-        }
+    return await providers.concurrentMap { provider in
+      do {
+        return try await provider(req)
+      } catch {
+        // Ignore any providers that failed to provide refactoring actions.
+        return []
       }
-      var results: [CodeAction] = []
-      for await taskResults in taskGroup {
-        results += taskResults
-      }
-      return results
-    }
-    return codeActions
+    }.flatMap { $0 }
   }
 
   func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {

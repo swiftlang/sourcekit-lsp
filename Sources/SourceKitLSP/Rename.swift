@@ -317,45 +317,44 @@ extension SourceKitServer {
 
       // Now, call `editsToRename(locations:in:oldName:newName:)` on the language service to convert these ranges into
       // edits.
-      await withTaskGroup(of: (DocumentURI, [TextEdit])?.self) { taskGroup in
-        for (url, renameLocations) in locationsByFile {
+      let urisAndEdits =
+        await locationsByFile
+        .filter { changes[DocumentURI($0.key)] == nil }
+        .concurrentMap { (url: URL, renameLocations: [RenameLocation]) -> (DocumentURI, [TextEdit])? in
           let uri = DocumentURI(url)
-          if changes[uri] != nil {
-            // We already have edits for this document provided by the language service, so we don't need to compute
-            // rename ranges for it.
-            continue
+          // Create a document snapshot to operate on. If the document is open, load it from the document manager,
+          // otherwise conjure one from the file on disk. We need the file in memory to perform UTF-8 to UTF-16 column
+          // conversions.
+          // We should technically infer the language for the from-disk snapshot. But `editsToRename` doesn't care
+          // about it, so defaulting to Swift is good enough for now
+          // If we fail to get edits for one file, log an error and continue but don't fail rename completely.
+          guard
+            let snapshot = (try? self.documentManager.latestSnapshot(uri))
+              ?? (try? DocumentSnapshot(url, language: .swift))
+          else {
+            logger.error("Failed to get document snapshot for \(uri.forLogging)")
+            return nil
           }
-          taskGroup.addTask {
-            // Create a document snapshot to operate on. If the document is open, load it from the document manager,
-            // otherwise conjure one from the file on disk. We need the file in memory to perform UTF-8 to UTF-16 column
-            // conversions.
-            // We should technically infer the language for the from-disk snapshot. But `editsToRename` doesn't care
-            // about it, so defaulting to Swift is good enough for now
-            // If we fail to get edits for one file, log an error and continue but don't fail rename completely.
-            guard
-              let snapshot = (try? self.documentManager.latestSnapshot(uri))
-                ?? (try? DocumentSnapshot(url, language: .swift))
-            else {
-              logger.error("Failed to get document snapshot for \(uri.forLogging)")
-              return nil
-            }
-            do {
-              let edits = try await languageService.editsToRename(
-                locations: renameLocations,
-                in: snapshot,
-                oldName: oldName,
-                newName: request.newName
-              )
-              return (uri, edits)
-            } catch {
-              logger.error("Failed to get edits for \(uri.forLogging): \(error.forLogging)")
-              return nil
-            }
+          do {
+            let edits = try await languageService.editsToRename(
+              locations: renameLocations,
+              in: snapshot,
+              oldName: oldName,
+              newName: request.newName
+            )
+            return (uri, edits)
+          } catch {
+            logger.error("Failed to get edits for \(uri.forLogging): \(error.forLogging)")
+            return nil
           }
-        }
-        for await case let (uri, textEdits)? in taskGroup where !textEdits.isEmpty {
-          precondition(changes[uri] == nil, "We should not create tasks for URIs that already have edits")
-          changes[uri] = textEdits
+        }.compactMap { $0 }
+      for (uri, editsForUri) in urisAndEdits {
+        precondition(
+          changes[uri] == nil,
+          "We should have only computed edits for URIs that didn't have edits from the initial rename request"
+        )
+        if !editsForUri.isEmpty {
+          changes[uri] = editsForUri
         }
       }
     }
