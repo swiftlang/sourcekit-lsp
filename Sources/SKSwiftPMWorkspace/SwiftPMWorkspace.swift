@@ -275,14 +275,6 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
 
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
-  /// **Public for testing only**
-  public func _settings(
-    for uri: DocumentURI,
-    _ language: Language
-  ) throws -> FileBuildSettings? {
-    try self.buildSettings(for: uri, language: language)
-  }
-
   public func buildSettings(for uri: DocumentURI, language: Language) throws -> FileBuildSettings? {
     guard let url = uri.fileURL else {
       // We can't determine build settings for non-file URIs.

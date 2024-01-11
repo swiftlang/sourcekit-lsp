@@ -136,7 +136,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       assertEqual(await ws.buildPath, build)
       assertNotNil(await ws.indexStorePath)
-      let arguments = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
+      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
 
       check(
         "-module-name",
@@ -203,7 +203,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let build = buildPath(root: packageRoot, config: config, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await ws.buildPath, build)
-      let arguments = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
+      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
 
       check("-typecheck", arguments: arguments)
       check("-Xcc", "-m32", arguments: arguments)
@@ -237,7 +237,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
 
       let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
-      let arguments = try await ws._settings(for: source.asURI, .swift)!.compilerArguments
+      let arguments = try await ws.buildSettings(for: source.asURI, language: .swift)!.compilerArguments
 
       check("-swift-version", "4.2", arguments: arguments)
       check(source.pathString, arguments: arguments)
@@ -273,10 +273,10 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
 
-      let argumentsA = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
+      let argumentsA = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
       check(aswift.pathString, arguments: argumentsA)
       check(bswift.pathString, arguments: argumentsA)
-      let argumentsB = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
+      let argumentsB = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
       check(aswift.pathString, arguments: argumentsB)
       check(bswift.pathString, arguments: argumentsB)
     }
@@ -316,7 +316,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
-      let arguments = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
+      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
       check(aswift.pathString, arguments: arguments)
       checkNot(bswift.pathString, arguments: arguments)
       // Temporary conditional to work around revlock between SourceKit-LSP and SwiftPM
@@ -337,7 +337,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         )
       }
 
-      let argumentsB = try await ws._settings(for: bswift.asURI, .swift)!.compilerArguments
+      let argumentsB = try await ws.buildSettings(for: bswift.asURI, language: .swift)!.compilerArguments
       check(bswift.pathString, arguments: argumentsB)
       checkNot(aswift.pathString, arguments: argumentsB)
       checkNot(
@@ -378,9 +378,9 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
-      assertNotNil(try await ws._settings(for: aswift.asURI, .swift))
-      assertNil(try await ws._settings(for: bswift.asURI, .swift))
-      assertNil(try await ws._settings(for: DocumentURI(URL(string: "https://www.apple.com")!), .swift))
+      assertNotNil(try await ws.buildSettings(for: aswift.asURI, language: .swift))
+      assertNil(try await ws.buildSettings(for: bswift.asURI, language: .swift))
+      assertNil(try await ws.buildSettings(for: DocumentURI(URL(string: "https://www.apple.com")!), language: .swift))
     }
   }
 
@@ -447,7 +447,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         checkNot(bcxx.pathString, arguments: arguments)
       }
 
-      let args = try await ws._settings(for: acxx.asURI, .cpp)!.compilerArguments
+      let args = try await ws.buildSettings(for: acxx.asURI, language: .cpp)!.compilerArguments
       checkArgsCommon(args)
 
       URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.d").pathString)
@@ -465,7 +465,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         }
 
       let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
-      let headerArgs = try await ws._settings(for: header.asURI, .cpp)!.compilerArguments
+      let headerArgs = try await ws.buildSettings(for: header.asURI, language: .cpp)!.compilerArguments
       checkArgsCommon(headerArgs)
 
       check(
@@ -505,7 +505,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let arguments = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
+      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
       check("-target", arguments: arguments)  // Only one!
       let hostTriple = await ws.buildParameters.targetTriple
 
@@ -559,8 +559,8 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         .appending(components: "Sources", "lib", "a.swift")
       let manifest = packageRoot.appending(components: "Package.swift")
 
-      let arguments1 = try await ws._settings(for: aswift1.asURI, .swift)?.compilerArguments
-      let arguments2 = try await ws._settings(for: aswift2.asURI, .swift)?.compilerArguments
+      let arguments1 = try await ws.buildSettings(for: aswift1.asURI, language: .swift)?.compilerArguments
+      let arguments2 = try await ws.buildSettings(for: aswift2.asURI, language: .swift)?.compilerArguments
       XCTAssertNotNil(arguments1)
       XCTAssertNotNil(arguments2)
       XCTAssertEqual(arguments1, arguments2)
@@ -568,7 +568,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       checkNot(aswift1.pathString, arguments: arguments1 ?? [])
       check(try resolveSymlinks(aswift1).pathString, arguments: arguments1 ?? [])
 
-      let argsManifest = try await ws._settings(for: manifest.asURI, .swift)?.compilerArguments
+      let argsManifest = try await ws.buildSettings(for: manifest.asURI, language: .swift)?.compilerArguments
       XCTAssertNotNil(argsManifest)
 
       checkNot(manifest.pathString, arguments: argsManifest ?? [])
@@ -614,12 +614,12 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let ah = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
 
-      let argsCxx = try await ws._settings(for: acxx.asURI, .cpp)?.compilerArguments
+      let argsCxx = try await ws.buildSettings(for: acxx.asURI, language: .cpp)?.compilerArguments
       XCTAssertNotNil(argsCxx)
       check(acxx.pathString, arguments: argsCxx ?? [])
       checkNot(try resolveSymlinks(acxx).pathString, arguments: argsCxx ?? [])
 
-      let argsH = try await ws._settings(for: ah.asURI, .cpp)?.compilerArguments
+      let argsH = try await ws.buildSettings(for: ah.asURI, language: .cpp)?.compilerArguments
       XCTAssertNotNil(argsH)
       checkNot(ah.pathString, arguments: argsH ?? [])
       check(try resolveSymlinks(ah).pathString, arguments: argsH ?? [])
@@ -657,7 +657,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let arguments = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
+      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
       check(aswift.pathString, arguments: arguments)
       XCTAssertNotNil(
         arguments.firstIndex(where: {
