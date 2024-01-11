@@ -31,7 +31,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
   func testNoPackage() async throws {
     let fs = InMemoryFileSystem()
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -53,7 +53,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
   func testUnparsablePackage() async throws {
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -80,7 +80,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
   func testNoToolchain() async throws {
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -108,7 +108,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   func testBasicSwiftArgs() async throws {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -168,7 +168,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   func testBuildSetup() async throws {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -214,7 +214,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   func testManifestArgs() async throws {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -247,7 +247,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   func testMultiFileSwift() async throws {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -285,7 +285,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   func testMultiTargetSwift() async throws {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -351,7 +351,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   func testUnknownFile() async throws {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -387,7 +387,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   func testBasicCXXArgs() async throws {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -481,7 +481,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   func testDeploymentTargetSwift() async throws {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -524,7 +524,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   func testSymlinkInWorkspaceSwift() async throws {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -579,7 +579,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   func testSymlinkInWorkspaceCXX() async throws {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -629,7 +629,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   func testSwiftDerivedSources() async throws {
     // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -670,7 +670,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
   func testNestedInvalidPackageSwift() async throws {
     let fs = InMemoryFileSystem()
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [

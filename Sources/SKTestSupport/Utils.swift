@@ -13,6 +13,7 @@
 import Foundation
 import LanguageServerProtocol
 import SKCore
+import TSCBasic
 
 extension Language {
   var fileExtension: String {
@@ -61,6 +62,25 @@ public func testScratchDir(testName: String = #function) throws -> URL {
   try? FileManager.default.removeItem(at: url)
   try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
   return url
+}
+
+/// Execute `body` with a path to a temporary scratch directory for the given
+/// test name.
+///
+/// The temporary directory will be deleted at the end of `directory` unless the
+/// `SOURCEKITLSP_KEEP_TEST_SCRATCH_DIR` environment variable is set.
+public func withTestScratchDir<T>(
+  _ body: (AbsolutePath) async throws -> T,
+  testName: String = #function
+) async throws -> T {
+  let scratchDirectory = try testScratchDir(testName: testName)
+  try FileManager.default.createDirectory(at: scratchDirectory, withIntermediateDirectories: true)
+  defer {
+    if cleanScratchDirectories {
+      try? FileManager.default.removeItem(at: scratchDirectory)
+    }
+  }
+  return try await body(try AbsolutePath(validating: scratchDirectory.path))
 }
 
 fileprivate extension URL {

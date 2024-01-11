@@ -13,6 +13,7 @@
 import LSPTestSupport
 @_spi(Testing) import SKCore
 import SKSupport
+import SKTestSupport
 import TSCBasic
 import XCTest
 
@@ -341,7 +342,7 @@ final class ToolchainRegistryTests: XCTestCase {
   func testFromDirectory() async throws {
     // This test uses the real file system because the in-memory system doesn't support marking files executable.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       let path = tempDir.appending(components: "A.xctoolchain", "usr")
       try makeToolchain(
         binPath: path.appending(component: "bin"),
