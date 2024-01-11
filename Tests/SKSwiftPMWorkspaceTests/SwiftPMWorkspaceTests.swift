@@ -137,16 +137,13 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       assertNotNil(await ws.indexStorePath)
       let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
 
-      assertArgumentsContain(
-        "-module-name",
-        "lib",
-        "-incremental",
-        "-emit-dependencies",
-        "-emit-module",
-        "-emit-module-path",
-        arguments: arguments
-      )
-      assertArgumentsContain("-parse-as-library", "-c", arguments: arguments)
+      assertArgumentsContain("-module-name", "lib", arguments: arguments)
+      assertArgumentsContain("-emit-dependencies", arguments: arguments)
+      assertArgumentsContain("-emit-module", arguments: arguments)
+      assertArgumentsContain("-emit-module-path", arguments: arguments)
+      assertArgumentsContain("-incremental", arguments: arguments)
+      assertArgumentsContain("-parse-as-library", arguments: arguments)
+      assertArgumentsContain("-c", arguments: arguments)
 
       assertArgumentsContain("-target", arguments: arguments)  // Only one!
       #if os(macOS)
@@ -411,67 +408,55 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
+      let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
       let hostTriple = await ws.buildParameters.targetTriple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await ws.buildPath, build)
       assertNotNil(await ws.indexStorePath)
 
-      let checkArgsCommon = { (arguments: [String]) in
-        assertArgumentsContain("-std=c++14", arguments: arguments)
+      for file in [acxx, header] {
+        let args = try await ws.buildSettings(for: file.asURI, language: .cpp)!.compilerArguments
 
-        assertArgumentsDoNotContain("-arch", arguments: arguments)
-        assertArgumentsContain("-target", arguments: arguments)  // Only one!
+        assertArgumentsContain("-std=c++14", arguments: args)
+
+        assertArgumentsDoNotContain("-arch", arguments: args)
+        assertArgumentsContain("-target", arguments: args)  // Only one!
         #if os(macOS)
         let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
         assertArgumentsContain(
           "-target",
           hostTriple.tripleString(forPlatformVersion: versionString),
-          arguments: arguments
+          arguments: args
         )
-        assertArgumentsContain("-isysroot", arguments: arguments)
-        assertArgumentsContain("-F", arguments: arguments, allowMultiple: true)
+        assertArgumentsContain("-isysroot", arguments: args)
+        assertArgumentsContain("-F", arguments: args, allowMultiple: true)
         #else
-        assertArgumentsContain("-target", hostTriple.tripleString, arguments: arguments)
+        assertArgumentsContain("-target", hostTriple.tripleString, arguments: args)
         #endif
 
         assertArgumentsContain(
           "-I",
           packageRoot.appending(components: "Sources", "lib", "include").pathString,
-          arguments: arguments
+          arguments: args
         )
-        assertArgumentsDoNotContain("-I", build.pathString, arguments: arguments)
-        assertArgumentsDoNotContain(bcxx.pathString, arguments: arguments)
-      }
+        assertArgumentsDoNotContain("-I", build.pathString, arguments: args)
+        assertArgumentsDoNotContain(bcxx.pathString, arguments: args)
 
-      let args = try await ws.buildSettings(for: acxx.asURI, language: .cpp)!.compilerArguments
-      checkArgsCommon(args)
+        URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.d").pathString)
+          .withUnsafeFileSystemRepresentation {
+            assertArgumentsContain("-MD", "-MT", "dependencies", "-MF", String(cString: $0!), arguments: args)
+          }
 
-      URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.d").pathString)
-        .withUnsafeFileSystemRepresentation {
-          assertArgumentsContain("-MD", "-MT", "dependencies", "-MF", String(cString: $0!), arguments: args)
+        URL(fileURLWithPath: file.pathString).withUnsafeFileSystemRepresentation {
+          assertArgumentsContain("-c", String(cString: $0!), arguments: args)
         }
 
-      URL(fileURLWithPath: acxx.pathString).withUnsafeFileSystemRepresentation {
-        assertArgumentsContain("-c", String(cString: $0!), arguments: args)
+        URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.o").pathString)
+          .withUnsafeFileSystemRepresentation {
+            assertArgumentsContain("-o", String(cString: $0!), arguments: args)
+          }
       }
-
-      URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.o").pathString)
-        .withUnsafeFileSystemRepresentation {
-          assertArgumentsContain("-o", String(cString: $0!), arguments: args)
-        }
-
-      let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
-      let headerArgs = try await ws.buildSettings(for: header.asURI, language: .cpp)!.compilerArguments
-      checkArgsCommon(headerArgs)
-
-      assertArgumentsContain(
-        "-c",
-        "-x",
-        "c++-header",
-        try AbsolutePath(validating: URL(fileURLWithPath: header.pathString).path).pathString,
-        arguments: headerArgs
-      )
     }
   }
 
@@ -590,33 +575,32 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
 
-      let packageRoot = tempDir.appending(component: "pkg")
+      let acpp = ["Sources", "lib", "a.cpp"]
+      let ah = ["Sources", "lib", "include", "a.h"]
+
+      let realRoot = tempDir.appending(component: "pkg_real")
+      let symlinkRoot = tempDir.appending(component: "pkg")
 
       try FileManager.default.createSymbolicLink(
-        at: URL(fileURLWithPath: packageRoot.pathString),
+        at: URL(fileURLWithPath: symlinkRoot.pathString),
         withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString)
       )
 
-      let tr = await ToolchainRegistry.forTesting
       let ws = try await SwiftPMWorkspace(
-        workspacePath: packageRoot,
-        toolchainRegistry: tr,
+        workspacePath: symlinkRoot,
+        toolchainRegistry: await ToolchainRegistry.forTesting,
         fileSystem: fs,
         buildSetup: SourceKitServer.Options.testDefault.buildSetup
       )
 
-      let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
-      let ah = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
-
-      let argsCxx = try await ws.buildSettings(for: acxx.asURI, language: .cpp)?.compilerArguments
-      XCTAssertNotNil(argsCxx)
-      assertArgumentsContain(acxx.pathString, arguments: argsCxx ?? [])
-      assertArgumentsDoNotContain(try resolveSymlinks(acxx).pathString, arguments: argsCxx ?? [])
-
-      let argsH = try await ws.buildSettings(for: ah.asURI, language: .cpp)?.compilerArguments
-      XCTAssertNotNil(argsH)
-      assertArgumentsDoNotContain(ah.pathString, arguments: argsH ?? [])
-      assertArgumentsContain(try resolveSymlinks(ah).pathString, arguments: argsH ?? [])
+      for file in [acpp, ah] {
+        let args = try unwrap(
+          await ws.buildSettings(for: symlinkRoot.appending(components: file).asURI, language: .cpp)?
+            .compilerArguments
+        )
+        assertArgumentsContain(realRoot.appending(components: file).pathString, arguments: args)
+        assertArgumentsDoNotContain(symlinkRoot.appending(components: file).pathString, arguments: args)
+      }
     }
   }
 
@@ -686,6 +670,52 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
 
       assertEqual(await ws._packageRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
+    }
+  }
+
+  func testPluginArgs() async throws {
+    let fs = localFileSystem
+    try await withTestScratchDir { tempDir in
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Plugins/MyPlugin/a.swift": "",
+          "pkg/Sources/lib/lib.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:5.7
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            products: [],
+            dependencies: [],
+            targets: [
+              .target(name: "lib"),
+              .plugin(name: "MyPlugin", capability: .buildTool)
+            ]
+          )
+          """,
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+      let tr = await ToolchainRegistry.forTesting
+      let ws = try await SwiftPMWorkspace(
+        workspacePath: packageRoot,
+        toolchainRegistry: tr,
+        fileSystem: fs,
+        buildSetup: SourceKitServer.Options.testDefault.buildSetup
+      )
+
+      let aswift = packageRoot.appending(components: "Plugins", "MyPlugin", "a.swift")
+      let hostTriple = await ws.buildParameters.targetTriple
+      let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
+
+      assertEqual(await ws.buildPath, build)
+      assertNotNil(await ws.indexStorePath)
+      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+
+      // Plugins get compiled with the same compiler arguments as the package manifest
+      assertArgumentsContain("-package-description-version", "5.7.0", arguments: arguments)
+      assertArgumentsContain(aswift.pathString, arguments: arguments)
     }
   }
 }
