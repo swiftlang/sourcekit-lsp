@@ -195,4 +195,55 @@ class DefinitionTests: XCTestCase {
       Location(uri: try ws.uri(for: "test.c"), range: Range(try ws.position(of: "1️⃣", in: "test.c")))
     )
   }
+
+  func testReportInitializerOnDefinitionForType() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      struct 1️⃣Foo {
+        2️⃣init() {}
+      }
+      _ = 3️⃣Foo()
+      """,
+      uri: uri
+    )
+
+    let response = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+    )
+    XCTAssertEqual(
+      response,
+      .locations([
+        Location(uri: uri, range: Range(positions["1️⃣"])),
+        Location(uri: uri, range: Range(positions["2️⃣"])),
+      ])
+    )
+  }
+
+  func testAmbiguousDefinition() async throws {
+    // FIXME: This shouldn't have to be an indexed workspace but solver-based cursor info currently fails if the file
+    // does not exist on disk.
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      func 1️⃣foo() -> Int { 1 }
+      func 2️⃣foo() -> String { "" }
+      func test() {
+        _ = 3️⃣foo()
+      }
+      """,
+      allowBuildFailure: true
+    )
+
+    let response = try await ws.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(ws.fileURI), position: ws.positions["3️⃣"])
+    )
+    XCTAssertEqual(
+      response,
+      .locations([
+        Location(uri: ws.fileURI, range: Range(ws.positions["1️⃣"])),
+        Location(uri: ws.fileURI, range: Range(ws.positions["2️⃣"])),
+      ])
+    )
+  }
 }

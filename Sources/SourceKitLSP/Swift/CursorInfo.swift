@@ -38,13 +38,49 @@ struct CursorInfo {
   init(
     _ symbolInfo: SymbolDetails,
     annotatedDeclaration: String?,
-    documentationXML: String?,
-    refactorActions: [SemanticRefactorCommand]? = nil
+    documentationXML: String?
   ) {
     self.symbolInfo = symbolInfo
     self.annotatedDeclaration = annotatedDeclaration
     self.documentationXML = documentationXML
-    self.refactorActions = refactorActions
+  }
+
+  init?(
+    _ dict: SKDResponseDictionary,
+    sourcekitd: some SourceKitD
+  ) {
+    let keys = sourcekitd.keys
+    guard let kind: sourcekitd_uid_t = dict[keys.kind] else {
+      // Nothing to report.
+      return nil
+    }
+
+    var location: Location? = nil
+    if let filepath: String = dict[keys.filepath],
+      let line: Int = dict[keys.line],
+      let column: Int = dict[keys.column]
+    {
+      let position = Position(
+        line: line - 1,
+        // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
+        utf16index: column - 1
+      )
+      location = Location(uri: DocumentURI(URL(fileURLWithPath: filepath)), range: Range(position))
+    }
+
+    self.init(
+      SymbolDetails(
+        name: dict[keys.name],
+        containerName: nil,
+        usr: dict[keys.usr],
+        bestLocalDeclaration: location,
+        kind: kind.asSymbolKind(sourcekitd.values),
+        isDynamic: dict[keys.isDynamic] ?? false,
+        receiverUsrs: dict[keys.receivers]?.compactMap { $0[keys.usr] as String? } ?? []
+      ),
+      annotatedDeclaration: dict[keys.annotated_decl],
+      documentationXML: dict[keys.doc_full_as_xml]
+    )
   }
 }
 
@@ -83,7 +119,7 @@ extension SwiftLanguageServer {
     _ uri: DocumentURI,
     _ range: Range<Position>,
     additionalParameters appendAdditionalParameters: ((SKDRequestDictionary) -> Void)? = nil
-  ) async throws -> CursorInfo? {
+  ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand]) {
     let snapshot = try documentManager.latestSnapshot(uri)
 
     guard let offsetRange = snapshot.utf8OffsetRange(of: range) else {
@@ -105,48 +141,19 @@ extension SwiftLanguageServer {
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
 
-    guard let kind: sourcekitd_uid_t = dict[keys.kind] else {
-      // Nothing to report.
-      return nil
+    var cursorInfoResults: [CursorInfo] = []
+    if let cursorInfo = CursorInfo(dict, sourcekitd: sourcekitd) {
+      cursorInfoResults.append(cursorInfo)
     }
-
-    var location: Location? = nil
-    if let filepath: String = dict[keys.filepath],
-      let line: Int = dict[keys.line],
-      let column: Int = dict[keys.column]
-    {
-      let position = Position(
-        line: line - 1,
-        // FIXME: we need to convert the utf8/utf16 column, which may require reading the file!
-        utf16index: column - 1
-      )
-      location = Location(uri: DocumentURI(URL(fileURLWithPath: filepath)), range: Range(position))
-    }
-
-    let refactorActionsArray: SKDResponseArray? = dict[keys.refactor_actions]
-
-    let receiversArray: SKDResponseArray? = dict[keys.receivers]
-    let receiverUsrs = receiversArray?.compactMap { $0[keys.usr] as String? } ?? []
-
-    return CursorInfo(
-      SymbolDetails(
-        name: dict[keys.name],
-        containerName: nil,
-        usr: dict[keys.usr],
-        bestLocalDeclaration: location,
-        kind: kind.asSymbolKind(self.sourcekitd.values),
-        isDynamic: dict[keys.isDynamic] ?? false,
-        receiverUsrs: receiverUsrs
-      ),
-      annotatedDeclaration: dict[keys.annotated_decl],
-      documentationXML: dict[keys.doc_full_as_xml],
-      refactorActions: [SemanticRefactorCommand](
-        array: refactorActionsArray,
+    cursorInfoResults += dict[keys.secondarySymbols]?.compactMap { CursorInfo($0, sourcekitd: sourcekitd) } ?? []
+    let refactorActions =
+      [SemanticRefactorCommand](
+        array: dict[keys.refactor_actions],
         range: range,
         textDocument: TextDocumentIdentifier(uri),
         keys,
         self.sourcekitd.api
-      )
-    )
+      ) ?? []
+    return (cursorInfoResults, refactorActions)
   }
 }

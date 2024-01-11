@@ -70,9 +70,6 @@ extension SwiftLanguageServer {
     let uri = req.textDocument.uri
     let snapshot = try documentManager.latestSnapshot(uri)
     let position = await self.adjustPositionToStartOfIdentifier(req.position, in: snapshot)
-    guard let cursorInfo = try await cursorInfo(uri, position..<position) else {
-      return []
-    }
-    return [cursorInfo.symbolInfo]
+    return try await cursorInfo(uri, position..<position).cursorInfo.map { $0.symbolInfo }
   }
 }

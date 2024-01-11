@@ -31,12 +31,15 @@ public struct IndexedSingleSwiftFileWorkspace {
   ///
   /// - Parameters:
   ///   - markedText: The contents of the source file including location markers.
+  ///   - allowBuildFailure: Whether to fail if the input source file fails to build or whether to continue the test
+  ///     even if the input source is invalid.
   ///   - workspaceDirectory: If specified, the temporary files will be put in this directory. If `nil` a temporary
   ///     scratch directory will be created based on `testName`.
   ///   - cleanUp: Whether to remove the temporary directory when the SourceKit-LSP server shuts down.
   public init(
     _ markedText: String,
     indexSystemModules: Bool = false,
+    allowBuildFailure: Bool = false,
     workspaceDirectory: URL? = nil,
     cleanUp: Bool = cleanScratchDirectories,
     testName: String = #function
@@ -83,7 +86,13 @@ public struct IndexedSingleSwiftFileWorkspace {
     )
 
     // Run swiftc to build the index store
-    try await Process.checkNonZeroExit(arguments: [swiftc.path] + compilerArguments)
+    do {
+      try await Process.checkNonZeroExit(arguments: [swiftc.path] + compilerArguments)
+    } catch {
+      if !allowBuildFailure {
+        throw error
+      }
+    }
 
     // Create the test client
     var options = SourceKitServer.Options.testDefault

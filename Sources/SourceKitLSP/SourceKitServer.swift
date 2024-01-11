@@ -1709,49 +1709,24 @@ extension SourceKitServer {
     return try await languageService.declaration(req)
   }
 
-  /// Returns the result of a `DefinitionRequest` by running a `SymbolInfoRequest`, inspecting
-  /// its result and doing index lookups, if necessary.
-  ///
-  /// In contrast to `definition`, this does not fall back to sending a `DefinitionRequest` to the
-  /// toolchain language server.
-  private func indexBasedDefinition(
-    _ req: DefinitionRequest,
-    workspace: Workspace,
+  /// Return the locations for jump to definition from the given `SymbolDetails`.
+  private func definitionLocations(
+    for symbol: SymbolDetails,
+    in uri: DocumentURI,
     languageService: ToolchainLanguageServer
   ) async throws -> [Location] {
-    let symbols = try await languageService.symbolInfo(
-      SymbolInfoRequest(
-        textDocument: req.textDocument,
-        position: req.position
-      )
-    )
-    guard let symbol = symbols.first else {
-      return []
-    }
-
-    if let bestLocalDeclaration = symbol.bestLocalDeclaration,
-      !(symbol.isDynamic ?? true),
-      symbol.usr?.hasPrefix("s:") ?? false /* Swift symbols have USRs starting with s: */
-    {
-      // If we have a known non-dynamic symbol within Swift, we don't need to do an index lookup.
-      // For non-Swift symbols, we need to perform an index lookup because the best local declaration will point to
-      // a header file but jump-to-definition should prefer the implementation (there's the declaration request to jump
-      // to the function's declaration).
-      return [bestLocalDeclaration]
-    }
-
     // If this symbol is a module then generate a textual interface
     if symbol.kind == .module, let name = symbol.name {
       let interfaceLocation = try await self.definitionInInterface(
-        req,
         moduleName: name,
         symbolUSR: nil,
+        originatorUri: uri,
         languageService: languageService
       )
       return [interfaceLocation]
     }
 
-    guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
+    guard let index = await self.workspaceForDocument(uri: uri)?.index else {
       if let bestLocalDeclaration = symbol.bestLocalDeclaration {
         return [bestLocalDeclaration]
       } else {
@@ -1800,14 +1775,44 @@ extension SourceKitServer {
       if URL(fileURLWithPath: occurrence.location.path).pathExtension == "swiftinterface" {
         // If the location is in `.swiftinterface` file, use moduleName to return textual interface.
         return try await self.definitionInInterface(
-          req,
           moduleName: occurrence.location.moduleName,
           symbolUSR: occurrence.symbol.usr,
+          originatorUri: uri,
           languageService: languageService
         )
       }
       return indexToLSPLocation(occurrence.location)
     }
+  }
+
+  /// Returns the result of a `DefinitionRequest` by running a `SymbolInfoRequest`, inspecting
+  /// its result and doing index lookups, if necessary.
+  ///
+  /// In contrast to `definition`, this does not fall back to sending a `DefinitionRequest` to the
+  /// toolchain language server.
+  private func indexBasedDefinition(
+    _ req: DefinitionRequest,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) async throws -> [Location] {
+    let symbols = try await languageService.symbolInfo(
+      SymbolInfoRequest(
+        textDocument: req.textDocument,
+        position: req.position
+      )
+    )
+    return try await symbols.asyncMap { (symbol) -> [Location] in
+      if symbol.bestLocalDeclaration != nil && !(symbol.isDynamic ?? true)
+        && symbol.usr?.hasPrefix("s:") ?? false /* Swift symbols have USRs starting with s: */
+      {
+        // If we have a known non-dynamic symbol within Swift, we don't need to do an index lookup.
+        // For non-Swift symbols, we need to perform an index lookup because the best local declaration will point to
+        // a header file but jump-to-definition should prefer the implementation (there's the declaration request to jump
+        // to the function's declaration).
+        return [symbol.bestLocalDeclaration].compactMap { $0 }
+      }
+      return try await self.definitionLocations(for: symbol, in: req.textDocument.uri, languageService: languageService)
+    }.flatMap { $0 }
   }
 
   func definition(
@@ -1830,13 +1835,22 @@ extension SourceKitServer {
     return .locations(indexBasedResponse)
   }
 
+  /// Generate the generated interface for the given module, write it to disk and return the location to which to jump
+  /// to get to the definition of `symbolUSR`.
+  ///
+  /// `originatorUri` is the URI of the file from which the definition request is performed. It is used to determine the
+  /// compiler arguments to generate the generated inteface.
   func definitionInInterface(
-    _ req: DefinitionRequest,
     moduleName: String,
     symbolUSR: String?,
+    originatorUri: DocumentURI,
     languageService: ToolchainLanguageServer
   ) async throws -> Location {
-    let openInterface = OpenInterfaceRequest(textDocument: req.textDocument, name: moduleName, symbolUSR: symbolUSR)
+    let openInterface = OpenInterfaceRequest(
+      textDocument: TextDocumentIdentifier(originatorUri),
+      name: moduleName,
+      symbolUSR: symbolUSR
+    )
     guard let interfaceDetails = try await languageService.openInterface(openInterface) else {
       throw ResponseError.unknown("Could not generate Swift Interface for \(moduleName)")
     }

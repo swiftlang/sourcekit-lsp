@@ -508,35 +508,45 @@ extension SwiftLanguageServer {
   public func hover(_ req: HoverRequest) async throws -> HoverResponse? {
     let uri = req.textDocument.uri
     let position = req.position
-    guard let cursorInfo = try await cursorInfo(uri, position..<position) else {
+    let cursorInfoResults = try await cursorInfo(uri, position..<position).cursorInfo
+
+    let symbolDocumentations = cursorInfoResults.compactMap { (cursorInfo) -> String? in
+      guard let name: String = cursorInfo.symbolInfo.name else {
+        // There is a cursor but we don't know how to deal with it.
+        return nil
+      }
+
+      /// Prepend backslash to `*` and `_`, to prevent them
+      /// from being interpreted as markdown.
+      func escapeNameMarkdown(_ str: String) -> String {
+        return String(str.flatMap({ ($0 == "*" || $0 == "_") ? ["\\", $0] : [$0] }))
+      }
+
+      var result = escapeNameMarkdown(name)
+      if let doc = cursorInfo.documentationXML {
+        result += """
+
+          \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(doc) } ?? doc)
+          """
+      } else if let annotated: String = cursorInfo.annotatedDeclaration {
+        result += """
+
+          \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(annotated) } ?? annotated)
+          """
+      }
+      return result
+    }
+
+    if symbolDocumentations.isEmpty {
       return nil
     }
 
-    guard let name: String = cursorInfo.symbolInfo.name else {
-      // There is a cursor but we don't know how to deal with it.
-      return nil
-    }
+    let joinedDocumentation = symbolDocumentations.joined(separator: "\n# Alternative result\n")
 
-    /// Prepend backslash to `*` and `_`, to prevent them
-    /// from being interpreted as markdown.
-    func escapeNameMarkdown(_ str: String) -> String {
-      return String(str.flatMap({ ($0 == "*" || $0 == "_") ? ["\\", $0] : [$0] }))
-    }
-
-    var result = escapeNameMarkdown(name)
-    if let doc = cursorInfo.documentationXML {
-      result += """
-
-        \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(doc) } ?? doc)
-        """
-    } else if let annotated: String = cursorInfo.annotatedDeclaration {
-      result += """
-
-        \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(annotated) } ?? annotated)
-        """
-    }
-
-    return HoverResponse(contents: .markupContent(MarkupContent(kind: .markdown, value: result)), range: nil)
+    return HoverResponse(
+      contents: .markupContent(MarkupContent(kind: .markdown, value: joinedDocumentation)),
+      range: nil
+    )
   }
 
   public func documentColor(_ req: DocumentColorRequest) async throws -> [ColorInformation] {
@@ -668,13 +678,7 @@ extension SwiftLanguageServer {
       additionalParameters: additionalCursorInfoParameters
     )
 
-    guard let cursorInfoResponse else {
-      throw ResponseError.unknown("CursorInfo failed.")
-    }
-    guard let refactorActions = cursorInfoResponse.refactorActions else {
-      return []
-    }
-    let codeActions: [CodeAction] = refactorActions.compactMap {
+    return cursorInfoResponse.refactorActions.compactMap {
       do {
         let lspCommand = try $0.asCommand()
         return CodeAction(title: $0.title, kind: .refactor, command: lspCommand)
@@ -683,7 +687,6 @@ extension SwiftLanguageServer {
         return nil
       }
     }
-    return codeActions
   }
 
   func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {

@@ -1330,6 +1330,54 @@ final class LocalSwiftTests: XCTestCase {
     }
   }
 
+  func testMultiCursorInfoResultsHover() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
+    let positions = testClient.openDocument(
+      """
+      struct Foo {
+        init() {}
+      }
+      _ = 1️⃣Foo()
+      """,
+      uri: uri
+    )
+
+    let response = try await testClient.send(
+      HoverRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: positions["1️⃣"]
+      )
+    )
+
+    guard case .markupContent(let content) = response?.contents else {
+      XCTFail("hover.contents is not .markupContents")
+      return
+    }
+    XCTAssertEqual(content.kind, .markdown)
+    XCTAssertEqual(
+      content.value,
+      """
+      Foo
+      ```swift
+      struct Foo
+      ```
+
+      ---
+
+      # Alternative result
+      init()
+      ```swift
+      init()
+      ```
+
+      ---
+
+      """
+    )
+  }
+
   func testHoverNameEscaping() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
