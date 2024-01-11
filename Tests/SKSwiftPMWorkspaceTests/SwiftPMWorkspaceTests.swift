@@ -137,7 +137,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       assertNotNil(await ws.indexStorePath)
       let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
 
-      check(
+      assertArgumentsContain(
         "-module-name",
         "lib",
         "-incremental",
@@ -146,21 +146,25 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         "-emit-module-path",
         arguments: arguments
       )
-      check("-parse-as-library", "-c", arguments: arguments)
+      assertArgumentsContain("-parse-as-library", "-c", arguments: arguments)
 
-      check("-target", arguments: arguments)  // Only one!
+      assertArgumentsContain("-target", arguments: arguments)  // Only one!
       #if os(macOS)
       let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
-      check("-target", hostTriple.tripleString(forPlatformVersion: versionString), arguments: arguments)
-      check("-sdk", arguments: arguments)
-      check("-F", arguments: arguments, allowMultiple: true)
+      assertArgumentsContain(
+        "-target",
+        hostTriple.tripleString(forPlatformVersion: versionString),
+        arguments: arguments
+      )
+      assertArgumentsContain("-sdk", arguments: arguments)
+      assertArgumentsContain("-F", arguments: arguments, allowMultiple: true)
       #else
-      check("-target", hostTriple.tripleString, arguments: arguments)
+      assertArgumentsContain("-target", hostTriple.tripleString, arguments: arguments)
       #endif
 
-      check("-I", build.appending(component: "Modules").pathString, arguments: arguments)
+      assertArgumentsContain("-I", build.appending(component: "Modules").pathString, arguments: arguments)
 
-      check(aswift.pathString, arguments: arguments)
+      assertArgumentsContain(aswift.pathString, arguments: arguments)
     }
   }
 
@@ -203,9 +207,9 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       assertEqual(await ws.buildPath, build)
       let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
 
-      check("-typecheck", arguments: arguments)
-      check("-Xcc", "-m32", arguments: arguments)
-      check("-O", arguments: arguments)
+      assertArgumentsContain("-typecheck", arguments: arguments)
+      assertArgumentsContain("-Xcc", "-m32", arguments: arguments)
+      assertArgumentsContain("-O", arguments: arguments)
     }
   }
 
@@ -236,8 +240,8 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
       let arguments = try await ws.buildSettings(for: source.asURI, language: .swift)!.compilerArguments
 
-      check("-swift-version", "4.2", arguments: arguments)
-      check(source.pathString, arguments: arguments)
+      assertArgumentsContain("-swift-version", "4.2", arguments: arguments)
+      assertArgumentsContain(source.pathString, arguments: arguments)
     }
   }
 
@@ -270,11 +274,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
 
       let argumentsA = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
-      check(aswift.pathString, arguments: argumentsA)
-      check(bswift.pathString, arguments: argumentsA)
+      assertArgumentsContain(aswift.pathString, arguments: argumentsA)
+      assertArgumentsContain(bswift.pathString, arguments: argumentsA)
       let argumentsB = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
-      check(aswift.pathString, arguments: argumentsB)
-      check(bswift.pathString, arguments: argumentsB)
+      assertArgumentsContain(aswift.pathString, arguments: argumentsB)
+      assertArgumentsContain(bswift.pathString, arguments: argumentsB)
     }
   }
 
@@ -312,12 +316,12 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
       let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
-      check(aswift.pathString, arguments: arguments)
-      checkNot(bswift.pathString, arguments: arguments)
+      assertArgumentsContain(aswift.pathString, arguments: arguments)
+      assertArgumentsDoNotContain(bswift.pathString, arguments: arguments)
       // Temporary conditional to work around revlock between SourceKit-LSP and SwiftPM
       // as a result of fix for SR-12050.  Can be removed when that fix has been merged.
       if arguments.joined(separator: " ").contains("-Xcc -I -Xcc") {
-        check(
+        assertArgumentsContain(
           "-Xcc",
           "-I",
           "-Xcc",
@@ -325,7 +329,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           arguments: arguments
         )
       } else {
-        check(
+        assertArgumentsContain(
           "-I",
           packageRoot.appending(components: "Sources", "libC", "include").pathString,
           arguments: arguments
@@ -333,9 +337,9 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       }
 
       let argumentsB = try await ws.buildSettings(for: bswift.asURI, language: .swift)!.compilerArguments
-      check(bswift.pathString, arguments: argumentsB)
-      checkNot(aswift.pathString, arguments: argumentsB)
-      checkNot(
+      assertArgumentsContain(bswift.pathString, arguments: argumentsB)
+      assertArgumentsDoNotContain(aswift.pathString, arguments: argumentsB)
+      assertArgumentsDoNotContain(
         "-I",
         packageRoot.appending(components: "Sources", "libC", "include").pathString,
         arguments: argumentsB
@@ -414,30 +418,30 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       assertNotNil(await ws.indexStorePath)
 
       let checkArgsCommon = { (arguments: [String]) in
-        check("-std=c++14", arguments: arguments)
+        assertArgumentsContain("-std=c++14", arguments: arguments)
 
-        checkNot("-arch", arguments: arguments)
-        check("-target", arguments: arguments)  // Only one!
+        assertArgumentsDoNotContain("-arch", arguments: arguments)
+        assertArgumentsContain("-target", arguments: arguments)  // Only one!
         #if os(macOS)
         let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
-        check(
+        assertArgumentsContain(
           "-target",
           hostTriple.tripleString(forPlatformVersion: versionString),
           arguments: arguments
         )
-        check("-isysroot", arguments: arguments)
-        check("-F", arguments: arguments, allowMultiple: true)
+        assertArgumentsContain("-isysroot", arguments: arguments)
+        assertArgumentsContain("-F", arguments: arguments, allowMultiple: true)
         #else
-        check("-target", hostTriple.tripleString, arguments: arguments)
+        assertArgumentsContain("-target", hostTriple.tripleString, arguments: arguments)
         #endif
 
-        check(
+        assertArgumentsContain(
           "-I",
           packageRoot.appending(components: "Sources", "lib", "include").pathString,
           arguments: arguments
         )
-        checkNot("-I", build.pathString, arguments: arguments)
-        checkNot(bcxx.pathString, arguments: arguments)
+        assertArgumentsDoNotContain("-I", build.pathString, arguments: arguments)
+        assertArgumentsDoNotContain(bcxx.pathString, arguments: arguments)
       }
 
       let args = try await ws.buildSettings(for: acxx.asURI, language: .cpp)!.compilerArguments
@@ -445,23 +449,23 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.d").pathString)
         .withUnsafeFileSystemRepresentation {
-          check("-MD", "-MT", "dependencies", "-MF", String(cString: $0!), arguments: args)
+          assertArgumentsContain("-MD", "-MT", "dependencies", "-MF", String(cString: $0!), arguments: args)
         }
 
       URL(fileURLWithPath: acxx.pathString).withUnsafeFileSystemRepresentation {
-        check("-c", String(cString: $0!), arguments: args)
+        assertArgumentsContain("-c", String(cString: $0!), arguments: args)
       }
 
       URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.o").pathString)
         .withUnsafeFileSystemRepresentation {
-          check("-o", String(cString: $0!), arguments: args)
+          assertArgumentsContain("-o", String(cString: $0!), arguments: args)
         }
 
       let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
       let headerArgs = try await ws.buildSettings(for: header.asURI, language: .cpp)!.compilerArguments
       checkArgsCommon(headerArgs)
 
-      check(
+      assertArgumentsContain(
         "-c",
         "-x",
         "c++-header",
@@ -498,17 +502,17 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
-      check("-target", arguments: arguments)  // Only one!
+      assertArgumentsContain("-target", arguments: arguments)  // Only one!
       let hostTriple = await ws.buildParameters.targetTriple
 
       #if os(macOS)
-      check(
+      assertArgumentsContain(
         "-target",
         hostTriple.tripleString(forPlatformVersion: "10.13"),
         arguments: arguments
       )
       #else
-      check("-target", hostTriple.tripleString, arguments: arguments)
+      assertArgumentsContain("-target", hostTriple.tripleString, arguments: arguments)
       #endif
     }
   }
@@ -556,14 +560,14 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       XCTAssertNotNil(arguments2)
       XCTAssertEqual(arguments1, arguments2)
 
-      checkNot(aswift1.pathString, arguments: arguments1 ?? [])
-      check(try resolveSymlinks(aswift1).pathString, arguments: arguments1 ?? [])
+      assertArgumentsDoNotContain(aswift1.pathString, arguments: arguments1 ?? [])
+      assertArgumentsContain(try resolveSymlinks(aswift1).pathString, arguments: arguments1 ?? [])
 
       let argsManifest = try await ws.buildSettings(for: manifest.asURI, language: .swift)?.compilerArguments
       XCTAssertNotNil(argsManifest)
 
-      checkNot(manifest.pathString, arguments: argsManifest ?? [])
-      check(try resolveSymlinks(manifest).pathString, arguments: argsManifest ?? [])
+      assertArgumentsDoNotContain(manifest.pathString, arguments: argsManifest ?? [])
+      assertArgumentsContain(try resolveSymlinks(manifest).pathString, arguments: argsManifest ?? [])
     }
   }
 
@@ -606,13 +610,13 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let argsCxx = try await ws.buildSettings(for: acxx.asURI, language: .cpp)?.compilerArguments
       XCTAssertNotNil(argsCxx)
-      check(acxx.pathString, arguments: argsCxx ?? [])
-      checkNot(try resolveSymlinks(acxx).pathString, arguments: argsCxx ?? [])
+      assertArgumentsContain(acxx.pathString, arguments: argsCxx ?? [])
+      assertArgumentsDoNotContain(try resolveSymlinks(acxx).pathString, arguments: argsCxx ?? [])
 
       let argsH = try await ws.buildSettings(for: ah.asURI, language: .cpp)?.compilerArguments
       XCTAssertNotNil(argsH)
-      checkNot(ah.pathString, arguments: argsH ?? [])
-      check(try resolveSymlinks(ah).pathString, arguments: argsH ?? [])
+      assertArgumentsDoNotContain(ah.pathString, arguments: argsH ?? [])
+      assertArgumentsContain(try resolveSymlinks(ah).pathString, arguments: argsH ?? [])
     }
   }
 
@@ -647,7 +651,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
-      check(aswift.pathString, arguments: arguments)
+      assertArgumentsContain(aswift.pathString, arguments: arguments)
       XCTAssertNotNil(
         arguments.firstIndex(where: {
           $0.hasSuffix(".swift") && $0.contains("DerivedSources")
@@ -686,7 +690,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   }
 }
 
-private func checkNot(
+private func assertArgumentsDoNotContain(
   _ pattern: String...,
   arguments: [String],
   file: StaticString = #filePath,
@@ -702,7 +706,7 @@ private func checkNot(
   }
 }
 
-private func check(
+private func assertArgumentsContain(
   _ pattern: String...,
   arguments: [String],
   allowMultiple: Bool = false,
