@@ -31,7 +31,7 @@ extension IndexStoreDB {
   }
 }
 
-#if swift(<5.10)
+#if swift(<5.11)
 extension IndexStoreDB: MainFilesProvider {}
 #else
 extension IndexStoreDB: @retroactive MainFilesProvider {}

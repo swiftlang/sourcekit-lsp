@@ -21,7 +21,7 @@ extension DocumentURI {
     return "<DocumentURI length=\(description.count) hash=\(description.hashForLogging)>"
   }
 }
-#if swift(<5.10)
+#if swift(<5.11)
 extension DocumentURI: CustomLogStringConvertible {}
 #else
 extension DocumentURI: @retroactive CustomLogStringConvertible {}
