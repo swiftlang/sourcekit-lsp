@@ -48,7 +48,7 @@ extension AbsolutePath {
     .directory
   }
 }
-#if swift(<5.10)
+#if swift(<5.11)
 extension AbsolutePath: ExpressibleByArgument {}
 #else
 extension AbsolutePath: @retroactive ExpressibleByArgument {}
@@ -65,7 +65,7 @@ extension RelativePath {
     self = path
   }
 }
-#if swift(<5.10)
+#if swift(<5.11)
 extension RelativePath: ExpressibleByArgument {}
 #else
 extension RelativePath: @retroactive ExpressibleByArgument {}
@@ -80,19 +80,19 @@ extension PathPrefixMapping {
     )
   }
 }
-#if swift(<5.10)
+#if swift(<5.11)
 extension PathPrefixMapping: ExpressibleByArgument {}
 #else
 extension PathPrefixMapping: @retroactive ExpressibleByArgument {}
 #endif
 
-#if swift(<5.10)
+#if swift(<5.11)
 extension SKSupport.BuildConfiguration: ExpressibleByArgument {}
 #else
 extension SKSupport.BuildConfiguration: @retroactive ExpressibleByArgument {}
 #endif
 
-#if swift(<5.10)
+#if swift(<5.11)
 extension SKSupport.WorkspaceType: ExpressibleByArgument {}
 #else
 extension SKSupport.WorkspaceType: @retroactive ExpressibleByArgument {}
