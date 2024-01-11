@@ -602,18 +602,6 @@ final class SwiftCompletionTests: XCTestCase {
       )
     )
 
-    // Not valid for the current session.
-    // We explicitly keep the session and fail any requests that don't match so that the editor
-    // can rely on `.triggerFromIncompleteCompletions` always being fast.
-    await assertThrowsError(
-      try await testClient.send(
-        CompletionRequest(
-          textDocument: TextDocumentIdentifier(uri),
-          position: Position(line: 7, utf16index: 0),
-          context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
-        )
-      )
-    )
     assertEqual(
       1,
       countFs(
@@ -711,14 +699,15 @@ final class SwiftCompletionTests: XCTestCase {
     )
 
     // 'fA '
-    await assertThrowsError(
+    assertEqual(
       try await testClient.send(
         CompletionRequest(
           textDocument: TextDocumentIdentifier(uri),
           position: Position(line: 7, utf16index: 12),
           context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
         )
-      )
+      ).items,
+      []
     )
 
     testClient.send(
@@ -895,6 +884,65 @@ final class SwiftCompletionTests: XCTestCase {
         ),
       ]
     )
+  }
+
+  func testTriggerFromIncompleteAfterStartingStringLiteral() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      func foo(_ x: String) {}
+
+      func test() {
+        foo1️⃣
+      }
+      """,
+      uri: uri
+    )
+
+    // The following is a pattern that VS Code sends. Make sure we don't return an error.
+    // - Insert `()``, changing the line to `foo()``
+    // - Invoke code completion after `(`
+    // - Insert `""`, changing the line to `foo("")`
+    // - Insert `d` inside the string literal, changing the line to `foo("d")`
+    // - Ask for completion with the `triggerFromIncompleteCompletions` flag set.
+    // Since this isn't actually re-filtering but is a completely new code completion session. When we detect this, we
+    // should just start a new session and return the results.
+    var position = positions["1️⃣"]
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: position.utf16index),
+        contentChanges: [TextDocumentContentChangeEvent(range: Range(position), text: "()")]
+      )
+    )
+    position.utf16index += 1
+    let initialCompletionResults = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: position)
+    )
+    // Test that we get the "abc" result which makes VS Code think that we are still in the same completion session when doing hte second completion.
+    XCTAssert(initialCompletionResults.items.contains(where: { $0.label == #""abc""# }))
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: position.utf16index),
+        contentChanges: [TextDocumentContentChangeEvent(range: Range(position), text: "\"\"")]
+      )
+    )
+    position.utf16index += 1
+    testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: position.utf16index),
+        contentChanges: [TextDocumentContentChangeEvent(range: Range(position), text: "d")]
+      )
+    )
+    let secondCompletionResults = try await testClient.send(
+      CompletionRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: position,
+        context: CompletionContext(triggerKind: .triggerFromIncompleteCompletions)
+      )
+    )
+    // We shouldn't be getting code completion results for inside the string literal.
+    XCTAssert(secondCompletionResults.items.isEmpty)
   }
 
 }
