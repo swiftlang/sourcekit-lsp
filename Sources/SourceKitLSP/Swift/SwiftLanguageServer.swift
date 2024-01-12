@@ -139,6 +139,8 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
 
+  private let diagnosticReportManager: DiagnosticReportManager
+
   /// Creates a language server for the given client using the sourcekitd dylib specified in `toolchain`.
   /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageServer` asks its parent server to reopen all of its documents.
   /// Returns `nil` if `sourcektid` couldn't be found.
@@ -157,6 +159,12 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     self.state = .connected
     self.generatedInterfacesPath = options.generatedInterfacesPath.asURL
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
+    self.diagnosticReportManager = DiagnosticReportManager(
+      sourcekitd: self.sourcekitd,
+      syntaxTreeManager: syntaxTreeManager,
+      documentManager: documentManager,
+      clientHasDiagnosticsCodeDescriptionSupport: capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
+    )
   }
 
   /// - Important: For testing only
@@ -270,6 +278,7 @@ extension SwiftLanguageServer {
 
   private func reopenDocument(_ snapshot: DocumentSnapshot, _ compileCmd: SwiftCompileCommand?) async {
     cancelInFlightPublishDiagnosticsTask(for: snapshot.uri)
+    await diagnosticReportManager.removeItemsFromCache(with: snapshot.id.uri)
 
     let keys = self.keys
     let path = snapshot.uri.pseudoPath
@@ -317,6 +326,7 @@ extension SwiftLanguageServer {
 
   public func openDocument(_ note: DidOpenTextDocumentNotification) async {
     cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
+    await diagnosticReportManager.removeItemsFromCache(with: note.textDocument.uri)
 
     let keys = self.keys
 
@@ -340,6 +350,7 @@ extension SwiftLanguageServer {
   public func closeDocument(_ note: DidCloseTextDocumentNotification) async {
     cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
     inFlightPublishDiagnosticsTasks[note.textDocument.uri] = nil
+    await diagnosticReportManager.removeItemsFromCache(with: note.textDocument.uri)
 
     let keys = self.keys
 
@@ -394,8 +405,11 @@ extension SwiftLanguageServer {
         return
       }
       do {
-        let diagnosticReport = try await self.fullDocumentDiagnosticReport(
-          DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(document))
+        let snapshot = try await documentManager.latestSnapshot(document)
+        let buildSettings = await self.buildSettings(for: document)
+        let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
+          for: snapshot,
+          buildSettings: buildSettings
         )
 
         await sourceKitServer.sendNotificationToClient(
@@ -690,10 +704,11 @@ extension SwiftLanguageServer {
   }
 
   func retrieveQuickFixCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
-    let diagnosticReport = try await self.fullDocumentDiagnosticReport(
-      DocumentDiagnosticsRequest(
-        textDocument: params.textDocument
-      )
+    let snapshot = try documentManager.latestSnapshot(params.textDocument.uri)
+    let buildSettings = await self.buildSettings(for: params.textDocument.uri)
+    let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
+      for: snapshot,
+      buildSettings: buildSettings
     )
 
     let codeActions = diagnosticReport.items.flatMap { (diag) -> [CodeAction] in
@@ -768,24 +783,15 @@ extension SwiftLanguageServer {
     return Array(hints)
   }
 
-  public func syntacticDiagnosticFromBuiltInSwiftSyntax(
-    for snapshot: DocumentSnapshot
-  ) async throws -> RelatedFullDocumentDiagnosticReport {
-    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    let swiftSyntaxDiagnostics = ParseDiagnosticsGenerator.diagnostics(for: syntaxTree)
-    let diagnostics = swiftSyntaxDiagnostics.compactMap { (diag) -> Diagnostic? in
-      if diag.diagnosticID == StaticTokenError.editorPlaceholder.diagnosticID {
-        // Ignore errors about editor placeholders in the source file, similar to how sourcekitd ignores them.
-        return nil
-      }
-      return Diagnostic(diag, in: snapshot)
-    }
-    return RelatedFullDocumentDiagnosticReport(items: diagnostics)
-  }
-
   public func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
+    let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
+    let buildSettings = await self.buildSettings(for: req.textDocument.uri)
+    let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
+      for: snapshot,
+      buildSettings: buildSettings
+    )
     do {
-      return try await .full(fullDocumentDiagnosticReport(req))
+      return try await .full(diagnosticReport)
     } catch {
       // VS Code does not request diagnostics again for a document if the diagnostics request failed.
       // Since sourcekit-lsp usually recovers from failures (e.g. after sourcekitd crashes), this is undesirable.
@@ -798,53 +804,6 @@ extension SwiftLanguageServer {
       )
       return .full(RelatedFullDocumentDiagnosticReport(items: []))
     }
-  }
-
-  private func fullDocumentDiagnosticReport(
-    _ req: DocumentDiagnosticsRequest
-  ) async throws -> RelatedFullDocumentDiagnosticReport {
-    let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
-    guard let buildSettings = await self.buildSettings(for: req.textDocument.uri), !buildSettings.isFallback else {
-      logger.log(
-        "Producing syntactic diagnostics from the built-in swift-syntax because we have fallback arguments"
-      )
-      // If we don't have build settings or we only have fallback build settings,
-      // sourcekitd won't be able to give us accurate semantic diagnostics.
-      // Fall back to providing syntactic diagnostics from the built-in
-      // swift-syntax. That's the best we can do for now.
-      return try await syntacticDiagnosticFromBuiltInSwiftSyntax(for: snapshot)
-    }
-
-    try Task.checkCancellation()
-
-    let keys = self.keys
-
-    let skreq = sourcekitd.dictionary([
-      keys.request: requests.diagnostics,
-      keys.sourcefile: snapshot.uri.pseudoPath,
-      keys.compilerargs: buildSettings.compilerArgs as [SKDValue],
-    ])
-
-    let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
-
-    try Task.checkCancellation()
-    guard (try? documentManager.latestSnapshot(req.textDocument.uri).id) == snapshot.id else {
-      // Check that the document wasn't modified while we were getting diagnostics. This could happen because we are
-      // calling `fullDocumentDiagnosticReport` from `publishDiagnosticsIfNeeded` outside of `messageHandlingQueue`
-      // and thus a concurrent edit is possible while we are waiting for the sourcekitd request to return a result.
-      throw ResponseError.unknown("Document was modified while loading document")
-    }
-
-    let supportsCodeDescription = capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
-    var diagnostics: [Diagnostic] = []
-    dict[keys.diagnostics]?.forEach { _, diag in
-      if let diag = Diagnostic(diag, in: snapshot, useEducationalNoteAsCode: supportsCodeDescription) {
-        diagnostics.append(diag)
-      }
-      return true
-    }
-
-    return RelatedFullDocumentDiagnosticReport(items: diagnostics)
   }
 
   public func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
