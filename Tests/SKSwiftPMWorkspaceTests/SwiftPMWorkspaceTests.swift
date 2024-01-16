@@ -130,7 +130,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let hostTriple = await ws.buildParameters.targetTriple
+      let hostTriple = await ws.buildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await ws.buildPath, build)
@@ -198,7 +198,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let hostTriple = await ws.buildParameters.targetTriple
+      let hostTriple = await ws.buildParameters.triple
       let build = buildPath(root: packageRoot, config: config, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await ws.buildPath, build)
@@ -409,7 +409,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
       let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
-      let hostTriple = await ws.buildParameters.targetTriple
+      let hostTriple = await ws.buildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await ws.buildPath, build)
@@ -488,7 +488,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
       assertArgumentsContain("-target", arguments: arguments)  // Only one!
-      let hostTriple = await ws.buildParameters.targetTriple
+      let hostTriple = await ws.buildParameters.triple
 
       #if os(macOS)
       assertArgumentsContain(
@@ -697,7 +697,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
-      let tr = await ToolchainRegistry.forTesting
+      let tr = ToolchainRegistry.forTesting
       let ws = try await SwiftPMWorkspace(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
@@ -706,7 +706,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
 
       let aswift = packageRoot.appending(components: "Plugins", "MyPlugin", "a.swift")
-      let hostTriple = await ws.buildParameters.targetTriple
+      let hostTriple = await ws.buildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await ws.buildPath, build)

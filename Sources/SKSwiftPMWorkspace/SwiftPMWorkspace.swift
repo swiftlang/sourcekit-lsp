@@ -217,7 +217,8 @@ extension SwiftPMWorkspace {
     )
 
     let plan = try BuildPlan(
-      buildParameters: buildParameters,
+      productsBuildParameters: buildParameters,
+      toolsBuildParameters: buildParameters,
       graph: packageGraph,
       fileSystem: fileSystem,
       observabilityScope: observabilitySystem.topScope
