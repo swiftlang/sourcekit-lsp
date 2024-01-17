@@ -18,6 +18,7 @@ import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 import class TSCBasic.Process
 import enum TSCBasic.ProcessEnv
+import struct TSCBasic.ProcessEnvironmentKey
 import func TSCBasic.getEnvSearchPaths
 import var TSCBasic.localFileSystem
 
@@ -29,63 +30,141 @@ import var TSCBasic.localFileSystem
 public final actor ToolchainRegistry {
 
   /// The toolchains, in the order they were registered.
-  public private(set) var toolchains: [Toolchain] = []
+  public let toolchains: [Toolchain]
 
   /// The toolchains indexed by their identifier.
   ///
   /// Multiple toolchains may exist for the XcodeDefault toolchain identifier.
-  private var toolchainsByIdentifier: [String: [Toolchain]] = [:]
+  private let toolchainsByIdentifier: [String: [Toolchain]]
 
   /// The toolchains indexed by their path.
   ///
   /// Note: Not all toolchains have a path.
-  private var toolchainsByPath: [AbsolutePath: Toolchain] = [:]
+  private let toolchainsByPath: [AbsolutePath: Toolchain]
 
   /// The currently selected toolchain identifier on Darwin.
-  public lazy var darwinToolchainOverride: String? = {
-    if let id = ProcessEnv.vars["TOOLCHAINS"], !id.isEmpty, id != "default" {
-      return id
-    }
-    return nil
-  }()
+  public let darwinToolchainOverride: String?
 
-  /// Creates an empty toolchain registry.
-  private init() {}
+  /// Creates a toolchain registry from a list of toolchains.
+  ///
+  /// - Parameters:
+  ///   - toolchains: The toolchains that should be stored in the registry.
+  ///   - darwinToolchainOverride: The contents of the `TOOLCHAINS` environment
+  ///     variable, which picks the default toolchain.
+  @_spi(Testing)
+  public init(
+    toolchains toolchainsParam: [Toolchain],
+    darwinToolchainOverride: String?
+  ) {
+    var toolchains: [Toolchain] = []
+    var toolchainsByIdentifier: [String: [Toolchain]] = [:]
+    var toolchainsByPath: [AbsolutePath: Toolchain] = [:]
+    for toolchain in toolchainsParam {
+      // Non-XcodeDefault toolchain: disallow all duplicates.
+      if toolchain.identifier != ToolchainRegistry.darwinDefaultToolchainIdentifier {
+        guard toolchainsByIdentifier[toolchain.identifier] == nil else {
+          continue
+        }
+      }
+
+      // Toolchain should always be unique by path if it is present.
+      if let path = toolchain.path {
+        guard toolchainsByPath[path] == nil else {
+          continue
+        }
+        toolchainsByPath[path] = toolchain
+      }
+
+      toolchainsByIdentifier[toolchain.identifier, default: []].append(toolchain)
+      toolchains.append(toolchain)
+    }
+
+    self.toolchains = toolchains
+    self.toolchainsByIdentifier = toolchainsByIdentifier
+    self.toolchainsByPath = toolchainsByPath
+
+    if let darwinToolchainOverride, !darwinToolchainOverride.isEmpty, darwinToolchainOverride != "default" {
+      self.darwinToolchainOverride = darwinToolchainOverride
+    } else {
+      self.darwinToolchainOverride = nil
+    }
+  }
 
   /// A toolchain registry used for testing that scans for toolchains based on environment variables and Xcode
   /// installations but not next to the `sourcekit-lsp` binary because there is no `sourcekit-lsp` binary during
   /// testing.
   @_spi(Testing)
   public static var forTesting: ToolchainRegistry {
-    get async {
-      await ToolchainRegistry(localFileSystem)
-    }
+    ToolchainRegistry(localFileSystem)
   }
-
-  /// A toolchain registry that doesn't contain any toolchains.
-  @_spi(Testing)
-  public static var empty: ToolchainRegistry { ToolchainRegistry() }
 
   /// Creates a toolchain registry populated by scanning for toolchains according to the given paths
   /// and variables.
   ///
   /// If called with the default values, creates a toolchain registry that searches:
-  /// * env SOURCEKIT_TOOLCHAIN_PATH <-- will override default toolchain
-  /// * installPath <-- will override default toolchain
+  /// * `env SOURCEKIT_TOOLCHAIN_PATH` <-- will override default toolchain
+  /// * `installPath` <-- will override default toolchain
   /// * (Darwin) The currently selected Xcode
-  /// * (Darwin) [~]/Library/Developer/Toolchains
-  /// * env SOURCEKIT_PATH, PATH
-  ///
-  /// This is equivalent to
-  /// ```
-  /// let tr = ToolchainRegistry()
-  /// tr.scanForToolchains()
-  /// ```
+  /// * (Darwin) `[~]/Library/Developer/Toolchains`
+  /// * `env SOURCEKIT_PATH, PATH`
   public init(
     installPath: AbsolutePath? = nil,
-    _ fileSystem: FileSystem
-  ) async {
-    scanForToolchains(installPath: installPath, fileSystem)
+    environmentVariables: [ProcessEnvironmentKey] = ["SOURCEKIT_TOOLCHAIN_PATH"],
+    xcodes: [AbsolutePath] = [_currentXcodeDeveloperPath].compactMap({ $0 }),
+    darwinToolchainOverride: String? = ProcessEnv.block["TOOLCHAINS"],
+    _ fileSystem: FileSystem = localFileSystem
+  ) {
+    // The paths at which we have found toolchains
+    var toolchainPaths: [AbsolutePath] = []
+
+    // Scan for toolchains in the paths given by `environmentVariables`.
+    for envVar in environmentVariables {
+      if let pathStr = ProcessEnv.block[envVar], let path = try? AbsolutePath(validating: pathStr) {
+        toolchainPaths.append(path)
+      }
+    }
+
+    // Search for toolchains relative to the path at which sourcekit-lsp is installed.
+    if let installPath = installPath {
+      toolchainPaths.append(installPath)
+    }
+
+    // Search for toolchains in the Xcode developer directories and global toolchain install paths
+    let toolchainSearchPaths =
+      xcodes.map {
+        if $0.extension == "app" {
+          return $0.appending(components: "Contents", "Developer", "Toolchains")
+        } else {
+          return $0.appending(component: "Toolchains")
+        }
+      } + [
+        try! AbsolutePath(expandingTilde: "~/Library/Developer/Toolchains"),
+        try! AbsolutePath(validating: "/Library/Developer/Toolchains"),
+      ]
+
+    for xctoolchainSearchPath in toolchainSearchPaths {
+      guard let direntries = try? fileSystem.getDirectoryContents(xctoolchainSearchPath) else {
+        continue
+      }
+      for name in direntries {
+        let path = xctoolchainSearchPath.appending(component: name)
+        if path.extension == "xctoolchain" {
+          toolchainPaths.append(path)
+        }
+      }
+    }
+
+    // Scan for toolchains by the given PATH-like environment variables.
+    for envVar: ProcessEnvironmentKey in ["SOURCEKIT_PATH", "PATH", "Path"] {
+      for path in getEnvSearchPaths(pathString: ProcessEnv.block[envVar], currentWorkingDirectory: nil) {
+        toolchainPaths.append(path)
+      }
+    }
+
+    self.init(
+      toolchains: toolchainPaths.compactMap { Toolchain($0, fileSystem) },
+      darwinToolchainOverride: darwinToolchainOverride
+    )
   }
 
   /// The default toolchain.
@@ -102,7 +181,6 @@ public final actor ToolchainRegistry {
       } else {
         return toolchains.first
       }
-      return nil
     }
   }
 
@@ -140,164 +218,8 @@ extension ToolchainRegistry {
 }
 
 extension ToolchainRegistry {
-  public enum Error: Swift.Error {
-
-    /// There is already a toolchain with the given identifier.
-    case duplicateToolchainIdentifier
-
-    /// There is already a toolchain with the given path.
-    case duplicateToolchainPath
-
-    /// The toolchain does not exist, or has no tools.
-    case invalidToolchain
-  }
-
-  /// Register the given toolchain.
-  ///
-  /// - parameter toolchain: The new toolchain to register.
-  /// - throws: If `toolchain.identifier` has already been seen.
-  @_spi(Testing)
-  public func registerToolchain(_ toolchain: Toolchain) throws {
-    // Non-XcodeDefault toolchain: disallow all duplicates.
-    if toolchain.identifier != ToolchainRegistry.darwinDefaultToolchainIdentifier {
-      guard toolchainsByIdentifier[toolchain.identifier] == nil else {
-        throw Error.duplicateToolchainIdentifier
-      }
-    }
-
-    // Toolchain should always be unique by path if it is present.
-    if let path = toolchain.path {
-      guard toolchainsByPath[path] == nil else {
-        throw Error.duplicateToolchainPath
-      }
-      toolchainsByPath[path] = toolchain
-    }
-
-    toolchainsByIdentifier[toolchain.identifier, default: []].append(toolchain)
-    toolchains.append(toolchain)
-  }
-
-  /// Register the toolchain at the given path.
-  ///
-  /// - parameter path: The path to search for a toolchain to register.
-  /// - returns: The toolchain, if any.
-  /// - throws: If there is no toolchain at the given `path`, or if `toolchain.identifier` has
-  ///   already been seen.
-  public func registerToolchain(
-    _ path: AbsolutePath,
-    _ fileSystem: FileSystem = localFileSystem
-  ) throws {
-    guard let toolchain = Toolchain(path, fileSystem) else {
-      throw Error.invalidToolchain
-    }
-    try registerToolchain(toolchain)
-  }
-}
-
-extension ToolchainRegistry {
-
-  /// Scans for toolchains according to the given paths and variables.
-  ///
-  /// If called with the default values, creates a toolchain registry that searches:
-  /// * env SOURCEKIT_TOOLCHAIN_PATH <-- will override default toolchain
-  /// * installPath <-- will override default toolchain
-  /// * (Darwin) The currently selected Xcode
-  /// * (Darwin) [~]/Library/Developer/Toolchains
-  /// * env SOURCEKIT_PATH, PATH (or Path)
-  @_spi(Testing)
-  public func scanForToolchains(
-    installPath: AbsolutePath? = nil,
-    environmentVariables: [String] = ["SOURCEKIT_TOOLCHAIN_PATH"],
-    xcodes: [AbsolutePath] = [currentXcodeDeveloperPath].compactMap({ $0 }),
-    xctoolchainSearchPaths: [AbsolutePath]? = nil,
-    pathVariables: [String] = ["SOURCEKIT_PATH", "PATH", "Path"],
-    _ fileSystem: FileSystem
-  ) {
-    let xctoolchainSearchPaths =
-      try! xctoolchainSearchPaths ?? [
-        AbsolutePath(expandingTilde: "~/Library/Developer/Toolchains"),
-        AbsolutePath(validating: "/Library/Developer/Toolchains"),
-      ]
-
-    scanForToolchains(environmentVariables: environmentVariables, fileSystem)
-    if let installPath = installPath {
-      try? registerToolchain(installPath, fileSystem)
-    }
-    for xcode in xcodes {
-      scanForToolchains(xcode: xcode, fileSystem)
-    }
-    for xctoolchainSearchPath in xctoolchainSearchPaths {
-      scanForToolchains(xctoolchainSearchPath: xctoolchainSearchPath, fileSystem)
-    }
-    scanForToolchains(pathVariables: pathVariables, fileSystem)
-  }
-
-  /// Scan for toolchains in the paths given by `environmentVariables` and possibly override the
-  /// default toolchain with the first one found.
-  ///
-  /// - parameters:
-  ///   - environmentVariables: A list of environment variable names to search for toolchain paths.
-  @_spi(Testing)
-  public func scanForToolchains(
-    environmentVariables: [String],
-    _ fileSystem: FileSystem = localFileSystem
-  ) {
-    for envVar in environmentVariables {
-      if let pathStr = ProcessEnv.vars[envVar],
-        let path = try? AbsolutePath(validating: pathStr)
-      {
-        try? registerToolchain(path, fileSystem)
-      }
-    }
-  }
-
-  /// Scan for toolchains by the given PATH-like environment variables.
-  ///
-  /// - parameters:
-  ///   - pathVariables: A list of PATH-like environment variable names to search.
-  @_spi(Testing)
-  public func scanForToolchains(pathVariables: [String], _ fileSystem: FileSystem = localFileSystem) {
-    pathVariables.lazy.flatMap { envVar in
-      getEnvSearchPaths(pathString: ProcessEnv.vars[envVar], currentWorkingDirectory: nil)
-    }
-    .forEach { path in
-      _ = try? registerToolchain(path, fileSystem)
-    }
-  }
-
-  /// Scan for toolchains in the given Xcode, which should be given as a path to either the
-  /// application (e.g. "Xcode.app") or the application's Developer directory.
-  ///
-  /// - parameter xcode: The path to Xcode.app or Xcode.app/Contents/Developer.
-  @_spi(Testing)
-  public func scanForToolchains(xcode: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) {
-    var path = xcode
-    if path.extension == "app" {
-      path = path.appending(components: "Contents", "Developer")
-    }
-    scanForToolchains(xctoolchainSearchPath: path.appending(component: "Toolchains"), fileSystem)
-  }
-
-  /// Scan for `xctoolchain` directories in the given search path.
-  ///
-  /// - parameter toolchains: Directory containing xctoolchains, e.g. /Library/Developer/Toolchains
-  @_spi(Testing)
-  public func scanForToolchains(
-    xctoolchainSearchPath searchPath: AbsolutePath,
-    _ fileSystem: FileSystem = localFileSystem
-  ) {
-    guard let direntries = try? fileSystem.getDirectoryContents(searchPath) else { return }
-    for name in direntries {
-      let path = searchPath.appending(component: name)
-      if path.extension == "xctoolchain" {
-        _ = try? registerToolchain(path, fileSystem)
-      }
-    }
-  }
-
   /// The path of the current Xcode.app/Contents/Developer.
-  @_spi(Testing)
-  public static var currentXcodeDeveloperPath: AbsolutePath? {
+  public static var _currentXcodeDeveloperPath: AbsolutePath? {
     guard let str = try? Process.checkNonZeroExit(args: "/usr/bin/xcode-select", "-p") else { return nil }
     return try? AbsolutePath(validating: str.trimmingCharacters(in: .whitespacesAndNewlines))
   }
