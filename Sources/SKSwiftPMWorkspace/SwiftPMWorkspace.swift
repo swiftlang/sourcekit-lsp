@@ -224,7 +224,7 @@ extension SwiftPMWorkspace {
     self.fileToTarget = [AbsolutePath: TargetBuildDescription](
       packageGraph.allTargets.flatMap { target in
         return target.sources.paths.compactMap {
-          guard let td = plan.targetMap[target] else {
+          guard let td = plan.targetMap[target.id] else {
             return nil
           }
           return (key: $0, value: td)
@@ -238,7 +238,7 @@ extension SwiftPMWorkspace {
 
     self.sourceDirToTarget = [AbsolutePath: TargetBuildDescription](
       packageGraph.allTargets.compactMap { target in
-        guard let td = plan.targetMap[target] else {
+        guard let td = plan.targetMap[target.id] else {
           return nil
         }
         return (key: target.sources.root, value: td)
