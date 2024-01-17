@@ -28,9 +28,32 @@ import var TSCBasic.localFileSystem
 /// ToolchainRegistry is usually initialized by performing a search of predetermined paths,
 /// e.g. `ToolchainRegistry(searchPaths: ToolchainRegistry.defaultSearchPaths)`.
 public final actor ToolchainRegistry {
+  /// The reason why a toolchain got added to the registry.
+  ///
+  /// Used to determine the default toolchain. For example, a toolchain discoverd by the `SOURCEKIT_TOOLCHAIN_PATH`
+  /// environment variable always takes precedence.
+  private enum ToolchainRegisterReason: Comparable {
+    /// The toolchain was found because of the `SOURCEKIT_TOOLCHAIN_PATH` environment variable (or equivalent if
+    /// overridden in `ToolchainRegistry.init`).
+    case sourcekitToolchainEnvironmentVariable
+
+    /// The toolchain was found relative to the location where sourcekit-lsp is installed.
+    case relativeToInstallPath
+
+    /// The toolchain was found in an Xcode installation
+    case xcode
+
+    /// The toolchain was found relative to the `SOURCEKIT_PATH` or `PATH` environment variables.
+    case pathEnvironmentVariable
+  }
+
+  /// The toolchains and the reasons why they were added to the registry.s
+  private let toolchainsAndReasons: [(toolchain: Toolchain, reason: ToolchainRegisterReason)]
 
   /// The toolchains, in the order they were registered.
-  public let toolchains: [Toolchain]
+  public var toolchains: [Toolchain] {
+    return toolchainsAndReasons.map(\.toolchain)
+  }
 
   /// The toolchains indexed by their identifier.
   ///
@@ -45,21 +68,31 @@ public final actor ToolchainRegistry {
   /// The currently selected toolchain identifier on Darwin.
   public let darwinToolchainOverride: String?
 
+  /// Create a toolchain registry with a pre-defined list of toolchains.
+  ///
+  /// For testing purposes.
+  @_spi(Testing)
+  public init(toolchains: [Toolchain]) {
+    self.init(
+      toolchainsAndReasons: toolchains.map { ($0, .xcode) },
+      darwinToolchainOverride: nil
+    )
+  }
+
   /// Creates a toolchain registry from a list of toolchains.
   ///
   /// - Parameters:
-  ///   - toolchains: The toolchains that should be stored in the registry.
+  ///   - toolchainsAndReasons: The toolchains that should be stored in the registry and why they should be added.
   ///   - darwinToolchainOverride: The contents of the `TOOLCHAINS` environment
   ///     variable, which picks the default toolchain.
-  @_spi(Testing)
-  public init(
-    toolchains toolchainsParam: [Toolchain],
+  private init(
+    toolchainsAndReasons toolchainsAndReasonsParam: [(toolchain: Toolchain, reason: ToolchainRegisterReason)],
     darwinToolchainOverride: String?
   ) {
-    var toolchains: [Toolchain] = []
+    var toolchainsAndReasons: [(toolchain: Toolchain, reason: ToolchainRegisterReason)] = []
     var toolchainsByIdentifier: [String: [Toolchain]] = [:]
     var toolchainsByPath: [AbsolutePath: Toolchain] = [:]
-    for toolchain in toolchainsParam {
+    for (toolchain, reason) in toolchainsAndReasonsParam {
       // Non-XcodeDefault toolchain: disallow all duplicates.
       if toolchain.identifier != ToolchainRegistry.darwinDefaultToolchainIdentifier {
         guard toolchainsByIdentifier[toolchain.identifier] == nil else {
@@ -76,10 +109,10 @@ public final actor ToolchainRegistry {
       }
 
       toolchainsByIdentifier[toolchain.identifier, default: []].append(toolchain)
-      toolchains.append(toolchain)
+      toolchainsAndReasons.append((toolchain, reason))
     }
 
-    self.toolchains = toolchains
+    self.toolchainsAndReasons = toolchainsAndReasons
     self.toolchainsByIdentifier = toolchainsByIdentifier
     self.toolchainsByPath = toolchainsByPath
 
@@ -115,18 +148,18 @@ public final actor ToolchainRegistry {
     _ fileSystem: FileSystem = localFileSystem
   ) {
     // The paths at which we have found toolchains
-    var toolchainPaths: [AbsolutePath] = []
+    var toolchainPaths: [(path: AbsolutePath, reason: ToolchainRegisterReason)] = []
 
     // Scan for toolchains in the paths given by `environmentVariables`.
     for envVar in environmentVariables {
       if let pathStr = ProcessEnv.block[envVar], let path = try? AbsolutePath(validating: pathStr) {
-        toolchainPaths.append(path)
+        toolchainPaths.append((path, .sourcekitToolchainEnvironmentVariable))
       }
     }
 
     // Search for toolchains relative to the path at which sourcekit-lsp is installed.
     if let installPath = installPath {
-      toolchainPaths.append(installPath)
+      toolchainPaths.append((installPath, .relativeToInstallPath))
     }
 
     // Search for toolchains in the Xcode developer directories and global toolchain install paths
@@ -149,7 +182,7 @@ public final actor ToolchainRegistry {
       for name in direntries {
         let path = xctoolchainSearchPath.appending(component: name)
         if path.extension == "xctoolchain" {
-          toolchainPaths.append(path)
+          toolchainPaths.append((path, .xcode))
         }
       }
     }
@@ -157,14 +190,17 @@ public final actor ToolchainRegistry {
     // Scan for toolchains by the given PATH-like environment variables.
     for envVar: ProcessEnvironmentKey in ["SOURCEKIT_PATH", "PATH", "Path"] {
       for path in getEnvSearchPaths(pathString: ProcessEnv.block[envVar], currentWorkingDirectory: nil) {
-        toolchainPaths.append(path)
+        toolchainPaths.append((path, .pathEnvironmentVariable))
       }
     }
 
-    self.init(
-      toolchains: toolchainPaths.compactMap { Toolchain($0, fileSystem) },
-      darwinToolchainOverride: darwinToolchainOverride
-    )
+    let toolchainsAndReasons = toolchainPaths.compactMap {
+      if let toolchain = Toolchain($0.path, fileSystem) {
+        return (toolchain, $0.reason)
+      }
+      return nil
+    }
+    self.init(toolchainsAndReasons: toolchainsAndReasons, darwinToolchainOverride: darwinToolchainOverride)
   }
 
   /// The default toolchain.
@@ -176,11 +212,17 @@ public final actor ToolchainRegistry {
   /// The default toolchain must be only of the registered toolchains.
   public var `default`: Toolchain? {
     get {
+      // Toolchains discovered from the `SOURCEKIT_TOOLCHAIN_PATH` environment variable or relative to sourcekit-lsp's
+      // install path always take precedence over Xcode toolchains.
+      if let (toolchain, reason) = toolchainsAndReasons.first, reason < .xcode {
+        return toolchain
+      }
+      // Try finding the Xcode default toolchain.
       if let tc = toolchainsByIdentifier[darwinToolchainIdentifier]?.first {
         return tc
-      } else {
-        return toolchains.first
       }
+      // If neither of that worked, pick the first toolchain.
+      return toolchains.first
     }
   }
 

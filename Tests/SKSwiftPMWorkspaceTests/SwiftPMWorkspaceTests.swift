@@ -97,7 +97,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       await assertThrowsError(
         try await SwiftPMWorkspace(
           workspacePath: packageRoot,
-          toolchainRegistry: ToolchainRegistry(toolchains: [], darwinToolchainOverride: nil),
+          toolchainRegistry: ToolchainRegistry(toolchains: []),
           fileSystem: fs,
           buildSetup: SourceKitServer.Options.testDefault.buildSetup
         )

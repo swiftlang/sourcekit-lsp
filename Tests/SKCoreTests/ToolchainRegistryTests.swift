@@ -21,10 +21,7 @@ import enum PackageLoading.Platform
 
 final class ToolchainRegistryTests: XCTestCase {
   func testDefaultSingleToolchain() async throws {
-    let tr = ToolchainRegistry(
-      toolchains: [Toolchain(identifier: "a", displayName: "a", path: nil)],
-      darwinToolchainOverride: nil
-    )
+    let tr = ToolchainRegistry(toolchains: [Toolchain(identifier: "a", displayName: "a", path: nil)])
     await assertEqual(tr.default?.identifier, "a")
   }
 
@@ -33,8 +30,7 @@ final class ToolchainRegistryTests: XCTestCase {
       toolchains: [
         Toolchain(identifier: "a", displayName: "a", path: nil),
         Toolchain(identifier: "b", displayName: "b", path: nil),
-      ],
-      darwinToolchainOverride: nil
+      ]
     )
     await assertEqual(tr.default?.identifier, "a")
     await assertTrue(tr.default === tr.toolchain(identifier: "a"))
@@ -49,8 +45,7 @@ final class ToolchainRegistryTests: XCTestCase {
       toolchains: [
         Toolchain(identifier: "a", displayName: "a", path: nil),
         Toolchain(identifier: ToolchainRegistry.darwinDefaultToolchainIdentifier, displayName: "a", path: nil),
-      ],
-      darwinToolchainOverride: nil
+      ]
     )
     await assertEqual(tr.default?.identifier, ToolchainRegistry.darwinDefaultToolchainIdentifier)
   }
@@ -450,12 +445,7 @@ final class ToolchainRegistryTests: XCTestCase {
       XCTAssertNotNil(t2.clangd)
       XCTAssertNotNil(t2.swiftc)
 
-      let tr = ToolchainRegistry(
-        toolchains: [
-          Toolchain(path.parentDirectory, fs)!
-        ],
-        darwinToolchainOverride: nil
-      )
+      let tr = ToolchainRegistry(toolchains: [Toolchain(path.parentDirectory, fs)!])
       let t3 = try await unwrap(tr.toolchain(identifier: t2.identifier))
       XCTAssertEqual(t3.sourcekitd, t2.sourcekitd)
       XCTAssertEqual(t3.clang, t2.clang)
@@ -495,12 +485,7 @@ final class ToolchainRegistryTests: XCTestCase {
 
   func testDuplicateToolchainOnlyRegisteredOnce() async throws {
     let toolchain = Toolchain(identifier: "a", displayName: "a", path: nil)
-    let tr = ToolchainRegistry(
-      toolchains: [
-        toolchain, toolchain,
-      ],
-      darwinToolchainOverride: nil
-    )
+    let tr = ToolchainRegistry(toolchains: [toolchain, toolchain])
     assertEqual(await tr.toolchains.count, 1)
   }
 
@@ -509,10 +494,7 @@ final class ToolchainRegistryTests: XCTestCase {
     let first = Toolchain(identifier: "a", displayName: "a", path: path)
     let second = Toolchain(identifier: "b", displayName: "b", path: path)
 
-    let tr = ToolchainRegistry(
-      toolchains: [first, second],
-      darwinToolchainOverride: nil
-    )
+    let tr = ToolchainRegistry(toolchains: [first, second])
     assertEqual(await tr.toolchains.count, 1)
   }
 
@@ -529,7 +511,7 @@ final class ToolchainRegistryTests: XCTestCase {
       displayName: "b",
       path: pathB
     )
-    let tr = ToolchainRegistry(toolchains: [xcodeA, xcodeB], darwinToolchainOverride: nil)
+    let tr = ToolchainRegistry(toolchains: [xcodeA, xcodeB])
     await assertTrue(tr.toolchain(path: pathA) === xcodeA)
     await assertTrue(tr.toolchain(path: pathB) === xcodeB)
 
