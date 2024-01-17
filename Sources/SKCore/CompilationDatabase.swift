@@ -251,7 +251,11 @@ extension CompilationDatabase.Command: Codable {
     if let arguments = try container.decodeIfPresent([String].self, forKey: .arguments) {
       self.commandLine = arguments
     } else if let command = try container.decodeIfPresent(String.self, forKey: .command) {
+      #if os(Windows)
+      self.commandLine = splitWindowsCommandLine(command, initialCommandName: true)
+      #else
       self.commandLine = splitShellEscapedCommand(command)
+      #endif
     } else {
       throw CompilationDatabaseDecodingError.missingCommandOrArguments
     }
@@ -264,124 +268,4 @@ extension CompilationDatabase.Command: Codable {
     try container.encode(commandLine, forKey: .arguments)
     try container.encodeIfPresent(output, forKey: .output)
   }
-}
-
-/// Split and unescape a shell-escaped command line invocation.
-///
-/// Examples:
-///
-/// ```
-/// abc def -> ["abc", "def"]
-/// abc\ def -> ["abc def"]
-/// abc"\""def -> ["abc\"def"]
-/// abc'\"'def -> ["abc\\"def"]
-/// ```
-///
-/// See clang's `unescapeCommandLine()`.
-public func splitShellEscapedCommand(_ cmd: String) -> [String] {
-  struct Parser {
-    var content: Substring
-    var i: Substring.UTF8View.Index
-    var result: [String] = []
-
-    var ch: UInt8 { self.content.utf8[i] }
-    var done: Bool { self.content.endIndex == i }
-
-    init(_ string: Substring) {
-      self.content = string
-      self.i = self.content.utf8.startIndex
-    }
-
-    mutating func next() {
-      i = content.utf8.index(after: i)
-    }
-
-    mutating func next(expect c: UInt8) {
-      assert(c == ch)
-      next()
-    }
-
-    mutating func parse() -> [String] {
-      while !done {
-        switch ch {
-        case UInt8(ascii: " "): next()
-        default: parseString()
-        }
-      }
-      return result
-    }
-
-    mutating func parseString() {
-      var str = ""
-      STRING: while !done {
-        switch ch {
-        case UInt8(ascii: " "): break STRING
-        case UInt8(ascii: "\""): parseDoubleQuotedString(into: &str)
-        case UInt8(ascii: "\'"): parseSingleQuotedString(into: &str)
-        default: parsePlainString(into: &str)
-        }
-      }
-      result.append(str)
-    }
-
-    mutating func parseDoubleQuotedString(into str: inout String) {
-      next(expect: UInt8(ascii: "\""))
-      var start = i
-      while !done {
-        switch ch {
-        case UInt8(ascii: "\""):
-          str += content[start..<i]
-          next()
-          return
-        case UInt8(ascii: "\\"):
-          str += content[start..<i]
-          next()
-          start = i
-          if !done { fallthrough }
-        default:
-          next()
-        }
-      }
-      str += content[start..<i]
-    }
-
-    mutating func parseSingleQuotedString(into str: inout String) {
-      next(expect: UInt8(ascii: "\'"))
-      let start = i
-      while !done {
-        switch ch {
-        case UInt8(ascii: "\'"):
-          str += content[start..<i]
-          next()
-          return
-        default:
-          next()
-        }
-      }
-      str += content[start..<i]
-    }
-
-    mutating func parsePlainString(into str: inout String) {
-      var start = i
-      while !done {
-        let _ch = ch
-        switch _ch {
-        case UInt8(ascii: "\""), UInt8(ascii: "\'"), UInt8(ascii: " "):
-          str += content[start..<i]
-          return
-        case UInt8(ascii: "\\"):
-          str += content[start..<i]
-          next()
-          start = i
-          if !done { fallthrough }
-        default:
-          next()
-        }
-      }
-      str += content[start..<i]
-    }
-  }
-
-  var parser = Parser(cmd[...])
-  return parser.parse()
 }

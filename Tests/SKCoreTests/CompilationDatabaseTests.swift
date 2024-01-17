@@ -17,47 +17,6 @@ import TSCBasic
 import XCTest
 
 final class CompilationDatabaseTests: XCTestCase {
-  func testSplitShellEscapedCommand() {
-    func check(_ str: String, _ expected: [String], file: StaticString = #filePath, line: UInt = #line) {
-      XCTAssertEqual(splitShellEscapedCommand(str), expected, file: file, line: line)
-    }
-
-    check("", [])
-    check("    ", [])
-    check("a", ["a"])
-    check("abc", ["abc"])
-    check("a😀c", ["a😀c"])
-    check("😀c", ["😀c"])
-    check("abc def", ["abc", "def"])
-    check("abc    def", ["abc", "def"])
-
-    check("\"", [""])
-    check("\"a", ["a"])
-    check("\"\"", [""])
-    check("\"a\"", ["a"])
-    check("\"a\\\"\"", ["a\""])
-    check("\"a b c \"", ["a b c "])
-    check("\"a \" ", ["a "])
-    check("\"a \" b", ["a ", "b"])
-    check("\"a \"b", ["a b"])
-    check("a\"x \"\"b", ["ax b"])
-
-    check("\'", [""])
-    check("\'a", ["a"])
-    check("\'\'", [""])
-    check("\'a\'", ["a"])
-    check("\'a\\\"\'", ["a\\\""])
-    check("\'a b c \'", ["a b c "])
-    check("\'a \' ", ["a "])
-    check("\'a \' b", ["a ", "b"])
-    check("\'a \'b", ["a b"])
-    check("a\'x \'\'b", ["ax b"])
-
-    check("a\\\\", ["a\\"])
-    check("\"a\"bcd\"ef\"\"\"\"g\"", ["abcdefg"])
-    check("a'\\b \"c\"'", ["a\\b \"c\""])
-  }
-
   func testEncodeCompDBCommand() throws {
     // Requires JSONEncoder.OutputFormatting.sortedKeys
     func check(
