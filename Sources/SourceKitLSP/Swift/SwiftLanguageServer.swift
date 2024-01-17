@@ -1476,9 +1476,10 @@ extension SwiftLanguageServer {
           req.reply(.full(.init(items: diagnostics)))
 
         case .failure(let error):
-          let message = "document diagnostic failed \(uri): \(error)"
-          log(message, level: .warning)
-          return req.reply(.failure(.unknown(message)))
+          // VS Code does not request diagnostics again for a document if the diagnostics request failed.
+          // Since sourcekit-lsp usually recovers from failures (e.g. after sourcekitd crashes), this is undesirable.
+          // Instead of returning an error, return empty results.
+          return req.reply(.full(.init(items: [])))
       }
     }
   }
