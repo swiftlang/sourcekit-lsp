@@ -46,7 +46,7 @@ SourceKit-LSP is still in early development, so you may run into rough edges wit
 | Workspace Symbols | ✅ | |
 | Rename | ❌ | |
 | Local Refactoring | ✅ | |
-| Formatting | ❌ | |
+| Formatting | ✅ | Whole file only |
 | Folding | ✅ | |
 | Syntax Highlighting | ✅ | Both syntactic and semantic tokens |
 | Document Symbols | ✅ |  |

@@ -43,8 +43,7 @@ public struct LineTable: Hashable {
   }
 
   /// Translate String.Index to logical line/utf16 pair.
-  @usableFromInline
-  func lineAndUTF16ColumnOf(_ index: String.Index, fromLine: Int = 0) -> (line: Int, utf16Column: Int) {
+  public func lineAndUTF16ColumnOf(_ index: String.Index, fromLine: Int = 0) -> (line: Int, utf16Column: Int) {
     precondition(0 <= fromLine && fromLine < count)
 
     // Binary search.

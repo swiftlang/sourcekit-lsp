@@ -582,6 +582,10 @@ extension ClangLanguageServerShim {
     return try await forwardRequestToClangd(req)
   }
 
+  func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]? {
+    return try await forwardRequestToClangd(req)
+  }
+
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
     return try await forwardRequestToClangd(req)
   }

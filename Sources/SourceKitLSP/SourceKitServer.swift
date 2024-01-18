@@ -892,6 +892,8 @@ extension SourceKitServer: MessageHandler {
       await self.handleRequest(for: request, requestHandler: self.symbolInfo)
     case let request as RequestAndReply<DocumentHighlightRequest>:
       await self.handleRequest(for: request, requestHandler: self.documentSymbolHighlight)
+    case let request as RequestAndReply<DocumentFormattingRequest>:
+      await self.handleRequest(for: request, requestHandler: self.documentFormatting)
     case let request as RequestAndReply<FoldingRangeRequest>:
       await self.handleRequest(for: request, requestHandler: self.foldingRange)
     case let request as RequestAndReply<DocumentSymbolRequest>:
@@ -1178,6 +1180,7 @@ extension SourceKitServer {
           supportsCodeActions: true
         )
       ),
+      documentFormattingProvider: .value(DocumentFormattingOptions(workDoneProgress: false)),
       renameProvider: .value(RenameOptions(prepareProvider: true)),
       colorProvider: .bool(true),
       foldingRangeProvider: .bool(!registry.clientHasDynamicFoldingRangeRegistration),
@@ -1627,6 +1630,14 @@ extension SourceKitServer {
     languageService: ToolchainLanguageServer
   ) async throws -> DocumentSemanticTokensResponse? {
     return try await languageService.documentSemanticTokensRange(req)
+  }
+
+  func documentFormatting(
+    _ req: DocumentFormattingRequest,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) async throws -> [TextEdit]? {
+    return try await languageService.documentFormatting(req)
   }
 
   func colorPresentation(
