@@ -22,6 +22,7 @@ import PackageModel
 import SKCore
 import SKSupport
 import SourceControl
+import SourceKitLSPAPI
 import Workspace
 
 import struct Basics.AbsolutePath
@@ -42,6 +43,12 @@ public enum ReloadPackageStatus {
   case start
   case end
 }
+
+/// A build target in SwiftPM
+public typealias SwiftBuildTarget = SourceKitLSPAPI.BuildTarget
+
+/// A build target in `BuildServerProtocol`
+public typealias BuildServerTarget = BuildServerProtocol.BuildTarget
 
 /// Same as `toolchainRegistry.default`.
 ///
@@ -83,8 +90,8 @@ public actor SwiftPMWorkspace {
   public let buildParameters: BuildParameters
   let fileSystem: FileSystem
 
-  var fileToTarget: [AbsolutePath: TargetBuildDescription] = [:]
-  var sourceDirToTarget: [AbsolutePath: TargetBuildDescription] = [:]
+  var fileToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
+  var sourceDirToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
 
   /// The URIs for which the delegate has registered for change notifications,
   /// mapped to the language the delegate specified when registering for change notifications.
@@ -215,19 +222,20 @@ extension SwiftPMWorkspace {
       fileSystem: fileSystem,
       observabilityScope: observabilitySystem.topScope
     )
+    let buildDescription = BuildDescription(buildPlan: plan)
 
     /// Make sure to execute any throwing statements before setting any
     /// properties because otherwise we might end up in an inconsistent state
     /// with only some properties modified.
     self.packageGraph = packageGraph
 
-    self.fileToTarget = [AbsolutePath: TargetBuildDescription](
+    self.fileToTarget = [AbsolutePath: SwiftBuildTarget](
       packageGraph.allTargets.flatMap { target in
         return target.sources.paths.compactMap {
-          guard let td = plan.targetMap[target.id] else {
+          guard let buildTarget = buildDescription.getBuildTarget(for: target) else {
             return nil
           }
-          return (key: $0, value: td)
+          return (key: $0, value: buildTarget)
         }
       },
       uniquingKeysWith: { td, _ in
@@ -236,12 +244,12 @@ extension SwiftPMWorkspace {
       }
     )
 
-    self.sourceDirToTarget = [AbsolutePath: TargetBuildDescription](
-      packageGraph.allTargets.compactMap { target in
-        guard let td = plan.targetMap[target.id] else {
+    self.sourceDirToTarget = [AbsolutePath: SwiftBuildTarget](
+      packageGraph.allTargets.compactMap { (target) -> (AbsolutePath, SwiftBuildTarget)? in
+        guard let buildTarget = buildDescription.getBuildTarget(for: target) else {
           return nil
         }
-        return (key: target.sources.root, value: td)
+        return (key: target.sources.root, value: buildTarget)
       },
       uniquingKeysWith: { td, _ in
         // FIXME: is there  a preferred target?
@@ -275,14 +283,6 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
 
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
-  /// **Public for testing only**
-  public func _settings(
-    for uri: DocumentURI,
-    _ language: Language
-  ) throws -> FileBuildSettings? {
-    try self.buildSettings(for: uri, language: language)
-  }
-
   public func buildSettings(for uri: DocumentURI, language: Language) throws -> FileBuildSettings? {
     guard let url = uri.fileURL else {
       // We can't determine build settings for non-file URIs.
@@ -292,8 +292,11 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
       return nil
     }
 
-    if let td = try targetDescription(for: path) {
-      return try settings(for: path, language, td)
+    if let buildTarget = try buildTarget(for: path) {
+      return FileBuildSettings(
+        compilerArguments: try buildTarget.compileArguments(for: path.asURL),
+        workingDirectory: workspacePath.pathString
+      )
     }
 
     if path.basename == "Package.swift" {
@@ -318,7 +321,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
   }
 
   /// Returns the resolved target description for the given file, if one is known.
-  private func targetDescription(for file: AbsolutePath) throws -> TargetBuildDescription? {
+  private func buildTarget(for file: AbsolutePath) throws -> SwiftBuildTarget? {
     if let td = fileToTarget[file] {
       return td
     }
@@ -367,7 +370,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
     guard let fileUrl = uri.fileURL else {
       return .unhandled
     }
-    if (try? targetDescription(for: AbsolutePath(validating: fileUrl.path))) != nil {
+    if (try? buildTarget(for: AbsolutePath(validating: fileUrl.path))) != nil {
       return .handled
     } else {
       return .unhandled
@@ -378,24 +381,6 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
 extension SwiftPMWorkspace {
 
   // MARK: Implementation details
-
-  /// Retrieve settings for the given file, which is part of a known target build description.
-  public func settings(
-    for path: AbsolutePath,
-    _ language: Language,
-    _ td: TargetBuildDescription
-  ) throws -> FileBuildSettings? {
-    switch (td, language) {
-    case (.swift(let td), .swift):
-      return try settings(forSwiftFile: path, td)
-    case (.clang, .swift):
-      return nil
-    case (.clang(let td), _):
-      return try settings(forClangFile: path, language, td)
-    default:
-      return nil
-    }
-  }
 
   /// Retrieve settings for a package manifest (Package.swift).
   private func settings(forPackageManifest path: AbsolutePath) throws -> FileBuildSettings? {
@@ -416,12 +401,24 @@ extension SwiftPMWorkspace {
   }
 
   /// Retrieve settings for a given header file.
+  ///
+  /// This finds the target the header belongs to based on its location in the file system, retrieves the build settings
+  /// for any file within that target and generates compiler arguments by replacing that picked file with the header
+  /// file.
+  /// This is safe because all files within one target have the same build settings except for reference to the file
+  /// itself, which we are replacing.
   private func settings(forHeader path: AbsolutePath, _ language: Language) throws -> FileBuildSettings? {
     func impl(_ path: AbsolutePath) throws -> FileBuildSettings? {
       var dir = path.parentDirectory
       while !dir.isRoot {
-        if let td = sourceDirToTarget[dir] {
-          return try settings(for: path, language, td)
+        if let buildTarget = sourceDirToTarget[dir] {
+          if let sourceFile = buildTarget.sources.first {
+            return FileBuildSettings(
+              compilerArguments: try buildTarget.compileArguments(for: sourceFile),
+              workingDirectory: workspacePath.pathString
+            ).patching(newFile: path.pathString, originalFile: sourceFile.absoluteString)
+          }
+          return nil
         }
         dir = dir.parentDirectory
       }
@@ -434,103 +431,6 @@ extension SwiftPMWorkspace {
 
     let canonicalPath = try resolveSymlinks(path)
     return try canonicalPath == path ? nil : impl(canonicalPath)
-  }
-
-  /// Retrieve settings for the given swift file, which is part of a known target build description.
-  public func settings(
-    forSwiftFile path: AbsolutePath,
-    _ td: SwiftTargetBuildDescription
-  ) throws -> FileBuildSettings {
-    // FIXME: this is re-implementing llbuild's constructCommandLineArgs.
-    var args: [String] = [
-      "-module-name",
-      td.target.c99name,
-      "-incremental",
-      "-emit-dependencies",
-      "-emit-module",
-      "-emit-module-path",
-      buildPath.appending(component: "\(td.target.c99name).swiftmodule").pathString,
-      // -output-file-map <path>
-    ]
-    if td.target.type == .library || td.target.type == .test {
-      args += ["-parse-as-library"]
-    }
-    args += ["-c"]
-    args += td.sources.map { $0.pathString }
-    args += ["-I", td.moduleOutputPath.parentDirectory.pathString]
-    args += try td.compileArguments()
-
-    return FileBuildSettings(
-      compilerArguments: args,
-      workingDirectory: workspacePath.pathString
-    )
-  }
-
-  /// Retrieve settings for the given C-family language file, which is part of a known target build
-  /// description.
-  ///
-  /// - Note: language must be a C-family language.
-  public func settings(
-    forClangFile path: AbsolutePath,
-    _ language: Language,
-    _ td: ClangTargetBuildDescription
-  ) throws -> FileBuildSettings {
-    // FIXME: this is re-implementing things from swiftpm's createClangCompileTarget
-
-    var args = try td.basicArguments()
-
-    let nativePath: AbsolutePath =
-      try URL(fileURLWithPath: path.pathString).withUnsafeFileSystemRepresentation {
-        try AbsolutePath(validating: String(cString: $0!))
-      }
-    let compilePath = try td.compilePaths().first(where: { $0.source == nativePath })
-    if let compilePath = compilePath {
-      args += [
-        "-MD",
-        "-MT",
-        "dependencies",
-        "-MF",
-        compilePath.deps.pathString,
-      ]
-    }
-
-    switch language {
-    case .c:
-      if let std = td.clangTarget.cLanguageStandard {
-        args += ["-std=\(std)"]
-      }
-    case .cpp:
-      if let std = td.clangTarget.cxxLanguageStandard {
-        args += ["-std=\(std)"]
-      }
-    default:
-      break
-    }
-
-    if let compilePath = compilePath {
-      args += [
-        "-c",
-        compilePath.source.pathString,
-        "-o",
-        compilePath.object.pathString,
-      ]
-    } else if path.extension == "h" {
-      args += ["-c"]
-      if let xflag = language.xflagHeader {
-        args += ["-x", xflag]
-      }
-      args += [path.pathString]
-    } else {
-      args += [
-        "-c",
-        path.pathString,
-      ]
-    }
-
-    return FileBuildSettings(
-      compilerArguments: args,
-      workingDirectory: workspacePath.pathString
-    )
   }
 }
 

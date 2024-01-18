@@ -10,4 +10,5 @@ target_link_libraries(SKSwiftPMWorkspace PRIVATE
   SKCore
   TSCBasic)
 target_link_libraries(SKSwiftPMWorkspace PUBLIC
-  Build)
+  Build
+  SourceKitLSPAPI)

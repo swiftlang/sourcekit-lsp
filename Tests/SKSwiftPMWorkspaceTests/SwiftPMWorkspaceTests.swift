@@ -31,7 +31,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
   func testNoPackage() async throws {
     let fs = InMemoryFileSystem()
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -53,7 +53,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
   func testUnparsablePackage() async throws {
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -80,7 +80,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
   func testNoToolchain() async throws {
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -106,9 +106,8 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   }
 
   func testBasicSwiftArgs() async throws {
-    // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -136,39 +135,39 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       assertEqual(await ws.buildPath, build)
       assertNotNil(await ws.indexStorePath)
-      let arguments = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
+      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
 
-      check(
-        "-module-name",
-        "lib",
-        "-incremental",
-        "-emit-dependencies",
-        "-emit-module",
-        "-emit-module-path",
-        arguments: arguments
-      )
-      check("-parse-as-library", "-c", arguments: arguments)
+      assertArgumentsContain("-module-name", "lib", arguments: arguments)
+      assertArgumentsContain("-emit-dependencies", arguments: arguments)
+      assertArgumentsContain("-emit-module", arguments: arguments)
+      assertArgumentsContain("-emit-module-path", arguments: arguments)
+      assertArgumentsContain("-incremental", arguments: arguments)
+      assertArgumentsContain("-parse-as-library", arguments: arguments)
+      assertArgumentsContain("-c", arguments: arguments)
 
-      check("-target", arguments: arguments)  // Only one!
+      assertArgumentsContain("-target", arguments: arguments)  // Only one!
       #if os(macOS)
       let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
-      check("-target", hostTriple.tripleString(forPlatformVersion: versionString), arguments: arguments)
-      check("-sdk", arguments: arguments)
-      check("-F", arguments: arguments, allowMultiple: true)
+      assertArgumentsContain(
+        "-target",
+        hostTriple.tripleString(forPlatformVersion: versionString),
+        arguments: arguments
+      )
+      assertArgumentsContain("-sdk", arguments: arguments)
+      assertArgumentsContain("-F", arguments: arguments, allowMultiple: true)
       #else
-      check("-target", hostTriple.tripleString, arguments: arguments)
+      assertArgumentsContain("-target", hostTriple.tripleString, arguments: arguments)
       #endif
 
-      check("-I", build.appending(component: "Modules").pathString, arguments: arguments)
+      assertArgumentsContain("-I", build.appending(component: "Modules").pathString, arguments: arguments)
 
-      check(aswift.pathString, arguments: arguments)
+      assertArgumentsContain(aswift.pathString, arguments: arguments)
     }
   }
 
   func testBuildSetup() async throws {
-    // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -203,18 +202,17 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let build = buildPath(root: packageRoot, config: config, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await ws.buildPath, build)
-      let arguments = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
+      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
 
-      check("-typecheck", arguments: arguments)
-      check("-Xcc", "-m32", arguments: arguments)
-      check("-O", arguments: arguments)
+      assertArgumentsContain("-typecheck", arguments: arguments)
+      assertArgumentsContain("-Xcc", "-m32", arguments: arguments)
+      assertArgumentsContain("-O", arguments: arguments)
     }
   }
 
   func testManifestArgs() async throws {
-    // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -237,17 +235,16 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
 
       let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
-      let arguments = try await ws._settings(for: source.asURI, .swift)!.compilerArguments
+      let arguments = try await ws.buildSettings(for: source.asURI, language: .swift)!.compilerArguments
 
-      check("-swift-version", "4.2", arguments: arguments)
-      check(source.pathString, arguments: arguments)
+      assertArgumentsContain("-swift-version", "4.2", arguments: arguments)
+      assertArgumentsContain(source.pathString, arguments: arguments)
     }
   }
 
   func testMultiFileSwift() async throws {
-    // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -273,19 +270,18 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
 
-      let argumentsA = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
-      check(aswift.pathString, arguments: argumentsA)
-      check(bswift.pathString, arguments: argumentsA)
-      let argumentsB = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
-      check(aswift.pathString, arguments: argumentsB)
-      check(bswift.pathString, arguments: argumentsB)
+      let argumentsA = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      assertArgumentsContain(aswift.pathString, arguments: argumentsA)
+      assertArgumentsContain(bswift.pathString, arguments: argumentsA)
+      let argumentsB = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      assertArgumentsContain(aswift.pathString, arguments: argumentsB)
+      assertArgumentsContain(bswift.pathString, arguments: argumentsB)
     }
   }
 
   func testMultiTargetSwift() async throws {
-    // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -316,13 +312,13 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
-      let arguments = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
-      check(aswift.pathString, arguments: arguments)
-      checkNot(bswift.pathString, arguments: arguments)
+      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      assertArgumentsContain(aswift.pathString, arguments: arguments)
+      assertArgumentsDoNotContain(bswift.pathString, arguments: arguments)
       // Temporary conditional to work around revlock between SourceKit-LSP and SwiftPM
       // as a result of fix for SR-12050.  Can be removed when that fix has been merged.
       if arguments.joined(separator: " ").contains("-Xcc -I -Xcc") {
-        check(
+        assertArgumentsContain(
           "-Xcc",
           "-I",
           "-Xcc",
@@ -330,17 +326,17 @@ final class SwiftPMWorkspaceTests: XCTestCase {
           arguments: arguments
         )
       } else {
-        check(
+        assertArgumentsContain(
           "-I",
           packageRoot.appending(components: "Sources", "libC", "include").pathString,
           arguments: arguments
         )
       }
 
-      let argumentsB = try await ws._settings(for: bswift.asURI, .swift)!.compilerArguments
-      check(bswift.pathString, arguments: argumentsB)
-      checkNot(aswift.pathString, arguments: argumentsB)
-      checkNot(
+      let argumentsB = try await ws.buildSettings(for: bswift.asURI, language: .swift)!.compilerArguments
+      assertArgumentsContain(bswift.pathString, arguments: argumentsB)
+      assertArgumentsDoNotContain(aswift.pathString, arguments: argumentsB)
+      assertArgumentsDoNotContain(
         "-I",
         packageRoot.appending(components: "Sources", "libC", "include").pathString,
         arguments: argumentsB
@@ -349,9 +345,8 @@ final class SwiftPMWorkspaceTests: XCTestCase {
   }
 
   func testUnknownFile() async throws {
-    // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -378,16 +373,15 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
-      assertNotNil(try await ws._settings(for: aswift.asURI, .swift))
-      assertNil(try await ws._settings(for: bswift.asURI, .swift))
-      assertNil(try await ws._settings(for: DocumentURI(URL(string: "https://www.apple.com")!), .swift))
+      assertNotNil(try await ws.buildSettings(for: aswift.asURI, language: .swift))
+      assertNil(try await ws.buildSettings(for: bswift.asURI, language: .swift))
+      assertNil(try await ws.buildSettings(for: DocumentURI(URL(string: "https://www.apple.com")!), language: .swift))
     }
   }
 
   func testBasicCXXArgs() async throws {
-    // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -414,74 +408,61 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
+      let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
       let hostTriple = await ws.buildParameters.targetTriple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await ws.buildPath, build)
       assertNotNil(await ws.indexStorePath)
 
-      let checkArgsCommon = { (arguments: [String]) in
-        check("-std=c++14", arguments: arguments)
+      for file in [acxx, header] {
+        let args = try await ws.buildSettings(for: file.asURI, language: .cpp)!.compilerArguments
 
-        checkNot("-arch", arguments: arguments)
-        check("-target", arguments: arguments)  // Only one!
+        assertArgumentsContain("-std=c++14", arguments: args)
+
+        assertArgumentsDoNotContain("-arch", arguments: args)
+        assertArgumentsContain("-target", arguments: args)  // Only one!
         #if os(macOS)
         let versionString = PackageModel.Platform.macOS.oldestSupportedVersion.versionString
-        check(
+        assertArgumentsContain(
           "-target",
           hostTriple.tripleString(forPlatformVersion: versionString),
-          arguments: arguments
+          arguments: args
         )
-        check("-isysroot", arguments: arguments)
-        check("-F", arguments: arguments, allowMultiple: true)
+        assertArgumentsContain("-isysroot", arguments: args)
+        assertArgumentsContain("-F", arguments: args, allowMultiple: true)
         #else
-        check("-target", hostTriple.tripleString, arguments: arguments)
+        assertArgumentsContain("-target", hostTriple.tripleString, arguments: args)
         #endif
 
-        check(
+        assertArgumentsContain(
           "-I",
           packageRoot.appending(components: "Sources", "lib", "include").pathString,
-          arguments: arguments
+          arguments: args
         )
-        checkNot("-I", build.pathString, arguments: arguments)
-        checkNot(bcxx.pathString, arguments: arguments)
-      }
+        assertArgumentsDoNotContain("-I", build.pathString, arguments: args)
+        assertArgumentsDoNotContain(bcxx.pathString, arguments: args)
 
-      let args = try await ws._settings(for: acxx.asURI, .cpp)!.compilerArguments
-      checkArgsCommon(args)
+        URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.d").pathString)
+          .withUnsafeFileSystemRepresentation {
+            assertArgumentsContain("-MD", "-MT", "dependencies", "-MF", String(cString: $0!), arguments: args)
+          }
 
-      URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.d").pathString)
-        .withUnsafeFileSystemRepresentation {
-          check("-MD", "-MT", "dependencies", "-MF", String(cString: $0!), arguments: args)
+        URL(fileURLWithPath: file.pathString).withUnsafeFileSystemRepresentation {
+          assertArgumentsContain("-c", String(cString: $0!), arguments: args)
         }
 
-      URL(fileURLWithPath: acxx.pathString).withUnsafeFileSystemRepresentation {
-        check("-c", String(cString: $0!), arguments: args)
+        URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.o").pathString)
+          .withUnsafeFileSystemRepresentation {
+            assertArgumentsContain("-o", String(cString: $0!), arguments: args)
+          }
       }
-
-      URL(fileURLWithPath: build.appending(components: "lib.build", "a.cpp.o").pathString)
-        .withUnsafeFileSystemRepresentation {
-          check("-o", String(cString: $0!), arguments: args)
-        }
-
-      let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
-      let headerArgs = try await ws._settings(for: header.asURI, .cpp)!.compilerArguments
-      checkArgsCommon(headerArgs)
-
-      check(
-        "-c",
-        "-x",
-        "c++-header",
-        try AbsolutePath(validating: URL(fileURLWithPath: header.pathString).path).pathString,
-        arguments: headerArgs
-      )
     }
   }
 
   func testDeploymentTargetSwift() async throws {
-    // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -505,26 +486,25 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let arguments = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
-      check("-target", arguments: arguments)  // Only one!
+      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      assertArgumentsContain("-target", arguments: arguments)  // Only one!
       let hostTriple = await ws.buildParameters.targetTriple
 
       #if os(macOS)
-      check(
+      assertArgumentsContain(
         "-target",
         hostTriple.tripleString(forPlatformVersion: "10.13"),
         arguments: arguments
       )
       #else
-      check("-target", hostTriple.tripleString, arguments: arguments)
+      assertArgumentsContain("-target", hostTriple.tripleString, arguments: arguments)
       #endif
     }
   }
 
   func testSymlinkInWorkspaceSwift() async throws {
-    // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -559,27 +539,26 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         .appending(components: "Sources", "lib", "a.swift")
       let manifest = packageRoot.appending(components: "Package.swift")
 
-      let arguments1 = try await ws._settings(for: aswift1.asURI, .swift)?.compilerArguments
-      let arguments2 = try await ws._settings(for: aswift2.asURI, .swift)?.compilerArguments
+      let arguments1 = try await ws.buildSettings(for: aswift1.asURI, language: .swift)?.compilerArguments
+      let arguments2 = try await ws.buildSettings(for: aswift2.asURI, language: .swift)?.compilerArguments
       XCTAssertNotNil(arguments1)
       XCTAssertNotNil(arguments2)
       XCTAssertEqual(arguments1, arguments2)
 
-      checkNot(aswift1.pathString, arguments: arguments1 ?? [])
-      check(try resolveSymlinks(aswift1).pathString, arguments: arguments1 ?? [])
+      assertArgumentsDoNotContain(aswift1.pathString, arguments: arguments1 ?? [])
+      assertArgumentsContain(try resolveSymlinks(aswift1).pathString, arguments: arguments1 ?? [])
 
-      let argsManifest = try await ws._settings(for: manifest.asURI, .swift)?.compilerArguments
+      let argsManifest = try await ws.buildSettings(for: manifest.asURI, language: .swift)?.compilerArguments
       XCTAssertNotNil(argsManifest)
 
-      checkNot(manifest.pathString, arguments: argsManifest ?? [])
-      check(try resolveSymlinks(manifest).pathString, arguments: argsManifest ?? [])
+      assertArgumentsDoNotContain(manifest.pathString, arguments: argsManifest ?? [])
+      assertArgumentsContain(try resolveSymlinks(manifest).pathString, arguments: argsManifest ?? [])
     }
   }
 
   func testSymlinkInWorkspaceCXX() async throws {
-    // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -596,40 +575,38 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
 
-      let packageRoot = tempDir.appending(component: "pkg")
+      let acpp = ["Sources", "lib", "a.cpp"]
+      let ah = ["Sources", "lib", "include", "a.h"]
+
+      let realRoot = tempDir.appending(component: "pkg_real")
+      let symlinkRoot = tempDir.appending(component: "pkg")
 
       try FileManager.default.createSymbolicLink(
-        at: URL(fileURLWithPath: packageRoot.pathString),
+        at: URL(fileURLWithPath: symlinkRoot.pathString),
         withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString)
       )
 
-      let tr = await ToolchainRegistry.forTesting
       let ws = try await SwiftPMWorkspace(
-        workspacePath: packageRoot,
-        toolchainRegistry: tr,
+        workspacePath: symlinkRoot,
+        toolchainRegistry: await ToolchainRegistry.forTesting,
         fileSystem: fs,
         buildSetup: SourceKitServer.Options.testDefault.buildSetup
       )
 
-      let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
-      let ah = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
-
-      let argsCxx = try await ws._settings(for: acxx.asURI, .cpp)?.compilerArguments
-      XCTAssertNotNil(argsCxx)
-      check(acxx.pathString, arguments: argsCxx ?? [])
-      checkNot(try resolveSymlinks(acxx).pathString, arguments: argsCxx ?? [])
-
-      let argsH = try await ws._settings(for: ah.asURI, .cpp)?.compilerArguments
-      XCTAssertNotNil(argsH)
-      checkNot(ah.pathString, arguments: argsH ?? [])
-      check(try resolveSymlinks(ah).pathString, arguments: argsH ?? [])
+      for file in [acpp, ah] {
+        let args = try unwrap(
+          await ws.buildSettings(for: symlinkRoot.appending(components: file).asURI, language: .cpp)?
+            .compilerArguments
+        )
+        assertArgumentsContain(realRoot.appending(components: file).pathString, arguments: args)
+        assertArgumentsDoNotContain(symlinkRoot.appending(components: file).pathString, arguments: args)
+      }
     }
   }
 
   func testSwiftDerivedSources() async throws {
-    // FIXME: should be possible to use InMemoryFileSystem.
     let fs = localFileSystem
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -657,8 +634,8 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let arguments = try await ws._settings(for: aswift.asURI, .swift)!.compilerArguments
-      check(aswift.pathString, arguments: arguments)
+      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      assertArgumentsContain(aswift.pathString, arguments: arguments)
       XCTAssertNotNil(
         arguments.firstIndex(where: {
           $0.hasSuffix(".swift") && $0.contains("DerivedSources")
@@ -670,7 +647,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
 
   func testNestedInvalidPackageSwift() async throws {
     let fs = InMemoryFileSystem()
-    try await withTemporaryDirectory(removeTreeOnDeinit: true) { tempDir in
+    try await withTestScratchDir { tempDir in
       try fs.createFiles(
         root: tempDir,
         files: [
@@ -695,9 +672,55 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       assertEqual(await ws._packageRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
     }
   }
+
+  func testPluginArgs() async throws {
+    let fs = localFileSystem
+    try await withTestScratchDir { tempDir in
+      try fs.createFiles(
+        root: tempDir,
+        files: [
+          "pkg/Plugins/MyPlugin/a.swift": "",
+          "pkg/Sources/lib/lib.swift": "",
+          "pkg/Package.swift": """
+          // swift-tools-version:5.7
+          import PackageDescription
+          let package = Package(
+            name: "a",
+            products: [],
+            dependencies: [],
+            targets: [
+              .target(name: "lib"),
+              .plugin(name: "MyPlugin", capability: .buildTool)
+            ]
+          )
+          """,
+        ]
+      )
+      let packageRoot = tempDir.appending(component: "pkg")
+      let tr = await ToolchainRegistry.forTesting
+      let ws = try await SwiftPMWorkspace(
+        workspacePath: packageRoot,
+        toolchainRegistry: tr,
+        fileSystem: fs,
+        buildSetup: SourceKitServer.Options.testDefault.buildSetup
+      )
+
+      let aswift = packageRoot.appending(components: "Plugins", "MyPlugin", "a.swift")
+      let hostTriple = await ws.buildParameters.targetTriple
+      let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
+
+      assertEqual(await ws.buildPath, build)
+      assertNotNil(await ws.indexStorePath)
+      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+
+      // Plugins get compiled with the same compiler arguments as the package manifest
+      assertArgumentsContain("-package-description-version", "5.7.0", arguments: arguments)
+      assertArgumentsContain(aswift.pathString, arguments: arguments)
+    }
+  }
 }
 
-private func checkNot(
+private func assertArgumentsDoNotContain(
   _ pattern: String...,
   arguments: [String],
   file: StaticString = #filePath,
@@ -713,7 +736,7 @@ private func checkNot(
   }
 }
 
-private func check(
+private func assertArgumentsContain(
   _ pattern: String...,
   arguments: [String],
   allowMultiple: Bool = false,
