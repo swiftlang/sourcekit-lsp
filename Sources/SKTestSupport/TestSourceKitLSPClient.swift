@@ -105,7 +105,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
 
     let clientConnection = LocalConnection()
     self.serverToClientConnection = clientConnection
-    server = await SourceKitServer(
+    server = SourceKitServer(
       client: clientConnection,
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: serverOptions,
