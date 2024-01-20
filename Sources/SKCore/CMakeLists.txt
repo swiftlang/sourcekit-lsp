@@ -11,6 +11,7 @@ add_library(SKCore STATIC
   FileBuildSettings.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift
+  SplitShellCommand.swift
   Toolchain.swift
   ToolchainRegistry.swift
   XCToolchainPlist.swift)
