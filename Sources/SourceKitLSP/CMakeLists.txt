@@ -56,7 +56,6 @@ target_link_libraries(SourceKitLSP PUBLIC
   SwiftSyntax::SwiftBasicFormat
   SwiftSyntax::SwiftDiagnostics
   SwiftSyntax::SwiftIDEUtils
-  SwiftSyntax::SwiftParser
   SwiftSyntax::SwiftParserDiagnostics
   SwiftSyntax::SwiftSyntax)
 target_link_libraries(SourceKitLSP PRIVATE
