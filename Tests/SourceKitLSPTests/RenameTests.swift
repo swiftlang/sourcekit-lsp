@@ -36,6 +36,7 @@ private func apply(edits: [TextEdit], to source: String) -> String {
 /// Test that applying the edits returned from the requests always result in `expected`.
 private func assertSingleFileRename(
   _ markedSource: String,
+  language: Language? = nil,
   newName: String,
   expected: String,
   testName: String = #function,
@@ -44,7 +45,7 @@ private func assertSingleFileRename(
 ) async throws {
   let testClient = try await TestSourceKitLSPClient()
   let uri = DocumentURI.for(.swift, testName: testName)
-  let positions = testClient.openDocument(markedSource, uri: uri)
+  let positions = testClient.openDocument(markedSource, uri: uri, language: language)
   for marker in positions.allMarkers {
     let response: WorkspaceEdit?
     do {
@@ -111,6 +112,7 @@ private func assertRenamedSourceMatches(
 /// to be placed in a state where there are in-memory changes that haven't been written to disk yet.
 private func assertMultiFileRename(
   files: [RelativeFileLocation: String],
+  language: Language? = nil,
   newName: String,
   expected: [RelativeFileLocation: String],
   manifest: String = SwiftPMTestWorkspace.defaultPackageManifest,
@@ -131,7 +133,7 @@ private func assertMultiFileRename(
     if markers.isEmpty {
       continue
     }
-    let (uri, positions) = try ws.openDocument(fileLocation.fileName)
+    let (uri, positions) = try ws.openDocument(fileLocation.fileName, language: language)
     defer {
       ws.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
     }
@@ -758,5 +760,75 @@ final class RenameTests: XCTestCase {
     let placeholder = try XCTUnwrap(response?.placeholder)
     XCTAssertEqual(range, positions["1️⃣"]..<positions["2️⃣"])
     XCTAssertEqual(placeholder, "foo(a:b:)")
+  }
+
+  func testGlobalRenameC() async throws {
+    try await assertMultiFileRename(
+      files: [
+        "Sources/MyLibrary/include/lib.h": """
+        void 1️⃣do2️⃣Stuff();
+        """,
+        "lib.c": """
+        #include "lib.h"
+
+        void 3️⃣doStuff() {
+          4️⃣doStuff();
+        }
+        """,
+      ],
+      language: .c,
+      newName: "doRecursiveStuff",
+      expected: [
+        "Sources/MyLibrary/include/lib.h": """
+        void doRecursiveStuff();
+        """,
+        "lib.c": """
+        #include "lib.h"
+
+        void doRecursiveStuff() {
+          doRecursiveStuff();
+        }
+        """,
+      ]
+    )
+  }
+
+  func testGlobalRenameObjC() async throws {
+    try await assertMultiFileRename(
+      files: [
+        "Sources/MyLibrary/include/lib.h": """
+        @interface Foo
+        - (int)1️⃣perform2️⃣Action:(int)action 3️⃣wi4️⃣th:(int)value;
+        @end
+        """,
+        "lib.m": """
+        #include "lib.h"
+
+        @implementation Foo
+        - (int)5️⃣performAction:(int)action 6️⃣with:(int)value {
+          return [self 7️⃣performAction:action 8️⃣with:value];
+        }
+        @end
+        """,
+      ],
+      language: .objective_c,
+      newName: "performNewAction:by:",
+      expected: [
+        "Sources/MyLibrary/include/lib.h": """
+        @interface Foo
+        - (int)performNewAction:(int)action by:(int)value;
+        @end
+        """,
+        "lib.m": """
+        #include "lib.h"
+
+        @implementation Foo
+        - (int)performNewAction:(int)action by:(int)value {
+          return [self performNewAction:action by:value];
+        }
+        @end
+        """,
+      ]
+    )
   }
 }

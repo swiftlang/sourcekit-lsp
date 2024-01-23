@@ -56,6 +56,7 @@ add_library(LanguageServerProtocol STATIC
   Requests/FormattingRequests.swift
   Requests/HoverRequest.swift
   Requests/ImplementationRequest.swift
+  Requests/IndexedRenameRequest.swift
   Requests/InitializeRequest.swift
   Requests/InlayHintRefreshRequest.swift
   Requests/InlayHintRequest.swift
