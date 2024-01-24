@@ -608,18 +608,40 @@ extension SwiftLanguageServer {
 // MARK: - Clang
 
 extension ClangLanguageServerShim {
-  func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?, oldName: String?) {
-    let edits = try await forwardRequestToClangd(request)
-    return (edits ?? WorkspaceEdit(), nil, nil)
+  func rename(_ renameRequest: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?, oldName: String?) {
+    async let edits = forwardRequestToClangd(renameRequest)
+    let symbolInfoRequest = SymbolInfoRequest(
+      textDocument: renameRequest.textDocument,
+      position: renameRequest.position
+    )
+    let symbolDetail = try await forwardRequestToClangd(symbolInfoRequest).only
+    return (try await edits ?? WorkspaceEdit(), symbolDetail?.usr, symbolDetail?.name)
   }
 
   func editsToRename(
     locations renameLocations: [RenameLocation],
     in snapshot: DocumentSnapshot,
-    oldName oldNameString: String,
+    oldName: String,
     newName: String
   ) async throws -> [TextEdit] {
-    throw ResponseError.internalError("Global rename not implemented for clangd")
+    let positions = [
+      snapshot.uri: renameLocations.compactMap {
+        snapshot.positionOf(zeroBasedLine: $0.line - 1, utf8Column: $0.utf8Column - 1)
+      }
+    ]
+    let request = IndexedRenameRequest(
+      textDocument: TextDocumentIdentifier(snapshot.uri),
+      oldName: oldName,
+      newName: newName,
+      positions: positions
+    )
+    do {
+      let edits = try await forwardRequestToClangd(request)
+      return edits?.changes?[snapshot.uri] ?? []
+    } catch {
+      logger.error("Failed to get indexed rename edits: \(error.forLogging)")
+      return []
+    }
   }
 
   public func prepareRename(_ request: PrepareRenameRequest) async throws -> PrepareRenameResponse? {
