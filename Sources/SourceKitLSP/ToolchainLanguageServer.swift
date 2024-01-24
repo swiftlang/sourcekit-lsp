@@ -140,6 +140,7 @@ public protocol ToolchainLanguageServer: AnyObject {
   func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse?
   func inlayHint(_ req: InlayHintRequest) async throws -> [InlayHint]
   func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport
+  func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]?
 
   // MARK: - Rename
 

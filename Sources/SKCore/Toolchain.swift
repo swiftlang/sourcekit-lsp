@@ -51,6 +51,9 @@ public final class Toolchain {
   /// The path to the Swift compiler if available.
   public var swiftc: AbsolutePath?
 
+  /// The path to the swift-format executable, if available.
+  public var swiftFormat: AbsolutePath?
+
   /// The path to the clangd language server if available.
   public var clangd: AbsolutePath?
 
@@ -67,6 +70,7 @@ public final class Toolchain {
     clang: AbsolutePath? = nil,
     swift: AbsolutePath? = nil,
     swiftc: AbsolutePath? = nil,
+    swiftFormat: AbsolutePath? = nil,
     clangd: AbsolutePath? = nil,
     sourcekitd: AbsolutePath? = nil,
     libIndexStore: AbsolutePath? = nil
@@ -77,6 +81,7 @@ public final class Toolchain {
     self.clang = clang
     self.swift = swift
     self.swiftc = swiftc
+    self.swiftFormat = swiftFormat
     self.clangd = clangd
     self.sourcekitd = sourcekitd
     self.libIndexStore = libIndexStore
@@ -156,6 +161,12 @@ extension Toolchain {
     let swiftcPath = binPath.appending(component: "swiftc\(execExt)")
     if fs.isExecutableFile(swiftcPath) {
       self.swiftc = swiftcPath
+      foundAny = true
+    }
+
+    let swiftFormatPath = binPath.appending(component: "swift-format\(execExt)")
+    if fs.isExecutableFile(swiftFormatPath) {
+      self.swiftFormat = swiftFormatPath
       foundAny = true
     }
 

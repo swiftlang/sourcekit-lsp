@@ -21,6 +21,8 @@ import SwiftParser
 import SwiftParserDiagnostics
 import SwiftSyntax
 
+import struct TSCBasic.AbsolutePath
+
 #if os(Windows)
 import WinSDK
 #endif
@@ -93,6 +95,9 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   let sourcekitd: SourceKitD
 
+  /// Path to the swift-format executable if it exists in the toolchain.
+  let swiftFormat: AbsolutePath?
+
   /// Queue on which notifications from sourcekitd are handled to ensure we are
   /// handling them in-order.
   let sourcekitdNotificationHandlingQueue = AsyncQueue<Serial>()
@@ -152,6 +157,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   ) throws {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
     self.sourceKitServer = sourceKitServer
+    self.swiftFormat = toolchain.swiftFormat
     self.sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitd)
     self.capabilityRegistry = workspace.capabilityRegistry
     self.serverOptions = options
