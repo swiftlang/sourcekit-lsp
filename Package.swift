@@ -3,40 +3,6 @@
 import Foundation
 import PackageDescription
 
-// MARK: - Parse build arguments
-
-func hasEnvironmentVariable(_ name: String) -> Bool {
-  return ProcessInfo.processInfo.environment[name] != nil
-}
-
-/// Use the `NonDarwinLogger` even if `os_log` can be imported.
-///
-/// This is useful when running tests using `swift test` because xctest will not display the output from `os_log` on the
-/// command line.
-let forceNonDarwinLogger = hasEnvironmentVariable("SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER")
-
-// When building the toolchain on the CI, don't add the CI's runpath for the
-// final build before installing.
-let installAction = hasEnvironmentVariable("SOURCEKIT_LSP_CI_INSTALL")
-
-/// Assume that all the package dependencies are checked out next to sourcekit-lsp and use that instead of fetching a
-/// remote dependency.
-let useLocalDependencies = hasEnvironmentVariable("SWIFTCI_USE_LOCAL_DEPS")
-
-// MARK: - Compute custom build settings
-
-var sourcekitLSPLinkSettings: [LinkerSetting] = []
-if installAction {
-  sourcekitLSPLinkSettings += [.unsafeFlags(["-no-toolchain-stdlib-rpath"], .when(platforms: [.linux, .android]))]
-}
-
-var lspLoggingSwiftSettings: [SwiftSetting] = []
-if forceNonDarwinLogger {
-  lspLoggingSwiftSettings += [.define("SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER")]
-}
-
-// MARK: - Build the package
-
 let package = Package(
   name: "SourceKitLSP",
   platforms: [.macOS("12.0")],
@@ -45,9 +11,7 @@ let package = Package(
     .library(name: "_SourceKitLSP", targets: ["SourceKitLSP"]),
     .library(name: "LSPBindings", targets: ["LanguageServerProtocol", "LanguageServerProtocolJSONRPC"]),
   ],
-  dependencies: [
-    // See 'Dependencies' below.
-  ],
+  dependencies: dependencies,
   targets: [
     // Formatting style:
     //  - One section for each target and its test target
@@ -311,31 +275,70 @@ let package = Package(
   ]
 )
 
-// MARK: Dependencies
+// MARK: - Parse build arguments
+
+func hasEnvironmentVariable(_ name: String) -> Bool {
+  return ProcessInfo.processInfo.environment[name] != nil
+}
+
+/// Use the `NonDarwinLogger` even if `os_log` can be imported.
+///
+/// This is useful when running tests using `swift test` because xctest will not display the output from `os_log` on the
+/// command line.
+var forceNonDarwinLogger: Bool { hasEnvironmentVariable("SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER") }
+
+// When building the toolchain on the CI, don't add the CI's runpath for the
+// final build before installing.
+var installAction: Bool { hasEnvironmentVariable("SOURCEKIT_LSP_CI_INSTALL") }
+
+/// Assume that all the package dependencies are checked out next to sourcekit-lsp and use that instead of fetching a
+/// remote dependency.
+var useLocalDependencies: Bool { hasEnvironmentVariable("SWIFTCI_USE_LOCAL_DEPS") }
+
+// MARK: - Dependencies
 
 // When building with the swift build-script, use local dependencies whose contents are controlled
 // by the external environment. This allows sourcekit-lsp to take advantage of the automation used
 // for building the swift toolchain, such as `update-checkout`, or cross-repo PR tests.
 
-if useLocalDependencies {
-  package.dependencies += [
-    .package(path: "../indexstore-db"),
-    .package(name: "swift-package-manager", path: "../swiftpm"),
-    .package(path: "../swift-tools-support-core"),
-    .package(path: "../swift-argument-parser"),
-    .package(path: "../swift-syntax"),
-    .package(path: "../swift-crypto"),
-  ]
-} else {
-  let relatedDependenciesBranch = "main"
+var dependencies: [Package.Dependency] {
+  if useLocalDependencies {
+    return [
+      .package(path: "../indexstore-db"),
+      .package(name: "swift-package-manager", path: "../swiftpm"),
+      .package(path: "../swift-tools-support-core"),
+      .package(path: "../swift-argument-parser"),
+      .package(path: "../swift-syntax"),
+      .package(path: "../swift-crypto"),
+    ]
+  } else {
+    let relatedDependenciesBranch = "main"
 
-  // Building standalone.
-  package.dependencies += [
-    .package(url: "https://github.com/apple/indexstore-db.git", branch: relatedDependenciesBranch),
-    .package(url: "https://github.com/apple/swift-package-manager.git", branch: relatedDependenciesBranch),
-    .package(url: "https://github.com/apple/swift-tools-support-core.git", branch: relatedDependenciesBranch),
-    .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.2"),
-    .package(url: "https://github.com/apple/swift-syntax.git", branch: relatedDependenciesBranch),
-    .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
-  ]
+    return [
+      .package(url: "https://github.com/apple/indexstore-db.git", branch: relatedDependenciesBranch),
+      .package(url: "https://github.com/apple/swift-package-manager.git", branch: relatedDependenciesBranch),
+      .package(url: "https://github.com/apple/swift-tools-support-core.git", branch: relatedDependenciesBranch),
+      .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.2.2"),
+      .package(url: "https://github.com/apple/swift-syntax.git", branch: relatedDependenciesBranch),
+      .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
+    ]
+  }
+}
+
+// MARK: - Compute custom build settings
+
+var sourcekitLSPLinkSettings: [LinkerSetting] {
+  if installAction {
+    return [.unsafeFlags(["-no-toolchain-stdlib-rpath"], .when(platforms: [.linux, .android]))]
+  } else {
+    return []
+  }
+}
+
+var lspLoggingSwiftSettings: [SwiftSetting] {
+  if forceNonDarwinLogger {
+    return [.define("SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER")]
+  } else {
+    return []
+  }
 }
