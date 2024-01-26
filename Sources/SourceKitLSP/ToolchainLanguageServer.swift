@@ -151,15 +151,15 @@ public protocol ToolchainLanguageServer: AnyObject {
   /// symbol to be renamed so that `SourceKitServer` can perform an index lookup to discover more locations to rename
   /// within the entire workspace. `SourceKitServer` will transform those into edits by calling
   /// `editsToRename(locations:in:oldName:newName:)` on the toolchain server to perform the actual rename.
-  func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?, oldName: String?)
+  func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?)
 
   /// Given a list of `locations``, return the list of edits that need to be performed to rename these occurrences from
   /// `oldName` to `newName`.
   func editsToRename(
     locations renameLocations: [RenameLocation],
     in snapshot: DocumentSnapshot,
-    oldName: String,
-    newName: String
+    oldName: TranslatableName,
+    newName: TranslatableName
   ) async throws -> [TextEdit]
 
   /// Return compound decl name that will be used as a placeholder for a rename request at a specific position.

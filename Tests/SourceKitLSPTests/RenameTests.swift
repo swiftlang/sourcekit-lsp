@@ -17,6 +17,8 @@ import SKTestSupport
 import SourceKitLSP
 import XCTest
 
+import enum PackageLoading.Platform
+
 private func apply(edits: [TextEdit], to source: String) -> String {
   var lineTable = LineTable(source)
   let edits = edits.sorted(by: { $0.range.lowerBound < $1.range.lowerBound })
@@ -112,8 +114,9 @@ private func assertRenamedSourceMatches(
 /// to be placed in a state where there are in-memory changes that haven't been written to disk yet.
 private func assertMultiFileRename(
   files: [RelativeFileLocation: String],
-  language: Language? = nil,
+  headerFileLanguage: Language? = nil,
   newName: String,
+  expectedPrepareRenamePlaceholder: String,
   expected: [RelativeFileLocation: String],
   manifest: String = SwiftPMTestWorkspace.defaultPackageManifest,
   preRenameActions: (SwiftPMTestWorkspace) throws -> Void = { _ in },
@@ -133,11 +136,34 @@ private func assertMultiFileRename(
     if markers.isEmpty {
       continue
     }
-    let (uri, positions) = try ws.openDocument(fileLocation.fileName, language: language)
+    let (uri, positions) = try ws.openDocument(
+      fileLocation.fileName,
+      language: fileLocation.fileName.hasSuffix(".h") ? headerFileLanguage : nil
+    )
     defer {
       ws.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
     }
     for marker in markers {
+      let prepareRenameResponse: PrepareRenameResponse?
+      do {
+        prepareRenameResponse = try await ws.testClient.send(
+          PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions[marker])
+        )
+      } catch let error as ResponseError {
+        if error.message == "Running sourcekit-lsp with a version of sourcekitd that does not support rename" {
+          throw XCTSkip(error.message)
+        } else {
+          throw error
+        }
+      }
+      XCTAssertEqual(
+        prepareRenameResponse?.placeholder,
+        expectedPrepareRenamePlaceholder,
+        "Prepare rename placeholder does not match while performing rename at \(marker)",
+        file: file,
+        line: line
+      )
+
       let response: WorkspaceEdit?
       do {
         response = try await ws.testClient.send(
@@ -150,7 +176,7 @@ private func assertMultiFileRename(
           throw error
         }
       }
-      let changes = try XCTUnwrap(response?.changes)
+      let changes = try XCTUnwrap(response?.changes, "Did not receive any edits", file: file, line: line)
       try assertRenamedSourceMatches(
         originalFiles: files,
         changes: changes,
@@ -163,6 +189,20 @@ private func assertMultiFileRename(
     }
   }
 }
+
+private let libAlibBPackageManifest = """
+  // swift-tools-version: 5.7
+
+  import PackageDescription
+
+  let package = Package(
+    name: "MyLibrary",
+    targets: [
+     .target(name: "LibA"),
+     .target(name: "LibB", dependencies: ["LibA"]),
+    ]
+  )
+  """
 
 final class RenameTests: XCTestCase {
   func testRenameVariableBaseName() async throws {
@@ -546,9 +586,10 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameInsidePoundSelector() async throws {
-    #if !canImport(Darwin)
-    throw XCTSkip("#selector in test case doesn't compile without Objective-C runtime.")
-    #endif
+    try XCTSkipUnless(
+      Platform.current == .darwin,
+      "#selector in test case doesn't compile without Objective-C runtime."
+    )
     try await assertSingleFileRename(
       """
       import Foundation
@@ -581,6 +622,7 @@ final class RenameTests: XCTestCase {
         """,
       ],
       newName: "bar",
+      expectedPrepareRenamePlaceholder: "foo()",
       expected: [
         "a.swift": """
         func bar() {}
@@ -608,6 +650,7 @@ final class RenameTests: XCTestCase {
         """,
       ],
       newName: "bar(new:)",
+      expectedPrepareRenamePlaceholder: "foo(argLabel:)",
       expected: [
         "LibA/LibA.swift": """
         public func bar(new: Int) {}
@@ -619,19 +662,7 @@ final class RenameTests: XCTestCase {
         }
         """,
       ],
-      manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
-        let package = Package(
-          name: "MyLibrary",
-          targets: [
-           .target(name: "LibA"),
-           .target(name: "LibB", dependencies: ["LibA"]),
-          ]
-        )
-        """
+      manifest: libAlibBPackageManifest
     )
   }
 
@@ -648,6 +679,7 @@ final class RenameTests: XCTestCase {
         """,
       ],
       newName: "bar",
+      expectedPrepareRenamePlaceholder: "foo()",
       expected: [
         "a.swift": """
         func bar() {}
@@ -658,6 +690,21 @@ final class RenameTests: XCTestCase {
         }
         """,
       ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(
+              name: "MyLibrary", 
+              swiftSettings: [.unsafeFlags(["-Xfrontend", "-disable-objc-attr-requires-foundation-module"])]
+            )
+          ]
+        )
+        """,
       preRenameActions: { ws in
         let (bUri, bPositions) = try ws.openDocument("b.swift")
         ws.testClient.send(
@@ -683,6 +730,7 @@ final class RenameTests: XCTestCase {
         """,
       ],
       newName: "bar",
+      expectedPrepareRenamePlaceholder: "foo()",
       expected: [
         "a.swift": """
         func bar() {}
@@ -693,6 +741,21 @@ final class RenameTests: XCTestCase {
         }
         """,
       ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(
+              name: "MyLibrary", 
+              swiftSettings: [.unsafeFlags(["-Xfrontend", "-disable-objc-attr-requires-foundation-module"])]
+            )
+          ]
+        )
+        """,
       preRenameActions: { ws in
         let (bUri, bPositions) = try ws.openDocument("b.swift")
         ws.testClient.send(
@@ -776,8 +839,9 @@ final class RenameTests: XCTestCase {
         }
         """,
       ],
-      language: .c,
+      headerFileLanguage: .c,
       newName: "doRecursiveStuff",
+      expectedPrepareRenamePlaceholder: "doStuff",
       expected: [
         "Sources/MyLibrary/include/lib.h": """
         void doRecursiveStuff();
@@ -811,8 +875,9 @@ final class RenameTests: XCTestCase {
         @end
         """,
       ],
-      language: .objective_c,
+      headerFileLanguage: .objective_c,
       newName: "performNewAction:by:",
+      expectedPrepareRenamePlaceholder: "performAction:with:",
       expected: [
         "Sources/MyLibrary/include/lib.h": """
         @interface Foo
@@ -829,6 +894,718 @@ final class RenameTests: XCTestCase {
         @end
         """,
       ]
+    )
+  }
+}
+
+final class CrossLanguageRenameTests: XCTestCase {
+  func testZeroArgCFunction() async throws {
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        void 1️⃣cFunc();
+        """,
+        "LibA/LibA.c": """
+        #include "LibA.h"
+
+        void 2️⃣cFunc() {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test() {
+          3️⃣cFunc()
+        }
+        """,
+      ],
+      headerFileLanguage: .c,
+      newName: "dFunc",
+      expectedPrepareRenamePlaceholder: "cFunc",
+      expected: [
+        "LibA/include/LibA.h": """
+        void dFunc();
+        """,
+        "LibA/LibA.c": """
+        #include "LibA.h"
+
+        void dFunc() {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test() {
+          dFunc()
+        }
+        """,
+      ],
+      manifest: libAlibBPackageManifest
+    )
+  }
+
+  func testMultiArgCFunction() async throws {
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        void 1️⃣cFunc(int x, int y);
+        """,
+        "LibA/LibA.c": """
+        #include "LibA.h"
+
+        void 2️⃣cFunc(int x, int y) {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test() {
+          3️⃣cFunc(1, 2)
+        }
+        """,
+      ],
+      newName: "dFunc",
+      expectedPrepareRenamePlaceholder: "cFunc",
+      expected: [
+        "LibA/include/LibA.h": """
+        void dFunc(int x, int y);
+        """,
+        "LibA/LibA.c": """
+        #include "LibA.h"
+
+        void dFunc(int x, int y) {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test() {
+          dFunc(1, 2)
+        }
+        """,
+      ],
+      manifest: libAlibBPackageManifest
+    )
+  }
+
+  func testCFunctionWithSwiftNameAnnotation() async throws {
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        void 1️⃣cFunc(int x, int y) __attribute__((swift_name("cFunc(x:y:)")));
+        """,
+        "LibA/LibA.c": """
+        #include "LibA.h"
+
+        void 2️⃣cFunc(int x, int y) {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test() {
+          3️⃣cFunc(x: 1, y: 2)
+        }
+        """,
+      ],
+      headerFileLanguage: .c,
+      newName: "dFunc",
+      expectedPrepareRenamePlaceholder: "cFunc",
+      expected: [
+        "LibA/include/LibA.h": """
+        void dFunc(int x, int y) __attribute__((swift_name("cFunc(x:y:)")));
+        """,
+        "LibA/LibA.c": """
+        #include "LibA.h"
+
+        void dFunc(int x, int y) {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test() {
+          cFunc(x: 1, y: 2)
+        }
+        """,
+      ],
+      manifest: libAlibBPackageManifest
+    )
+  }
+
+  func testZeroArgObjCSelector() async throws {
+    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        @interface Foo
+        - (int)1️⃣performAction;
+        @end
+        """,
+        "LibA/LibA.m": """
+        #include "LibA.h"
+
+        @implementation Foo
+        - (int)performAction {
+          return [self 2️⃣performAction];
+        }
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+          foo.3️⃣performAction()
+        }
+        """,
+      ],
+      headerFileLanguage: .objective_c,
+      newName: "performNewAction",
+      expectedPrepareRenamePlaceholder: "performAction",
+      expected: [
+        "LibA/include/LibA.h": """
+        @interface Foo
+        - (int)performNewAction;
+        @end
+        """,
+        "LibA/LibA.m": """
+        #include "LibA.h"
+
+        @implementation Foo
+        - (int)performNewAction {
+          return [self performNewAction];
+        }
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+          foo.performNewAction()
+        }
+        """,
+      ],
+      manifest: libAlibBPackageManifest
+    )
+  }
+
+  func testZeroArgObjCClassSelector() async throws {
+    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        @interface Foo
+        + (int)1️⃣performAction;
+        @end
+        """,
+        "LibA/LibA.m": """
+        #include "LibA.h"
+
+        @implementation Foo
+        + (int)performAction {
+          return [Foo 2️⃣performAction];
+        }
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test() {
+          Foo.3️⃣performAction()
+        }
+        """,
+      ],
+      headerFileLanguage: .objective_c,
+      newName: "performNewAction",
+      expectedPrepareRenamePlaceholder: "performAction",
+      expected: [
+        "LibA/include/LibA.h": """
+        @interface Foo
+        + (int)performNewAction;
+        @end
+        """,
+        "LibA/LibA.m": """
+        #include "LibA.h"
+
+        @implementation Foo
+        + (int)performNewAction {
+          return [Foo performNewAction];
+        }
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test() {
+          Foo.performNewAction()
+        }
+        """,
+      ],
+      manifest: libAlibBPackageManifest
+    )
+  }
+
+  func testOneArgObjCSelector() async throws {
+    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        @interface Foo
+        - (int)1️⃣performAction:(int)action;
+        @end
+        """,
+        "LibA/LibA.m": """
+        #include "LibA.h"
+
+        @implementation Foo
+        - (int)2️⃣performAction:(int)action {
+          return [self performAction:action];
+        }
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+          foo.3️⃣performAction(1)
+        }
+        """,
+      ],
+      headerFileLanguage: .objective_c,
+      newName: "performNewAction:",
+      expectedPrepareRenamePlaceholder: "performAction:",
+      expected: [
+        "LibA/include/LibA.h": """
+        @interface Foo
+        - (int)performNewAction:(int)action;
+        @end
+        """,
+        "LibA/LibA.m": """
+        #include "LibA.h"
+
+        @implementation Foo
+        - (int)performNewAction:(int)action {
+          return [self performNewAction:action];
+        }
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+          foo.performNewAction(1)
+        }
+        """,
+      ],
+      manifest: libAlibBPackageManifest
+    )
+  }
+
+  func testMultiArgObjCSelector() async throws {
+    try XCTSkipUnless(
+      Platform.current == .darwin,
+      "Objective-C imported to Swift fails to build on Linux rdar://121689798"
+    )
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        @interface Foo
+        - (int)1️⃣performAction:(int)action with:(int)value;
+        @end
+        """,
+        "LibA/LibA.m": """
+        #include "LibA.h"
+
+        @implementation Foo
+        - (int)2️⃣performAction:(int)action with:(int)value {
+          return [self performAction:action with:value];
+        }
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+          foo.3️⃣performAction(1, with: 2)
+        }
+        """,
+      ],
+      headerFileLanguage: .objective_c,
+      newName: "performNewAction:by:",
+      expectedPrepareRenamePlaceholder: "performAction:with:",
+      expected: [
+        "LibA/include/LibA.h": """
+        @interface Foo
+        - (int)performNewAction:(int)action by:(int)value;
+        @end
+        """,
+        "LibA/LibA.m": """
+        #include "LibA.h"
+
+        @implementation Foo
+        - (int)performNewAction:(int)action by:(int)value {
+          return [self performNewAction:action by:value];
+        }
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+          foo.performNewAction(1, by: 2)
+        }
+        """,
+      ],
+      manifest: libAlibBPackageManifest
+    )
+  }
+
+  func testObjCSelectorWithSwiftNameAnnotation() async throws {
+    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        @interface Foo
+        - (int)1️⃣performAction:(int)action withValue:(int)value __attribute__((swift_name("perform(action:with:)")));
+        @end
+        """,
+        "LibA/LibA.m": """
+        #include "LibA.h"
+
+        @implementation Foo
+        - (int)2️⃣performAction:(int)action withValue:(int)value {
+          return [self performAction:action withValue:value];
+        }
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+          foo.3️⃣perform(action: 1, with: 2)
+        }
+        """,
+      ],
+      headerFileLanguage: .objective_c,
+      newName: "performNewAction:by:",
+      expectedPrepareRenamePlaceholder: "performAction:withValue:",
+      expected: [
+        "LibA/include/LibA.h": """
+        @interface Foo
+        - (int)performNewAction:(int)action by:(int)value __attribute__((swift_name("perform(action:with:)")));
+        @end
+        """,
+        "LibA/LibA.m": """
+        #include "LibA.h"
+
+        @implementation Foo
+        - (int)performNewAction:(int)action by:(int)value {
+          return [self performNewAction:action by:value];
+        }
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+          foo.perform(action: 1, with: 2)
+        }
+        """,
+      ],
+      manifest: libAlibBPackageManifest
+    )
+  }
+
+  func testObjCClass() async throws {
+    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        @interface 1️⃣Foo
+        @end
+        """,
+        "LibA/LibA.m": """
+        #include "LibA.h"
+
+        @implementation 2️⃣Foo
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: 3️⃣Foo) {
+        }
+        """,
+      ],
+      headerFileLanguage: .objective_c,
+      newName: "Bar",
+      expectedPrepareRenamePlaceholder: "Foo",
+      expected: [
+        "LibA/include/LibA.h": """
+        @interface Bar
+        @end
+        """,
+        "LibA/LibA.m": """
+        #include "LibA.h"
+
+        @implementation Bar
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Bar) {
+        }
+        """,
+      ],
+      manifest: libAlibBPackageManifest
+    )
+  }
+
+  func testObjCClassWithSwiftNameAnnotation() async throws {
+    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        __attribute__((swift_name("Foo")))
+        @interface 1️⃣AHFoo
+        @end
+        """,
+        "LibA/LibA.m": """
+        #include "LibA.h"
+
+        @implementation 2️⃣AHFoo
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: 3️⃣Foo) {
+        }
+        """,
+      ],
+      headerFileLanguage: .objective_c,
+      newName: "AHBar",
+      expectedPrepareRenamePlaceholder: "AHFoo",
+      expected: [
+        "LibA/include/LibA.h": """
+        __attribute__((swift_name("Foo")))
+        @interface AHBar
+        @end
+        """,
+        "LibA/LibA.m": """
+        #include "LibA.h"
+
+        @implementation AHBar
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+        }
+        """,
+      ],
+      manifest: libAlibBPackageManifest
+    )
+  }
+
+  func testCppMethod() async throws {
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        struct Foo {
+          void 1️⃣doStuff() const;
+        };
+        """,
+        "LibA/LibA.cpp": """
+        #include "LibA.h"
+
+        void Foo::2️⃣doStuff() const {};
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+          foo.3️⃣doStuff()
+        }
+        """,
+      ],
+      headerFileLanguage: .cpp,
+      newName: "doCoolStuff",
+      expectedPrepareRenamePlaceholder: "doStuff",
+      expected: [
+        "LibA/include/LibA.h": """
+        struct Foo {
+          void doCoolStuff() const;
+        };
+        """,
+        "LibA/LibA.cpp": """
+        #include "LibA.h"
+
+        void Foo::doCoolStuff() const {};
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+          foo.doCoolStuff()
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"], swiftSettings: [.unsafeFlags(["-cxx-interoperability-mode=default"])]),
+          ]
+        )
+        """
+    )
+  }
+
+  func testCppMethodWithSwiftName() async throws {
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        struct Foo {
+          void 1️⃣doStuff(int x) const __attribute__((swift_name("do(stuff:)")));
+        };
+        """,
+        "LibA/LibA.cpp": """
+        #include "LibA.h"
+
+        void Foo::2️⃣doStuff(int x) const {};
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+          foo.3️⃣do(stuff: 1)
+        }
+        """,
+      ],
+      headerFileLanguage: .cpp,
+      newName: "doCoolStuff",
+      expectedPrepareRenamePlaceholder: "doStuff",
+      expected: [
+        "LibA/include/LibA.h": """
+        struct Foo {
+          void doCoolStuff(int x) const __attribute__((swift_name("do(stuff:)")));
+        };
+        """,
+        "LibA/LibA.cpp": """
+        #include "LibA.h"
+
+        void Foo::doCoolStuff(int x) const {};
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+          foo.do(stuff: 1)
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"], swiftSettings: [.unsafeFlags(["-cxx-interoperability-mode=default"])]),
+          ]
+        )
+        """
+    )
+  }
+
+  func testCppMethodInObjCpp() async throws {
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        struct Foo {
+          void 1️⃣doStuff() const;
+        };
+        """,
+        "LibA/LibA.mm": """
+        #include "LibA.h"
+
+        void Foo::2️⃣doStuff() const {};
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+          foo.3️⃣doStuff()
+        }
+        """,
+      ],
+      headerFileLanguage: .objective_cpp,
+      newName: "doCoolStuff",
+      expectedPrepareRenamePlaceholder: "doStuff",
+      expected: [
+        "LibA/include/LibA.h": """
+        struct Foo {
+          void doCoolStuff() const;
+        };
+        """,
+        "LibA/LibA.mm": """
+        #include "LibA.h"
+
+        void Foo::doCoolStuff() const {};
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test(foo: Foo) {
+          foo.doCoolStuff()
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"], swiftSettings: [.unsafeFlags(["-cxx-interoperability-mode=default"])]),
+          ]
+        )
+        """
+    )
+  }
+
+  func testZeroArgObjCClassSelectorInObjCpp() async throws {
+    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
+    try await assertMultiFileRename(
+      files: [
+        "LibA/include/LibA.h": """
+        @interface Foo
+        + (int)1️⃣performAction;
+        @end
+        """,
+        "LibA/LibA.mm": """
+        #include "LibA.h"
+
+        @implementation Foo
+        + (int)performAction {
+          return [Foo 2️⃣performAction];
+        }
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test() {
+          Foo.3️⃣performAction()
+        }
+        """,
+      ],
+      headerFileLanguage: .objective_cpp,
+      newName: "performNewAction",
+      expectedPrepareRenamePlaceholder: "performAction",
+      expected: [
+        "LibA/include/LibA.h": """
+        @interface Foo
+        + (int)performNewAction;
+        @end
+        """,
+        "LibA/LibA.mm": """
+        #include "LibA.h"
+
+        @implementation Foo
+        + (int)performNewAction {
+          return [Foo performNewAction];
+        }
+        @end
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+        public func test() {
+          Foo.performNewAction()
+        }
+        """,
+      ],
+      manifest: libAlibBPackageManifest
     )
   }
 }

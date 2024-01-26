@@ -18,7 +18,9 @@ public struct sourcekitd_keys {
   public let annotated_decl: sourcekitd_uid_t
   public let annotations: sourcekitd_uid_t
   public let argindex: sourcekitd_uid_t
+  public let argNames: sourcekitd_uid_t
   public let associated_usrs: sourcekitd_uid_t
+  public let baseName: sourcekitd_uid_t
   public let bodylength: sourcekitd_uid_t
   public let bodyoffset: sourcekitd_uid_t
   public let cancelOnSubsequentRequest: sourcekitd_uid_t
@@ -50,12 +52,14 @@ public struct sourcekitd_keys {
   public let includeNonEditableBaseNames: sourcekitd_uid_t
   public let is_system: sourcekitd_uid_t
   public let isDynamic: sourcekitd_uid_t
+  public let isZeroArgSelector: sourcekitd_uid_t
   public let kind: sourcekitd_uid_t
   public let length: sourcekitd_uid_t
   public let line: sourcekitd_uid_t
   public let locations: sourcekitd_uid_t
   public let modulename: sourcekitd_uid_t
   public let name: sourcekitd_uid_t
+  public let namekind: sourcekitd_uid_t
   public let namelength: sourcekitd_uid_t
   public let nameoffset: sourcekitd_uid_t
   public let nameType: sourcekitd_uid_t
@@ -80,6 +84,7 @@ public struct sourcekitd_keys {
   public let results: sourcekitd_uid_t
   public let retrieve_refactor_actions: sourcekitd_uid_t
   public let secondarySymbols: sourcekitd_uid_t
+  public let selectorPieces: sourcekitd_uid_t
   public let semantic_tokens: sourcekitd_uid_t
   public let severity: sourcekitd_uid_t
   public let sourceEditKindActive: sourcekitd_uid_t
@@ -126,14 +131,16 @@ public struct sourcekitd_keys {
     annotated_decl = api.uid_get_from_cstr("key.annotated_decl")!
     annotations = api.uid_get_from_cstr("key.annotations")!
     argindex = api.uid_get_from_cstr("key.argindex")!
+    argNames = api.uid_get_from_cstr("key.argnames")!
     associated_usrs = api.uid_get_from_cstr("key.associated_usrs")!
+    baseName = api.uid_get_from_cstr("key.basename")!
     bodylength = api.uid_get_from_cstr("key.bodylength")!
     bodyoffset = api.uid_get_from_cstr("key.bodyoffset")!
     cancelOnSubsequentRequest = api.uid_get_from_cstr("key.cancel_on_subsequent_request")!
     categories = api.uid_get_from_cstr("key.categories")!
-    category = api.uid_get_from_cstr("key.category")!
     categorizededits = api.uid_get_from_cstr("key.categorizededits")!
     categorizedranges = api.uid_get_from_cstr("key.categorizedranges")!
+    category = api.uid_get_from_cstr("key.category")!
     column = api.uid_get_from_cstr("key.column")!
     compilerargs = api.uid_get_from_cstr("key.compilerargs")!
     context = api.uid_get_from_cstr("key.context")!
@@ -158,12 +165,14 @@ public struct sourcekitd_keys {
     includeNonEditableBaseNames = api.uid_get_from_cstr("key.include_non_editable_base_names")!
     is_system = api.uid_get_from_cstr("key.is_system")!
     isDynamic = api.uid_get_from_cstr("key.is_dynamic")!
+    isZeroArgSelector = api.uid_get_from_cstr("key.is_zero_arg_selector")!
     kind = api.uid_get_from_cstr("key.kind")!
     length = api.uid_get_from_cstr("key.length")!
     line = api.uid_get_from_cstr("key.line")!
     locations = api.uid_get_from_cstr("key.locations")!
     modulename = api.uid_get_from_cstr("key.modulename")!
     name = api.uid_get_from_cstr("key.name")!
+    namekind = api.uid_get_from_cstr("key.namekind")!
     namelength = api.uid_get_from_cstr("key.namelength")!
     nameoffset = api.uid_get_from_cstr("key.nameoffset")!
     nameType = api.uid_get_from_cstr("key.nametype")!
@@ -188,6 +197,7 @@ public struct sourcekitd_keys {
     results = api.uid_get_from_cstr("key.results")!
     retrieve_refactor_actions = api.uid_get_from_cstr("key.retrieve_refactor_actions")!
     secondarySymbols = api.uid_get_from_cstr("key.secondary_symbols")!
+    selectorPieces = api.uid_get_from_cstr("key.selectorpieces")!
     semantic_tokens = api.uid_get_from_cstr("key.semantic_tokens")!
     severity = api.uid_get_from_cstr("key.severity")!
     sourceEditKindActive = api.uid_get_from_cstr("source.edit.kind.active")!
@@ -231,44 +241,46 @@ public struct sourcekitd_keys {
 }
 
 public struct sourcekitd_requests {
-  public let crash_exit: sourcekitd_uid_t
-  public let editor_open: sourcekitd_uid_t
-  public let editor_open_interface: sourcekitd_uid_t
-  public let editor_close: sourcekitd_uid_t
-  public let editor_replacetext: sourcekitd_uid_t
-  public let codecomplete: sourcekitd_uid_t
+  public let codecomplete_close: sourcekitd_uid_t
   public let codecomplete_open: sourcekitd_uid_t
   public let codecomplete_update: sourcekitd_uid_t
-  public let codecomplete_close: sourcekitd_uid_t
+  public let codecomplete: sourcekitd_uid_t
+  public let crash_exit: sourcekitd_uid_t
   public let cursorinfo: sourcekitd_uid_t
   public let diagnostics: sourcekitd_uid_t
-  public let semantic_tokens: sourcekitd_uid_t
+  public let editor_close: sourcekitd_uid_t
+  public let editor_open_interface: sourcekitd_uid_t
+  public let editor_open: sourcekitd_uid_t
+  public let editor_replacetext: sourcekitd_uid_t
   public let expression_type: sourcekitd_uid_t
+  public let find_syntactic_rename_ranges: sourcekitd_uid_t
   public let find_usr: sourcekitd_uid_t
-  public let variable_type: sourcekitd_uid_t
+  public let nameTranslation: sourcekitd_uid_t
   public let relatedidents: sourcekitd_uid_t
   public let semantic_refactoring: sourcekitd_uid_t
-  public let find_syntactic_rename_ranges: sourcekitd_uid_t
+  public let semantic_tokens: sourcekitd_uid_t
+  public let variable_type: sourcekitd_uid_t
 
   public init(api: sourcekitd_functions_t) {
-    crash_exit = api.uid_get_from_cstr("source.request.crash_exit")!
-    editor_open = api.uid_get_from_cstr("source.request.editor.open")!
-    editor_open_interface = api.uid_get_from_cstr("source.request.editor.open.interface")!
-    editor_close = api.uid_get_from_cstr("source.request.editor.close")!
-    editor_replacetext = api.uid_get_from_cstr("source.request.editor.replacetext")!
     codecomplete = api.uid_get_from_cstr("source.request.codecomplete")!
+    codecomplete_close = api.uid_get_from_cstr("source.request.codecomplete.close")!
     codecomplete_open = api.uid_get_from_cstr("source.request.codecomplete.open")!
     codecomplete_update = api.uid_get_from_cstr("source.request.codecomplete.update")!
-    codecomplete_close = api.uid_get_from_cstr("source.request.codecomplete.close")!
+    crash_exit = api.uid_get_from_cstr("source.request.crash_exit")!
     cursorinfo = api.uid_get_from_cstr("source.request.cursorinfo")!
     diagnostics = api.uid_get_from_cstr("source.request.diagnostics")!
-    semantic_tokens = api.uid_get_from_cstr("source.request.semantic_tokens")!
+    editor_close = api.uid_get_from_cstr("source.request.editor.close")!
+    editor_open = api.uid_get_from_cstr("source.request.editor.open")!
+    editor_open_interface = api.uid_get_from_cstr("source.request.editor.open.interface")!
+    editor_replacetext = api.uid_get_from_cstr("source.request.editor.replacetext")!
     expression_type = api.uid_get_from_cstr("source.request.expression.type")!
+    find_syntactic_rename_ranges = api.uid_get_from_cstr("source.request.find-syntactic-rename-ranges")!
     find_usr = api.uid_get_from_cstr("source.request.editor.find_usr")!
-    variable_type = api.uid_get_from_cstr("source.request.variable.type")!
+    nameTranslation = api.uid_get_from_cstr("source.request.name.translation")!
     relatedidents = api.uid_get_from_cstr("source.request.relatedidents")!
     semantic_refactoring = api.uid_get_from_cstr("source.request.semantic.refactoring")!
-    find_syntactic_rename_ranges = api.uid_get_from_cstr("source.request.find-syntactic-rename-ranges")!
+    semantic_tokens = api.uid_get_from_cstr("source.request.semantic_tokens")!
+    variable_type = api.uid_get_from_cstr("source.request.variable.type")!
   }
 }
 
@@ -375,6 +387,8 @@ public struct sourcekitd_values {
   public let syntaxtype_identifier: sourcekitd_uid_t
   public let expr_object_literal: sourcekitd_uid_t
   public let expr_call: sourcekitd_uid_t
+  public let namekindSwift: sourcekitd_uid_t
+  public let namekindObjC: sourcekitd_uid_t
 
   public let kind_keyword: sourcekitd_uid_t
 
@@ -487,6 +501,8 @@ public struct sourcekitd_values {
     syntaxtype_identifier = api.uid_get_from_cstr("source.lang.swift.syntaxtype.identifier")!
     expr_object_literal = api.uid_get_from_cstr("source.lang.swift.expr.object_literal")!
     expr_call = api.uid_get_from_cstr("source.lang.swift.expr.call")!
+    namekindSwift = api.uid_get_from_cstr("source.lang.name.kind.swift")!
+    namekindObjC = api.uid_get_from_cstr("source.lang.name.kind.objc")!
 
     kind_keyword = api.uid_get_from_cstr("source.lang.swift.keyword")!
   }
