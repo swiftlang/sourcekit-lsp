@@ -1,0 +1,23 @@
+add_library(Diagnose STATIC
+  CommandLineArgumentsReducer.swift
+  DiagnoseCommand.swift
+  FileReducer.swift
+  FixItApplier.swift
+  OSLogScraper.swift
+  ReductionError.swift
+  ReproducerBundle.swift
+  RequestInfo.swift
+  SourceKitDRequestExecutor.swift
+  SourcekitdRequestCommand.swift)
+
+set_target_properties(Diagnose PROPERTIES
+  INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
+
+target_link_libraries(Diagnose PUBLIC
+  SKCore
+  SourceKitD
+  ArgumentParser
+  SwiftSyntax::SwiftSyntax
+  SwiftSyntax::SwiftParser
+  TSCBasic
+)
