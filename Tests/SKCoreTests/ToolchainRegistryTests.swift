@@ -556,6 +556,25 @@ final class ToolchainRegistryTests: XCTestCase {
     // Env variable wins.
     await assertEqual(tr.default?.path, try AbsolutePath(validating: "/t2/bin"))
   }
+
+  func testSupersetToolchains() async throws {
+    let onlySwiftcToolchain = Toolchain(
+      identifier: "onlySwiftc",
+      displayName: "onlySwiftc",
+      path: try AbsolutePath(validating: "/usr/local"),
+      swiftc: try AbsolutePath(validating: "/usr/local/bin/swiftc")
+    )
+    let swiftcAndSourcekitdToolchain = Toolchain(
+      identifier: "swiftcAndSourcekitd",
+      displayName: "swiftcAndSourcekitd",
+      path: try AbsolutePath(validating: "/usr"),
+      swiftc: try AbsolutePath(validating: "/usr/bin/swiftc"),
+      sourcekitd: try AbsolutePath(validating: "/usr/lib/sourcekitd.framework/sourcekitd")
+    )
+
+    let tr = ToolchainRegistry(toolchains: [onlySwiftcToolchain, swiftcAndSourcekitdToolchain])
+    await assertEqual(tr.default?.identifier, "swiftcAndSourcekitd")
+  }
 }
 
 private func makeXCToolchain(

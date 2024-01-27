@@ -221,8 +221,13 @@ public final actor ToolchainRegistry {
       if let tc = toolchainsByIdentifier[darwinToolchainIdentifier]?.first {
         return tc
       }
-      // If neither of that worked, pick the first toolchain.
-      return toolchains.first
+      var result: Toolchain? = nil
+      for toolchain in toolchains {
+        if result == nil || toolchain.isProperSuperset(of: result!) {
+          result = toolchain
+        }
+      }
+      return result
     }
   }
 
