@@ -43,6 +43,19 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   )
   var sourcekitdOverride: String?
 
+  #if canImport(Darwin)
+  // Creating an NSPredicate from a string is not supported in corelibs-foundation.
+  @Option(
+    help: """
+      If the sourcekitd response matches this predicate, consider it as reproducing the issue.
+      sourcekitd crashes are always considered as reproducers.
+
+      The predicate is an NSPredicate and `self` is the sourcekitd response.
+      """
+  )
+  var predicate: String?
+  #endif
+
   var sourcekitd: String? {
     get async throws {
       if let sourcekitdOverride {
@@ -79,7 +92,16 @@ public struct DiagnoseCommand: AsyncParsableCommand {
       print("-- Diagnosing \(name)")
       do {
         var requestInfo = requestInfo
-        let executor = SourceKitRequestExecutor(sourcekitd: URL(fileURLWithPath: sourcekitd))
+        var nspredicate: NSPredicate? = nil
+        #if canImport(Darwin)
+        if let predicate {
+          nspredicate = NSPredicate(format: predicate)
+        }
+        #endif
+        let executor = SourceKitRequestExecutor(
+          sourcekitd: URL(fileURLWithPath: sourcekitd),
+          reproducerPredicate: nspredicate
+        )
         let fileReducer = FileReducer(sourcekitdExecutor: executor)
         requestInfo = try await fileReducer.run(initialRequestInfo: requestInfo)
 

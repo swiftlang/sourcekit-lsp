@@ -61,18 +61,12 @@ public struct SourceKitdRequestCommand: AsyncParsableCommand {
     }
 
     switch response.error {
-    case .requestFailed:
+    case .requestFailed, .requestInvalid, .requestCancelled, .missingRequiredSymbol:
       throw ExitCode(1)
-    case .requestInvalid:
-      throw ExitCode(2)
-    case .requestCancelled:
-      throw ExitCode(3)
     case .connectionInterrupted:
-      throw ExitCode(4)
-    case .missingRequiredSymbol:
-      throw ExitCode(5)
+      throw ExitCode(255)
     case nil:
-      return
+      print(response.description)
     }
   }
 }

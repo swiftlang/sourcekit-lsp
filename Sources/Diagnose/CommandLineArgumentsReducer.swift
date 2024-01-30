@@ -90,7 +90,7 @@ class CommandLineArgumentReducer {
     reducedRequestInfo.compilerArgs.removeSubrange(argumentsToRemove)
 
     let result = try await sourcekitdExecutor.run(request: reducedRequestInfo.request(for: temporarySourceFile))
-    if result == .crashed {
+    if case .reproducesIssue = result {
       logSuccessfulReduction(reducedRequestInfo)
       return reducedRequestInfo
     } else {

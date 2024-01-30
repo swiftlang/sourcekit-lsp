@@ -34,35 +34,24 @@ class FileReducer {
     var requestInfo = initialRequestInfo
     try await validateRequestInfoCrashes(requestInfo: requestInfo)
 
-    requestInfo = try await runReductionStep(requestInfo: requestInfo, reduce: removeComments) ?? requestInfo
-
-    requestInfo = try await runStatefulReductionStep(
-      requestInfo: requestInfo,
-      reducer: ReplaceFunctionBodiesByFatalError()
-    )
-
-    // Run removal of members and code block items in a loop. Sometimes the removal of a code block item further down in the
-    // file can remove the last reference to a member which can then be removed as well.
-    while true {
-      let reducedRequestInfo = try await runStatefulReductionStep(
-        requestInfo: requestInfo,
-        reducer: RemoveMembersAndCodeBlockItems()
-      )
-      if reducedRequestInfo.fileContents == requestInfo.fileContents {
-        // No changes were made during reduction. We are done.
-        break
-      }
-      requestInfo = reducedRequestInfo
+    requestInfo = try await fatalErrorFunctionBodies(requestInfo)
+    requestInfo = try await removeMembersAndCodeBlockItemsBodies(requestInfo)
+    while let importInlined = try await inlineFirstImport(requestInfo) {
+      requestInfo = importInlined
+      requestInfo = try await fatalErrorFunctionBodies(requestInfo)
+      // Generated interfaces are huge. Try removing multiple consecutive declarations at once
+      // before going into fine-grained mode
+      requestInfo = try await removeMembersAndCodeBlockItemsBodies(requestInfo, simultaneousRemove: 100)
+      requestInfo = try await removeMembersAndCodeBlockItemsBodies(requestInfo, simultaneousRemove: 10)
+      requestInfo = try await removeMembersAndCodeBlockItemsBodies(requestInfo)
     }
+
+    requestInfo = try await removeComments(requestInfo)
 
     return requestInfo
   }
 
-  func logSuccessfulReduction(_ requestInfo: RequestInfo) {
-    print("Reduced source file to \(requestInfo.fileContents.utf8.count) bytes")
-  }
-
-  // MARK: - Running reduction steps
+  // MARK: - Reduction steps
 
   private func validateRequestInfoCrashes(requestInfo: RequestInfo) async throws {
     let initialReproducer = try await runReductionStep(requestInfo: requestInfo) { tree in [] }
@@ -71,16 +60,74 @@ class FileReducer {
     }
   }
 
+  /// Replace function bodies by `fatalError()`
+  private func fatalErrorFunctionBodies(_ requestInfo: RequestInfo) async throws -> RequestInfo {
+    try await runStatefulReductionStep(
+      requestInfo: requestInfo,
+      reducer: ReplaceFunctionBodiesByFatalError()
+    )
+  }
+
+  /// Remove members and code block items.
+  ///
+  /// When `simultaneousRemove` is set, this automatically removes `simultaneousRemove` number of adjacent items.
+  /// This can significantly speed up the reduction of large files with many top-level items.
+  private func removeMembersAndCodeBlockItemsBodies(
+    _ requestInfo: RequestInfo,
+    simultaneousRemove: Int = 1
+  ) async throws -> RequestInfo {
+    var requestInfo = requestInfo
+    // Run removal of members and code block items in a loop. Sometimes the removal of a code block item further down in the
+    // file can remove the last reference to a member which can then be removed as well.
+    while true {
+      let reducedRequestInfo = try await runStatefulReductionStep(
+        requestInfo: requestInfo,
+        reducer: RemoveMembersAndCodeBlockItems(simultaneousRemove: simultaneousRemove)
+      )
+      if reducedRequestInfo.fileContents == requestInfo.fileContents {
+        // No changes were made during reduction. We are done.
+        break
+      }
+      requestInfo = reducedRequestInfo
+    }
+    return requestInfo
+  }
+
+  /// Remove comments from the source file.
+  private func removeComments(_ requestInfo: RequestInfo) async throws -> RequestInfo {
+    try await runReductionStep(requestInfo: requestInfo, reduce: removeComments(from:)) ?? requestInfo
+  }
+
+  /// Replace the first `import` declaration in the source file by the contents of the Swift interface.
+  private func inlineFirstImport(_ requestInfo: RequestInfo) async throws -> RequestInfo? {
+    try await runReductionStep(requestInfo: requestInfo) { tree in
+      let edits = await Diagnose.inlineFirstImport(
+        in: tree,
+        executor: sourcekitdExecutor,
+        compilerArgs: requestInfo.compilerArgs
+      )
+      return edits
+    }
+  }
+
+  // MARK: - Primitives to run reduction steps
+
+  func logSuccessfulReduction(_ requestInfo: RequestInfo) {
+    print("Reduced source file to \(requestInfo.fileContents.utf8.count) bytes")
+  }
+
   /// Run a single reduction step.
   ///
   /// If the request still crashes after applying the edits computed by `reduce`, return the reduced request info.
   /// Otherwise, return `nil`
   private func runReductionStep(
     requestInfo: RequestInfo,
-    reduce: (_ tree: SourceFileSyntax) throws -> [SourceEdit]
+    reduce: (_ tree: SourceFileSyntax) async throws -> [SourceEdit]?
   ) async throws -> RequestInfo? {
     let tree = Parser.parse(source: requestInfo.fileContents)
-    let edits = try reduce(tree)
+    guard let edits = try await reduce(tree) else {
+      return nil
+    }
     let reducedSource = FixItApplier.apply(edits: edits, to: tree)
 
     var adjustedOffset = requestInfo.offset
@@ -100,7 +147,7 @@ class FileReducer {
 
     try reducedSource.write(to: temporarySourceFile, atomically: false, encoding: .utf8)
     let result = try await sourcekitdExecutor.run(request: reducedRequestInfo.request(for: temporarySourceFile))
-    if result == .crashed {
+    if case .reproducesIssue = result {
       logSuccessfulReduction(reducedRequestInfo)
       return reducedRequestInfo
     } else {
@@ -148,6 +195,8 @@ class FileReducer {
 protocol StatefulReducer {
   func reduce(tree: SourceFileSyntax) -> [SourceEdit]
 }
+
+// MARK: Replace function bodies
 
 /// Tries replacing one function body by `fatalError()` at a time.
 class ReplaceFunctionBodiesByFatalError: StatefulReducer {
@@ -205,6 +254,8 @@ class ReplaceFunctionBodiesByFatalError: StatefulReducer {
   }
 }
 
+// MARK: Remove members and code block items
+
 /// Tries removing `MemberBlockItemSyntax` and `CodeBlockItemSyntax` one at a time.
 class RemoveMembersAndCodeBlockItems: StatefulReducer {
   /// The code block items / members that shouldn't be removed.
@@ -212,8 +263,14 @@ class RemoveMembersAndCodeBlockItems: StatefulReducer {
   /// See `ReplaceFunctionBodiesByFatalError.keepFunctionBodies`.
   var keepItems: [String] = []
 
+  let simultaneousRemove: Int
+
+  init(simultaneousRemove: Int) {
+    self.simultaneousRemove = simultaneousRemove
+  }
+
   func reduce(tree: SourceFileSyntax) -> [SourceEdit] {
-    let visitor = Visitor(keepMembers: keepItems)
+    let visitor = Visitor(keepMembers: keepItems, maxEdits: simultaneousRemove)
     visitor.walk(tree)
     keepItems = visitor.keepItems
     return visitor.edits
@@ -222,21 +279,23 @@ class RemoveMembersAndCodeBlockItems: StatefulReducer {
   private class Visitor: SyntaxAnyVisitor {
     var keepItems: [String]
     var edits: [SourceEdit] = []
+    let maxEdits: Int
 
-    init(keepMembers: [String]) {
+    init(keepMembers: [String], maxEdits: Int) {
       self.keepItems = keepMembers
+      self.maxEdits = maxEdits
       super.init(viewMode: .sourceAccurate)
     }
 
     override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
-      if !edits.isEmpty {
+      if edits.count >= maxEdits {
         return .skipChildren
       }
       return .visitChildren
     }
 
     override func visit(_ node: MemberBlockItemSyntax) -> SyntaxVisitorContinueKind {
-      if !edits.isEmpty {
+      if edits.count >= maxEdits {
         return .skipChildren
       }
       if keepItems.contains(node.description.trimmingCharacters(in: .whitespacesAndNewlines)) {
@@ -249,7 +308,7 @@ class RemoveMembersAndCodeBlockItems: StatefulReducer {
     }
 
     override func visit(_ node: CodeBlockItemSyntax) -> SyntaxVisitorContinueKind {
-      if !edits.isEmpty {
+      if edits.count >= maxEdits {
         return .skipChildren
       }
       if keepItems.contains(node.description.trimmingCharacters(in: .whitespacesAndNewlines)) {
@@ -303,4 +362,107 @@ fileprivate extension TriviaPiece {
       return false
     }
   }
+}
+
+// MARK: Inline first include
+
+class FirstImportFinder: SyntaxAnyVisitor {
+  var firstImport: ImportDeclSyntax?
+
+  override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
+    if firstImport == nil {
+      return .visitChildren
+    } else {
+      return .skipChildren
+    }
+  }
+
+  override func visit(_ node: ImportDeclSyntax) -> SyntaxVisitorContinueKind {
+    if firstImport == nil {
+      firstImport = node
+    }
+    return .skipChildren
+  }
+
+  static func findFirstImport(in tree: some SyntaxProtocol) -> ImportDeclSyntax? {
+    let visitor = FirstImportFinder(viewMode: .sourceAccurate)
+    visitor.walk(tree)
+    return visitor.firstImport
+  }
+}
+
+private func getSwiftInterface(_ moduleName: String, executor: SourceKitRequestExecutor, compilerArgs: [String])
+  async throws -> String
+{
+  // FIXME: Use the sourcekitd specified on the command line once rdar://121676425 is fixed
+  let sourcekitdPath =
+    "/Applications/Geode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/sourcekitdInProc.framework/sourcekitdInProc"
+  let executor = SourceKitRequestExecutor(
+    sourcekitd: URL(fileURLWithPath: sourcekitdPath),
+    reproducerPredicate: nil
+  )
+
+  // We use `RequestInfo` and its template to add the compiler arguments to the request.
+  let requestTemplate = """
+    {
+      key.request: source.request.editor.open.interface,
+      key.name: "fake",
+      key.compilerargs: [
+        $COMPILERARGS
+      ],
+      key.modulename: "\(moduleName)"
+    }
+    """
+  let requestInfo = RequestInfo(
+    requestTemplate: requestTemplate,
+    offset: 0,
+    compilerArgs: compilerArgs,
+    fileContents: ""
+  )
+  let request = try requestInfo.request(for: URL(fileURLWithPath: "/"))
+
+  guard case .success(let result) = try await executor.run(request: request) else {
+    throw ReductionError("Failed to get Swift Interface for \(moduleName)")
+  }
+
+  // Extract the line containing the source text and parse that using JSON decoder.
+  // We can't parse the entire response using `JSONEncoder` because the sourcekitd response isn't actually valid JSON
+  // (it doesn't quote keys, for example). So, extract the string, which is actually correctly JSON encoded.
+  let quotedSourceText = result.components(separatedBy: "\n").compactMap { (line) -> Substring? in
+    let prefix = "  key.sourcetext: "
+    guard line.hasPrefix(prefix) else {
+      return nil
+    }
+    var line: Substring = line[...]
+    line = line.dropFirst(prefix.count)
+    if line.hasSuffix(",") {
+      line = line.dropLast()
+    }
+    return line
+  }.only
+  guard let quotedSourceText else {
+    throw ReductionError("Failed to decode Swift interface response for \(moduleName)")
+  }
+  // Filter control characters. JSONDecoder really doensn't like them and they are likely not important if they occur eg. in a comment.
+  let sanitizedData = Data(quotedSourceText.utf8.filter { $0 >= 32 })
+  return try JSONDecoder().decode(String.self, from: sanitizedData)
+}
+
+func inlineFirstImport(
+  in tree: SourceFileSyntax,
+  executor: SourceKitRequestExecutor,
+  compilerArgs: [String]
+) async -> [SourceEdit]? {
+  guard let firstImport = FirstImportFinder.findFirstImport(in: tree) else {
+    return nil
+  }
+  guard let moduleName = firstImport.path.only?.name else {
+    return nil
+  }
+  guard let interface = try? await getSwiftInterface(moduleName.text, executor: executor, compilerArgs: compilerArgs)
+  else {
+    return nil
+  }
+  let edit = SourceEdit(range: firstImport.position..<firstImport.endPosition, replacement: interface)
+  return [edit]
 }
