@@ -54,7 +54,8 @@ struct RelatedIdentifiersResponse {
   /// The compound decl name at the requested location. This can be used as `name` parameter to a
   /// `find-syntactic-rename-ranges` request.
   ///
-  /// `nil` if `sourcekitd` is too old and doesn't return the `name` as part of the related identifiers request.
+  /// `nil` if `sourcekitd` is too old and doesn't return the `name` as part of the related identifiers request or
+  /// `relatedIdentifiers` is empty (eg. when performing a related identifiers request on `self`).
   let name: String?
 }
 

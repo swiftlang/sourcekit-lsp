@@ -291,6 +291,16 @@ private extension RenameLocation.Usage {
   }
 }
 
+private extension IndexSymbolKind {
+  var isMethod: Bool {
+    switch self {
+    case .instanceMethod, .classMethod, .staticMethod:
+      return true
+    default: return false
+    }
+  }
+}
+
 // MARK: - Name translation
 
 extension SwiftLanguageServer {
@@ -321,7 +331,8 @@ extension SwiftLanguageServer {
 
   /// Translate a Swift name to the corresponding C/C++/ObjectiveC name.
   ///
-  /// This invokes the clang importer to perform the name translation.
+  /// This invokes the clang importer to perform the name translation, based on the `position` and `uri` at which the
+  /// Swift symbol is defined.
   ///
   /// - Parameters:
   ///   - position: The position at which the Swift name is defined
@@ -520,7 +531,12 @@ public actor TranslatableName {
   /// - Note: The symbol translation from clang to Swift requires a Swift location at which the clang symbol is
   ///   (probably so that sourcekitd can access the necessary AST context and get the clang importer to translate the
   ///   name). But the output does not actually matter on the specific position and URI. We can thus cache the result.
-  ///   Ideally, sourcekitd wouldn't need a position and URI to translate a clang name to Swift.
+  ///   Ideally, sourcekitd wouldn't need a position and URI to translate a clang name to Swift
+
+  /// - Note: The symbol translation from Clang to Swift requires a location in Swift in which the symbol is referenced.
+  ///   This is used both to retrieve the clang importer and to grab the underlying clang decl.
+  ///   The exact reference used doesn't matter though, so we can cache the result across calls, regardless of the
+  ///   position passed (assuming it is the same underlying symbol).
   func swiftName(
     at position: Position,
     in snapshot: DocumentSnapshot,
@@ -568,9 +584,7 @@ extension SourceKitServer {
       }
     let definitionDocumentUri = DocumentURI(URL(fileURLWithPath: definitionSymbol.location.path))
 
-    let isObjectiveCSelector =
-      definitionLanguage == .objective_c
-      && (definitionSymbol.symbol.kind == .instanceMethod || definitionSymbol.symbol.kind == .classMethod)
+    let isObjectiveCSelector = definitionLanguage == .objective_c && definitionSymbol.symbol.kind.isMethod
 
     guard
       let nativeLanguageService = await self.languageService(
@@ -931,7 +945,7 @@ extension SwiftLanguageServer {
     newName newTranslatableName: TranslatableName
   ) async throws -> [TextEdit] {
     // Pick any location for the name translation.
-    // They should all refer to the same declaration, so sourcekitd doens't care which one we pick.
+    // They should all refer to the same declaration, so sourcekitd doesn't care which one we pick.
     guard let renameLocationForNameTranslation = renameLocations.first else {
       return []
     }
