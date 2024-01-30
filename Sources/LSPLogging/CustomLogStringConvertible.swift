@@ -41,6 +41,11 @@ public class CustomLogStringConvertibleWrapper: NSObject {
     return underlyingObject.description
   }
 
+  #if canImport(os)
+  // When using OSLog mark redactedDescription as @objc so that OSLog can find it via the Objective-C runtime.
+  // We can't unconditionally mark it as @objc because eg. Linux doesn't have the Objective-C runtime.
+  @objc
+  #endif
   public var redactedDescription: String {
     underlyingObject.redactedDescription
   }
