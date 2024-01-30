@@ -109,13 +109,7 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace) -> List[str]:
 
     build_target = get_build_target(swift_exec, args, cross_compile=(True if args.cross_compile_config else False))
     build_os = build_target.split('-')[2]
-    if build_os.startswith('macosx'):
-        swiftpm_args += [
-            '-Xlinker', '-rpath', '-Xlinker', '/usr/lib/swift',
-            '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../lib/swift/macosx',
-            '-Xlinker', '-rpath', '-Xlinker', '@executable_path/../lib/swift-5.5/macosx',
-        ]
-    else:
+    if not build_os.startswith('macosx'):
         swiftpm_args += [
             # Dispatch headers
             '-Xcxx', '-I', '-Xcxx',
