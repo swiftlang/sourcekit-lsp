@@ -158,8 +158,8 @@ public protocol ToolchainLanguageServer: AnyObject {
   func editsToRename(
     locations renameLocations: [RenameLocation],
     in snapshot: DocumentSnapshot,
-    oldName: TranslatableName,
-    newName: TranslatableName
+    oldName: CrossLanguageName,
+    newName: CrossLanguageName
   ) async throws -> [TextEdit]
 
   /// Return compound decl name that will be used as a placeholder for a rename request at a specific position.
