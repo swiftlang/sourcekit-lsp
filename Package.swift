@@ -5,7 +5,7 @@ import PackageDescription
 
 let package = Package(
   name: "SourceKitLSP",
-  platforms: [.macOS("12.0")],
+  platforms: [.macOS(.v13)],
   products: [
     .executable(name: "sourcekit-lsp", targets: ["sourcekit-lsp"]),
     .library(name: "_SourceKitLSP", targets: ["SourceKitLSP"]),
@@ -24,6 +24,7 @@ let package = Package(
     .executableTarget(
       name: "sourcekit-lsp",
       dependencies: [
+        "Diagnose",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "SKCore",
@@ -58,6 +59,19 @@ let package = Package(
     .target(
       name: "Csourcekitd",
       dependencies: [],
+      exclude: ["CMakeLists.txt"]
+    ),
+
+    .target(
+      name: "Diagnose",
+      dependencies: [
+        "SourceKitD",
+        "SKCore",
+        .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        .product(name: "SwiftSyntax", package: "swift-syntax"),
+        .product(name: "SwiftParser", package: "swift-syntax"),
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+      ],
       exclude: ["CMakeLists.txt"]
     ),
 

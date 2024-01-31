@@ -1,5 +1,6 @@
 add_subdirectory(BuildServerProtocol)
 add_subdirectory(Csourcekitd)
+add_subdirectory(Diagnose)
 add_subdirectory(LanguageServerProtocol)
 add_subdirectory(LanguageServerProtocolJSONRPC)
 add_subdirectory(LSPLogging)

@@ -17,7 +17,7 @@ add_library(SKCore STATIC
   XCToolchainPlist.swift)
 set_target_properties(SKCore PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
-target_link_libraries(SKCore PRIVATE
+target_link_libraries(SKCore PUBLIC
   BuildServerProtocol
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC

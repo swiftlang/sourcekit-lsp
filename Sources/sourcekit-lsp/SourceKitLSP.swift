@@ -12,6 +12,7 @@
 
 import ArgumentParser
 import Csourcekitd  // Not needed here, but fixes debugging...
+import Diagnose
 import Dispatch
 import Foundation
 import LSPLogging
@@ -99,9 +100,13 @@ extension SKSupport.WorkspaceType: @retroactive ExpressibleByArgument {}
 #endif
 
 @main
-struct SourceKitLSP: ParsableCommand {
+struct SourceKitLSP: AsyncParsableCommand {
   static let configuration = CommandConfiguration(
-    abstract: "Language Server Protocol implementation for Swift and C-based languages"
+    abstract: "Language Server Protocol implementation for Swift and C-based languages",
+    subcommands: [
+      DiagnoseCommand.self,
+      SourceKitdRequestCommand.self,
+    ]
   )
 
   /// Whether to wait for a response before handling the next request.
@@ -219,7 +224,7 @@ struct SourceKitLSP: ParsableCommand {
     return serverOptions
   }
 
-  func run() throws {
+  func run() async throws {
     // Dup stdout and redirect the fd to stderr so that a careless print()
     // will not break our connection stream.
     let realStdout = dup(STDOUT_FILENO)
@@ -262,6 +267,8 @@ struct SourceKitLSP: ParsableCommand {
       }
     )
 
-    dispatchMain()
+    // Park the main function by sleeping for a year.
+    // All request handling is done on other threads.
+    try await Task.sleep(for: .seconds(60 * 60 * 24 * 365))
   }
 }

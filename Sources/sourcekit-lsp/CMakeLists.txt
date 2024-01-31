@@ -2,6 +2,7 @@
 add_executable(sourcekit-lsp
   SourceKitLSP.swift)
 target_link_libraries(sourcekit-lsp PRIVATE
+  Diagnose
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
   SKCore
