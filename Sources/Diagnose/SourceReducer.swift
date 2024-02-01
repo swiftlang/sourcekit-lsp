@@ -27,6 +27,32 @@ extension RequestInfo {
 
 // MARK: - SourceReducer
 
+/// The return value of a source reducer, indicating whether edits were made or if the reducer has finished reducing
+/// the source file.
+fileprivate enum ReducerResult {
+  /// The reduction step produced edits that should be applied to the source file.
+  case edits([SourceEdit])
+
+  ///  The reduction step was not able to produce any further modifications to the source file. Reduction is done.
+  case done
+
+  init(doneIfEmpty edits: [SourceEdit]) {
+    if edits.isEmpty {
+      self = .done
+    } else {
+      self = .edits(edits)
+    }
+  }
+}
+
+/// The return value of `runReductionStep`, indicating whether applying the edits from a reducer reduced the issue,
+/// failed to reproduce the issue or if no changes were applied by the reducer.
+fileprivate enum ReductionStepResult {
+  case reduced(RequestInfo)
+  case didNotReproduce
+  case noChange
+}
+
 /// Reduces an input source file while continuing to reproduce the crash
 fileprivate class SourceReducer {
   /// The executor that is used to run a sourcekitd request and check whether it
@@ -66,9 +92,14 @@ fileprivate class SourceReducer {
   // MARK: Reduction steps
 
   private func validateRequestInfoReproucesIssue(requestInfo: RequestInfo) async throws {
-    let initialReproducer = try await runReductionStep(requestInfo: requestInfo) { tree in [] }
-    if initialReproducer == nil {
+    let reductionResult = try await runReductionStep(requestInfo: requestInfo) { tree in .edits([]) }
+    switch reductionResult {
+    case .reduced:
+      break
+    case .didNotReproduce:
       throw ReductionError("Initial request info did not reproduce the issue")
+    case .noChange:
+      preconditionFailure("The reduction step always returns empty edits and not `done` so we shouldn't hit this")
     }
   }
 
@@ -107,18 +138,30 @@ fileprivate class SourceReducer {
 
   /// Remove comments from the source file.
   private func removeComments(_ requestInfo: RequestInfo) async throws -> RequestInfo {
-    try await runReductionStep(requestInfo: requestInfo, reduce: removeComments(from:)) ?? requestInfo
+    let reductionResult = try await runReductionStep(requestInfo: requestInfo, reduce: removeComments(from:))
+    switch reductionResult {
+    case .reduced(let reducedRequestInfo):
+      return reducedRequestInfo
+    case .didNotReproduce, .noChange:
+      return requestInfo
+    }
   }
 
   /// Replace the first `import` declaration in the source file by the contents of the Swift interface.
   private func inlineFirstImport(_ requestInfo: RequestInfo) async throws -> RequestInfo? {
-    try await runReductionStep(requestInfo: requestInfo) { tree in
+    let reductionResult = try await runReductionStep(requestInfo: requestInfo) { tree in
       let edits = await Diagnose.inlineFirstImport(
         in: tree,
         executor: sourcekitdExecutor,
         compilerArgs: requestInfo.compilerArgs
       )
       return edits
+    }
+    switch reductionResult {
+    case .reduced(let requestInfo):
+      return requestInfo
+    case .didNotReproduce, .noChange:
+      return nil
     }
   }
 
@@ -134,11 +177,13 @@ fileprivate class SourceReducer {
   /// Otherwise, return `nil`
   private func runReductionStep(
     requestInfo: RequestInfo,
-    reduce: (_ tree: SourceFileSyntax) async throws -> [SourceEdit]?
-  ) async throws -> RequestInfo? {
+    reduce: (_ tree: SourceFileSyntax) async throws -> ReducerResult
+  ) async throws -> ReductionStepResult {
     let tree = Parser.parse(source: requestInfo.fileContents)
-    guard let edits = try await reduce(tree) else {
-      return nil
+    let edits: [SourceEdit]
+    switch try await reduce(tree) {
+    case .edits(let edit): edits = edit
+    case .done: return .noChange
     }
     let reducedSource = FixItApplier.apply(edits: edits, to: tree)
 
@@ -161,10 +206,9 @@ fileprivate class SourceReducer {
     let result = try await sourcekitdExecutor.run(request: reducedRequestInfo.request(for: temporarySourceFile))
     if case .reproducesIssue = result {
       logSuccessfulReduction(reducedRequestInfo)
-      return reducedRequestInfo
+      return .reduced(reducedRequestInfo)
     } else {
-      // The reduced request did not crash. We did not find a reduced test case, so return `nil`.
-      return nil
+      return .didNotReproduce
     }
   }
 
@@ -183,18 +227,17 @@ fileprivate class SourceReducer {
 
     var reproducer = requestInfo
     while true {
-      do {
-        let reduced = try await runReductionStep(requestInfo: reproducer) { tree in
-          let edits = reducer.reduce(tree: tree)
-          if edits.isEmpty {
-            throw StatefulReducerFinishedReducing()
-          }
-          return edits
-        }
-        if let reduced {
-          reproducer = reduced
-        }
-      } catch is StatefulReducerFinishedReducing {
+      let reduced = try await runReductionStep(requestInfo: reproducer) { tree in
+        return reducer.reduce(tree: tree)
+      }
+      switch reduced {
+      case .reduced(let reduced):
+        reproducer = reduced
+      case .didNotReproduce:
+        // Continue the loop and run the reducer again.
+        break
+      case .noChange:
+        // The reducer finished reducing the source file. We are done
         return reproducer
       }
     }
@@ -205,7 +248,7 @@ fileprivate class SourceReducer {
 
 /// See `SourceReducer.runReductionStep`
 fileprivate protocol StatefulReducer {
-  func reduce(tree: SourceFileSyntax) -> [SourceEdit]
+  func reduce(tree: SourceFileSyntax) -> ReducerResult
 }
 
 // MARK: Replace function bodies
@@ -222,11 +265,11 @@ fileprivate class ReplaceFunctionBodiesByFatalError: StatefulReducer {
   /// There's no point replacing a `fatalError()` function by `fatalError()` again.
   var keepFunctionBodies: [String] = ["fatalError()"]
 
-  func reduce(tree: SourceFileSyntax) -> [SourceEdit] {
+  func reduce(tree: SourceFileSyntax) -> ReducerResult {
     let visitor = Visitor(keepFunctionBodies: keepFunctionBodies)
     visitor.walk(tree)
     keepFunctionBodies = visitor.keepFunctionBodies
-    return visitor.edits
+    return ReducerResult(doneIfEmpty: visitor.edits)
   }
 
   private class Visitor: SyntaxAnyVisitor {
@@ -280,11 +323,11 @@ fileprivate class RemoveMembersAndCodeBlockItems: StatefulReducer {
     self.simultaneousRemove = simultaneousRemove
   }
 
-  func reduce(tree: SourceFileSyntax) -> [SourceEdit] {
+  func reduce(tree: SourceFileSyntax) -> ReducerResult {
     let visitor = Visitor(keepMembers: keepItems, maxEdits: simultaneousRemove)
     visitor.walk(tree)
     keepItems = visitor.keepItems
-    return visitor.edits
+    return ReducerResult(doneIfEmpty: visitor.edits)
   }
 
   private class Visitor: SyntaxAnyVisitor {
@@ -334,7 +377,7 @@ fileprivate class RemoveMembersAndCodeBlockItems: StatefulReducer {
 }
 
 /// Removes all comments from the source file.
-fileprivate func removeComments(from tree: SourceFileSyntax) -> [SourceEdit] {
+fileprivate func removeComments(from tree: SourceFileSyntax) -> ReducerResult {
   class CommentRemover: SyntaxVisitor {
     var edits: [SourceEdit] = []
 
@@ -361,7 +404,7 @@ fileprivate func removeComments(from tree: SourceFileSyntax) -> [SourceEdit] {
 
   let remover = CommentRemover(viewMode: .sourceAccurate)
   remover.walk(tree)
-  return remover.edits
+  return .edits(remover.edits)
 }
 
 fileprivate extension TriviaPiece {
@@ -457,17 +500,17 @@ fileprivate func inlineFirstImport(
   in tree: SourceFileSyntax,
   executor: SourceKitRequestExecutor,
   compilerArgs: [String]
-) async -> [SourceEdit]? {
+) async -> ReducerResult {
   guard let firstImport = FirstImportFinder.findFirstImport(in: tree) else {
-    return nil
+    return .done
   }
   guard let moduleName = firstImport.path.only?.name else {
-    return nil
+    return .done
   }
   guard let interface = try? await getSwiftInterface(moduleName.text, executor: executor, compilerArgs: compilerArgs)
   else {
-    return nil
+    return .done
   }
   let edit = SourceEdit(range: firstImport.position..<firstImport.endPosition, replacement: interface)
-  return [edit]
+  return .edits([edit])
 }
