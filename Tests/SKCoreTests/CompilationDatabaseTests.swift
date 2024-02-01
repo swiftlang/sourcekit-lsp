@@ -57,7 +57,80 @@ final class CompilationDatabaseTests: XCTestCase {
     check("\"a\"bcd\"ef\"\"\"\"g\"", ["abcdefg"])
     check("a'\\b \"c\"'", ["a\\b \"c\""])
   }
+  
+  func testSplitShellEscapedCommandBasic() {
+    assertEscapedCommand("", [])
+    assertEscapedCommand("    ", [])
+    assertEscapedCommand("a", ["a"])
+    assertEscapedCommand("abc", ["abc"])
+    assertEscapedCommand("a😀c", ["a😀c"])
+    assertEscapedCommand("😀c", ["😀c"])
+    assertEscapedCommand("abc def", ["abc", "def"])
+    assertEscapedCommand("abc    def", ["abc", "def"])
+  }
 
+  func testSplitShellEscapedCommandDoubleQuotes() {
+    assertEscapedCommand("\"", [""])
+    assertEscapedCommand(#""a"#, ["a"])
+    assertEscapedCommand("\"\"", [""])
+    assertEscapedCommand(#""a""#, ["a"])
+    assertEscapedCommand(#""a\"""#, [#"a""#])
+    assertEscapedCommand(#""a b c ""#, ["a b c "])
+    assertEscapedCommand(#""a " "#, ["a "])
+    assertEscapedCommand(#""a " b"#, ["a ", "b"])
+    assertEscapedCommand(#""a "b"#, ["a b"])
+    assertEscapedCommand(#"a"x ""b"#, ["ax b"], windows: [#"ax "b"#])
+
+    assertEscapedCommand(#""a"bcd"ef""""g""#, ["abcdefg"], windows: [#"abcdef""g"#])
+  }
+
+  func testSplitShellEscapedCommandSingleQuotes() {
+    assertEscapedCommand("'", [""], windows: ["'"])
+    assertEscapedCommand("'a", ["a"], windows: ["'a"])
+    assertEscapedCommand("''", [""], windows: ["''"])
+    assertEscapedCommand("'a'", ["a"], windows: ["'a'"])
+    assertEscapedCommand(#"'a\"'"#, [#"a\""#], windows: [#"'a"'"#])
+    assertEscapedCommand(#"'a b c '"#, ["a b c "], windows: ["'a", "b", "c", "'"])
+    assertEscapedCommand(#"'a ' "#, ["a "], windows: ["'a", "'"])
+    assertEscapedCommand(#"'a ' b"#, ["a ", "b"], windows: ["'a", "'", "b"])
+    assertEscapedCommand(#"'a 'b"#, ["a b"], windows: ["'a", "'b"])
+    assertEscapedCommand(#"a'x ''b"#, ["ax b"], windows: ["a'x", "''b"])
+  }
+
+  func testSplitShellEscapedCommandBackslash() {
+    assertEscapedCommand(#"a\\"#, [#"a\"#], windows: [#"a\\"#])
+    assertEscapedCommand(#"a'\b "c"'"#, ["a\\b \"c\""], windows: [#"a'\b"#, #"c'"#])
+
+    assertEscapedCommand(#"\""#, ["\""])
+    assertEscapedCommand(#"\\""#, [#"\"#])
+    assertEscapedCommand(#"\\\""#, [#"\""#])
+    assertEscapedCommand(#"\\ "#, [#"\"#], windows: [#"\\"#])
+    assertEscapedCommand(#"\\\ "#, [#"\ "#], windows: [#"\\\"#])
+  }
+
+  func testSplitShellEscapedCommandWindowsCommand() {
+    assertEscapedCommand(#"C:\swift.exe"#, [#"C:swift.exe"#], windows: [#"C:\swift.exe"#], initialCommandName: true)
+    assertEscapedCommand(
+      #"C:\ swift.exe"#,
+      [#"C: swift.exe"#],
+      windows: [#"C:\"#, #"swift.exe"#],
+      initialCommandName: true
+    )
+    assertEscapedCommand(
+      #"C:\ swift.exe"#,
+      [#"C: swift.exe"#],
+      windows: [#"C:\"#, #"swift.exe"#],
+      initialCommandName: false
+    )
+    assertEscapedCommand(#"C:\"swift.exe""#, [#"C:"swift.exe"#], windows: [#"C:\swift.exe"#], initialCommandName: true)
+    assertEscapedCommand(#"C:\"swift.exe""#, [#"C:"swift.exe"#], windows: [#"C:"swift.exe"#], initialCommandName: false)
+  }
+
+  func testSplitShellEscapedCommandWindowsTwoDoubleQuotes() {
+    assertEscapedCommand(#"" test with "" quote""#, [" test with  quote"], windows: [#" test with " quote"#])
+    assertEscapedCommand(#"" test with "" quote""#, [" test with  quote"], windows: [#" test with " quote"#])
+  }
+  
   func testEncodeCompDBCommand() throws {
     // Requires JSONEncoder.OutputFormatting.sortedKeys
     func check(_ cmd: CompilationDatabase.Command, _ expected: String, file: StaticString = #filePath, line: UInt = #line) throws {
@@ -331,4 +404,34 @@ private func checkCompilationDatabaseBuildSystem(_ compdb: ByteString, file: Sta
   XCTAssertNoThrow(try fs.writeFileContents(AbsolutePath(validating: "/a/compile_commands.json"), bytes: compdb), file: file, line: line)
   let buildSystem = CompilationDatabaseBuildSystem(projectRoot: try AbsolutePath(validating: "/a"), fileSystem: fs)
   try block(buildSystem)
+}
+
+/// Assert that splitting `str` into its command line components results in `expected`.
+///
+/// By default assert that escaping using Unix and Windows rules results in the same split. If `windows` is specified,
+/// assert that escaping with Windows rules produces `windows` and escaping using Unix rules results in `expected`.
+///
+/// If set `initialCommandName` gets passed to the Windows split function.
+private func assertEscapedCommand(
+  _ str: String,
+  _ expected: [String],
+  windows: [String]? = nil,
+  initialCommandName: Bool = false,
+  file: StaticString = #filePath,
+  line: UInt = #line
+) {
+  XCTAssertEqual(
+    splitShellEscapedCommand(str),
+    expected,
+    "Splitting Unix command line arguments",
+    file: file,
+    line: line
+  )
+  XCTAssertEqual(
+    splitWindowsCommandLine(str, initialCommandName: initialCommandName),
+    windows ?? expected,
+    "Splitting Windows command line arguments",
+    file: file,
+    line: line
+  )
 }
