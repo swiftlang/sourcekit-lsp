@@ -15,8 +15,19 @@ import SourceKitD
 import SwiftParser
 import SwiftSyntax
 
+// MARK: - Entry point
+
+extension RequestInfo {
+  func reduceInputFile(using executor: SourceKitRequestExecutor) async throws -> RequestInfo {
+    let reducer = SourceReducer(sourcekitdExecutor: executor)
+    return try await reducer.run(initialRequestInfo: self)
+  }
+}
+
+// MARK: - SourceReducer
+
 /// Reduces an input source file while continuing to reproduce the crash
-class FileReducer {
+fileprivate class SourceReducer {
   /// The executor that is used to run a sourcekitd request and check whether it
   /// still crashes.
   private let sourcekitdExecutor: SourceKitRequestExecutor
@@ -32,7 +43,7 @@ class FileReducer {
   /// Reduce the file contents in `initialRequest` to a smaller file that still reproduces a crash.
   func run(initialRequestInfo: RequestInfo) async throws -> RequestInfo {
     var requestInfo = initialRequestInfo
-    try await validateRequestInfoCrashes(requestInfo: requestInfo)
+    try await validateRequestInfoReproucesIssue(requestInfo: requestInfo)
 
     requestInfo = try await fatalErrorFunctionBodies(requestInfo)
     requestInfo = try await removeMembersAndCodeBlockItemsBodies(requestInfo)
@@ -51,12 +62,12 @@ class FileReducer {
     return requestInfo
   }
 
-  // MARK: - Reduction steps
+  // MARK: Reduction steps
 
-  private func validateRequestInfoCrashes(requestInfo: RequestInfo) async throws {
+  private func validateRequestInfoReproucesIssue(requestInfo: RequestInfo) async throws {
     let initialReproducer = try await runReductionStep(requestInfo: requestInfo) { tree in [] }
     if initialReproducer == nil {
-      throw ReductionError("Initial request info did not crash")
+      throw ReductionError("Initial request info did not reproduce the issue")
     }
   }
 
@@ -110,7 +121,7 @@ class FileReducer {
     }
   }
 
-  // MARK: - Primitives to run reduction steps
+  // MARK: Primitives to run reduction steps
 
   func logSuccessfulReduction(_ requestInfo: RequestInfo) {
     print("Reduced source file to \(requestInfo.fileContents.utf8.count) bytes")
@@ -191,15 +202,15 @@ class FileReducer {
 
 // MARK: - Reduce functions
 
-/// See `FileReducer.runReductionStep`
-protocol StatefulReducer {
+/// See `SourceReducer.runReductionStep`
+fileprivate protocol StatefulReducer {
   func reduce(tree: SourceFileSyntax) -> [SourceEdit]
 }
 
 // MARK: Replace function bodies
 
 /// Tries replacing one function body by `fatalError()` at a time.
-class ReplaceFunctionBodiesByFatalError: StatefulReducer {
+fileprivate class ReplaceFunctionBodiesByFatalError: StatefulReducer {
   /// The function bodies that should not be replaced by `fatalError()`.
   ///
   /// When we tried replacing a function body by `fatalError`, it gets added to this list.
@@ -240,16 +251,15 @@ class ReplaceFunctionBodiesByFatalError: StatefulReducer {
       }
       if keepFunctionBodies.contains(node.statements.description.trimmingCharacters(in: .whitespacesAndNewlines)) {
         return .visitChildren
-      } else {
-        keepFunctionBodies.append(node.statements.description.trimmingCharacters(in: .whitespacesAndNewlines))
-        edits.append(
-          SourceEdit(
-            range: node.statements.position..<node.statements.endPosition,
-            replacement: "\(node.statements.leadingTrivia)fatalError()"
-          )
-        )
-        return .skipChildren
       }
+      keepFunctionBodies.append(node.statements.description.trimmingCharacters(in: .whitespacesAndNewlines))
+      edits.append(
+        SourceEdit(
+          range: node.statements.position..<node.statements.endPosition,
+          replacement: "\(node.statements.leadingTrivia)fatalError()"
+        )
+      )
+      return .skipChildren
     }
   }
 }
@@ -257,7 +267,7 @@ class ReplaceFunctionBodiesByFatalError: StatefulReducer {
 // MARK: Remove members and code block items
 
 /// Tries removing `MemberBlockItemSyntax` and `CodeBlockItemSyntax` one at a time.
-class RemoveMembersAndCodeBlockItems: StatefulReducer {
+fileprivate class RemoveMembersAndCodeBlockItems: StatefulReducer {
   /// The code block items / members that shouldn't be removed.
   ///
   /// See `ReplaceFunctionBodiesByFatalError.keepFunctionBodies`.
@@ -323,7 +333,7 @@ class RemoveMembersAndCodeBlockItems: StatefulReducer {
 }
 
 /// Removes all comments from the source file.
-func removeComments(from tree: SourceFileSyntax) -> [SourceEdit] {
+fileprivate func removeComments(from tree: SourceFileSyntax) -> [SourceEdit] {
   class CommentRemover: SyntaxVisitor {
     var edits: [SourceEdit] = []
 
@@ -366,7 +376,7 @@ fileprivate extension TriviaPiece {
 
 // MARK: Inline first include
 
-class FirstImportFinder: SyntaxAnyVisitor {
+fileprivate class FirstImportFinder: SyntaxAnyVisitor {
   var firstImport: ImportDeclSyntax?
 
   override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
@@ -391,24 +401,18 @@ class FirstImportFinder: SyntaxAnyVisitor {
   }
 }
 
-private func getSwiftInterface(_ moduleName: String, executor: SourceKitRequestExecutor, compilerArgs: [String])
-  async throws -> String
-{
-  // FIXME: Use the sourcekitd specified on the command line once rdar://121676425 is fixed
-  let sourcekitdPath =
-    "/Applications/Geode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/sourcekitdInProc.framework/sourcekitdInProc"
-  let executor = SourceKitRequestExecutor(
-    sourcekitd: URL(fileURLWithPath: sourcekitdPath),
-    reproducerPredicate: nil
-  )
-
+fileprivate func getSwiftInterface(
+  _ moduleName: String,
+  executor: SourceKitRequestExecutor,
+  compilerArgs: [String]
+) async throws -> String {
   // We use `RequestInfo` and its template to add the compiler arguments to the request.
   let requestTemplate = """
     {
       key.request: source.request.editor.open.interface,
       key.name: "fake",
       key.compilerargs: [
-        $COMPILERARGS
+        $COMPILER_ARGS
       ],
       key.modulename: "\(moduleName)"
     }
@@ -448,7 +452,7 @@ private func getSwiftInterface(_ moduleName: String, executor: SourceKitRequestE
   return try JSONDecoder().decode(String.self, from: sanitizedData)
 }
 
-func inlineFirstImport(
+fileprivate func inlineFirstImport(
   in tree: SourceFileSyntax,
   executor: SourceKitRequestExecutor,
   compilerArgs: [String]

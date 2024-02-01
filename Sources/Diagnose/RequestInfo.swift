@@ -18,14 +18,14 @@ struct RequestInfo {
   /// The JSON request object. Contains the following dynamic placeholders:
   ///  - `$OFFSET`: To be replaced by `offset` before running the request
   ///  - `$FILE`: Will be replaced with a path to the file that contains the reduced source code.
-  ///  - `$COMPILERARGS`: Will be replaced by the compiler arguments of the request
+  ///  - `$COMPILER_ARGS`: Will be replaced by the compiler arguments of the request
   var requestTemplate: String
 
   /// The offset at which the sourcekitd request should be run. Replaces the
   /// `$OFFSET` placeholder in the request template.
   var offset: Int
 
-  /// The compiler arguments of the request. Replaces the `$COMPILERARGS`placeholder in the request template.
+  /// The compiler arguments of the request. Replaces the `$COMPILER_ARGS`placeholder in the request template.
   var compilerArgs: [String]
 
   /// The contents of the file that the sourcekitd request operates on.
@@ -42,7 +42,7 @@ struct RequestInfo {
     return
       requestTemplate
       .replacingOccurrences(of: "$OFFSET", with: String(offset))
-      .replacingOccurrences(of: "$COMPILERARGS", with: compilerArgs)
+      .replacingOccurrences(of: "$COMPILER_ARGS", with: compilerArgs)
       .replacingOccurrences(of: "$FILE", with: file.path)
 
   }
@@ -106,7 +106,7 @@ private func extractCompilerArguments(
   else {
     return (requestTemplate, [])
   }
-  let template = lines[...compilerArgsStartIndex] + ["$COMPILERARGS"] + lines[compilerArgsEndIndex...]
+  let template = lines[...compilerArgsStartIndex] + ["$COMPILER_ARGS"] + lines[compilerArgsEndIndex...]
   let compilerArgsJson = "[" + lines[(compilerArgsStartIndex + 1)..<compilerArgsEndIndex].joined(separator: "\n") + "]"
   let compilerArgs = try JSONDecoder().decode([String].self, from: compilerArgsJson)
   return (template.joined(separator: "\n"), compilerArgs)

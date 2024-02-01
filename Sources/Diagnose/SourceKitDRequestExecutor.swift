@@ -16,7 +16,7 @@ import SourceKitD
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 
-/// The different states in which a sourcektid request can finish.
+/// The different states in which a sourcekitd request can finish.
 enum SourceKitDRequestResult {
   /// The request succeeded.
   case success(response: String)
