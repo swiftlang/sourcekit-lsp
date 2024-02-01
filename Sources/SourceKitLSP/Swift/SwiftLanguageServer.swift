@@ -790,14 +790,14 @@ extension SwiftLanguageServer {
   }
 
   public func documentDiagnostic(_ req: DocumentDiagnosticsRequest) async throws -> DocumentDiagnosticReport {
-    let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
-    let buildSettings = await self.buildSettings(for: req.textDocument.uri)
-    let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
-      for: snapshot,
-      buildSettings: buildSettings
-    )
     do {
-      return try await .full(diagnosticReport)
+      let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
+      let buildSettings = await self.buildSettings(for: req.textDocument.uri)
+      let diagnosticReport = try await self.diagnosticReportManager.diagnosticReport(
+        for: snapshot,
+        buildSettings: buildSettings
+      )
+      return .full(diagnosticReport)
     } catch {
       // VS Code does not request diagnostics again for a document if the diagnostics request failed.
       // Since sourcekit-lsp usually recovers from failures (e.g. after sourcekitd crashes), this is undesirable.
