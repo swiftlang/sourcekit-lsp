@@ -54,13 +54,15 @@ let package = Package(
       dependencies: []
     ),
 
-    // MARK: Csourcekitd:
+    // MARK: Csourcekitd
     // C modules wrapper for sourcekitd.
     .target(
       name: "Csourcekitd",
       dependencies: [],
       exclude: ["CMakeLists.txt"]
     ),
+
+    // MARK: Diagnose
 
     .target(
       name: "Diagnose",
@@ -73,6 +75,19 @@ let package = Package(
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
       exclude: ["CMakeLists.txt"]
+    ),
+
+    .testTarget(
+      name: "DiagnoseTests",
+      dependencies: [
+        "Diagnose",
+        "LSPLogging",
+        "LSPTestSupport",
+        "SourceKitD",
+        "SKCore",
+        "SKTestSupport",
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+      ]
     ),
 
     // MARK: LanguageServerProtocol

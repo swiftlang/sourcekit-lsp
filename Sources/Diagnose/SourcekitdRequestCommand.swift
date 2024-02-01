@@ -39,26 +39,8 @@ public struct SourceKitdRequestCommand: AsyncParsableCommand {
 
   public func run() async throws {
     let requestString = try String(contentsOf: URL(fileURLWithPath: sourcekitdRequestPath))
-
-    let sourcekitd = try SourceKitDImpl.getOrCreate(
-      dylibPath: try! AbsolutePath(validating: sourcekitdPath)
-    )
-
-    let request = try requestString.cString(using: .utf8)?.withUnsafeBufferPointer { buffer in
-      var error: UnsafeMutablePointer<CChar>?
-      let req = sourcekitd.api.request_create_from_yaml(buffer.baseAddress, &error)
-      if let error {
-        throw ReductionError("Failed to parse sourcekitd request from JSON: \(String(cString: error))")
-      }
-      precondition(req != nil)
-      return req
-    }
-    let response: SKDResponse = await withCheckedContinuation { continuation in
-      var handle: sourcekitd_request_handle_t? = nil
-      sourcekitd.api.send_request(request, &handle) { resp in
-        continuation.resume(returning: SKDResponse(resp, sourcekitd: sourcekitd))
-      }
-    }
+    let sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: try! AbsolutePath(validating: sourcekitdPath))
+    let response = try await sourcekitd.run(requestYaml: requestString)
 
     switch response.error {
     case .requestFailed, .requestInvalid, .requestCancelled, .missingRequiredSymbol:

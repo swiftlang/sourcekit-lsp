@@ -18,7 +18,8 @@ import SwiftSyntax
 // MARK: - Entry point
 
 extension RequestInfo {
-  func reduceInputFile(using executor: SourceKitRequestExecutor) async throws -> RequestInfo {
+  @_spi(Testing)
+  public func reduceInputFile(using executor: SourceKitRequestExecutor) async throws -> RequestInfo {
     let reducer = SourceReducer(sourcekitdExecutor: executor)
     return try await reducer.run(initialRequestInfo: self)
   }
@@ -156,7 +157,7 @@ fileprivate class SourceReducer {
       fileContents: reducedSource
     )
 
-    try reducedSource.write(to: temporarySourceFile, atomically: false, encoding: .utf8)
+    try reducedSource.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
     let result = try await sourcekitdExecutor.run(request: reducedRequestInfo.request(for: temporarySourceFile))
     if case .reproducesIssue = result {
       logSuccessfulReduction(reducedRequestInfo)

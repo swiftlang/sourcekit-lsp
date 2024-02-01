@@ -128,7 +128,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
       nspredicate = NSPredicate(format: predicate)
     }
     #endif
-    let executor = SourceKitRequestExecutor(
+    let executor = OutOfProcessSourceKitRequestExecutor(
       sourcekitd: URL(fileURLWithPath: sourcekitd),
       reproducerPredicate: nspredicate
     )
