@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import LSPLogging
 import SourceKitD
 import SwiftParser
 import SwiftSyntax
@@ -203,11 +204,14 @@ fileprivate class SourceReducer {
     )
 
     try reducedSource.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
+    logger.debug("Try reduction to the following input file:\n\(reducedSource)")
     let result = try await sourcekitdExecutor.run(request: reducedRequestInfo.request(for: temporarySourceFile))
     if case .reproducesIssue = result {
+      logger.debug("Reduction successful")
       logSuccessfulReduction(reducedRequestInfo)
       return .reduced(reducedRequestInfo)
     } else {
+      logger.debug("Reduction did not reproduce the issue")
       return .didNotReproduce
     }
   }

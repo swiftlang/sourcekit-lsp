@@ -67,6 +67,7 @@ let package = Package(
     .target(
       name: "Diagnose",
       dependencies: [
+        "LSPLogging",
         "SourceKitD",
         "SKCore",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
