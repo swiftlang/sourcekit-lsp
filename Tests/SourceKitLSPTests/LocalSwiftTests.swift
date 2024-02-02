@@ -1653,7 +1653,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testDebouncePublishDiagnosticsNotification() async throws {
-    try XCTSkipIf(longTestsDisabled)
+    try SkipUnless.longTestsEnabled()
 
     var serverOptions = SourceKitServer.Options.testDefault
     serverOptions.swiftPublishDiagnosticsDebounceDuration = 1 /* 1s */

@@ -16,6 +16,7 @@ import XCTest
 
 final class DependencyTrackingTests: XCTestCase {
   func testDependenciesUpdatedSwift() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let ws = try await SwiftPMTestWorkspace(
       files: [
         "LibA/LibA.swift": """

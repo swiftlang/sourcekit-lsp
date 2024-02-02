@@ -22,6 +22,8 @@ import XCTest
 final class WorkspaceTests: XCTestCase {
 
   func testMultipleSwiftPMWorkspaces() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
+
     // The package manifest is the same for both packages we open.
     let packageManifest = """
       // swift-tools-version: 5.7
@@ -349,6 +351,8 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testChangeWorkspaceFolders() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
+
     let ws = try await MultiFileTestWorkspace(
       files: [
         "subdir/Sources/otherPackage/otherPackage.swift": """
@@ -516,6 +520,9 @@ final class WorkspaceTests: XCTestCase {
 
   func testIntegrationTest() async throws {
     // This test is doing the same as `test-sourcekit-lsp` in the `swift-integration-tests` repo.
+
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
+
     let ws = try await SwiftPMTestWorkspace(
       files: [
         "Sources/clib/include/clib.h": """

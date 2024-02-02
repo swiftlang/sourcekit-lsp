@@ -292,19 +292,9 @@ final class LocalClangTests: XCTestCase {
     XCTAssertEqual(diags.diagnostics.count, 0)
 
     let request = DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri))
-    do {
-      let reply = try await testClient.send(request)
-      let data = try XCTUnwrap(reply?.data)
-      XCTAssertGreaterThanOrEqual(data.count, 0)
-    } catch let e {
-      if let error = e as? ResponseError {
-        try XCTSkipIf(
-          error.code == ErrorCode.methodNotFound,
-          "clangd does not support semantic tokens"
-        )
-      }
-      throw e
-    }
+    let reply = try await testClient.send(request)
+    let data = try XCTUnwrap(reply?.data)
+    XCTAssertGreaterThanOrEqual(data.count, 0)
   }
 
   func testDocumentDependenciesUpdated() async throws {

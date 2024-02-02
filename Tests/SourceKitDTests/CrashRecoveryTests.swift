@@ -45,8 +45,8 @@ fileprivate extension HoverResponse {
 
 final class CrashRecoveryTests: XCTestCase {
   func testSourcekitdCrashRecovery() async throws {
-    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
-    try XCTSkipIf(longTestsDisabled)
+    try SkipUnless.platformIsDarwin("Linux and Windows use in-process sourcekitd")
+    try SkipUnless.longTestsEnabled()
 
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
@@ -145,7 +145,7 @@ final class CrashRecoveryTests: XCTestCase {
   }
 
   func testClangdCrashRecovery() async throws {
-    try XCTSkipIf(longTestsDisabled)
+    try SkipUnless.longTestsEnabled()
 
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.cpp)
@@ -198,7 +198,7 @@ final class CrashRecoveryTests: XCTestCase {
   }
 
   func testClangdCrashRecoveryReopensWithCorrectBuildSettings() async throws {
-    try XCTSkipIf(longTestsDisabled)
+    try SkipUnless.longTestsEnabled()
 
     let ws = try await MultiFileTestWorkspace(files: [
       "main.cpp": """
@@ -251,7 +251,7 @@ final class CrashRecoveryTests: XCTestCase {
   }
 
   func testPreventClangdCrashLoop() async throws {
-    try XCTSkipIf(longTestsDisabled)
+    try SkipUnless.longTestsEnabled()
 
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.cpp)

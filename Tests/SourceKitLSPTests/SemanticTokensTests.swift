@@ -128,33 +128,25 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   private func performSemanticTokensRequest(range: Range<Position>? = nil) async throws -> [Token] {
-    do {
-      let response: DocumentSemanticTokensResponse!
+    try await SkipUnless.sourcekitdHasSemanticTokensRequest()
+    let response: DocumentSemanticTokensResponse!
 
-      if let range = range {
-        response = try await testClient.send(
-          DocumentSemanticTokensRangeRequest(
-            textDocument: TextDocumentIdentifier(uri),
-            range: range
-          )
+    if let range = range {
+      response = try await testClient.send(
+        DocumentSemanticTokensRangeRequest(
+          textDocument: TextDocumentIdentifier(uri),
+          range: range
         )
-      } else {
-        response = try await testClient.send(
-          DocumentSemanticTokensRequest(
-            textDocument: TextDocumentIdentifier(uri)
-          )
+      )
+    } else {
+      response = try await testClient.send(
+        DocumentSemanticTokensRequest(
+          textDocument: TextDocumentIdentifier(uri)
         )
-      }
-
-      return [Token](lspEncodedTokens: response.data)
-    } catch let error as ResponseError {
-      // FIXME: Remove when the semantic tokens request is widely available in sourcekitd
-      if error.message.contains("unknown request: source.request.semantic_tokens") {
-        throw XCTSkip("semantic tokens request not supported by sourcekitd")
-      } else {
-        throw error
-      }
+      )
     }
+
+    return [Token](lspEncodedTokens: response.data)
   }
 
   private func openAndPerformSemanticTokensRequest(
@@ -165,7 +157,7 @@ final class SemanticTokensTests: XCTestCase {
     return try await performSemanticTokensRequest(range: range)
   }
 
-  func testIntArrayCoding() {
+  func testIntArrayCoding() async throws {
     let tokens = [
       Token(
         start: Position(line: 2, utf16index: 3),
