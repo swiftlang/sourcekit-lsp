@@ -34,7 +34,11 @@ fileprivate class CommandLineArgumentReducer {
 
   init(sourcekitdExecutor: SourceKitRequestExecutor) {
     self.sourcekitdExecutor = sourcekitdExecutor
-    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce.swift")
+    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce-\(UUID()).swift")
+  }
+
+  deinit {
+    try? FileManager.default.removeItem(at: temporarySourceFile)
   }
 
   func logSuccessfulReduction(_ requestInfo: RequestInfo) {

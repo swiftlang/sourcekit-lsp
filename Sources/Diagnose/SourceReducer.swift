@@ -65,7 +65,11 @@ fileprivate class SourceReducer {
 
   init(sourcekitdExecutor: SourceKitRequestExecutor) {
     self.sourcekitdExecutor = sourcekitdExecutor
-    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce.swift")
+    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce-\(UUID()).swift")
+  }
+
+  deinit {
+    try? FileManager.default.removeItem(at: temporarySourceFile)
   }
 
   /// Reduce the file contents in `initialRequest` to a smaller file that still reproduces a crash.
