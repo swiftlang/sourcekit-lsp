@@ -28,6 +28,9 @@ import var TSCBasic.localFileSystem
 
 public typealias URL = Foundation.URL
 
+/// Disambiguate LanguageServerProtocol.Language and IndexstoreDB.Language
+public typealias Language = LanguageServerProtocol.Language
+
 /// Exhaustive enumeration of all toolchain language servers known to SourceKit-LSP.
 enum LanguageServerType: Hashable {
   case clangd

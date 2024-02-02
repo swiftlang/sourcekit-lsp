@@ -266,9 +266,20 @@ private extension LineTable {
 }
 
 private extension DocumentSnapshot {
-  init(_ url: URL, language: Language) throws {
+  init?(_ uri: DocumentURI, language: Language) throws {
+    guard let url = uri.fileURL else {
+      return nil
+    }
     let contents = try String(contentsOf: url)
     self.init(uri: DocumentURI(url), language: language, version: 0, lineTable: LineTable(contents))
+  }
+
+  func position(of renameLocation: RenameLocation) -> Position? {
+    return positionOf(zeroBasedLine: renameLocation.line - 1, utf8Column: renameLocation.utf8Column - 1)
+  }
+
+  func position(of symbolLocation: SymbolLocation) -> Position? {
+    return positionOf(zeroBasedLine: symbolLocation.line - 1, utf8Column: symbolLocation.utf8Column - 1)
   }
 }
 
@@ -284,78 +295,436 @@ private extension RenameLocation.Usage {
   }
 }
 
+private extension IndexSymbolKind {
+  var isMethod: Bool {
+    switch self {
+    case .instanceMethod, .classMethod, .staticMethod:
+      return true
+    default: return false
+    }
+  }
+}
+
+// MARK: - Name translation
+
+extension SwiftLanguageServer {
+  enum NameTranslationError: Error, CustomStringConvertible {
+    case cannotComputeOffset(SymbolLocation)
+    case malformedSwiftToClangTranslateNameResponse(SKDResponseDictionary)
+    case malformedClangToSwiftTranslateNameResponse(SKDResponseDictionary)
+
+    var description: String {
+      switch self {
+      case .cannotComputeOffset(let position):
+        return "Failed to determine UTF-8 offset of \(position)"
+      case .malformedSwiftToClangTranslateNameResponse(let response):
+        return """
+          Malformed response for Swift to Clang name translation
+
+          \(response.description)
+          """
+      case .malformedClangToSwiftTranslateNameResponse(let response):
+        return """
+          Malformed response for Clang to Swift name translation
+
+          \(response.description)
+          """
+      }
+    }
+  }
+
+  /// Translate a Swift name to the corresponding C/C++/ObjectiveC name.
+  ///
+  /// This invokes the clang importer to perform the name translation, based on the `position` and `uri` at which the
+  /// Swift symbol is defined.
+  ///
+  /// - Parameters:
+  ///   - position: The position at which the Swift name is defined
+  ///   - uri: The URI of the document in which the Swift name is defined
+  ///   - name: The Swift name of the symbol
+  fileprivate func translateSwiftNameToClang(
+    at symbolLocation: SymbolLocation,
+    in uri: DocumentURI,
+    name: CompoundDeclName
+  ) async throws -> String {
+    guard let snapshot = documentManager.latestSnapshotOrDisk(uri, language: .swift) else {
+      throw ResponseError.unknown("Failed to get contents of \(uri.forLogging) to translate Swift name to clang name")
+    }
+
+    guard
+      let position = snapshot.position(of: symbolLocation),
+      let offset = snapshot.utf8Offset(of: position)
+    else {
+      throw NameTranslationError.cannotComputeOffset(symbolLocation)
+    }
+
+    let req = sourcekitd.dictionary([
+      keys.request: sourcekitd.requests.nameTranslation,
+      keys.sourcefile: snapshot.uri.pseudoPath,
+      keys.compilerargs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+      keys.offset: offset,
+      keys.namekind: sourcekitd.values.namekindSwift,
+      keys.baseName: name.baseName,
+      keys.argNames: sourcekitd.array(name.parameters.map { $0.stringOrWildcard }),
+    ])
+
+    let response = try await sourcekitd.send(req, fileContents: snapshot.text)
+
+    guard let isZeroArgSelector: Int = response[keys.isZeroArgSelector],
+      let selectorPieces: SKDResponseArray = response[keys.selectorPieces]
+    else {
+      throw NameTranslationError.malformedSwiftToClangTranslateNameResponse(response)
+    }
+    return
+      try selectorPieces
+      .map { (dict: SKDResponseDictionary) -> String in
+        guard var name: String = dict[keys.name] else {
+          throw NameTranslationError.malformedSwiftToClangTranslateNameResponse(response)
+        }
+        if isZeroArgSelector == 0 {
+          // Selector pieces in multi-arg selectors end with ":"
+          name.append(":")
+        }
+        return name
+      }.joined()
+  }
+
+  /// Translates a C/C++/Objective-C symbol name to Swift.
+  ///
+  /// This requires the position at which the the symbol is referenced in Swift so sourcekitd can determine the
+  /// clang declaration that is being renamed and check if that declaration has a `SWIFT_NAME`. If it does, this
+  /// `SWIFT_NAME` is used as the name translation result instead of invoking the clang importer rename rules.
+  ///
+  /// - Parameters:
+  ///   - position: A position at which this symbol is referenced from Swift.
+  ///   - snapshot: The snapshot containing the `position` that points to a usage of the clang symbol.
+  ///   - isObjectiveCSelector: Whether the name is an Objective-C selector. Cannot be inferred from the name because
+  ///     a name without `:` can also be a zero-arg Objective-C selector. For such names sourcekitd needs to know
+  ///     whether it is translating a selector to apply the correct renaming rule.
+  ///   - name: The clang symbol name.
+  /// - Returns:
+  fileprivate func translateClangNameToSwift(
+    at symbolLocation: SymbolLocation,
+    in snapshot: DocumentSnapshot,
+    isObjectiveCSelector: Bool,
+    name: String
+  ) async throws -> String {
+    guard
+      let position = snapshot.position(of: symbolLocation),
+      let offset = snapshot.utf8Offset(of: position)
+    else {
+      throw NameTranslationError.cannotComputeOffset(symbolLocation)
+    }
+    let req = sourcekitd.dictionary([
+      keys.request: sourcekitd.requests.nameTranslation,
+      keys.sourcefile: snapshot.uri.pseudoPath,
+      keys.compilerargs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+      keys.offset: offset,
+      keys.namekind: sourcekitd.values.namekindObjC,
+    ])
+
+    if isObjectiveCSelector {
+      // Split the name into selector pieces, keeping the ':'.
+      let selectorPieces = name.split(separator: ":").map { String($0 + ":") }
+      req.set(keys.selectorPieces, to: sourcekitd.array(selectorPieces))
+    } else {
+      req.set(keys.baseName, to: name)
+    }
+
+    let response = try await sourcekitd.send(req, fileContents: snapshot.text)
+
+    guard let baseName: String = response[keys.baseName] else {
+      throw NameTranslationError.malformedClangToSwiftTranslateNameResponse(response)
+    }
+    let argNamesArray: SKDResponseArray? = response[keys.argNames]
+    let argNames = try argNamesArray?.map { (dict: SKDResponseDictionary) -> String in
+      guard var name: String = dict[keys.name] else {
+        throw NameTranslationError.malformedClangToSwiftTranslateNameResponse(response)
+      }
+      if name.isEmpty {
+        // Empty argument names are represented by `_` in Swift.
+        name = "_"
+      }
+      return name + ":"
+    }
+    var result = baseName
+    if let argNames, !argNames.isEmpty {
+      result += "(" + argNames.joined() + ")"
+    }
+    return result
+  }
+}
+
+/// A name that has a represenentation both in Swift and clang-based languages.
+///
+/// These names might differ. For example, an Objective-C method gets translated by the clang importer to form the Swift
+/// name or it could have a `SWIFT_NAME` attribute that defines the method's name in Swift. Similarly, a Swift symbol
+/// might specify the name by which it gets exposed to Objective-C using the `@objc` attribute.
+public struct CrossLanguageName {
+  /// The name of the symbol in clang languages or `nil` if the symbol is defined in Swift, doesn't have any references
+  /// from clang languages and thus hasn't been translated.
+  fileprivate let clangName: String?
+
+  /// The name of the symbol in Swift or `nil` if the symbol is defined in clang, doesn't have any references from
+  /// Swift and thus hasn't been translated.
+  fileprivate let swiftName: String?
+
+  fileprivate var compoundSwiftName: CompoundDeclName? {
+    if let swiftName {
+      return CompoundDeclName(swiftName)
+    }
+    return nil
+  }
+
+  /// the language that the symbol is defined in.
+  fileprivate let definitionLanguage: Language
+
+  /// The name of the symbol in the language that it is defined in.
+  var definitionName: String? {
+    switch definitionLanguage {
+    case .c, .cpp, .objective_c, .objective_cpp:
+      return clangName
+    case .swift:
+      return swiftName
+    default:
+      return nil
+    }
+  }
+}
+
 // MARK: - SourceKitServer
 
+/// The kinds of symbol occurrance roles that should be renamed.
+fileprivate let renameRoles: SymbolRole = [.declaration, .definition, .reference]
+
+extension DocumentManager {
+  /// Returns the latest open snapshot of `uri` or, if no document with that URI is open, reads the file contents of
+  /// that file from disk.
+  fileprivate func latestSnapshotOrDisk(_ uri: DocumentURI, language: Language) -> DocumentSnapshot? {
+    return (try? self.latestSnapshot(uri)) ?? (try? DocumentSnapshot.init(uri, language: language))
+  }
+}
+
 extension SourceKitServer {
+  /// Returns a `DocumentSnapshot`, a position and the corresponding language service that references
+  /// `usr` from a Swift file. If `usr` is not referenced from Swift, returns `nil`.
+  private func getReferenceFromSwift(
+    usr: String,
+    index: IndexStoreDB,
+    workspace: Workspace
+  ) async -> (languageServer: SwiftLanguageServer, snapshot: DocumentSnapshot, location: SymbolLocation)? {
+    var reference: SymbolOccurrence? = nil
+    index.forEachSymbolOccurrence(byUSR: usr, roles: renameRoles) {
+      if index.symbolProvider(for: $0.location.path) == .swift {
+        reference = $0
+        // We have found a reference from Swift. Stop iteration.
+        return false
+      }
+      return true
+    }
+
+    guard let reference else {
+      return nil
+    }
+    let uri = DocumentURI(URL(fileURLWithPath: reference.location.path))
+    guard let snapshot = self.documentManager.latestSnapshotOrDisk(uri, language: .swift) else {
+      return nil
+    }
+    let swiftLanguageServer = await self.languageService(for: uri, .swift, in: workspace) as? SwiftLanguageServer
+    guard let swiftLanguageServer else {
+      return nil
+    }
+    return (swiftLanguageServer, snapshot, reference.location)
+  }
+
+  /// Returns a `CrossLanguageName` for the symbol with the given USR.
+  ///
+  /// If the symbol is used across clang/Swift languages, the cross-language name will have both a `swiftName` and a
+  /// `clangName` set. Otherwise it only has the name of the language it's defined in set.
+  ///
+  /// If `overrideName` is passed, the name of the symbol will be assumed to be `overrideName` in its native language.
+  /// This is used to create a `CrossLanguageName` for the new name of a renamed symbol.
+  private func getCrossLanguageName(
+    forUsr usr: String,
+    overrideName: String? = nil,
+    workspace: Workspace,
+    index: IndexStoreDB
+  ) async throws -> CrossLanguageName? {
+    let definitions = index.occurrences(ofUSR: usr, roles: [.definition])
+    guard let definitionSymbol = definitions.only else {
+      if definitions.isEmpty {
+        logger.error("no definitions for \(usr) found")
+      } else {
+        logger.error("Multiple definitions for \(usr) found")
+      }
+      return nil
+    }
+    let definitionLanguage: Language =
+      switch definitionSymbol.symbol.language {
+      case .c: .c
+      case .cxx: .cpp
+      case .objc: .objective_c
+      case .swift: .swift
+      }
+    let definitionDocumentUri = DocumentURI(URL(fileURLWithPath: definitionSymbol.location.path))
+
+    guard
+      let definitionLanguageService = await self.languageService(
+        for: definitionDocumentUri,
+        definitionLanguage,
+        in: workspace
+      )
+    else {
+      logger.fault("Failed to get language service for the document defining \(usr)")
+      return nil
+    }
+
+    let definitionName = overrideName ?? definitionSymbol.symbol.name
+
+    switch definitionLanguageService {
+    case is ClangLanguageServerShim:
+      let swiftName: String?
+      if let swiftReference = await getReferenceFromSwift(usr: usr, index: index, workspace: workspace) {
+        let isObjectiveCSelector = definitionLanguage == .objective_c && definitionSymbol.symbol.kind.isMethod
+        swiftName = try await swiftReference.languageServer.translateClangNameToSwift(
+          at: swiftReference.location,
+          in: swiftReference.snapshot,
+          isObjectiveCSelector: isObjectiveCSelector,
+          name: definitionName
+        )
+      } else {
+        logger.debug("Not translating \(usr) to Swift because it is not referenced from Swift")
+        swiftName = nil
+      }
+      return CrossLanguageName(clangName: definitionName, swiftName: swiftName, definitionLanguage: definitionLanguage)
+    case let swiftLanguageServer as SwiftLanguageServer:
+      // Continue iteration if the symbol provider is not clang.
+      // If we terminate early by returning `false` from the closure, `forEachSymbolOccurrence` returns `true`,
+      // indicating that we have found a reference from clang.
+      let hasReferenceFromClang = !index.forEachSymbolOccurrence(byUSR: usr, roles: renameRoles) {
+        return index.symbolProvider(for: $0.location.path) != .clang
+      }
+      let clangName: String?
+      if hasReferenceFromClang {
+        clangName = try await swiftLanguageServer.translateSwiftNameToClang(
+          at: definitionSymbol.location,
+          in: definitionDocumentUri,
+          name: CompoundDeclName(definitionName)
+        )
+      } else {
+        clangName = nil
+      }
+      return CrossLanguageName(clangName: clangName, swiftName: definitionName, definitionLanguage: definitionLanguage)
+    default:
+      throw ResponseError.unknown("Cannot rename symbol because it is defined in an unknown language")
+    }
+  }
+
   func rename(_ request: RenameRequest) async throws -> WorkspaceEdit? {
     let uri = request.textDocument.uri
+    let snapshot = try documentManager.latestSnapshot(uri)
+
     guard let workspace = await workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }
-    guard let languageService = workspace.documentService[uri] else {
+    guard let primaryFileLanguageService = workspace.documentService[uri] else {
       return nil
     }
 
     // Determine the local edits and the USR to rename
-    let renameResult = try await languageService.rename(request)
-    var changes = renameResult.edits.changes ?? [:]
+    let renameResult = try await primaryFileLanguageService.rename(request)
 
-    if let usr = renameResult.usr, let oldName = renameResult.oldName, let index = workspace.index {
-      // If we have a USR + old name, perform an index lookup to find workspace-wide symbols to rename.
-      // First, group all occurrences of that USR by the files they occur in.
-      var locationsByFile: [URL: [RenameLocation]] = [:]
-      let occurrences = index.occurrences(ofUSR: usr, roles: [.declaration, .definition, .reference])
-      for occurrence in occurrences {
-        let url = URL(fileURLWithPath: occurrence.location.path)
-        let renameLocation = RenameLocation(
-          line: occurrence.location.line,
-          utf8Column: occurrence.location.utf8Column,
-          usage: RenameLocation.Usage(roles: occurrence.roles)
-        )
-        locationsByFile[url, default: []].append(renameLocation)
-      }
+    guard let usr = renameResult.usr, let index = workspace.index else {
+      // We don't have enough information to perform a cross-file rename.
+      return renameResult.edits
+    }
 
-      // Now, call `editsToRename(locations:in:oldName:newName:)` on the language service to convert these ranges into
-      // edits.
-      let urisAndEdits =
-        await locationsByFile
-        .filter { changes[DocumentURI($0.key)] == nil }
-        .concurrentMap { (url: URL, renameLocations: [RenameLocation]) -> (DocumentURI, [TextEdit])? in
-          let uri = DocumentURI(url)
-          // Create a document snapshot to operate on. If the document is open, load it from the document manager,
-          // otherwise conjure one from the file on disk. We need the file in memory to perform UTF-8 to UTF-16 column
-          // conversions.
-          // We should technically infer the language for the from-disk snapshot. But `editsToRename` doesn't care
-          // about it, so defaulting to Swift is good enough for now
-          // If we fail to get edits for one file, log an error and continue but don't fail rename completely.
-          guard
-            let snapshot = (try? self.documentManager.latestSnapshot(uri))
-              ?? (try? DocumentSnapshot(url, language: .swift))
-          else {
-            logger.error("Failed to get document snapshot for \(uri.forLogging)")
-            return nil
-          }
-          do {
-            let edits = try await languageService.editsToRename(
-              locations: renameLocations,
-              in: snapshot,
-              oldName: oldName,
-              newName: request.newName
-            )
-            return (uri, edits)
-          } catch {
-            logger.error("Failed to get edits for \(uri.forLogging): \(error.forLogging)")
-            return nil
-          }
-        }.compactMap { $0 }
-      for (uri, editsForUri) in urisAndEdits {
-        precondition(
-          changes[uri] == nil,
-          "We should have only computed edits for URIs that didn't have edits from the initial rename request"
-        )
-        if !editsForUri.isEmpty {
-          changes[uri] = editsForUri
+    let oldName = try await getCrossLanguageName(forUsr: usr, workspace: workspace, index: index)
+    let newName = try await getCrossLanguageName(
+      forUsr: usr,
+      overrideName: request.newName,
+      workspace: workspace,
+      index: index
+    )
+
+    guard let oldName, let newName else {
+      // We failed to get the translated name, so we can't to global rename.
+      // Do local rename within the current file instead as fallback.
+      return renameResult.edits
+    }
+
+    var changes: [DocumentURI: [TextEdit]] = [:]
+    if oldName.definitionLanguage == snapshot.language {
+      // If this is not a cross-language rename, we can use the local edits returned by
+      // the language service's rename function.
+      // If this is cross-language rename, that's not possible because the user would eg.
+      // enter a new clang name, which needs to be translated to the Swift name before
+      // changing the current file.
+      changes = renameResult.edits.changes ?? [:]
+    }
+
+    // If we have a USR + old name, perform an index lookup to find workspace-wide symbols to rename.
+    // First, group all occurrences of that USR by the files they occur in.
+    var locationsByFile: [URL: [RenameLocation]] = [:]
+    for occurrence in index.occurrences(ofUSR: usr, roles: renameRoles) {
+      let url = URL(fileURLWithPath: occurrence.location.path)
+      let renameLocation = RenameLocation(
+        line: occurrence.location.line,
+        utf8Column: occurrence.location.utf8Column,
+        usage: RenameLocation.Usage(roles: occurrence.roles)
+      )
+      locationsByFile[url, default: []].append(renameLocation)
+    }
+
+    // Now, call `editsToRename(locations:in:oldName:newName:)` on the language service to convert these ranges into
+    // edits.
+    let urisAndEdits =
+      await locationsByFile
+      .filter { changes[DocumentURI($0.key)] == nil }
+      .concurrentMap { (url: URL, renameLocations: [RenameLocation]) -> (DocumentURI, [TextEdit])? in
+        let uri = DocumentURI(url)
+        let language: Language
+        switch index.symbolProvider(for: url.path) {
+        case .clang:
+          // Technically, we still don't know the language of the source file but defaulting to C is sufficient to
+          // ensure we get the clang toolchain language server, which is all we care about.
+          language = .c
+        case .swift:
+          language = .swift
+        case nil:
+          logger.error("Failed to determine symbol provider for \(uri.forLogging)")
+          return nil
         }
+        // Create a document snapshot to operate on. If the document is open, load it from the document manager,
+        // otherwise conjure one from the file on disk. We need the file in memory to perform UTF-8 to UTF-16 column
+        // conversions.
+        guard let snapshot = self.documentManager.latestSnapshotOrDisk(uri, language: language) else {
+          logger.error("Failed to get document snapshot for \(uri.forLogging)")
+          return nil
+        }
+        do {
+          guard let languageService = await self.languageService(for: uri, language, in: workspace) else {
+            return nil
+          }
+          let edits = try await languageService.editsToRename(
+            locations: renameLocations,
+            in: snapshot,
+            oldName: oldName,
+            newName: newName
+          )
+          return (uri, edits)
+        } catch {
+          logger.error("Failed to get edits for \(uri.forLogging): \(error.forLogging)")
+          return nil
+        }
+      }.compactMap { $0 }
+    for (uri, editsForUri) in urisAndEdits {
+      precondition(
+        changes[uri] == nil,
+        "We should have only computed edits for URIs that didn't have edits from the initial rename request"
+      )
+      if !editsForUri.isEmpty {
+        changes[uri] = editsForUri
       }
     }
     var edits = renameResult.edits
@@ -368,7 +737,27 @@ extension SourceKitServer {
     workspace: Workspace,
     languageService: ToolchainLanguageServer
   ) async throws -> PrepareRenameResponse? {
-    try await languageService.prepareRename(request)
+    guard var prepareRenameResult = try await languageService.prepareRename(request) else {
+      return nil
+    }
+
+    let symbolInfo = try await languageService.symbolInfo(
+      SymbolInfoRequest(textDocument: request.textDocument, position: request.position)
+    )
+
+    guard
+      let index = workspace.index,
+      let usr = symbolInfo.only?.usr,
+      let oldName = try await self.getCrossLanguageName(forUsr: usr, workspace: workspace, index: index)
+    else {
+      return prepareRenameResult
+    }
+
+    // Get the name of the symbol's definition, if possible.
+    // This is necessary for cross-language rename. Eg. when renaming an Objective-C method from Swift,
+    // the user still needs to enter the new Objective-C name.
+    prepareRenameResult.placeholder = oldName.definitionName
+    return prepareRenameResult
   }
 }
 
@@ -390,17 +779,17 @@ extension SwiftLanguageServer {
   ) async throws -> [SyntacticRenameName] {
     let locations = sourcekitd.array(
       renameLocations.map { renameLocation in
-        sourcekitd.dictionary([
+        let location = sourcekitd.dictionary([
           keys.line: renameLocation.line,
           keys.column: renameLocation.utf8Column,
           keys.nameType: renameLocation.usage.uid(keys: keys),
         ])
+        return sourcekitd.dictionary([
+          keys.locations: [location],
+          keys.name: oldName,
+        ])
       }
     )
-    let renameLocation = sourcekitd.dictionary([
-      keys.locations: locations,
-      keys.name: oldName,
-    ])
 
     let skreq = sourcekitd.dictionary([
       keys.request: requests.find_syntactic_rename_ranges,
@@ -408,7 +797,7 @@ extension SwiftLanguageServer {
       // find-syntactic-rename-ranges is a syntactic sourcekitd request that doesn't use the in-memory file snapshot.
       // We need to send the source text again.
       keys.sourcetext: snapshot.text,
-      keys.renamelocations: [renameLocation],
+      keys.renamelocations: locations,
     ])
 
     let syntacticRenameRangesResponse = try await sourcekitd.send(skreq, fileContents: snapshot.text)
@@ -419,7 +808,7 @@ extension SwiftLanguageServer {
     return categorizedRanges.compactMap { SyntacticRenameName($0, in: snapshot, keys: keys) }
   }
 
-  public func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?, oldName: String?) {
+  public func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
     let snapshot = try self.documentManager.latestSnapshot(request.textDocument.uri)
 
     let relatedIdentifiersResponse = try await self.relatedIdentifiers(
@@ -449,8 +838,8 @@ extension SwiftLanguageServer {
     let edits = try await editsToRename(
       locations: renameLocations,
       in: snapshot,
-      oldName: oldName,
-      newName: request.newName
+      oldName: CrossLanguageName(clangName: nil, swiftName: oldName, definitionLanguage: .swift),
+      newName: CrossLanguageName(clangName: nil, swiftName: request.newName, definitionLanguage: .swift)
     )
 
     try Task.checkCancellation()
@@ -459,7 +848,7 @@ extension SwiftLanguageServer {
       (try? await self.symbolInfo(SymbolInfoRequest(textDocument: request.textDocument, position: request.position)))?
       .only?.usr
 
-    return (edits: WorkspaceEdit(changes: [snapshot.uri: edits]), usr: usr, oldName: oldName)
+    return (edits: WorkspaceEdit(changes: [snapshot.uri: edits]), usr: usr)
   }
 
   /// Return the edit that needs to be performed for the given syntactic rename piece to rename it from
@@ -528,16 +917,24 @@ extension SwiftLanguageServer {
   public func editsToRename(
     locations renameLocations: [RenameLocation],
     in snapshot: DocumentSnapshot,
-    oldName oldNameString: String,
-    newName newNameString: String
+    oldName oldCrossLanguageName: CrossLanguageName,
+    newName newCrossLanguageName: CrossLanguageName
   ) async throws -> [TextEdit] {
+    guard
+      let oldNameString = oldCrossLanguageName.swiftName,
+      let oldName = oldCrossLanguageName.compoundSwiftName,
+      let newName = newCrossLanguageName.compoundSwiftName
+    else {
+      throw ResponseError.unknown(
+        "Failed to rename \(snapshot.uri.forLogging) because the Swift name for rename is unknown"
+      )
+    }
+
     let compoundRenameRanges = try await getSyntacticRenameRanges(
       renameLocations: renameLocations,
       oldName: oldNameString,
       in: snapshot
     )
-    let oldName = CompoundDeclName(oldNameString)
-    let newName = CompoundDeclName(newNameString)
 
     try Task.checkCancellation()
 
@@ -608,27 +1005,33 @@ extension SwiftLanguageServer {
 // MARK: - Clang
 
 extension ClangLanguageServerShim {
-  func rename(_ renameRequest: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?, oldName: String?) {
+  func rename(_ renameRequest: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
     async let edits = forwardRequestToClangd(renameRequest)
     let symbolInfoRequest = SymbolInfoRequest(
       textDocument: renameRequest.textDocument,
       position: renameRequest.position
     )
     let symbolDetail = try await forwardRequestToClangd(symbolInfoRequest).only
-    return (try await edits ?? WorkspaceEdit(), symbolDetail?.usr, symbolDetail?.name)
+    return (try await edits ?? WorkspaceEdit(), symbolDetail?.usr)
   }
 
   func editsToRename(
     locations renameLocations: [RenameLocation],
     in snapshot: DocumentSnapshot,
-    oldName: String,
-    newName: String
+    oldName oldCrossLanguageName: CrossLanguageName,
+    newName newCrossLanguageName: CrossLanguageName
   ) async throws -> [TextEdit] {
     let positions = [
-      snapshot.uri: renameLocations.compactMap {
-        snapshot.positionOf(zeroBasedLine: $0.line - 1, utf8Column: $0.utf8Column - 1)
-      }
+      snapshot.uri: renameLocations.compactMap { snapshot.position(of: $0) }
     ]
+    guard
+      let oldName = oldCrossLanguageName.clangName,
+      let newName = newCrossLanguageName.clangName
+    else {
+      throw ResponseError.unknown(
+        "Failed to rename \(snapshot.uri.forLogging) because the clang name for rename is unknown"
+      )
+    }
     let request = IndexedRenameRequest(
       textDocument: TextDocumentIdentifier(snapshot.uri),
       oldName: oldName,
@@ -645,6 +1048,6 @@ extension ClangLanguageServerShim {
   }
 
   public func prepareRename(_ request: PrepareRenameRequest) async throws -> PrepareRenameResponse? {
-    return nil
+    return try await forwardRequestToClangd(request)
   }
 }

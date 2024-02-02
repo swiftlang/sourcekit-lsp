@@ -14,6 +14,8 @@ import LanguageServerProtocol
 import SKTestSupport
 import XCTest
 
+import enum PackageLoading.Platform
+
 class DefinitionTests: XCTestCase {
   func testJumpToDefinitionAtEndOfIdentifier() async throws {
     let testClient = try await TestSourceKitLSPClient()
@@ -244,6 +246,120 @@ class DefinitionTests: XCTestCase {
         Location(uri: ws.fileURI, range: Range(ws.positions["1️⃣"])),
         Location(uri: ws.fileURI, range: Range(ws.positions["2️⃣"])),
       ])
+    )
+  }
+
+  func testDefinitionOfClassBetweenModulesObjC() async throws {
+    try XCTSkipUnless(Platform.current == .darwin, "@import in Objective-C is not enabled on non-Darwin")
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "LibA/include/LibA.h": """
+        @interface 1️⃣LibAClass2️⃣
+        - (void)doSomething;
+        @end
+        """,
+        "LibB/include/dummy.h": "",
+        "LibB/LibB.m": """
+        @import LibA;
+        @interface Test
+        @end
+
+        @implementation Test
+        - (void)test:(3️⃣LibAClass *)libAClass {
+          [libAClass doSomething];
+        }
+        @end
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "LibA"),
+            .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """
+    )
+    let (uri, positions) = try ws.openDocument("LibB.m")
+    let response = try await ws.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+    )
+
+    guard case .locations(let locations) = response else {
+      XCTFail("Expected locations response")
+      return
+    }
+
+    XCTAssertEqual(locations.count, 1)
+    let location = try XCTUnwrap(locations.first)
+    XCTAssertEqual(
+      location,
+      Location(
+        uri: try ws.uri(for: "LibA.h"),
+        range: try ws.position(of: "1️⃣", in: "LibA.h")..<ws.position(of: "2️⃣", in: "LibA.h")
+      )
+    )
+  }
+
+  func testDefinitionOfMethodBetweenModulesObjC() async throws {
+    try XCTSkipUnless(Platform.current == .darwin, "@import in Objective-C is not enabled on non-Darwin")
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "LibA/include/LibA.h": """
+        @interface LibAClass
+        - (void)1️⃣doSomething2️⃣;
+        @end
+        """,
+        "LibB/include/dummy.h": "",
+        "LibB/LibB.m": """
+        @import LibA;
+        @interface Test
+        @end
+
+        @implementation Test
+        - (void)test:(LibAClass *)libAClass {
+          [libAClass 3️⃣doSomething];
+        }
+        @end
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "LibA"),
+            .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """
+    )
+    let (uri, positions) = try ws.openDocument("LibB.m")
+    let response = try await ws.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+    )
+
+    guard case .locations(let locations) = response else {
+      XCTFail("Expected locations response")
+      return
+    }
+
+    XCTAssertEqual(locations.count, 1)
+    let location = try XCTUnwrap(locations.first)
+    XCTAssertEqual(
+      location,
+      Location(
+        uri: try ws.uri(for: "LibA.h"),
+        range: try ws.position(of: "1️⃣", in: "LibA.h")..<ws.position(of: "2️⃣", in: "LibA.h")
+      )
     )
   }
 }

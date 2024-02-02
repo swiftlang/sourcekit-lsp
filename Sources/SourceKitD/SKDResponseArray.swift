@@ -35,9 +35,9 @@ public final class SKDResponseArray {
 
   /// If the `applier` returns `false`, iteration terminates.
   @discardableResult
-  public func forEach(_ applier: (Int, SKDResponseDictionary) -> Bool) -> Bool {
+  public func forEach(_ applier: (Int, SKDResponseDictionary) throws -> Bool) rethrows -> Bool {
     for i in 0..<count {
-      if !applier(i, SKDResponseDictionary(sourcekitd.api.variant_array_get_value(array, i), response: resp)) {
+      if try !applier(i, SKDResponseDictionary(sourcekitd.api.variant_array_get_value(array, i), response: resp)) {
         return false
       }
     }
@@ -46,29 +46,29 @@ public final class SKDResponseArray {
 
   /// If the `applier` returns `false`, iteration terminates.
   @discardableResult
-  public func forEachUID(_ applier: (Int, sourcekitd_uid_t) -> Bool) -> Bool {
+  public func forEachUID(_ applier: (Int, sourcekitd_uid_t) throws -> Bool) rethrows -> Bool {
     for i in 0..<count {
-      if let uid = sourcekitd.api.variant_array_get_uid(array, i), !applier(i, uid) {
+      if let uid = sourcekitd.api.variant_array_get_uid(array, i), try !applier(i, uid) {
         return false
       }
     }
     return true
   }
 
-  public func map<T>(_ transform: (SKDResponseDictionary) -> T) -> [T] {
+  public func map<T>(_ transform: (SKDResponseDictionary) throws -> T) rethrows -> [T] {
     var result: [T] = []
     result.reserveCapacity(self.count)
-    self.forEach { _, element in
-      result.append(transform(element))
+    try self.forEach { _, element in
+      result.append(try transform(element))
       return true
     }
     return result
   }
 
-  public func compactMap<T>(_ transform: (SKDResponseDictionary) -> T?) -> [T] {
+  public func compactMap<T>(_ transform: (SKDResponseDictionary) throws -> T?) rethrows -> [T] {
     var result: [T] = []
-    self.forEach { _, element in
-      if let transformed = transform(element) {
+    try self.forEach { _, element in
+      if let transformed = try transform(element) {
         result.append(transformed)
       }
       return true
