@@ -196,8 +196,6 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testClangdDocumentFallbackWithholdsDiagnostics() async throws {
-    try XCTSkipIf(!haveClangd)
-
     let doc = DocumentURI.for(.objective_c)
     let args = [doc.pseudoPath, "-DDEBUG"]
     let text = """

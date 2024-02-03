@@ -45,26 +45,18 @@ private func assertSingleFileRename(
   file: StaticString = #file,
   line: UInt = #line
 ) async throws {
+  try await SkipUnless.sourcekitdSupportsRename()
   let testClient = try await TestSourceKitLSPClient()
   let uri = DocumentURI.for(.swift, testName: testName)
   let positions = testClient.openDocument(markedSource, uri: uri, language: language)
   for marker in positions.allMarkers {
-    let response: WorkspaceEdit?
-    do {
-      response = try await testClient.send(
-        RenameRequest(
-          textDocument: TextDocumentIdentifier(uri),
-          position: positions[marker],
-          newName: newName
-        )
+    let response = try await testClient.send(
+      RenameRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        position: positions[marker],
+        newName: newName
       )
-    } catch let error as ResponseError {
-      if error.message == "Running sourcekit-lsp with a version of sourcekitd that does not support rename" {
-        throw XCTSkip(error.message)
-      } else {
-        throw error
-      }
-    }
+    )
     let edits = try XCTUnwrap(response?.changes?[uri], "while performing rename at \(marker)", file: file, line: line)
     let source = extractMarkers(markedSource).textWithoutMarkers
     let renamed = apply(edits: edits, to: source)
@@ -124,6 +116,7 @@ private func assertMultiFileRename(
   file: StaticString = #file,
   line: UInt = #line
 ) async throws {
+  try await SkipUnless.sourcekitdSupportsRename()
   let ws = try await SwiftPMTestWorkspace(
     files: files,
     manifest: manifest,
@@ -144,18 +137,9 @@ private func assertMultiFileRename(
       ws.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
     }
     for marker in markers {
-      let prepareRenameResponse: PrepareRenameResponse?
-      do {
-        prepareRenameResponse = try await ws.testClient.send(
-          PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions[marker])
-        )
-      } catch let error as ResponseError {
-        if error.message == "Running sourcekit-lsp with a version of sourcekitd that does not support rename" {
-          throw XCTSkip(error.message)
-        } else {
-          throw error
-        }
-      }
+      let prepareRenameResponse = try await ws.testClient.send(
+        PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions[marker])
+      )
       XCTAssertEqual(
         prepareRenameResponse?.placeholder,
         expectedPrepareRenamePlaceholder,
@@ -164,18 +148,9 @@ private func assertMultiFileRename(
         line: line
       )
 
-      let response: WorkspaceEdit?
-      do {
-        response = try await ws.testClient.send(
-          RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions[marker], newName: newName)
-        )
-      } catch let error as ResponseError {
-        if error.message == "Running sourcekit-lsp with a version of sourcekitd that does not support rename" {
-          throw XCTSkip(error.message)
-        } else {
-          throw error
-        }
-      }
+      let response = try await ws.testClient.send(
+        RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions[marker], newName: newName)
+      )
       let changes = try XCTUnwrap(response?.changes, "Did not receive any edits", file: file, line: line)
       try assertRenamedSourceMatches(
         originalFiles: files,
@@ -586,10 +561,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameInsidePoundSelector() async throws {
-    try XCTSkipUnless(
-      Platform.current == .darwin,
-      "#selector in test case doesn't compile without Objective-C runtime."
-    )
+    try SkipUnless.platformIsDarwin("#selector in test case doesn't compile without Objective-C runtime.")
     try await assertSingleFileRename(
       """
       import Foundation
@@ -771,6 +743,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testPrepeareRenameOnDefinition() async throws {
+    try await SkipUnless.sourcekitdSupportsRename()
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
     let positions = testClient.openDocument(
@@ -779,18 +752,9 @@ final class RenameTests: XCTestCase {
       """,
       uri: uri
     )
-    let response: PrepareRenameResponse?
-    do {
-      response = try await testClient.send(
-        PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
-      )
-    } catch let error as ResponseError {
-      if error.message == "Running sourcekit-lsp with a version of sourcekitd that does not support rename" {
-        throw XCTSkip(error.message)
-      } else {
-        throw error
-      }
-    }
+    let response = try await testClient.send(
+      PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
     let range = try XCTUnwrap(response?.range)
     let placeholder = try XCTUnwrap(response?.placeholder)
     XCTAssertEqual(range, positions["1️⃣"]..<positions["2️⃣"])
@@ -798,6 +762,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testPrepeareRenameOnReference() async throws {
+    try await SkipUnless.sourcekitdSupportsRename()
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
     let positions = testClient.openDocument(
@@ -807,18 +772,9 @@ final class RenameTests: XCTestCase {
       """,
       uri: uri
     )
-    let response: PrepareRenameResponse?
-    do {
-      response = try await testClient.send(
-        PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
-      )
-    } catch let error as ResponseError {
-      if error.message == "Running sourcekit-lsp with a version of sourcekitd that does not support rename" {
-        throw XCTSkip(error.message)
-      } else {
-        throw error
-      }
-    }
+    let response = try await testClient.send(
+      PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
     let range = try XCTUnwrap(response?.range)
     let placeholder = try XCTUnwrap(response?.placeholder)
     XCTAssertEqual(range, positions["1️⃣"]..<positions["2️⃣"])
@@ -1022,7 +978,7 @@ final class CrossLanguageRenameTests: XCTestCase {
   }
 
   func testZeroArgObjCSelector() async throws {
-    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
+    try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1076,7 +1032,7 @@ final class CrossLanguageRenameTests: XCTestCase {
   }
 
   func testZeroArgObjCClassSelector() async throws {
-    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
+    try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1130,7 +1086,7 @@ final class CrossLanguageRenameTests: XCTestCase {
   }
 
   func testOneArgObjCSelector() async throws {
-    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
+    try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1184,10 +1140,7 @@ final class CrossLanguageRenameTests: XCTestCase {
   }
 
   func testMultiArgObjCSelector() async throws {
-    try XCTSkipUnless(
-      Platform.current == .darwin,
-      "Objective-C imported to Swift fails to build on Linux rdar://121689798"
-    )
+    try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1241,7 +1194,7 @@ final class CrossLanguageRenameTests: XCTestCase {
   }
 
   func testObjCSelectorWithSwiftNameAnnotation() async throws {
-    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
+    try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1295,7 +1248,7 @@ final class CrossLanguageRenameTests: XCTestCase {
   }
 
   func testObjCClass() async throws {
-    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
+    try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1339,7 +1292,7 @@ final class CrossLanguageRenameTests: XCTestCase {
   }
 
   func testObjCClassWithSwiftNameAnnotation() async throws {
-    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
+    try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1556,7 +1509,7 @@ final class CrossLanguageRenameTests: XCTestCase {
   }
 
   func testZeroArgObjCClassSelectorInObjCpp() async throws {
-    try XCTSkipUnless(Platform.current == .darwin, "Linux and Windows use in-process sourcekitd")
+    try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """

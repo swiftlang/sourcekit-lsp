@@ -237,7 +237,9 @@ let package = Package(
       name: "SKTestSupport",
       dependencies: [
         "CSKTestSupport",
+        "LanguageServerProtocol",
         "LSPTestSupport",
+        "LSPLogging",
         "SKCore",
         "SourceKitLSP",
         .product(name: "ISDBTestSupport", package: "indexstore-db"),

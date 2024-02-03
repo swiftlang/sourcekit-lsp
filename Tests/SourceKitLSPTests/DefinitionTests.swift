@@ -250,7 +250,7 @@ class DefinitionTests: XCTestCase {
   }
 
   func testDefinitionOfClassBetweenModulesObjC() async throws {
-    try XCTSkipUnless(Platform.current == .darwin, "@import in Objective-C is not enabled on non-Darwin")
+    try SkipUnless.platformIsDarwin("@import in Objective-C is not enabled on non-Darwin")
     let ws = try await SwiftPMTestWorkspace(
       files: [
         "LibA/include/LibA.h": """
@@ -307,7 +307,7 @@ class DefinitionTests: XCTestCase {
   }
 
   func testDefinitionOfMethodBetweenModulesObjC() async throws {
-    try XCTSkipUnless(Platform.current == .darwin, "@import in Objective-C is not enabled on non-Darwin")
+    try SkipUnless.platformIsDarwin("@import in Objective-C is not enabled on non-Darwin")
     let ws = try await SwiftPMTestWorkspace(
       files: [
         "LibA/include/LibA.h": """

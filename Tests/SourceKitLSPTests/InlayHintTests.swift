@@ -26,12 +26,7 @@ final class InlayHintTests: XCTestCase {
     testClient.openDocument(text, uri: uri)
 
     let request = InlayHintRequest(textDocument: TextDocumentIdentifier(uri), range: range)
-
-    do {
-      return try await testClient.send(request)
-    } catch let error as ResponseError where error.message.contains("unknown request: source.request.variable.type") {
-      throw XCTSkip("toolchain does not support variable.type request")
-    }
+    return try await testClient.send(request)
   }
 
   private func makeInlayHint(

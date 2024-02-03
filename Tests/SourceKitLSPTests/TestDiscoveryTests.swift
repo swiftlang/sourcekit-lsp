@@ -16,7 +16,7 @@ import XCTest
 
 final class TestDiscoveryTests: XCTestCase {
   func testWorkspaceTests() async throws {
-    try XCTSkipIf(longTestsDisabled)
+    try SkipUnless.longTestsEnabled()
 
     let ws = try await SwiftPMTestWorkspace(
       files: [
@@ -73,7 +73,7 @@ final class TestDiscoveryTests: XCTestCase {
   }
 
   func testDocumentTests() async throws {
-    try XCTSkipIf(longTestsDisabled)
+    try SkipUnless.longTestsEnabled()
 
     let ws = try await SwiftPMTestWorkspace(
       files: [

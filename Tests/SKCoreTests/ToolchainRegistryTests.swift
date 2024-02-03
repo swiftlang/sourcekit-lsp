@@ -67,9 +67,7 @@ final class ToolchainRegistryTests: XCTestCase {
   }
 
   func testFindXcodeDefaultToolchain() async throws {
-    #if !os(macOS)
-    try XCTSkipIf(true, "Finding toolchains in Xcode is only supported on macOS")
-    #endif
+    try SkipUnless.platformIsDarwin("Finding toolchains in Xcode is only supported on macOS")
     let fs = InMemoryFileSystem()
     let xcodeDeveloper = try AbsolutePath(validating: "/Applications/Xcode.app/Developer")
     let toolchains = xcodeDeveloper.appending(components: "Toolchains")
@@ -96,9 +94,7 @@ final class ToolchainRegistryTests: XCTestCase {
   }
 
   func testFindNonXcodeDefaultToolchains() async throws {
-    #if !os(macOS)
-    try XCTSkipIf(true, "Finding toolchains in Xcode is only supported on macOS")
-    #endif
+    try SkipUnless.platformIsDarwin("Finding toolchains in Xcode is only supported on macOS")
     let fs = InMemoryFileSystem()
     let xcodeDeveloper = try AbsolutePath(validating: "/Applications/Xcode.app/Developer")
     let toolchains = xcodeDeveloper.appending(components: "Toolchains")
@@ -128,9 +124,7 @@ final class ToolchainRegistryTests: XCTestCase {
   }
 
   func testIgnoreToolchainsWithWrongExtensions() async throws {
-    #if !os(macOS)
-    try XCTSkipIf(true, "Finding toolchains in Xcode is only supported on macOS")
-    #endif
+    try SkipUnless.platformIsDarwin("Finding toolchains in Xcode is only supported on macOS")
     let fs = InMemoryFileSystem()
     let xcodeDeveloper = try AbsolutePath(validating: "/Applications/Xcode.app/Developer")
     let toolchains = xcodeDeveloper.appending(components: "Toolchains")
@@ -159,9 +153,7 @@ final class ToolchainRegistryTests: XCTestCase {
 
   }
   func testTwoToolchainsWithSameIdentifier() async throws {
-    #if !os(macOS)
-    try XCTSkipIf(true, "Finding toolchains in Xcode is only supported on macOS")
-    #endif
+    try SkipUnless.platformIsDarwin("Finding toolchains in Xcode is only supported on macOS")
 
     let fs = InMemoryFileSystem()
     let xcodeDeveloper = try AbsolutePath(validating: "/Applications/Xcode.app/Developer")
@@ -192,9 +184,7 @@ final class ToolchainRegistryTests: XCTestCase {
   }
 
   func testGloballyInstalledToolchains() async throws {
-    #if !os(macOS)
-    try XCTSkipIf(true, "Finding toolchains in Xcode is only supported on macOS")
-    #endif
+    try SkipUnless.platformIsDarwin("Finding toolchains in Xcode is only supported on macOS")
     let fs = InMemoryFileSystem()
 
     try makeXCToolchain(
@@ -220,9 +210,7 @@ final class ToolchainRegistryTests: XCTestCase {
   }
 
   func testFindToolchainBasedOnInstallPath() async throws {
-    #if !os(macOS)
-    try XCTSkipIf(true, "Finding toolchains in Xcode is only supported on macOS")
-    #endif
+    try SkipUnless.platformIsDarwin("Finding toolchains in Xcode is only supported on macOS")
     let fs = InMemoryFileSystem()
     let xcodeDeveloper = try AbsolutePath(validating: "/Applications/Xcode.app/Developer")
     let toolchains = xcodeDeveloper.appending(components: "Toolchains")
@@ -247,9 +235,7 @@ final class ToolchainRegistryTests: XCTestCase {
   }
 
   func testDarwinToolchainOverride() async throws {
-    #if !os(macOS)
-    try XCTSkipIf(true, "Finding toolchains in Xcode is only supported on macOS")
-    #endif
+    try SkipUnless.platformIsDarwin("Finding toolchains in Xcode is only supported on macOS")
 
     let fs = InMemoryFileSystem()
     let xcodeDeveloper = try AbsolutePath(validating: "/Applications/Xcode.app/Developer")
@@ -287,9 +273,7 @@ final class ToolchainRegistryTests: XCTestCase {
   }
 
   func testCreateToolchainFromBinPath() async throws {
-    #if !os(macOS)
-    try XCTSkipIf(true, "Finding toolchains in Xcode is only supported on macOS")
-    #endif
+    try SkipUnless.platformIsDarwin("Finding toolchains in Xcode is only supported on macOS")
 
     let fs = InMemoryFileSystem()
     let xcodeDeveloper = try AbsolutePath(validating: "/Applications/Xcode.app/Developer")
