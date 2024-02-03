@@ -12,8 +12,19 @@
 
 import Foundation
 
+// MARK: - Entry point
+
+extension RequestInfo {
+  func reduceCommandLineArguments(using executor: SourceKitRequestExecutor) async throws -> RequestInfo {
+    let reducer = CommandLineArgumentReducer(sourcekitdExecutor: executor)
+    return try await reducer.run(initialRequestInfo: self)
+  }
+}
+
+// MARK: - FileProducer
+
 /// Reduces the compiler arguments needed to reproduce a sourcekitd crash.
-class CommandLineArgumentReducer {
+fileprivate class CommandLineArgumentReducer {
   /// The executor that is used to run a sourcekitd request and check whether it
   /// still crashes.
   private let sourcekitdExecutor: SourceKitRequestExecutor
@@ -23,7 +34,11 @@ class CommandLineArgumentReducer {
 
   init(sourcekitdExecutor: SourceKitRequestExecutor) {
     self.sourcekitdExecutor = sourcekitdExecutor
-    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce.swift")
+    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce-\(UUID()).swift")
+  }
+
+  deinit {
+    try? FileManager.default.removeItem(at: temporarySourceFile)
   }
 
   func logSuccessfulReduction(_ requestInfo: RequestInfo) {

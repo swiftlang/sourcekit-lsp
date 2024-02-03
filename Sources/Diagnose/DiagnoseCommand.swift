@@ -26,13 +26,13 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   @Option(
     name: .customLong("request-file"),
     help:
-      "Path to a sourcekitd request. If not specified, the command will look for crashed sourcekitd requests and have been logged to OSLog"
+      "Path to a sourcekitd request. If not specified, the command will look for crashed sourcekitd requests that have been logged to OSLog"
   )
   var sourcekitdRequestPath: String?
 
   @Option(
     name: .customLong("os-log-history"),
-    help: "If now request file is passed, how many minutes of OS Log history should be scraped for a crash."
+    help: "If no request file is passed, how many minutes of OS Log history should be scraped for a crash."
   )
   var osLogScrapeDuration: Int = 60
 
@@ -88,45 +88,53 @@ public struct DiagnoseCommand: AsyncParsableCommand {
       throw ReductionError("Unable to find sourcekitd.framework")
     }
 
+    var reproducerBundle: URL?
     for (name, requestInfo) in try requestInfos() {
       print("-- Diagnosing \(name)")
       do {
-        var requestInfo = requestInfo
-        var nspredicate: NSPredicate? = nil
-        #if canImport(Darwin)
-        if let predicate {
-          nspredicate = NSPredicate(format: predicate)
-        }
-        #endif
-        let executor = SourceKitRequestExecutor(
-          sourcekitd: URL(fileURLWithPath: sourcekitd),
-          reproducerPredicate: nspredicate
-        )
-        let fileReducer = FileReducer(sourcekitdExecutor: executor)
-        requestInfo = try await fileReducer.run(initialRequestInfo: requestInfo)
-
-        let commandLineReducer = CommandLineArgumentReducer(sourcekitdExecutor: executor)
-        requestInfo = try await commandLineReducer.run(initialRequestInfo: requestInfo)
-
-        let reproducerBundle = try makeReproducerBundle(for: requestInfo)
-
-        print("----------------------------------------")
-        print(
-          "Reduced SourceKit crash and created a bundle that contains information to reproduce the issue at the following path."
-        )
-        print("Please file an issue at https://github.com/apple/sourcekit-lsp/issues/new and attach this bundle")
-        print()
-        print(reproducerBundle.path)
-
-        // We have found a reproducer. Stop. Looking further probably won't help because other crashes are likely the same cause.
-        return
+        reproducerBundle = try await reduce(requestInfo: requestInfo, sourcekitd: sourcekitd)
+        // If reduce didn't throw, we have found a reproducer. Stop.
+        // Looking further probably won't help because other crashes are likely the same cause.
+        break
       } catch {
         // Reducing this request failed. Continue reducing the next one, maybe that one succeeds.
         print(error)
       }
     }
 
-    print("No reducible crashes found")
-    throw ExitCode(1)
+    guard let reproducerBundle else {
+      print("No reducible crashes found")
+      throw ExitCode(1)
+    }
+    print(
+      """
+        ----------------------------------------
+        Reduced SourceKit issue and created a bundle that contains a reduced sourcekitd request exhibiting the issue
+        and all the files referenced from the request.
+        The information in this bundle should be sufficient to reproduce the issue.
+
+        Please file an issue at https://github.com/apple/sourcekit-lsp/issues/new and attach the bundle located at
+        \(reproducerBundle.path)
+      """
+    )
+
+  }
+
+  private func reduce(requestInfo: RequestInfo, sourcekitd: String) async throws -> URL {
+    var requestInfo = requestInfo
+    var nspredicate: NSPredicate? = nil
+    #if canImport(Darwin)
+    if let predicate {
+      nspredicate = NSPredicate(format: predicate)
+    }
+    #endif
+    let executor = OutOfProcessSourceKitRequestExecutor(
+      sourcekitd: URL(fileURLWithPath: sourcekitd),
+      reproducerPredicate: nspredicate
+    )
+    requestInfo = try await requestInfo.reduceInputFile(using: executor)
+    requestInfo = try await requestInfo.reduceCommandLineArguments(using: executor)
+
+    return try makeReproducerBundle(for: requestInfo)
   }
 }

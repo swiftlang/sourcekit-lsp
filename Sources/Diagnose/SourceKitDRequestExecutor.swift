@@ -16,8 +16,9 @@ import SourceKitD
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 
-/// The different states in which a sourcektid request can finish.
-enum SourceKitDRequestResult {
+/// The different states in which a sourcekitd request can finish.
+@_spi(Testing)
+public enum SourceKitDRequestResult {
   /// The request succeeded.
   case success(response: String)
 
@@ -41,8 +42,14 @@ fileprivate extension String {
   }
 }
 
+/// An executor that can run a sourcekitd request and indicate whether the request reprodes a specified issue.
+@_spi(Testing)
+public protocol SourceKitRequestExecutor {
+  func run(request requestString: String) async throws -> SourceKitDRequestResult
+}
+
 /// Runs `sourcekit-lsp run-sourcekitd-request` to check if a sourcekit-request crashes.
-struct SourceKitRequestExecutor {
+struct OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
   /// The path to `sourcekitd.framework/sourcekitd`.
   private let sourcekitd: URL
 

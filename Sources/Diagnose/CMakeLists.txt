@@ -1,14 +1,15 @@
 add_library(Diagnose STATIC
   CommandLineArgumentsReducer.swift
   DiagnoseCommand.swift
-  FileReducer.swift
   FixItApplier.swift
   OSLogScraper.swift
   ReductionError.swift
   ReproducerBundle.swift
   RequestInfo.swift
+  SourceKitD+RunWithYaml.swift
   SourceKitDRequestExecutor.swift
-  SourcekitdRequestCommand.swift)
+  SourcekitdRequestCommand.swift
+  SourceReducer.swift)
 
 set_target_properties(Diagnose PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
