@@ -782,6 +782,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testGlobalRenameC() async throws {
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "Sources/MyLibrary/include/lib.h": """
@@ -814,6 +815,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testGlobalRenameObjC() async throws {
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "Sources/MyLibrary/include/lib.h": """
@@ -856,6 +858,7 @@ final class RenameTests: XCTestCase {
 
 final class CrossLanguageRenameTests: XCTestCase {
   func testZeroArgCFunction() async throws {
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -897,6 +900,7 @@ final class CrossLanguageRenameTests: XCTestCase {
   }
 
   func testMultiArgCFunction() async throws {
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -937,6 +941,7 @@ final class CrossLanguageRenameTests: XCTestCase {
   }
 
   func testCFunctionWithSwiftNameAnnotation() async throws {
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -979,6 +984,7 @@ final class CrossLanguageRenameTests: XCTestCase {
 
   func testZeroArgObjCSelector() async throws {
     try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1033,6 +1039,7 @@ final class CrossLanguageRenameTests: XCTestCase {
 
   func testZeroArgObjCClassSelector() async throws {
     try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1087,6 +1094,7 @@ final class CrossLanguageRenameTests: XCTestCase {
 
   func testOneArgObjCSelector() async throws {
     try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1141,6 +1149,7 @@ final class CrossLanguageRenameTests: XCTestCase {
 
   func testMultiArgObjCSelector() async throws {
     try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1195,6 +1204,7 @@ final class CrossLanguageRenameTests: XCTestCase {
 
   func testObjCSelectorWithSwiftNameAnnotation() async throws {
     try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1249,6 +1259,7 @@ final class CrossLanguageRenameTests: XCTestCase {
 
   func testObjCClass() async throws {
     try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1293,6 +1304,7 @@ final class CrossLanguageRenameTests: XCTestCase {
 
   func testObjCClassWithSwiftNameAnnotation() async throws {
     try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1338,6 +1350,7 @@ final class CrossLanguageRenameTests: XCTestCase {
   }
 
   func testCppMethod() async throws {
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1395,6 +1408,7 @@ final class CrossLanguageRenameTests: XCTestCase {
   }
 
   func testCppMethodWithSwiftName() async throws {
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1452,6 +1466,7 @@ final class CrossLanguageRenameTests: XCTestCase {
   }
 
   func testCppMethodInObjCpp() async throws {
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
@@ -1510,6 +1525,7 @@ final class CrossLanguageRenameTests: XCTestCase {
 
   func testZeroArgObjCClassSelectorInObjCpp() async throws {
     try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
+    try await SkipUnless.clangdSupportsIndexBasedRename()
     try await assertMultiFileRename(
       files: [
         "LibA/include/LibA.h": """
