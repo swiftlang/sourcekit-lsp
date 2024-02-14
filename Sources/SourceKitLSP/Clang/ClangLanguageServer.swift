@@ -609,6 +609,10 @@ extension ClangLanguageServerShim {
     throw ResponseError.unknown("unsupported method")
   }
 
+  func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit? {
+    return try await forwardRequestToClangd(request)
+  }
+
   // MARK: - Other
 
   func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {

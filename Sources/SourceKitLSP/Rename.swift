@@ -759,6 +759,14 @@ extension SourceKitServer {
     prepareRenameResult.placeholder = oldName.definitionName
     return prepareRenameResult
   }
+
+  func indexedRename(
+    _ request: IndexedRenameRequest,
+    workspace: Workspace,
+    languageService: ToolchainLanguageServer
+  ) async throws -> WorkspaceEdit? {
+    return try await languageService.indexedRename(request)
+  }
 }
 
 // MARK: - Swift

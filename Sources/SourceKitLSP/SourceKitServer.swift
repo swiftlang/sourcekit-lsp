@@ -919,6 +919,8 @@ extension SourceKitServer: MessageHandler {
       await self.handleRequest(for: request, requestHandler: self.documentDiagnostic)
     case let request as RequestAndReply<PrepareRenameRequest>:
       await self.handleRequest(for: request, requestHandler: self.prepareRename)
+    case let request as RequestAndReply<IndexedRenameRequest>:
+      await self.handleRequest(for: request, requestHandler: self.indexedRename)
     // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
     default:
       await request.reply { throw ResponseError.methodNotFound(R.method) }

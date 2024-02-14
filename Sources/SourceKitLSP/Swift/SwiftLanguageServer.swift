@@ -812,6 +812,10 @@ extension SwiftLanguageServer {
     }
   }
 
+  public func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit? {
+    throw ResponseError.unknown("unsupported method")
+  }
+
   public func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     // TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
     guard let sourceKitServer else {
