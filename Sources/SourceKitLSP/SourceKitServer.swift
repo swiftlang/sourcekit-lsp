@@ -921,7 +921,7 @@ extension SourceKitServer: MessageHandler {
       await self.handleRequest(for: request, requestHandler: self.prepareRename)
     // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
     default:
-      reply(.failure(ResponseError.methodNotFound(R.method)))
+      await request.reply { throw ResponseError.methodNotFound(R.method) }
     }
   }
 }
