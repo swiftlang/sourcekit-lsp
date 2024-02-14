@@ -163,7 +163,9 @@ public protocol ToolchainLanguageServer: AnyObject {
   ) async throws -> [TextEdit]
 
   /// Return compound decl name that will be used as a placeholder for a rename request at a specific position.
-  func prepareRename(_ request: PrepareRenameRequest) async throws -> PrepareRenameResponse?
+  func prepareRename(
+    _ request: PrepareRenameRequest
+  ) async throws -> (prepareRename: PrepareRenameResponse, usr: String?)?
 
   func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit?
 

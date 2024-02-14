@@ -15,6 +15,7 @@ import LSPLogging
 import LanguageServerProtocol
 import SKSupport
 import SourceKitD
+import SwiftSyntax
 
 // MARK: - Helper types
 
@@ -465,7 +466,7 @@ extension SwiftLanguageServer {
   }
 }
 
-/// A name that has a represenentation both in Swift and clang-based languages.
+/// A name that has a representation both in Swift and clang-based languages.
 ///
 /// These names might differ. For example, an Objective-C method gets translated by the clang importer to form the Swift
 /// name or it could have a `SWIFT_NAME` attribute that defines the method's name in Swift. Similarly, a Swift symbol
@@ -504,7 +505,7 @@ public struct CrossLanguageName {
 
 // MARK: - SourceKitServer
 
-/// The kinds of symbol occurrance roles that should be renamed.
+/// The kinds of symbol occurrence roles that should be renamed.
 fileprivate let renameRoles: SymbolRole = [.declaration, .definition, .reference]
 
 extension DocumentManager {
@@ -747,17 +748,14 @@ extension SourceKitServer {
     workspace: Workspace,
     languageService: ToolchainLanguageServer
   ) async throws -> PrepareRenameResponse? {
-    guard var prepareRenameResult = try await languageService.prepareRename(request) else {
+    guard let languageServicePrepareRename = try await languageService.prepareRename(request) else {
       return nil
     }
-
-    let symbolInfo = try await languageService.symbolInfo(
-      SymbolInfoRequest(textDocument: request.textDocument, position: request.position)
-    )
+    var prepareRenameResult = languageServicePrepareRename.prepareRename
 
     guard
       let index = workspace.index,
-      let usr = symbolInfo.only?.usr,
+      let usr = languageServicePrepareRename.usr,
       let oldName = try await self.getCrossLanguageName(forUsr: usr, workspace: workspace, index: index)
     else {
       return prepareRenameResult
@@ -826,11 +824,169 @@ extension SwiftLanguageServer {
     return categorizedRanges.compactMap { SyntacticRenameName($0, in: snapshot, keys: keys, values: values) }
   }
 
+  /// If `position` is on an argument label or a parameter name, find the position of the function's base name.
+  private func findFunctionBaseNamePosition(of position: Position, in snapshot: DocumentSnapshot) async -> Position? {
+    class TokenFinder: SyntaxAnyVisitor {
+      /// The position at which the token should be found.
+      let position: AbsolutePosition
+
+      /// Once found, the token at the requested position.
+      var foundToken: TokenSyntax?
+
+      init(position: AbsolutePosition) {
+        self.position = position
+        super.init(viewMode: .sourceAccurate)
+      }
+
+      override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
+        guard (node.position..<node.endPosition).contains(position) else {
+          // Node doesn't contain the position. No point visiting it.
+          return .skipChildren
+        }
+        guard foundToken == nil else {
+          // We have already found a token. No point visiting this one
+          return .skipChildren
+        }
+        return .visitChildren
+      }
+
+      override func visit(_ token: TokenSyntax) -> SyntaxVisitorContinueKind {
+        if (token.position..<token.endPosition).contains(position) {
+          self.foundToken = token
+        }
+        return .skipChildren
+      }
+
+      /// Dedicated entry point for `TokenFinder`.
+      static func findToken(at position: AbsolutePosition, in tree: some SyntaxProtocol) -> TokenSyntax? {
+        let finder = TokenFinder(position: position)
+        finder.walk(tree)
+        return finder.foundToken
+      }
+    }
+
+    let tree = await self.syntaxTreeManager.syntaxTree(for: snapshot)
+    guard let absolutePosition = snapshot.position(of: position) else {
+      return nil
+    }
+    guard let token = TokenFinder.findToken(at: absolutePosition, in: tree) else {
+      return nil
+    }
+
+    // The node that contains the function's base name. This might be an expression like `self.doStuff`.
+    // The start position of the last token in this node will be used as the base name position.
+    var baseNode: Syntax? = nil
+
+    switch token.keyPathInParent {
+    case \LabeledExprSyntax.label:
+      let callLike = token.parent(as: LabeledExprSyntax.self)?.parent(as: LabeledExprListSyntax.self)?.parent
+      switch callLike?.as(SyntaxEnum.self) {
+      case .attribute(let attribute):
+        baseNode = Syntax(attribute.attributeName)
+      case .functionCallExpr(let functionCall):
+        baseNode = Syntax(functionCall.calledExpression)
+      case .macroExpansionDecl(let macroExpansionDecl):
+        baseNode = Syntax(macroExpansionDecl.macroName)
+      case .macroExpansionExpr(let macroExpansionExpr):
+        baseNode = Syntax(macroExpansionExpr.macroName)
+      case .subscriptCallExpr(let subscriptCall):
+        baseNode = Syntax(subscriptCall.leftSquare)
+      default:
+        break
+      }
+    case \FunctionParameterSyntax.firstName:
+      let parameterClause =
+        token
+        .parent(as: FunctionParameterSyntax.self)?
+        .parent(as: FunctionParameterListSyntax.self)?
+        .parent(as: FunctionParameterClauseSyntax.self)
+      if let functionSignature = parameterClause?.parent(as: FunctionSignatureSyntax.self) {
+        switch functionSignature.parent?.as(SyntaxEnum.self) {
+        case .functionDecl(let functionDecl):
+          baseNode = Syntax(functionDecl.name)
+        case .initializerDecl(let initializerDecl):
+          baseNode = Syntax(initializerDecl.initKeyword)
+        case .macroDecl(let macroDecl):
+          baseNode = Syntax(macroDecl.name)
+        default:
+          break
+        }
+      } else if let subscriptDecl = parameterClause?.parent(as: SubscriptDeclSyntax.self) {
+        baseNode = Syntax(subscriptDecl.subscriptKeyword)
+      }
+    case \DeclNameArgumentSyntax.name:
+      let declReference =
+        token
+        .parent(as: DeclNameArgumentSyntax.self)?
+        .parent(as: DeclNameArgumentListSyntax.self)?
+        .parent(as: DeclNameArgumentsSyntax.self)?
+        .parent(as: DeclReferenceExprSyntax.self)
+      baseNode = Syntax(declReference?.baseName)
+    default:
+      break
+    }
+
+    if let lastToken = baseNode?.lastToken(viewMode: .sourceAccurate),
+      let position = snapshot.position(of: lastToken.positionAfterSkippingLeadingTrivia)
+    {
+      return position
+    }
+    return nil
+  }
+
+  /// When the user requested a rename at `position` in `snapshot`, determine the position at which the rename should be
+  /// performed internally and USR of the symbol to rename.
+  ///
+  /// This is necessary to adjust the rename position when renaming function parameters. For example when invoking
+  /// rename on `x` in `foo(x:)`, we need to perform a rename of `foo` in sourcekitd so that we can rename the function
+  /// parameter.
+  ///
+  /// The position might be `nil` if there is no local position in the file that refers to the base name to be renamed.
+  /// This happens if renaming a function parameter of `MyStruct(x:)` where `MyStruct` is defined outside of the current
+  /// file. In this case, there is no base name that refers to the initializer of `MyStruct`. When `position` is `nil`
+  /// a pure index-based rename from the usr USR or `symbolDetails` needs to be performed and no `relatedIdentifiers`
+  /// request can be used to rename symbols in the current file.
+  func symbolToRename(
+    at position: Position,
+    in snapshot: DocumentSnapshot
+  ) async -> (position: Position?, usr: String?) {
+    let symbolInfo = try? await self.symbolInfo(
+      SymbolInfoRequest(textDocument: TextDocumentIdentifier(snapshot.uri), position: position)
+    )
+
+    guard let baseNamePosition = await findFunctionBaseNamePosition(of: position, in: snapshot) else {
+      return (position, symbolInfo?.only?.usr)
+    }
+    if let onlySymbol = symbolInfo?.only, onlySymbol.kind == .constructor {
+      // We have a rename like `MyStruct(x: 1)`, invoked from `x`.
+      if let bestLocalDeclaration = onlySymbol.bestLocalDeclaration, bestLocalDeclaration.uri == snapshot.uri {
+        // If the initializer is declared within the same file, we can perform rename in the current file based on
+        // the declaration's location.
+        return (bestLocalDeclaration.range.lowerBound, onlySymbol.usr)
+      }
+      // Otherwise, we don't have a reference to the base name of the initializer and we can't use related
+      // identifiers to perform the rename.
+      // Return `nil` for the position to perform a pure index-based rename.
+      return (nil, onlySymbol.usr)
+    }
+    // Adjust the symbol info to the symbol info of the base name.
+    // This ensures that we get the symbol info of the function's base instead of the parameter.
+    let baseNameSymbolInfo = try? await self.symbolInfo(
+      SymbolInfoRequest(textDocument: TextDocumentIdentifier(snapshot.uri), position: baseNamePosition)
+    )
+    return (baseNamePosition, baseNameSymbolInfo?.only?.usr)
+  }
+
   public func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
     let snapshot = try self.documentManager.latestSnapshot(request.textDocument.uri)
 
+    let (renamePosition, usr) = await symbolToRename(at: request.position, in: snapshot)
+    guard let renamePosition else {
+      return (edits: WorkspaceEdit(), usr: usr)
+    }
+
     let relatedIdentifiersResponse = try await self.relatedIdentifiers(
-      at: request.position,
+      at: renamePosition,
       in: snapshot,
       includeNonEditableBaseNames: true
     )
@@ -861,10 +1017,6 @@ extension SwiftLanguageServer {
     )
 
     try Task.checkCancellation()
-
-    let usr =
-      (try? await self.symbolInfo(SymbolInfoRequest(textDocument: request.textDocument, position: request.position)))?
-      .only?.usr
 
     return (edits: WorkspaceEdit(changes: [snapshot.uri: edits]), usr: usr)
   }
@@ -998,25 +1150,29 @@ extension SwiftLanguageServer {
     }
   }
 
-  public func prepareRename(_ request: PrepareRenameRequest) async throws -> PrepareRenameResponse? {
+  public func prepareRename(
+    _ request: PrepareRenameRequest
+  ) async throws -> (prepareRename: PrepareRenameResponse, usr: String?)? {
     let snapshot = try self.documentManager.latestSnapshot(request.textDocument.uri)
 
+    let (renamePosition, usr) = await symbolToRename(at: request.position, in: snapshot)
+    guard let renamePosition else {
+      return nil
+    }
+
     let response = try await self.relatedIdentifiers(
-      at: request.position,
+      at: renamePosition,
       in: snapshot,
       includeNonEditableBaseNames: true
     )
     guard let name = response.name else {
       throw ResponseError.unknown("Running sourcekit-lsp with a version of sourcekitd that does not support rename")
     }
-    guard let range = response.relatedIdentifiers.first(where: { $0.range.contains(request.position) })?.range
+    guard let range = response.relatedIdentifiers.first(where: { $0.range.contains(renamePosition) })?.range
     else {
       return nil
     }
-    return PrepareRenameResponse(
-      range: range,
-      placeholder: name
-    )
+    return (PrepareRenameResponse(range: range, placeholder: name), usr)
   }
 }
 
@@ -1065,7 +1221,22 @@ extension ClangLanguageServerShim {
     }
   }
 
-  public func prepareRename(_ request: PrepareRenameRequest) async throws -> PrepareRenameResponse? {
-    return try await forwardRequestToClangd(request)
+  public func prepareRename(
+    _ request: PrepareRenameRequest
+  ) async throws -> (prepareRename: PrepareRenameResponse, usr: String?)? {
+    guard let prepareRename = try await forwardRequestToClangd(request) else {
+      return nil
+    }
+    let symbolInfo = try await forwardRequestToClangd(
+      SymbolInfoRequest(textDocument: request.textDocument, position: request.position)
+    )
+    return (prepareRename, symbolInfo.only?.usr)
+  }
+}
+
+fileprivate extension SyntaxProtocol {
+  /// Returns the parent node and casts it to the specified type.
+  func parent<S: SyntaxProtocol>(as syntaxType: S.Type) -> S? {
+    return parent?.as(S.self)
   }
 }

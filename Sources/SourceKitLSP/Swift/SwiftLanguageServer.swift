@@ -1037,6 +1037,9 @@ extension sourcekitd_uid_t {
       return .namespace
     case vals.refModule:
       return .module
+    case vals.refConstructor,
+      vals.declConstructor:
+      return .constructor
     default:
       return nil
     }
