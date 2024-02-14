@@ -139,6 +139,36 @@ public enum SkipUnless {
     }
   }
 
+  /// Whether clangd has support for the `workspace/indexedRename` request.
+  public static func clangdSupportsIndexBasedRename(
+    file: StaticString = #file,
+    line: UInt = #line
+  ) async throws {
+    try await skipUnlessSupportedByToolchain(
+      swiftVersion: SwiftVersion(5, 11),
+      featureName: "rename support in clangd",
+      file: file,
+      line: line
+    ) {
+      let testClient = try await TestSourceKitLSPClient()
+      let uri = DocumentURI.for(.c)
+      let positions = testClient.openDocument("void 1️⃣test() {}", uri: uri)
+      do {
+        _ = try await testClient.send(
+          IndexedRenameRequest(
+            textDocument: TextDocumentIdentifier(uri),
+            oldName: "test",
+            newName: "test2",
+            positions: [uri: [positions["1️⃣"]]]
+          )
+        )
+      } catch let error as ResponseError {
+        return error.message != "method not found"
+      }
+      return true
+    }
+  }
+
   /// SwiftPM moved the location where it stores Swift modules to a subdirectory in
   /// https://github.com/apple/swift-package-manager/pull/7103.
   ///
