@@ -198,6 +198,20 @@ public enum SkipUnless {
     }
   }
 
+  public static func toolchainContainsSwiftFormat(
+    file: StaticString = #file,
+    line: UInt = #line
+  ) async throws {
+    try await skipUnlessSupportedByToolchain(
+      swiftVersion: SwiftVersion(5, 11),
+      featureName: "Toolchain contains swift-format",
+      file: file,
+      line: line
+    ) {
+      return await ToolchainRegistry.forTesting.default?.swiftFormat != nil
+    }
+  }
+
   public static func longTestsEnabled() throws {
     if let value = ProcessInfo.processInfo.environment["SKIP_LONG_TESTS"], value == "1" || value == "YES" {
       throw XCTSkip("Long tests disabled using the `SKIP_LONG_TESTS` environment variable")
