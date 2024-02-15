@@ -90,7 +90,7 @@ extension SwiftLanguageServer {
     let skreq = sourcekitd.dictionary([
       keys.request: requests.collectVariableType,
       keys.sourceFile: snapshot.uri.pseudoPath,
-      keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDValue]?,
+      keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDRequestValue]?,
     ])
 
     if let range = range,

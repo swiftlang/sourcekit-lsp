@@ -371,7 +371,7 @@ extension SwiftLanguageServer {
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.nameTranslation,
       keys.sourceFile: snapshot.uri.pseudoPath,
-      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
       keys.offset: offset,
       keys.nameKind: sourcekitd.values.nameSwift,
       keys.baseName: name.baseName,
@@ -428,7 +428,7 @@ extension SwiftLanguageServer {
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.nameTranslation,
       keys.sourceFile: snapshot.uri.pseudoPath,
-      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
       keys.offset: offset,
       keys.nameKind: sourcekitd.values.nameObjc,
     ])

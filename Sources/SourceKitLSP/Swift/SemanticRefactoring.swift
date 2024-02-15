@@ -149,7 +149,7 @@ extension SwiftLanguageServer {
       keys.column: utf8Column + 1,
       keys.length: offsetRange.count,
       keys.actionUID: self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!,
-      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
     ])
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)

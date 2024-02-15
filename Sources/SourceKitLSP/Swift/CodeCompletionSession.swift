@@ -183,7 +183,7 @@ class CodeCompletionSession {
       keys.sourceFile: uri.pseudoPath,
       keys.sourceText: snapshot.text,
       keys.codeCompleteOptions: optionsDictionary(filterText: filterText, options: options),
-      keys.compilerArgs: compileCommand?.compilerArgs as [SKDValue]?,
+      keys.compilerArgs: compileCommand?.compilerArgs as [SKDRequestValue]?,
     ])
 
     let dict = try await sourcekitd.send(req, fileContents: snapshot.text)

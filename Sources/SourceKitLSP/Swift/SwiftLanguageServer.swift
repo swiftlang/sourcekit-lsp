@@ -299,7 +299,7 @@ extension SwiftLanguageServer {
       keys.request: self.requests.editorOpen,
       keys.name: path,
       keys.sourceText: snapshot.text,
-      keys.compilerArgs: compileCmd?.compilerArgs as [SKDValue]?,
+      keys.compilerArgs: compileCmd?.compilerArgs as [SKDRequestValue]?,
     ])
 
     _ = try? await self.sourcekitd.send(openReq, fileContents: snapshot.text)
@@ -346,7 +346,7 @@ extension SwiftLanguageServer {
       keys.name: note.textDocument.uri.pseudoPath,
       keys.sourceText: snapshot.text,
       keys.syntacticOnly: 1,
-      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
     ])
 
     _ = try? await self.sourcekitd.send(req, fileContents: snapshot.text)

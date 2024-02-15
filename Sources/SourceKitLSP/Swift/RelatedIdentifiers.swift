@@ -73,7 +73,7 @@ extension SwiftLanguageServer {
       keys.offset: offset,
       keys.sourceFile: snapshot.uri.pseudoPath,
       keys.includeNonEditableBaseNames: includeNonEditableBaseNames ? 1 : 0,
-      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
     ])
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)

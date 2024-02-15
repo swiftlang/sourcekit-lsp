@@ -104,7 +104,7 @@ actor DiagnosticReportManager {
     let skreq = sourcekitd.dictionary([
       keys.request: requests.diagnostics,
       keys.sourceFile: snapshot.uri.pseudoPath,
-      keys.compilerArgs: compilerArgs as [SKDValue],
+      keys.compilerArgs: compilerArgs as [SKDRequestValue],
     ])
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
