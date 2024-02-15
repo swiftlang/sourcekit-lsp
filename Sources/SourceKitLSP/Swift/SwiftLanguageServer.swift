@@ -275,7 +275,7 @@ extension SwiftLanguageServer {
   /// Tell sourcekitd to crash itself. For testing purposes only.
   public func _crash() async {
     let req = sourcekitd.dictionary([
-      keys.request: sourcekitd.requests.crash_exit
+      keys.request: sourcekitd.requests.crashWithExit
     ])
     _ = try? await sourcekitd.send(req, fileContents: nil)
   }
@@ -290,16 +290,16 @@ extension SwiftLanguageServer {
     let path = snapshot.uri.pseudoPath
 
     let closeReq = sourcekitd.dictionary([
-      keys.request: requests.editor_close,
+      keys.request: requests.editorClose,
       keys.name: path,
     ])
     _ = try? await self.sourcekitd.send(closeReq, fileContents: nil)
 
     let openReq = sourcekitd.dictionary([
-      keys.request: self.requests.editor_open,
+      keys.request: self.requests.editorOpen,
       keys.name: path,
-      keys.sourcetext: snapshot.text,
-      keys.compilerargs: compileCmd?.compilerArgs as [SKDValue]?,
+      keys.sourceText: snapshot.text,
+      keys.compilerArgs: compileCmd?.compilerArgs as [SKDValue]?,
     ])
 
     _ = try? await self.sourcekitd.send(openReq, fileContents: snapshot.text)
@@ -342,11 +342,11 @@ extension SwiftLanguageServer {
     }
 
     let req = sourcekitd.dictionary([
-      keys.request: self.requests.editor_open,
+      keys.request: self.requests.editorOpen,
       keys.name: note.textDocument.uri.pseudoPath,
-      keys.sourcetext: snapshot.text,
-      keys.syntactic_only: 1,
-      keys.compilerargs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+      keys.sourceText: snapshot.text,
+      keys.syntacticOnly: 1,
+      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
     ])
 
     _ = try? await self.sourcekitd.send(req, fileContents: snapshot.text)
@@ -365,7 +365,7 @@ extension SwiftLanguageServer {
     let uri = note.textDocument.uri
 
     let req = sourcekitd.dictionary([
-      keys.request: self.requests.editor_close,
+      keys.request: self.requests.editorClose,
       keys.name: uri.pseudoPath,
     ])
 
@@ -475,12 +475,12 @@ extension SwiftLanguageServer {
     }
     for edit in edits {
       let req = sourcekitd.dictionary([
-        keys.request: self.requests.editor_replacetext,
+        keys.request: self.requests.editorReplaceText,
         keys.name: note.textDocument.uri.pseudoPath,
-        keys.syntactic_only: 1,
+        keys.syntacticOnly: 1,
         keys.offset: edit.offset,
         keys.length: edit.length,
-        keys.sourcetext: edit.replacement,
+        keys.sourceText: edit.replacement,
       ])
       do {
         _ = try await self.sourcekitd.send(req, fileContents: nil)
@@ -689,7 +689,7 @@ extension SwiftLanguageServer {
 
   func retrieveRefactorCodeActions(_ params: CodeActionRequest) async throws -> [CodeAction] {
     let additionalCursorInfoParameters: ((SKDRequestDictionary) -> Void) = { skreq in
-      skreq.set(self.keys.retrieve_refactor_actions, to: 1)
+      skreq.set(self.keys.retrieveRefactorActions, to: 1)
     }
 
     let cursorInfoResponse = try await cursorInfo(
@@ -848,7 +848,7 @@ extension SwiftLanguageServer: SKDNotificationHandler {
 
   private func notificationImpl(_ notification: SKDResponse) async {
     // Check if we need to update our `state` based on the contents of the notification.
-    if notification.value?[self.keys.notification] == self.values.notification_sema_enabled {
+    if notification.value?[self.keys.notification] == self.values.semaEnabledNotification {
       self.state = .connected
     }
 
@@ -937,7 +937,7 @@ extension DocumentSnapshot {
 extension sourcekitd_uid_t {
   func isCommentKind(_ vals: sourcekitd_values) -> Bool {
     switch self {
-    case vals.syntaxtype_comment, vals.syntaxtype_comment_marker, vals.syntaxtype_comment_url:
+    case vals.comment, vals.commentMarker, vals.commentURL:
       return true
     default:
       return isDocCommentKind(vals)
@@ -945,56 +945,56 @@ extension sourcekitd_uid_t {
   }
 
   func isDocCommentKind(_ vals: sourcekitd_values) -> Bool {
-    return self == vals.syntaxtype_doccomment || self == vals.syntaxtype_doccomment_field
+    return self == vals.docComment || self == vals.docCommentField
   }
 
   func asCompletionItemKind(_ vals: sourcekitd_values) -> CompletionItemKind? {
     switch self {
-    case vals.kind_keyword:
+    case vals.completionKindKeyword:
       return .keyword
-    case vals.decl_module:
+    case vals.declModule:
       return .module
-    case vals.decl_class:
+    case vals.declClass:
       return .class
-    case vals.decl_struct:
+    case vals.declStruct:
       return .struct
-    case vals.decl_enum:
+    case vals.declEnum:
       return .enum
-    case vals.decl_enumelement:
+    case vals.declEnumElement:
       return .enumMember
-    case vals.decl_protocol:
+    case vals.declProtocol:
       return .interface
-    case vals.decl_associatedtype:
+    case vals.declAssociatedType:
       return .typeParameter
-    case vals.decl_typealias:
+    case vals.declTypeAlias:
       return .typeParameter  // FIXME: is there a better choice?
-    case vals.decl_generic_type_param:
+    case vals.declGenericTypeParam:
       return .typeParameter
-    case vals.decl_function_constructor:
+    case vals.declConstructor:
       return .constructor
-    case vals.decl_function_destructor:
+    case vals.declDestructor:
       return .value  // FIXME: is there a better choice?
-    case vals.decl_function_subscript:
+    case vals.declSubscript:
       return .method  // FIXME: is there a better choice?
-    case vals.decl_function_method_static:
+    case vals.declMethodStatic:
       return .method
-    case vals.decl_function_method_instance:
+    case vals.declMethodInstance:
       return .method
-    case vals.decl_function_operator_prefix,
-      vals.decl_function_operator_postfix,
-      vals.decl_function_operator_infix:
+    case vals.declFunctionPrefixOperator,
+      vals.declFunctionPostfixOperator,
+      vals.declFunctionInfixOperator:
       return .operator
-    case vals.decl_precedencegroup:
+    case vals.declPrecedenceGroup:
       return .value
-    case vals.decl_function_free:
+    case vals.declFunctionFree:
       return .function
-    case vals.decl_var_static, vals.decl_var_class:
+    case vals.declVarStatic, vals.declVarClass:
       return .property
-    case vals.decl_var_instance:
+    case vals.declVarInstance:
       return .property
-    case vals.decl_var_local,
-      vals.decl_var_global,
-      vals.decl_var_parameter:
+    case vals.declVarLocal,
+      vals.declVarGlobal,
+      vals.declVarParam:
       return .variable
     default:
       return nil
@@ -1003,35 +1003,35 @@ extension sourcekitd_uid_t {
 
   func asSymbolKind(_ vals: sourcekitd_values) -> SymbolKind? {
     switch self {
-    case vals.decl_class:
+    case vals.declClass:
       return .class
-    case vals.decl_function_method_instance,
-      vals.decl_function_method_static,
-      vals.decl_function_method_class:
+    case vals.declMethodInstance,
+      vals.declMethodStatic,
+      vals.declMethodClass:
       return .method
-    case vals.decl_var_instance,
-      vals.decl_var_static,
-      vals.decl_var_class:
+    case vals.declVarInstance,
+      vals.declVarStatic,
+      vals.declVarClass:
       return .property
-    case vals.decl_enum:
+    case vals.declEnum:
       return .enum
-    case vals.decl_enumelement:
+    case vals.declEnumElement:
       return .enumMember
-    case vals.decl_protocol:
+    case vals.declProtocol:
       return .interface
-    case vals.decl_function_free:
+    case vals.declFunctionFree:
       return .function
-    case vals.decl_var_global,
-      vals.decl_var_local:
+    case vals.declVarGlobal,
+      vals.declVarLocal:
       return .variable
-    case vals.decl_struct:
+    case vals.declStruct:
       return .struct
-    case vals.decl_generic_type_param:
+    case vals.declGenericTypeParam:
       return .typeParameter
-    case vals.decl_extension:
+    case vals.declExtension:
       // There are no extensions in LSP, so I return something vaguely similar
       return .namespace
-    case vals.ref_module:
+    case vals.refModule:
       return .module
     default:
       return nil

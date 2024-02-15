@@ -122,7 +122,7 @@ extension TextEdit {
     let keys = fixit.sourcekitd.keys
     if let utf8Offset: Int = fixit[keys.offset],
       let length: Int = fixit[keys.length],
-      let replacement: String = fixit[keys.sourcetext],
+      let replacement: String = fixit[keys.sourceText],
       let position = snapshot.positionOf(utf8Offset: utf8Offset),
       let endPosition = snapshot.positionOf(utf8Offset: utf8Offset + length),
       length > 0 || !replacement.isEmpty
@@ -206,9 +206,9 @@ extension Diagnostic {
     var severity: LanguageServerProtocol.DiagnosticSeverity? = nil
     if let uid: sourcekitd_uid_t = diag[keys.severity] {
       switch uid {
-      case values.diag_error:
+      case values.diagError:
         severity = .error
-      case values.diag_warning:
+      case values.diagWarning:
         severity = .warning
       default:
         break
@@ -222,7 +222,7 @@ extension Diagnostic {
     // description. `useEducationalNoteAsCode` ensures a note name is only used
     // as a code if the cline supports an extended code description.
     if useEducationalNoteAsCode,
-      let educationalNotePaths: SKDResponseArray = diag[keys.educational_note_paths],
+      let educationalNotePaths: SKDResponseArray = diag[keys.educationalNotePaths],
       educationalNotePaths.count > 0,
       let primaryPath = educationalNotePaths[0]
     {
@@ -253,9 +253,9 @@ extension Diagnostic {
     if let categories: SKDResponseArray = diag[keys.categories] {
       categories.forEachUID { (_, category) in
         switch category {
-        case values.diag_category_deprecation:
+        case values.diagDeprecation:
           tags.append(.deprecated)
-        case values.diag_category_no_usage:
+        case values.diagNoUsage:
           tags.append(.unnecessary)
         default:
           break
@@ -394,9 +394,9 @@ enum DiagnosticStage: Hashable {
 extension DiagnosticStage {
   init?(_ uid: sourcekitd_uid_t, sourcekitd: SourceKitD) {
     switch uid {
-    case sourcekitd.values.diag_stage_parse:
+    case sourcekitd.values.parseDiagStage:
       self = .parse
-    case sourcekitd.values.diag_stage_sema:
+    case sourcekitd.values.semaDiagStage:
       self = .sema
     default:
       let desc = sourcekitd.api.uid_get_string_ptr(uid).map { String(cString: $0) }

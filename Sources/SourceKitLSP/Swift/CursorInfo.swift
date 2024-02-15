@@ -56,7 +56,7 @@ struct CursorInfo {
     }
 
     var location: Location? = nil
-    if let filepath: String = dict[keys.filepath],
+    if let filepath: String = dict[keys.filePath],
       let line: Int = dict[keys.line],
       let column: Int = dict[keys.column]
     {
@@ -78,8 +78,8 @@ struct CursorInfo {
         isDynamic: dict[keys.isDynamic] ?? false,
         receiverUsrs: dict[keys.receivers]?.compactMap { $0[keys.usr] as String? } ?? []
       ),
-      annotatedDeclaration: dict[keys.annotated_decl],
-      documentationXML: dict[keys.doc_full_as_xml]
+      annotatedDeclaration: dict[keys.annotatedDecl],
+      documentationXML: dict[keys.docFullAsXML]
     )
   }
 }
@@ -129,12 +129,12 @@ extension SwiftLanguageServer {
     let keys = self.keys
 
     let skreq = sourcekitd.dictionary([
-      keys.request: requests.cursorinfo,
+      keys.request: requests.cursorInfo,
       keys.cancelOnSubsequentRequest: 0,
       keys.offset: offsetRange.lowerBound,
       keys.length: offsetRange.upperBound != offsetRange.lowerBound ? offsetRange.count : nil,
-      keys.sourcefile: snapshot.uri.pseudoPath,
-      keys.compilerargs: await self.buildSettings(for: uri)?.compilerArgs as [SKDValue]?,
+      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDValue]?,
     ])
 
     appendAdditionalParameters?(skreq)
@@ -148,7 +148,7 @@ extension SwiftLanguageServer {
     cursorInfoResults += dict[keys.secondarySymbols]?.compactMap { CursorInfo($0, sourcekitd: sourcekitd) } ?? []
     let refactorActions =
       [SemanticRefactorCommand](
-        array: dict[keys.refactor_actions],
+        array: dict[keys.refactorActions],
         range: range,
         textDocument: TextDocumentIdentifier(uri),
         keys,

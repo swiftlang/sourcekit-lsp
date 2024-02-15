@@ -177,13 +177,13 @@ class CodeCompletionSession {
     }
 
     let req = sourcekitd.dictionary([
-      keys.request: sourcekitd.requests.codecomplete_open,
+      keys.request: sourcekitd.requests.codeCompleteOpen,
       keys.offset: utf8StartOffset,
       keys.name: uri.pseudoPath,
-      keys.sourcefile: uri.pseudoPath,
-      keys.sourcetext: snapshot.text,
-      keys.codecomplete_options: optionsDictionary(filterText: filterText, options: options),
-      keys.compilerargs: compileCommand?.compilerArgs as [SKDValue]?,
+      keys.sourceFile: uri.pseudoPath,
+      keys.sourceText: snapshot.text,
+      keys.codeCompleteOptions: optionsDictionary(filterText: filterText, options: options),
+      keys.compilerArgs: compileCommand?.compilerArgs as [SKDValue]?,
     ])
 
     let dict = try await sourcekitd.send(req, fileContents: snapshot.text)
@@ -214,10 +214,10 @@ class CodeCompletionSession {
 
     logger.info("Updating code completion session: \(self, privacy: .private) filter=\(filterText)")
     let req = sourcekitd.dictionary([
-      keys.request: sourcekitd.requests.codecomplete_update,
+      keys.request: sourcekitd.requests.codeCompleteUpdate,
       keys.offset: utf8StartOffset,
       keys.name: uri.pseudoPath,
-      keys.codecomplete_options: optionsDictionary(filterText: filterText, options: options),
+      keys.codeCompleteOptions: optionsDictionary(filterText: filterText, options: options),
     ])
 
     let dict = try await sourcekitd.send(req, fileContents: snapshot.text)
@@ -240,15 +240,14 @@ class CodeCompletionSession {
   ) -> SKDRequestDictionary {
     let dict = sourcekitd.dictionary([
       // Sorting and priority options.
-      keys.codecomplete_hideunderscores: 0,
-      keys.codecomplete_hidelowpriority: 0,
-      keys.codecomplete_hidebyname: 0,
-      keys.codecomplete_addinneroperators: 0,
-      keys.codecomplete_callpatternheuristics: 0,
-      keys.codecomplete_showtopnonliteralresults: 0,
+      keys.hideUnderscores: 0,
+      keys.hideLowPriority: 0,
+      keys.hideByName: 0,
+      keys.addInnerOperators: 0,
+      keys.topNonLiteral: 0,
       // Filtering options.
-      keys.codecomplete_filtertext: filterText,
-      keys.codecomplete_requestlimit: options.maxResults,
+      keys.filterText: filterText,
+      keys.requestLimit: options.maxResults,
     ])
     return dict
   }
@@ -260,7 +259,7 @@ class CodeCompletionSession {
       break
     case .open:
       let req = sourcekitd.dictionary([
-        keys.request: sourcekitd.requests.codecomplete_close,
+        keys.request: sourcekitd.requests.codeCompleteClose,
         keys.offset: utf8StartOffset,
         keys.name: snapshot.uri.pseudoPath,
       ])
@@ -287,9 +286,9 @@ class CodeCompletionSession {
       }
 
       var filterName: String? = value[keys.name]
-      let insertText: String? = value[keys.sourcetext]
-      let typeName: String? = value[sourcekitd.keys.typename]
-      let docBrief: String? = value[sourcekitd.keys.doc_brief]
+      let insertText: String? = value[keys.sourceText]
+      let typeName: String? = value[sourcekitd.keys.typeName]
+      let docBrief: String? = value[sourcekitd.keys.docBrief]
 
       let text = insertText.map {
         rewriteSourceKitPlaceholders(inString: $0, clientSupportsSnippets: clientSupportsSnippets)
@@ -298,7 +297,7 @@ class CodeCompletionSession {
 
       let textEdit: TextEdit?
       if let text = text {
-        let utf8CodeUnitsToErase: Int = value[sourcekitd.keys.num_bytes_to_erase] ?? 0
+        let utf8CodeUnitsToErase: Int = value[sourcekitd.keys.numBytesToErase] ?? 0
 
         textEdit = self.computeCompletionTextEdit(
           completionPos: completionPos,
@@ -329,7 +328,7 @@ class CodeCompletionSession {
       }
 
       // Map SourceKit's not_recommended field to LSP's deprecated
-      let notRecommended = (value[sourcekitd.keys.not_recommended] as Int?).map({ $0 != 0 })
+      let notRecommended = (value[sourcekitd.keys.notRecommended] as Int?).map({ $0 != 0 })
 
       let kind: sourcekitd_uid_t? = value[sourcekitd.keys.kind]
       result.items.append(

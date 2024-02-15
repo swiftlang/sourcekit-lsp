@@ -20,31 +20,31 @@ struct RelatedIdentifier {
 }
 
 extension RenameLocation.Usage {
-  fileprivate init?(_ uid: sourcekitd_uid_t?, _ keys: sourcekitd_keys) {
+  fileprivate init?(_ uid: sourcekitd_uid_t?, _ values: sourcekitd_values) {
     switch uid {
-    case keys.syntacticRenameDefinition:
+    case values.definition:
       self = .definition
-    case keys.syntacticRenameReference:
+    case values.reference:
       self = .reference
-    case keys.syntacticRenameCall:
+    case values.call:
       self = .call
-    case keys.syntacticRenameUnknown:
+    case values.unknown:
       self = .unknown
     default:
       return nil
     }
   }
 
-  func uid(keys: sourcekitd_keys) -> sourcekitd_uid_t {
+  func uid(values: sourcekitd_values) -> sourcekitd_uid_t {
     switch self {
     case .definition:
-      return keys.syntacticRenameDefinition
+      return values.definition
     case .reference:
-      return keys.syntacticRenameReference
+      return values.reference
     case .call:
-      return keys.syntacticRenameCall
+      return values.call
     case .unknown:
-      return keys.syntacticRenameUnknown
+      return values.unknown
     }
   }
 }
@@ -68,12 +68,12 @@ extension SwiftLanguageServer {
     }
 
     let skreq = sourcekitd.dictionary([
-      keys.request: requests.relatedidents,
+      keys.request: requests.relatedIdents,
       keys.cancelOnSubsequentRequest: 0,
       keys.offset: offset,
-      keys.sourcefile: snapshot.uri.pseudoPath,
+      keys.sourceFile: snapshot.uri.pseudoPath,
       keys.includeNonEditableBaseNames: includeNonEditableBaseNames ? 1 : 0,
-      keys.compilerargs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
     ])
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
@@ -93,7 +93,7 @@ extension SwiftLanguageServer {
         let length: Int = value[keys.length],
         let end: Position = snapshot.positionOf(utf8Offset: offset + length)
       {
-        let usage = RenameLocation.Usage(value[keys.nameType], keys) ?? .unknown
+        let usage = RenameLocation.Usage(value[keys.nameType], values) ?? .unknown
         relatedIdentifiers.append(
           RelatedIdentifier(range: start..<end, usage: usage)
         )

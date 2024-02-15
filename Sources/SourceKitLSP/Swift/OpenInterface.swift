@@ -71,16 +71,16 @@ extension SwiftLanguageServer {
   ) async throws -> InterfaceInfo {
     let keys = self.keys
     let skreq = sourcekitd.dictionary([
-      keys.request: requests.editor_open_interface,
-      keys.modulename: name,
-      keys.groupname: request.groupNames.isEmpty ? nil : request.groupNames as [SKDValue],
+      keys.request: requests.editorOpenInterface,
+      keys.moduleName: name,
+      keys.groupName: request.groupNames.isEmpty ? nil : request.groupNames as [SKDValue],
       keys.name: interfaceURI.pseudoPath,
-      keys.synthesizedextensions: 1,
-      keys.compilerargs: await self.buildSettings(for: uri)?.compilerArgs as [SKDValue]?,
+      keys.synthesizedExtension: 1,
+      keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDValue]?,
     ])
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: nil)
-    return InterfaceInfo(contents: dict[keys.sourcetext] ?? "")
+    return InterfaceInfo(contents: dict[keys.sourceText] ?? "")
   }
 
   private func interfaceDetails(
@@ -95,8 +95,8 @@ extension SwiftLanguageServer {
       }
       let keys = self.keys
       let skreq = sourcekitd.dictionary([
-        keys.request: requests.find_usr,
-        keys.sourcefile: uri.pseudoPath,
+        keys.request: requests.editorFindUSR,
+        keys.sourceFile: uri.pseudoPath,
         keys.usr: symbol,
       ])
 

@@ -1,0 +1,106 @@
+%{
+  from gyb_sourcekit_support.UIDs import UID_KEYS, UID_REQUESTS, UID_KINDS, KEY, REQUEST, KIND
+  # Ignore the following admonition it applies to the resulting .swift file only
+}%
+//// Automatically Generated From UIDs.swift.gyb.
+//// Do Not Edit Directly! To regenerate run Utilities/generate-uids.py
+//===----------------------------------------------------------------------===//
+//
+// This source file is part of the Swift.org open source project
+//
+// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
+// Licensed under Apache License v2.0 with Runtime Library Exception
+//
+// See https://swift.org/LICENSE.txt for license information
+// See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
+//
+//===----------------------------------------------------------------------===//
+%{
+  def variable_name(name):
+    if name == 'Operator':
+      return '`operator`'
+    word_index = 0
+    threshold_index = 1
+    for c in name:
+        if c.islower():
+            if word_index > threshold_index:
+                word_index -= 1
+            break
+        word_index += 1
+    if word_index == 0:
+        return name
+    return name[:word_index].lower() + name[word_index:]
+
+    # We should automatically generate these.
+  ADDITIONAL_KEYS = [
+    # Maintained from translateCodeCompletionOptions in SwiftCompletion.cpp#
+    KEY('SortByName', 'key.codecomplete.sort.byname'),
+    KEY('UseImportDepth', 'key.codecomplete.sort.useimportdepth'),
+    KEY('GroupOverloads', 'key.codecomplete.group.overloads'),
+    KEY('GroupStems', 'key.codecomplete.group.stems'),
+    KEY('FilterText', 'key.codecomplete.filtertext'),
+    KEY('RequestLimit', 'key.codecomplete.requestlimit'),
+    KEY('RequestStart', 'key.codecomplete.requeststart'),
+    KEY('HideUnderscores', 'key.codecomplete.hideunderscores'),
+    KEY('HideLowPriority', 'key.codecomplete.hidelowpriority'),
+    KEY('HideByName', 'key.codecomplete.hidebyname'),
+    KEY('IncludeExactMatch', 'key.codecomplete.includeexactmatch'),
+    KEY('AddInnerResults', 'key.codecomplete.addinnerresults'),
+    KEY('AddInnerOperators', 'key.codecomplete.addinneroperators'),
+    KEY('AddInitsToTopLevel', 'key.codecomplete.addinitstotoplevel'),
+    KEY('FuzzyMatching', 'key.codecomplete.fuzzymatching'),
+    KEY('TopNonLiteral', 'key.codecomplete.showtopnonliteralresults'),
+    KEY('ContextWeight', 'key.codecomplete.sort.contextweight'),
+    KEY('FuzzyWeight', 'key.codecomplete.sort.fuzzyweight'),
+    KEY('PopularityBonus', 'key.codecomplete.sort.popularitybonus'),
+    KEY('AnnotatedDescription', 'key.codecomplete.annotateddescription'),
+    KEY('IncludeObjectLiterals', 'key.codecomplete.includeobjectliterals'),
+
+    # Maintained from applyFormatOptions in SwiftEditor.cpp
+    KEY('UseTabs', 'key.editor.format.usetabs'),
+    KEY('IndentWidth', 'key.editor.format.indentwidth'),
+    KEY('TabWidth', 'key.editor.format.tabwidth'),
+    KEY('IndentSwitchCase', 'key.editor.format.indent_switch_case'),
+  ]
+
+  # We should automatically generate these.
+  ADDITIONAL_VALUES = [
+    # Maintained from SwiftToSourceKitCompletionAdapter::handleResult in SwiftCompletion.cpp
+    KIND('CompletionKindKeyword', 'source.lang.swift.keyword'),
+    KIND('CompletionKindPattern', 'source.lang.swift.pattern'),
+
+    # Maintained from SwiftEditor.cpp
+    KIND('SemaDiagStage', 'source.diagnostic.stage.swift.sema'),
+    KIND('ParseDiagStage', 'source.diagnostic.stage.swift.parse'),
+
+    # Maintained from sourcekitd.cpp
+    KIND('SemaDisabledNotification', 'source.notification.sema_disabled'),
+
+    # Maintained from initializeService in Requests.cpp
+    KIND('SemaEnabledNotification', 'source.notification.sema_enabled'),
+    KIND('DocumentUpdateNotification', 'source.notification.editor.documentupdate'),
+  ]
+
+  TYPES_AND_KEYS = [
+    ('sourcekitd_keys', UID_KEYS + ADDITIONAL_KEYS),
+    ('sourcekitd_requests', UID_REQUESTS),
+    ('sourcekitd_values', UID_KINDS + ADDITIONAL_VALUES),
+  ]
+}%
+
+import Csourcekitd
+% for (struct_type, uids) in TYPES_AND_KEYS:
+
+public struct ${struct_type} {
+% for key in uids:
+  /// `${key.externalName}`
+  public let ${variable_name(key.internalName)}: sourcekitd_uid_t
+% end
+
+  public init(api: sourcekitd_functions_t) {
+% for key in uids:
+    ${variable_name(key.internalName)} = api.uid_get_from_cstr("${key.externalName}")!
+% end
+  }
+}
+% end

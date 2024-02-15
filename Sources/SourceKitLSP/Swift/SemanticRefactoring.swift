@@ -36,7 +36,7 @@ struct SemanticRefactoring {
   ///   - url: The client URL that triggered the `semantic_refactoring` request.
   ///   - keys: The sourcekitd key set to use for looking up into `dict`.
   init?(_ title: String, _ dict: SKDResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_keys) {
-    guard let categorizedEdits: SKDResponseArray = dict[keys.categorizededits] else {
+    guard let categorizedEdits: SKDResponseArray = dict[keys.categorizedEdits] else {
       return nil
     }
 
@@ -54,8 +54,8 @@ struct SemanticRefactoring {
             zeroBasedLine: startLine - 1,
             utf8Column: startColumn - 1
           ),
-          let endLine: Int = value[keys.endline],
-          let endColumn: Int = value[keys.endcolumn],
+          let endLine: Int = value[keys.endLine],
+          let endColumn: Int = value[keys.endColumn],
           let endPosition = snapshot.positionOf(
             zeroBasedLine: endLine - 1,
             utf8Column: endColumn - 1
@@ -139,17 +139,17 @@ extension SwiftLanguageServer {
     }
 
     let skreq = sourcekitd.dictionary([
-      keys.request: self.requests.semantic_refactoring,
+      keys.request: self.requests.semanticRefactoring,
       // Preferred name for e.g. an extracted variable.
       // Empty string means sourcekitd chooses a name automatically.
       keys.name: "",
-      keys.sourcefile: uri.pseudoPath,
+      keys.sourceFile: uri.pseudoPath,
       // LSP is zero based, but this request is 1 based.
       keys.line: line + 1,
       keys.column: utf8Column + 1,
       keys.length: offsetRange.count,
-      keys.actionuid: self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!,
-      keys.compilerargs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+      keys.actionUID: self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!,
+      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
     ])
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)

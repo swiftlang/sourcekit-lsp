@@ -44,7 +44,7 @@ struct SyntaxHighlightingTokenParser {
         length += 2
       }
 
-      if let isSystem: Bool = response[keys.is_system], isSystem {
+      if let isSystem: Bool = response[keys.isSystem], isSystem {
         modifiers.insert(.defaultLibrary)
       }
 
@@ -62,7 +62,7 @@ struct SyntaxHighlightingTokenParser {
       }
     }
 
-    if let substructure: SKDResponseArray = response[keys.substructure] {
+    if let substructure: SKDResponseArray = response[keys.subStructure] {
       parseTokens(substructure, in: snapshot, into: &tokens)
     }
   }
@@ -90,113 +90,112 @@ struct SyntaxHighlightingTokenParser {
     let api = sourcekitd.api
     let values = sourcekitd.values
     switch uid {
-    case values.kind_keyword,
-      values.syntaxtype_keyword:
+    case values.completionKindKeyword, values.keyword:
       return (.keyword, [])
-    case values.syntaxtype_attribute_builtin:
+    case values.attributeBuiltin:
       return (.modifier, [])
-    case values.decl_module:
+    case values.declModule:
       return (.namespace, [])
-    case values.decl_class:
+    case values.declClass:
       return (.class, [.declaration])
-    case values.ref_class:
+    case values.refClass:
       return (.class, [])
-    case values.decl_actor:
+    case values.declActor:
       return (.actor, [.declaration])
-    case values.ref_actor:
+    case values.refActor:
       return (.actor, [])
-    case values.decl_struct:
+    case values.declStruct:
       return (.struct, [.declaration])
-    case values.ref_struct:
+    case values.refStruct:
       return (.struct, [])
-    case values.decl_enum:
+    case values.declEnum:
       return (.enum, [.declaration])
-    case values.ref_enum:
+    case values.refEnum:
       return (.enum, [])
-    case values.decl_enumelement:
+    case values.declEnumElement:
       return (.enumMember, [.declaration])
-    case values.ref_enumelement:
+    case values.refEnumElement:
       return (.enumMember, [])
-    case values.decl_protocol:
+    case values.declProtocol:
       return (.interface, [.declaration])
-    case values.ref_protocol:
+    case values.refProtocol:
       return (.interface, [])
-    case values.decl_associatedtype,
-      values.decl_typealias,
-      values.decl_generic_type_param:
+    case values.declAssociatedType,
+      values.declTypeAlias,
+      values.declGenericTypeParam:
       return (.typeParameter, [.declaration])
-    case values.ref_associatedtype,
-      values.ref_typealias,
-      values.ref_generic_type_param:
+    case values.refAssociatedType,
+      values.refTypeAlias,
+      values.refGenericTypeParam:
       return (.typeParameter, [])
-    case values.decl_function_free:
+    case values.declFunctionFree:
       return (.function, [.declaration])
-    case values.decl_function_method_static,
-      values.decl_function_method_class,
-      values.decl_function_constructor:
+    case values.declMethodStatic,
+      values.declMethodClass,
+      values.declConstructor:
       return (.method, [.declaration, .static])
-    case values.decl_function_method_instance,
-      values.decl_function_destructor,
-      values.decl_function_subscript:
+    case values.declMethodInstance,
+      values.declDestructor,
+      values.declSubscript:
       return (.method, [.declaration])
-    case values.ref_function_free:
+    case values.refFunctionFree:
       return (.function, [])
-    case values.ref_function_method_static,
-      values.ref_function_method_class,
-      values.ref_function_constructor:
+    case values.refMethodStatic,
+      values.refMethodClass,
+      values.refConstructor:
       return (.method, [.static])
-    case values.ref_function_method_instance,
-      values.ref_function_destructor,
-      values.ref_function_subscript:
+    case values.refMethodInstance,
+      values.refDestructor,
+      values.refSubscript:
       return (.method, [])
-    case values.syntaxtype_operator:
+    case values.operator:
       return (.operator, [])
-    case values.decl_function_operator_prefix,
-      values.decl_function_operator_postfix,
-      values.decl_function_operator_infix:
+    case values.declFunctionPrefixOperator,
+      values.declFunctionPostfixOperator,
+      values.declFunctionInfixOperator:
       return (.operator, [.declaration])
-    case values.ref_function_operator_prefix,
-      values.ref_function_operator_postfix,
-      values.ref_function_operator_infix:
+    case values.refFunctionPrefixOperator,
+      values.refFunctionPostfixOperator,
+      values.refFunctionInfixOperator:
       return (.operator, [])
-    case values.decl_var_static,
-      values.decl_var_class,
-      values.decl_var_instance:
+    case values.declVarStatic,
+      values.declVarClass,
+      values.declVarInstance:
       return (.property, [.declaration])
-    case values.decl_var_parameter:
+    case values.declVarParam:
       // SourceKit seems to use these to refer to parameter labels,
       // therefore we don't use .parameter here (which LSP clients like
       // VSCode seem to interpret as variable identifiers, however
       // causing a 'wrong highlighting' e.g. of `x` in `f(x y: Int) {}`)
       return (.function, [.declaration])
-    case values.ref_var_static,
-      values.ref_var_class,
-      values.ref_var_instance:
+    case values.refVarStatic,
+      values.refVarClass,
+      values.refVarInstance:
       return (.property, [])
-    case values.decl_var_local,
-      values.decl_var_global:
+    case values.declVarLocal,
+      values.declVarGlobal:
       return (.variable, [.declaration])
-    case values.ref_var_local,
-      values.ref_var_global:
+    case values.refVarLocal,
+      values.refVarGlobal:
       return (.variable, [])
-    case values.syntaxtype_comment,
-      values.syntaxtype_comment_marker,
-      values.syntaxtype_comment_url:
+    case values.comment,
+      values.commentMarker,
+      values.commentURL:
       return (.comment, [])
-    case values.syntaxtype_doccomment,
-      values.syntaxtype_doccomment_field:
+    case values.docComment,
+      values.docCommentField:
       return (.comment, [.documentation])
-    case values.syntaxtype_type_identifier:
+    case values.typeIdentifier:
       return (.type, [])
-    case values.syntaxtype_number:
+    case values.number:
       return (.number, [])
-    case values.syntaxtype_string:
+    case values.string:
       return (.string, [])
-    case values.syntaxtype_identifier:
+    case values.identifier:
       return (.identifier, [])
     default:
       let ignoredKinds: Set<sourcekitd_uid_t> = [
-        values.syntaxtype_string_interpolation_anchor
+        values.stringInterpolation
       ]
       if !ignoredKinds.contains(uid) {
         let name = api.uid_get_string_ptr(uid).map(String.init(cString:))

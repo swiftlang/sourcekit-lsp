@@ -36,7 +36,7 @@ final class SourceKitDTests: XCTestCase {
       if let notification: sourcekitd_uid_t = response.value?[keys.notification],
         let name: String = response.value?[keys.name]
       {
-        return name == path && notification == sourcekitd.values.notification_documentupdate
+        return name == path && notification == sourcekitd.values.documentUpdateNotification
       }
       return false
     }
@@ -75,12 +75,12 @@ final class SourceKitDTests: XCTestCase {
     args.append(path)
 
     let req = sourcekitd.dictionary([
-      keys.request: sourcekitd.requests.editor_open,
+      keys.request: sourcekitd.requests.editorOpen,
       keys.name: path,
-      keys.sourcetext: """
+      keys.sourceText: """
       func foo() {}
       """,
-      keys.compilerargs: args,
+      keys.compilerArgs: args,
     ])
 
     _ = try await sourcekitd.send(req, fileContents: nil)
@@ -88,7 +88,7 @@ final class SourceKitDTests: XCTestCase {
     try await fulfillmentOfOrThrow([expectation1, expectation2])
 
     let close = sourcekitd.dictionary([
-      keys.request: sourcekitd.requests.editor_close,
+      keys.request: sourcekitd.requests.editorClose,
       keys.name: path,
     ])
     _ = try await sourcekitd.send(close, fileContents: nil)

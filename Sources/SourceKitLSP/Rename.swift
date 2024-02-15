@@ -134,17 +134,17 @@ fileprivate enum SyntacticRenamePieceKind {
   /// - `a` in `foo(a:)`
   case selectorArgumentLabel
 
-  init?(_ uid: sourcekitd_uid_t, keys: sourcekitd_keys) {
+  init?(_ uid: sourcekitd_uid_t, values: sourcekitd_values) {
     switch uid {
-    case keys.renameRangeBase: self = .baseName
-    case keys.renameRangeCallArgColon: self = .callArgumentColon
-    case keys.renameRangeCallArgCombined: self = .callArgumentCombined
-    case keys.renameRangeCallArgLabel: self = .callArgumentLabel
-    case keys.renameRangeDeclArgLabel: self = .declArgumentLabel
-    case keys.renameRangeKeywordBase: self = .keywordBaseName
-    case keys.renameRangeNoncollapsibleParam: self = .noncollapsibleParameterName
-    case keys.renameRangeParam: self = .parameterName
-    case keys.renameRangeSelectorArgLabel: self = .selectorArgumentLabel
+    case values.renameRangeBase: self = .baseName
+    case values.renameRangeCallArgColon: self = .callArgumentColon
+    case values.renameRangeCallArgCombined: self = .callArgumentCombined
+    case values.renameRangeCallArgLabel: self = .callArgumentLabel
+    case values.renameRangeDeclArgLabel: self = .declArgumentLabel
+    case values.renameRangeKeywordBase: self = .keywordBaseName
+    case values.renameRangeNoncollapsibleParam: self = .noncollapsibleParameterName
+    case values.renameRangeParam: self = .parameterName
+    case values.renameRangeSelectorArgLabel: self = .selectorArgumentLabel
     default: return nil
     }
   }
@@ -171,11 +171,16 @@ fileprivate struct SyntacticRenamePiece {
   let parameterIndex: Int?
 
   /// Create a `SyntacticRenamePiece` from a `sourcekitd` response.
-  init?(_ dict: SKDResponseDictionary, in snapshot: DocumentSnapshot, keys: sourcekitd_keys) {
+  init?(
+    _ dict: SKDResponseDictionary,
+    in snapshot: DocumentSnapshot,
+    keys: sourcekitd_keys,
+    values: sourcekitd_values
+  ) {
     guard let line: Int = dict[keys.line],
       let column: Int = dict[keys.column],
-      let endLine: Int = dict[keys.endline],
-      let endColumn: Int = dict[keys.endcolumn],
+      let endLine: Int = dict[keys.endLine],
+      let endColumn: Int = dict[keys.endColumn],
       let kind: sourcekitd_uid_t = dict[keys.kind]
     else {
       return nil
@@ -186,13 +191,13 @@ fileprivate struct SyntacticRenamePiece {
     else {
       return nil
     }
-    guard let kind = SyntacticRenamePieceKind(kind, keys: keys) else {
+    guard let kind = SyntacticRenamePieceKind(kind, values: values) else {
       return nil
     }
 
     self.range = start..<end
     self.kind = kind
-    self.parameterIndex = dict[keys.argindex] as Int?
+    self.parameterIndex = dict[keys.argIndex] as Int?
   }
 }
 
@@ -219,15 +224,15 @@ fileprivate enum SyntacticRenameNameContext {
   /// The matched ranges are within a comment.
   case comment
 
-  init?(_ uid: sourcekitd_uid_t, keys: sourcekitd_keys) {
+  init?(_ uid: sourcekitd_uid_t, values: sourcekitd_values) {
     switch uid {
-    case keys.sourceEditKindActive: self = .activeCode
-    case keys.sourceEditKindComment: self = .comment
-    case keys.sourceEditKindInactive: self = .inactiveCode
-    case keys.sourceEditKindMismatch: self = .mismatch
-    case keys.sourceEditKindSelector: self = .selector
-    case keys.sourceEditKindString: self = .string
-    case keys.sourceEditKindUnknown: self = .unmatched
+    case values.editActive: self = .activeCode
+    case values.editComment: self = .comment
+    case values.editInactive: self = .inactiveCode
+    case values.editMismatch: self = .mismatch
+    case values.editSelector: self = .selector
+    case values.editString: self = .string
+    case values.editUnknown: self = .unmatched
     default: return nil
     }
   }
@@ -240,13 +245,18 @@ fileprivate struct SyntacticRenameName {
   let pieces: [SyntacticRenamePiece]
   let category: SyntacticRenameNameContext
 
-  init?(_ dict: SKDResponseDictionary, in snapshot: DocumentSnapshot, keys: sourcekitd_keys) {
+  init?(
+    _ dict: SKDResponseDictionary,
+    in snapshot: DocumentSnapshot,
+    keys: sourcekitd_keys,
+    values: sourcekitd_values
+  ) {
     guard let ranges: SKDResponseArray = dict[keys.ranges] else {
       return nil
     }
-    self.pieces = ranges.compactMap { SyntacticRenamePiece($0, in: snapshot, keys: keys) }
+    self.pieces = ranges.compactMap { SyntacticRenamePiece($0, in: snapshot, keys: keys, values: values) }
     guard let categoryUid: sourcekitd_uid_t = dict[keys.category],
-      let category = SyntacticRenameNameContext(categoryUid, keys: keys)
+      let category = SyntacticRenameNameContext(categoryUid, values: values)
     else {
       return nil
     }
@@ -360,10 +370,10 @@ extension SwiftLanguageServer {
 
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.nameTranslation,
-      keys.sourcefile: snapshot.uri.pseudoPath,
-      keys.compilerargs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
       keys.offset: offset,
-      keys.namekind: sourcekitd.values.namekindSwift,
+      keys.nameKind: sourcekitd.values.nameSwift,
       keys.baseName: name.baseName,
       keys.argNames: sourcekitd.array(name.parameters.map { $0.stringOrWildcard }),
     ])
@@ -417,10 +427,10 @@ extension SwiftLanguageServer {
     }
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.nameTranslation,
-      keys.sourcefile: snapshot.uri.pseudoPath,
-      keys.compilerargs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
+      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDValue]?,
       keys.offset: offset,
-      keys.namekind: sourcekitd.values.namekindObjC,
+      keys.nameKind: sourcekitd.values.nameObjc,
     ])
 
     if isObjectiveCSelector {
@@ -782,7 +792,7 @@ extension SwiftLanguageServer {
         let location = sourcekitd.dictionary([
           keys.line: renameLocation.line,
           keys.column: renameLocation.utf8Column,
-          keys.nameType: renameLocation.usage.uid(keys: keys),
+          keys.nameType: renameLocation.usage.uid(values: values),
         ])
         return sourcekitd.dictionary([
           keys.locations: [location],
@@ -792,20 +802,20 @@ extension SwiftLanguageServer {
     )
 
     let skreq = sourcekitd.dictionary([
-      keys.request: requests.find_syntactic_rename_ranges,
-      keys.sourcefile: snapshot.uri.pseudoPath,
+      keys.request: requests.findRenameRanges,
+      keys.sourceFile: snapshot.uri.pseudoPath,
       // find-syntactic-rename-ranges is a syntactic sourcekitd request that doesn't use the in-memory file snapshot.
       // We need to send the source text again.
-      keys.sourcetext: snapshot.text,
-      keys.renamelocations: locations,
+      keys.sourceText: snapshot.text,
+      keys.renameLocations: locations,
     ])
 
     let syntacticRenameRangesResponse = try await sourcekitd.send(skreq, fileContents: snapshot.text)
-    guard let categorizedRanges: SKDResponseArray = syntacticRenameRangesResponse[keys.categorizedranges] else {
+    guard let categorizedRanges: SKDResponseArray = syntacticRenameRangesResponse[keys.categorizedRanges] else {
       throw ResponseError.internalError("sourcekitd did not return categorized ranges")
     }
 
-    return categorizedRanges.compactMap { SyntacticRenameName($0, in: snapshot, keys: keys) }
+    return categorizedRanges.compactMap { SyntacticRenameName($0, in: snapshot, keys: keys, values: values) }
   }
 
   public func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
