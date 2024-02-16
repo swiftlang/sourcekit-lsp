@@ -29,28 +29,22 @@ public final class SourceKitDImpl: SourceKitD {
   let dylib: DLHandle
 
   /// The sourcekitd API functions.
-  public let api: sourcekitd_functions_t
+  public let api: sourcekitd_api_functions_t
 
   /// Convenience for accessing known keys.
-  public let keys: sourcekitd_keys
+  public let keys: sourcekitd_api_keys
 
   /// Convenience for accessing known keys.
-  public let requests: sourcekitd_requests
+  public let requests: sourcekitd_api_requests
 
   /// Convenience for accessing known keys.
-  public let values: sourcekitd_values
+  public let values: sourcekitd_api_values
 
   /// Lock protecting private state.
   let lock: NSLock = NSLock()
 
   /// List of notification handlers that will be called for each notification.
   private var _notificationHandlers: [WeakSKDNotificationHandler] = []
-
-  var notificationHandlers: [SKDNotificationHandler] {
-    lock.withLock {
-      _notificationHandlers.compactMap { $0.value }
-    }
-  }
 
   public static func getOrCreate(dylibPath: AbsolutePath) throws -> SourceKitD {
     try SourceKitDRegistry.shared
@@ -64,14 +58,14 @@ public final class SourceKitDImpl: SourceKitD {
     #else
     self.dylib = try dlopen(path.pathString, mode: [.lazy, .local, .first])
     #endif
-    self.api = try sourcekitd_functions_t(self.dylib)
-    self.keys = sourcekitd_keys(api: self.api)
-    self.requests = sourcekitd_requests(api: self.api)
-    self.values = sourcekitd_values(api: self.api)
+    self.api = try sourcekitd_api_functions_t(self.dylib)
+    self.keys = sourcekitd_api_keys(api: self.api)
+    self.requests = sourcekitd_api_requests(api: self.api)
+    self.values = sourcekitd_api_values(api: self.api)
 
     self.api.initialize()
     self.api.set_notification_handler { [weak self] rawResponse in
-      guard let self = self else { return }
+      guard let self, let rawResponse else { return }
       let handlers = self.lock.withLock { self._notificationHandlers.compactMap(\.value) }
 
       let response = SKDResponse(rawResponse, sourcekitd: self)

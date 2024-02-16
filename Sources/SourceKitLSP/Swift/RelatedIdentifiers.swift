@@ -20,7 +20,7 @@ struct RelatedIdentifier {
 }
 
 extension RenameLocation.Usage {
-  fileprivate init?(_ uid: sourcekitd_uid_t?, _ values: sourcekitd_values) {
+  fileprivate init?(_ uid: sourcekitd_api_uid_t?, _ values: sourcekitd_api_values) {
     switch uid {
     case values.definition:
       self = .definition
@@ -35,7 +35,7 @@ extension RenameLocation.Usage {
     }
   }
 
-  func uid(values: sourcekitd_values) -> sourcekitd_uid_t {
+  func uid(values: sourcekitd_api_values) -> sourcekitd_api_uid_t {
     switch self {
     case .definition:
       return values.definition

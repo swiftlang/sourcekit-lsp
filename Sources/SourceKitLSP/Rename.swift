@@ -135,7 +135,7 @@ fileprivate enum SyntacticRenamePieceKind {
   /// - `a` in `foo(a:)`
   case selectorArgumentLabel
 
-  init?(_ uid: sourcekitd_uid_t, values: sourcekitd_values) {
+  init?(_ uid: sourcekitd_api_uid_t, values: sourcekitd_api_values) {
     switch uid {
     case values.renameRangeBase: self = .baseName
     case values.renameRangeCallArgColon: self = .callArgumentColon
@@ -175,14 +175,14 @@ fileprivate struct SyntacticRenamePiece {
   init?(
     _ dict: SKDResponseDictionary,
     in snapshot: DocumentSnapshot,
-    keys: sourcekitd_keys,
-    values: sourcekitd_values
+    keys: sourcekitd_api_keys,
+    values: sourcekitd_api_values
   ) {
     guard let line: Int = dict[keys.line],
       let column: Int = dict[keys.column],
       let endLine: Int = dict[keys.endLine],
       let endColumn: Int = dict[keys.endColumn],
-      let kind: sourcekitd_uid_t = dict[keys.kind]
+      let kind: sourcekitd_api_uid_t = dict[keys.kind]
     else {
       return nil
     }
@@ -225,7 +225,7 @@ fileprivate enum SyntacticRenameNameContext {
   /// The matched ranges are within a comment.
   case comment
 
-  init?(_ uid: sourcekitd_uid_t, values: sourcekitd_values) {
+  init?(_ uid: sourcekitd_api_uid_t, values: sourcekitd_api_values) {
     switch uid {
     case values.editActive: self = .activeCode
     case values.editComment: self = .comment
@@ -249,14 +249,14 @@ fileprivate struct SyntacticRenameName {
   init?(
     _ dict: SKDResponseDictionary,
     in snapshot: DocumentSnapshot,
-    keys: sourcekitd_keys,
-    values: sourcekitd_values
+    keys: sourcekitd_api_keys,
+    values: sourcekitd_api_values
   ) {
     guard let ranges: SKDResponseArray = dict[keys.ranges] else {
       return nil
     }
     self.pieces = ranges.compactMap { SyntacticRenamePiece($0, in: snapshot, keys: keys, values: values) }
-    guard let categoryUid: sourcekitd_uid_t = dict[keys.category],
+    guard let categoryUid: sourcekitd_api_uid_t = dict[keys.category],
       let category = SyntacticRenameNameContext(categoryUid, values: values)
     else {
       return nil

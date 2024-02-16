@@ -72,8 +72,8 @@ extension Array where Element == SemanticRefactorCommand {
     array: SKDResponseArray?,
     range: Range<Position>,
     textDocument: TextDocumentIdentifier,
-    _ keys: sourcekitd_keys,
-    _ api: sourcekitd_functions_t
+    _ keys: sourcekitd_api_keys,
+    _ api: sourcekitd_api_functions_t
   ) {
     guard let results = array else {
       return nil
@@ -81,7 +81,7 @@ extension Array where Element == SemanticRefactorCommand {
     var commands = [SemanticRefactorCommand]()
     results.forEach { _, value in
       if let name: String = value[keys.actionName],
-        let actionuid: sourcekitd_uid_t = value[keys.actionUID],
+        let actionuid: sourcekitd_api_uid_t = value[keys.actionUID],
         let ptr = api.uid_get_string_ptr(actionuid)
       {
         let actionName = String(cString: ptr)

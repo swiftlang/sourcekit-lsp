@@ -82,9 +82,9 @@
   ]
 
   TYPES_AND_KEYS = [
-    ('sourcekitd_keys', UID_KEYS + ADDITIONAL_KEYS),
-    ('sourcekitd_requests', UID_REQUESTS),
-    ('sourcekitd_values', UID_KINDS + ADDITIONAL_VALUES),
+    ('sourcekitd_api_keys', UID_KEYS + ADDITIONAL_KEYS),
+    ('sourcekitd_api_requests', UID_REQUESTS),
+    ('sourcekitd_api_values', UID_KINDS + ADDITIONAL_VALUES),
   ]
 }%
 
@@ -94,10 +94,10 @@ import Csourcekitd
 public struct ${struct_type} {
 % for key in uids:
   /// `${key.externalName}`
-  public let ${variable_name(key.internalName)}: sourcekitd_uid_t
+  public let ${variable_name(key.internalName)}: sourcekitd_api_uid_t
 % end
 
-  public init(api: sourcekitd_functions_t) {
+  public init(api: sourcekitd_api_functions_t) {
 % for key in uids:
     ${variable_name(key.internalName)} = api.uid_get_from_cstr("${key.externalName}")!
 % end

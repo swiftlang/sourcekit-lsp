@@ -22,10 +22,10 @@ import CRT
 #endif
 
 public final class SKDResponse {
-  public let response: sourcekitd_response_t?
+  public let response: sourcekitd_api_response_t
   public let sourcekitd: SourceKitD
 
-  public init(_ response: sourcekitd_response_t?, sourcekitd: SourceKitD) {
+  public init(_ response: sourcekitd_api_response_t, sourcekitd: SourceKitD) {
     self.response = response
     self.sourcekitd = sourcekitd
   }
@@ -39,10 +39,10 @@ public final class SKDResponse {
       return nil
     }
     switch sourcekitd.api.response_error_get_kind(response) {
-    case SOURCEKITD_ERROR_CONNECTION_INTERRUPTED: return .connectionInterrupted
-    case SOURCEKITD_ERROR_REQUEST_INVALID: return .requestInvalid(description)
-    case SOURCEKITD_ERROR_REQUEST_FAILED: return .requestFailed(description)
-    case SOURCEKITD_ERROR_REQUEST_CANCELLED: return .requestCancelled
+    case SOURCEKITD_API_ERROR_CONNECTION_INTERRUPTED: return .connectionInterrupted
+    case SOURCEKITD_API_ERROR_REQUEST_INVALID: return .requestInvalid(description)
+    case SOURCEKITD_API_ERROR_REQUEST_FAILED: return .requestFailed(description)
+    case SOURCEKITD_API_ERROR_REQUEST_CANCELLED: return .requestCancelled
     default: return .requestFailed(description)
     }
   }

@@ -21,41 +21,41 @@ import CRT
 #endif
 
 public final class SKDResponseDictionary {
-  public let dict: sourcekitd_variant_t
+  public let dict: sourcekitd_api_variant_t
   let resp: SKDResponse
 
   public var sourcekitd: SourceKitD { return resp.sourcekitd }
 
-  public init(_ dict: sourcekitd_variant_t, response: SKDResponse) {
+  public init(_ dict: sourcekitd_api_variant_t, response: SKDResponse) {
     self.dict = dict
     self.resp = response
   }
 
-  public subscript(key: sourcekitd_uid_t?) -> String? {
+  public subscript(key: sourcekitd_api_uid_t) -> String? {
     return sourcekitd.api.variant_dictionary_get_string(dict, key).map(String.init(cString:))
   }
-  public subscript(key: sourcekitd_uid_t?) -> Int? {
+  public subscript(key: sourcekitd_api_uid_t) -> Int? {
     let value = sourcekitd.api.variant_dictionary_get_value(dict, key)
-    if sourcekitd.api.variant_get_type(value) == SOURCEKITD_VARIANT_TYPE_INT64 {
+    if sourcekitd.api.variant_get_type(value) == SOURCEKITD_API_VARIANT_TYPE_INT64 {
       return Int(sourcekitd.api.variant_int64_get_value(value))
     } else {
       return nil
     }
   }
-  public subscript(key: sourcekitd_uid_t?) -> Bool? {
+  public subscript(key: sourcekitd_api_uid_t) -> Bool? {
     let value = sourcekitd.api.variant_dictionary_get_value(dict, key)
-    if sourcekitd.api.variant_get_type(value) == SOURCEKITD_VARIANT_TYPE_BOOL {
+    if sourcekitd.api.variant_get_type(value) == SOURCEKITD_API_VARIANT_TYPE_BOOL {
       return sourcekitd.api.variant_bool_get_value(value)
     } else {
       return nil
     }
   }
-  public subscript(key: sourcekitd_uid_t?) -> sourcekitd_uid_t? {
+  public subscript(key: sourcekitd_api_uid_t) -> sourcekitd_api_uid_t? {
     return sourcekitd.api.variant_dictionary_get_uid(dict, key)
   }
-  public subscript(key: sourcekitd_uid_t?) -> SKDResponseArray? {
+  public subscript(key: sourcekitd_api_uid_t) -> SKDResponseArray? {
     let value = sourcekitd.api.variant_dictionary_get_value(dict, key)
-    if sourcekitd.api.variant_get_type(value) == SOURCEKITD_VARIANT_TYPE_ARRAY {
+    if sourcekitd.api.variant_get_type(value) == SOURCEKITD_API_VARIANT_TYPE_ARRAY {
       return SKDResponseArray(value, response: resp)
     } else {
       return nil

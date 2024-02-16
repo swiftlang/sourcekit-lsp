@@ -147,7 +147,7 @@ class CodeCompletionSession {
   }
 
   private nonisolated var uri: DocumentURI { snapshot.uri }
-  private nonisolated var keys: sourcekitd_keys { return sourcekitd.keys }
+  private nonisolated var keys: sourcekitd_api_keys { return sourcekitd.keys }
 
   private init(
     sourcekitd: any SourceKitD,
@@ -330,7 +330,7 @@ class CodeCompletionSession {
       // Map SourceKit's not_recommended field to LSP's deprecated
       let notRecommended = (value[sourcekitd.keys.notRecommended] as Int?).map({ $0 != 0 })
 
-      let kind: sourcekitd_uid_t? = value[sourcekitd.keys.kind]
+      let kind: sourcekitd_api_uid_t? = value[sourcekitd.keys.kind]
       result.items.append(
         CompletionItem(
           label: name,

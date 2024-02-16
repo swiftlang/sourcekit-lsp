@@ -35,7 +35,7 @@ struct SemanticRefactoring {
   ///   - dict: Response dictionary to extract information from.
   ///   - url: The client URL that triggered the `semantic_refactoring` request.
   ///   - keys: The sourcekitd key set to use for looking up into `dict`.
-  init?(_ title: String, _ dict: SKDResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_keys) {
+  init?(_ title: String, _ dict: SKDResponseDictionary, _ snapshot: DocumentSnapshot, _ keys: sourcekitd_api_keys) {
     guard let categorizedEdits: SKDResponseArray = dict[keys.categorizedEdits] else {
       return nil
     }

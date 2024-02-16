@@ -61,10 +61,10 @@ private var nextToken = 0
 
 final class FakeSourceKitD: SourceKitD {
   let token: Int
-  var api: sourcekitd_functions_t { fatalError() }
-  var keys: sourcekitd_keys { fatalError() }
-  var requests: sourcekitd_requests { fatalError() }
-  var values: sourcekitd_values { fatalError() }
+  var api: sourcekitd_api_functions_t { fatalError() }
+  var keys: sourcekitd_api_keys { fatalError() }
+  var requests: sourcekitd_api_requests { fatalError() }
+  var values: sourcekitd_api_values { fatalError() }
   func addNotificationHandler(_ handler: SKDNotificationHandler) { fatalError() }
   func removeNotificationHandler(_ handler: SKDNotificationHandler) { fatalError() }
   private init() {

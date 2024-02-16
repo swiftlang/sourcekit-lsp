@@ -31,16 +31,16 @@ public protocol SKDRequestValue {}
 
 extension String: SKDRequestValue {}
 extension Int: SKDRequestValue {}
-extension sourcekitd_uid_t: SKDRequestValue {}
+extension sourcekitd_api_uid_t: SKDRequestValue {}
 extension SKDRequestDictionary: SKDRequestValue {}
 extension SKDRequestArray: SKDRequestValue {}
 extension Array<SKDRequestValue>: SKDRequestValue {}
-extension Dictionary<sourcekitd_uid_t, SKDRequestValue>: SKDRequestValue {}
+extension Dictionary<sourcekitd_api_uid_t, SKDRequestValue>: SKDRequestValue {}
 extension Optional: SKDRequestValue where Wrapped: SKDRequestValue {}
 
 extension SourceKitD {
   /// Create a `SKDRequestDictionary` from the given dictionary.
-  public func dictionary(_ dict: [sourcekitd_uid_t: SKDRequestValue]) -> SKDRequestDictionary {
+  public func dictionary(_ dict: [sourcekitd_api_uid_t: SKDRequestValue]) -> SKDRequestDictionary {
     let result = SKDRequestDictionary(sourcekitd: self)
     for (key, value) in dict {
       result.set(key, to: value)
@@ -50,11 +50,11 @@ extension SourceKitD {
 }
 
 public final class SKDRequestDictionary {
-  public let dict: sourcekitd_object_t?
+  public let dict: sourcekitd_api_object_t
   public let sourcekitd: SourceKitD
 
-  public init(_ dict: sourcekitd_object_t? = nil, sourcekitd: SourceKitD) {
-    self.dict = dict ?? sourcekitd.api.request_dictionary_create(nil, nil, 0)
+  public init(_ dict: sourcekitd_api_object_t? = nil, sourcekitd: SourceKitD) {
+    self.dict = dict ?? sourcekitd.api.request_dictionary_create(nil, nil, 0)!
     self.sourcekitd = sourcekitd
   }
 
@@ -62,13 +62,13 @@ public final class SKDRequestDictionary {
     sourcekitd.api.request_release(dict)
   }
 
-  public func set(_ key: sourcekitd_uid_t, to newValue: SKDRequestValue) {
+  public func set(_ key: sourcekitd_api_uid_t, to newValue: SKDRequestValue) {
     switch newValue {
     case let newValue as String:
       sourcekitd.api.request_dictionary_set_string(dict, key, newValue)
     case let newValue as Int:
       sourcekitd.api.request_dictionary_set_int64(dict, key, Int64(newValue))
-    case let newValue as sourcekitd_uid_t:
+    case let newValue as sourcekitd_api_uid_t:
       sourcekitd.api.request_dictionary_set_uid(dict, key, newValue)
     case let newValue as SKDRequestDictionary:
       sourcekitd.api.request_dictionary_set_value(dict, key, newValue.dict)
@@ -76,7 +76,7 @@ public final class SKDRequestDictionary {
       sourcekitd.api.request_dictionary_set_value(dict, key, newValue.array)
     case let newValue as Array<SKDRequestValue>:
       self.set(key, to: sourcekitd.array(newValue))
-    case let newValue as Dictionary<sourcekitd_uid_t, SKDRequestValue>:
+    case let newValue as Dictionary<sourcekitd_api_uid_t, SKDRequestValue>:
       self.set(key, to: sourcekitd.dictionary(newValue))
     case let newValue as Optional<SKDRequestValue>:
       if let newValue {

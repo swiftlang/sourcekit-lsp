@@ -32,11 +32,11 @@ extension SourceKitD {
 }
 
 public final class SKDRequestArray {
-  public let array: sourcekitd_object_t?
+  public let array: sourcekitd_api_object_t
   public let sourcekitd: SourceKitD
 
-  public init(_ array: sourcekitd_object_t? = nil, sourcekitd: SourceKitD) {
-    self.array = array ?? sourcekitd.api.request_array_create(nil, 0)
+  public init(_ array: sourcekitd_api_object_t? = nil, sourcekitd: SourceKitD) {
+    self.array = array ?? sourcekitd.api.request_array_create(nil, 0)!
     self.sourcekitd = sourcekitd
   }
 
@@ -50,7 +50,7 @@ public final class SKDRequestArray {
       sourcekitd.api.request_array_set_string(array, -1, newValue)
     case let newValue as Int:
       sourcekitd.api.request_array_set_int64(array, -1, Int64(newValue))
-    case let newValue as sourcekitd_uid_t:
+    case let newValue as sourcekitd_api_uid_t:
       sourcekitd.api.request_array_set_uid(array, -1, newValue)
     case let newValue as SKDRequestDictionary:
       sourcekitd.api.request_array_set_value(array, -1, newValue.dict)
@@ -58,7 +58,7 @@ public final class SKDRequestArray {
       sourcekitd.api.request_array_set_value(array, -1, newValue.array)
     case let newValue as Array<SKDRequestValue>:
       self.append(sourcekitd.array(newValue))
-    case let newValue as Dictionary<sourcekitd_uid_t, SKDRequestValue>:
+    case let newValue as Dictionary<sourcekitd_api_uid_t, SKDRequestValue>:
       self.append(sourcekitd.dictionary(newValue))
     case let newValue as Optional<SKDRequestValue>:
       if let newValue {

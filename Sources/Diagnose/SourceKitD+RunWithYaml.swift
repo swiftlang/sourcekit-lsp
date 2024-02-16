@@ -18,17 +18,16 @@ extension SourceKitD {
   public func run(requestYaml: String) async throws -> SKDResponse {
     let request = try requestYaml.cString(using: .utf8)?.withUnsafeBufferPointer { buffer in
       var error: UnsafeMutablePointer<CChar>?
-      let req = api.request_create_from_yaml(buffer.baseAddress, &error)
+      let req = api.request_create_from_yaml(buffer.baseAddress!, &error)
       if let error {
         throw ReductionError("Failed to parse sourcekitd request from YAML: \(String(cString: error))")
       }
-      precondition(req != nil)
       return req
     }
     return await withCheckedContinuation { continuation in
-      var handle: sourcekitd_request_handle_t? = nil
-      api.send_request(request, &handle) { resp in
-        continuation.resume(returning: SKDResponse(resp, sourcekitd: self))
+      var handle: sourcekitd_api_request_handle_t? = nil
+      api.send_request(request!, &handle) { response in
+        continuation.resume(returning: SKDResponse(response!, sourcekitd: self))
       }
     }
   }
