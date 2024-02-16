@@ -225,8 +225,13 @@ let package = Package(
     .testTarget(
       name: "SKSwiftPMWorkspaceTests",
       dependencies: [
+        "LSPTestSupport",
+        "LanguageServerProtocol",
+        "SKCore",
         "SKSwiftPMWorkspace",
         "SKTestSupport",
+        "SourceKitLSP",
+        .product(name: "SwiftPM-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ]
     ),
