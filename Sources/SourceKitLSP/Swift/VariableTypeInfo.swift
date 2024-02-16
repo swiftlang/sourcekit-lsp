@@ -58,12 +58,12 @@ struct VariableTypeInfo {
   init?(_ dict: SKDResponseDictionary, in snapshot: DocumentSnapshot, syntaxTree: SourceFileSyntax) {
     let keys = dict.sourcekitd.keys
 
-    guard let offset: Int = dict[keys.variable_offset],
-      let length: Int = dict[keys.variable_length],
+    guard let offset: Int = dict[keys.variableOffset],
+      let length: Int = dict[keys.variableLength],
       let startIndex = snapshot.positionOf(utf8Offset: offset),
       let endIndex = snapshot.positionOf(utf8Offset: offset + length),
-      let printedType: String = dict[keys.variable_type],
-      let hasExplicitType: Bool = dict[keys.variable_type_explicit]
+      let printedType: String = dict[keys.variableType],
+      let hasExplicitType: Bool = dict[keys.variableTypeExplicit]
     else {
       return nil
     }
@@ -88,9 +88,9 @@ extension SwiftLanguageServer {
     let snapshot = try documentManager.latestSnapshot(uri)
 
     let skreq = sourcekitd.dictionary([
-      keys.request: requests.variable_type,
-      keys.sourcefile: snapshot.uri.pseudoPath,
-      keys.compilerargs: await self.buildSettings(for: uri)?.compilerArgs as [SKDValue]?,
+      keys.request: requests.collectVariableType,
+      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDValue]?,
     ])
 
     if let range = range,
@@ -102,7 +102,7 @@ extension SwiftLanguageServer {
     }
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
-    guard let skVariableTypeInfos: SKDResponseArray = dict[keys.variable_type_list] else {
+    guard let skVariableTypeInfos: SKDResponseArray = dict[keys.variableTypeList] else {
       return []
     }
 

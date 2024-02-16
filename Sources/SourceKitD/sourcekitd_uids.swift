@@ -1,8 +1,10 @@
+//// Automatically Generated From UIDs.swift.gyb.
+//// Do Not Edit Directly! To regenerate run Utilities/generate-uids.py
 //===----------------------------------------------------------------------===//
 //
 // This source file is part of the Swift.org open source project
 //
-// Copyright (c) 2014 - 2020 Apple Inc. and the Swift project authors
+// Copyright (c) 2014 - 2024 Apple Inc. and the Swift project authors
 // Licensed under Apache License v2.0 with Runtime Library Exception
 //
 // See https://swift.org/LICENSE.txt for license information
@@ -13,497 +15,1405 @@
 import Csourcekitd
 
 public struct sourcekitd_keys {
-  public let actionname: sourcekitd_uid_t
-  public let actionuid: sourcekitd_uid_t
-  public let annotated_decl: sourcekitd_uid_t
-  public let annotations: sourcekitd_uid_t
-  public let argindex: sourcekitd_uid_t
-  public let argNames: sourcekitd_uid_t
-  public let associated_usrs: sourcekitd_uid_t
-  public let baseName: sourcekitd_uid_t
-  public let bodylength: sourcekitd_uid_t
-  public let bodyoffset: sourcekitd_uid_t
-  public let cancelOnSubsequentRequest: sourcekitd_uid_t
-  public let categories: sourcekitd_uid_t
-  public let categorizededits: sourcekitd_uid_t
-  public let categorizedranges: sourcekitd_uid_t
-  public let category: sourcekitd_uid_t
-  public let column: sourcekitd_uid_t
-  public let compilerargs: sourcekitd_uid_t
-  public let context: sourcekitd_uid_t
-  public let description: sourcekitd_uid_t
-  public let diagnostic_stage: sourcekitd_uid_t
-  public let diagnostics: sourcekitd_uid_t
-  public let doc_brief: sourcekitd_uid_t
-  public let doc_full_as_xml: sourcekitd_uid_t
-  public let edits: sourcekitd_uid_t
-  public let educational_note_paths: sourcekitd_uid_t
-  public let enablesyntaxmap: sourcekitd_uid_t
-  public let endcolumn: sourcekitd_uid_t
-  public let endline: sourcekitd_uid_t
-  public let expression_length: sourcekitd_uid_t
-  public let expression_offset: sourcekitd_uid_t
-  public let expression_type_list: sourcekitd_uid_t
-  public let expression_type: sourcekitd_uid_t
-  public let filepath: sourcekitd_uid_t
-  public let fixits: sourcekitd_uid_t
-  public let groupname: sourcekitd_uid_t
-  public let id: sourcekitd_uid_t
-  public let includeNonEditableBaseNames: sourcekitd_uid_t
-  public let is_system: sourcekitd_uid_t
-  public let isDynamic: sourcekitd_uid_t
-  public let isZeroArgSelector: sourcekitd_uid_t
-  public let kind: sourcekitd_uid_t
-  public let length: sourcekitd_uid_t
-  public let line: sourcekitd_uid_t
-  public let locations: sourcekitd_uid_t
-  public let modulename: sourcekitd_uid_t
-  public let name: sourcekitd_uid_t
-  public let namekind: sourcekitd_uid_t
-  public let namelength: sourcekitd_uid_t
-  public let nameoffset: sourcekitd_uid_t
-  public let nameType: sourcekitd_uid_t
-  public let not_recommended: sourcekitd_uid_t
-  public let notification: sourcekitd_uid_t
-  public let num_bytes_to_erase: sourcekitd_uid_t
-  public let offset: sourcekitd_uid_t
-  public let ranges: sourcekitd_uid_t
-  public let receivers: sourcekitd_uid_t
-  public let refactor_actions: sourcekitd_uid_t
-  public let renamelocations: sourcekitd_uid_t
-  public let renameRangeBase: sourcekitd_uid_t
-  public let renameRangeCallArgColon: sourcekitd_uid_t
-  public let renameRangeCallArgCombined: sourcekitd_uid_t
-  public let renameRangeCallArgLabel: sourcekitd_uid_t
-  public let renameRangeDeclArgLabel: sourcekitd_uid_t
-  public let renameRangeKeywordBase: sourcekitd_uid_t
-  public let renameRangeNoncollapsibleParam: sourcekitd_uid_t
-  public let renameRangeParam: sourcekitd_uid_t
-  public let renameRangeSelectorArgLabel: sourcekitd_uid_t
-  public let request: sourcekitd_uid_t
+  /// `key.version_major`
+  public let versionMajor: sourcekitd_uid_t
+  /// `key.version_minor`
+  public let versionMinor: sourcekitd_uid_t
+  /// `key.version_patch`
+  public let versionPatch: sourcekitd_uid_t
+  /// `key.results`
   public let results: sourcekitd_uid_t
-  public let retrieve_refactor_actions: sourcekitd_uid_t
-  public let secondarySymbols: sourcekitd_uid_t
-  public let selectorPieces: sourcekitd_uid_t
-  public let semantic_tokens: sourcekitd_uid_t
-  public let severity: sourcekitd_uid_t
-  public let sourceEditKindActive: sourcekitd_uid_t
-  public let sourceEditKindComment: sourcekitd_uid_t
-  public let sourceEditKindInactive: sourcekitd_uid_t
-  public let sourceEditKindMismatch: sourcekitd_uid_t
-  public let sourceEditKindSelector: sourcekitd_uid_t
-  public let sourceEditKindString: sourcekitd_uid_t
-  public let sourceEditKindUnknown: sourcekitd_uid_t
-  public let sourcefile: sourcekitd_uid_t
-  public let sourcetext: sourcekitd_uid_t
-  public let substructure: sourcekitd_uid_t
-  public let syntactic_only: sourcekitd_uid_t
-  public let syntacticRenameCall: sourcekitd_uid_t
-  public let syntacticRenameDefinition: sourcekitd_uid_t
-  public let syntacticRenameReference: sourcekitd_uid_t
-  public let syntacticRenameUnknown: sourcekitd_uid_t
-  public let syntaxmap: sourcekitd_uid_t
-  public let synthesizedextensions: sourcekitd_uid_t
-  public let text: sourcekitd_uid_t
-  public let typename: sourcekitd_uid_t
+  /// `key.request`
+  public let request: sourcekitd_uid_t
+  /// `key.notification`
+  public let notification: sourcekitd_uid_t
+  /// `key.kind`
+  public let kind: sourcekitd_uid_t
+  /// `key.accessibility`
+  public let accessLevel: sourcekitd_uid_t
+  /// `key.setter_accessibility`
+  public let setterAccessLevel: sourcekitd_uid_t
+  /// `key.keyword`
+  public let keyword: sourcekitd_uid_t
+  /// `key.name`
+  public let name: sourcekitd_uid_t
+  /// `key.usr`
   public let usr: sourcekitd_uid_t
-  public let variable_length: sourcekitd_uid_t
-  public let variable_offset: sourcekitd_uid_t
-  public let variable_type_explicit: sourcekitd_uid_t
-  public let variable_type_list: sourcekitd_uid_t
-  public let variable_type: sourcekitd_uid_t
-
-  // Code Completion options.
-  public let codecomplete_options: sourcekitd_uid_t
-  public let codecomplete_sort_byname: sourcekitd_uid_t
-  public let codecomplete_filtertext: sourcekitd_uid_t
-  public let codecomplete_requestlimit: sourcekitd_uid_t
-  public let codecomplete_hideunderscores: sourcekitd_uid_t
-  public let codecomplete_hidelowpriority: sourcekitd_uid_t
-  public let codecomplete_hidebyname: sourcekitd_uid_t
-  public let codecomplete_addinneroperators: sourcekitd_uid_t
-  public let codecomplete_callpatternheuristics: sourcekitd_uid_t
-  public let codecomplete_showtopnonliteralresults: sourcekitd_uid_t
+  /// `key.original_usr`
+  public let originalUSR: sourcekitd_uid_t
+  /// `key.default_implementation_of`
+  public let defaultImplementationOf: sourcekitd_uid_t
+  /// `key.interested_usr`
+  public let interestedUSR: sourcekitd_uid_t
+  /// `key.generic_params`
+  public let genericParams: sourcekitd_uid_t
+  /// `key.generic_requirements`
+  public let genericRequirements: sourcekitd_uid_t
+  /// `key.doc.full_as_xml`
+  public let docFullAsXML: sourcekitd_uid_t
+  /// `key.line`
+  public let line: sourcekitd_uid_t
+  /// `key.column`
+  public let column: sourcekitd_uid_t
+  /// `key.receiver_usr`
+  public let receiverUSR: sourcekitd_uid_t
+  /// `key.receivers`
+  public let receivers: sourcekitd_uid_t
+  /// `key.is_dynamic`
+  public let isDynamic: sourcekitd_uid_t
+  /// `key.is_implicit`
+  public let isImplicit: sourcekitd_uid_t
+  /// `key.filepath`
+  public let filePath: sourcekitd_uid_t
+  /// `key.module_interface_name`
+  public let moduleInterfaceName: sourcekitd_uid_t
+  /// `key.hash`
+  public let hash: sourcekitd_uid_t
+  /// `key.compilerargs`
+  public let compilerArgs: sourcekitd_uid_t
+  /// `key.severity`
+  public let severity: sourcekitd_uid_t
+  /// `key.offset`
+  public let offset: sourcekitd_uid_t
+  /// `key.length`
+  public let length: sourcekitd_uid_t
+  /// `key.sourcefile`
+  public let sourceFile: sourcekitd_uid_t
+  /// `key.sourcetext`
+  public let sourceText: sourcekitd_uid_t
+  /// `key.primary_file`
+  public let primaryFile: sourcekitd_uid_t
+  /// `key.enablesyntaxmap`
+  public let enableSyntaxMap: sourcekitd_uid_t
+  /// `key.enablesubstructure`
+  public let enableStructure: sourcekitd_uid_t
+  /// `key.id`
+  public let id: sourcekitd_uid_t
+  /// `key.description`
+  public let description: sourcekitd_uid_t
+  /// `key.typename`
+  public let typeName: sourcekitd_uid_t
+  /// `key.runtime_name`
+  public let runtimeName: sourcekitd_uid_t
+  /// `key.selector_name`
+  public let selectorName: sourcekitd_uid_t
+  /// `key.annotated_decl`
+  public let annotatedDecl: sourcekitd_uid_t
+  /// `key.fully_annotated_decl`
+  public let fullyAnnotatedDecl: sourcekitd_uid_t
+  /// `key.fully_annotated_generic_signature`
+  public let fullyAnnotatedGenericSignature: sourcekitd_uid_t
+  /// `key.doc.brief`
+  public let docBrief: sourcekitd_uid_t
+  /// `key.context`
+  public let context: sourcekitd_uid_t
+  /// `key.typerelation`
+  public let typeRelation: sourcekitd_uid_t
+  /// `key.moduleimportdepth`
+  public let moduleImportDepth: sourcekitd_uid_t
+  /// `key.num_bytes_to_erase`
+  public let numBytesToErase: sourcekitd_uid_t
+  /// `key.not_recommended`
+  public let notRecommended: sourcekitd_uid_t
+  /// `key.annotations`
+  public let annotations: sourcekitd_uid_t
+  /// `key.semantic_tokens`
+  public let semanticTokens: sourcekitd_uid_t
+  /// `key.diagnostic_stage`
+  public let diagnosticStage: sourcekitd_uid_t
+  /// `key.syntaxmap`
+  public let syntaxMap: sourcekitd_uid_t
+  /// `key.is_system`
+  public let isSystem: sourcekitd_uid_t
+  /// `key.related`
+  public let related: sourcekitd_uid_t
+  /// `key.inherits`
+  public let inherits: sourcekitd_uid_t
+  /// `key.conforms`
+  public let conforms: sourcekitd_uid_t
+  /// `key.extends`
+  public let extends: sourcekitd_uid_t
+  /// `key.dependencies`
+  public let dependencies: sourcekitd_uid_t
+  /// `key.entities`
+  public let entities: sourcekitd_uid_t
+  /// `key.nameoffset`
+  public let nameOffset: sourcekitd_uid_t
+  /// `key.namelength`
+  public let nameLength: sourcekitd_uid_t
+  /// `key.bodyoffset`
+  public let bodyOffset: sourcekitd_uid_t
+  /// `key.bodylength`
+  public let bodyLength: sourcekitd_uid_t
+  /// `key.docoffset`
+  public let docOffset: sourcekitd_uid_t
+  /// `key.doclength`
+  public let docLength: sourcekitd_uid_t
+  /// `key.is_active`
+  public let isActive: sourcekitd_uid_t
+  /// `key.is_local`
+  public let isLocal: sourcekitd_uid_t
+  /// `key.inheritedtypes`
+  public let inheritedTypes: sourcekitd_uid_t
+  /// `key.attributes`
+  public let attributes: sourcekitd_uid_t
+  /// `key.attribute`
+  public let attribute: sourcekitd_uid_t
+  /// `key.elements`
+  public let elements: sourcekitd_uid_t
+  /// `key.substructure`
+  public let subStructure: sourcekitd_uid_t
+  /// `key.ranges`
+  public let ranges: sourcekitd_uid_t
+  /// `key.fixits`
+  public let fixits: sourcekitd_uid_t
+  /// `key.generated_buffers`
+  public let generatedBuffers: sourcekitd_uid_t
+  /// `key.buffer_text`
+  public let bufferText: sourcekitd_uid_t
+  /// `key.original_location`
+  public let originalLocation: sourcekitd_uid_t
+  /// `key.diagnostics`
+  public let diagnostics: sourcekitd_uid_t
+  /// `key.educational_note_paths`
+  public let educationalNotePaths: sourcekitd_uid_t
+  /// `key.editor.format.options`
+  public let formatOptions: sourcekitd_uid_t
+  /// `key.codecomplete.options`
+  public let codeCompleteOptions: sourcekitd_uid_t
+  /// `key.typecontextinfo.options`
+  public let typeContextInfoOptions: sourcekitd_uid_t
+  /// `key.conformingmethods.options`
+  public let conformingMethodListOptions: sourcekitd_uid_t
+  /// `key.codecomplete.filterrules`
+  public let filterRules: sourcekitd_uid_t
+  /// `key.nextrequeststart`
+  public let nextRequestStart: sourcekitd_uid_t
+  /// `key.popular`
+  public let popular: sourcekitd_uid_t
+  /// `key.unpopular`
+  public let unpopular: sourcekitd_uid_t
+  /// `key.hide`
+  public let hide: sourcekitd_uid_t
+  /// `key.platform`
+  public let platform: sourcekitd_uid_t
+  /// `key.is_deprecated`
+  public let isDeprecated: sourcekitd_uid_t
+  /// `key.is_unavailable`
+  public let isUnavailable: sourcekitd_uid_t
+  /// `key.is_optional`
+  public let isOptional: sourcekitd_uid_t
+  /// `key.is_async`
+  public let isAsync: sourcekitd_uid_t
+  /// `key.message`
+  public let message: sourcekitd_uid_t
+  /// `key.introduced`
+  public let introduced: sourcekitd_uid_t
+  /// `key.deprecated`
+  public let deprecated: sourcekitd_uid_t
+  /// `key.obsoleted`
+  public let obsoleted: sourcekitd_uid_t
+  /// `key.removecache`
+  public let removeCache: sourcekitd_uid_t
+  /// `key.typeusr`
+  public let typeUsr: sourcekitd_uid_t
+  /// `key.containertypeusr`
+  public let containerTypeUsr: sourcekitd_uid_t
+  /// `key.modulegroups`
+  public let moduleGroups: sourcekitd_uid_t
+  /// `key.basename`
+  public let baseName: sourcekitd_uid_t
+  /// `key.argnames`
+  public let argNames: sourcekitd_uid_t
+  /// `key.selectorpieces`
+  public let selectorPieces: sourcekitd_uid_t
+  /// `key.namekind`
+  public let nameKind: sourcekitd_uid_t
+  /// `key.localization_key`
+  public let localizationKey: sourcekitd_uid_t
+  /// `key.is_zero_arg_selector`
+  public let isZeroArgSelector: sourcekitd_uid_t
+  /// `key.swift_version`
+  public let swiftVersion: sourcekitd_uid_t
+  /// `key.value`
+  public let value: sourcekitd_uid_t
+  /// `key.enablediagnostics`
+  public let enableDiagnostics: sourcekitd_uid_t
+  /// `key.groupname`
+  public let groupName: sourcekitd_uid_t
+  /// `key.actionname`
+  public let actionName: sourcekitd_uid_t
+  /// `key.synthesizedextensions`
+  public let synthesizedExtension: sourcekitd_uid_t
+  /// `key.usingswiftargs`
+  public let usingSwiftArgs: sourcekitd_uid_t
+  /// `key.names`
+  public let names: sourcekitd_uid_t
+  /// `key.uids`
+  public let uiDs: sourcekitd_uid_t
+  /// `key.syntactic_only`
+  public let syntacticOnly: sourcekitd_uid_t
+  /// `key.parent_loc`
+  public let parentLoc: sourcekitd_uid_t
+  /// `key.is_test_candidate`
+  public let isTestCandidate: sourcekitd_uid_t
+  /// `key.overrides`
+  public let overrides: sourcekitd_uid_t
+  /// `key.associated_usrs`
+  public let associatedUSRs: sourcekitd_uid_t
+  /// `key.modulename`
+  public let moduleName: sourcekitd_uid_t
+  /// `key.related_decls`
+  public let relatedDecls: sourcekitd_uid_t
+  /// `key.simplified`
+  public let simplified: sourcekitd_uid_t
+  /// `key.rangecontent`
+  public let rangeContent: sourcekitd_uid_t
+  /// `key.cancel_on_subsequent_request`
+  public let cancelOnSubsequentRequest: sourcekitd_uid_t
+  /// `key.include_non_editable_base_names`
+  public let includeNonEditableBaseNames: sourcekitd_uid_t
+  /// `key.renamelocations`
+  public let renameLocations: sourcekitd_uid_t
+  /// `key.locations`
+  public let locations: sourcekitd_uid_t
+  /// `key.nametype`
+  public let nameType: sourcekitd_uid_t
+  /// `key.newname`
+  public let newName: sourcekitd_uid_t
+  /// `key.categorizededits`
+  public let categorizedEdits: sourcekitd_uid_t
+  /// `key.categorizedranges`
+  public let categorizedRanges: sourcekitd_uid_t
+  /// `key.rangesworthnote`
+  public let rangesWorthNote: sourcekitd_uid_t
+  /// `key.edits`
+  public let edits: sourcekitd_uid_t
+  /// `key.endline`
+  public let endLine: sourcekitd_uid_t
+  /// `key.endcolumn`
+  public let endColumn: sourcekitd_uid_t
+  /// `key.argindex`
+  public let argIndex: sourcekitd_uid_t
+  /// `key.text`
+  public let text: sourcekitd_uid_t
+  /// `key.category`
+  public let category: sourcekitd_uid_t
+  /// `key.categories`
+  public let categories: sourcekitd_uid_t
+  /// `key.is_function_like`
+  public let isFunctionLike: sourcekitd_uid_t
+  /// `key.is_non_protocol_type`
+  public let isNonProtocolType: sourcekitd_uid_t
+  /// `key.refactor_actions`
+  public let refactorActions: sourcekitd_uid_t
+  /// `key.retrieve_refactor_actions`
+  public let retrieveRefactorActions: sourcekitd_uid_t
+  /// `key.symbol_graph`
+  public let symbolGraph: sourcekitd_uid_t
+  /// `key.retrieve_symbol_graph`
+  public let retrieveSymbolGraph: sourcekitd_uid_t
+  /// `key.parent_contexts`
+  public let parentContexts: sourcekitd_uid_t
+  /// `key.referenced_symbols`
+  public let referencedSymbols: sourcekitd_uid_t
+  /// `key.is_spi`
+  public let isSPI: sourcekitd_uid_t
+  /// `key.actionuid`
+  public let actionUID: sourcekitd_uid_t
+  /// `key.actionunavailablereason`
+  public let actionUnavailableReason: sourcekitd_uid_t
+  /// `key.compileid`
+  public let compileID: sourcekitd_uid_t
+  /// `key.compilerargs-string`
+  public let compilerArgsString: sourcekitd_uid_t
+  /// `key.implicitmembers`
+  public let implicitMembers: sourcekitd_uid_t
+  /// `key.expectedtypes`
+  public let expectedTypes: sourcekitd_uid_t
+  /// `key.members`
+  public let members: sourcekitd_uid_t
+  /// `key.printedtypebuffer`
+  public let typeBuffer: sourcekitd_uid_t
+  /// `key.expression_type_list`
+  public let expressionTypeList: sourcekitd_uid_t
+  /// `key.expression_offset`
+  public let expressionOffset: sourcekitd_uid_t
+  /// `key.expression_length`
+  public let expressionLength: sourcekitd_uid_t
+  /// `key.expression_type`
+  public let expressionType: sourcekitd_uid_t
+  /// `key.variable_type_list`
+  public let variableTypeList: sourcekitd_uid_t
+  /// `key.variable_offset`
+  public let variableOffset: sourcekitd_uid_t
+  /// `key.variable_length`
+  public let variableLength: sourcekitd_uid_t
+  /// `key.variable_type`
+  public let variableType: sourcekitd_uid_t
+  /// `key.variable_type_explicit`
+  public let variableTypeExplicit: sourcekitd_uid_t
+  /// `key.fully_qualified`
+  public let fullyQualified: sourcekitd_uid_t
+  /// `key.canonicalize_type`
+  public let canonicalizeType: sourcekitd_uid_t
+  /// `key.internal_diagnostic`
+  public let internalDiagnostic: sourcekitd_uid_t
+  /// `key.vfs.name`
+  public let vfsName: sourcekitd_uid_t
+  /// `key.vfs.options`
+  public let vfsOptions: sourcekitd_uid_t
+  /// `key.files`
+  public let files: sourcekitd_uid_t
+  /// `key.optimize_for_ide`
+  public let optimizeForIDE: sourcekitd_uid_t
+  /// `key.required_bystanders`
+  public let requiredBystanders: sourcekitd_uid_t
+  /// `key.reusingastcontext`
+  public let reusingASTContext: sourcekitd_uid_t
+  /// `key.completion_max_astcontext_reuse_count`
+  public let completionMaxASTContextReuseCount: sourcekitd_uid_t
+  /// `key.completion_check_dependency_interval`
+  public let completionCheckDependencyInterval: sourcekitd_uid_t
+  /// `key.annotated.typename`
+  public let annotatedTypename: sourcekitd_uid_t
+  /// `key.compile_operation`
+  public let compileOperation: sourcekitd_uid_t
+  /// `key.effective_access`
+  public let effectiveAccess: sourcekitd_uid_t
+  /// `key.decl_lang`
+  public let declarationLang: sourcekitd_uid_t
+  /// `key.secondary_symbols`
+  public let secondarySymbols: sourcekitd_uid_t
+  /// `key.simulate_long_request`
+  public let simulateLongRequest: sourcekitd_uid_t
+  /// `key.is_synthesized`
+  public let isSynthesized: sourcekitd_uid_t
+  /// `key.buffer_name`
+  public let bufferName: sourcekitd_uid_t
+  /// `key.barriers_enabled`
+  public let barriersEnabled: sourcekitd_uid_t
+  /// `key.expansions`
+  public let expansions: sourcekitd_uid_t
+  /// `key.macro_roles`
+  public let macroRoles: sourcekitd_uid_t
+  /// `key.expanded_macro_replacements`
+  public let expandedMacroReplacements: sourcekitd_uid_t
+  /// `key.index_store_path`
+  public let indexStorePath: sourcekitd_uid_t
+  /// `key.index_unit_output_path`
+  public let indexUnitOutputPath: sourcekitd_uid_t
+  /// `key.codecomplete.sort.byname`
+  public let sortByName: sourcekitd_uid_t
+  /// `key.codecomplete.sort.useimportdepth`
+  public let useImportDepth: sourcekitd_uid_t
+  /// `key.codecomplete.group.overloads`
+  public let groupOverloads: sourcekitd_uid_t
+  /// `key.codecomplete.group.stems`
+  public let groupStems: sourcekitd_uid_t
+  /// `key.codecomplete.filtertext`
+  public let filterText: sourcekitd_uid_t
+  /// `key.codecomplete.requestlimit`
+  public let requestLimit: sourcekitd_uid_t
+  /// `key.codecomplete.requeststart`
+  public let requestStart: sourcekitd_uid_t
+  /// `key.codecomplete.hideunderscores`
+  public let hideUnderscores: sourcekitd_uid_t
+  /// `key.codecomplete.hidelowpriority`
+  public let hideLowPriority: sourcekitd_uid_t
+  /// `key.codecomplete.hidebyname`
+  public let hideByName: sourcekitd_uid_t
+  /// `key.codecomplete.includeexactmatch`
+  public let includeExactMatch: sourcekitd_uid_t
+  /// `key.codecomplete.addinnerresults`
+  public let addInnerResults: sourcekitd_uid_t
+  /// `key.codecomplete.addinneroperators`
+  public let addInnerOperators: sourcekitd_uid_t
+  /// `key.codecomplete.addinitstotoplevel`
+  public let addInitsToTopLevel: sourcekitd_uid_t
+  /// `key.codecomplete.fuzzymatching`
+  public let fuzzyMatching: sourcekitd_uid_t
+  /// `key.codecomplete.showtopnonliteralresults`
+  public let topNonLiteral: sourcekitd_uid_t
+  /// `key.codecomplete.sort.contextweight`
+  public let contextWeight: sourcekitd_uid_t
+  /// `key.codecomplete.sort.fuzzyweight`
+  public let fuzzyWeight: sourcekitd_uid_t
+  /// `key.codecomplete.sort.popularitybonus`
+  public let popularityBonus: sourcekitd_uid_t
+  /// `key.codecomplete.annotateddescription`
+  public let annotatedDescription: sourcekitd_uid_t
+  /// `key.codecomplete.includeobjectliterals`
+  public let includeObjectLiterals: sourcekitd_uid_t
+  /// `key.editor.format.usetabs`
+  public let useTabs: sourcekitd_uid_t
+  /// `key.editor.format.indentwidth`
+  public let indentWidth: sourcekitd_uid_t
+  /// `key.editor.format.tabwidth`
+  public let tabWidth: sourcekitd_uid_t
+  /// `key.editor.format.indent_switch_case`
+  public let indentSwitchCase: sourcekitd_uid_t
 
   public init(api: sourcekitd_functions_t) {
-    actionname = api.uid_get_from_cstr("key.actionname")!
-    actionuid = api.uid_get_from_cstr("key.actionuid")!
-    annotated_decl = api.uid_get_from_cstr("key.annotated_decl")!
-    annotations = api.uid_get_from_cstr("key.annotations")!
-    argindex = api.uid_get_from_cstr("key.argindex")!
-    argNames = api.uid_get_from_cstr("key.argnames")!
-    associated_usrs = api.uid_get_from_cstr("key.associated_usrs")!
-    baseName = api.uid_get_from_cstr("key.basename")!
-    bodylength = api.uid_get_from_cstr("key.bodylength")!
-    bodyoffset = api.uid_get_from_cstr("key.bodyoffset")!
-    cancelOnSubsequentRequest = api.uid_get_from_cstr("key.cancel_on_subsequent_request")!
-    categories = api.uid_get_from_cstr("key.categories")!
-    categorizededits = api.uid_get_from_cstr("key.categorizededits")!
-    categorizedranges = api.uid_get_from_cstr("key.categorizedranges")!
-    category = api.uid_get_from_cstr("key.category")!
-    column = api.uid_get_from_cstr("key.column")!
-    compilerargs = api.uid_get_from_cstr("key.compilerargs")!
-    context = api.uid_get_from_cstr("key.context")!
-    description = api.uid_get_from_cstr("key.description")!
-    diagnostic_stage = api.uid_get_from_cstr("key.diagnostic_stage")!
-    diagnostics = api.uid_get_from_cstr("key.diagnostics")!
-    doc_brief = api.uid_get_from_cstr("key.doc.brief")!
-    doc_full_as_xml = api.uid_get_from_cstr("key.doc.full_as_xml")!
-    edits = api.uid_get_from_cstr("key.edits")!
-    educational_note_paths = api.uid_get_from_cstr("key.educational_note_paths")!
-    enablesyntaxmap = api.uid_get_from_cstr("key.enablesyntaxmap")!
-    endcolumn = api.uid_get_from_cstr("key.endcolumn")!
-    endline = api.uid_get_from_cstr("key.endline")!
-    expression_length = api.uid_get_from_cstr("key.expression_length")!
-    expression_offset = api.uid_get_from_cstr("key.expression_offset")!
-    expression_type = api.uid_get_from_cstr("key.expression_type")!
-    expression_type_list = api.uid_get_from_cstr("key.expression_type_list")!
-    filepath = api.uid_get_from_cstr("key.filepath")!
-    fixits = api.uid_get_from_cstr("key.fixits")!
-    groupname = api.uid_get_from_cstr("key.groupname")!
-    id = api.uid_get_from_cstr("key.id")!
-    includeNonEditableBaseNames = api.uid_get_from_cstr("key.include_non_editable_base_names")!
-    is_system = api.uid_get_from_cstr("key.is_system")!
-    isDynamic = api.uid_get_from_cstr("key.is_dynamic")!
-    isZeroArgSelector = api.uid_get_from_cstr("key.is_zero_arg_selector")!
-    kind = api.uid_get_from_cstr("key.kind")!
-    length = api.uid_get_from_cstr("key.length")!
-    line = api.uid_get_from_cstr("key.line")!
-    locations = api.uid_get_from_cstr("key.locations")!
-    modulename = api.uid_get_from_cstr("key.modulename")!
-    name = api.uid_get_from_cstr("key.name")!
-    namekind = api.uid_get_from_cstr("key.namekind")!
-    namelength = api.uid_get_from_cstr("key.namelength")!
-    nameoffset = api.uid_get_from_cstr("key.nameoffset")!
-    nameType = api.uid_get_from_cstr("key.nametype")!
-    not_recommended = api.uid_get_from_cstr("key.not_recommended")!
-    notification = api.uid_get_from_cstr("key.notification")!
-    num_bytes_to_erase = api.uid_get_from_cstr("key.num_bytes_to_erase")!
-    offset = api.uid_get_from_cstr("key.offset")!
-    ranges = api.uid_get_from_cstr("key.ranges")!
-    receivers = api.uid_get_from_cstr("key.receivers")!
-    refactor_actions = api.uid_get_from_cstr("key.refactor_actions")!
-    renamelocations = api.uid_get_from_cstr("key.renamelocations")!
-    renameRangeBase = api.uid_get_from_cstr("source.refactoring.range.kind.basename")!
-    renameRangeCallArgColon = api.uid_get_from_cstr("source.refactoring.range.kind.call-argument-colon")!
-    renameRangeCallArgCombined = api.uid_get_from_cstr("source.refactoring.range.kind.call-argument-combined")!
-    renameRangeCallArgLabel = api.uid_get_from_cstr("source.refactoring.range.kind.call-argument-label")!
-    renameRangeDeclArgLabel = api.uid_get_from_cstr("source.refactoring.range.kind.decl-argument-label")!
-    renameRangeKeywordBase = api.uid_get_from_cstr("source.refactoring.range.kind.keyword-basename")!
-    renameRangeNoncollapsibleParam = api.uid_get_from_cstr("source.refactoring.range.kind.noncollapsible-parameter")!
-    renameRangeParam = api.uid_get_from_cstr("source.refactoring.range.kind.parameter-and-whitespace")!
-    renameRangeSelectorArgLabel = api.uid_get_from_cstr("source.refactoring.range.kind.selector-argument-label")!
-    request = api.uid_get_from_cstr("key.request")!
+    versionMajor = api.uid_get_from_cstr("key.version_major")!
+    versionMinor = api.uid_get_from_cstr("key.version_minor")!
+    versionPatch = api.uid_get_from_cstr("key.version_patch")!
     results = api.uid_get_from_cstr("key.results")!
-    retrieve_refactor_actions = api.uid_get_from_cstr("key.retrieve_refactor_actions")!
-    secondarySymbols = api.uid_get_from_cstr("key.secondary_symbols")!
-    selectorPieces = api.uid_get_from_cstr("key.selectorpieces")!
-    semantic_tokens = api.uid_get_from_cstr("key.semantic_tokens")!
-    severity = api.uid_get_from_cstr("key.severity")!
-    sourceEditKindActive = api.uid_get_from_cstr("source.edit.kind.active")!
-    sourceEditKindComment = api.uid_get_from_cstr("source.edit.kind.comment")!
-    sourceEditKindInactive = api.uid_get_from_cstr("source.edit.kind.inactive")!
-    sourceEditKindMismatch = api.uid_get_from_cstr("source.edit.kind.mismatch")!
-    sourceEditKindSelector = api.uid_get_from_cstr("source.edit.kind.selector")!
-    sourceEditKindString = api.uid_get_from_cstr("source.edit.kind.string")!
-    sourceEditKindUnknown = api.uid_get_from_cstr("source.edit.kind.unknown")!
-    sourcefile = api.uid_get_from_cstr("key.sourcefile")!
-    sourcetext = api.uid_get_from_cstr("key.sourcetext")!
-    substructure = api.uid_get_from_cstr("key.substructure")!
-    syntactic_only = api.uid_get_from_cstr("key.syntactic_only")!
-    syntacticRenameCall = api.uid_get_from_cstr("source.syntacticrename.call")!
-    syntacticRenameDefinition = api.uid_get_from_cstr("source.syntacticrename.definition")!
-    syntacticRenameReference = api.uid_get_from_cstr("source.syntacticrename.reference")!
-    syntacticRenameUnknown = api.uid_get_from_cstr("source.syntacticrename.unknown")!
-    syntaxmap = api.uid_get_from_cstr("key.syntaxmap")!
-    synthesizedextensions = api.uid_get_from_cstr("key.synthesizedextensions")!
-    text = api.uid_get_from_cstr("key.text")!
-    typename = api.uid_get_from_cstr("key.typename")!
+    request = api.uid_get_from_cstr("key.request")!
+    notification = api.uid_get_from_cstr("key.notification")!
+    kind = api.uid_get_from_cstr("key.kind")!
+    accessLevel = api.uid_get_from_cstr("key.accessibility")!
+    setterAccessLevel = api.uid_get_from_cstr("key.setter_accessibility")!
+    keyword = api.uid_get_from_cstr("key.keyword")!
+    name = api.uid_get_from_cstr("key.name")!
     usr = api.uid_get_from_cstr("key.usr")!
-    variable_length = api.uid_get_from_cstr("key.variable_length")!
-    variable_offset = api.uid_get_from_cstr("key.variable_offset")!
-    variable_type = api.uid_get_from_cstr("key.variable_type")!
-    variable_type_explicit = api.uid_get_from_cstr("key.variable_type_explicit")!
-    variable_type_list = api.uid_get_from_cstr("key.variable_type_list")!
-
-    // Code Completion options
-    codecomplete_options = api.uid_get_from_cstr("key.codecomplete.options")!
-    codecomplete_sort_byname = api.uid_get_from_cstr("key.codecomplete.sort.byname")!
-    codecomplete_filtertext = api.uid_get_from_cstr("key.codecomplete.filtertext")!
-    codecomplete_requestlimit = api.uid_get_from_cstr("key.codecomplete.requestlimit")!
-    codecomplete_hideunderscores = api.uid_get_from_cstr("key.codecomplete.hideunderscores")!
-    codecomplete_hidelowpriority = api.uid_get_from_cstr("key.codecomplete.hidelowpriority")!
-    codecomplete_hidebyname = api.uid_get_from_cstr("key.codecomplete.hidebyname")!
-    codecomplete_addinneroperators = api.uid_get_from_cstr("key.codecomplete.addinneroperators")!
-    codecomplete_callpatternheuristics = api.uid_get_from_cstr("key.codecomplete.callpatternheuristics")!
-    codecomplete_showtopnonliteralresults = api.uid_get_from_cstr("key.codecomplete.showtopnonliteralresults")!
+    originalUSR = api.uid_get_from_cstr("key.original_usr")!
+    defaultImplementationOf = api.uid_get_from_cstr("key.default_implementation_of")!
+    interestedUSR = api.uid_get_from_cstr("key.interested_usr")!
+    genericParams = api.uid_get_from_cstr("key.generic_params")!
+    genericRequirements = api.uid_get_from_cstr("key.generic_requirements")!
+    docFullAsXML = api.uid_get_from_cstr("key.doc.full_as_xml")!
+    line = api.uid_get_from_cstr("key.line")!
+    column = api.uid_get_from_cstr("key.column")!
+    receiverUSR = api.uid_get_from_cstr("key.receiver_usr")!
+    receivers = api.uid_get_from_cstr("key.receivers")!
+    isDynamic = api.uid_get_from_cstr("key.is_dynamic")!
+    isImplicit = api.uid_get_from_cstr("key.is_implicit")!
+    filePath = api.uid_get_from_cstr("key.filepath")!
+    moduleInterfaceName = api.uid_get_from_cstr("key.module_interface_name")!
+    hash = api.uid_get_from_cstr("key.hash")!
+    compilerArgs = api.uid_get_from_cstr("key.compilerargs")!
+    severity = api.uid_get_from_cstr("key.severity")!
+    offset = api.uid_get_from_cstr("key.offset")!
+    length = api.uid_get_from_cstr("key.length")!
+    sourceFile = api.uid_get_from_cstr("key.sourcefile")!
+    sourceText = api.uid_get_from_cstr("key.sourcetext")!
+    primaryFile = api.uid_get_from_cstr("key.primary_file")!
+    enableSyntaxMap = api.uid_get_from_cstr("key.enablesyntaxmap")!
+    enableStructure = api.uid_get_from_cstr("key.enablesubstructure")!
+    id = api.uid_get_from_cstr("key.id")!
+    description = api.uid_get_from_cstr("key.description")!
+    typeName = api.uid_get_from_cstr("key.typename")!
+    runtimeName = api.uid_get_from_cstr("key.runtime_name")!
+    selectorName = api.uid_get_from_cstr("key.selector_name")!
+    annotatedDecl = api.uid_get_from_cstr("key.annotated_decl")!
+    fullyAnnotatedDecl = api.uid_get_from_cstr("key.fully_annotated_decl")!
+    fullyAnnotatedGenericSignature = api.uid_get_from_cstr("key.fully_annotated_generic_signature")!
+    docBrief = api.uid_get_from_cstr("key.doc.brief")!
+    context = api.uid_get_from_cstr("key.context")!
+    typeRelation = api.uid_get_from_cstr("key.typerelation")!
+    moduleImportDepth = api.uid_get_from_cstr("key.moduleimportdepth")!
+    numBytesToErase = api.uid_get_from_cstr("key.num_bytes_to_erase")!
+    notRecommended = api.uid_get_from_cstr("key.not_recommended")!
+    annotations = api.uid_get_from_cstr("key.annotations")!
+    semanticTokens = api.uid_get_from_cstr("key.semantic_tokens")!
+    diagnosticStage = api.uid_get_from_cstr("key.diagnostic_stage")!
+    syntaxMap = api.uid_get_from_cstr("key.syntaxmap")!
+    isSystem = api.uid_get_from_cstr("key.is_system")!
+    related = api.uid_get_from_cstr("key.related")!
+    inherits = api.uid_get_from_cstr("key.inherits")!
+    conforms = api.uid_get_from_cstr("key.conforms")!
+    extends = api.uid_get_from_cstr("key.extends")!
+    dependencies = api.uid_get_from_cstr("key.dependencies")!
+    entities = api.uid_get_from_cstr("key.entities")!
+    nameOffset = api.uid_get_from_cstr("key.nameoffset")!
+    nameLength = api.uid_get_from_cstr("key.namelength")!
+    bodyOffset = api.uid_get_from_cstr("key.bodyoffset")!
+    bodyLength = api.uid_get_from_cstr("key.bodylength")!
+    docOffset = api.uid_get_from_cstr("key.docoffset")!
+    docLength = api.uid_get_from_cstr("key.doclength")!
+    isActive = api.uid_get_from_cstr("key.is_active")!
+    isLocal = api.uid_get_from_cstr("key.is_local")!
+    inheritedTypes = api.uid_get_from_cstr("key.inheritedtypes")!
+    attributes = api.uid_get_from_cstr("key.attributes")!
+    attribute = api.uid_get_from_cstr("key.attribute")!
+    elements = api.uid_get_from_cstr("key.elements")!
+    subStructure = api.uid_get_from_cstr("key.substructure")!
+    ranges = api.uid_get_from_cstr("key.ranges")!
+    fixits = api.uid_get_from_cstr("key.fixits")!
+    generatedBuffers = api.uid_get_from_cstr("key.generated_buffers")!
+    bufferText = api.uid_get_from_cstr("key.buffer_text")!
+    originalLocation = api.uid_get_from_cstr("key.original_location")!
+    diagnostics = api.uid_get_from_cstr("key.diagnostics")!
+    educationalNotePaths = api.uid_get_from_cstr("key.educational_note_paths")!
+    formatOptions = api.uid_get_from_cstr("key.editor.format.options")!
+    codeCompleteOptions = api.uid_get_from_cstr("key.codecomplete.options")!
+    typeContextInfoOptions = api.uid_get_from_cstr("key.typecontextinfo.options")!
+    conformingMethodListOptions = api.uid_get_from_cstr("key.conformingmethods.options")!
+    filterRules = api.uid_get_from_cstr("key.codecomplete.filterrules")!
+    nextRequestStart = api.uid_get_from_cstr("key.nextrequeststart")!
+    popular = api.uid_get_from_cstr("key.popular")!
+    unpopular = api.uid_get_from_cstr("key.unpopular")!
+    hide = api.uid_get_from_cstr("key.hide")!
+    platform = api.uid_get_from_cstr("key.platform")!
+    isDeprecated = api.uid_get_from_cstr("key.is_deprecated")!
+    isUnavailable = api.uid_get_from_cstr("key.is_unavailable")!
+    isOptional = api.uid_get_from_cstr("key.is_optional")!
+    isAsync = api.uid_get_from_cstr("key.is_async")!
+    message = api.uid_get_from_cstr("key.message")!
+    introduced = api.uid_get_from_cstr("key.introduced")!
+    deprecated = api.uid_get_from_cstr("key.deprecated")!
+    obsoleted = api.uid_get_from_cstr("key.obsoleted")!
+    removeCache = api.uid_get_from_cstr("key.removecache")!
+    typeUsr = api.uid_get_from_cstr("key.typeusr")!
+    containerTypeUsr = api.uid_get_from_cstr("key.containertypeusr")!
+    moduleGroups = api.uid_get_from_cstr("key.modulegroups")!
+    baseName = api.uid_get_from_cstr("key.basename")!
+    argNames = api.uid_get_from_cstr("key.argnames")!
+    selectorPieces = api.uid_get_from_cstr("key.selectorpieces")!
+    nameKind = api.uid_get_from_cstr("key.namekind")!
+    localizationKey = api.uid_get_from_cstr("key.localization_key")!
+    isZeroArgSelector = api.uid_get_from_cstr("key.is_zero_arg_selector")!
+    swiftVersion = api.uid_get_from_cstr("key.swift_version")!
+    value = api.uid_get_from_cstr("key.value")!
+    enableDiagnostics = api.uid_get_from_cstr("key.enablediagnostics")!
+    groupName = api.uid_get_from_cstr("key.groupname")!
+    actionName = api.uid_get_from_cstr("key.actionname")!
+    synthesizedExtension = api.uid_get_from_cstr("key.synthesizedextensions")!
+    usingSwiftArgs = api.uid_get_from_cstr("key.usingswiftargs")!
+    names = api.uid_get_from_cstr("key.names")!
+    uiDs = api.uid_get_from_cstr("key.uids")!
+    syntacticOnly = api.uid_get_from_cstr("key.syntactic_only")!
+    parentLoc = api.uid_get_from_cstr("key.parent_loc")!
+    isTestCandidate = api.uid_get_from_cstr("key.is_test_candidate")!
+    overrides = api.uid_get_from_cstr("key.overrides")!
+    associatedUSRs = api.uid_get_from_cstr("key.associated_usrs")!
+    moduleName = api.uid_get_from_cstr("key.modulename")!
+    relatedDecls = api.uid_get_from_cstr("key.related_decls")!
+    simplified = api.uid_get_from_cstr("key.simplified")!
+    rangeContent = api.uid_get_from_cstr("key.rangecontent")!
+    cancelOnSubsequentRequest = api.uid_get_from_cstr("key.cancel_on_subsequent_request")!
+    includeNonEditableBaseNames = api.uid_get_from_cstr("key.include_non_editable_base_names")!
+    renameLocations = api.uid_get_from_cstr("key.renamelocations")!
+    locations = api.uid_get_from_cstr("key.locations")!
+    nameType = api.uid_get_from_cstr("key.nametype")!
+    newName = api.uid_get_from_cstr("key.newname")!
+    categorizedEdits = api.uid_get_from_cstr("key.categorizededits")!
+    categorizedRanges = api.uid_get_from_cstr("key.categorizedranges")!
+    rangesWorthNote = api.uid_get_from_cstr("key.rangesworthnote")!
+    edits = api.uid_get_from_cstr("key.edits")!
+    endLine = api.uid_get_from_cstr("key.endline")!
+    endColumn = api.uid_get_from_cstr("key.endcolumn")!
+    argIndex = api.uid_get_from_cstr("key.argindex")!
+    text = api.uid_get_from_cstr("key.text")!
+    category = api.uid_get_from_cstr("key.category")!
+    categories = api.uid_get_from_cstr("key.categories")!
+    isFunctionLike = api.uid_get_from_cstr("key.is_function_like")!
+    isNonProtocolType = api.uid_get_from_cstr("key.is_non_protocol_type")!
+    refactorActions = api.uid_get_from_cstr("key.refactor_actions")!
+    retrieveRefactorActions = api.uid_get_from_cstr("key.retrieve_refactor_actions")!
+    symbolGraph = api.uid_get_from_cstr("key.symbol_graph")!
+    retrieveSymbolGraph = api.uid_get_from_cstr("key.retrieve_symbol_graph")!
+    parentContexts = api.uid_get_from_cstr("key.parent_contexts")!
+    referencedSymbols = api.uid_get_from_cstr("key.referenced_symbols")!
+    isSPI = api.uid_get_from_cstr("key.is_spi")!
+    actionUID = api.uid_get_from_cstr("key.actionuid")!
+    actionUnavailableReason = api.uid_get_from_cstr("key.actionunavailablereason")!
+    compileID = api.uid_get_from_cstr("key.compileid")!
+    compilerArgsString = api.uid_get_from_cstr("key.compilerargs-string")!
+    implicitMembers = api.uid_get_from_cstr("key.implicitmembers")!
+    expectedTypes = api.uid_get_from_cstr("key.expectedtypes")!
+    members = api.uid_get_from_cstr("key.members")!
+    typeBuffer = api.uid_get_from_cstr("key.printedtypebuffer")!
+    expressionTypeList = api.uid_get_from_cstr("key.expression_type_list")!
+    expressionOffset = api.uid_get_from_cstr("key.expression_offset")!
+    expressionLength = api.uid_get_from_cstr("key.expression_length")!
+    expressionType = api.uid_get_from_cstr("key.expression_type")!
+    variableTypeList = api.uid_get_from_cstr("key.variable_type_list")!
+    variableOffset = api.uid_get_from_cstr("key.variable_offset")!
+    variableLength = api.uid_get_from_cstr("key.variable_length")!
+    variableType = api.uid_get_from_cstr("key.variable_type")!
+    variableTypeExplicit = api.uid_get_from_cstr("key.variable_type_explicit")!
+    fullyQualified = api.uid_get_from_cstr("key.fully_qualified")!
+    canonicalizeType = api.uid_get_from_cstr("key.canonicalize_type")!
+    internalDiagnostic = api.uid_get_from_cstr("key.internal_diagnostic")!
+    vfsName = api.uid_get_from_cstr("key.vfs.name")!
+    vfsOptions = api.uid_get_from_cstr("key.vfs.options")!
+    files = api.uid_get_from_cstr("key.files")!
+    optimizeForIDE = api.uid_get_from_cstr("key.optimize_for_ide")!
+    requiredBystanders = api.uid_get_from_cstr("key.required_bystanders")!
+    reusingASTContext = api.uid_get_from_cstr("key.reusingastcontext")!
+    completionMaxASTContextReuseCount = api.uid_get_from_cstr("key.completion_max_astcontext_reuse_count")!
+    completionCheckDependencyInterval = api.uid_get_from_cstr("key.completion_check_dependency_interval")!
+    annotatedTypename = api.uid_get_from_cstr("key.annotated.typename")!
+    compileOperation = api.uid_get_from_cstr("key.compile_operation")!
+    effectiveAccess = api.uid_get_from_cstr("key.effective_access")!
+    declarationLang = api.uid_get_from_cstr("key.decl_lang")!
+    secondarySymbols = api.uid_get_from_cstr("key.secondary_symbols")!
+    simulateLongRequest = api.uid_get_from_cstr("key.simulate_long_request")!
+    isSynthesized = api.uid_get_from_cstr("key.is_synthesized")!
+    bufferName = api.uid_get_from_cstr("key.buffer_name")!
+    barriersEnabled = api.uid_get_from_cstr("key.barriers_enabled")!
+    expansions = api.uid_get_from_cstr("key.expansions")!
+    macroRoles = api.uid_get_from_cstr("key.macro_roles")!
+    expandedMacroReplacements = api.uid_get_from_cstr("key.expanded_macro_replacements")!
+    indexStorePath = api.uid_get_from_cstr("key.index_store_path")!
+    indexUnitOutputPath = api.uid_get_from_cstr("key.index_unit_output_path")!
+    sortByName = api.uid_get_from_cstr("key.codecomplete.sort.byname")!
+    useImportDepth = api.uid_get_from_cstr("key.codecomplete.sort.useimportdepth")!
+    groupOverloads = api.uid_get_from_cstr("key.codecomplete.group.overloads")!
+    groupStems = api.uid_get_from_cstr("key.codecomplete.group.stems")!
+    filterText = api.uid_get_from_cstr("key.codecomplete.filtertext")!
+    requestLimit = api.uid_get_from_cstr("key.codecomplete.requestlimit")!
+    requestStart = api.uid_get_from_cstr("key.codecomplete.requeststart")!
+    hideUnderscores = api.uid_get_from_cstr("key.codecomplete.hideunderscores")!
+    hideLowPriority = api.uid_get_from_cstr("key.codecomplete.hidelowpriority")!
+    hideByName = api.uid_get_from_cstr("key.codecomplete.hidebyname")!
+    includeExactMatch = api.uid_get_from_cstr("key.codecomplete.includeexactmatch")!
+    addInnerResults = api.uid_get_from_cstr("key.codecomplete.addinnerresults")!
+    addInnerOperators = api.uid_get_from_cstr("key.codecomplete.addinneroperators")!
+    addInitsToTopLevel = api.uid_get_from_cstr("key.codecomplete.addinitstotoplevel")!
+    fuzzyMatching = api.uid_get_from_cstr("key.codecomplete.fuzzymatching")!
+    topNonLiteral = api.uid_get_from_cstr("key.codecomplete.showtopnonliteralresults")!
+    contextWeight = api.uid_get_from_cstr("key.codecomplete.sort.contextweight")!
+    fuzzyWeight = api.uid_get_from_cstr("key.codecomplete.sort.fuzzyweight")!
+    popularityBonus = api.uid_get_from_cstr("key.codecomplete.sort.popularitybonus")!
+    annotatedDescription = api.uid_get_from_cstr("key.codecomplete.annotateddescription")!
+    includeObjectLiterals = api.uid_get_from_cstr("key.codecomplete.includeobjectliterals")!
+    useTabs = api.uid_get_from_cstr("key.editor.format.usetabs")!
+    indentWidth = api.uid_get_from_cstr("key.editor.format.indentwidth")!
+    tabWidth = api.uid_get_from_cstr("key.editor.format.tabwidth")!
+    indentSwitchCase = api.uid_get_from_cstr("key.editor.format.indent_switch_case")!
   }
 }
 
 public struct sourcekitd_requests {
-  public let codecomplete_close: sourcekitd_uid_t
-  public let codecomplete_open: sourcekitd_uid_t
-  public let codecomplete_update: sourcekitd_uid_t
-  public let codecomplete: sourcekitd_uid_t
-  public let crash_exit: sourcekitd_uid_t
-  public let cursorinfo: sourcekitd_uid_t
-  public let diagnostics: sourcekitd_uid_t
-  public let editor_close: sourcekitd_uid_t
-  public let editor_open_interface: sourcekitd_uid_t
-  public let editor_open: sourcekitd_uid_t
-  public let editor_replacetext: sourcekitd_uid_t
-  public let expression_type: sourcekitd_uid_t
-  public let find_syntactic_rename_ranges: sourcekitd_uid_t
-  public let find_usr: sourcekitd_uid_t
+  /// `source.request.protocol_version`
+  public let protocolVersion: sourcekitd_uid_t
+  /// `source.request.compiler_version`
+  public let compilerVersion: sourcekitd_uid_t
+  /// `source.request.crash_exit`
+  public let crashWithExit: sourcekitd_uid_t
+  /// `source.request.demangle`
+  public let demangle: sourcekitd_uid_t
+  /// `source.request.mangle_simple_class`
+  public let mangleSimpleClass: sourcekitd_uid_t
+  /// `source.request.indexsource`
+  public let index: sourcekitd_uid_t
+  /// `source.request.docinfo`
+  public let docInfo: sourcekitd_uid_t
+  /// `source.request.codecomplete`
+  public let codeComplete: sourcekitd_uid_t
+  /// `source.request.codecomplete.open`
+  public let codeCompleteOpen: sourcekitd_uid_t
+  /// `source.request.codecomplete.close`
+  public let codeCompleteClose: sourcekitd_uid_t
+  /// `source.request.codecomplete.update`
+  public let codeCompleteUpdate: sourcekitd_uid_t
+  /// `source.request.codecomplete.cache.ondisk`
+  public let codeCompleteCacheOnDisk: sourcekitd_uid_t
+  /// `source.request.codecomplete.setpopularapi`
+  public let codeCompleteSetPopularAPI: sourcekitd_uid_t
+  /// `source.request.codecomplete.setcustom`
+  public let codeCompleteSetCustom: sourcekitd_uid_t
+  /// `source.request.typecontextinfo`
+  public let typeContextInfo: sourcekitd_uid_t
+  /// `source.request.conformingmethods`
+  public let conformingMethodList: sourcekitd_uid_t
+  /// `source.request.activeregions`
+  public let activeRegions: sourcekitd_uid_t
+  /// `source.request.cursorinfo`
+  public let cursorInfo: sourcekitd_uid_t
+  /// `source.request.rangeinfo`
+  public let rangeInfo: sourcekitd_uid_t
+  /// `source.request.relatedidents`
+  public let relatedIdents: sourcekitd_uid_t
+  /// `source.request.editor.open`
+  public let editorOpen: sourcekitd_uid_t
+  /// `source.request.editor.open.interface`
+  public let editorOpenInterface: sourcekitd_uid_t
+  /// `source.request.editor.open.interface.header`
+  public let editorOpenHeaderInterface: sourcekitd_uid_t
+  /// `source.request.editor.open.interface.swiftsource`
+  public let editorOpenSwiftSourceInterface: sourcekitd_uid_t
+  /// `source.request.editor.open.interface.swifttype`
+  public let editorOpenSwiftTypeInterface: sourcekitd_uid_t
+  /// `source.request.editor.extract.comment`
+  public let editorExtractTextFromComment: sourcekitd_uid_t
+  /// `source.request.editor.close`
+  public let editorClose: sourcekitd_uid_t
+  /// `source.request.editor.replacetext`
+  public let editorReplaceText: sourcekitd_uid_t
+  /// `source.request.editor.formattext`
+  public let editorFormatText: sourcekitd_uid_t
+  /// `source.request.editor.expand_placeholder`
+  public let editorExpandPlaceholder: sourcekitd_uid_t
+  /// `source.request.editor.find_usr`
+  public let editorFindUSR: sourcekitd_uid_t
+  /// `source.request.editor.find_interface_doc`
+  public let editorFindInterfaceDoc: sourcekitd_uid_t
+  /// `source.request.buildsettings.register`
+  public let buildSettingsRegister: sourcekitd_uid_t
+  /// `source.request.module.groups`
+  public let moduleGroups: sourcekitd_uid_t
+  /// `source.request.name.translation`
   public let nameTranslation: sourcekitd_uid_t
-  public let relatedidents: sourcekitd_uid_t
-  public let semantic_refactoring: sourcekitd_uid_t
-  public let semantic_tokens: sourcekitd_uid_t
-  public let variable_type: sourcekitd_uid_t
+  /// `source.request.convert.markup.xml`
+  public let markupToXML: sourcekitd_uid_t
+  /// `source.request.statistics`
+  public let statistics: sourcekitd_uid_t
+  /// `source.request.find-syntactic-rename-ranges`
+  public let findRenameRanges: sourcekitd_uid_t
+  /// `source.request.find-local-rename-ranges`
+  public let findLocalRenameRanges: sourcekitd_uid_t
+  /// `source.request.semantic.refactoring`
+  public let semanticRefactoring: sourcekitd_uid_t
+  /// `source.request.enable-compile-notifications`
+  public let enableCompileNotifications: sourcekitd_uid_t
+  /// `source.request.test_notification`
+  public let testNotification: sourcekitd_uid_t
+  /// `source.request.expression.type`
+  public let collectExpressionType: sourcekitd_uid_t
+  /// `source.request.variable.type`
+  public let collectVariableType: sourcekitd_uid_t
+  /// `source.request.configuration.global`
+  public let globalConfiguration: sourcekitd_uid_t
+  /// `source.request.dependency_updated`
+  public let dependencyUpdated: sourcekitd_uid_t
+  /// `source.request.diagnostics`
+  public let diagnostics: sourcekitd_uid_t
+  /// `source.request.semantic_tokens`
+  public let semanticTokens: sourcekitd_uid_t
+  /// `source.request.compile`
+  public let compile: sourcekitd_uid_t
+  /// `source.request.compile.close`
+  public let compileClose: sourcekitd_uid_t
+  /// `source.request.enable_request_barriers`
+  public let enableRequestBarriers: sourcekitd_uid_t
+  /// `source.request.syntactic_macro_expansion`
+  public let syntacticMacroExpansion: sourcekitd_uid_t
+  /// `source.request.index_to_store`
+  public let indexToStore: sourcekitd_uid_t
 
   public init(api: sourcekitd_functions_t) {
-    codecomplete = api.uid_get_from_cstr("source.request.codecomplete")!
-    codecomplete_close = api.uid_get_from_cstr("source.request.codecomplete.close")!
-    codecomplete_open = api.uid_get_from_cstr("source.request.codecomplete.open")!
-    codecomplete_update = api.uid_get_from_cstr("source.request.codecomplete.update")!
-    crash_exit = api.uid_get_from_cstr("source.request.crash_exit")!
-    cursorinfo = api.uid_get_from_cstr("source.request.cursorinfo")!
-    diagnostics = api.uid_get_from_cstr("source.request.diagnostics")!
-    editor_close = api.uid_get_from_cstr("source.request.editor.close")!
-    editor_open = api.uid_get_from_cstr("source.request.editor.open")!
-    editor_open_interface = api.uid_get_from_cstr("source.request.editor.open.interface")!
-    editor_replacetext = api.uid_get_from_cstr("source.request.editor.replacetext")!
-    expression_type = api.uid_get_from_cstr("source.request.expression.type")!
-    find_syntactic_rename_ranges = api.uid_get_from_cstr("source.request.find-syntactic-rename-ranges")!
-    find_usr = api.uid_get_from_cstr("source.request.editor.find_usr")!
+    protocolVersion = api.uid_get_from_cstr("source.request.protocol_version")!
+    compilerVersion = api.uid_get_from_cstr("source.request.compiler_version")!
+    crashWithExit = api.uid_get_from_cstr("source.request.crash_exit")!
+    demangle = api.uid_get_from_cstr("source.request.demangle")!
+    mangleSimpleClass = api.uid_get_from_cstr("source.request.mangle_simple_class")!
+    index = api.uid_get_from_cstr("source.request.indexsource")!
+    docInfo = api.uid_get_from_cstr("source.request.docinfo")!
+    codeComplete = api.uid_get_from_cstr("source.request.codecomplete")!
+    codeCompleteOpen = api.uid_get_from_cstr("source.request.codecomplete.open")!
+    codeCompleteClose = api.uid_get_from_cstr("source.request.codecomplete.close")!
+    codeCompleteUpdate = api.uid_get_from_cstr("source.request.codecomplete.update")!
+    codeCompleteCacheOnDisk = api.uid_get_from_cstr("source.request.codecomplete.cache.ondisk")!
+    codeCompleteSetPopularAPI = api.uid_get_from_cstr("source.request.codecomplete.setpopularapi")!
+    codeCompleteSetCustom = api.uid_get_from_cstr("source.request.codecomplete.setcustom")!
+    typeContextInfo = api.uid_get_from_cstr("source.request.typecontextinfo")!
+    conformingMethodList = api.uid_get_from_cstr("source.request.conformingmethods")!
+    activeRegions = api.uid_get_from_cstr("source.request.activeregions")!
+    cursorInfo = api.uid_get_from_cstr("source.request.cursorinfo")!
+    rangeInfo = api.uid_get_from_cstr("source.request.rangeinfo")!
+    relatedIdents = api.uid_get_from_cstr("source.request.relatedidents")!
+    editorOpen = api.uid_get_from_cstr("source.request.editor.open")!
+    editorOpenInterface = api.uid_get_from_cstr("source.request.editor.open.interface")!
+    editorOpenHeaderInterface = api.uid_get_from_cstr("source.request.editor.open.interface.header")!
+    editorOpenSwiftSourceInterface = api.uid_get_from_cstr("source.request.editor.open.interface.swiftsource")!
+    editorOpenSwiftTypeInterface = api.uid_get_from_cstr("source.request.editor.open.interface.swifttype")!
+    editorExtractTextFromComment = api.uid_get_from_cstr("source.request.editor.extract.comment")!
+    editorClose = api.uid_get_from_cstr("source.request.editor.close")!
+    editorReplaceText = api.uid_get_from_cstr("source.request.editor.replacetext")!
+    editorFormatText = api.uid_get_from_cstr("source.request.editor.formattext")!
+    editorExpandPlaceholder = api.uid_get_from_cstr("source.request.editor.expand_placeholder")!
+    editorFindUSR = api.uid_get_from_cstr("source.request.editor.find_usr")!
+    editorFindInterfaceDoc = api.uid_get_from_cstr("source.request.editor.find_interface_doc")!
+    buildSettingsRegister = api.uid_get_from_cstr("source.request.buildsettings.register")!
+    moduleGroups = api.uid_get_from_cstr("source.request.module.groups")!
     nameTranslation = api.uid_get_from_cstr("source.request.name.translation")!
-    relatedidents = api.uid_get_from_cstr("source.request.relatedidents")!
-    semantic_refactoring = api.uid_get_from_cstr("source.request.semantic.refactoring")!
-    semantic_tokens = api.uid_get_from_cstr("source.request.semantic_tokens")!
-    variable_type = api.uid_get_from_cstr("source.request.variable.type")!
+    markupToXML = api.uid_get_from_cstr("source.request.convert.markup.xml")!
+    statistics = api.uid_get_from_cstr("source.request.statistics")!
+    findRenameRanges = api.uid_get_from_cstr("source.request.find-syntactic-rename-ranges")!
+    findLocalRenameRanges = api.uid_get_from_cstr("source.request.find-local-rename-ranges")!
+    semanticRefactoring = api.uid_get_from_cstr("source.request.semantic.refactoring")!
+    enableCompileNotifications = api.uid_get_from_cstr("source.request.enable-compile-notifications")!
+    testNotification = api.uid_get_from_cstr("source.request.test_notification")!
+    collectExpressionType = api.uid_get_from_cstr("source.request.expression.type")!
+    collectVariableType = api.uid_get_from_cstr("source.request.variable.type")!
+    globalConfiguration = api.uid_get_from_cstr("source.request.configuration.global")!
+    dependencyUpdated = api.uid_get_from_cstr("source.request.dependency_updated")!
+    diagnostics = api.uid_get_from_cstr("source.request.diagnostics")!
+    semanticTokens = api.uid_get_from_cstr("source.request.semantic_tokens")!
+    compile = api.uid_get_from_cstr("source.request.compile")!
+    compileClose = api.uid_get_from_cstr("source.request.compile.close")!
+    enableRequestBarriers = api.uid_get_from_cstr("source.request.enable_request_barriers")!
+    syntacticMacroExpansion = api.uid_get_from_cstr("source.request.syntactic_macro_expansion")!
+    indexToStore = api.uid_get_from_cstr("source.request.index_to_store")!
   }
 }
 
 public struct sourcekitd_values {
-  public let notification_documentupdate: sourcekitd_uid_t
-  public let notification_sema_enabled: sourcekitd_uid_t
-  public let diag_error: sourcekitd_uid_t
-  public let diag_warning: sourcekitd_uid_t
-  public let diag_note: sourcekitd_uid_t
-  public let diag_category_deprecation: sourcekitd_uid_t
-  public let diag_category_no_usage: sourcekitd_uid_t
-  public let diag_stage_parse: sourcekitd_uid_t
-  public let diag_stage_sema: sourcekitd_uid_t
-
-  // MARK: Symbol Kinds
-
-  public let decl_function_free: sourcekitd_uid_t
-  public let ref_function_free: sourcekitd_uid_t
-  public let decl_function_method_instance: sourcekitd_uid_t
-  public let ref_function_method_instance: sourcekitd_uid_t
-  public let decl_function_method_static: sourcekitd_uid_t
-  public let ref_function_method_static: sourcekitd_uid_t
-  public let decl_function_method_class: sourcekitd_uid_t
-  public let ref_function_method_class: sourcekitd_uid_t
-  public let decl_function_accessor_getter: sourcekitd_uid_t
-  public let ref_function_accessor_getter: sourcekitd_uid_t
-  public let decl_function_accessor_setter: sourcekitd_uid_t
-  public let ref_function_accessor_setter: sourcekitd_uid_t
-  public let decl_function_accessor_willset: sourcekitd_uid_t
-  public let ref_function_accessor_willset: sourcekitd_uid_t
-  public let decl_function_accessor_didset: sourcekitd_uid_t
-  public let ref_function_accessor_didset: sourcekitd_uid_t
-  public let decl_function_accessor_address: sourcekitd_uid_t
-  public let ref_function_accessor_address: sourcekitd_uid_t
-  public let decl_function_accessor_mutableaddress: sourcekitd_uid_t
-  public let ref_function_accessor_mutableaddress: sourcekitd_uid_t
-  public let decl_function_accessor_read: sourcekitd_uid_t
-  public let ref_function_accessor_read: sourcekitd_uid_t
-  public let decl_function_accessor_modify: sourcekitd_uid_t
-  public let ref_function_accessor_modify: sourcekitd_uid_t
-  public let decl_function_constructor: sourcekitd_uid_t
-  public let ref_function_constructor: sourcekitd_uid_t
-  public let decl_function_destructor: sourcekitd_uid_t
-  public let ref_function_destructor: sourcekitd_uid_t
-  public let decl_function_operator_prefix: sourcekitd_uid_t
-  public let decl_function_operator_postfix: sourcekitd_uid_t
-  public let decl_function_operator_infix: sourcekitd_uid_t
-  public let ref_function_operator_prefix: sourcekitd_uid_t
-  public let ref_function_operator_postfix: sourcekitd_uid_t
-  public let ref_function_operator_infix: sourcekitd_uid_t
-  public let decl_precedencegroup: sourcekitd_uid_t
-  public let ref_precedencegroup: sourcekitd_uid_t
-  public let decl_function_subscript: sourcekitd_uid_t
-  public let ref_function_subscript: sourcekitd_uid_t
-  public let decl_var_global: sourcekitd_uid_t
-  public let ref_var_global: sourcekitd_uid_t
-  public let decl_var_instance: sourcekitd_uid_t
-  public let ref_var_instance: sourcekitd_uid_t
-  public let decl_var_static: sourcekitd_uid_t
-  public let ref_var_static: sourcekitd_uid_t
-  public let decl_var_class: sourcekitd_uid_t
-  public let ref_var_class: sourcekitd_uid_t
-  public let decl_var_local: sourcekitd_uid_t
-  public let ref_var_local: sourcekitd_uid_t
-  public let decl_var_parameter: sourcekitd_uid_t
-  public let decl_module: sourcekitd_uid_t
-  public let decl_actor: sourcekitd_uid_t
-  public let decl_class: sourcekitd_uid_t
-  public let ref_actor: sourcekitd_uid_t
-  public let ref_class: sourcekitd_uid_t
-  public let decl_struct: sourcekitd_uid_t
-  public let ref_struct: sourcekitd_uid_t
-  public let decl_enum: sourcekitd_uid_t
-  public let ref_enum: sourcekitd_uid_t
-  public let decl_enumcase: sourcekitd_uid_t
-  public let decl_enumelement: sourcekitd_uid_t
-  public let ref_enumelement: sourcekitd_uid_t
-  public let decl_protocol: sourcekitd_uid_t
-  public let ref_protocol: sourcekitd_uid_t
-  public let decl_extension: sourcekitd_uid_t
-  public let decl_extension_struct: sourcekitd_uid_t
-  public let decl_extension_class: sourcekitd_uid_t
-  public let decl_extension_enum: sourcekitd_uid_t
-  public let decl_extension_protocol: sourcekitd_uid_t
-  public let decl_associatedtype: sourcekitd_uid_t
-  public let ref_associatedtype: sourcekitd_uid_t
-  public let decl_typealias: sourcekitd_uid_t
-  public let ref_typealias: sourcekitd_uid_t
-  public let decl_generic_type_param: sourcekitd_uid_t
-  public let ref_generic_type_param: sourcekitd_uid_t
-  public let ref_module: sourcekitd_uid_t
-  public let syntaxtype_attribute_builtin: sourcekitd_uid_t
-  public let syntaxtype_comment: sourcekitd_uid_t
-  public let syntaxtype_comment_marker: sourcekitd_uid_t
-  public let syntaxtype_comment_url: sourcekitd_uid_t
-  public let syntaxtype_doccomment: sourcekitd_uid_t
-  public let syntaxtype_doccomment_field: sourcekitd_uid_t
-  public let syntaxtype_keyword: sourcekitd_uid_t
-  public let syntaxtype_operator: sourcekitd_uid_t
-  public let syntaxtype_number: sourcekitd_uid_t
-  public let syntaxtype_string: sourcekitd_uid_t
-  public let syntaxtype_string_interpolation_anchor: sourcekitd_uid_t
-  public let syntaxtype_type_identifier: sourcekitd_uid_t
-  public let syntaxtype_identifier: sourcekitd_uid_t
-  public let expr_object_literal: sourcekitd_uid_t
-  public let expr_call: sourcekitd_uid_t
-  public let namekindSwift: sourcekitd_uid_t
-  public let namekindObjC: sourcekitd_uid_t
-
-  public let kind_keyword: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.free`
+  public let declFunctionFree: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.free`
+  public let refFunctionFree: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.method.instance`
+  public let declMethodInstance: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.method.instance`
+  public let refMethodInstance: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.method.static`
+  public let declMethodStatic: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.method.static`
+  public let refMethodStatic: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.method.class`
+  public let declMethodClass: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.method.class`
+  public let refMethodClass: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.accessor.getter`
+  public let declAccessorGetter: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.accessor.getter`
+  public let refAccessorGetter: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.accessor.setter`
+  public let declAccessorSetter: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.accessor.setter`
+  public let refAccessorSetter: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.accessor.willset`
+  public let declAccessorWillSet: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.accessor.willset`
+  public let refAccessorWillSet: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.accessor.didset`
+  public let declAccessorDidSet: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.accessor.didset`
+  public let refAccessorDidSet: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.accessor.address`
+  public let declAccessorAddress: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.accessor.address`
+  public let refAccessorAddress: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.accessor.mutableaddress`
+  public let declAccessorMutableAddress: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.accessor.mutableaddress`
+  public let refAccessorMutableAddress: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.accessor.read`
+  public let declAccessorRead: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.accessor.read`
+  public let refAccessorRead: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.accessor.modify`
+  public let declAccessorModify: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.accessor.modify`
+  public let refAccessorModify: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.accessor.init`
+  public let declAccessorInit: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.accessor.init`
+  public let refAccessorInit: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.constructor`
+  public let declConstructor: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.constructor`
+  public let refConstructor: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.destructor`
+  public let declDestructor: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.destructor`
+  public let refDestructor: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.operator.prefix`
+  public let declFunctionPrefixOperator: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.operator.postfix`
+  public let declFunctionPostfixOperator: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.operator.infix`
+  public let declFunctionInfixOperator: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.operator.prefix`
+  public let refFunctionPrefixOperator: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.operator.postfix`
+  public let refFunctionPostfixOperator: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.operator.infix`
+  public let refFunctionInfixOperator: sourcekitd_uid_t
+  /// `source.lang.swift.decl.precedencegroup`
+  public let declPrecedenceGroup: sourcekitd_uid_t
+  /// `source.lang.swift.ref.precedencegroup`
+  public let refPrecedenceGroup: sourcekitd_uid_t
+  /// `source.lang.swift.decl.function.subscript`
+  public let declSubscript: sourcekitd_uid_t
+  /// `source.lang.swift.ref.function.subscript`
+  public let refSubscript: sourcekitd_uid_t
+  /// `source.lang.swift.decl.var.global`
+  public let declVarGlobal: sourcekitd_uid_t
+  /// `source.lang.swift.ref.var.global`
+  public let refVarGlobal: sourcekitd_uid_t
+  /// `source.lang.swift.decl.var.instance`
+  public let declVarInstance: sourcekitd_uid_t
+  /// `source.lang.swift.ref.var.instance`
+  public let refVarInstance: sourcekitd_uid_t
+  /// `source.lang.swift.decl.var.static`
+  public let declVarStatic: sourcekitd_uid_t
+  /// `source.lang.swift.ref.var.static`
+  public let refVarStatic: sourcekitd_uid_t
+  /// `source.lang.swift.decl.var.class`
+  public let declVarClass: sourcekitd_uid_t
+  /// `source.lang.swift.ref.var.class`
+  public let refVarClass: sourcekitd_uid_t
+  /// `source.lang.swift.decl.var.local`
+  public let declVarLocal: sourcekitd_uid_t
+  /// `source.lang.swift.ref.var.local`
+  public let refVarLocal: sourcekitd_uid_t
+  /// `source.lang.swift.decl.var.parameter`
+  public let declVarParam: sourcekitd_uid_t
+  /// `source.lang.swift.decl.module`
+  public let declModule: sourcekitd_uid_t
+  /// `source.lang.swift.decl.class`
+  public let declClass: sourcekitd_uid_t
+  /// `source.lang.swift.ref.class`
+  public let refClass: sourcekitd_uid_t
+  /// `source.lang.swift.decl.actor`
+  public let declActor: sourcekitd_uid_t
+  /// `source.lang.swift.ref.actor`
+  public let refActor: sourcekitd_uid_t
+  /// `source.lang.swift.decl.struct`
+  public let declStruct: sourcekitd_uid_t
+  /// `source.lang.swift.ref.struct`
+  public let refStruct: sourcekitd_uid_t
+  /// `source.lang.swift.decl.enum`
+  public let declEnum: sourcekitd_uid_t
+  /// `source.lang.swift.ref.enum`
+  public let refEnum: sourcekitd_uid_t
+  /// `source.lang.swift.decl.enumcase`
+  public let declEnumCase: sourcekitd_uid_t
+  /// `source.lang.swift.decl.enumelement`
+  public let declEnumElement: sourcekitd_uid_t
+  /// `source.lang.swift.ref.enumelement`
+  public let refEnumElement: sourcekitd_uid_t
+  /// `source.lang.swift.decl.protocol`
+  public let declProtocol: sourcekitd_uid_t
+  /// `source.lang.swift.ref.protocol`
+  public let refProtocol: sourcekitd_uid_t
+  /// `source.lang.swift.decl.extension`
+  public let declExtension: sourcekitd_uid_t
+  /// `source.lang.swift.decl.extension.struct`
+  public let declExtensionStruct: sourcekitd_uid_t
+  /// `source.lang.swift.decl.extension.class`
+  public let declExtensionClass: sourcekitd_uid_t
+  /// `source.lang.swift.decl.extension.enum`
+  public let declExtensionEnum: sourcekitd_uid_t
+  /// `source.lang.swift.decl.extension.protocol`
+  public let declExtensionProtocol: sourcekitd_uid_t
+  /// `source.lang.swift.decl.associatedtype`
+  public let declAssociatedType: sourcekitd_uid_t
+  /// `source.lang.swift.ref.associatedtype`
+  public let refAssociatedType: sourcekitd_uid_t
+  /// `source.lang.swift.decl.opaquetype`
+  public let declOpaqueType: sourcekitd_uid_t
+  /// `source.lang.swift.ref.opaquetype`
+  public let refOpaqueType: sourcekitd_uid_t
+  /// `source.lang.swift.decl.typealias`
+  public let declTypeAlias: sourcekitd_uid_t
+  /// `source.lang.swift.ref.typealias`
+  public let refTypeAlias: sourcekitd_uid_t
+  /// `source.lang.swift.decl.generic_type_param`
+  public let declGenericTypeParam: sourcekitd_uid_t
+  /// `source.lang.swift.ref.generic_type_param`
+  public let refGenericTypeParam: sourcekitd_uid_t
+  /// `source.lang.swift.decl.macro`
+  public let declMacro: sourcekitd_uid_t
+  /// `source.lang.swift.ref.macro`
+  public let refMacro: sourcekitd_uid_t
+  /// `source.lang.swift.ref.module`
+  public let refModule: sourcekitd_uid_t
+  /// `source.lang.swift.commenttag`
+  public let commentTag: sourcekitd_uid_t
+  /// `source.lang.swift.stmt.foreach`
+  public let stmtForEach: sourcekitd_uid_t
+  /// `source.lang.swift.stmt.for`
+  public let stmtFor: sourcekitd_uid_t
+  /// `source.lang.swift.stmt.while`
+  public let stmtWhile: sourcekitd_uid_t
+  /// `source.lang.swift.stmt.repeatwhile`
+  public let stmtRepeatWhile: sourcekitd_uid_t
+  /// `source.lang.swift.stmt.if`
+  public let stmtIf: sourcekitd_uid_t
+  /// `source.lang.swift.stmt.guard`
+  public let stmtGuard: sourcekitd_uid_t
+  /// `source.lang.swift.stmt.switch`
+  public let stmtSwitch: sourcekitd_uid_t
+  /// `source.lang.swift.stmt.case`
+  public let stmtCase: sourcekitd_uid_t
+  /// `source.lang.swift.stmt.brace`
+  public let stmtBrace: sourcekitd_uid_t
+  /// `source.lang.swift.expr.call`
+  public let exprCall: sourcekitd_uid_t
+  /// `source.lang.swift.expr.argument`
+  public let exprArg: sourcekitd_uid_t
+  /// `source.lang.swift.expr.array`
+  public let exprArray: sourcekitd_uid_t
+  /// `source.lang.swift.expr.dictionary`
+  public let exprDictionary: sourcekitd_uid_t
+  /// `source.lang.swift.expr.object_literal`
+  public let exprObjectLiteral: sourcekitd_uid_t
+  /// `source.lang.swift.expr.tuple`
+  public let exprTuple: sourcekitd_uid_t
+  /// `source.lang.swift.expr.closure`
+  public let exprClosure: sourcekitd_uid_t
+  /// `source.lang.swift.structure.elem.id`
+  public let structureElemId: sourcekitd_uid_t
+  /// `source.lang.swift.structure.elem.expr`
+  public let structureElemExpr: sourcekitd_uid_t
+  /// `source.lang.swift.structure.elem.init_expr`
+  public let structureElemInitExpr: sourcekitd_uid_t
+  /// `source.lang.swift.structure.elem.condition_expr`
+  public let structureElemCondExpr: sourcekitd_uid_t
+  /// `source.lang.swift.structure.elem.pattern`
+  public let structureElemPattern: sourcekitd_uid_t
+  /// `source.lang.swift.structure.elem.typeref`
+  public let structureElemTypeRef: sourcekitd_uid_t
+  /// `source.lang.swift.range.singlestatement`
+  public let rangeSingleStatement: sourcekitd_uid_t
+  /// `source.lang.swift.range.singleexpression`
+  public let rangeSingleExpression: sourcekitd_uid_t
+  /// `source.lang.swift.range.singledeclaration`
+  public let rangeSingleDeclaration: sourcekitd_uid_t
+  /// `source.lang.swift.range.multistatement`
+  public let rangeMultiStatement: sourcekitd_uid_t
+  /// `source.lang.swift.range.multitypememberdeclaration`
+  public let rangeMultiTypeMemberDeclaration: sourcekitd_uid_t
+  /// `source.lang.swift.range.invalid`
+  public let rangeInvalid: sourcekitd_uid_t
+  /// `source.lang.name.kind.objc`
+  public let nameObjc: sourcekitd_uid_t
+  /// `source.lang.name.kind.swift`
+  public let nameSwift: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.keyword`
+  public let keyword: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.identifier`
+  public let identifier: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.operator`
+  public let `operator`: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.typeidentifier`
+  public let typeIdentifier: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.buildconfig.keyword`
+  public let buildConfigKeyword: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.buildconfig.id`
+  public let buildConfigId: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.pounddirective.keyword`
+  public let poundDirectiveKeyword: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.attribute.id`
+  public let attributeId: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.attribute.builtin`
+  public let attributeBuiltin: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.number`
+  public let number: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.string`
+  public let string: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.string_interpolation_anchor`
+  public let stringInterpolation: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.comment`
+  public let comment: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.doccomment`
+  public let docComment: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.doccomment.field`
+  public let docCommentField: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.comment.mark`
+  public let commentMarker: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.comment.url`
+  public let commentURL: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.placeholder`
+  public let placeholder: sourcekitd_uid_t
+  /// `source.lang.swift.syntaxtype.objectliteral`
+  public let objectLiteral: sourcekitd_uid_t
+  /// `source.lang.swift.expr`
+  public let expr: sourcekitd_uid_t
+  /// `source.lang.swift.stmt`
+  public let stmt: sourcekitd_uid_t
+  /// `source.lang.swift.type`
+  public let type: sourcekitd_uid_t
+  /// `source.lang.swift.foreach.sequence`
+  public let forEachSequence: sourcekitd_uid_t
+  /// `source.diagnostic.severity.note`
+  public let diagNote: sourcekitd_uid_t
+  /// `source.diagnostic.severity.warning`
+  public let diagWarning: sourcekitd_uid_t
+  /// `source.diagnostic.severity.error`
+  public let diagError: sourcekitd_uid_t
+  /// `source.diagnostic.category.deprecation`
+  public let diagDeprecation: sourcekitd_uid_t
+  /// `source.diagnostic.category.no_usage`
+  public let diagNoUsage: sourcekitd_uid_t
+  /// `source.codecompletion.everything`
+  public let codeCompletionEverything: sourcekitd_uid_t
+  /// `source.codecompletion.module`
+  public let codeCompletionModule: sourcekitd_uid_t
+  /// `source.codecompletion.keyword`
+  public let codeCompletionKeyword: sourcekitd_uid_t
+  /// `source.codecompletion.literal`
+  public let codeCompletionLiteral: sourcekitd_uid_t
+  /// `source.codecompletion.custom`
+  public let codeCompletionCustom: sourcekitd_uid_t
+  /// `source.codecompletion.identifier`
+  public let codeCompletionIdentifier: sourcekitd_uid_t
+  /// `source.codecompletion.description`
+  public let codeCompletionDescription: sourcekitd_uid_t
+  /// `source.edit.kind.active`
+  public let editActive: sourcekitd_uid_t
+  /// `source.edit.kind.inactive`
+  public let editInactive: sourcekitd_uid_t
+  /// `source.edit.kind.selector`
+  public let editSelector: sourcekitd_uid_t
+  /// `source.edit.kind.string`
+  public let editString: sourcekitd_uid_t
+  /// `source.edit.kind.comment`
+  public let editComment: sourcekitd_uid_t
+  /// `source.edit.kind.mismatch`
+  public let editMismatch: sourcekitd_uid_t
+  /// `source.edit.kind.unknown`
+  public let editUnknown: sourcekitd_uid_t
+  /// `source.refactoring.range.kind.basename`
+  public let renameRangeBase: sourcekitd_uid_t
+  /// `source.refactoring.range.kind.keyword-basename`
+  public let renameRangeKeywordBase: sourcekitd_uid_t
+  /// `source.refactoring.range.kind.parameter-and-whitespace`
+  public let renameRangeParam: sourcekitd_uid_t
+  /// `source.refactoring.range.kind.noncollapsible-parameter`
+  public let renameRangeNoncollapsibleParam: sourcekitd_uid_t
+  /// `source.refactoring.range.kind.decl-argument-label`
+  public let renameRangeDeclArgLabel: sourcekitd_uid_t
+  /// `source.refactoring.range.kind.call-argument-label`
+  public let renameRangeCallArgLabel: sourcekitd_uid_t
+  /// `source.refactoring.range.kind.call-argument-colon`
+  public let renameRangeCallArgColon: sourcekitd_uid_t
+  /// `source.refactoring.range.kind.call-argument-combined`
+  public let renameRangeCallArgCombined: sourcekitd_uid_t
+  /// `source.refactoring.range.kind.selector-argument-label`
+  public let renameRangeSelectorArgLabel: sourcekitd_uid_t
+  /// `source.syntacticrename.definition`
+  public let definition: sourcekitd_uid_t
+  /// `source.syntacticrename.reference`
+  public let reference: sourcekitd_uid_t
+  /// `source.syntacticrename.call`
+  public let call: sourcekitd_uid_t
+  /// `source.syntacticrename.unknown`
+  public let unknown: sourcekitd_uid_t
+  /// `source.statistic.num-requests`
+  public let statNumRequests: sourcekitd_uid_t
+  /// `source.statistic.num-semantic-requests`
+  public let statNumSemaRequests: sourcekitd_uid_t
+  /// `source.statistic.instruction-count`
+  public let statInstructionCount: sourcekitd_uid_t
+  /// `source.lang.swift`
+  public let swift: sourcekitd_uid_t
+  /// `source.lang.objc`
+  public let objC: sourcekitd_uid_t
+  /// `source.lang.swift.macro_role.expression`
+  public let macroRoleExpression: sourcekitd_uid_t
+  /// `source.lang.swift.macro_role.declaration`
+  public let macroRoleDeclaration: sourcekitd_uid_t
+  /// `source.lang.swift.macro_role.codeitem`
+  public let macroRoleCodeItem: sourcekitd_uid_t
+  /// `source.lang.swift.macro_role.accessor`
+  public let macroRoleAccessor: sourcekitd_uid_t
+  /// `source.lang.swift.macro_role.member_attribute`
+  public let macroRoleMemberAttribute: sourcekitd_uid_t
+  /// `source.lang.swift.macro_role.member`
+  public let macroRoleMember: sourcekitd_uid_t
+  /// `source.lang.swift.macro_role.peer`
+  public let macroRolePeer: sourcekitd_uid_t
+  /// `source.lang.swift.macro_role.conformance`
+  public let macroRoleConformance: sourcekitd_uid_t
+  /// `source.lang.swift.macro_role.extension`
+  public let macroRoleExtension: sourcekitd_uid_t
+  /// `source.lang.swift.macro_role.preamble`
+  public let macroRolePreamble: sourcekitd_uid_t
+  /// `source.lang.swift.macro_role.body`
+  public let macroRoleBody: sourcekitd_uid_t
+  /// `source.lang.swift.keyword`
+  public let completionKindKeyword: sourcekitd_uid_t
+  /// `source.lang.swift.pattern`
+  public let completionKindPattern: sourcekitd_uid_t
+  /// `source.diagnostic.stage.swift.sema`
+  public let semaDiagStage: sourcekitd_uid_t
+  /// `source.diagnostic.stage.swift.parse`
+  public let parseDiagStage: sourcekitd_uid_t
+  /// `source.notification.sema_disabled`
+  public let semaDisabledNotification: sourcekitd_uid_t
+  /// `source.notification.sema_enabled`
+  public let semaEnabledNotification: sourcekitd_uid_t
+  /// `source.notification.editor.documentupdate`
+  public let documentUpdateNotification: sourcekitd_uid_t
 
   public init(api: sourcekitd_functions_t) {
-    notification_documentupdate = api.uid_get_from_cstr("source.notification.editor.documentupdate")!
-    notification_sema_enabled = api.uid_get_from_cstr("source.notification.sema_enabled")!
-    diag_error = api.uid_get_from_cstr("source.diagnostic.severity.error")!
-    diag_warning = api.uid_get_from_cstr("source.diagnostic.severity.warning")!
-    diag_note = api.uid_get_from_cstr("source.diagnostic.severity.note")!
-    diag_category_deprecation = api.uid_get_from_cstr("source.diagnostic.category.deprecation")!
-    diag_category_no_usage = api.uid_get_from_cstr("source.diagnostic.category.no_usage")!
-    diag_stage_parse = api.uid_get_from_cstr("source.diagnostic.stage.swift.parse")!
-    diag_stage_sema = api.uid_get_from_cstr("source.diagnostic.stage.swift.sema")!
-
-    // MARK: Symbol Kinds
-
-    decl_function_free = api.uid_get_from_cstr("source.lang.swift.decl.function.free")!
-    ref_function_free = api.uid_get_from_cstr("source.lang.swift.ref.function.free")!
-    decl_function_method_instance = api.uid_get_from_cstr("source.lang.swift.decl.function.method.instance")!
-    ref_function_method_instance = api.uid_get_from_cstr("source.lang.swift.ref.function.method.instance")!
-    decl_function_method_static = api.uid_get_from_cstr("source.lang.swift.decl.function.method.static")!
-    ref_function_method_static = api.uid_get_from_cstr("source.lang.swift.ref.function.method.static")!
-    decl_function_method_class = api.uid_get_from_cstr("source.lang.swift.decl.function.method.class")!
-    ref_function_method_class = api.uid_get_from_cstr("source.lang.swift.ref.function.method.class")!
-    decl_function_accessor_getter = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.getter")!
-    ref_function_accessor_getter = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.getter")!
-    decl_function_accessor_setter = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.setter")!
-    ref_function_accessor_setter = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.setter")!
-    decl_function_accessor_willset = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.willset")!
-    ref_function_accessor_willset = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.willset")!
-    decl_function_accessor_didset = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.didset")!
-    ref_function_accessor_didset = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.didset")!
-    decl_function_accessor_address = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.address")!
-    ref_function_accessor_address = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.address")!
-    decl_function_accessor_mutableaddress = api.uid_get_from_cstr(
-      "source.lang.swift.decl.function.accessor.mutableaddress"
-    )!
-    ref_function_accessor_mutableaddress = api.uid_get_from_cstr(
-      "source.lang.swift.ref.function.accessor.mutableaddress"
-    )!
-    decl_function_accessor_read = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.read")!
-    ref_function_accessor_read = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.read")!
-    decl_function_accessor_modify = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.modify")!
-    ref_function_accessor_modify = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.modify")!
-    decl_function_constructor = api.uid_get_from_cstr("source.lang.swift.decl.function.constructor")!
-    ref_function_constructor = api.uid_get_from_cstr("source.lang.swift.ref.function.constructor")!
-    decl_function_destructor = api.uid_get_from_cstr("source.lang.swift.decl.function.destructor")!
-    ref_function_destructor = api.uid_get_from_cstr("source.lang.swift.ref.function.destructor")!
-    decl_function_operator_prefix = api.uid_get_from_cstr("source.lang.swift.decl.function.operator.prefix")!
-    decl_function_operator_postfix = api.uid_get_from_cstr("source.lang.swift.decl.function.operator.postfix")!
-    decl_function_operator_infix = api.uid_get_from_cstr("source.lang.swift.decl.function.operator.infix")!
-    ref_function_operator_prefix = api.uid_get_from_cstr("source.lang.swift.ref.function.operator.prefix")!
-    ref_function_operator_postfix = api.uid_get_from_cstr("source.lang.swift.ref.function.operator.postfix")!
-    ref_function_operator_infix = api.uid_get_from_cstr("source.lang.swift.ref.function.operator.infix")!
-    decl_precedencegroup = api.uid_get_from_cstr("source.lang.swift.decl.precedencegroup")!
-    ref_precedencegroup = api.uid_get_from_cstr("source.lang.swift.ref.precedencegroup")!
-    decl_function_subscript = api.uid_get_from_cstr("source.lang.swift.decl.function.subscript")!
-    ref_function_subscript = api.uid_get_from_cstr("source.lang.swift.ref.function.subscript")!
-    decl_var_global = api.uid_get_from_cstr("source.lang.swift.decl.var.global")!
-    ref_var_global = api.uid_get_from_cstr("source.lang.swift.ref.var.global")!
-    decl_var_instance = api.uid_get_from_cstr("source.lang.swift.decl.var.instance")!
-    ref_var_instance = api.uid_get_from_cstr("source.lang.swift.ref.var.instance")!
-    decl_var_static = api.uid_get_from_cstr("source.lang.swift.decl.var.static")!
-    ref_var_static = api.uid_get_from_cstr("source.lang.swift.ref.var.static")!
-    decl_var_class = api.uid_get_from_cstr("source.lang.swift.decl.var.class")!
-    ref_var_class = api.uid_get_from_cstr("source.lang.swift.ref.var.class")!
-    decl_var_local = api.uid_get_from_cstr("source.lang.swift.decl.var.local")!
-    ref_var_local = api.uid_get_from_cstr("source.lang.swift.ref.var.local")!
-    decl_var_parameter = api.uid_get_from_cstr("source.lang.swift.decl.var.parameter")!
-    decl_module = api.uid_get_from_cstr("source.lang.swift.decl.module")!
-    decl_actor = api.uid_get_from_cstr("source.lang.swift.decl.actor")!
-    ref_actor = api.uid_get_from_cstr("source.lang.swift.ref.actor")!
-    decl_class = api.uid_get_from_cstr("source.lang.swift.decl.class")!
-    ref_class = api.uid_get_from_cstr("source.lang.swift.ref.class")!
-    decl_struct = api.uid_get_from_cstr("source.lang.swift.decl.struct")!
-    ref_struct = api.uid_get_from_cstr("source.lang.swift.ref.struct")!
-    decl_enum = api.uid_get_from_cstr("source.lang.swift.decl.enum")!
-    ref_enum = api.uid_get_from_cstr("source.lang.swift.ref.enum")!
-    decl_enumcase = api.uid_get_from_cstr("source.lang.swift.decl.enumcase")!
-    decl_enumelement = api.uid_get_from_cstr("source.lang.swift.decl.enumelement")!
-    ref_enumelement = api.uid_get_from_cstr("source.lang.swift.ref.enumelement")!
-    decl_protocol = api.uid_get_from_cstr("source.lang.swift.decl.protocol")!
-    ref_protocol = api.uid_get_from_cstr("source.lang.swift.ref.protocol")!
-    decl_extension = api.uid_get_from_cstr("source.lang.swift.decl.extension")!
-    decl_extension_struct = api.uid_get_from_cstr("source.lang.swift.decl.extension.struct")!
-    decl_extension_class = api.uid_get_from_cstr("source.lang.swift.decl.extension.class")!
-    decl_extension_enum = api.uid_get_from_cstr("source.lang.swift.decl.extension.enum")!
-    decl_extension_protocol = api.uid_get_from_cstr("source.lang.swift.decl.extension.protocol")!
-    decl_associatedtype = api.uid_get_from_cstr("source.lang.swift.decl.associatedtype")!
-    ref_associatedtype = api.uid_get_from_cstr("source.lang.swift.ref.associatedtype")!
-    decl_typealias = api.uid_get_from_cstr("source.lang.swift.decl.typealias")!
-    ref_typealias = api.uid_get_from_cstr("source.lang.swift.ref.typealias")!
-    decl_generic_type_param = api.uid_get_from_cstr("source.lang.swift.decl.generic_type_param")!
-    ref_generic_type_param = api.uid_get_from_cstr("source.lang.swift.ref.generic_type_param")!
-    ref_module = api.uid_get_from_cstr("source.lang.swift.ref.module")!
-    syntaxtype_attribute_builtin = api.uid_get_from_cstr("source.lang.swift.syntaxtype.attribute.builtin")!
-    syntaxtype_comment = api.uid_get_from_cstr("source.lang.swift.syntaxtype.comment")!
-    syntaxtype_comment_marker = api.uid_get_from_cstr("source.lang.swift.syntaxtype.comment.mark")!
-    syntaxtype_comment_url = api.uid_get_from_cstr("source.lang.swift.syntaxtype.comment.url")!
-    syntaxtype_doccomment = api.uid_get_from_cstr("source.lang.swift.syntaxtype.doccomment")!
-    syntaxtype_doccomment_field = api.uid_get_from_cstr("source.lang.swift.syntaxtype.doccomment.field")!
-    syntaxtype_keyword = api.uid_get_from_cstr("source.lang.swift.syntaxtype.keyword")!
-    syntaxtype_operator = api.uid_get_from_cstr("source.lang.swift.syntaxtype.operator")!
-    syntaxtype_number = api.uid_get_from_cstr("source.lang.swift.syntaxtype.number")!
-    syntaxtype_string = api.uid_get_from_cstr("source.lang.swift.syntaxtype.string")!
-    syntaxtype_string_interpolation_anchor = api.uid_get_from_cstr(
-      "source.lang.swift.syntaxtype.string_interpolation_anchor"
-    )!
-    syntaxtype_type_identifier = api.uid_get_from_cstr("source.lang.swift.syntaxtype.typeidentifier")!
-    syntaxtype_identifier = api.uid_get_from_cstr("source.lang.swift.syntaxtype.identifier")!
-    expr_object_literal = api.uid_get_from_cstr("source.lang.swift.expr.object_literal")!
-    expr_call = api.uid_get_from_cstr("source.lang.swift.expr.call")!
-    namekindSwift = api.uid_get_from_cstr("source.lang.name.kind.swift")!
-    namekindObjC = api.uid_get_from_cstr("source.lang.name.kind.objc")!
-
-    kind_keyword = api.uid_get_from_cstr("source.lang.swift.keyword")!
+    declFunctionFree = api.uid_get_from_cstr("source.lang.swift.decl.function.free")!
+    refFunctionFree = api.uid_get_from_cstr("source.lang.swift.ref.function.free")!
+    declMethodInstance = api.uid_get_from_cstr("source.lang.swift.decl.function.method.instance")!
+    refMethodInstance = api.uid_get_from_cstr("source.lang.swift.ref.function.method.instance")!
+    declMethodStatic = api.uid_get_from_cstr("source.lang.swift.decl.function.method.static")!
+    refMethodStatic = api.uid_get_from_cstr("source.lang.swift.ref.function.method.static")!
+    declMethodClass = api.uid_get_from_cstr("source.lang.swift.decl.function.method.class")!
+    refMethodClass = api.uid_get_from_cstr("source.lang.swift.ref.function.method.class")!
+    declAccessorGetter = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.getter")!
+    refAccessorGetter = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.getter")!
+    declAccessorSetter = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.setter")!
+    refAccessorSetter = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.setter")!
+    declAccessorWillSet = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.willset")!
+    refAccessorWillSet = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.willset")!
+    declAccessorDidSet = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.didset")!
+    refAccessorDidSet = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.didset")!
+    declAccessorAddress = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.address")!
+    refAccessorAddress = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.address")!
+    declAccessorMutableAddress = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.mutableaddress")!
+    refAccessorMutableAddress = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.mutableaddress")!
+    declAccessorRead = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.read")!
+    refAccessorRead = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.read")!
+    declAccessorModify = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.modify")!
+    refAccessorModify = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.modify")!
+    declAccessorInit = api.uid_get_from_cstr("source.lang.swift.decl.function.accessor.init")!
+    refAccessorInit = api.uid_get_from_cstr("source.lang.swift.ref.function.accessor.init")!
+    declConstructor = api.uid_get_from_cstr("source.lang.swift.decl.function.constructor")!
+    refConstructor = api.uid_get_from_cstr("source.lang.swift.ref.function.constructor")!
+    declDestructor = api.uid_get_from_cstr("source.lang.swift.decl.function.destructor")!
+    refDestructor = api.uid_get_from_cstr("source.lang.swift.ref.function.destructor")!
+    declFunctionPrefixOperator = api.uid_get_from_cstr("source.lang.swift.decl.function.operator.prefix")!
+    declFunctionPostfixOperator = api.uid_get_from_cstr("source.lang.swift.decl.function.operator.postfix")!
+    declFunctionInfixOperator = api.uid_get_from_cstr("source.lang.swift.decl.function.operator.infix")!
+    refFunctionPrefixOperator = api.uid_get_from_cstr("source.lang.swift.ref.function.operator.prefix")!
+    refFunctionPostfixOperator = api.uid_get_from_cstr("source.lang.swift.ref.function.operator.postfix")!
+    refFunctionInfixOperator = api.uid_get_from_cstr("source.lang.swift.ref.function.operator.infix")!
+    declPrecedenceGroup = api.uid_get_from_cstr("source.lang.swift.decl.precedencegroup")!
+    refPrecedenceGroup = api.uid_get_from_cstr("source.lang.swift.ref.precedencegroup")!
+    declSubscript = api.uid_get_from_cstr("source.lang.swift.decl.function.subscript")!
+    refSubscript = api.uid_get_from_cstr("source.lang.swift.ref.function.subscript")!
+    declVarGlobal = api.uid_get_from_cstr("source.lang.swift.decl.var.global")!
+    refVarGlobal = api.uid_get_from_cstr("source.lang.swift.ref.var.global")!
+    declVarInstance = api.uid_get_from_cstr("source.lang.swift.decl.var.instance")!
+    refVarInstance = api.uid_get_from_cstr("source.lang.swift.ref.var.instance")!
+    declVarStatic = api.uid_get_from_cstr("source.lang.swift.decl.var.static")!
+    refVarStatic = api.uid_get_from_cstr("source.lang.swift.ref.var.static")!
+    declVarClass = api.uid_get_from_cstr("source.lang.swift.decl.var.class")!
+    refVarClass = api.uid_get_from_cstr("source.lang.swift.ref.var.class")!
+    declVarLocal = api.uid_get_from_cstr("source.lang.swift.decl.var.local")!
+    refVarLocal = api.uid_get_from_cstr("source.lang.swift.ref.var.local")!
+    declVarParam = api.uid_get_from_cstr("source.lang.swift.decl.var.parameter")!
+    declModule = api.uid_get_from_cstr("source.lang.swift.decl.module")!
+    declClass = api.uid_get_from_cstr("source.lang.swift.decl.class")!
+    refClass = api.uid_get_from_cstr("source.lang.swift.ref.class")!
+    declActor = api.uid_get_from_cstr("source.lang.swift.decl.actor")!
+    refActor = api.uid_get_from_cstr("source.lang.swift.ref.actor")!
+    declStruct = api.uid_get_from_cstr("source.lang.swift.decl.struct")!
+    refStruct = api.uid_get_from_cstr("source.lang.swift.ref.struct")!
+    declEnum = api.uid_get_from_cstr("source.lang.swift.decl.enum")!
+    refEnum = api.uid_get_from_cstr("source.lang.swift.ref.enum")!
+    declEnumCase = api.uid_get_from_cstr("source.lang.swift.decl.enumcase")!
+    declEnumElement = api.uid_get_from_cstr("source.lang.swift.decl.enumelement")!
+    refEnumElement = api.uid_get_from_cstr("source.lang.swift.ref.enumelement")!
+    declProtocol = api.uid_get_from_cstr("source.lang.swift.decl.protocol")!
+    refProtocol = api.uid_get_from_cstr("source.lang.swift.ref.protocol")!
+    declExtension = api.uid_get_from_cstr("source.lang.swift.decl.extension")!
+    declExtensionStruct = api.uid_get_from_cstr("source.lang.swift.decl.extension.struct")!
+    declExtensionClass = api.uid_get_from_cstr("source.lang.swift.decl.extension.class")!
+    declExtensionEnum = api.uid_get_from_cstr("source.lang.swift.decl.extension.enum")!
+    declExtensionProtocol = api.uid_get_from_cstr("source.lang.swift.decl.extension.protocol")!
+    declAssociatedType = api.uid_get_from_cstr("source.lang.swift.decl.associatedtype")!
+    refAssociatedType = api.uid_get_from_cstr("source.lang.swift.ref.associatedtype")!
+    declOpaqueType = api.uid_get_from_cstr("source.lang.swift.decl.opaquetype")!
+    refOpaqueType = api.uid_get_from_cstr("source.lang.swift.ref.opaquetype")!
+    declTypeAlias = api.uid_get_from_cstr("source.lang.swift.decl.typealias")!
+    refTypeAlias = api.uid_get_from_cstr("source.lang.swift.ref.typealias")!
+    declGenericTypeParam = api.uid_get_from_cstr("source.lang.swift.decl.generic_type_param")!
+    refGenericTypeParam = api.uid_get_from_cstr("source.lang.swift.ref.generic_type_param")!
+    declMacro = api.uid_get_from_cstr("source.lang.swift.decl.macro")!
+    refMacro = api.uid_get_from_cstr("source.lang.swift.ref.macro")!
+    refModule = api.uid_get_from_cstr("source.lang.swift.ref.module")!
+    commentTag = api.uid_get_from_cstr("source.lang.swift.commenttag")!
+    stmtForEach = api.uid_get_from_cstr("source.lang.swift.stmt.foreach")!
+    stmtFor = api.uid_get_from_cstr("source.lang.swift.stmt.for")!
+    stmtWhile = api.uid_get_from_cstr("source.lang.swift.stmt.while")!
+    stmtRepeatWhile = api.uid_get_from_cstr("source.lang.swift.stmt.repeatwhile")!
+    stmtIf = api.uid_get_from_cstr("source.lang.swift.stmt.if")!
+    stmtGuard = api.uid_get_from_cstr("source.lang.swift.stmt.guard")!
+    stmtSwitch = api.uid_get_from_cstr("source.lang.swift.stmt.switch")!
+    stmtCase = api.uid_get_from_cstr("source.lang.swift.stmt.case")!
+    stmtBrace = api.uid_get_from_cstr("source.lang.swift.stmt.brace")!
+    exprCall = api.uid_get_from_cstr("source.lang.swift.expr.call")!
+    exprArg = api.uid_get_from_cstr("source.lang.swift.expr.argument")!
+    exprArray = api.uid_get_from_cstr("source.lang.swift.expr.array")!
+    exprDictionary = api.uid_get_from_cstr("source.lang.swift.expr.dictionary")!
+    exprObjectLiteral = api.uid_get_from_cstr("source.lang.swift.expr.object_literal")!
+    exprTuple = api.uid_get_from_cstr("source.lang.swift.expr.tuple")!
+    exprClosure = api.uid_get_from_cstr("source.lang.swift.expr.closure")!
+    structureElemId = api.uid_get_from_cstr("source.lang.swift.structure.elem.id")!
+    structureElemExpr = api.uid_get_from_cstr("source.lang.swift.structure.elem.expr")!
+    structureElemInitExpr = api.uid_get_from_cstr("source.lang.swift.structure.elem.init_expr")!
+    structureElemCondExpr = api.uid_get_from_cstr("source.lang.swift.structure.elem.condition_expr")!
+    structureElemPattern = api.uid_get_from_cstr("source.lang.swift.structure.elem.pattern")!
+    structureElemTypeRef = api.uid_get_from_cstr("source.lang.swift.structure.elem.typeref")!
+    rangeSingleStatement = api.uid_get_from_cstr("source.lang.swift.range.singlestatement")!
+    rangeSingleExpression = api.uid_get_from_cstr("source.lang.swift.range.singleexpression")!
+    rangeSingleDeclaration = api.uid_get_from_cstr("source.lang.swift.range.singledeclaration")!
+    rangeMultiStatement = api.uid_get_from_cstr("source.lang.swift.range.multistatement")!
+    rangeMultiTypeMemberDeclaration = api.uid_get_from_cstr("source.lang.swift.range.multitypememberdeclaration")!
+    rangeInvalid = api.uid_get_from_cstr("source.lang.swift.range.invalid")!
+    nameObjc = api.uid_get_from_cstr("source.lang.name.kind.objc")!
+    nameSwift = api.uid_get_from_cstr("source.lang.name.kind.swift")!
+    keyword = api.uid_get_from_cstr("source.lang.swift.syntaxtype.keyword")!
+    identifier = api.uid_get_from_cstr("source.lang.swift.syntaxtype.identifier")!
+    `operator` = api.uid_get_from_cstr("source.lang.swift.syntaxtype.operator")!
+    typeIdentifier = api.uid_get_from_cstr("source.lang.swift.syntaxtype.typeidentifier")!
+    buildConfigKeyword = api.uid_get_from_cstr("source.lang.swift.syntaxtype.buildconfig.keyword")!
+    buildConfigId = api.uid_get_from_cstr("source.lang.swift.syntaxtype.buildconfig.id")!
+    poundDirectiveKeyword = api.uid_get_from_cstr("source.lang.swift.syntaxtype.pounddirective.keyword")!
+    attributeId = api.uid_get_from_cstr("source.lang.swift.syntaxtype.attribute.id")!
+    attributeBuiltin = api.uid_get_from_cstr("source.lang.swift.syntaxtype.attribute.builtin")!
+    number = api.uid_get_from_cstr("source.lang.swift.syntaxtype.number")!
+    string = api.uid_get_from_cstr("source.lang.swift.syntaxtype.string")!
+    stringInterpolation = api.uid_get_from_cstr("source.lang.swift.syntaxtype.string_interpolation_anchor")!
+    comment = api.uid_get_from_cstr("source.lang.swift.syntaxtype.comment")!
+    docComment = api.uid_get_from_cstr("source.lang.swift.syntaxtype.doccomment")!
+    docCommentField = api.uid_get_from_cstr("source.lang.swift.syntaxtype.doccomment.field")!
+    commentMarker = api.uid_get_from_cstr("source.lang.swift.syntaxtype.comment.mark")!
+    commentURL = api.uid_get_from_cstr("source.lang.swift.syntaxtype.comment.url")!
+    placeholder = api.uid_get_from_cstr("source.lang.swift.syntaxtype.placeholder")!
+    objectLiteral = api.uid_get_from_cstr("source.lang.swift.syntaxtype.objectliteral")!
+    expr = api.uid_get_from_cstr("source.lang.swift.expr")!
+    stmt = api.uid_get_from_cstr("source.lang.swift.stmt")!
+    type = api.uid_get_from_cstr("source.lang.swift.type")!
+    forEachSequence = api.uid_get_from_cstr("source.lang.swift.foreach.sequence")!
+    diagNote = api.uid_get_from_cstr("source.diagnostic.severity.note")!
+    diagWarning = api.uid_get_from_cstr("source.diagnostic.severity.warning")!
+    diagError = api.uid_get_from_cstr("source.diagnostic.severity.error")!
+    diagDeprecation = api.uid_get_from_cstr("source.diagnostic.category.deprecation")!
+    diagNoUsage = api.uid_get_from_cstr("source.diagnostic.category.no_usage")!
+    codeCompletionEverything = api.uid_get_from_cstr("source.codecompletion.everything")!
+    codeCompletionModule = api.uid_get_from_cstr("source.codecompletion.module")!
+    codeCompletionKeyword = api.uid_get_from_cstr("source.codecompletion.keyword")!
+    codeCompletionLiteral = api.uid_get_from_cstr("source.codecompletion.literal")!
+    codeCompletionCustom = api.uid_get_from_cstr("source.codecompletion.custom")!
+    codeCompletionIdentifier = api.uid_get_from_cstr("source.codecompletion.identifier")!
+    codeCompletionDescription = api.uid_get_from_cstr("source.codecompletion.description")!
+    editActive = api.uid_get_from_cstr("source.edit.kind.active")!
+    editInactive = api.uid_get_from_cstr("source.edit.kind.inactive")!
+    editSelector = api.uid_get_from_cstr("source.edit.kind.selector")!
+    editString = api.uid_get_from_cstr("source.edit.kind.string")!
+    editComment = api.uid_get_from_cstr("source.edit.kind.comment")!
+    editMismatch = api.uid_get_from_cstr("source.edit.kind.mismatch")!
+    editUnknown = api.uid_get_from_cstr("source.edit.kind.unknown")!
+    renameRangeBase = api.uid_get_from_cstr("source.refactoring.range.kind.basename")!
+    renameRangeKeywordBase = api.uid_get_from_cstr("source.refactoring.range.kind.keyword-basename")!
+    renameRangeParam = api.uid_get_from_cstr("source.refactoring.range.kind.parameter-and-whitespace")!
+    renameRangeNoncollapsibleParam = api.uid_get_from_cstr("source.refactoring.range.kind.noncollapsible-parameter")!
+    renameRangeDeclArgLabel = api.uid_get_from_cstr("source.refactoring.range.kind.decl-argument-label")!
+    renameRangeCallArgLabel = api.uid_get_from_cstr("source.refactoring.range.kind.call-argument-label")!
+    renameRangeCallArgColon = api.uid_get_from_cstr("source.refactoring.range.kind.call-argument-colon")!
+    renameRangeCallArgCombined = api.uid_get_from_cstr("source.refactoring.range.kind.call-argument-combined")!
+    renameRangeSelectorArgLabel = api.uid_get_from_cstr("source.refactoring.range.kind.selector-argument-label")!
+    definition = api.uid_get_from_cstr("source.syntacticrename.definition")!
+    reference = api.uid_get_from_cstr("source.syntacticrename.reference")!
+    call = api.uid_get_from_cstr("source.syntacticrename.call")!
+    unknown = api.uid_get_from_cstr("source.syntacticrename.unknown")!
+    statNumRequests = api.uid_get_from_cstr("source.statistic.num-requests")!
+    statNumSemaRequests = api.uid_get_from_cstr("source.statistic.num-semantic-requests")!
+    statInstructionCount = api.uid_get_from_cstr("source.statistic.instruction-count")!
+    swift = api.uid_get_from_cstr("source.lang.swift")!
+    objC = api.uid_get_from_cstr("source.lang.objc")!
+    macroRoleExpression = api.uid_get_from_cstr("source.lang.swift.macro_role.expression")!
+    macroRoleDeclaration = api.uid_get_from_cstr("source.lang.swift.macro_role.declaration")!
+    macroRoleCodeItem = api.uid_get_from_cstr("source.lang.swift.macro_role.codeitem")!
+    macroRoleAccessor = api.uid_get_from_cstr("source.lang.swift.macro_role.accessor")!
+    macroRoleMemberAttribute = api.uid_get_from_cstr("source.lang.swift.macro_role.member_attribute")!
+    macroRoleMember = api.uid_get_from_cstr("source.lang.swift.macro_role.member")!
+    macroRolePeer = api.uid_get_from_cstr("source.lang.swift.macro_role.peer")!
+    macroRoleConformance = api.uid_get_from_cstr("source.lang.swift.macro_role.conformance")!
+    macroRoleExtension = api.uid_get_from_cstr("source.lang.swift.macro_role.extension")!
+    macroRolePreamble = api.uid_get_from_cstr("source.lang.swift.macro_role.preamble")!
+    macroRoleBody = api.uid_get_from_cstr("source.lang.swift.macro_role.body")!
+    completionKindKeyword = api.uid_get_from_cstr("source.lang.swift.keyword")!
+    completionKindPattern = api.uid_get_from_cstr("source.lang.swift.pattern")!
+    semaDiagStage = api.uid_get_from_cstr("source.diagnostic.stage.swift.sema")!
+    parseDiagStage = api.uid_get_from_cstr("source.diagnostic.stage.swift.parse")!
+    semaDisabledNotification = api.uid_get_from_cstr("source.notification.sema_disabled")!
+    semaEnabledNotification = api.uid_get_from_cstr("source.notification.sema_enabled")!
+    documentUpdateNotification = api.uid_get_from_cstr("source.notification.editor.documentupdate")!
   }
 }

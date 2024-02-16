@@ -25,14 +25,14 @@ extension SwiftLanguageServer {
     }
 
     let skreq = sourcekitd.dictionary([
-      keys.request: requests.semantic_tokens,
-      keys.sourcefile: snapshot.uri.pseudoPath,
-      keys.compilerargs: buildSettings.compilerArgs as [SKDValue],
+      keys.request: requests.semanticTokens,
+      keys.sourceFile: snapshot.uri.pseudoPath,
+      keys.compilerArgs: buildSettings.compilerArgs as [SKDValue],
     ])
 
     let dict = try await sourcekitd.send(skreq, fileContents: snapshot.text)
 
-    guard let skTokens: SKDResponseArray = dict[keys.semantic_tokens] else {
+    guard let skTokens: SKDResponseArray = dict[keys.semanticTokens] else {
       return nil
     }
     return SyntaxHighlightingTokenParser(sourcekitd: sourcekitd).parseTokens(skTokens, in: snapshot)

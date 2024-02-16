@@ -80,8 +80,8 @@ extension Array where Element == SemanticRefactorCommand {
     }
     var commands = [SemanticRefactorCommand]()
     results.forEach { _, value in
-      if let name: String = value[keys.actionname],
-        let actionuid: sourcekitd_uid_t = value[keys.actionuid],
+      if let name: String = value[keys.actionName],
+        let actionuid: sourcekitd_uid_t = value[keys.actionUID],
         let ptr = api.uid_get_string_ptr(actionuid)
       {
         let actionName = String(cString: ptr)
