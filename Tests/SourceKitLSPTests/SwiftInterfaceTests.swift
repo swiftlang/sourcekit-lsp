@@ -184,6 +184,7 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   func testSwiftInterfaceAcrossModules() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let ws = try await SwiftPMTestWorkspace(
       files: [
         "MyLibrary/MyLibrary.swift": """
