@@ -116,7 +116,7 @@ private func edits(from original: DocumentSnapshot, to edited: String) -> [TextE
     // Adjust the index offset based on changes that `Collection.difference` expects to already have been applied.
     var adjustment: Int = 0
     for edit in edits {
-      if edit.range.upperBound < change.offset {
+      if edit.range.upperBound < change.offset + adjustment {
         adjustment = adjustment + edit.range.count - edit.replacement.count
       }
     }
