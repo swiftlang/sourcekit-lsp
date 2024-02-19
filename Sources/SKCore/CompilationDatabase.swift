@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import LSPLogging
 import SKSupport
 
 import struct TSCBasic.AbsolutePath
@@ -81,13 +82,19 @@ public func tryLoadCompilationDatabase(
       try! RelativePath(validating: "build"),
     ]
   return
-    try! searchPaths
+    searchPaths
     .lazy
     .map { directory.appending($0) }
-    .compactMap {
-      try
-        (JSONCompilationDatabase(directory: $0, fileSystem)
-        ?? FixedCompilationDatabase(directory: $0, fileSystem))
+    .compactMap { searchPath in
+      orLog("Failed to load compilation database") { () -> CompilationDatabase? in
+        if let compDb = try JSONCompilationDatabase(directory: searchPath, fileSystem) {
+          return compDb
+        }
+        if let compDb = try FixedCompilationDatabase(directory: searchPath, fileSystem) {
+          return compDb
+        }
+        return nil
+      }
     }
     .first
 }

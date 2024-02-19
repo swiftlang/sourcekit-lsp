@@ -267,6 +267,15 @@ final class CompilationDatabaseTests: XCTestCase {
     )
   }
 
+  func testInvalidCompilationDatabase() throws {
+    let fs = InMemoryFileSystem()
+    let dir = try AbsolutePath(validating: "/a")
+    try fs.createDirectory(dir)
+    try fs.writeFileContents(dir.appending(component: "compile_commands.json"), bytes: "")
+
+    XCTAssertNil(tryLoadCompilationDatabase(directory: dir, fs))
+  }
+
   func testCompilationDatabaseBuildSystem() async throws {
     try await checkCompilationDatabaseBuildSystem(
       """
