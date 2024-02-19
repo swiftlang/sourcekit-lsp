@@ -517,6 +517,7 @@ public actor SourceKitServer {
 
   /// Send the given notification to the editor.
   public func sendNotificationToClient(_ notification: some NotificationType) {
+    logger.log("Sending notification: \(notification.forLogging)")
     client.send(notification)
   }
 
