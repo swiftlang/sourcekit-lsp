@@ -395,7 +395,7 @@ public actor SourceKitServer {
 
   private var packageLoadingWorkDoneProgress = WorkDoneProgressState(
     "SourceKitLSP.SourceKitServer.reloadPackage",
-    title: "Reloading Package"
+    title: "SourceKit-LSP: Reloading Package"
   )
 
   /// **Public for testing**
