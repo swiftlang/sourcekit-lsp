@@ -15,6 +15,9 @@ import LSPLogging
 import LanguageServerProtocol
 import SKSupport
 import SourceKitD
+import SwiftParser
+@_spi(SourceKitLSP) import SwiftRefactor
+import SwiftSyntax
 
 /// Represents a code-completion session for a given source location that can be efficiently
 /// re-filtered by calling `update()`.
@@ -88,6 +91,7 @@ class CodeCompletionSession {
   static func completionList(
     sourcekitd: any SourceKitD,
     snapshot: DocumentSnapshot,
+    syntaxTreeParseResult: IncrementalParseResult,
     completionPosition: Position,
     completionUtf8Offset: Int,
     cursorPosition: Position,
@@ -119,6 +123,7 @@ class CodeCompletionSession {
       let session = CodeCompletionSession(
         sourcekitd: sourcekitd,
         snapshot: snapshot,
+        syntaxTreeParseResult: syntaxTreeParseResult,
         utf8Offset: completionUtf8Offset,
         position: completionPosition,
         compileCommand: compileCommand,
@@ -135,6 +140,7 @@ class CodeCompletionSession {
 
   private let sourcekitd: any SourceKitD
   private let snapshot: DocumentSnapshot
+  private let syntaxTreeParseResult: IncrementalParseResult
   private let utf8StartOffset: Int
   private let position: Position
   private let compileCommand: SwiftCompileCommand?
@@ -152,12 +158,14 @@ class CodeCompletionSession {
   private init(
     sourcekitd: any SourceKitD,
     snapshot: DocumentSnapshot,
+    syntaxTreeParseResult: IncrementalParseResult,
     utf8Offset: Int,
     position: Position,
     compileCommand: SwiftCompileCommand?,
     clientSupportsSnippets: Bool
   ) {
     self.sourcekitd = sourcekitd
+    self.syntaxTreeParseResult = syntaxTreeParseResult
     self.snapshot = snapshot
     self.utf8StartOffset = utf8Offset
     self.position = position
@@ -271,6 +279,54 @@ class CodeCompletionSession {
 
   // MARK: - Helpers
 
+  private func expandClosurePlaceholders(
+    insertText: String,
+    utf8CodeUnitsToErase: Int,
+    requestPosition: Position
+  ) -> String? {
+    guard insertText.contains("<#") && insertText.contains("->") else {
+      // Fast path: There is no closure placeholder to expand
+      return nil
+    }
+    guard requestPosition.line < snapshot.lineTable.count else {
+      logger.error("Request position is past the last line")
+      return nil
+    }
+
+    let indentationOfLine = snapshot.lineTable[requestPosition.line].prefix(while: { $0.isWhitespace })
+
+    let strippedPrefix: String
+    let exprToExpand: String
+    if insertText.starts(with: "?.") {
+      strippedPrefix = "?."
+      exprToExpand = indentationOfLine + String(insertText.dropFirst(2))
+    } else {
+      strippedPrefix = ""
+      exprToExpand = indentationOfLine + insertText
+    }
+
+    var parser = Parser(exprToExpand)
+    let expr = ExprSyntax.parse(from: &parser)
+    guard let call = OutermostFunctionCallFinder.findOutermostFunctionCall(in: expr),
+      let expandedCall = ExpandEditorPlaceholdersToTrailingClosures.refactor(syntax: call)
+    else {
+      return nil
+    }
+
+    let bytesToExpand = Array(exprToExpand.utf8)
+
+    var expandedBytes: [UInt8] = []
+    // Add the prefix that we stripped of to allow expression parsing
+    expandedBytes += strippedPrefix.utf8
+    // Add any part of the expression that didn't end up being part of the function call
+    expandedBytes += bytesToExpand[0..<call.position.utf8Offset]
+    // Add the expanded function call excluding the added `indentationOfLine`
+    expandedBytes += expandedCall.syntaxTextBytes[indentationOfLine.utf8.count...]
+    // Add any trailing text that didn't end up being part of the function call
+    expandedBytes += bytesToExpand[call.endPosition.utf8Offset...]
+    return String(bytes: expandedBytes, encoding: .utf8)
+  }
+
   private func completionsFromSKDResponse(
     _ completions: SKDResponseArray,
     in snapshot: DocumentSnapshot,
@@ -286,9 +342,19 @@ class CodeCompletionSession {
       }
 
       var filterName: String? = value[keys.name]
-      let insertText: String? = value[keys.sourceText]
+      var insertText: String? = value[keys.sourceText]
       let typeName: String? = value[sourcekitd.keys.typeName]
       let docBrief: String? = value[sourcekitd.keys.docBrief]
+      let utf8CodeUnitsToErase: Int = value[sourcekitd.keys.numBytesToErase] ?? 0
+
+      if let insertTextUnwrapped = insertText {
+        insertText =
+          expandClosurePlaceholders(
+            insertText: insertTextUnwrapped,
+            utf8CodeUnitsToErase: utf8CodeUnitsToErase,
+            requestPosition: requestPosition
+          ) ?? insertText
+      }
 
       let text = insertText.map {
         rewriteSourceKitPlaceholders(inString: $0, clientSupportsSnippets: clientSupportsSnippets)
@@ -297,8 +363,6 @@ class CodeCompletionSession {
 
       let textEdit: TextEdit?
       if let text = text {
-        let utf8CodeUnitsToErase: Int = value[sourcekitd.keys.numBytesToErase] ?? 0
-
         textEdit = self.computeCompletionTextEdit(
           completionPos: completionPos,
           requestPosition: requestPosition,
@@ -409,5 +473,41 @@ class CodeCompletionSession {
 extension CodeCompletionSession: CustomStringConvertible {
   nonisolated var description: String {
     "\(uri.pseudoPath):\(position)"
+  }
+}
+
+fileprivate class OutermostFunctionCallFinder: SyntaxAnyVisitor {
+  /// Once a `FunctionCallExprSyntax` has been visited, that syntax node.
+  var foundCall: FunctionCallExprSyntax?
+
+  private func shouldVisit(_ node: some SyntaxProtocol) -> Bool {
+    if foundCall != nil {
+      return false
+    }
+    return true
+  }
+
+  override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
+    guard shouldVisit(node) else {
+      return .skipChildren
+    }
+    return .visitChildren
+  }
+
+  override func visit(_ node: FunctionCallExprSyntax) -> SyntaxVisitorContinueKind {
+    guard shouldVisit(node) else {
+      return .skipChildren
+    }
+    foundCall = node
+    return .skipChildren
+  }
+
+  /// Find the innermost `FunctionCallExprSyntax` that contains `position`.
+  static func findOutermostFunctionCall(
+    in tree: some SyntaxProtocol
+  ) -> FunctionCallExprSyntax? {
+    let finder = OutermostFunctionCallFinder(viewMode: .sourceAccurate)
+    finder.walk(tree)
+    return finder.foundCall
   }
 }

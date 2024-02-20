@@ -46,6 +46,7 @@ extension SwiftLanguageServer {
     return try await CodeCompletionSession.completionList(
       sourcekitd: sourcekitd,
       snapshot: snapshot,
+      syntaxTreeParseResult: syntaxTreeManager.incrementalParseResult(for: snapshot),
       completionPosition: completionPos,
       completionUtf8Offset: offset,
       cursorPosition: req.position,
