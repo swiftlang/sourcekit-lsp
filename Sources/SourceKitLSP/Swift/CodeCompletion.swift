@@ -20,10 +20,7 @@ extension SwiftLanguageServer {
   public func completion(_ req: CompletionRequest) async throws -> CompletionList {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
 
-    guard let completionPos = adjustCompletionLocation(req.position, in: snapshot) else {
-      logger.error("invalid completion position \(req.position, privacy: .public)")
-      return CompletionList(isIncomplete: true, items: [])
-    }
+    let completionPos = await adjustPositionToStartOfIdentifier(req.position, in: snapshot)
 
     guard let offset = snapshot.utf8Offset(of: completionPos) else {
       logger.error(
@@ -57,36 +54,5 @@ extension SwiftLanguageServer {
       clientSupportsSnippets: clientSupportsSnippets,
       filterText: filterText
     )
-  }
-
-  /// Adjust completion position to the start of identifier characters.
-  private func adjustCompletionLocation(_ pos: Position, in snapshot: DocumentSnapshot) -> Position? {
-    guard pos.line < snapshot.lineTable.count else {
-      // Line out of range.
-      return nil
-    }
-    let lineSlice = snapshot.lineTable[pos.line]
-    let startIndex = lineSlice.startIndex
-
-    let identifierChars = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_"))
-
-    guard var loc = lineSlice.utf16.index(startIndex, offsetBy: pos.utf16index, limitedBy: lineSlice.endIndex) else {
-      // Column out of range.
-      return nil
-    }
-    while loc != startIndex {
-      let prev = lineSlice.index(before: loc)
-      if !identifierChars.contains(lineSlice.unicodeScalars[prev]) {
-        break
-      }
-      loc = prev
-    }
-
-    // ###aabccccccdddddd
-    // ^  ^- loc  ^-requestedLoc
-    // `- startIndex
-
-    let adjustedOffset = lineSlice.utf16.distance(from: startIndex, to: loc)
-    return Position(line: pos.line, utf16index: adjustedOffset)
   }
 }

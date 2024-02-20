@@ -945,6 +945,39 @@ final class SwiftCompletionTests: XCTestCase {
     XCTAssert(secondCompletionResults.items.isEmpty)
   }
 
+  func testNonAsciiCompletionFilter() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      struct Foo {
+        func 👨‍👩‍👦👨‍👩‍👦() {}
+        func test() {
+          self.1️⃣👨‍👩‍👦2️⃣
+        }
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    XCTAssertEqual(
+      completions.items,
+      [
+        CompletionItem(
+          label: "👨‍👩‍👦👨‍👩‍👦()",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          filterText: "👨‍👩‍👦👨‍👩‍👦()",
+          insertText: "👨‍👩‍👦👨‍👩‍👦()",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "👨‍👩‍👦👨‍👩‍👦()"))
+        )
+      ]
+    )
+  }
 }
 
 private func countFs(_ response: CompletionList) -> Int {
