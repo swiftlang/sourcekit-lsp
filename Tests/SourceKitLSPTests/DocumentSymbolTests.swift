@@ -668,7 +668,7 @@ final class DocumentSymbolTests: XCTestCase {
     }
   }
 
-  func testIncludeNestedMarkComments() async throws {
+  func testNestedMarkComment() async throws {
     try await assertDocumentSymbols(
       """
       1️⃣struct 2️⃣Foo3️⃣ {
@@ -689,6 +689,41 @@ final class DocumentSymbolTests: XCTestCase {
               range: positions["4️⃣"]..<positions["5️⃣"],
               selectionRange: positions["4️⃣"]..<positions["5️⃣"]
             )
+          ]
+        )
+      ]
+    }
+  }
+
+  func testNestedMarkCommentFollowedAttachedToChild() async throws {
+    try await assertDocumentSymbols(
+      """
+      1️⃣struct 2️⃣Foo3️⃣ {
+        4️⃣// MARK: Marker5️⃣
+        6️⃣func 7️⃣myFunc()8️⃣  { }9️⃣
+      }🔟
+      """
+    ) { positions in
+      [
+        DocumentSymbol(
+          name: "Foo",
+          kind: .struct,
+          range: positions["1️⃣"]..<positions["🔟"],
+          selectionRange: positions["2️⃣"]..<positions["3️⃣"],
+          children: [
+            DocumentSymbol(
+              name: "Marker",
+              kind: .namespace,
+              range: positions["4️⃣"]..<positions["5️⃣"],
+              selectionRange: positions["4️⃣"]..<positions["5️⃣"]
+            ),
+            DocumentSymbol(
+              name: "myFunc()",
+              kind: .method,
+              range: positions["6️⃣"]..<positions["9️⃣"],
+              selectionRange: positions["7️⃣"]..<positions["8️⃣"],
+              children: []
+            ),
           ]
         )
       ]

@@ -22,7 +22,13 @@ extension SwiftLanguageServer {
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
 
     try Task.checkCancellation()
-    return .documentSymbols(DocumentSymbolsFinder.find(in: [Syntax(syntaxTree)], snapshot: snapshot))
+    return .documentSymbols(
+      DocumentSymbolsFinder.find(
+        in: [Syntax(syntaxTree)],
+        snapshot: snapshot,
+        range: syntaxTree.position..<syntaxTree.endPosition
+      )
+    )
   }
 }
 
@@ -32,17 +38,25 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
   /// The snapshot of the document for which we are getting document symbols.
   private let snapshot: DocumentSnapshot
 
+  /// Only document symbols that intersect with this range get reported.
+  private let range: Range<AbsolutePosition>
+
   /// Accumulating the result in here.
   private var result: [DocumentSymbol] = []
 
-  private init(snapshot: DocumentSnapshot) {
+  private init(snapshot: DocumentSnapshot, range: Range<AbsolutePosition>) {
     self.snapshot = snapshot
+    self.range = range
     super.init(viewMode: .sourceAccurate)
   }
 
   /// Designated entry point for `DocumentSymbolFinder`.
-  static func find(in nodes: some Sequence<Syntax>, snapshot: DocumentSnapshot) -> [DocumentSymbol] {
-    let visitor = Self(snapshot: snapshot)
+  static func find(
+    in nodes: some Sequence<Syntax>,
+    snapshot: DocumentSnapshot,
+    range: Range<AbsolutePosition>
+  ) -> [DocumentSymbol] {
+    let visitor = DocumentSymbolsFinder(snapshot: snapshot, range: range)
     for node in nodes {
       visitor.walk(node)
     }
@@ -57,6 +71,9 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
     range: Range<AbsolutePosition>,
     selection: Range<AbsolutePosition>
   ) -> SyntaxVisitorContinueKind {
+    if !self.range.overlaps(range) {
+      return .skipChildren
+    }
     guard let rangeLowerBound = snapshot.position(of: range.lowerBound),
       let rangeUpperBound = snapshot.position(of: range.upperBound),
       let selectionLowerBound = snapshot.position(of: selection.lowerBound),
@@ -65,8 +82,14 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
       return .skipChildren
     }
 
-    let children = DocumentSymbolsFinder.find(in: node.children(viewMode: .sourceAccurate), snapshot: snapshot)
+    // Record MARK comments on the node's leading and trailing trivia in `result` not as a child of `node`.
+    visit(node.leadingTrivia, position: node.position)
 
+    let children = DocumentSymbolsFinder.find(
+      in: node.children(viewMode: .sourceAccurate),
+      snapshot: snapshot,
+      range: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia
+    )
     result.append(
       DocumentSymbol(
         name: name,
@@ -76,6 +99,7 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
         children: children
       )
     )
+    visit(node.trailingTrivia, position: node.endPositionBeforeTrailingTrivia)
     return .skipChildren
   }
 
@@ -144,8 +168,12 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
   }
 
   override func visit(_ node: TokenSyntax) -> SyntaxVisitorContinueKind {
-    self.visit(node.leadingTrivia, position: node.position)
-    self.visit(node.trailingTrivia, position: node.endPositionBeforeTrailingTrivia)
+    if self.range.overlaps(node.position..<node.positionAfterSkippingLeadingTrivia) {
+      self.visit(node.leadingTrivia, position: node.position)
+    }
+    if range.overlaps(node.endPositionBeforeTrailingTrivia..<node.endPosition) {
+      self.visit(node.trailingTrivia, position: node.endPositionBeforeTrailingTrivia)
+    }
     return .skipChildren
   }
 
