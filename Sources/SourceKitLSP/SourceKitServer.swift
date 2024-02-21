@@ -1752,10 +1752,7 @@ extension SourceKitServer {
     }
     guard let usr = symbol.usr else { return [] }
     logger.info("performing indexed jump-to-def with usr \(usr)")
-    var occurrences = index.occurrences(ofUSR: usr, roles: [.definition])
-    if occurrences.isEmpty {
-      occurrences = index.occurrences(ofUSR: usr, roles: [.declaration])
-    }
+    var occurrences = index.definitionOrDeclarationOccurances(ofUSR: usr)
     if symbol.isDynamic ?? true {
       lazy var transitiveReceiverUsrs: [String]? = {
         if let receiverUsrs = symbol.receiverUsrs {
@@ -1963,17 +1960,23 @@ extension SourceKitServer {
     }
     // For call hierarchy preparation we only locate the definition
     guard let usr = symbol.usr else { return nil }
-    return index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
-      .compactMap { info -> CallHierarchyItem? in
-        guard let location = indexToLSPLocation(info.location) else {
-          return nil
-        }
-        return self.indexToLSPCallHierarchyItem(
-          symbol: info.symbol,
-          moduleName: info.location.moduleName,
-          location: location
-        )
-      }
+
+    // Only return a single call hierarchy item. Returning multiple doesn't make sense because they will all have the
+    // same USR (because we query them by USR) and will thus expand to the exact same call hierarchy.
+    // Also, VS Code doesn't seem to like multiple call hiearchy items being returned and fails to display any results
+    // if they are, failing with `Cannot read properties of undefined (reading 'map')`.
+    guard let definition = index.definitionOrDeclarationOccurrences(ofUSR: usr).first else {
+      return nil
+    }
+    guard let location = indexToLSPLocation(definition.location) else {
+      return nil
+    }
+    let callHierachyItem = self.indexToLSPCallHierarchyItem(
+      symbol: definition.symbol,
+      moduleName: definition.location.moduleName,
+      location: location
+    )
+    return [callHierachyItem]
   }
 
   /// Extracts our implementation-specific data about a call hierarchy
@@ -2254,6 +2257,18 @@ private let minWorkspaceSymbolPatternLength = 3
 private let maxWorkspaceSymbolResults = 4096
 
 public typealias Diagnostic = LanguageServerProtocol.Diagnostic
+
+fileprivate extension IndexStoreDB {
+  /// If there are any definition occurrences of the given USR, return these.
+  /// Otherwise return declaration occurrences.
+  func definitionOrDeclarationOccurrences(ofUSR usr: String) -> [SymbolOccurrence] {
+    let definitions = occurrences(ofUSR: usr, roles: [.definition])
+    if !definitions.isEmpty {
+      return definitions
+    }
+    return occurrences(ofUSR: usr, roles: [.declaration])
+  }
+}
 
 extension IndexSymbolKind {
   func asLspSymbolKind() -> SymbolKind {
