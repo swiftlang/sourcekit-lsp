@@ -1818,7 +1818,7 @@ extension SourceKitServer {
         position: req.position
       )
     )
-    return try await symbols.asyncMap { (symbol) -> [Location] in
+    let locations = try await symbols.asyncMap { (symbol) -> [Location] in
       if symbol.bestLocalDeclaration != nil && !(symbol.isDynamic ?? true)
         && symbol.usr?.hasPrefix("s:") ?? false /* Swift symbols have USRs starting with s: */
       {
@@ -1830,6 +1830,11 @@ extension SourceKitServer {
       }
       return try await self.definitionLocations(for: symbol, in: req.textDocument.uri, languageService: languageService)
     }.flatMap { $0 }
+    // Remove any duplicate locations. We might end up with duplicate locations when performing a definition request
+    // on eg. `MyStruct()` when no explicit initializer is declared. In this case we get two symbol infos, one for the
+    // declaration of the `MyStruct` type and one for the initializer, which is implicit and thus has the location of
+    // the `MyStruct` declaration itself.
+    return locations.unique
   }
 
   func definition(
@@ -2372,5 +2377,13 @@ fileprivate extension RequestID {
     case .number(let number): return number
     case .string(let string): return Int(string) ?? string.hashValue
     }
+  }
+}
+
+fileprivate extension Sequence where Element: Hashable {
+  /// Removes all duplicate elements from the sequence, maintaining order.
+  var unique: [Element] {
+    var set = Set<Element>()
+    return self.filter { set.insert($0).inserted }
   }
 }

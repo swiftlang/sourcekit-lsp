@@ -362,4 +362,32 @@ class DefinitionTests: XCTestCase {
       )
     )
   }
+
+  func testDefinitionOfImplicitInitializer() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
+    let positions = testClient.openDocument(
+      """
+      class 1️⃣Foo {}
+
+      func test() {
+        2️⃣Foo()
+      }
+      """,
+      uri: uri
+    )
+
+    let response = try await testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    guard case .locations(let locations) = response else {
+      XCTFail("Expected locations response")
+      return
+    }
+    XCTAssertEqual(
+      locations,
+      [Location(uri: uri, range: Range(positions["1️⃣"]))]
+    )
+  }
 }
