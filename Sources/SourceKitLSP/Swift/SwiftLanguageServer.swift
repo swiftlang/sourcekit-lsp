@@ -417,6 +417,20 @@ extension SwiftLanguageServer {
           for: snapshot,
           buildSettings: buildSettings
         )
+        let latestSnapshotID = try? await documentManager.latestSnapshot(snapshot.uri).id
+        if latestSnapshotID != snapshot.id {
+          // Check that the document wasn't modified while we were getting diagnostics. This could happen because we are
+          // calling `publishDiagnosticsIfNeeded` outside of `messageHandlingQueue` and thus a concurrent edit is
+          // possible while we are waiting for the sourcekitd request to return a result.
+          logger.log(
+            """
+            Document was modified while loading diagnostics. \
+            Loaded diagnostics for \(snapshot.id.version, privacy: .public), \
+            latest snapshot is \((latestSnapshotID?.version).map(String.init) ?? "<nil>", privacy: .public)
+            """
+          )
+          throw CancellationError()
+        }
 
         await sourceKitServer.sendNotificationToClient(
           PublishDiagnosticsNotification(
