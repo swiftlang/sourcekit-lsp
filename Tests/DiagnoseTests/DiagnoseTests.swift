@@ -19,9 +19,22 @@ import SKTestSupport
 import SourceKitD
 import XCTest
 
+import class ISDBTibs.TibsBuilder
 import struct TSCBasic.AbsolutePath
 
 final class DiagnoseTests: XCTestCase {
+  /// If a default SDK is present on the test machine, return the `-sdk` argument that can be placed in the request
+  /// YAML. Otherwise, return an empty string.
+  private var sdkArg: String {
+    if let sdk = TibsBuilder.defaultSDKPath {
+      return """
+        "-sdk", "\(sdk)",
+        """
+    } else {
+      return ""
+    }
+  }
+
   func testRemoveCodeItemsAndMembers() async throws {
     // We consider the test case reproducing if cursor info returns the two ambiguous results including their doc
     // comments.
@@ -55,7 +68,8 @@ final class DiagnoseTests: XCTestCase {
         {
           key.request: source.request.cursorinfo,
           key.compilerargs: [
-            "$FILE"
+            "$FILE",
+            \(sdkArg)
           ],
           key.offset: $OFFSET,
           key.sourcefile: "$FILE"
@@ -102,7 +116,8 @@ final class DiagnoseTests: XCTestCase {
         {
           key.request: source.request.cursorinfo,
           key.compilerargs: [
-            "$FILE"
+            "$FILE",
+            \(sdkArg)
           ],
           key.offset: $OFFSET,
           key.sourcefile: "$FILE"
