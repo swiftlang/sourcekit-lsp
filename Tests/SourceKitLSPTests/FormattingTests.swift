@@ -215,4 +215,36 @@ final class FormattingTests: XCTestCase {
       )
     )
   }
+
+  func testInsertAndRemove() async throws {
+    try await SkipUnless.toolchainContainsSwiftFormat()
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
+    let positions = testClient.openDocument(
+      """
+      1️⃣public 2️⃣extension Example {
+        3️⃣func function() {}
+      }
+
+      """,
+      uri: uri
+    )
+
+    let response = try await testClient.send(
+      DocumentFormattingRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        options: FormattingOptions(tabSize: 2, insertSpaces: true)
+      )
+    )
+
+    let edits = try XCTUnwrap(response)
+    XCTAssertEqual(
+      edits,
+      [
+        TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ""),
+        TextEdit(range: Range(positions["3️⃣"]), newText: "public "),
+      ]
+    )
+  }
 }
