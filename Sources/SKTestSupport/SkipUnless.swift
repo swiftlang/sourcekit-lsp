@@ -127,7 +127,7 @@ public enum SkipUnless {
     ) {
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI.for(.swift)
-      let positions = testClient.openDocument("void 1️⃣test() {}", uri: uri)
+      let positions = testClient.openDocument("func 1️⃣test() {}", uri: uri)
       do {
         _ = try await testClient.send(
           RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"], newName: "test2")

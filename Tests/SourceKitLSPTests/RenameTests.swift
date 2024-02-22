@@ -40,6 +40,7 @@ private func assertSingleFileRename(
   _ markedSource: String,
   language: Language? = nil,
   newName: String,
+  expectedPrepareRenamePlaceholder: String,
   expected: String,
   testName: String = #function,
   file: StaticString = #file,
@@ -50,6 +51,17 @@ private func assertSingleFileRename(
   let uri = DocumentURI.for(.swift, testName: testName)
   let positions = testClient.openDocument(markedSource, uri: uri, language: language)
   for marker in positions.allMarkers {
+    let prepareRenameResponse = try await testClient.send(
+      PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions[marker])
+    )
+    XCTAssertEqual(
+      prepareRenameResponse?.placeholder,
+      expectedPrepareRenamePlaceholder,
+      "Prepare rename placeholder does not match while performing rename at \(marker)",
+      file: file,
+      line: line
+    )
+
     let response = try await testClient.send(
       RenameRequest(
         textDocument: TextDocumentIdentifier(uri),
@@ -187,6 +199,7 @@ final class RenameTests: XCTestCase {
       print(2️⃣foo)
       """,
       newName: "bar",
+      expectedPrepareRenamePlaceholder: "foo",
       expected: """
         let bar = 1
         print(bar)
@@ -202,6 +215,7 @@ final class RenameTests: XCTestCase {
       _ = 3️⃣foo
       """,
       newName: "bar()",
+      expectedPrepareRenamePlaceholder: "foo()",
       expected: """
         func bar() {}
         bar()
@@ -213,12 +227,32 @@ final class RenameTests: XCTestCase {
   func testRenameFunctionParameter() async throws {
     try await assertSingleFileRename(
       """
-      func 1️⃣foo(x: Int) {}
-      2️⃣foo(x: 1)
-      _ = 3️⃣foo(x:)
+      func 1️⃣foo(5️⃣x: Int) {}
+      2️⃣foo(6️⃣x: 1)
+      _ = 3️⃣foo(7️⃣x:)
       _ = 4️⃣foo
       """,
       newName: "bar(y:)",
+      expectedPrepareRenamePlaceholder: "foo(x:)",
+      expected: """
+        func bar(y: Int) {}
+        bar(y: 1)
+        _ = bar(y:)
+        _ = bar
+        """
+    )
+  }
+
+  func testFoo() async throws {
+    try await assertSingleFileRename(
+      """
+      func foo(5️⃣x: Int) {}
+      foo(x: 1)
+      _ = foo(x:)
+      _ = foo
+      """,
+      newName: "bar(y:)",
+      expectedPrepareRenamePlaceholder: "foo(x:)",
       expected: """
         func bar(y: Int) {}
         bar(y: 1)
@@ -231,11 +265,12 @@ final class RenameTests: XCTestCase {
   func testSecondParameterNameIfMatches() async throws {
     try await assertSingleFileRename(
       """
-      func 1️⃣foo(x y: Int) {}
-      2️⃣foo(x: 1)
-      _ = 3️⃣foo(x:)
+      func 1️⃣foo(4️⃣x y: Int) {}
+      2️⃣foo(5️⃣x: 1)
+      _ = 3️⃣foo(6️⃣x:)
       """,
       newName: "foo(y:)",
+      expectedPrepareRenamePlaceholder: "foo(x:)",
       expected: """
         func foo(y: Int) {}
         foo(y: 1)
@@ -247,11 +282,12 @@ final class RenameTests: XCTestCase {
   func testIntroduceLabel() async throws {
     try await assertSingleFileRename(
       """
-      func 1️⃣foo(_ y: Int) {}
+      func 1️⃣foo(4️⃣_ y: Int) {}
       2️⃣foo(1)
-      _ = 3️⃣foo(_:)
+      _ = 3️⃣foo(5️⃣_:)
       """,
       newName: "foo(y:)",
+      expectedPrepareRenamePlaceholder: "foo(_:)",
       expected: """
         func foo(y: Int) {}
         foo(y: 1)
@@ -263,11 +299,12 @@ final class RenameTests: XCTestCase {
   func testRemoveLabel() async throws {
     try await assertSingleFileRename(
       """
-      func 1️⃣foo(x: Int) {}
-      2️⃣foo(x: 1)
-      _ = 3️⃣foo(x:)
+      func 1️⃣foo(4️⃣x: Int) {}
+      2️⃣foo(5️⃣x: 1)
+      _ = 3️⃣foo(6️⃣x:)
       """,
       newName: "foo(_:)",
+      expectedPrepareRenamePlaceholder: "foo(x:)",
       expected: """
         func foo(_ x: Int) {}
         foo(1)
@@ -279,11 +316,12 @@ final class RenameTests: XCTestCase {
   func testRemoveLabelWithExistingInternalName() async throws {
     try await assertSingleFileRename(
       """
-      func 1️⃣foo(x a: Int) {}
-      2️⃣foo(x: 1)
-      _ = 3️⃣foo(x:)
+      func 1️⃣foo(4️⃣x a: Int) {}
+      2️⃣foo(5️⃣x: 1)
+      _ = 3️⃣foo(6️⃣x:)
       """,
       newName: "foo(_:)",
+      expectedPrepareRenamePlaceholder: "foo(x:)",
       expected: """
         func foo(_ a: Int) {}
         foo(1)
@@ -296,11 +334,12 @@ final class RenameTests: XCTestCase {
     try await assertSingleFileRename(
       """
       struct Foo {
-        1️⃣subscript(x x: Int) -> Int { x }
+        1️⃣subscript(3️⃣x x: Int) -> Int { x }
       }
-      Foo()2️⃣[x: 1]
+      Foo()2️⃣[4️⃣x: 1]
       """,
       newName: "subscript(y:)",
+      expectedPrepareRenamePlaceholder: "subscript(x:)",
       expected: """
         struct Foo {
           subscript(y x: Int) -> Int { x }
@@ -314,11 +353,12 @@ final class RenameTests: XCTestCase {
     try await assertSingleFileRename(
       """
       struct Foo {
-        1️⃣subscript(x x: Int) -> Int { x }
+        1️⃣subscript(3️⃣x x: Int) -> Int { x }
       }
-      Foo()2️⃣[x: 1]
+      Foo()2️⃣[4️⃣x: 1]
       """,
       newName: "subscript(_:)",
+      expectedPrepareRenamePlaceholder: "subscript(x:)",
       expected: """
         struct Foo {
           subscript(_ x: Int) -> Int { x }
@@ -332,11 +372,12 @@ final class RenameTests: XCTestCase {
     try await assertSingleFileRename(
       """
       struct Foo {
-        1️⃣subscript(x: Int) -> Int { x }
+        1️⃣subscript(3️⃣x: Int) -> Int { x }
       }
       Foo()2️⃣[1]
       """,
       newName: "subscript(x:)",
+      expectedPrepareRenamePlaceholder: "subscript(_:)",
       expected: """
         struct Foo {
           subscript(x x: Int) -> Int { x }
@@ -350,11 +391,12 @@ final class RenameTests: XCTestCase {
     try await assertSingleFileRename(
       """
       struct Foo {
-        1️⃣subscript(x: Int) -> Int { x }
+        1️⃣subscript(3️⃣x: Int) -> Int { x }
       }
       Foo()2️⃣[1]
       """,
       newName: "arrayAccess(x:)",
+      expectedPrepareRenamePlaceholder: "subscript(_:)",
       expected: """
         struct Foo {
           subscript(x x: Int) -> Int { x }
@@ -368,13 +410,14 @@ final class RenameTests: XCTestCase {
     try await assertSingleFileRename(
       """
       struct Foo {
-        1️⃣init(x: Int) {}
+        1️⃣init(4️⃣x: Int) {}
       }
       Foo(x: 1)
-      Foo.2️⃣init(x: 1)
-      _ = Foo.3️⃣init(x:)
+      Foo.2️⃣init(5️⃣x: 1)
+      _ = Foo.3️⃣init(6️⃣x:)
       """,
       newName: "init(y:)",
+      expectedPrepareRenamePlaceholder: "init(x:)",
       expected: """
         struct Foo {
           init(y: Int) {}
@@ -390,13 +433,14 @@ final class RenameTests: XCTestCase {
     try await assertSingleFileRename(
       """
       struct Foo {
-        1️⃣init(x: Int) {}
+        1️⃣init(4️⃣x: Int) {}
       }
-      Foo(x: 1)
-      Foo.2️⃣init(x: 1)
-      _ = Foo.3️⃣init(x:)
+      Foo(5️⃣x: 1)
+      Foo.2️⃣init(6️⃣x: 1)
+      _ = Foo.3️⃣init(7️⃣x:)
       """,
       newName: "create(y:)",
+      expectedPrepareRenamePlaceholder: "init(x:)",
       expected: """
         struct Foo {
           init(y: Int) {}
@@ -411,11 +455,12 @@ final class RenameTests: XCTestCase {
   func testRenameMultipleParameters() async throws {
     try await assertSingleFileRename(
       """
-      func 1️⃣foo(a: Int, b: Int) {}
-      2️⃣foo(a: 1, b: 1)
-      _ = 3️⃣foo(a:b:)
+      func 1️⃣foo(4️⃣a: Int, 5️⃣b: Int) {}
+      2️⃣foo(6️⃣a: 1, 7️⃣b: 1)
+      _ = 3️⃣foo(8️⃣a:9️⃣b:)
       """,
       newName: "foo(x:y:)",
+      expectedPrepareRenamePlaceholder: "foo(a:b:)",
       expected: """
         func foo(x: Int, y: Int) {}
         foo(x: 1, y: 1)
@@ -427,11 +472,12 @@ final class RenameTests: XCTestCase {
   func testDontRenameParametersOmittedFromNewName() async throws {
     try await assertSingleFileRename(
       """
-      func 1️⃣foo(a: Int, b: Int) {}
-      2️⃣foo(a: 1, b: 1)
-      _ = 3️⃣foo(a:b:)
+      func 1️⃣foo(4️⃣a: Int, 5️⃣b: Int) {}
+      2️⃣foo(6️⃣a: 1, 7️⃣b: 1)
+      _ = 3️⃣foo(8️⃣a:9️⃣b:)
       """,
       newName: "foo(x:)",
+      expectedPrepareRenamePlaceholder: "foo(a:b:)",
       expected: """
         func foo(x: Int, b: Int) {}
         foo(x: 1, b: 1)
@@ -443,11 +489,12 @@ final class RenameTests: XCTestCase {
   func testIgnoreAdditionalParametersInNewName() async throws {
     try await assertSingleFileRename(
       """
-      func 1️⃣foo(a: Int) {}
-      2️⃣foo(a: 1)
-      _ = 3️⃣foo(a:)
+      func 1️⃣foo(4️⃣a: Int) {}
+      2️⃣foo(5️⃣a: 1)
+      _ = 3️⃣foo(6️⃣a:)
       """,
       newName: "foo(x:y:)",
+      expectedPrepareRenamePlaceholder: "foo(a:)",
       expected: """
         func foo(x: Int) {}
         foo(x: 1)
@@ -459,11 +506,12 @@ final class RenameTests: XCTestCase {
   func testOnlySpecifyBaseNameWhenRenamingFunction() async throws {
     try await assertSingleFileRename(
       """
-      func 1️⃣foo(a: Int) {}
-      2️⃣foo(a: 1)
-      _ = 3️⃣foo(a:)
+      func 1️⃣foo(4️⃣a: Int) {}
+      2️⃣foo(5️⃣a: 1)
+      _ = 3️⃣foo(6️⃣a:)
       """,
       newName: "bar",
+      expectedPrepareRenamePlaceholder: "foo(a:)",
       expected: """
         func bar(a: Int) {}
         bar(a: 1)
@@ -479,6 +527,7 @@ final class RenameTests: XCTestCase {
       _ = 2️⃣foo
       """,
       newName: "bar(x:y:)",
+      expectedPrepareRenamePlaceholder: "foo",
       expected: """
         let bar = 1
         _ = bar
@@ -489,10 +538,11 @@ final class RenameTests: XCTestCase {
   func testNewNameDoesntContainClosingParenthesis() async throws {
     try await assertSingleFileRename(
       """
-      func 1️⃣foo(a: Int) {}
-      2️⃣foo(a: 1)
+      func 1️⃣foo(3️⃣a: Int) {}
+      2️⃣foo(4️⃣a: 1)
       """,
       newName: "bar(x:",
+      expectedPrepareRenamePlaceholder: "foo(a:)",
       expected: """
         func bar(x: Int) {}
         bar(x: 1)
@@ -503,10 +553,11 @@ final class RenameTests: XCTestCase {
   func testNewNameContainsTextAfterParenthesis() async throws {
     try await assertSingleFileRename(
       """
-      func 1️⃣foo(a: Int) {}
-      2️⃣foo(a: 1)
+      func 1️⃣foo(3️⃣a: Int) {}
+      2️⃣foo(4️⃣a: 1)
       """,
       newName: "bar(x:)other:",
+      expectedPrepareRenamePlaceholder: "foo(a:)",
       expected: """
         func bar(x: Int) {}
         bar(x: 1)
@@ -517,11 +568,12 @@ final class RenameTests: XCTestCase {
   func testSpacesInNewParameterNames() async throws {
     try await assertSingleFileRename(
       """
-      func 1️⃣foo(a: Int) {}
-      2️⃣foo(a: 1)
-      _ = foo(a:)
+      func 1️⃣foo(4️⃣a: Int) {}
+      2️⃣foo(5️⃣a: 1)
+      _ = 3️⃣foo(6️⃣a:)
       """,
       newName: "bar ( x : )",
+      expectedPrepareRenamePlaceholder: "foo(a:)",
       expected: """
         func bar ( x : Int) {}
         bar ( x : 1)
@@ -538,6 +590,7 @@ final class RenameTests: XCTestCase {
       Foo() 2️⃣+ Foo()
       """,
       newName: "-",
+      expectedPrepareRenamePlaceholder: "+(_:_:)",
       expected: """
         struct Foo {}
         func -(x: Foo, y: Foo) {}
@@ -549,10 +602,11 @@ final class RenameTests: XCTestCase {
   func testRenameParameterToEmptyName() async throws {
     try await assertSingleFileRename(
       """
-      func 1️⃣foo(x: Int) {}
-      2️⃣foo(x: 1)
+      func 1️⃣foo(3️⃣x: Int) {}
+      2️⃣foo(4️⃣x: 1)
       """,
       newName: "bar(:)",
+      expectedPrepareRenamePlaceholder: "foo(x:)",
       expected: """
         func bar(_ x: Int) {}
         bar(1)
@@ -571,6 +625,7 @@ final class RenameTests: XCTestCase {
       _ = #selector(Foo.2️⃣bar(x:))
       """,
       newName: "foo(y:)",
+      expectedPrepareRenamePlaceholder: "bar(x:)",
       expected: """
         import Foundation
         class Foo: NSObject {
@@ -612,12 +667,12 @@ final class RenameTests: XCTestCase {
     try await assertMultiFileRename(
       files: [
         "LibA/LibA.swift": """
-        public func 1️⃣foo(argLabel: Int) {}
+        public func 1️⃣foo(2️⃣argLabel: Int) {}
         """,
         "LibB/LibB.swift": """
         import LibA
         public func test() {
-          5️⃣foo(argLabel: 1)
+          3️⃣foo(4️⃣argLabel: 1)
         }
         """,
       ],
@@ -748,7 +803,7 @@ final class RenameTests: XCTestCase {
     let uri = DocumentURI.for(.swift)
     let positions = testClient.openDocument(
       """
-      func 1️⃣foo2️⃣(a: Int) {}
+      func 1️⃣foo2️⃣(3️⃣a: Int) {}
       """,
       uri: uri
     )
