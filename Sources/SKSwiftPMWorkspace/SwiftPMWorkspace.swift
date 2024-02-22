@@ -205,6 +205,11 @@ extension SwiftPMWorkspace {
   /// dependencies.
   func reloadPackage() async throws {
     await reloadPackageStatusCallback(.start)
+    defer {
+      Task {
+        await reloadPackageStatusCallback(.end)
+      }
+    }
 
     let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
       logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
@@ -260,12 +265,10 @@ extension SwiftPMWorkspace {
     )
 
     guard let delegate = self.delegate else {
-      await reloadPackageStatusCallback(.end)
       return
     }
     await delegate.fileBuildSettingsChanged(self.watchedFiles)
     await delegate.fileHandlingCapabilityChanged()
-    await reloadPackageStatusCallback(.end)
   }
 }
 
