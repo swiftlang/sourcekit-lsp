@@ -17,6 +17,7 @@ add_library(SourceKitLSP STATIC
 target_sources(SourceKitLSP PRIVATE
   Clang/ClangLanguageServer.swift)
 target_sources(SourceKitLSP PRIVATE
+  Swift/AdjustPositionToStartOfIdentifier.swift
   Swift/CodeCompletion.swift
   Swift/CodeCompletionSession.swift
   Swift/CommentXML.swift
