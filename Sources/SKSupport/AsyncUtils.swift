@@ -12,6 +12,55 @@
 
 import Foundation
 
+/// Wrapper around a task that allows multiple clients to depend on the task's value.
+///
+/// If all of the dependents are cancelled, the underlying task is cancelled as well.
+public actor RefCountedCancellableTask<Success> {
+  public let task: Task<Success, Error>
+
+  /// The number of clients that depend on the task's result and that are not cancelled.
+  private var refCount: Int = 0
+
+  /// Whether the task has been cancelled.
+  public private(set) var isCancelled: Bool = false
+
+  public init(priority: TaskPriority? = nil, operation: @escaping @Sendable () async throws -> Success) {
+    self.task = Task(priority: priority, operation: operation)
+  }
+
+  private func decrementRefCount() {
+    refCount -= 1
+    if refCount == 0 {
+      self.cancel()
+    }
+  }
+
+  /// Get the task's value.
+  ///
+  /// If all callers of `value` are cancelled, the underlying task gets cancelled as well.
+  public var value: Success {
+    get async throws {
+      if isCancelled {
+        throw CancellationError()
+      }
+      refCount += 1
+      return try await withTaskCancellationHandler {
+        return try await task.value
+      } onCancel: {
+        Task {
+          await self.decrementRefCount()
+        }
+      }
+    }
+  }
+
+  /// Cancel the task and throw a `CancellationError` to all clients that are awaiting the value.
+  public func cancel() {
+    isCancelled = true
+    task.cancel()
+  }
+}
+
 public extension Task {
   /// Awaits the value of the result.
   ///

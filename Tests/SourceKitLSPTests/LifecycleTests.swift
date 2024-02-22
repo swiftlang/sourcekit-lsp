@@ -99,9 +99,15 @@ final class LifecycleTests: XCTestCase {
       )
     )
 
+    let cursorInfoStartDate = Date()
     // Check that semantic functionality based on the AST is working again.
     let symbolInfo = try await testClient.send(
       SymbolInfoRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
+    )
+    XCTAssertLessThan(
+      Date().timeIntervalSince(cursorInfoStartDate),
+      2,
+      "Cursor info request wasn't fast. sourcekitd still blocked?"
     )
     XCTAssertGreaterThan(symbolInfo.count, 0)
   }

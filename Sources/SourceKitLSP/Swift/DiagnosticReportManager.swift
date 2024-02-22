@@ -12,12 +12,13 @@
 
 import LSPLogging
 import LanguageServerProtocol
+import SKSupport
 import SourceKitD
 import SwiftParserDiagnostics
 
 actor DiagnosticReportManager {
   /// A task to produce diagnostics, either from a diagnostics request to `sourcektid` or by using the built-in swift-syntax.
-  private typealias ReportTask = Task<RelatedFullDocumentDiagnosticReport, Error>
+  private typealias ReportTask = RefCountedCancellableTask<RelatedFullDocumentDiagnosticReport>
 
   private let sourcekitd: SourceKitD
   private let syntaxTreeManager: SyntaxTreeManager
@@ -60,13 +61,13 @@ actor DiagnosticReportManager {
     for snapshot: DocumentSnapshot,
     buildSettings: SwiftCompileCommand?
   ) async throws -> RelatedFullDocumentDiagnosticReport {
-    if let reportTask = reportTask(for: snapshot.id, buildSettings: buildSettings) {
+    if let reportTask = reportTask(for: snapshot.id, buildSettings: buildSettings), await !reportTask.isCancelled {
       return try await reportTask.value
     }
-    let reportTask: Task<RelatedFullDocumentDiagnosticReport, Error>
+    let reportTask: ReportTask
     if let buildSettings, !buildSettings.isFallback {
-      reportTask = Task {
-        return try await requestReport(with: snapshot, compilerArgs: buildSettings.compilerArgs)
+      reportTask = ReportTask {
+        return try await self.requestReport(with: snapshot, compilerArgs: buildSettings.compilerArgs)
       }
     } else {
       logger.log(
@@ -76,8 +77,8 @@ actor DiagnosticReportManager {
       // sourcekitd won't be able to give us accurate semantic diagnostics.
       // Fall back to providing syntactic diagnostics from the built-in
       // swift-syntax. That's the best we can do for now.
-      reportTask = Task {
-        return try await requestFallbackReport(with: snapshot)
+      reportTask = ReportTask {
+        return try await self.requestFallbackReport(with: snapshot)
       }
     }
     setReportTask(for: snapshot.id, buildSettings: buildSettings, reportTask: reportTask)
@@ -85,12 +86,11 @@ actor DiagnosticReportManager {
   }
 
   func removeItemsFromCache(with uri: DocumentURI) async {
-    for item in reportTaskCache {
-      if item.snapshotID.uri == uri {
-        item.reportTask.cancel()
-      }
-    }
+    let tasksToCancel = reportTaskCache.filter { $0.snapshotID.uri == uri }
     reportTaskCache.removeAll(where: { $0.snapshotID.uri == uri })
+    for task in tasksToCancel {
+      await task.reportTask.cancel()
+    }
   }
 
   private func requestReport(
