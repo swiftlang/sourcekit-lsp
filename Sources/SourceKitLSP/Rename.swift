@@ -826,50 +826,11 @@ extension SwiftLanguageServer {
 
   /// If `position` is on an argument label or a parameter name, find the position of the function's base name.
   private func findFunctionBaseNamePosition(of position: Position, in snapshot: DocumentSnapshot) async -> Position? {
-    class TokenFinder: SyntaxAnyVisitor {
-      /// The position at which the token should be found.
-      let position: AbsolutePosition
-
-      /// Once found, the token at the requested position.
-      var foundToken: TokenSyntax?
-
-      init(position: AbsolutePosition) {
-        self.position = position
-        super.init(viewMode: .sourceAccurate)
-      }
-
-      override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
-        guard (node.position..<node.endPosition).contains(position) else {
-          // Node doesn't contain the position. No point visiting it.
-          return .skipChildren
-        }
-        guard foundToken == nil else {
-          // We have already found a token. No point visiting this one
-          return .skipChildren
-        }
-        return .visitChildren
-      }
-
-      override func visit(_ token: TokenSyntax) -> SyntaxVisitorContinueKind {
-        if (token.position..<token.endPosition).contains(position) {
-          self.foundToken = token
-        }
-        return .skipChildren
-      }
-
-      /// Dedicated entry point for `TokenFinder`.
-      static func findToken(at position: AbsolutePosition, in tree: some SyntaxProtocol) -> TokenSyntax? {
-        let finder = TokenFinder(position: position)
-        finder.walk(tree)
-        return finder.foundToken
-      }
-    }
-
     let tree = await self.syntaxTreeManager.syntaxTree(for: snapshot)
     guard let absolutePosition = snapshot.position(of: position) else {
       return nil
     }
-    guard let token = TokenFinder.findToken(at: absolutePosition, in: tree) else {
+    guard let token = tree.token(at: absolutePosition) else {
       return nil
     }
 
