@@ -51,7 +51,7 @@ extension SwiftLanguageServer {
     in range: Range<Position>? = nil
   ) async throws -> [SyntaxHighlightingToken] {
     async let tree = syntaxTreeManager.syntaxTree(for: snapshot)
-    async let semanticTokens = semanticHighlightingTokens(for: snapshot)
+    let semanticTokens = await orLog("Loading semantic tokens") { try await semanticHighlightingTokens(for: snapshot) }
 
     let range =
       if let range = range.flatMap({ $0.byteSourceRange(in: snapshot) }) {
@@ -63,7 +63,7 @@ extension SwiftLanguageServer {
       await tree
       .classifications(in: range)
       .flatMap({ $0.highlightingTokens(in: snapshot) })
-      .mergingTokens(with: try semanticTokens ?? [])
+      .mergingTokens(with: semanticTokens ?? [])
       .sorted { $0.start < $1.start }
   }
 

@@ -12,9 +12,11 @@
 
 import Foundation
 import LSPLogging
+import LSPTestSupport
 import LanguageServerProtocol
 import RegexBuilder
 @_spi(Testing) import SKCore
+import SourceKitLSP
 import XCTest
 
 import enum PackageLoading.Platform
@@ -105,13 +107,26 @@ public enum SkipUnless {
     ) {
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI.for(.swift)
-      testClient.openDocument("func test() {}", uri: uri)
-      do {
-        _ = try await testClient.send(DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri)))
-      } catch let error as ResponseError {
-        return !error.message.contains("unknown request: source.request.semantic_tokens")
-      }
-      return true
+      testClient.openDocument("0.bitPattern", uri: uri)
+      let response = try unwrap(
+        await testClient.send(DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri)))
+      )
+      let tokens = [SyntaxHighlightingToken](lspEncodedTokens: response.data)
+
+      // If we don't have semantic token support in sourcekitd, the second token is an identifier based on the syntax
+      // tree, not a property.
+      return tokens != [
+        SyntaxHighlightingToken(
+          range: Position(line: 0, utf16index: 0)..<Position(line: 0, utf16index: 1),
+          kind: .number,
+          modifiers: []
+        ),
+        SourceKitLSP.SyntaxHighlightingToken(
+          range: Position(line: 0, utf16index: 2)..<Position(line: 0, utf16index: 12),
+          kind: .identifier,
+          modifiers: []
+        ),
+      ]
     }
   }
 
