@@ -17,7 +17,7 @@ import os
 private func logError(prefix: String, error: Error, level: LogLevel) {
   logger.log(
     level: level,
-    "\(prefix, privacy: .public)\(prefix.isEmpty ? "" : " ", privacy: .public)\(error.forLogging)"
+    "\(prefix, privacy: .public)\(prefix.isEmpty ? "" : ": ", privacy: .public)\(error.forLogging)"
   )
 }
 
