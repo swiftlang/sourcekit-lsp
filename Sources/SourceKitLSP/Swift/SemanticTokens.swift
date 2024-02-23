@@ -27,7 +27,7 @@ extension SwiftLanguageServer {
     let skreq = sourcekitd.dictionary([
       keys.request: requests.semanticTokens,
       keys.sourceFile: snapshot.uri.pseudoPath,
-      keys.compilerArgs: buildSettings.compilerArgs as [SKDValue],
+      keys.compilerArgs: buildSettings.compilerArgs as [SKDRequestValue],
     ])
 
     let dict = try await sourcekitd.send(skreq, fileContents: snapshot.text)

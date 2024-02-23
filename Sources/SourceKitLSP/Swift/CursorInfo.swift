@@ -134,7 +134,7 @@ extension SwiftLanguageServer {
       keys.offset: offsetRange.lowerBound,
       keys.length: offsetRange.upperBound != offsetRange.lowerBound ? offsetRange.count : nil,
       keys.sourceFile: snapshot.uri.pseudoPath,
-      keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDValue]?,
+      keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDRequestValue]?,
     ])
 
     appendAdditionalParameters?(skreq)

@@ -22,7 +22,7 @@ import CRT
 
 extension SourceKitD {
   /// Create a `SKDRequestArray` from the given array.
-  public func array(_ array: [SKDValue]) -> SKDRequestArray {
+  public func array(_ array: [SKDRequestValue]) -> SKDRequestArray {
     let result = SKDRequestArray(sourcekitd: self)
     for element in array {
       result.append(element)
@@ -44,7 +44,7 @@ public final class SKDRequestArray {
     sourcekitd.api.request_release(array)
   }
 
-  public func append(_ newValue: SKDValue) {
+  public func append(_ newValue: SKDRequestValue) {
     switch newValue {
     case let newValue as String:
       sourcekitd.api.request_array_set_string(array, -1, newValue)
@@ -56,20 +56,20 @@ public final class SKDRequestArray {
       sourcekitd.api.request_array_set_value(array, -1, newValue.dict)
     case let newValue as SKDRequestArray:
       sourcekitd.api.request_array_set_value(array, -1, newValue.array)
-    case let newValue as Array<SKDValue>:
+    case let newValue as Array<SKDRequestValue>:
       self.append(sourcekitd.array(newValue))
-    case let newValue as Dictionary<sourcekitd_uid_t, SKDValue>:
+    case let newValue as Dictionary<sourcekitd_uid_t, SKDRequestValue>:
       self.append(sourcekitd.dictionary(newValue))
-    case let newValue as Optional<SKDValue>:
+    case let newValue as Optional<SKDRequestValue>:
       if let newValue {
         self.append(newValue)
       }
     default:
-      preconditionFailure("Unknown type conforming to SKDValueProtocol")
+      preconditionFailure("Unknown type conforming to SKDRequestValue")
     }
   }
 
-  public static func += (array: SKDRequestArray, other: some Sequence<SKDValue>) {
+  public static func += (array: SKDRequestArray, other: some Sequence<SKDRequestValue>) {
     for item in other {
       array.append(item)
     }

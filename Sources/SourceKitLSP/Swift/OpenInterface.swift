@@ -73,10 +73,10 @@ extension SwiftLanguageServer {
     let skreq = sourcekitd.dictionary([
       keys.request: requests.editorOpenInterface,
       keys.moduleName: name,
-      keys.groupName: request.groupNames.isEmpty ? nil : request.groupNames as [SKDValue],
+      keys.groupName: request.groupNames.isEmpty ? nil : request.groupNames as [SKDRequestValue],
       keys.name: interfaceURI.pseudoPath,
       keys.synthesizedExtension: 1,
-      keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDValue]?,
+      keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDRequestValue]?,
     ])
 
     let dict = try await self.sourcekitd.send(skreq, fileContents: nil)

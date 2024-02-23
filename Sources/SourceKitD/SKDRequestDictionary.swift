@@ -27,20 +27,20 @@ import CRT
 ///   switch exhaustively over this protocol.
 ///   Do not add new conformances without adding a new case in the subscript and
 ///   `append` function.
-public protocol SKDValue {}
+public protocol SKDRequestValue {}
 
-extension String: SKDValue {}
-extension Int: SKDValue {}
-extension sourcekitd_uid_t: SKDValue {}
-extension SKDRequestDictionary: SKDValue {}
-extension SKDRequestArray: SKDValue {}
-extension Array<SKDValue>: SKDValue {}
-extension Dictionary<sourcekitd_uid_t, SKDValue>: SKDValue {}
-extension Optional: SKDValue where Wrapped: SKDValue {}
+extension String: SKDRequestValue {}
+extension Int: SKDRequestValue {}
+extension sourcekitd_uid_t: SKDRequestValue {}
+extension SKDRequestDictionary: SKDRequestValue {}
+extension SKDRequestArray: SKDRequestValue {}
+extension Array<SKDRequestValue>: SKDRequestValue {}
+extension Dictionary<sourcekitd_uid_t, SKDRequestValue>: SKDRequestValue {}
+extension Optional: SKDRequestValue where Wrapped: SKDRequestValue {}
 
 extension SourceKitD {
   /// Create a `SKDRequestDictionary` from the given dictionary.
-  public func dictionary(_ dict: [sourcekitd_uid_t: SKDValue]) -> SKDRequestDictionary {
+  public func dictionary(_ dict: [sourcekitd_uid_t: SKDRequestValue]) -> SKDRequestDictionary {
     let result = SKDRequestDictionary(sourcekitd: self)
     for (key, value) in dict {
       result.set(key, to: value)
@@ -62,7 +62,7 @@ public final class SKDRequestDictionary {
     sourcekitd.api.request_release(dict)
   }
 
-  public func set(_ key: sourcekitd_uid_t, to newValue: SKDValue) {
+  public func set(_ key: sourcekitd_uid_t, to newValue: SKDRequestValue) {
     switch newValue {
     case let newValue as String:
       sourcekitd.api.request_dictionary_set_string(dict, key, newValue)
@@ -74,16 +74,16 @@ public final class SKDRequestDictionary {
       sourcekitd.api.request_dictionary_set_value(dict, key, newValue.dict)
     case let newValue as SKDRequestArray:
       sourcekitd.api.request_dictionary_set_value(dict, key, newValue.array)
-    case let newValue as Array<SKDValue>:
+    case let newValue as Array<SKDRequestValue>:
       self.set(key, to: sourcekitd.array(newValue))
-    case let newValue as Dictionary<sourcekitd_uid_t, SKDValue>:
+    case let newValue as Dictionary<sourcekitd_uid_t, SKDRequestValue>:
       self.set(key, to: sourcekitd.dictionary(newValue))
-    case let newValue as Optional<SKDValue>:
+    case let newValue as Optional<SKDRequestValue>:
       if let newValue {
         self.set(key, to: newValue)
       }
     default:
-      preconditionFailure("Unknown type conforming to SKDValueProtocol")
+      preconditionFailure("Unknown type conforming to SKDRequestValue")
     }
   }
 }
