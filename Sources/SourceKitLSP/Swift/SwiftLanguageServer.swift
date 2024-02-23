@@ -127,10 +127,30 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   nonisolated var requests: sourcekitd_api_requests { return sourcekitd.requests }
   nonisolated var values: sourcekitd_api_values { return sourcekitd.values }
 
+  /// When sourcekitd is crashed, a `WorkDoneProgressManager` that display the sourcekitd crash status in the client.
+  private var sourcekitdCrashedWorkDoneProgress: WorkDoneProgressManager?
+
   private var state: LanguageServerState {
     didSet {
       for handler in stateChangeHandlers {
         handler(oldValue, state)
+      }
+
+      guard let sourceKitServer else {
+        sourcekitdCrashedWorkDoneProgress = nil
+        return
+      }
+      switch state {
+      case .connected:
+        sourcekitdCrashedWorkDoneProgress = nil
+      case .connectionInterrupted, .semanticFunctionalityDisabled:
+        if sourcekitdCrashedWorkDoneProgress == nil {
+          sourcekitdCrashedWorkDoneProgress = WorkDoneProgressManager(
+            server: sourceKitServer,
+            title: "SourceKit-LSP: Restoring functionality",
+            message: "Please run 'sourcekit-lsp diagnose' to file an issue"
+          )
+        }
       }
     }
   }
@@ -149,7 +169,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   /// Creates a language server for the given client using the sourcekitd dylib specified in `toolchain`.
   /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageServer` asks its parent server to reopen all of its documents.
-  /// Returns `nil` if `sourcektid` couldn't be found.
+  /// Returns `nil` if `sourcekitd` couldn't be found.
   public init?(
     sourceKitServer: SourceKitServer,
     toolchain: Toolchain,
@@ -885,6 +905,12 @@ extension SwiftLanguageServer: SKDNotificationHandler {
   }
 
   private func notificationImpl(_ notification: SKDResponse) async {
+    logger.debug(
+      """
+      Received notification from sourcekitd
+      \(notification.forLogging)
+      """
+    )
     // Check if we need to update our `state` based on the contents of the notification.
     if notification.value?[self.keys.notification] == self.values.semaEnabledNotification {
       self.state = .connected
@@ -910,13 +936,6 @@ extension SwiftLanguageServer: SKDNotificationHandler {
       // Reset the document manager to reflect that.
       self.documentManager = DocumentManager()
     }
-
-    logger.debug(
-      """
-      Received notification from sourcekitd
-      \(notification.forLogging)
-      """
-    )
   }
 }
 

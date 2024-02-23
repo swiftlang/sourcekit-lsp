@@ -12,6 +12,7 @@ add_library(SourceKitLSP STATIC
   SourceKitServer+Options.swift
   TestDiscovery.swift
   ToolchainLanguageServer.swift
+  WorkDoneProgressManager.swift
   Workspace.swift
 )
 target_sources(SourceKitLSP PRIVATE

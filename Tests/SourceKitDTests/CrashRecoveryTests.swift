@@ -72,6 +72,10 @@ final class CrashRecoveryTests: XCTestCase {
       "Sanity check failed. The Hover response did not contain foo(), even before crashing sourcekitd. Received response: \(String(describing: preCrashHoverResponse))"
     )
 
+    testClient.handleNextRequest { (request: CreateWorkDoneProgressRequest) -> VoidResponse in
+      return VoidResponse()
+    }
+
     // Crash sourcekitd
 
     let sourcekitdServer =
@@ -81,33 +85,28 @@ final class CrashRecoveryTests: XCTestCase {
         in: testClient.server.workspaceForDocument(uri: uri)!
       ) as! SwiftLanguageServer
 
-    let sourcekitdCrashed = expectation(description: "sourcekitd has crashed")
-    let sourcekitdRestarted = expectation(description: "sourcekitd has been restarted (syntactic only)")
-    let semanticFunctionalityRestored = expectation(
-      description: "sourcekitd has restored semantic language functionality"
-    )
-
-    await sourcekitdServer.addStateChangeHandler { (oldState, newState) in
-      switch newState {
-      case .connectionInterrupted:
-        sourcekitdCrashed.fulfill()
-      case .semanticFunctionalityDisabled:
-        sourcekitdRestarted.fulfill()
-      case .connected:
-        semanticFunctionalityRestored.fulfill()
-      }
-    }
-
     await sourcekitdServer._crash()
 
-    try await fulfillmentOfOrThrow([sourcekitdCrashed], timeout: 5)
-    try await fulfillmentOfOrThrow([sourcekitdRestarted], timeout: 30)
+    let crashedNotification = try await testClient.nextNotification(ofType: WorkDoneProgress.self, timeout: 5)
+    XCTAssertEqual(
+      crashedNotification.value,
+      .begin(
+        WorkDoneProgressBegin(
+          title: "SourceKit-LSP: Restoring functionality",
+          message: "Please run 'sourcekit-lsp diagnose' to file an issue"
+        )
+      )
+    )
 
     // sourcekitd's semantic request timer is only started when the first semantic request comes in.
     // Send a hover request (which will fail) to trigger that timer.
     // Afterwards wait for semantic functionality to be restored.
     _ = try? await testClient.send(hoverRequest)
-    try await fulfillmentOfOrThrow([semanticFunctionalityRestored], timeout: 30)
+    let semanticFunctionalityRestoredNotification = try await testClient.nextNotification(
+      ofType: WorkDoneProgress.self,
+      timeout: 30
+    )
+    XCTAssertEqual(semanticFunctionalityRestoredNotification.value, .end(WorkDoneProgressEnd()))
 
     // Check that we get the same hover response from the restored in-memory state
 
