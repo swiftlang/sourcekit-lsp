@@ -1752,7 +1752,7 @@ extension SourceKitServer {
     }
     guard let usr = symbol.usr else { return [] }
     logger.info("performing indexed jump-to-def with usr \(usr)")
-    var occurrences = index.definitionOrDeclarationOccurances(ofUSR: usr)
+    var occurrences = index.definitionOrDeclarationOccurrences(ofUSR: usr)
     if symbol.isDynamic ?? true {
       lazy var transitiveReceiverUsrs: [String]? = {
         if let receiverUsrs = symbol.receiverUsrs {
@@ -1853,7 +1853,7 @@ extension SourceKitServer {
   /// to get to the definition of `symbolUSR`.
   ///
   /// `originatorUri` is the URI of the file from which the definition request is performed. It is used to determine the
-  /// compiler arguments to generate the generated inteface.
+  /// compiler arguments to generate the generated interface.
   func definitionInInterface(
     moduleName: String,
     symbolUSR: String?,
@@ -1890,12 +1890,12 @@ extension SourceKitServer {
       return nil
     }
     guard let usr = symbol.usr else { return nil }
-    var occurrances = index.occurrences(ofUSR: usr, roles: .baseOf)
-    if occurrances.isEmpty {
-      occurrances = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
+    var occurrences = index.occurrences(ofUSR: usr, roles: .baseOf)
+    if occurrences.isEmpty {
+      occurrences = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
     }
 
-    return .locations(occurrances.compactMap { indexToLSPLocation($0.location) })
+    return .locations(occurrences.compactMap { indexToLSPLocation($0.location) })
   }
 
   func references(
@@ -1963,7 +1963,7 @@ extension SourceKitServer {
 
     // Only return a single call hierarchy item. Returning multiple doesn't make sense because they will all have the
     // same USR (because we query them by USR) and will thus expand to the exact same call hierarchy.
-    // Also, VS Code doesn't seem to like multiple call hiearchy items being returned and fails to display any results
+    // Also, VS Code doesn't seem to like multiple call hierarchy items being returned and fails to display any results
     // if they are, failing with `Cannot read properties of undefined (reading 'map')`.
     guard let definition = index.definitionOrDeclarationOccurrences(ofUSR: usr).first else {
       return nil
@@ -1971,12 +1971,12 @@ extension SourceKitServer {
     guard let location = indexToLSPLocation(definition.location) else {
       return nil
     }
-    let callHierachyItem = self.indexToLSPCallHierarchyItem(
+    let callHierarchyItem = self.indexToLSPCallHierarchyItem(
       symbol: definition.symbol,
       moduleName: definition.location.moduleName,
       location: location
     )
-    return [callHierachyItem]
+    return [callHierarchyItem]
   }
 
   /// Extracts our implementation-specific data about a call hierarchy
@@ -2343,8 +2343,8 @@ fileprivate func transitiveSubtypeClosure(ofUsrs usrs: [String], index: IndexSto
   var result: [String] = []
   for usr in usrs {
     result.append(usr)
-    let directSubtypes = index.occurrences(ofUSR: usr, roles: .baseOf).flatMap { occurance in
-      occurance.relations.filter { $0.roles.contains(.baseOf) }.map(\.symbol.usr)
+    let directSubtypes = index.occurrences(ofUSR: usr, roles: .baseOf).flatMap { occurrence in
+      occurrence.relations.filter { $0.roles.contains(.baseOf) }.map(\.symbol.usr)
     }
     let transitiveSubtypes = transitiveSubtypeClosure(ofUsrs: directSubtypes, index: index)
     result += transitiveSubtypes
