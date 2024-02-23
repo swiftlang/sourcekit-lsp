@@ -425,6 +425,8 @@ private final actor ManualMainFilesProvider: MainFilesProvider {
 
 /// A simple `BuildSystem` that wraps a dictionary, for testing.
 class ManualBuildSystem: BuildSystem {
+  var projectRoot = try! AbsolutePath(validating: "/")
+
   var map: [DocumentURI: FileBuildSettings] = [:]
 
   var delegate: BuildSystemDelegate? = nil

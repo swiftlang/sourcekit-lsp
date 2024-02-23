@@ -38,6 +38,11 @@ public enum FileHandlingCapability: Comparable {
 /// contained in a SwiftPM package root directory.
 public protocol BuildSystem: AnyObject {
 
+  /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
+  /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
+  /// was found.
+  var projectRoot: AbsolutePath { get async }
+
   /// The path to the raw index store data, if any.
   var indexStorePath: AbsolutePath? { get async }
 

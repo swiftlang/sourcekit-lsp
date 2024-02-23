@@ -43,7 +43,7 @@ public actor CompilationDatabaseBuildSystem {
     self.delegate = delegate
   }
 
-  let projectRoot: AbsolutePath?
+  public let projectRoot: AbsolutePath
 
   let searchPaths: [RelativePath]
 
@@ -74,16 +74,14 @@ public actor CompilationDatabaseBuildSystem {
   }
 
   public init?(
-    projectRoot: AbsolutePath? = nil,
+    projectRoot: AbsolutePath,
     searchPaths: [RelativePath],
     fileSystem: FileSystem = localFileSystem
   ) {
     self.fileSystem = fileSystem
     self.projectRoot = projectRoot
     self.searchPaths = searchPaths
-    if let path = projectRoot,
-      let compdb = tryLoadCompilationDatabase(directory: path, additionalSearchPaths: searchPaths, fileSystem)
-    {
+    if let compdb = tryLoadCompilationDatabase(directory: projectRoot, additionalSearchPaths: searchPaths, fileSystem) {
       self.compdb = compdb
     } else {
       return nil
@@ -160,8 +158,6 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
   /// The compilation database has been changed on disk.
   /// Reload it and notify the delegate about build setting changes.
   private func reloadCompilationDatabase() async {
-    guard let projectRoot = self.projectRoot else { return }
-
     self.compdb = tryLoadCompilationDatabase(
       directory: projectRoot,
       additionalSearchPaths: searchPaths,

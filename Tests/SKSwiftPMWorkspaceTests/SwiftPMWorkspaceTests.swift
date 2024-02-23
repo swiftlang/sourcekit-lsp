@@ -669,7 +669,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         buildSetup: SourceKitServer.Options.testDefault.buildSetup
       )
 
-      assertEqual(await ws._packageRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
+      assertEqual(await ws.projectRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
     }
   }
 

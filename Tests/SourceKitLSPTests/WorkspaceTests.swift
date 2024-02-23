@@ -160,6 +160,218 @@ final class WorkspaceTests: XCTestCase {
     )
   }
 
+  func testSwiftPMPackageInSubfolder() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
+
+    let packageManifest = """
+      // swift-tools-version: 5.7
+
+      import PackageDescription
+
+      let package = Package(
+        name: "MyLibrary",
+        targets: [
+          .target(name: "MyLibrary"),
+          .executableTarget(name: "MyExec", dependencies: ["MyLibrary"])
+        ]
+      )
+      """
+
+    let ws = try await MultiFileTestWorkspace(
+      files: [
+        // PackageA
+        "PackageA/Sources/MyLibrary/libA.swift": """
+        public struct FancyLib {
+          public init() {}
+          public func sayHello() {}
+        }
+        """,
+
+        "PackageA/Sources/MyExec/execA.swift": """
+        import MyLibrary
+
+        FancyLib().1️⃣sayHello()
+        """,
+
+        "PackageA/Package.swift": packageManifest,
+      ]
+    )
+    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory.appendingPathComponent("PackageA"))
+
+    let (uri, positions) = try ws.openDocument("execA.swift")
+
+    let otherCompletions = try await ws.testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    XCTAssertEqual(
+      otherCompletions.items,
+      [
+        CompletionItem(
+          label: "sayHello()",
+          kind: .method,
+          detail: "Void",
+          documentation: nil,
+          deprecated: false,
+          sortText: nil,
+          filterText: "sayHello()",
+          insertText: "sayHello()",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Range(positions["1️⃣"]), newText: "sayHello()")
+          )
+        ),
+        CompletionItem(
+          label: "self",
+          kind: LanguageServerProtocol.CompletionItemKind(rawValue: 14),
+          detail: "FancyLib",
+          documentation: nil,
+          deprecated: false,
+          sortText: nil,
+          filterText: "self",
+          insertText: "self",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Range(positions["1️⃣"]), newText: "self")
+          )
+        ),
+      ]
+    )
+  }
+
+  func testNestedSwiftPMWorkspacesWithoutDedicatedWorkspaceFolder() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
+
+    // The package manifest is the same for both packages we open.
+    let packageManifest = """
+      // swift-tools-version: 5.7
+
+      import PackageDescription
+
+      let package = Package(
+        name: "MyLibrary",
+        targets: [
+          .target(name: "MyLibrary"),
+          .executableTarget(name: "MyExec", dependencies: ["MyLibrary"])
+        ]
+      )
+      """
+
+    let ws = try await MultiFileTestWorkspace(
+      files: [
+        // PackageA
+        "PackageA/Sources/MyLibrary/libA.swift": """
+        public struct FancyLib {
+          public init() {}
+          public func sayHello() {}
+        }
+        """,
+
+        "PackageA/Sources/MyExec/execA.swift": """
+        import MyLibrary
+
+        FancyLib().1️⃣sayHello()
+        """,
+
+        "PackageA/Package.swift": packageManifest,
+
+        // PackageB
+        "Sources/MyLibrary/libB.swift": """
+        public struct Lib {
+          public init() {}
+          public func foo() {}
+        }
+        """,
+        "Sources/MyExec/execB.swift": """
+        import MyLibrary
+        Lib().2️⃣foo()
+        """,
+        "Package.swift": packageManifest,
+      ]
+    )
+
+    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory.appendingPathComponent("PackageA"))
+    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory)
+
+    let (bUri, bPositions) = try ws.openDocument("execB.swift")
+
+    let completions = try await ws.testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(bUri), position: bPositions["2️⃣"])
+    )
+
+    XCTAssertEqual(
+      completions.items,
+      [
+        CompletionItem(
+          label: "foo()",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          sortText: nil,
+          filterText: "foo()",
+          insertText: "foo()",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Range(bPositions["2️⃣"]), newText: "foo()")
+          )
+        ),
+        CompletionItem(
+          label: "self",
+          kind: .keyword,
+          detail: "Lib",
+          deprecated: false,
+          sortText: nil,
+          filterText: "self",
+          insertText: "self",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Range(bPositions["2️⃣"]), newText: "self")
+          )
+        ),
+      ]
+    )
+
+    let (aUri, aPositions) = try ws.openDocument("execA.swift")
+
+    let otherCompletions = try await ws.testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(aUri), position: aPositions["1️⃣"])
+    )
+
+    XCTAssertEqual(
+      otherCompletions.items,
+      [
+        CompletionItem(
+          label: "sayHello()",
+          kind: .method,
+          detail: "Void",
+          documentation: nil,
+          deprecated: false,
+          sortText: nil,
+          filterText: "sayHello()",
+          insertText: "sayHello()",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Range(aPositions["1️⃣"]), newText: "sayHello()")
+          )
+        ),
+        CompletionItem(
+          label: "self",
+          kind: LanguageServerProtocol.CompletionItemKind(rawValue: 14),
+          detail: "FancyLib",
+          documentation: nil,
+          deprecated: false,
+          sortText: nil,
+          filterText: "self",
+          insertText: "self",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(
+            TextEdit(range: Range(aPositions["1️⃣"]), newText: "self")
+          )
+        ),
+      ]
+    )
+  }
+
   func testMultipleClangdWorkspaces() async throws {
     let ws = try await MultiFileTestWorkspace(
       files: [
@@ -395,7 +607,12 @@ final class WorkspaceTests: XCTestCase {
           ]
         )
         """,
-      ]
+      ],
+      workspaces: { scratchDir in
+        return [
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("fake")))
+        ]
+      }
     )
 
     let packageDir = try ws.uri(for: "Package.swift").fileURL!.deletingLastPathComponent()
@@ -421,7 +638,7 @@ final class WorkspaceTests: XCTestCase {
     XCTAssertEqual(
       preChangeWorkspaceResponse.items,
       [],
-      "Did not expect to receive cross-module code completion results if we opened the parent directory of the package"
+      "Should not receive cross-module code completion results when opening an unrelated directory as workspace root"
     )
 
     ws.testClient.send(

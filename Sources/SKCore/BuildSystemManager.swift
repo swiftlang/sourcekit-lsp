@@ -50,6 +50,15 @@ public actor BuildSystemManager {
   /// Build system delegate that will receive notifications about setting changes, etc.
   var _delegate: BuildSystemDelegate?
 
+  /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
+  /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
+  /// was found.
+  public var projectRoot: AbsolutePath? {
+    get async {
+      return await buildSystem?.projectRoot
+    }
+  }
+
   /// Create a BuildSystemManager that wraps the given build system. The new
   /// manager will modify the delegate of the underlying build system.
   public init(

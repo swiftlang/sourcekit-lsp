@@ -43,7 +43,7 @@ func executable(_ name: String) -> String {
 /// Provides build settings from a build server launched based on a
 /// `buildServer.json` configuration file provided in the repo root.
 public actor BuildServerBuildSystem: MessageHandler {
-  let projectRoot: AbsolutePath
+  public let projectRoot: AbsolutePath
   let buildFolder: AbsolutePath?
   let serverConfig: BuildServerConfig
 

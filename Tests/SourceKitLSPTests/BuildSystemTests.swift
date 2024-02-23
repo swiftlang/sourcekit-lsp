@@ -15,19 +15,14 @@ import LSPTestSupport
 import LanguageServerProtocol
 @_spi(Testing) import SKCore
 import SKTestSupport
-import SourceKitLSP
+@_spi(Testing) import SourceKitLSP
 import TSCBasic
 import XCTest
-
-fileprivate extension SourceKitServer {
-  func setWorkspaces(_ workspaces: [Workspace]) {
-    self._workspaces = workspaces
-  }
-}
 
 /// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitServer
 /// and other components.
 final class TestBuildSystem: BuildSystem {
+  var projectRoot: AbsolutePath = try! AbsolutePath(validating: "/")
   var indexStorePath: AbsolutePath? = nil
   var indexDatabasePath: AbsolutePath? = nil
   var indexPrefixMappings: [PathPrefixMapping] = []
@@ -106,7 +101,7 @@ final class BuildSystemTests: XCTestCase {
       indexDelegate: nil
     )
 
-    await server.setWorkspaces([workspace])
+    await server.setWorkspaces([(workspace: workspace, isImplicit: false)])
     await workspace.buildSystemManager.setDelegate(server)
   }
 

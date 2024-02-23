@@ -67,3 +67,21 @@ extension String {
     return Insecure.MD5.hash(data: Data(self.utf8)).description
   }
 }
+
+private struct OptionalWrapper<Wrapped>: CustomLogStringConvertible where Wrapped: CustomLogStringConvertible {
+  let optional: Optional<Wrapped>
+
+  public var description: String {
+    return optional?.description ?? "<nil>"
+  }
+
+  public var redactedDescription: String {
+    return optional?.redactedDescription ?? "<nil>"
+  }
+}
+
+extension Optional where Wrapped: CustomLogStringConvertible {
+  public var forLogging: CustomLogStringConvertibleWrapper {
+    return CustomLogStringConvertibleWrapper(OptionalWrapper(optional: self))
+  }
+}
