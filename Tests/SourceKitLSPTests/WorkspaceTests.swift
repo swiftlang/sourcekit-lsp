@@ -184,7 +184,8 @@ final class WorkspaceTests: XCTestCase {
           WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("WorkspaceA"))),
           WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("WorkspaceB"))),
         ]
-      }
+      },
+      usePullDiagnostics: false
     )
 
     _ = try ws.openDocument("test.m")

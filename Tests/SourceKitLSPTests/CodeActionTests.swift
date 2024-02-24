@@ -340,7 +340,10 @@ final class CodeActionTests: XCTestCase {
   }
 
   func testCodeActionsRemovePlaceholders() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let testClient = try await TestSourceKitLSPClient(
+      capabilities: clientCapabilitiesWithCodeActionSupport(),
+      usePullDiagnostics: false
+    )
     let uri = DocumentURI.for(.swift)
 
     let positions = testClient.openDocument(
