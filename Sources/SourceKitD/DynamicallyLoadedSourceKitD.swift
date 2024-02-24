@@ -16,6 +16,17 @@ import SKSupport
 
 import struct TSCBasic.AbsolutePath
 
+private var shouldLogFullRequestEnvVar: Bool =
+  ProcessInfo.processInfo.environment["SOURCEKIT_LSP_LOG_FULL_SOURCEKITD_REQUESTS"] != nil
+#if canImport(Darwin)
+private let userDefaults = UserDefaults(suiteName: "org.swift.sourcekit-lsp")
+private var shouldLogFullRequest: Bool {
+  shouldLogFullRequestEnvVar || userDefaults?.bool(forKey: "LogFullSourceKitDRequests") ?? false
+}
+#else
+private var shouldLogFullRequest: Bool = shouldLogFullRequestEnvVar
+#endif
+
 /// Wrapper for sourcekitd, taking care of initialization, shutdown, and notification handler
 /// multiplexing.
 ///
@@ -99,6 +110,12 @@ public final class DynamicallyLoadedSourceKitD: SourceKitD {
   }
 
   public func log(request: SKDRequestDictionary) {
+    if shouldLogFullRequest {
+      // If requested, log the entire request. This is useful during debugging if a sourcekit-lsp developer knows which
+      // sourcekitd request is causing an issue and wants to access the request's YAML.
+      // This option is intended to be turned off as soon as the request in question has been retrieved.
+      return log(fullRequest: request, fileContents: nil, prefix: "Sending sourcekitd request", level: .info)
+    }
     logger.info(
       """
       Sending sourcekitd request:
@@ -118,6 +135,10 @@ public final class DynamicallyLoadedSourceKitD: SourceKitD {
   }
 
   public func log(crashedRequest req: SKDRequestDictionary, fileContents: String?) {
+    log(fullRequest: req, fileContents: fileContents, prefix: "sourcekitd crashed", level: .fault)
+  }
+
+  private func log(fullRequest req: SKDRequestDictionary, fileContents: String?, prefix: String, level: LogLevel) {
     let log = """
       Request:
       \(req.description)
@@ -127,9 +148,10 @@ public final class DynamicallyLoadedSourceKitD: SourceKitD {
       """
     let chunks = splitLongMultilineMessage(message: log)
     for (index, chunk) in chunks.enumerated() {
-      logger.fault(
+      logger.log(
+        level: level,
         """
-        sourcekitd crashed (\(index + 1)/\(chunks.count))
+        \(prefix, privacy: .public) (\(index + 1)/\(chunks.count))
         \(chunk)
         """
       )
