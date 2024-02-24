@@ -136,7 +136,15 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
 
-  private let diagnosticReportManager: DiagnosticReportManager
+  private var diagnosticReportManager: DiagnosticReportManager!
+
+  /// Only exists to work around rdar://116221716.
+  /// Once that is fixed, remove the property and make `diagnosticReportManager` non-optional.
+  private var clientHasDiagnosticsCodeDescriptionSupport: Bool {
+    get async {
+      return await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
+    }
+  }
 
   /// Creates a language server for the given client using the sourcekitd dylib specified in `toolchain`.
   /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageServer` asks its parent server to reopen all of its documents.
@@ -157,11 +165,12 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     self.state = .connected
     self.generatedInterfacesPath = options.generatedInterfacesPath.asURL
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
+    self.diagnosticReportManager = nil  // Needed to work around rdar://116221716
     self.diagnosticReportManager = DiagnosticReportManager(
       sourcekitd: self.sourcekitd,
       syntaxTreeManager: syntaxTreeManager,
       documentManager: documentManager,
-      clientHasDiagnosticsCodeDescriptionSupport: await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
+      clientHasDiagnosticsCodeDescriptionSupport: await self.clientHasDiagnosticsCodeDescriptionSupport
     )
   }
 
