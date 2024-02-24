@@ -345,6 +345,9 @@ extension SwiftLanguageServer {
       keys.request: self.requests.editorOpen,
       keys.name: note.textDocument.uri.pseudoPath,
       keys.sourceText: snapshot.text,
+      keys.enableSyntaxMap: 0,
+      keys.enableStructure: 0,
+      keys.enableDiagnostics: 0,
       keys.syntacticOnly: 1,
       keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
     ])
@@ -477,6 +480,9 @@ extension SwiftLanguageServer {
       let req = sourcekitd.dictionary([
         keys.request: self.requests.editorReplaceText,
         keys.name: note.textDocument.uri.pseudoPath,
+        keys.enableSyntaxMap: 0,
+        keys.enableStructure: 0,
+        keys.enableDiagnostics: 0,
         keys.syntacticOnly: 1,
         keys.offset: edit.offset,
         keys.length: edit.length,
