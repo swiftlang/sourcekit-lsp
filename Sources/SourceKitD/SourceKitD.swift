@@ -26,16 +26,16 @@ import SKSupport
 /// `deinit` or by wrapping an existing sourcekitd session that outlives this object.
 public protocol SourceKitD: AnyObject {
   /// The sourcekitd API functions.
-  var api: sourcekitd_functions_t { get }
+  var api: sourcekitd_api_functions_t { get }
 
   /// Convenience for accessing known keys.
-  var keys: sourcekitd_keys { get }
+  var keys: sourcekitd_api_keys { get }
 
   /// Convenience for accessing known keys.
-  var requests: sourcekitd_requests { get }
+  var requests: sourcekitd_api_requests { get }
 
   /// Convenience for accessing known keys.
-  var values: sourcekitd_values { get }
+  var values: sourcekitd_api_values { get }
 
   /// Adds a new notification handler, which will be weakly referenced.
   func addNotificationHandler(_ handler: SKDNotificationHandler)
@@ -77,9 +77,9 @@ extension SourceKitD {
     let signposterState = signposter.beginInterval("sourcekitd-request", id: signpostID, "Start")
 
     let sourcekitdResponse: SKDResponse = try await withCancellableCheckedThrowingContinuation { continuation in
-      var handle: sourcekitd_request_handle_t? = nil
-      api.send_request(req.dict, &handle) { _resp in
-        continuation.resume(returning: SKDResponse(_resp, sourcekitd: self))
+      var handle: sourcekitd_api_request_handle_t? = nil
+      api.send_request(req.dict, &handle) { response in
+        continuation.resume(returning: SKDResponse(response!, sourcekitd: self))
       }
       return handle
     } cancel: { handle in

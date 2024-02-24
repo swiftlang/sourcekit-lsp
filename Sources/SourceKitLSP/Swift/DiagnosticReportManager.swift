@@ -25,8 +25,8 @@ actor DiagnosticReportManager {
   private let documentManager: DocumentManager
   private let clientHasDiagnosticsCodeDescriptionSupport: Bool
 
-  private nonisolated var keys: sourcekitd_keys { return sourcekitd.keys }
-  private nonisolated var requests: sourcekitd_requests { return sourcekitd.requests }
+  private nonisolated var keys: sourcekitd_api_keys { return sourcekitd.keys }
+  private nonisolated var requests: sourcekitd_api_requests { return sourcekitd.requests }
 
   /// The cache that stores reportTasks for snapshot id and buildSettings
   ///

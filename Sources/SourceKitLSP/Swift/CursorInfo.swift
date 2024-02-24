@@ -50,7 +50,7 @@ struct CursorInfo {
     sourcekitd: some SourceKitD
   ) {
     let keys = sourcekitd.keys
-    guard let kind: sourcekitd_uid_t = dict[keys.kind] else {
+    guard let kind: sourcekitd_api_uid_t = dict[keys.kind] else {
       // Nothing to report.
       return nil
     }

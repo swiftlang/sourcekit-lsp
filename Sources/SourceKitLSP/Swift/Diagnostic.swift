@@ -204,7 +204,7 @@ extension Diagnostic {
     }
 
     var severity: LanguageServerProtocol.DiagnosticSeverity? = nil
-    if let uid: sourcekitd_uid_t = diag[keys.severity] {
+    if let uid: sourcekitd_api_uid_t = diag[keys.severity] {
       switch uid {
       case values.diagError:
         severity = .error
@@ -392,7 +392,7 @@ enum DiagnosticStage: Hashable {
 }
 
 extension DiagnosticStage {
-  init?(_ uid: sourcekitd_uid_t, sourcekitd: SourceKitD) {
+  init?(_ uid: sourcekitd_api_uid_t, sourcekitd: SourceKitD) {
     switch uid {
     case sourcekitd.values.parseDiagStage:
       self = .parse

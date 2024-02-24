@@ -33,7 +33,7 @@ final class SourceKitDTests: XCTestCase {
     let path = DocumentURI.for(.swift).pseudoPath
 
     let isExpectedNotification = { (response: SKDResponse) -> Bool in
-      if let notification: sourcekitd_uid_t = response.value?[keys.notification],
+      if let notification: sourcekitd_api_uid_t = response.value?[keys.notification],
         let name: String = response.value?[keys.name]
       {
         return name == path && notification == sourcekitd.values.documentUpdateNotification

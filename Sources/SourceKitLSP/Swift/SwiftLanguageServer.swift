@@ -122,9 +122,9 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   let syntaxTreeManager = SyntaxTreeManager()
 
-  nonisolated var keys: sourcekitd_keys { return sourcekitd.keys }
-  nonisolated var requests: sourcekitd_requests { return sourcekitd.requests }
-  nonisolated var values: sourcekitd_values { return sourcekitd.values }
+  nonisolated var keys: sourcekitd_api_keys { return sourcekitd.keys }
+  nonisolated var requests: sourcekitd_api_requests { return sourcekitd.requests }
+  nonisolated var values: sourcekitd_api_values { return sourcekitd.values }
 
   var enablePublishDiagnostics: Bool {
     // Since LSP 3.17.0, diagnostics can be reported through pull-based requests,
@@ -944,8 +944,8 @@ extension DocumentSnapshot {
   }
 }
 
-extension sourcekitd_uid_t {
-  func isCommentKind(_ vals: sourcekitd_values) -> Bool {
+extension sourcekitd_api_uid_t {
+  func isCommentKind(_ vals: sourcekitd_api_values) -> Bool {
     switch self {
     case vals.comment, vals.commentMarker, vals.commentURL:
       return true
@@ -954,11 +954,11 @@ extension sourcekitd_uid_t {
     }
   }
 
-  func isDocCommentKind(_ vals: sourcekitd_values) -> Bool {
+  func isDocCommentKind(_ vals: sourcekitd_api_values) -> Bool {
     return self == vals.docComment || self == vals.docCommentField
   }
 
-  func asCompletionItemKind(_ vals: sourcekitd_values) -> CompletionItemKind? {
+  func asCompletionItemKind(_ vals: sourcekitd_api_values) -> CompletionItemKind? {
     switch self {
     case vals.completionKindKeyword:
       return .keyword
@@ -1011,7 +1011,7 @@ extension sourcekitd_uid_t {
     }
   }
 
-  func asSymbolKind(_ vals: sourcekitd_values) -> SymbolKind? {
+  func asSymbolKind(_ vals: sourcekitd_api_values) -> SymbolKind? {
     switch self {
     case vals.declClass:
       return .class

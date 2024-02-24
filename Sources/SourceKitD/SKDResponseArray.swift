@@ -21,12 +21,12 @@ import CRT
 #endif
 
 public final class SKDResponseArray {
-  public let array: sourcekitd_variant_t
+  public let array: sourcekitd_api_variant_t
   let resp: SKDResponse
 
   public var sourcekitd: SourceKitD { return resp.sourcekitd }
 
-  public init(_ array: sourcekitd_variant_t, response: SKDResponse) {
+  public init(_ array: sourcekitd_api_variant_t, response: SKDResponse) {
     self.array = array
     self.resp = response
   }
@@ -46,7 +46,7 @@ public final class SKDResponseArray {
 
   /// If the `applier` returns `false`, iteration terminates.
   @discardableResult
-  public func forEachUID(_ applier: (Int, sourcekitd_uid_t) throws -> Bool) rethrows -> Bool {
+  public func forEachUID(_ applier: (Int, sourcekitd_api_uid_t) throws -> Bool) rethrows -> Bool {
     for i in 0..<count {
       if let uid = sourcekitd.api.variant_array_get_uid(array, i), try !applier(i, uid) {
         return false

@@ -32,7 +32,7 @@ struct SyntaxHighlightingTokenParser {
     if let offset: Int = response[keys.offset],
       var length: Int = response[keys.length],
       let start: Position = snapshot.positionOf(utf8Offset: offset),
-      let skKind: sourcekitd_uid_t = response[keys.kind],
+      let skKind: sourcekitd_api_uid_t = response[keys.kind],
       case (let kind, var modifiers)? = parseKindAndModifiers(skKind)
     {
 
@@ -85,7 +85,7 @@ struct SyntaxHighlightingTokenParser {
   }
 
   private func parseKindAndModifiers(
-    _ uid: sourcekitd_uid_t
+    _ uid: sourcekitd_api_uid_t
   ) -> (SemanticTokenTypes, SemanticTokenModifiers)? {
     let api = sourcekitd.api
     let values = sourcekitd.values
@@ -194,7 +194,7 @@ struct SyntaxHighlightingTokenParser {
     case values.identifier:
       return (.identifier, [])
     default:
-      let ignoredKinds: Set<sourcekitd_uid_t> = [
+      let ignoredKinds: Set<sourcekitd_api_uid_t> = [
         values.stringInterpolation
       ]
       if !ignoredKinds.contains(uid) {
