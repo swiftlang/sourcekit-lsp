@@ -224,4 +224,227 @@ final class CallHierarchyTests: XCTestCase {
       ]
     )
   }
+
+  func testIncomingCallHierarchyShowsSurroundingFunctionCall() async throws {
+    // We used to show `myVar` as the caller here
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      func 1️⃣foo() {}
+
+      func 2️⃣testFunc(x: String) {
+        let myVar = 3️⃣foo()
+      }
+      """
+    )
+    let prepare = try await ws.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(ws.fileURI),
+        position: ws.positions["1️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await ws.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "testFunc(x:)",
+            kind: .function,
+            tags: nil,
+            detail: "test",  // test is the module name because the file is called test.swift
+            uri: ws.fileURI,
+            range: Range(ws.positions["2️⃣"]),
+            selectionRange: Range(ws.positions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test0A4Func1xySS_tF"),
+              "uri": .string(ws.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(ws.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testIncomingCallHierarchyFromComputedProperty() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      func 1️⃣foo() {}
+
+      var testVar: Int 2️⃣{
+        let myVar = 3️⃣foo()
+        return 2
+      }
+      """
+    )
+    let prepare = try await ws.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(ws.fileURI),
+        position: ws.positions["1️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await ws.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "getter:testVar",
+            kind: .function,
+            tags: nil,
+            detail: "test",  // test is the module name because the file is called test.swift
+            uri: ws.fileURI,
+            range: Range(ws.positions["2️⃣"]),
+            selectionRange: Range(ws.positions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test0A3VarSivg"),
+              "uri": .string(ws.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(ws.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testIncomingCallHierarchyShowsAccessToVariables() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      var 1️⃣foo: Int
+      func 2️⃣testFunc() {
+        _ = 3️⃣foo
+        4️⃣foo = 2
+      }
+
+      """
+    )
+    let prepare = try await ws.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(ws.fileURI),
+        position: ws.positions["1️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await ws.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "testFunc()",
+            kind: .function,
+            tags: nil,
+            detail: "test",  // test is the module name because the file is called test.swift
+            uri: ws.fileURI,
+            range: Range(ws.positions["2️⃣"]),
+            selectionRange: Range(ws.positions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test0A4FuncyyF"),
+              "uri": .string(ws.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(ws.positions["3️⃣"])]
+        ),
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "testFunc()",
+            kind: .function,
+            tags: nil,
+            detail: "test",  // test is the module name because the file is called test.swift
+            uri: ws.fileURI,
+            range: Range(ws.positions["2️⃣"]),
+            selectionRange: Range(ws.positions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test0A4FuncyyF"),
+              "uri": .string(ws.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(ws.positions["4️⃣"])]
+        ),
+      ]
+    )
+  }
+
+  func testOutgoingCallHierarchyShowsAccessesToVariable() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      var 1️⃣foo: Int
+      func 2️⃣testFunc() {
+        _ = 3️⃣foo
+      }
+
+      """
+    )
+    let prepare = try await ws.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(ws.fileURI),
+        position: ws.positions["2️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await ws.testClient.send(CallHierarchyOutgoingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyOutgoingCall(
+          to: CallHierarchyItem(
+            name: "getter:foo",
+            kind: .function,
+            tags: nil,
+            detail: "test",  // test is the module name because the file is called test.swift
+            uri: ws.fileURI,
+            range: Range(ws.positions["1️⃣"]),
+            selectionRange: Range(ws.positions["1️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test3fooSivg"),
+              "uri": .string(ws.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(ws.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testOutgoingCallHierarchyFromVariableAccessor() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      func 1️⃣testFunc() -> Int { 0 }
+      var 2️⃣foo: Int {
+        3️⃣testFunc()
+      }
+      """
+    )
+    let prepare = try await ws.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(ws.fileURI),
+        position: ws.positions["2️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await ws.testClient.send(CallHierarchyOutgoingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyOutgoingCall(
+          to: CallHierarchyItem(
+            name: "testFunc()",
+            kind: .function,
+            tags: nil,
+            detail: "test",  // test is the module name because the file is called test.swift
+            uri: ws.fileURI,
+            range: Range(ws.positions["1️⃣"]),
+            selectionRange: Range(ws.positions["1️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test0A4FuncSiyF"),
+              "uri": .string(ws.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(ws.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
 }

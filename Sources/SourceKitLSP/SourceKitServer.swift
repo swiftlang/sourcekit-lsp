@@ -2008,27 +2008,28 @@ extension SourceKitServer {
     else {
       return []
     }
-    let occurs = index.occurrences(ofUSR: data.usr, roles: .calledBy)
-    let calls = occurs.compactMap { occurrence -> CallHierarchyIncomingCall? in
-      guard let location = indexToLSPLocation(occurrence.location),
-        let related = occurrence.relations.first
-      else {
-        return nil
+    let callableUsrs = [data.usr] + index.occurrences(relatedToUSR: data.usr, roles: .accessorOf).map(\.symbol.usr)
+    let callOccurrences = callableUsrs.flatMap { index.occurrences(ofUSR: $0, roles: .calledBy) }
+    let calls = callOccurrences.flatMap { occurrence -> [CallHierarchyIncomingCall] in
+      guard let location = indexToLSPLocation(occurrence.location) else {
+        return []
       }
+      return occurrence.relations.filter { $0.symbol.kind.isCallable }
+        .map { related in
+          // Resolve the caller's definition to find its location
+          let definition = index.occurrences(ofUSR: related.symbol.usr, roles: [.definition, .declaration]).first
+          let definitionSymbolLocation = definition?.location
+          let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
 
-      // Resolve the caller's definition to find its location
-      let definition = index.occurrences(ofUSR: related.symbol.usr, roles: [.definition, .declaration]).first
-      let definitionSymbolLocation = definition?.location
-      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
-
-      return CallHierarchyIncomingCall(
-        from: indexToLSPCallHierarchyItem(
-          symbol: related.symbol,
-          moduleName: definitionSymbolLocation?.moduleName,
-          location: definitionLocation ?? location  // Use occurrence location as fallback
-        ),
-        fromRanges: [location.range]
-      )
+          return CallHierarchyIncomingCall(
+            from: indexToLSPCallHierarchyItem(
+              symbol: related.symbol,
+              moduleName: definitionSymbolLocation?.moduleName,
+              location: definitionLocation ?? location  // Use occurrence location as fallback
+            ),
+            fromRanges: [location.range]
+          )
+        }
     }
     return calls
   }
@@ -2039,8 +2040,9 @@ extension SourceKitServer {
     else {
       return []
     }
-    let occurs = index.occurrences(relatedToUSR: data.usr, roles: .calledBy)
-    let calls = occurs.compactMap { occurrence -> CallHierarchyOutgoingCall? in
+    let callableUsrs = [data.usr] + index.occurrences(relatedToUSR: data.usr, roles: .accessorOf).map(\.symbol.usr)
+    let callOccurrences = callableUsrs.flatMap { index.occurrences(relatedToUSR: $0, roles: .calledBy) }
+    let calls = callOccurrences.compactMap { occurrence -> CallHierarchyOutgoingCall? in
       guard let location = indexToLSPLocation(occurrence.location) else {
         return nil
       }
@@ -2301,6 +2303,17 @@ extension IndexSymbolKind {
 
     default:
       return .null
+    }
+  }
+
+  var isCallable: Bool {
+    switch self {
+    case .function, .instanceMethod, .classMethod, .staticMethod, .constructor, .destructor, .conversionFunction:
+      return true
+    case .unknown, .module, .namespace, .namespaceAlias, .macro, .enum, .struct, .protocol, .extension, .union,
+      .typealias, .field, .enumConstant, .parameter, .using, .concept, .commentTag, .variable, .instanceProperty,
+      .class, .staticProperty, .classProperty:
+      return false
     }
   }
 }
