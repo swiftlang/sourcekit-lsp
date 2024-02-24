@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import LSPLogging
 import SKSupport
 
 import struct TSCBasic.AbsolutePath
@@ -96,6 +97,45 @@ public final class SourceKitDImpl: SourceKitD {
       _notificationHandlers.removeAll(where: { $0.value == nil || $0.value === handler })
     }
   }
+
+  public func log(request: SKDRequestDictionary) {
+    logger.info(
+      """
+      Sending sourcekitd request:
+      \(request.forLogging)
+      """
+    )
+  }
+
+  public func log(response: SKDResponse) {
+    logger.log(
+      level: (response.error == nil || response.error == .requestCancelled) ? .debug : .error,
+      """
+      Received sourcekitd response:
+      \(response.forLogging)
+      """
+    )
+  }
+
+  public func log(crashedRequest req: SKDRequestDictionary, fileContents: String?) {
+    let log = """
+      Request:
+      \(req.description)
+
+      File contents:
+      \(fileContents ?? "<nil>")
+      """
+    let chunks = splitLongMultilineMessage(message: log)
+    for (index, chunk) in chunks.enumerated() {
+      logger.fault(
+        """
+        sourcekitd crashed (\(index + 1)/\(chunks.count))
+        \(chunk)
+        """
+      )
+    }
+  }
+
 }
 
 struct WeakSKDNotificationHandler {
