@@ -141,6 +141,20 @@ extension LineTable {
     return content.utf16.index(lineSlice.startIndex, offsetBy: utf16Column, limitedBy: lineSlice.endIndex)
   }
 
+  /// Returns `String.Index` of given logical position.
+  ///
+  /// - parameter line: Line number (zero-based).
+  /// - parameter utf8Column: UTF-8 column offset (zero-based).
+  @inlinable
+  public func stringIndexOf(line: Int, utf8Column: Int) -> String.Index? {
+    guard line < count else {
+      // Line out of range.
+      return nil
+    }
+    let lineSlice = self[line]
+    return content.utf8.index(lineSlice.startIndex, offsetBy: utf8Column, limitedBy: lineSlice.endIndex)
+  }
+
   /// Returns UTF8 buffer offset of given logical position.
   ///
   /// - parameter line: Line number (zero-based).
@@ -148,6 +162,18 @@ extension LineTable {
   @inlinable
   public func utf8OffsetOf(line: Int, utf16Column: Int) -> Int? {
     guard let stringIndex = stringIndexOf(line: line, utf16Column: utf16Column) else {
+      return nil
+    }
+    return content.utf8.distance(from: content.startIndex, to: stringIndex)
+  }
+
+  /// Returns UTF8 buffer offset of given logical position.
+  ///
+  /// - parameter line: Line number (zero-based).
+  /// - parameter utf8Column: UTF-8 column offset (zero-based).
+  @inlinable
+  public func utf8OffsetOf(line: Int, utf8Column: Int) -> Int? {
+    guard let stringIndex = stringIndexOf(line: line, utf8Column: utf8Column) else {
       return nil
     }
     return content.utf8.distance(from: content.startIndex, to: stringIndex)

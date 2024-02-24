@@ -425,13 +425,17 @@ final class RenameTests: XCTestCase {
   func testRenameParameterToEmptyName() async throws {
     try await assertSingleFileRename(
       """
-      func 1️⃣foo(3️⃣x: Int) {}
+      func 1️⃣foo(3️⃣x: Int) {
+        print(x)
+      }
       2️⃣foo(4️⃣x: 1)
       """,
       newName: "bar(:)",
       expectedPrepareRenamePlaceholder: "foo(x:)",
       expected: """
-        func bar(_ x: Int) {}
+        func bar(_ x: Int) {
+          print(x)
+        }
         bar(1)
         """
     )
@@ -740,6 +744,83 @@ final class RenameTests: XCTestCase {
           return [self performNewAction:action by:value];
         }
         @end
+        """,
+      ]
+    )
+  }
+
+  func testRenameParameterReferencesInsideBody() async throws {
+    try await assertSingleFileRename(
+      """
+      func 1️⃣foo(x: Int) {
+        print(x)
+      }
+      func test() {
+        2️⃣foo(x: 1)
+      }
+      """,
+      newName: "bar(y:)",
+      expectedPrepareRenamePlaceholder: "foo(x:)",
+      expected: """
+        func bar(y: Int) {
+          print(y)
+        }
+        func test() {
+          bar(y: 1)
+        }
+        """
+    )
+  }
+
+  func testDontRenameParameterReferencesInsideBodyIfTheyUseSecondName() async throws {
+    try await assertSingleFileRename(
+      """
+      func 1️⃣foo(x a: Int) {
+        print(a)
+      }
+      func test() {
+        2️⃣foo(x: 1)
+      }
+      """,
+      newName: "bar(y:)",
+      expectedPrepareRenamePlaceholder: "foo(x:)",
+      expected: """
+        func bar(y a: Int) {
+          print(a)
+        }
+        func test() {
+          bar(y: 1)
+        }
+        """
+    )
+  }
+
+  func testRenameParameterReferencesInsideBodyAcrossFiles() async throws {
+    try await assertMultiFileRename(
+      files: [
+        "a.swift": """
+        func foo(x: Int) {
+          print(x)
+        }
+        """,
+        "b.swift": """
+        func test() {
+          1️⃣foo(x: 1)
+        }
+        """,
+      ],
+      newName: "bar(y:)",
+      expectedPrepareRenamePlaceholder: "foo(x:)",
+      expected: [
+        "a.swift": """
+        func bar(y: Int) {
+          print(y)
+        }
+        """,
+        "b.swift": """
+        func test() {
+          bar(y: 1)
+        }
         """,
       ]
     )

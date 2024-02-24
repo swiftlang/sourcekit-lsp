@@ -284,14 +284,6 @@ private extension DocumentSnapshot {
     let contents = try String(contentsOf: url)
     self.init(uri: DocumentURI(url), language: language, version: 0, lineTable: LineTable(contents))
   }
-
-  func position(of renameLocation: RenameLocation) -> Position? {
-    return positionOf(zeroBasedLine: renameLocation.line - 1, utf8Column: renameLocation.utf8Column - 1)
-  }
-
-  func position(of symbolLocation: SymbolLocation) -> Position? {
-    return positionOf(zeroBasedLine: symbolLocation.line - 1, utf8Column: symbolLocation.utf8Column - 1)
-  }
 }
 
 private extension RenameLocation.Usage {
@@ -713,21 +705,27 @@ extension SourceKitServer {
           logger.error("Failed to get document snapshot for \(uri.forLogging)")
           return nil
         }
-        do {
-          guard let languageService = await self.languageService(for: uri, language, in: workspace) else {
-            return nil
-          }
-          let edits = try await languageService.editsToRename(
-            locations: renameLocations,
-            in: snapshot,
-            oldName: oldName,
-            newName: newName
-          )
-          return (uri, edits)
-        } catch {
-          logger.error("Failed to get edits for \(uri.forLogging): \(error.forLogging)")
+        guard let languageService = await self.languageService(for: uri, language, in: workspace) else {
           return nil
         }
+
+        var edits: [TextEdit] =
+          await orLog("Getting edits for rename location") {
+            return try await languageService.editsToRename(
+              locations: renameLocations,
+              in: snapshot,
+              oldName: oldName,
+              newName: newName
+            )
+          } ?? []
+        for location in renameLocations where location.usage == .definition {
+          edits += await languageService.editsToRenameParametersInFunctionBody(
+            snapshot: snapshot,
+            renameLocation: location,
+            newName: newName
+          )
+        }
+        return (uri, edits)
       }.compactMap { $0 }
     for (uri, editsForUri) in urisAndEdits {
       precondition(
@@ -827,7 +825,7 @@ extension SwiftLanguageServer {
   /// If `position` is on an argument label or a parameter name, find the position of the function's base name.
   private func findFunctionBaseNamePosition(of position: Position, in snapshot: DocumentSnapshot) async -> Position? {
     let tree = await self.syntaxTreeManager.syntaxTree(for: snapshot)
-    guard let absolutePosition = snapshot.position(of: position) else {
+    guard let absolutePosition = snapshot.absolutePosition(of: position) else {
       return nil
     }
     guard let token = tree.token(at: absolutePosition) else {
@@ -951,35 +949,138 @@ extension SwiftLanguageServer {
       in: snapshot,
       includeNonEditableBaseNames: true
     )
-    guard let oldName = relatedIdentifiersResponse.name else {
+    guard let oldNameString = relatedIdentifiersResponse.name else {
       throw ResponseError.unknown("Running sourcekit-lsp with a version of sourcekitd that does not support rename")
     }
 
-    try Task.checkCancellation()
-
-    let renameLocations = relatedIdentifiersResponse.relatedIdentifiers.compactMap {
-      (relatedIdentifier) -> RenameLocation? in
-      let position = relatedIdentifier.range.lowerBound
-      guard let utf8Column = snapshot.lineTable.utf8ColumnAt(line: position.line, utf16Column: position.utf16index)
-      else {
-        logger.fault("Unable to find UTF-8 column for \(position.line):\(position.utf16index)")
-        return nil
-      }
-      return RenameLocation(line: position.line + 1, utf8Column: utf8Column + 1, usage: relatedIdentifier.usage)
-    }
+    let renameLocations = relatedIdentifiersResponse.renameLocations(in: snapshot)
 
     try Task.checkCancellation()
 
-    let edits = try await editsToRename(
+    let oldName = CrossLanguageName(clangName: nil, swiftName: oldNameString, definitionLanguage: .swift)
+    let newName = CrossLanguageName(clangName: nil, swiftName: request.newName, definitionLanguage: .swift)
+    var edits = try await editsToRename(
       locations: renameLocations,
       in: snapshot,
-      oldName: CrossLanguageName(clangName: nil, swiftName: oldName, definitionLanguage: .swift),
-      newName: CrossLanguageName(clangName: nil, swiftName: request.newName, definitionLanguage: .swift)
+      oldName: oldName,
+      newName: newName
     )
-
-    try Task.checkCancellation()
+    if let compoundSwiftName = oldName.compoundSwiftName, !compoundSwiftName.parameters.isEmpty {
+      // If we are doing a function rename, run `renameParametersInFunctionBody` for every occurrence of the rename
+      // location within the current file. If the location is not a function declaration, it will exit early without
+      // invoking sourcekitd, so it's OK to do this performance-wise.
+      for renameLocation in renameLocations {
+        edits += await editsToRenameParametersInFunctionBody(
+          snapshot: snapshot,
+          renameLocation: renameLocation,
+          newName: newName
+        )
+      }
+    }
 
     return (edits: WorkspaceEdit(changes: [snapshot.uri: edits]), usr: usr)
+  }
+
+  public func editsToRenameParametersInFunctionBody(
+    snapshot: DocumentSnapshot,
+    renameLocation: RenameLocation,
+    newName: CrossLanguageName
+  ) async -> [TextEdit] {
+    guard let position = snapshot.absolutePosition(of: renameLocation) else {
+      logger.fault("Failed to convert \(renameLocation.line):\(renameLocation.utf8Column) to AbsolutePosition")
+      return []
+    }
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let token = syntaxTree.token(at: position)
+    let parameterClause: FunctionParameterClauseSyntax?
+    switch token?.keyPathInParent {
+    case \FunctionDeclSyntax.name:
+      parameterClause = token?.parent(as: FunctionDeclSyntax.self)?.signature.parameterClause
+    case \InitializerDeclSyntax.initKeyword:
+      parameterClause = token?.parent(as: InitializerDeclSyntax.self)?.signature.parameterClause
+    case \SubscriptDeclSyntax.subscriptKeyword:
+      parameterClause = token?.parent(as: SubscriptDeclSyntax.self)?.parameterClause
+    default:
+      parameterClause = nil
+    }
+    guard let parameterClause else {
+      // We are not at a function-like definition. Nothing to rename.
+      return []
+    }
+    guard let newSwiftNameString = newName.swiftName else {
+      logger.fault(
+        "Cannot rename at \(renameLocation.line):\(renameLocation.utf8Column) because new name is not a Swift name"
+      )
+      return []
+    }
+    let newSwiftName = CompoundDeclName(newSwiftNameString)
+
+    var edits: [TextEdit] = []
+    for (index, parameter) in parameterClause.parameters.enumerated() {
+      guard parameter.secondName == nil else {
+        // The parameter has a second name. The function signature only renames the first name and the function body
+        // refers to the second name. Nothing to do.
+        continue
+      }
+      let oldParameterName = parameter.firstName.text
+      guard index < newSwiftName.parameters.count else {
+        // We don't have a new name for this parameter. Nothing to do.
+        continue
+      }
+      let newParameterName = newSwiftName.parameters[index].stringOrEmpty
+      guard !newParameterName.isEmpty else {
+        // We are changing the parameter to an empty name. This will retain the current external parameter name as the
+        // new second name, so nothing to do in the function body.
+        continue
+      }
+      guard newParameterName != oldParameterName else {
+        // This parameter wasn't modified. Nothing to do.
+        continue
+      }
+
+      let oldCrossLanguageParameterName = CrossLanguageName(
+        clangName: nil,
+        swiftName: oldParameterName,
+        definitionLanguage: .swift
+      )
+      let newCrossLanguageParameterName = CrossLanguageName(
+        clangName: nil,
+        swiftName: newParameterName,
+        definitionLanguage: .swift
+      )
+
+      guard let parameterPosition = snapshot.position(of: parameter.positionAfterSkippingLeadingTrivia) else {
+        logger.fault("Failed to convert position of \(parameter.firstName.text) to line-column")
+        continue
+      }
+
+      let parameterRenameEdits = await orLog("Renaming parameter") {
+        // Once we have lexical scope lookup in swift-syntax, this can be a purely syntactic rename.
+        // We know that the parameters are variables and thus there can't be overloads that need to be resolved by the
+        // type checker.
+        let relatedIdentifiersResponse = try await self.relatedIdentifiers(
+          at: parameterPosition,
+          in: snapshot,
+          includeNonEditableBaseNames: false
+        )
+
+        let parameterRenameLocations = relatedIdentifiersResponse.renameLocations(in: snapshot)
+
+        return try await editsToRename(
+          locations: parameterRenameLocations,
+          in: snapshot,
+          oldName: oldCrossLanguageParameterName,
+          newName: newCrossLanguageParameterName
+        )
+      }
+      guard let parameterRenameEdits else {
+        continue
+      }
+      // Exclude the edit that renames the parameter itself. The parameter gets renamed as part of the function
+      // declaration.
+      edits += parameterRenameEdits.filter { !$0.range.contains(parameterPosition) }
+    }
+    return edits
   }
 
   /// Return the edit that needs to be performed for the given syntactic rename piece to rename it from
@@ -1193,11 +1294,35 @@ extension ClangLanguageServerShim {
     )
     return (prepareRename, symbolInfo.only?.usr)
   }
+
+  public func editsToRenameParametersInFunctionBody(
+    snapshot: DocumentSnapshot,
+    renameLocation: RenameLocation,
+    newName: CrossLanguageName
+  ) async -> [TextEdit] {
+    // When renaming a clang function name, we don't need to rename any references to the arguments.
+    return []
+  }
 }
 
 fileprivate extension SyntaxProtocol {
   /// Returns the parent node and casts it to the specified type.
   func parent<S: SyntaxProtocol>(as syntaxType: S.Type) -> S? {
     return parent?.as(S.self)
+  }
+}
+
+fileprivate extension RelatedIdentifiersResponse {
+  func renameLocations(in snapshot: DocumentSnapshot) -> [RenameLocation] {
+    return self.relatedIdentifiers.compactMap {
+      (relatedIdentifier) -> RenameLocation? in
+      let position = relatedIdentifier.range.lowerBound
+      guard let utf8Column = snapshot.lineTable.utf8ColumnAt(line: position.line, utf16Column: position.utf16index)
+      else {
+        logger.fault("Unable to find UTF-8 column for \(position.description, privacy: .public)")
+        return nil
+      }
+      return RenameLocation(line: position.line + 1, utf8Column: utf8Column + 1, usage: relatedIdentifier.usage)
+    }
   }
 }

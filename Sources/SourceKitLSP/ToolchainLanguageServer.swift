@@ -169,6 +169,25 @@ public protocol ToolchainLanguageServer: AnyObject {
 
   func indexedRename(_ request: IndexedRenameRequest) async throws -> WorkspaceEdit?
 
+  /// If there is a function-like definition at the given `renamePosition`, rename all the references to parameters
+  /// inside the function's body.
+  ///
+  /// For example, this produces the edit to rename the occurrence of `x` inside `print` in the following
+  ///
+  /// ```swift
+  /// func foo(x: Int) { print(x) }
+  /// ```
+  ///
+  /// - Parameters:
+  ///   - snapshot: A `DocumentSnapshot` containing the file contents
+  ///   - renameLocation: The position of the function's base name (in front of `foo` in the above example)
+  ///   - newName: The new name of the function (eg. `bar(y:)` in the above example)
+  func editsToRenameParametersInFunctionBody(
+    snapshot: DocumentSnapshot,
+    renameLocation: RenameLocation,
+    newName: CrossLanguageName
+  ) async -> [TextEdit]
+
   // MARK: - Other
 
   func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny?
