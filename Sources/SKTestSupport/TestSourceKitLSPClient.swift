@@ -201,17 +201,28 @@ public final class TestSourceKitLSPClient: MessageHandler {
   public func nextDiagnosticsNotification(
     timeout: TimeInterval = defaultTimeout
   ) async throws -> PublishDiagnosticsNotification {
-    struct CastError: Error, CustomStringConvertible {
-      let actualType: any NotificationType.Type
+    return try await nextNotification(ofType: PublishDiagnosticsNotification.self, timeout: timeout)
+  }
 
-      var description: String { "Expected a publish diagnostics notification but got '\(actualType)'" }
-    }
+  private struct CastError: Error, CustomStringConvertible {
+    let expectedType: any NotificationType.Type
+    let actualType: any NotificationType.Type
 
+    var description: String { "Expected a \(expectedType) but got '\(actualType)'" }
+  }
+
+  /// Await the next diagnostic notification sent to the client.
+  ///
+  /// If the next notification is not of the expected type, this methods throws.
+  public func nextNotification<ExpectedNotificationType: NotificationType>(
+    ofType: ExpectedNotificationType.Type,
+    timeout: TimeInterval = defaultTimeout
+  ) async throws -> ExpectedNotificationType {
     let nextNotification = try await nextNotification(timeout: timeout)
-    guard let diagnostics = nextNotification as? PublishDiagnosticsNotification else {
-      throw CastError(actualType: type(of: nextNotification))
+    guard let notification = nextNotification as? ExpectedNotificationType else {
+      throw CastError(expectedType: ExpectedNotificationType.self, actualType: type(of: nextNotification))
     }
-    return diagnostics
+    return notification
   }
 
   /// Handle the next request that is sent to the client with the given handler.

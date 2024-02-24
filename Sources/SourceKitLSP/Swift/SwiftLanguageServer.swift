@@ -341,6 +341,22 @@ extension SwiftLanguageServer {
       return
     }
 
+    let buildSettings = await self.buildSettings(for: snapshot.uri)
+    if buildSettings == nil || buildSettings!.isFallback, let fileUrl = note.textDocument.uri.fileURL {
+      // Do not show this notification for non-file URIs to make sure we don't see this notificaiton for newly created
+      // files (which get opened as with a `untitled:Unitled-1` URI by VS Code.
+      await sourceKitServer?.sendNotificationToClient(
+        ShowMessageNotification(
+          type: .warning,
+          message: """
+            Failed to get compiler arguments for \(fileUrl.lastPathComponent).
+            Ensure the source file is part of a Swift package or has compiler arguments in compile_commands.json.
+            Functionality will be limited.
+            """
+        )
+      )
+    }
+
     let req = sourcekitd.dictionary([
       keys.request: self.requests.editorOpen,
       keys.name: note.textDocument.uri.pseudoPath,
@@ -349,7 +365,7 @@ extension SwiftLanguageServer {
       keys.enableStructure: 0,
       keys.enableDiagnostics: 0,
       keys.syntacticOnly: 1,
-      keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
+      keys.compilerArgs: buildSettings?.compilerArgs as [SKDRequestValue]?,
     ])
 
     _ = try? await self.sourcekitd.send(req, fileContents: snapshot.text)
