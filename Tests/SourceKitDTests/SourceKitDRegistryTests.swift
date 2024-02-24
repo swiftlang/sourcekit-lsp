@@ -75,4 +75,8 @@ final class FakeSourceKitD: SourceKitD {
   static func getOrCreate(_ path: AbsolutePath, in registry: SourceKitDRegistry) -> SourceKitD {
     return registry.getOrAdd(path, create: { Self.init() })
   }
+
+  public func log(request: SKDRequestDictionary) {}
+  public func log(response: SKDResponse) {}
+  public func log(crashedRequest: SKDRequestDictionary, fileContents: String?) {}
 }

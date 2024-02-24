@@ -28,7 +28,7 @@ import class TSCBasic.Process
 final class SourceKitDTests: XCTestCase {
   func testMultipleNotificationHandlers() async throws {
     let sourcekitdPath = await ToolchainRegistry.forTesting.default!.sourcekitd!
-    let sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitdPath)
+    let sourcekitd = try DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitdPath)
     let keys = sourcekitd.keys
     let path = DocumentURI.for(.swift).pseudoPath
 
@@ -47,7 +47,7 @@ final class SourceKitDTests: XCTestCase {
         expectation1.fulfill()
       }
     }
-    // SourceKitDImpl weakly references handlers
+    // DynamicallyLoadedSourceKitD weakly references handlers
     defer {
       _fixLifetime(handler1)
     }
@@ -59,7 +59,7 @@ final class SourceKitDTests: XCTestCase {
         expectation2.fulfill()
       }
     }
-    // SourceKitDImpl weakly references handlers
+    // DynamicallyLoadedSourceKitD weakly references handlers
     defer {
       _fixLifetime(handler2)
     }

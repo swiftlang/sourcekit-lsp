@@ -158,7 +158,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
     self.sourceKitServer = sourceKitServer
     self.swiftFormat = toolchain.swiftFormat
-    self.sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: sourcekitd)
+    self.sourcekitd = try DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitd)
     self.capabilityRegistry = workspace.capabilityRegistry
     self.serverOptions = options
     self.documentManager = DocumentManager()

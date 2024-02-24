@@ -21,7 +21,7 @@ import struct TSCBasic.AbsolutePath
 ///
 /// Users of this class should not call the api functions `initialize`, `shutdown`, or
 /// `set_notification_handler`, which are global state managed internally by this class.
-public final class SourceKitDImpl: SourceKitD {
+public final class DynamicallyLoadedSourceKitD: SourceKitD {
 
   /// The path to the sourcekitd dylib.
   public let path: AbsolutePath
@@ -49,7 +49,7 @@ public final class SourceKitDImpl: SourceKitD {
 
   public static func getOrCreate(dylibPath: AbsolutePath) throws -> SourceKitD {
     try SourceKitDRegistry.shared
-      .getOrAdd(dylibPath, create: { try SourceKitDImpl(dylib: dylibPath) })
+      .getOrAdd(dylibPath, create: { try DynamicallyLoadedSourceKitD(dylib: dylibPath) })
   }
 
   init(dylib path: AbsolutePath) throws {

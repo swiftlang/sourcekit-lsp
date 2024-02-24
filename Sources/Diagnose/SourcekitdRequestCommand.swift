@@ -40,7 +40,7 @@ public struct SourceKitdRequestCommand: AsyncParsableCommand {
   public func run() async throws {
     let requestString = try String(contentsOf: URL(fileURLWithPath: sourcekitdRequestPath))
 
-    let sourcekitd = try SourceKitDImpl.getOrCreate(
+    let sourcekitd = try DynamicallyLoadedSourceKitD.getOrCreate(
       dylibPath: try! AbsolutePath(validating: sourcekitdPath)
     )
 

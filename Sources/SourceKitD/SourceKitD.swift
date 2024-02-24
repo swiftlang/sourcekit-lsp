@@ -112,10 +112,6 @@ extension SourceKitD {
 
     return dict
   }
-
-  public func log(request: SKDRequestDictionary) {}
-  public func log(response: SKDResponse) {}
-  public func log(crashedRequest: SKDRequestDictionary, fileContents: String?) {}
 }
 
 /// A sourcekitd notification handler in a class to allow it to be uniquely referenced.

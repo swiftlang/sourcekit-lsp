@@ -6,7 +6,7 @@ add_library(SourceKitD STATIC
   SKDResponseArray.swift
   SKDResponseDictionary.swift
   SourceKitD.swift
-  SourceKitDImpl.swift
+  DynamicallyLoadedSourceKitD.swift
   SourceKitDRegistry.swift
   sourcekitd_functions.swift
   sourcekitd_uids.swift)
