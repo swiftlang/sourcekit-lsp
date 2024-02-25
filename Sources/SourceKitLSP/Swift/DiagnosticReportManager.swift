@@ -110,12 +110,6 @@ actor DiagnosticReportManager {
     let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
 
     try Task.checkCancellation()
-    guard (try? documentManager.latestSnapshot(snapshot.uri).id) == snapshot.id else {
-      // Check that the document wasn't modified while we were getting diagnostics. This could happen because we are
-      // calling `fullDocumentDiagnosticReport` from `publishDiagnosticsIfNeeded` outside of `messageHandlingQueue`
-      // and thus a concurrent edit is possible while we are waiting for the sourcekitd request to return a result.
-      throw ResponseError.unknown("Document was modified while loading diagnostics")
-    }
 
     let diagnostics: [Diagnostic] =
       dict[keys.diagnostics]?.compactMap({ diag in
