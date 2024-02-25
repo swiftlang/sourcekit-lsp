@@ -183,4 +183,45 @@ final class CallHierarchyTests: XCTestCase {
       ]
     )
   }
+
+  func testReportSingleItemInPrepareCallHierarchy() async throws {
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "MyLibrary/include/lib.h": """
+        struct FilePathIndex {
+          void 1️⃣foo();
+        };
+        """,
+        "MyLibrary/lib.cpp": """
+        #include "lib.h"
+        void FilePathIndex::2️⃣foo() {}
+        """,
+      ],
+      build: true
+    )
+    let (uri, positions) = try ws.openDocument("lib.h", language: .cpp)
+    let result = try await ws.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    // Test that we don't provide both the definition in .cpp and the declaration on .h
+    XCTAssertEqual(
+      result,
+      [
+        CallHierarchyItem(
+          name: "foo",
+          kind: .method,
+          tags: nil,
+          detail: "",
+          uri: try ws.uri(for: "lib.cpp"),
+          range: try Range(ws.position(of: "2️⃣", in: "lib.cpp")),
+          selectionRange: try Range(ws.position(of: "2️⃣", in: "lib.cpp")),
+          data: LSPAny.dictionary([
+            "usr": .string("c:@S@FilePathIndex@F@foo#"),
+            "uri": .string(try ws.uri(for: "lib.cpp").stringValue),
+          ])
+        )
+      ]
+    )
+  }
 }
