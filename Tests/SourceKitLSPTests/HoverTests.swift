@@ -17,6 +17,7 @@ import XCTest
 
 final class HoverTests: XCTestCase {
   func testBasic() async throws {
+    try await SkipUnless.sourcekitdReturnsRawDocumentationResponse()
     try await assertHover(
       """
       /// This is a doc comment for S.
@@ -32,8 +33,6 @@ final class HoverTests: XCTestCase {
 
         ---
         This is a doc comment for S.
-
-        ### Discussion
 
         Details.
         """
@@ -123,6 +122,29 @@ final class HoverTests: XCTestCase {
         ---
         this is *italic* documentation
         """##
+    )
+  }
+
+  func testPrecondition() async throws {
+    try await SkipUnless.sourcekitdReturnsRawDocumentationResponse()
+    try await assertHover(
+      """
+      /// Eat an apple
+      ///
+      /// - Precondition: Must have an apple
+      func 1️⃣eatApple() {}
+      """,
+      expectedContent: """
+        eatApple()
+        ```swift
+        func eatApple()
+        ```
+
+        ---
+        Eat an apple
+
+        - Precondition: Must have an apple
+        """
     )
   }
 }

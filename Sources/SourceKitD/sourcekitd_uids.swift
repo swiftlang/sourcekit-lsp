@@ -51,6 +51,8 @@ public struct sourcekitd_api_keys {
   public let genericRequirements: sourcekitd_api_uid_t
   /// `key.doc.full_as_xml`
   public let docFullAsXML: sourcekitd_api_uid_t
+  /// `key.doc_comment`
+  public let docComment: sourcekitd_api_uid_t
   /// `key.line`
   public let line: sourcekitd_api_uid_t
   /// `key.column`
@@ -403,6 +405,16 @@ public struct sourcekitd_api_keys {
   public let indexStorePath: sourcekitd_api_uid_t
   /// `key.index_unit_output_path`
   public let indexUnitOutputPath: sourcekitd_api_uid_t
+  /// `key.include_locals`
+  public let includeLocals: sourcekitd_api_uid_t
+  /// `key.ignore_clang_modules`
+  public let ignoreClangModules: sourcekitd_api_uid_t
+  /// `key.include_system_modules`
+  public let includeSystemModules: sourcekitd_api_uid_t
+  /// `key.ignore_stdlib`
+  public let ignoreStdlib: sourcekitd_api_uid_t
+  /// `key.disable_implicit_modules`
+  public let disableImplicitModules: sourcekitd_api_uid_t
   /// `key.codecomplete.sort.byname`
   public let sortByName: sourcekitd_api_uid_t
   /// `key.codecomplete.sort.useimportdepth`
@@ -473,6 +485,7 @@ public struct sourcekitd_api_keys {
     genericParams = api.uid_get_from_cstr("key.generic_params")!
     genericRequirements = api.uid_get_from_cstr("key.generic_requirements")!
     docFullAsXML = api.uid_get_from_cstr("key.doc.full_as_xml")!
+    docComment = api.uid_get_from_cstr("key.doc_comment")!
     line = api.uid_get_from_cstr("key.line")!
     column = api.uid_get_from_cstr("key.column")!
     receiverUSR = api.uid_get_from_cstr("key.receiver_usr")!
@@ -649,6 +662,11 @@ public struct sourcekitd_api_keys {
     expandedMacroReplacements = api.uid_get_from_cstr("key.expanded_macro_replacements")!
     indexStorePath = api.uid_get_from_cstr("key.index_store_path")!
     indexUnitOutputPath = api.uid_get_from_cstr("key.index_unit_output_path")!
+    includeLocals = api.uid_get_from_cstr("key.include_locals")!
+    ignoreClangModules = api.uid_get_from_cstr("key.ignore_clang_modules")!
+    includeSystemModules = api.uid_get_from_cstr("key.include_system_modules")!
+    ignoreStdlib = api.uid_get_from_cstr("key.ignore_stdlib")!
+    disableImplicitModules = api.uid_get_from_cstr("key.disable_implicit_modules")!
     sortByName = api.uid_get_from_cstr("key.codecomplete.sort.byname")!
     useImportDepth = api.uid_get_from_cstr("key.codecomplete.sort.useimportdepth")!
     groupOverloads = api.uid_get_from_cstr("key.codecomplete.group.overloads")!
