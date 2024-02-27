@@ -77,6 +77,10 @@ public struct RequestInfo {
       offset = 0
     }
 
+    // If the request contained source text, remove it. We want to pick it up from the file on disk and most (possibly
+    // all) sourcekitd requests use key.sourcefile if key.sourcetext is missing.
+    requestTemplate.replace(#/ *key.sourcetext: .*\n/#, with: "")
+
     // Extract source file
     let sourceFileRegex = Regex {
       #"key.sourcefile: ""#
