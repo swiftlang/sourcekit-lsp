@@ -12,6 +12,7 @@
 
 import ArgumentParser
 import Foundation
+import SKSupport
 import SourceKitD
 
 import struct TSCBasic.AbsolutePath
@@ -35,14 +36,31 @@ public struct SourceKitdRequestCommand: AsyncParsableCommand {
   )
   var sourcekitdRequestPath: String
 
+  @Option(help: "line:column override for key.offset")
+  var position: String?
+
   public init() {}
 
   public func run() async throws {
-    let requestString = try String(contentsOf: URL(fileURLWithPath: sourcekitdRequestPath))
+    var requestString = try String(contentsOf: URL(fileURLWithPath: sourcekitdRequestPath))
 
     let sourcekitd = try DynamicallyLoadedSourceKitD.getOrCreate(
       dylibPath: try! AbsolutePath(validating: sourcekitdPath)
     )
+
+    if let lineColumn = position?.split(separator: ":", maxSplits: 2).map(Int.init),
+      lineColumn.count == 2,
+      let line = lineColumn[0],
+      let column = lineColumn[1]
+    {
+      let requestInfo = try RequestInfo(request: requestString)
+
+      let lineTable = LineTable(requestInfo.fileContents)
+      if let offset = lineTable.utf8OffsetOf(line: line - 1, utf8Column: column - 1) {
+        print("Adjusting request offset to \(offset)")
+        requestString.replace(#/key.offset: [0-9]+/#, with: "key.offset: \(offset)")
+      }
+    }
 
     let request = try requestString.cString(using: .utf8)!.withUnsafeBufferPointer { buffer in
       var error: UnsafeMutablePointer<CChar>?

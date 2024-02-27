@@ -147,8 +147,12 @@ extension LineTable {
   /// - parameter utf8Column: UTF-8 column offset (zero-based).
   @inlinable
   public func stringIndexOf(line: Int, utf8Column: Int) -> String.Index? {
-    guard line < count else {
+    guard 0 <= line, line < count else {
       // Line out of range.
+      return nil
+    }
+    guard 0 <= utf8Column else {
+      // Column out of range.
       return nil
     }
     let lineSlice = self[line]
