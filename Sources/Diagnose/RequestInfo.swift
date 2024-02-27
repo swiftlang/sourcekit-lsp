@@ -70,11 +70,12 @@ public struct RequestInfo {
       "key.offset: "
       Capture(ZeroOrMore(.digit))
     }
-    guard let offsetMatch = requestTemplate.matches(of: offsetRegex).only else {
-      throw ReductionError("Failed to find key.offset in the request")
+    if let offsetMatch = requestTemplate.matches(of: offsetRegex).only {
+      offset = Int(offsetMatch.1)!
+      requestTemplate.replace(offsetRegex, with: "key.offset: $OFFSET")
+    } else {
+      offset = 0
     }
-    offset = Int(offsetMatch.1)!
-    requestTemplate.replace(offsetRegex, with: "key.offset: $OFFSET")
 
     // Extract source file
     let sourceFileRegex = Regex {
