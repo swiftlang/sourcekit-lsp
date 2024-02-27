@@ -16,14 +16,38 @@ import SKTestSupport
 import XCTest
 
 final class HoverTests: XCTestCase {
-  func testHover() async throws {
+  func testBasic() async throws {
+    try await assertHover(
+      """
+      /// This is a doc comment for S.
+      ///
+      /// Details.
+      struct 1️⃣S {}
+      """,
+      expectedContent: """
+        S
+        ```swift
+        struct S
+        ```
+
+        ---
+        This is a doc comment for S.
+
+        ### Discussion
+
+        Details.
+        """
+    )
+  }
+
+  func testHoverTriggeredFromComment() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
-    testClient.openDocument(
+    let positions = testClient.openDocument(
       """
-      /// This is a doc comment for S.
+      /// Thi1️⃣s is a doc comment for S.
       ///
       /// Details.
       struct S {}
@@ -31,176 +55,100 @@ final class HoverTests: XCTestCase {
       uri: uri
     )
 
-    do {
-      let resp = try await testClient.send(
-        HoverRequest(
-          textDocument: TextDocumentIdentifier(url),
-          position: Position(line: 3, utf16index: 7)
-        )
-      )
+    let response = try await testClient.send(
+      HoverRequest(textDocument: TextDocumentIdentifier(url), position: positions["1️⃣"])
+    )
 
-      XCTAssertNotNil(resp)
-      if let hover = resp {
-        XCTAssertNil(hover.range)
-        guard case .markupContent(let content) = hover.contents else {
-          XCTFail("hover.contents is not .markupContents")
-          return
-        }
-        XCTAssertEqual(content.kind, .markdown)
-        XCTAssertEqual(
-          content.value,
-          """
-          S
-          ```swift
-          struct S
-          ```
-
-          ---
-          This is a doc comment for S.
-
-          ### Discussion
-
-          Details.
-          """
-        )
-      }
-    }
-
-    do {
-      let resp = try await testClient.send(
-        HoverRequest(
-          textDocument: TextDocumentIdentifier(url),
-          position: Position(line: 0, utf16index: 7)
-        )
-      )
-
-      XCTAssertNil(resp)
-    }
+    XCTAssertNil(response)
   }
 
   func testMultiCursorInfoResultsHover() async throws {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
-
-    let positions = testClient.openDocument(
+    try await assertHover(
       """
       struct Foo {
         init() {}
       }
       _ = 1️⃣Foo()
       """,
-      uri: uri
-    )
+      expectedContent: """
+        Foo
+        ```swift
+        struct Foo
+        ```
 
-    let response = try await testClient.send(
-      HoverRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        position: positions["1️⃣"]
-      )
-    )
+        ---
 
-    guard case .markupContent(let content) = response?.contents else {
-      XCTFail("hover.contents is not .markupContents")
-      return
-    }
-    XCTAssertEqual(content.kind, .markdown)
-    XCTAssertEqual(
-      content.value,
-      """
-      Foo
-      ```swift
-      struct Foo
-      ```
+        # Alternative result
+        init()
+        ```swift
+        init()
+        ```
 
-      ---
+        ---
 
-      # Alternative result
-      init()
-      ```swift
-      init()
-      ```
-
-      ---
-
-      """
+        """
     )
   }
 
-  func testHoverNameEscaping() async throws {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
-
-    testClient.openDocument(
+  func testHoverNameEscapingOnFunction() async throws {
+    try await assertHover(
       """
       /// this is **bold** documentation
-      func test(_ a: Int, _ b: Int) { }
-      /// this is *italic* documentation
-      func *%*(lhs: String, rhs: String) { }
+      func 1️⃣test(_ a: Int, _ b: Int) { }
       """,
-      uri: uri
+      expectedContent: ##"""
+        test(\_:\_:)
+        ```swift
+        func test(_ a: Int, _ b: Int)
+        ```
+
+        ---
+        this is **bold** documentation
+        """##
     )
-
-    do {
-      let resp = try await testClient.send(
-        HoverRequest(
-          textDocument: TextDocumentIdentifier(uri),
-          position: Position(line: 1, utf16index: 7)
-        )
-      )
-
-      XCTAssertNotNil(resp)
-      if let hover = resp {
-        XCTAssertNil(hover.range)
-        guard case .markupContent(let content) = hover.contents else {
-          XCTFail("hover.contents is not .markupContents")
-          return
-        }
-        XCTAssertEqual(content.kind, .markdown)
-        XCTAssertEqual(
-          content.value,
-          ##"""
-          test(\_:\_:)
-          ```swift
-          func test(_ a: Int, _ b: Int)
-          ```
-
-          ---
-          this is **bold** documentation
-          """##
-        )
-      }
-    }
-
-    do {
-      let resp = try await testClient.send(
-        HoverRequest(
-          textDocument: TextDocumentIdentifier(uri),
-          position: Position(line: 3, utf16index: 7)
-        )
-      )
-
-      XCTAssertNotNil(resp)
-      if let hover = resp {
-        XCTAssertNil(hover.range)
-        guard case .markupContent(let content) = hover.contents else {
-          XCTFail("hover.contents is not .markupContents")
-          return
-        }
-        XCTAssertEqual(content.kind, .markdown)
-        XCTAssertEqual(
-          content.value,
-          ##"""
-          \*%\*(\_:\_:)
-          ```swift
-          func *%* (lhs: String, rhs: String)
-          ```
-
-          ---
-          this is *italic* documentation
-          """##
-        )
-      }
-    }
   }
+
+  func testHoverNameEscapingOnOperator() async throws {
+    try await assertHover(
+      """
+      /// this is *italic* documentation
+      func 1️⃣*%*(lhs: String, rhs: String) { }
+      """,
+      expectedContent: ##"""
+        \*%\*(\_:\_:)
+        ```swift
+        func *%* (lhs: String, rhs: String)
+        ```
+
+        ---
+        this is *italic* documentation
+        """##
+    )
+  }
+}
+
+private func assertHover(
+  _ markedSource: String,
+  expectedContent: String,
+  file: StaticString = #file,
+  line: UInt = #line
+) async throws {
+  let testClient = try await TestSourceKitLSPClient()
+  let uri = DocumentURI.for(.swift)
+
+  let positions = testClient.openDocument(markedSource, uri: uri)
+
+  let response = try await testClient.send(
+    HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+  )
+
+  let hover = try XCTUnwrap(response, file: file, line: line)
+  XCTAssertNil(hover.range, file: file, line: line)
+  guard case .markupContent(let content) = hover.contents else {
+    XCTFail("hover.contents is not .markupContents", file: file, line: line)
+    return
+  }
+  XCTAssertEqual(content.kind, .markdown, file: file, line: line)
+  XCTAssertEqual(content.value, expectedContent, file: file, line: line)
 
 }
