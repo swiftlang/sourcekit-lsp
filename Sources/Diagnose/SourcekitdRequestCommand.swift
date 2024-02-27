@@ -60,7 +60,17 @@ public struct SourceKitdRequestCommand: AsyncParsableCommand {
     }
 
     switch response.error {
-    case .requestFailed, .requestInvalid, .requestCancelled, .missingRequiredSymbol:
+    case .requestFailed(let message):
+      print(message)
+      throw ExitCode(1)
+    case .requestInvalid(let message):
+      print(message)
+      throw ExitCode(1)
+    case .requestCancelled:
+      print("request cancelled")
+      throw ExitCode(1)
+    case .missingRequiredSymbol:
+      print("missing required symbol")
       throw ExitCode(1)
     case .connectionInterrupted:
       throw ExitCode(255)
