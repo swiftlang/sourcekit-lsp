@@ -267,9 +267,9 @@ struct SourceKitLSP: AsyncParsableCommand {
       }
     )
 
-    // Park the main function.
+    // Park the main function by sleeping for 10 years.
     // All request handling is done on other threads and sourcekit-lsp exits by calling `_Exit` when it receives a
     // shutdown notification.
-    let _: Void = await withCheckedContinuation { _ in }
+    try await Task.sleep(for: .seconds(60 * 60 * 24 * 365 * 10))
   }
 }
