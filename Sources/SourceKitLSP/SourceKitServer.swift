@@ -19,6 +19,7 @@ import LanguageServerProtocol
 import PackageLoading
 import SKCore
 import SKSupport
+import SKSwiftPMWorkspace
 import SourceKitD
 
 import struct PackageModel.BuildFlags
@@ -407,20 +408,24 @@ public actor SourceKitServer {
   /// Must only be accessed from `queue`.
   private var uriToWorkspaceCache: [DocumentURI: WeakWorkspace] = [:]
 
-  private(set) var workspaces: [Workspace] = [] {
+  /// The open workspaces.
+  ///
+  /// Implicit workspaces are workspaces that weren't actually specified by the client during initialization or by a
+  /// `didChangeWorkspaceFolders` request. Instead, they were opened by sourcekit-lsp because a file could not be
+  /// handled by any of the open workspaces but one of the file's parent directories had handling capabilities for it.
+  private var workspacesAndIsImplicit: [(workspace: Workspace, isImplicit: Bool)] = [] {
     didSet {
       uriToWorkspaceCache = [:]
     }
   }
 
-  /// **Public for testing**
-  public var _workspaces: [Workspace] {
-    get {
-      return self.workspaces
-    }
-    set {
-      self.workspaces = newValue
-    }
+  var workspaces: [Workspace] {
+    return workspacesAndIsImplicit.map(\.workspace)
+  }
+
+  @_spi(Testing)
+  public func setWorkspaces(_ newValue: [(workspace: Workspace, isImplicit: Bool)]) {
+    self.workspacesAndIsImplicit = newValue
   }
 
   /// The requests that we are currently handling.
@@ -454,13 +459,37 @@ public actor SourceKitServer {
     self.client = client
   }
 
-  public func workspaceForDocument(uri: DocumentURI) async -> Workspace? {
-    if workspaces.count == 1 {
-      // Special handling: If there is only one workspace, open all files in it.
-      // This retains the behavior of SourceKit-LSP before it supported multiple workspaces.
-      return workspaces.first
+  /// Search through all the parent directories of `uri` and check if any of these directories contain a workspace
+  /// capable of handling `uri`.
+  ///
+  /// The search will not consider any directory that is not a child of any of the directories in `rootUris`. This
+  /// prevents us from picking up a workspace that is outside of the folders that the user opened.
+  private func findWorkspaceCapableOfHandlingDocument(at uri: DocumentURI) async -> Workspace? {
+    guard var url = uri.fileURL?.deletingLastPathComponent() else {
+      return nil
     }
+    let projectRoots = await self.workspacesAndIsImplicit.filter { !$0.isImplicit }.asyncCompactMap {
+      await $0.workspace.buildSystemManager.projectRoot
+    }
+    let rootURLs = workspacesAndIsImplicit.filter { !$0.isImplicit }.compactMap { $0.workspace.rootUri?.fileURL }
+    while url.pathComponents.count > 1 && rootURLs.contains(where: { $0.isPrefix(of: url) }) {
+      // Ignore workspaces that can't handle this file or that have the same project root as an existing workspace.
+      // The latter might happen if there is an existing SwiftPM workspace that hasn't been reloaded after a new file
+      // was added to it and thus currently doesn't know that it can handle that file. In that case, we shouldn't open
+      // a new workspace for the same root. Instead, the existing workspace's build system needs to be reloaded.
+      if let workspace = await self.createWorkspace(WorkspaceFolder(uri: DocumentURI(url))),
+        await workspace.buildSystemManager.fileHandlingCapability(for: uri) == .handled,
+        let projectRoot = await workspace.buildSystemManager.projectRoot,
+        !projectRoots.contains(projectRoot)
+      {
+        return workspace
+      }
+      url.deleteLastPathComponent()
+    }
+    return nil
+  }
 
+  public func workspaceForDocument(uri: DocumentURI) async -> Workspace? {
     if let cachedWorkspace = uriToWorkspaceCache[uri]?.value {
       return cachedWorkspace
     }
@@ -474,8 +503,41 @@ public actor SourceKitServer {
         bestWorkspace = (workspace, fileHandlingCapability)
       }
     }
+    if bestWorkspace.fileHandlingCapability < .handled {
+      // We weren't able to handle the document with any of the known workspaces. See if any of the document's parent
+      // directories contain a workspace that can handle the document.
+      let rootUris = workspaces.map(\.rootUri)
+      if let workspace = await findWorkspaceCapableOfHandlingDocument(at: uri) {
+        if workspaces.map(\.rootUri) != rootUris {
+          // Workspaces was modified while running `findWorkspaceCapableOfHandlingDocument`, so we raced.
+          // This is unlikely to happen unless the user opens many files that in sub-workspaces simultaneously.
+          // Try again based on the new data. Very likely the workspace that can handle this document is now in
+          // `workspaces` and we will be able to return it without having to search again.
+          logger.debug("findWorkspaceCapableOfHandlingDocument raced with another workspace creation. Trying again.")
+          return await workspaceForDocument(uri: uri)
+        }
+        // Appending a workspace is fine and doesn't require checking if we need to re-open any documents because:
+        //  - Any currently open documents that have FileHandlingCapability `.handled` will continue to be opened in
+        //    their current workspace because it occurs further in front inside the workspace list
+        //  - Any currently open documents that have FileHandlingCapability < `.handled` also went through this check
+        //    and didn't find any parent workspace that was able to handle them. We assume that a workspace can only
+        //    properly handle files within its root directory, so those files now also can't be handled by the new
+        //    workspace.
+        logger.log("Opening implicit workspace at \(workspace.rootUri.forLogging) to handle \(uri.forLogging)")
+        workspacesAndIsImplicit.append((workspace: workspace, isImplicit: true))
+        bestWorkspace = (workspace, .handled)
+      }
+    }
     uriToWorkspaceCache[uri] = WeakWorkspace(bestWorkspace.workspace)
-    return bestWorkspace.workspace
+    if let workspace = bestWorkspace.workspace {
+      return workspace
+    }
+    if let workspace = workspaces.only {
+      // Special handling: If there is only one workspace, open all files in it, even it it cannot handle the document.
+      // This retains the behavior of SourceKit-LSP before it supported multiple workspaces.
+      return workspace
+    }
+    return nil
   }
 
   /// Execute `notificationHandler` with the request as well as the workspace
@@ -1095,16 +1157,21 @@ extension SourceKitServer {
     capabilityRegistry = CapabilityRegistry(clientCapabilities: req.capabilities)
 
     if let workspaceFolders = req.workspaceFolders {
-      self.workspaces += await workspaceFolders.asyncCompactMap { await self.createWorkspace($0) }
+      self.workspacesAndIsImplicit += await workspaceFolders.asyncCompactMap {
+        guard let workspace = await self.createWorkspace($0) else {
+          return nil
+        }
+        return (workspace: workspace, isImplicit: false)
+      }
     } else if let uri = req.rootURI {
       let workspaceFolder = WorkspaceFolder(uri: uri)
       if let workspace = await self.createWorkspace(workspaceFolder) {
-        self.workspaces.append(workspace)
+        self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
       }
     } else if let path = req.rootPath {
       let workspaceFolder = WorkspaceFolder(uri: DocumentURI(URL(fileURLWithPath: path)))
       if let workspace = await self.createWorkspace(workspaceFolder) {
-        self.workspaces.append(workspace)
+        self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
       }
     }
 
@@ -1127,7 +1194,7 @@ extension SourceKitServer {
       // discard the workspace we created here since `workspaces` now isn't
       // empty anymore.
       if self.workspaces.isEmpty {
-        self.workspaces.append(workspace)
+        self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
       }
     }
 
@@ -1451,10 +1518,11 @@ extension SourceKitServer {
       preChangeWorkspaces[docUri] = await self.workspaceForDocument(uri: docUri)
     }
     if let removed = notification.event.removed {
-      self.workspaces.removeAll { workspace in
-        return removed.contains(where: { workspaceFolder in
-          workspace.rootUri == workspaceFolder.uri
-        })
+      self.workspacesAndIsImplicit.removeAll { workspace in
+        // Close all implicit workspaces as well because we could have opened a new explicit workspace that now contains
+        // files from a previous implicit workspace.
+        return workspace.isImplicit
+          || removed.contains(where: { workspaceFolder in workspace.workspace.rootUri == workspaceFolder.uri })
       }
     }
     if let added = notification.event.added {
@@ -1462,7 +1530,7 @@ extension SourceKitServer {
       for workspace in newWorkspaces {
         await workspace.buildSystemManager.setDelegate(self)
       }
-      self.workspaces.append(contentsOf: newWorkspaces)
+      self.workspacesAndIsImplicit += newWorkspaces.map { (workspace: $0, isImplicit: false) }
     }
 
     // For each document that has moved to a different workspace, close it in
@@ -2404,5 +2472,14 @@ fileprivate extension Sequence where Element: Hashable {
   var unique: [Element] {
     var set = Set<Element>()
     return self.filter { set.insert($0).inserted }
+  }
+}
+
+fileprivate extension URL {
+  func isPrefix(of other: URL) -> Bool {
+    guard self.pathComponents.count < other.pathComponents.count else {
+      return false
+    }
+    return other.pathComponents[0..<self.pathComponents.count] == self.pathComponents[...]
   }
 }

@@ -82,9 +82,8 @@ public actor SwiftPMWorkspace {
   }
 
   let workspacePath: TSCAbsolutePath
-  let packageRoot: TSCAbsolutePath
-  /// *Public for testing*
-  public var _packageRoot: TSCAbsolutePath { packageRoot }
+  /// The directory containing `Package.swift`.
+  public var projectRoot: TSCAbsolutePath
   var packageGraph: PackageGraph
   let workspace: Workspace
   public let buildParameters: BuildParameters
@@ -122,7 +121,7 @@ public actor SwiftPMWorkspace {
       throw Error.noManifest(workspacePath: workspacePath)
     }
 
-    self.packageRoot = try resolveSymlinks(packageRoot)
+    self.projectRoot = try resolveSymlinks(packageRoot)
 
     guard let destinationToolchainBinDir = await getDefaultToolchain(toolchainRegistry)?.swiftc?.parentDirectory else {
       throw Error.cannotDetermineHostToolchain
@@ -216,7 +215,7 @@ extension SwiftPMWorkspace {
     })
 
     let packageGraph = try self.workspace.loadPackageGraph(
-      rootInput: PackageGraphRootInput(packages: [AbsolutePath(packageRoot)]),
+      rootInput: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
       forceResolvedVersions: true,
       availableLibraries: self.buildParameters.toolchain.providedLibraries,
       observabilityScope: observabilitySystem.topScope
