@@ -60,9 +60,11 @@ struct RelatedIdentifiersResponse {
 }
 
 extension SwiftLanguageServer {
-  func relatedIdentifiers(at position: Position, in snapshot: DocumentSnapshot, includeNonEditableBaseNames: Bool)
-    async throws -> RelatedIdentifiersResponse
-  {
+  func relatedIdentifiers(
+    at position: Position,
+    in snapshot: DocumentSnapshot,
+    includeNonEditableBaseNames: Bool
+  ) async throws -> RelatedIdentifiersResponse {
     guard let offset = snapshot.utf8Offset(of: position) else {
       throw ResponseError.unknown("invalid position \(position)")
     }

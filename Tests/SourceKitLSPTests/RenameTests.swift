@@ -825,4 +825,39 @@ final class RenameTests: XCTestCase {
       ]
     )
   }
+
+  func testRenameParameterInsideFunction() async throws {
+    try await assertSingleFileRename(
+      """
+      func test(myParam: Int) {
+        print(1️⃣myParam)
+      }
+      """,
+      newName: "other",
+      expectedPrepareRenamePlaceholder: "myParam",
+      expected: """
+        func test(myParam other: Int) {
+          print(other)
+        }
+        """
+    )
+  }
+
+  func testRenameParameterSecondNameInsideFunction() async throws {
+    try await assertSingleFileRename(
+      """
+      func test(myExternalName myParam: Int) {
+        print(1️⃣myParam)
+      }
+      """,
+      newName: "other",
+      expectedPrepareRenamePlaceholder: "myParam",
+      expected: """
+        func test(myExternalName other: Int) {
+          print(other)
+        }
+        """
+    )
+  }
+
 }

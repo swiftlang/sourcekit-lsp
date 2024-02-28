@@ -1058,13 +1058,20 @@ extension SwiftLanguageServer {
         // Once we have lexical scope lookup in swift-syntax, this can be a purely syntactic rename.
         // We know that the parameters are variables and thus there can't be overloads that need to be resolved by the
         // type checker.
-        let relatedIdentifiersResponse = try await self.relatedIdentifiers(
+        let relatedIdentifiers = try await self.relatedIdentifiers(
           at: parameterPosition,
           in: snapshot,
           includeNonEditableBaseNames: false
         )
 
-        let parameterRenameLocations = relatedIdentifiersResponse.renameLocations(in: snapshot)
+        // Exclude the edit that renames the parameter itself. The parameter gets renamed as part of the function
+        // declaration.
+        let filteredRelatedIdentifiers = RelatedIdentifiersResponse(
+          relatedIdentifiers: relatedIdentifiers.relatedIdentifiers.filter { !$0.range.contains(parameterPosition) },
+          name: relatedIdentifiers.name
+        )
+
+        let parameterRenameLocations = filteredRelatedIdentifiers.renameLocations(in: snapshot)
 
         return try await editsToRename(
           locations: parameterRenameLocations,
@@ -1076,9 +1083,7 @@ extension SwiftLanguageServer {
       guard let parameterRenameEdits else {
         continue
       }
-      // Exclude the edit that renames the parameter itself. The parameter gets renamed as part of the function
-      // declaration.
-      edits += parameterRenameEdits.filter { !$0.range.contains(parameterPosition) }
+      edits += parameterRenameEdits
     }
     return edits
   }
@@ -1162,6 +1167,8 @@ extension SwiftLanguageServer {
       )
     }
 
+    let tree = await syntaxTreeManager.syntaxTree(for: snapshot)
+
     let compoundRenameRanges = try await getSyntacticRenameRanges(
       renameLocations: renameLocations,
       oldName: oldNameString,
@@ -1187,6 +1194,19 @@ extension SwiftLanguageServer {
       }
       return compoundRenameRange.pieces.compactMap { (piece) -> TextEdit? in
         if piece.kind == .baseName {
+          if let absolutePiecePosition = snapshot.absolutePosition(of: piece.range.lowerBound),
+            let firstNameToken = tree.token(at: absolutePiecePosition),
+            firstNameToken.keyPathInParent == \FunctionParameterSyntax.firstName,
+            let parameterSyntax = firstNameToken.parent(as: FunctionParameterSyntax.self),
+            parameterSyntax.secondName == nil,  // Should always be true because otherwise decl would be second name
+            let firstNameEndPos = snapshot.position(of: firstNameToken.endPositionBeforeTrailingTrivia)
+          {
+            // We are renaming a function parameter from inside the function body.
+            // This should be a local rename and it shouldn't affect all the callers of the function. Introduce the new
+            // name as a second name.
+            return TextEdit(range: firstNameEndPos..<firstNameEndPos, newText: " " + newName.baseName)
+          }
+
           return TextEdit(range: piece.range, newText: newName.baseName)
         } else if piece.kind == .keywordBaseName {
           // Keyword base names can't be renamed
