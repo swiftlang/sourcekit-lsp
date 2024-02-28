@@ -13,7 +13,6 @@
 @_exported import Csourcekitd
 import Dispatch
 import Foundation
-import LSPLogging
 import SKSupport
 
 /// Access to sourcekitd API, taking care of initialization, shutdown, and notification handler
@@ -42,6 +41,24 @@ public protocol SourceKitD: AnyObject {
 
   /// Removes a previously registered notification handler.
   func removeNotificationHandler(_ handler: SKDNotificationHandler)
+
+  /// Log the given request.
+  ///
+  /// This log call is issued during normal operation. It is acceptable for the logger to truncate the log message
+  /// to achieve good performance.
+  func log(request: SKDRequestDictionary)
+
+  /// Log the given request and file contents, ensuring they do not get truncated.
+  ///
+  /// This log call is used when a request has crashed. In this case we want the log to contain the entire request to be
+  /// able to reproduce it.
+  func log(crashedRequest: SKDRequestDictionary, fileContents: String?)
+
+  /// Log the given response.
+  ///
+  /// This log call is issued during normal operation. It is acceptable for the logger to truncate the log message
+  /// to achieve good performance.
+  func log(response: SKDResponse)
 }
 
 public enum SKDError: Error, Equatable {
@@ -70,11 +87,7 @@ extension SourceKitD {
   ///   - fileContents: The contents of the file that the request operates on. If sourcekitd crashes, the file contents
   ///     will be logged.
   public func send(_ req: SKDRequestDictionary, fileContents: String?) async throws -> SKDResponseDictionary {
-    logRequest(req)
-
-    let signposter = logger.makeSignposter()
-    let signpostID = signposter.makeSignpostID()
-    let signposterState = signposter.beginInterval("sourcekitd-request", id: signpostID, "Start")
+    log(request: req)
 
     let sourcekitdResponse: SKDResponse = try await withCancellableCheckedThrowingContinuation { continuation in
       var handle: sourcekitd_api_request_handle_t? = nil
@@ -83,56 +96,22 @@ extension SourceKitD {
       }
       return handle
     } cancel: { handle in
-      api.cancel_request(handle)
+      if let handle {
+        api.cancel_request(handle)
+      }
     }
 
-    logResponse(sourcekitdResponse)
+    log(response: sourcekitdResponse)
 
     guard let dict = sourcekitdResponse.value else {
-      signposter.endInterval("sourcekitd-request", signposterState, "Error")
       if sourcekitdResponse.error == .connectionInterrupted {
-        let log = """
-          Request:
-          \(req.description)
-
-          File contents:
-          \(fileContents ?? "<nil>")
-          """
-        let chunks = splitLongMultilineMessage(message: log)
-        for (index, chunk) in chunks.enumerated() {
-          logger.fault(
-            """
-            sourcekitd crashed (\(index + 1)/\(chunks.count))
-            \(chunk)
-            """
-          )
-        }
+        log(crashedRequest: req, fileContents: fileContents)
       }
       throw sourcekitdResponse.error!
     }
 
-    signposter.endInterval("sourcekitd-request", signposterState, "Done")
     return dict
   }
-}
-
-private func logRequest(_ request: SKDRequestDictionary) {
-  logger.info(
-    """
-    Sending sourcekitd request:
-    \(request.forLogging)
-    """
-  )
-}
-
-private func logResponse(_ response: SKDResponse) {
-  logger.log(
-    level: (response.error == nil || response.error == .requestCancelled) ? .debug : .error,
-    """
-    Received sourcekitd response:
-    \(response.forLogging)
-    """
-  )
 }
 
 /// A sourcekitd notification handler in a class to allow it to be uniquely referenced.

@@ -204,7 +204,9 @@ private struct InProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
   func run(request requestYaml: String) async throws -> SourceKitDRequestResult {
     logger.info("Sending request: \(requestYaml)")
 
-    let sourcekitd = try SourceKitDImpl.getOrCreate(dylibPath: try! AbsolutePath(validating: sourcekitd.path))
+    let sourcekitd = try DynamicallyLoadedSourceKitD.getOrCreate(
+      dylibPath: try! AbsolutePath(validating: sourcekitd.path)
+    )
     let response = try await sourcekitd.run(requestYaml: requestYaml)
 
     logger.info("Received response: \(response.description)")
