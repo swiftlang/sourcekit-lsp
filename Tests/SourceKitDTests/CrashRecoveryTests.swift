@@ -48,7 +48,7 @@ final class CrashRecoveryTests: XCTestCase {
     try SkipUnless.platformIsDarwin("Linux and Windows use in-process sourcekitd")
     try SkipUnless.longTestsEnabled()
 
-    let testClient = try await TestSourceKitLSPClient()
+    let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let uri = DocumentURI.for(.swift)
 
     let positions = testClient.openDocument(

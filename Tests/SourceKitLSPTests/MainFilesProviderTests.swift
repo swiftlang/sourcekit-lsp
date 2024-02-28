@@ -46,7 +46,8 @@ final class MainFilesProviderTests: XCTestCase {
           ]
         )
         """,
-      build: false
+      build: false,
+      usePullDiagnostics: false
     )
 
     // Use the definition of `VARIABLE_NAME` together with `-Wunused-variable` to check that we are getting compiler
@@ -86,7 +87,8 @@ final class MainFilesProviderTests: XCTestCase {
           ]
         )
         """,
-      build: false
+      build: false,
+      usePullDiagnostics: false
     )
 
     _ = try ws.openDocument("shared.h", language: .c)
@@ -142,7 +144,8 @@ final class MainFilesProviderTests: XCTestCase {
           ]
         )
         """,
-      build: true
+      build: true,
+      usePullDiagnostics: false
     )
 
     _ = try ws.openDocument("shared.h", language: .c)
@@ -190,7 +193,8 @@ final class MainFilesProviderTests: XCTestCase {
           ]
         )
         """,
-      build: true
+      build: true,
+      usePullDiagnostics: false
     )
 
     _ = try ws.openDocument("shared.h", language: .c)

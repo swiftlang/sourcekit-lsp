@@ -34,7 +34,7 @@ final class LocalSwiftTests: XCTestCase {
   // MARK: - Tests
 
   func testEditing() async throws {
-    let testClient = try await TestSourceKitLSPClient()
+    let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let uri = DocumentURI.for(.swift)
 
     let documentManager = await testClient.server._documentManager
@@ -157,7 +157,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testEditingNonURL() async throws {
-    let testClient = try await TestSourceKitLSPClient()
+    let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let uri = DocumentURI(string: "urn:uuid:A1B08909-E791-469E-BF0F-F5790977E051")
 
     let documentManager = await testClient.server._documentManager
@@ -281,7 +281,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testExcludedDocumentSchemeDiagnostics() async throws {
-    let testClient = try await TestSourceKitLSPClient()
+    let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let includedURL = URL(fileURLWithPath: "/a.swift")
     let includedURI = DocumentURI(includedURL)
 
@@ -297,7 +297,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testCrossFileDiagnostics() async throws {
-    let testClient = try await TestSourceKitLSPClient()
+    let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let urlA = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let urlB = URL(fileURLWithPath: "/\(UUID())/b.swift")
     let uriA = DocumentURI(urlA)
@@ -335,7 +335,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testDiagnosticsReopen() async throws {
-    let testClient = try await TestSourceKitLSPClient()
+    let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let urlA = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uriA = DocumentURI(urlA)
 
@@ -366,7 +366,8 @@ final class LocalSwiftTests: XCTestCase {
         textDocument: TextDocumentClientCapabilities(
           publishDiagnostics: .init(codeDescriptionSupport: true)
         )
-      )
+      ),
+      usePullDiagnostics: false
     )
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
@@ -381,7 +382,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testFixitsAreIncludedInPublishDiagnostics() async throws {
-    let testClient = try await TestSourceKitLSPClient()
+    let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
@@ -419,7 +420,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testFixitsAreIncludedInPublishDiagnosticsNotes() async throws {
-    let testClient = try await TestSourceKitLSPClient()
+    let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
@@ -483,7 +484,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testFixitInsert() async throws {
-    let testClient = try await TestSourceKitLSPClient()
+    let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
@@ -527,7 +528,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testFixitsAreReturnedFromCodeActions() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities)
+    let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities, usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
@@ -585,7 +586,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testFixitsAreReturnedFromCodeActionsNotes() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities)
+    let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities, usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
@@ -644,7 +645,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testMuliEditFixitCodeActionPrimary() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities)
+    let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities, usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
@@ -691,7 +692,7 @@ final class LocalSwiftTests: XCTestCase {
   }
 
   func testMuliEditFixitCodeActionNote() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities)
+    let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities, usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
 
@@ -1659,7 +1660,7 @@ final class LocalSwiftTests: XCTestCase {
     serverOptions.swiftPublishDiagnosticsDebounceDuration = 1 /* 1s */
 
     // Construct our own  `TestSourceKitLSPClient` instead of the one from set up because we want a higher debounce interval.
-    let testClient = try await TestSourceKitLSPClient(serverOptions: serverOptions)
+    let testClient = try await TestSourceKitLSPClient(serverOptions: serverOptions, usePullDiagnostics: false)
 
     let uri = DocumentURI(URL(fileURLWithPath: "/\(UUID())/a.swift"))
     testClient.openDocument("foo", uri: uri)

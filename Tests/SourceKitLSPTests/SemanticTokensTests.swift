@@ -58,7 +58,8 @@ final class SemanticTokensTests: XCTestCase {
             formats: [.relative]
           )
         )
-      )
+      ),
+      usePullDiagnostics: false
     )
   }
 

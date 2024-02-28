@@ -46,6 +46,13 @@ public final class TestSourceKitLSPClient: MessageHandler {
   /// The server that handles the requests.
   public let server: SourceKitServer
 
+  /// Whether pull or push-model diagnostics should be used.
+  ///
+  /// This is used to fail the `nextDiagnosticsNotification` function early in case the pull-diagnostics model is used
+  /// to avoid a fruitful debug for why no diagnostic request is being sent push diagnostics have been explicitly
+  /// disabled.
+  private let usePullDiagnostics: Bool
+
   /// The connection via which the server sends requests and notifications to us.
   private let serverToClientConnection: LocalConnection
 
@@ -74,6 +81,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///     `true` by default
   ///   - initializationOptions: Initialization options to pass to the SourceKit-LSP server.
   ///   - capabilities: The test client's capabilities.
+  ///   - usePullDiagnostics: Whether to use push diagnostics or use push-based diagnostics
   ///   - workspaceFolders: Workspace folders to open.
   ///   - cleanUp: A closure that is called when the `TestSourceKitLSPClient` is destructed.
   ///     This allows e.g. a `IndexedSingleSwiftFileWorkspace` to delete its temporary files when they are no longer
@@ -84,6 +92,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
     initialize: Bool = true,
     initializationOptions: LSPAny? = nil,
     capabilities: ClientCapabilities = ClientCapabilities(),
+    usePullDiagnostics: Bool = true,
     workspaceFolders: [WorkspaceFolder]? = nil,
     cleanUp: @escaping () -> Void = {}
   ) async throws {
@@ -115,8 +124,28 @@ public final class TestSourceKitLSPClient: MessageHandler {
     )
 
     self.cleanUp = cleanUp
+    self.usePullDiagnostics = usePullDiagnostics
     self.serverToClientConnection.start(handler: WeakMessageHandler(self))
 
+    var capabilities = capabilities
+    if usePullDiagnostics {
+      if capabilities.textDocument == nil {
+        capabilities.textDocument = TextDocumentClientCapabilities()
+      }
+      guard capabilities.textDocument!.diagnostic == nil else {
+        struct ConflictingDiagnosticsError: Error, CustomStringConvertible {
+          var description: String {
+            "usePushDiagnostics = false is not supported if capabilities already contain diagnostic options"
+          }
+        }
+        throw ConflictingDiagnosticsError()
+      }
+      capabilities.textDocument!.diagnostic = .init(dynamicRegistration: true)
+      self.handleNextRequest { (request: RegisterCapabilityRequest) in
+        XCTAssertEqual(request.registrations.only?.method, DocumentDiagnosticsRequest.method)
+        return VoidResponse()
+      }
+    }
     if initialize {
       _ = try await self.send(
         InitializeRequest(
@@ -201,6 +230,12 @@ public final class TestSourceKitLSPClient: MessageHandler {
   public func nextDiagnosticsNotification(
     timeout: TimeInterval = defaultTimeout
   ) async throws -> PublishDiagnosticsNotification {
+    guard !usePullDiagnostics else {
+      struct PushDiagnosticsError: Error, CustomStringConvertible {
+        var description = "Client is using the diagnostics and will thus never receive a diagnostics notification"
+      }
+      throw PushDiagnosticsError()
+    }
     return try await nextNotification(ofType: PublishDiagnosticsNotification.self, timeout: timeout)
   }
 

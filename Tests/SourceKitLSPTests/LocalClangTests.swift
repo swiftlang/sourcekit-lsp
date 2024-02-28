@@ -160,7 +160,7 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testCodeAction() async throws {
-    let testClient = try await TestSourceKitLSPClient()
+    let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let uri = DocumentURI.for(.cpp)
     let positions = testClient.openDocument(
       """
@@ -220,16 +220,19 @@ final class LocalClangTests: XCTestCase {
     // Note: tests generally should avoid including system headers
     // to keep them fast and portable. This test is specifically
     // ensuring clangd can find libc++ and builtin headers.
-    let ws = try await MultiFileTestWorkspace(files: [
-      "main.cpp": """
-      #include <cstdint>
+    let ws = try await MultiFileTestWorkspace(
+      files: [
+        "main.cpp": """
+        #include <cstdint>
 
-      void test() {
-        uint64_t 1️⃣b2️⃣;
-      }
-      """,
-      "compile_flags.txt": "-Wunused-variable",
-    ])
+        void test() {
+          uint64_t 1️⃣b2️⃣;
+        }
+        """,
+        "compile_flags.txt": "-Wunused-variable",
+      ],
+      usePullDiagnostics: false
+    )
 
     let (_, positions) = try ws.openDocument("main.cpp")
 
@@ -243,33 +246,36 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testClangModules() async throws {
-    let ws = try await MultiFileTestWorkspace(files: [
-      "ClangModuleA.h": """
-      #ifndef ClangModuleA_h
-      #define ClangModuleA_h
+    let ws = try await MultiFileTestWorkspace(
+      files: [
+        "ClangModuleA.h": """
+        #ifndef ClangModuleA_h
+        #define ClangModuleA_h
 
-      void func_ClangModuleA(void);
+        void func_ClangModuleA(void);
 
-      #endif
-      """,
-      "ClangModules_main.m": """
-      @import ClangModuleA;
+        #endif
+        """,
+        "ClangModules_main.m": """
+        @import ClangModuleA;
 
-      void test(void) {
-        func_ClangModuleA();
-      }
-      """,
-      "module.modulemap": """
-      module ClangModuleA {
-        header "ClangModuleA.h"
-      }
-      """,
-      "compile_flags.txt": """
-      -I
-      $TEST_DIR
-      -fmodules
-      """,
-    ])
+        void test(void) {
+          func_ClangModuleA();
+        }
+        """,
+        "module.modulemap": """
+        module ClangModuleA {
+          header "ClangModuleA.h"
+        }
+        """,
+        "compile_flags.txt": """
+        -I
+        $TEST_DIR
+        -fmodules
+        """,
+      ],
+      usePullDiagnostics: false
+    )
     _ = try ws.openDocument("ClangModules_main.m")
 
     let diags = try await ws.testClient.nextDiagnosticsNotification()
@@ -277,7 +283,7 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testSemanticHighlighting() async throws {
-    let testClient = try await TestSourceKitLSPClient()
+    let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let uri = DocumentURI.for(.c)
 
     testClient.openDocument(
@@ -298,23 +304,26 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testDocumentDependenciesUpdated() async throws {
-    let ws = try await MultiFileTestWorkspace(files: [
-      "Object.h": """
-      struct Object {
-        int field;
-      };
+    let ws = try await MultiFileTestWorkspace(
+      files: [
+        "Object.h": """
+        struct Object {
+          int field;
+        };
 
-      struct Object * newObject();
-      """,
-      "main.c": """
-      #include "Object.h"
+        struct Object * newObject();
+        """,
+        "main.c": """
+        #include "Object.h"
 
-      int main(int argc, const char *argv[]) {
-        struct Object *obj = 1️⃣newObject();
-      }
-      """,
-      "compile_flags.txt": "",
-    ])
+        int main(int argc, const char *argv[]) {
+          struct Object *obj = 1️⃣newObject();
+        }
+        """,
+        "compile_flags.txt": "",
+      ],
+      usePullDiagnostics: false
+    )
 
     let (mainUri, _) = try ws.openDocument("main.c")
     let headerUri = try ws.uri(for: "Object.h")

@@ -633,6 +633,11 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
     /// Whether the clients supports related documents for document diagnostic pulls.
     public var relatedDocumentSupport: Bool?
+
+    public init(dynamicRegistration: Bool? = nil, relatedDocumentSupport: Bool? = nil) {
+      self.dynamicRegistration = dynamicRegistration
+      self.relatedDocumentSupport = relatedDocumentSupport
+    }
   }
 
   // MARK: Properties

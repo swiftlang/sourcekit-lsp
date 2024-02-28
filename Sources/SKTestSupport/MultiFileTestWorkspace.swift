@@ -70,6 +70,7 @@ public class MultiFileTestWorkspace {
   public init(
     files: [RelativeFileLocation: String],
     workspaces: (URL) -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
+    usePullDiagnostics: Bool = true,
     testName: String = #function
   ) async throws {
     scratchDirectory = try testScratchDir(testName: testName)
@@ -103,6 +104,7 @@ public class MultiFileTestWorkspace {
     self.fileData = fileData
 
     self.testClient = try await TestSourceKitLSPClient(
+      usePullDiagnostics: usePullDiagnostics,
       workspaceFolders: workspaces(scratchDirectory),
       cleanUp: { [scratchDirectory] in
         if cleanScratchDirectories {

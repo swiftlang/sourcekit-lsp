@@ -40,6 +40,7 @@ public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
     manifest: String = SwiftPMTestWorkspace.defaultPackageManifest,
     workspaces: (URL) -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
     build: Bool = false,
+    usePullDiagnostics: Bool = true,
     testName: String = #function
   ) async throws {
     var filesByPath: [RelativeFileLocation: String] = [:]
@@ -60,6 +61,7 @@ public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
     try await super.init(
       files: filesByPath,
       workspaces: workspaces,
+      usePullDiagnostics: usePullDiagnostics,
       testName: testName
     )
 

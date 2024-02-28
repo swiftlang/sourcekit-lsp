@@ -90,7 +90,7 @@ final class BuildSystemTests: XCTestCase {
   private var haveClangd: Bool = false
 
   override func setUp() async throws {
-    testClient = try await TestSourceKitLSPClient()
+    testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     buildSystem = TestBuildSystem()
 
     let server = testClient.server

@@ -41,7 +41,8 @@ final class DependencyTrackingTests: XCTestCase {
            .target(name: "LibB", dependencies: ["LibA"]),
           ]
         )
-        """
+        """,
+      usePullDiagnostics: false
     )
 
     let (libBUri, _) = try ws.openDocument("LibB.swift")
@@ -69,21 +70,24 @@ final class DependencyTrackingTests: XCTestCase {
   }
 
   func testDependenciesUpdatedCXX() async throws {
-    let ws = try await MultiFileTestWorkspace(files: [
-      "lib.c": """
-      int libX(int value) {
-        return value ? 22 : 0;
-      }
-      """,
-      "main.c": """
-      #include "lib-generated.h"
+    let ws = try await MultiFileTestWorkspace(
+      files: [
+        "lib.c": """
+        int libX(int value) {
+          return value ? 22 : 0;
+        }
+        """,
+        "main.c": """
+        #include "lib-generated.h"
 
-      int main(int argc, const char *argv[]) {
-        return libX(argc);
-      }
-      """,
-      "compile_flags.txt": "",
-    ])
+        int main(int argc, const char *argv[]) {
+          return libX(argc);
+        }
+        """,
+        "compile_flags.txt": "",
+      ],
+      usePullDiagnostics: false
+    )
 
     let generatedHeaderURL = try ws.uri(for: "main.c").fileURL!.deletingLastPathComponent()
       .appendingPathComponent("lib-generated.h", isDirectory: false)
