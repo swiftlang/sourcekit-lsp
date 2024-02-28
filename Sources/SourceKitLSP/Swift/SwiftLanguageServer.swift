@@ -126,14 +126,6 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   nonisolated var requests: sourcekitd_api_requests { return sourcekitd.requests }
   nonisolated var values: sourcekitd_api_values { return sourcekitd.values }
 
-  var enablePublishDiagnostics: Bool {
-    // Since LSP 3.17.0, diagnostics can be reported through pull-based requests,
-    // in addition to the existing push-based publish notifications.
-    // If the client supports pull diagnostics, we report the capability
-    // and we should disable the publish notifications to avoid double-reporting.
-    return capabilityRegistry.pullDiagnosticsRegistration(for: .swift) == nil
-  }
-
   private var state: LanguageServerState {
     didSet {
       for handler in stateChangeHandlers {
@@ -144,7 +136,15 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   private var stateChangeHandlers: [(_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void] = []
 
-  private let diagnosticReportManager: DiagnosticReportManager
+  private var diagnosticReportManager: DiagnosticReportManager!
+
+  /// Only exists to work around rdar://116221716.
+  /// Once that is fixed, remove the property and make `diagnosticReportManager` non-optional.
+  private var clientHasDiagnosticsCodeDescriptionSupport: Bool {
+    get async {
+      return await capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
+    }
+  }
 
   /// Creates a language server for the given client using the sourcekitd dylib specified in `toolchain`.
   /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageServer` asks its parent server to reopen all of its documents.
@@ -154,7 +154,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     toolchain: Toolchain,
     options: SourceKitServer.Options,
     workspace: Workspace
-  ) throws {
+  ) async throws {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
     self.sourceKitServer = sourceKitServer
     self.swiftFormat = toolchain.swiftFormat
@@ -165,11 +165,12 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
     self.state = .connected
     self.generatedInterfacesPath = options.generatedInterfacesPath.asURL
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
+    self.diagnosticReportManager = nil  // Needed to work around rdar://116221716
     self.diagnosticReportManager = DiagnosticReportManager(
       sourcekitd: self.sourcekitd,
       syntaxTreeManager: syntaxTreeManager,
       documentManager: documentManager,
-      clientHasDiagnosticsCodeDescriptionSupport: capabilityRegistry.clientHasDiagnosticsCodeDescriptionSupport
+      clientHasDiagnosticsCodeDescriptionSupport: await self.clientHasDiagnosticsCodeDescriptionSupport
     )
   }
 
@@ -251,11 +252,7 @@ extension SwiftLanguageServer {
           range: .bool(true),
           full: .bool(true)
         ),
-        inlayHintProvider: .value(
-          InlayHintOptions(
-            resolveProvider: false
-          )
-        ),
+        inlayHintProvider: .value(InlayHintOptions(resolveProvider: false)),
         diagnosticProvider: DiagnosticOptions(
           interFileDependencies: true,
           workspaceDiagnostics: false
@@ -304,7 +301,7 @@ extension SwiftLanguageServer {
 
     _ = try? await self.sourcekitd.send(openReq, fileContents: snapshot.text)
 
-    publishDiagnosticsIfNeeded(for: snapshot.uri)
+    await publishDiagnosticsIfNeeded(for: snapshot.uri)
   }
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
@@ -369,7 +366,7 @@ extension SwiftLanguageServer {
     ])
 
     _ = try? await self.sourcekitd.send(req, fileContents: snapshot.text)
-    publishDiagnosticsIfNeeded(for: note.textDocument.uri)
+    await publishDiagnosticsIfNeeded(for: note.textDocument.uri)
   }
 
   public func closeDocument(_ note: DidCloseTextDocumentNotification) async {
@@ -400,14 +397,14 @@ extension SwiftLanguageServer {
 
   /// If the client doesn't support pull diagnostics, compute diagnostics for the latest version of the given document
   /// and send a `PublishDiagnosticsNotification` to the client for it.
-  private func publishDiagnosticsIfNeeded(for document: DocumentURI) {
-    withLoggingScope("publish-diagnostics") {
-      publishDiagnosticsIfNeededImpl(for: document)
+  private func publishDiagnosticsIfNeeded(for document: DocumentURI) async {
+    await withLoggingScope("publish-diagnostics") {
+      await publishDiagnosticsIfNeededImpl(for: document)
     }
   }
 
-  private func publishDiagnosticsIfNeededImpl(for document: DocumentURI) {
-    guard enablePublishDiagnostics else {
+  private func publishDiagnosticsIfNeededImpl(for document: DocumentURI) async {
+    guard await !capabilityRegistry.clientSupportsPullDiagnostics(for: .swift) else {
       return
     }
     guard diagnosticsEnabled(for: document) else {
@@ -539,7 +536,7 @@ extension SwiftLanguageServer {
       edits: concurrentEdits
     )
 
-    publishDiagnosticsIfNeeded(for: note.textDocument.uri)
+    await publishDiagnosticsIfNeeded(for: note.textDocument.uri)
   }
 
   public func willSaveDocument(_ note: WillSaveTextDocumentNotification) {

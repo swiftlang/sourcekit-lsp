@@ -633,7 +633,7 @@ public actor SourceKitServer {
         )
       )
       let languages = languageClass(for: language)
-      self.registerCapabilities(
+      await self.registerCapabilities(
         for: resp.capabilities,
         languages: languages,
         registry: workspace.capabilityRegistry
@@ -1137,7 +1137,7 @@ extension SourceKitServer {
     }
 
     return InitializeResult(
-      capabilities: self.serverCapabilities(
+      capabilities: await self.serverCapabilities(
         for: req.capabilities,
         registry: self.capabilityRegistry!
       )
@@ -1147,23 +1147,42 @@ extension SourceKitServer {
   func serverCapabilities(
     for client: ClientCapabilities,
     registry: CapabilityRegistry
-  ) -> ServerCapabilities {
-    let completionOptions: CompletionOptions?
-    if registry.clientHasDynamicCompletionRegistration {
-      // We'll initialize this dynamically instead of statically.
-      completionOptions = nil
-    } else {
-      completionOptions = LanguageServerProtocol.CompletionOptions(
+  ) async -> ServerCapabilities {
+    let completionOptions =
+      await registry.clientHasDynamicCompletionRegistration
+      ? nil
+      : LanguageServerProtocol.CompletionOptions(
         resolveProvider: false,
-        triggerCharacters: ["."]
+        triggerCharacters: [".", "("]
       )
-    }
-    let executeCommandOptions: ExecuteCommandOptions?
-    if registry.clientHasDynamicExecuteCommandRegistration {
-      executeCommandOptions = nil
-    } else {
-      executeCommandOptions = ExecuteCommandOptions(commands: builtinSwiftCommands)
-    }
+
+    let foldingRangeOptions =
+      await registry.clientHasDynamicFoldingRangeRegistration
+      ? nil
+      : ValueOrBool<TextDocumentAndStaticRegistrationOptions>.bool(true)
+
+    let inlayHintOptions =
+      await registry.clientHasDynamicInlayHintRegistration
+      ? nil
+      : ValueOrBool.value(InlayHintOptions(resolveProvider: false))
+
+    let semanticTokensOptions =
+      await registry.clientHasDynamicSemanticTokensRegistration
+      ? nil
+      : SemanticTokensOptions(
+        legend: SemanticTokensLegend(
+          tokenTypes: SemanticTokenTypes.all.map(\.name),
+          tokenModifiers: SemanticTokenModifiers.all.compactMap(\.name)
+        ),
+        range: .bool(true),
+        full: .bool(true)
+      )
+
+    let executeCommandOptions =
+      await registry.clientHasDynamicExecuteCommandRegistration
+      ? nil
+      : ExecuteCommandOptions(commands: builtinSwiftCommands)
+
     return ServerCapabilities(
       textDocumentSync: .options(
         TextDocumentSyncOptions(
@@ -1189,7 +1208,7 @@ extension SourceKitServer {
       documentFormattingProvider: .value(DocumentFormattingOptions(workDoneProgress: false)),
       renameProvider: .value(RenameOptions(prepareProvider: true)),
       colorProvider: .bool(true),
-      foldingRangeProvider: .bool(!registry.clientHasDynamicFoldingRangeRegistration),
+      foldingRangeProvider: foldingRangeOptions,
       declarationProvider: .bool(true),
       executeCommandProvider: executeCommandOptions,
       workspace: WorkspaceServerCapabilities(
@@ -1199,7 +1218,9 @@ extension SourceKitServer {
         )
       ),
       callHierarchyProvider: .bool(true),
-      typeHierarchyProvider: .bool(true)
+      typeHierarchyProvider: .bool(true),
+      semanticTokensProvider: semanticTokensOptions,
+      inlayHintProvider: inlayHintOptions
     )
   }
 
@@ -1207,70 +1228,53 @@ extension SourceKitServer {
     for server: ServerCapabilities,
     languages: [Language],
     registry: CapabilityRegistry
-  ) {
+  ) async {
+    // IMPORTANT: When adding new capabilities here, also add the value of that capability in `SwiftLanguageServer`
+    // to SourceKitServer.serverCapabilities. That way the capabilities get registered for all languages in case the
+    // client does not support dynamic capability registration.
+
     if let completionOptions = server.completionProvider {
-      registry.registerCompletionIfNeeded(options: completionOptions, for: languages) {
-        self.dynamicallyRegisterCapability($0, registry)
-      }
+      await registry.registerCompletionIfNeeded(options: completionOptions, for: languages, server: self)
     }
     if server.foldingRangeProvider?.isSupported == true {
-      registry.registerFoldingRangeIfNeeded(options: FoldingRangeOptions(), for: languages) {
-        self.dynamicallyRegisterCapability($0, registry)
-      }
+      await registry.registerFoldingRangeIfNeeded(options: FoldingRangeOptions(), for: languages, server: self)
     }
     if let semanticTokensOptions = server.semanticTokensProvider {
-      registry.registerSemanticTokensIfNeeded(options: semanticTokensOptions, for: languages) {
-        self.dynamicallyRegisterCapability($0, registry)
-      }
+      await registry.registerSemanticTokensIfNeeded(options: semanticTokensOptions, for: languages, server: self)
     }
-    if let inlayHintProvider = server.inlayHintProvider,
-      inlayHintProvider.isSupported
-    {
+    if let inlayHintProvider = server.inlayHintProvider, inlayHintProvider.isSupported {
       let options: InlayHintOptions
       switch inlayHintProvider {
-      case .bool(_):
+      case .bool(true):
         options = InlayHintOptions()
+      case .bool(false):
+        return
       case .value(let opts):
         options = opts
       }
-      registry.registerInlayHintIfNeeded(options: options, for: languages) {
-        self.dynamicallyRegisterCapability($0, registry)
-      }
+      await registry.registerInlayHintIfNeeded(options: options, for: languages, server: self)
     }
+    // We use the registration for the diagnostics provider to decide whether to enable pull-diagnostics (see comment
+    // on `CapabilityRegistry.clientSupportPullDiagnostics`.
+    // Thus, we can't statically register this capability in the server options. We need the client's reply to decide
+    // whether it supports pull diagnostics.
     if let diagnosticOptions = server.diagnosticProvider {
-      registry.registerDiagnosticIfNeeded(options: diagnosticOptions, for: languages) {
-        self.dynamicallyRegisterCapability($0, registry)
-      }
+      await registry.registerDiagnosticIfNeeded(options: diagnosticOptions, for: languages, server: self)
     }
     if let commandOptions = server.executeCommandProvider {
-      registry.registerExecuteCommandIfNeeded(commands: commandOptions.commands) {
-        self.dynamicallyRegisterCapability($0, registry)
-      }
+      await registry.registerExecuteCommandIfNeeded(commands: commandOptions.commands, server: self)
     }
 
-    /// This must be a superset of the files that return true for SwiftPM's `Workspace.fileAffectsSwiftOrClangBuildSettings`.
+    // From our side, we could specify the watch patterns as part of the initial server capabilities but LSP only allows
+    // dynamic registration of watch patterns.
+    // This must be a superset of the files that return true for SwiftPM's `Workspace.fileAffectsSwiftOrClangBuildSettings`.
     var watchers = FileRuleDescription.builtinRules.flatMap({ $0.fileTypes }).map { fileExtension in
       return FileSystemWatcher(globPattern: "**/*.\(fileExtension)", kind: [.create, .delete])
     }
     watchers.append(FileSystemWatcher(globPattern: "**/Package.swift", kind: [.change]))
     watchers.append(FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete]))
     watchers.append(FileSystemWatcher(globPattern: "**/compile_flags.txt", kind: [.create, .change, .delete]))
-    registry.registerDidChangeWatchedFiles(watchers: watchers) {
-      self.dynamicallyRegisterCapability($0, registry)
-    }
-  }
-
-  private func dynamicallyRegisterCapability(
-    _ registration: CapabilityRegistration,
-    _ registry: CapabilityRegistry
-  ) {
-    let req = RegisterCapabilityRequest(registrations: [registration])
-    let _ = client.send(req) { result in
-      if let error = result.failure {
-        logger.error("Failed to dynamically register for \(registration.method): \(error.forLogging)")
-        registry.remove(registration: registration)
-      }
-    }
+    await registry.registerDidChangeWatchedFiles(watchers: watchers, server: self)
   }
 
   func clientInitialized(_: InitializedNotification) {
