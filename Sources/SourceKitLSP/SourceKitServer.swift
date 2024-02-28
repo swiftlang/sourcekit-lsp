@@ -1606,7 +1606,7 @@ extension SourceKitServer {
 
   /// Find all symbols in the workspace that include a string in their name.
   /// - returns: An array of SymbolOccurrences that match the string.
-  func findWorkspaceSymbols(matching: String) -> [SymbolOccurrence] {
+  func findWorkspaceSymbols(matching: String) throws -> [SymbolOccurrence] {
     // Ignore short queries since they are:
     // - noisy and slow, since they can match many symbols
     // - normally unintentional, triggered when the user types slowly or if the editor doesn't
@@ -1623,25 +1623,24 @@ extension SourceKitServer {
         subsequence: true,
         ignoreCase: true
       ) { symbol in
+        if Task.isCancelled {
+          return false
+        }
         guard !symbol.location.isSystem && !symbol.roles.contains(.accessorOf) else {
           return true
         }
         symbolOccurrenceResults.append(symbol)
-        // FIXME: Once we have cancellation support, we should fetch all results and take the top
-        // `maxWorkspaceSymbolResults` symbols but bail if cancelled.
-        //
-        // Until then, take the first `maxWorkspaceSymbolResults` symbols to limit the impact of
-        // queries which match many symbols.
-        return symbolOccurrenceResults.count < maxWorkspaceSymbolResults
+        return true
       }
+      try Task.checkCancellation()
     }
-    return symbolOccurrenceResults
+    return symbolOccurrenceResults.sorted()
   }
 
   /// Handle a workspace/symbol request, returning the SymbolInformation.
   /// - returns: An array with SymbolInformation for each matching symbol in the workspace.
   func workspaceSymbols(_ req: WorkspaceSymbolsRequest) async throws -> [WorkspaceSymbolItem]? {
-    let symbols = findWorkspaceSymbols(matching: req.query).map(WorkspaceSymbolItem.init)
+    let symbols = try findWorkspaceSymbols(matching: req.query).map(WorkspaceSymbolItem.init)
     return symbols
   }
 
@@ -1869,6 +1868,7 @@ extension SourceKitServer {
       }
       return indexToLSPLocation(occurrence.location)
     }
+    .sorted()
   }
 
   /// Returns the result of a `DefinitionRequest` by running a `SymbolInfoRequest`, inspecting
@@ -1972,7 +1972,7 @@ extension SourceKitServer {
       occurrences = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
     }
 
-    return .locations(occurrences.compactMap { indexToLSPLocation($0.location) })
+    return .locations(occurrences.compactMap { indexToLSPLocation($0.location) }.sorted())
   }
 
   func references(
@@ -1996,7 +1996,7 @@ extension SourceKitServer {
     if req.context.includeDeclaration {
       roles.formUnion([.declaration, .definition])
     }
-    return index.occurrences(ofUSR: usr, roles: roles).compactMap { indexToLSPLocation($0.location) }
+    return index.occurrences(ofUSR: usr, roles: roles).compactMap { indexToLSPLocation($0.location) }.sorted()
   }
 
   private func indexToLSPCallHierarchyItem(
@@ -2103,7 +2103,7 @@ extension SourceKitServer {
           )
         }
     }
-    return calls
+    return calls.sorted(by: { $0.from.name < $1.from.name })
   }
 
   func outgoingCalls(_ req: CallHierarchyOutgoingCallsRequest) async throws -> [CallHierarchyOutgoingCall]? {
@@ -2133,7 +2133,7 @@ extension SourceKitServer {
         fromRanges: [location.range]
       )
     }
-    return calls
+    return calls.sorted(by: { $0.to.name < $1.to.name })
   }
 
   private func indexToLSPTypeHierarchyItem(
@@ -2152,7 +2152,7 @@ extension SourceKitServer {
       if conformances.isEmpty {
         name = symbol.name
       } else {
-        name = "\(symbol.name): \(conformances.map(\.symbol.name).joined(separator: ", "))"
+        name = "\(symbol.name): \(conformances.map(\.symbol.name).sorted().joined(separator: ", "))"
       }
       // Add the file name and line to the detail string
       if let url = location.uri.fileURL,
@@ -2215,6 +2215,7 @@ extension SourceKitServer {
           index: index
         )
       }
+      .sorted(by: { $0.name < $1.name })
   }
 
   /// Extracts our implementation-specific data about a type hierarchy
@@ -2273,7 +2274,7 @@ extension SourceKitServer {
         index: index
       )
     }
-    return types
+    return types.sorted(by: { $0.name < $1.name })
   }
 
   func subtypes(_ req: TypeHierarchySubtypesRequest) async throws -> [TypeHierarchyItem]? {
@@ -2306,7 +2307,7 @@ extension SourceKitServer {
         index: index
       )
     }
-    return types
+    return types.sorted { $0.name < $1.name }
   }
 
   func pollIndex(_ req: PollIndexRequest) async throws -> VoidResponse {

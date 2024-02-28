@@ -122,12 +122,12 @@ final class CallHierarchyTests: XCTestCase {
           fromRanges: [Range(ws.positions["3️⃣"])]
         ),
         CallHierarchyOutgoingCall(
-          to: item("c()", .function, usr: cUsr, at: ws.positions["6️⃣"]),
-          fromRanges: [Range(ws.positions["4️⃣"])]
-        ),
-        CallHierarchyOutgoingCall(
           to: item("b(x:)", .function, usr: bUsr, at: ws.positions["2️⃣"]),
           fromRanges: [Range(ws.positions["5️⃣"])]
+        ),
+        CallHierarchyOutgoingCall(
+          to: item("c()", .function, usr: cUsr, at: ws.positions["6️⃣"]),
+          fromRanges: [Range(ws.positions["4️⃣"])]
         ),
       ]
     )
@@ -139,12 +139,12 @@ final class CallHierarchyTests: XCTestCase {
           fromRanges: [Range(ws.positions["7️⃣"])]
         ),
         CallHierarchyOutgoingCall(
-          to: item("d()", .function, usr: dUsr, at: ws.positions["🔟"]),
-          fromRanges: [Range(ws.positions["8️⃣"])]
-        ),
-        CallHierarchyOutgoingCall(
           to: item("c()", .function, usr: cUsr, at: ws.positions["6️⃣"]),
           fromRanges: [Range(ws.positions["9️⃣"])]
+        ),
+        CallHierarchyOutgoingCall(
+          to: item("d()", .function, usr: dUsr, at: ws.positions["🔟"]),
+          fromRanges: [Range(ws.positions["8️⃣"])]
         ),
       ]
     )
