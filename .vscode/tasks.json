@@ -37,6 +37,13 @@
 				"$swiftc"
 			],
 			"type": "swift"
+		},
+		{
+			"allowWritingToPackageDirectory": true,
+			"args": [],
+			"command": "format-source-code",
+			"label": "Run swift-format",
+			"type": "swift-plugin",
 		}
 	],
 	"version": "2.0.0"
