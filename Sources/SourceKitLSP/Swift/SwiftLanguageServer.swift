@@ -12,6 +12,7 @@
 
 import Dispatch
 import Foundation
+import IndexStoreDB
 import LSPLogging
 import LanguageServerProtocol
 import SKCore
@@ -919,7 +920,17 @@ extension SwiftLanguageServer: SKDNotificationHandler {
   }
 }
 
+// MARK: - Position conversion
+
 extension DocumentSnapshot {
+
+  // MARK: String.Index <-> Raw UTF-8
+
+  func indexOf(utf8Offset: Int) -> String.Index? {
+    return text.utf8.index(text.startIndex, offsetBy: utf8Offset, limitedBy: text.endIndex)
+  }
+
+  // MARK: Position <-> Raw UTF-8
 
   func utf8Offset(of pos: Position) -> Int? {
     return lineTable.utf8OffsetOf(line: pos.line, utf16Column: pos.utf16index)
@@ -946,8 +957,17 @@ extension DocumentSnapshot {
     }
   }
 
+  // MARK: Position <-> AbsolutePosition
+
   func position(of position: AbsolutePosition) -> Position? {
     return positionOf(utf8Offset: position.utf8Offset)
+  }
+
+  func absolutePosition(of position: Position) -> AbsolutePosition? {
+    guard let offset = utf8Offset(of: position) else {
+      return nil
+    }
+    return AbsolutePosition(utf8Offset: offset)
   }
 
   func range(of range: Range<AbsolutePosition>) -> Range<Position>? {
@@ -959,15 +979,27 @@ extension DocumentSnapshot {
     return lowerBound..<upperBound
   }
 
-  func position(of position: Position) -> AbsolutePosition? {
-    guard let offset = utf8Offset(of: position) else {
-      return nil
-    }
-    return AbsolutePosition(utf8Offset: offset)
+  // MARK: Position <-> RenameLocation
+
+  func position(of renameLocation: RenameLocation) -> Position? {
+    return positionOf(zeroBasedLine: renameLocation.line - 1, utf8Column: renameLocation.utf8Column - 1)
   }
 
-  func indexOf(utf8Offset: Int) -> String.Index? {
-    return text.utf8.index(text.startIndex, offsetBy: utf8Offset, limitedBy: text.endIndex)
+  // MAR: Position <-> SymbolLocation
+
+  func position(of symbolLocation: SymbolLocation) -> Position? {
+    return positionOf(zeroBasedLine: symbolLocation.line - 1, utf8Column: symbolLocation.utf8Column - 1)
+  }
+
+  // MARK: AbsolutePosition <-> RenameLocation
+
+  func absolutePosition(of renameLocation: RenameLocation) -> AbsolutePosition? {
+    guard
+      let utf8Offset = lineTable.utf8OffsetOf(line: renameLocation.line - 1, utf8Column: renameLocation.utf8Column - 1)
+    else {
+      return nil
+    }
+    return AbsolutePosition(utf8Offset: utf8Offset)
   }
 }
 
