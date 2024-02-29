@@ -2000,7 +2000,7 @@ extension SourceKitServer {
       }
       return index.occurrences(ofUSR: usr, roles: roles).compactMap { indexToLSPLocation($0.location) }
     }
-    return locations.sorted()
+    return locations.unique.sorted()
   }
 
   private func indexToLSPCallHierarchyItem(
