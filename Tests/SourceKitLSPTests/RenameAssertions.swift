@@ -34,7 +34,7 @@ private func apply(edits: [TextEdit], to source: String) -> String {
 /// Test that applying the edits returned from the requests always result in `expected`.
 func assertSingleFileRename(
   _ markedSource: String,
-  language: Language? = nil,
+  language: Language = .swift,
   newName: String,
   expectedPrepareRenamePlaceholder: String,
   expected: String,
@@ -44,7 +44,7 @@ func assertSingleFileRename(
 ) async throws {
   try await SkipUnless.sourcekitdSupportsRename()
   let testClient = try await TestSourceKitLSPClient()
-  let uri = DocumentURI.for(language ?? .swift, testName: testName)
+  let uri = DocumentURI.for(language, testName: testName)
   let positions = testClient.openDocument(markedSource, uri: uri, language: language)
   guard !positions.allMarkers.isEmpty else {
     XCTFail("Test case did not contain any markers at which to invoke the rename", file: file, line: line)

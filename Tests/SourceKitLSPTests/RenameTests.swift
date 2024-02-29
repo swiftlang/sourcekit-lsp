@@ -476,7 +476,7 @@ final class RenameTests: XCTestCase {
         """,
       ],
       newName: "bar",
-      expectedPrepareRenamePlaceholder: "foo()",
+      expectedPrepareRenamePlaceholder: "foo",
       expected: [
         "a.swift": """
         func bar() {}
@@ -545,7 +545,7 @@ final class RenameTests: XCTestCase {
         """,
       ],
       newName: "bar",
-      expectedPrepareRenamePlaceholder: "foo()",
+      expectedPrepareRenamePlaceholder: "foo",
       expected: [
         "a.swift": """
         func bar() {}
@@ -596,7 +596,7 @@ final class RenameTests: XCTestCase {
         """,
       ],
       newName: "bar",
-      expectedPrepareRenamePlaceholder: "foo()",
+      expectedPrepareRenamePlaceholder: "foo",
       expected: [
         "a.swift": """
         func bar() {}
@@ -860,4 +860,225 @@ final class RenameTests: XCTestCase {
     )
   }
 
+  func testRenameClassHierarchy() async throws {
+    try await assertMultiFileRename(
+      files: [
+        "Lib.swift": """
+        class Base {
+          func 1️⃣foo() {}
+        }
+
+        class Inherited: Base {
+          override func 2️⃣foo() {}
+        }
+
+        class OtherInherited: Base {
+          override func 3️⃣foo() {}
+        }
+
+        func calls() {
+          Base().4️⃣foo()
+          Inherited().5️⃣foo()
+          OtherInherited().6️⃣foo()
+        }
+        """
+      ],
+      newName: "bar",
+      expectedPrepareRenamePlaceholder: "foo",
+      expected: [
+        "Lib.swift": """
+        class Base {
+          func bar() {}
+        }
+
+        class Inherited: Base {
+          override func bar() {}
+        }
+
+        class OtherInherited: Base {
+          override func bar() {}
+        }
+
+        func calls() {
+          Base().bar()
+          Inherited().bar()
+          OtherInherited().bar()
+        }
+        """
+      ]
+    )
+  }
+
+  func testRenameProtocolRequirement() async throws {
+    try await assertMultiFileRename(
+      files: [
+        "Lib.swift": """
+        protocol MyProtocol {
+          func 1️⃣foo()
+        }
+
+        extension MyProtocol {
+          func 2️⃣foo() {}
+        }
+
+        struct Foo: MyProtocol {
+          func 3️⃣foo() {}
+        }
+
+        func calls() {
+          Foo().4️⃣foo()
+        }
+        func protocolCall(proto: MyProtocol) {
+          proto.5️⃣foo()
+        }
+        """
+      ],
+      newName: "bar",
+      expectedPrepareRenamePlaceholder: "foo",
+      expected: [
+        "Lib.swift": """
+        protocol MyProtocol {
+          func bar()
+        }
+
+        extension MyProtocol {
+          func bar() {}
+        }
+
+        struct Foo: MyProtocol {
+          func bar() {}
+        }
+
+        func calls() {
+          Foo().bar()
+        }
+        func protocolCall(proto: MyProtocol) {
+          proto.bar()
+        }
+        """
+      ]
+    )
+  }
+
+  func testRenameProtocolsConnectedByClassHierarchy() async throws {
+    try await assertMultiFileRename(
+      files: [
+        "Lib.swift": """
+        protocol MyProtocol {
+          func 1️⃣foo()
+        }
+
+        protocol MyOtherProtocol {
+          func 2️⃣foo()
+        }
+
+        class Base: MyProtocol {
+          func 3️⃣foo() {}
+        }
+
+        class Inherited: Base, MyOtherProtocol {}
+        """
+      ],
+      newName: "bar",
+      expectedPrepareRenamePlaceholder: "foo",
+      expected: [
+        "Lib.swift": """
+        protocol MyProtocol {
+          func bar()
+        }
+
+        protocol MyOtherProtocol {
+          func bar()
+        }
+
+        class Base: MyProtocol {
+          func bar() {}
+        }
+
+        class Inherited: Base, MyOtherProtocol {}
+        """
+      ]
+    )
+  }
+
+  func testRenameClassHierarchyWithoutIndexData() async throws {
+    // Without index data we don't know overriding + overridden decls.
+    // Check that we at least fall back to renaming the direct references to `Inherited.foo`.
+    try await assertSingleFileRename(
+      """
+      class Base {
+        func foo() {}
+      }
+
+      class Inherited: Base {
+        override func 2️⃣foo() {}
+      }
+
+      class OtherInherited: Base {
+        override func foo() {}
+      }
+
+      func calls() {
+        Base().foo()
+        Inherited().5️⃣foo()
+        OtherInherited().foo()
+      }
+      """,
+      newName: "bar",
+      expectedPrepareRenamePlaceholder: "foo",
+      expected: """
+        class Base {
+          func foo() {}
+        }
+
+        class Inherited: Base {
+          override func bar() {}
+        }
+
+        class OtherInherited: Base {
+          override func foo() {}
+        }
+
+        func calls() {
+          Base().foo()
+          Inherited().bar()
+          OtherInherited().foo()
+        }
+        """
+    )
+  }
+
+  func testRenameClassHierarchyWithoutIndexCpp() async throws {
+    try await assertSingleFileRename(
+      """
+      class Base {
+        virtual void 1️⃣foo();
+      };
+
+      class Inherited: Base {
+        void 2️⃣foo() override {}
+      };
+
+      class OtherInherited: Base {
+        void 3️⃣foo() override {}
+      };
+      """,
+      language: .cpp,
+      newName: "bar",
+      expectedPrepareRenamePlaceholder: "foo",
+      expected: """
+        class Base {
+          virtual void bar();
+        };
+
+        class Inherited: Base {
+          void bar() override {}
+        };
+
+        class OtherInherited: Base {
+          void bar() override {}
+        };
+        """
+    )
+  }
 }

@@ -48,6 +48,14 @@ enum LanguageServerType: Hashable {
     }
   }
 
+  init?(symbolProvider: SymbolProviderKind?) {
+    switch symbolProvider {
+    case .clang: self = .clangd
+    case .swift: self = .swift
+    case nil: return nil
+    }
+  }
+
   /// The `ToolchainLanguageServer` class used to provide functionality for this language class.
   var serverType: ToolchainLanguageServer.Type {
     switch self {
