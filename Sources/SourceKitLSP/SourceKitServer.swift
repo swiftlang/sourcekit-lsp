@@ -1961,18 +1961,19 @@ extension SourceKitServer {
         position: req.position
       )
     )
-    guard let symbol = symbols.first,
-      let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
-    else {
+    guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
       return nil
     }
-    guard let usr = symbol.usr else { return nil }
-    var occurrences = index.occurrences(ofUSR: usr, roles: .baseOf)
-    if occurrences.isEmpty {
-      occurrences = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
-    }
+    let locations = symbols.flatMap { (symbol) -> [Location] in
+      guard let usr = symbol.usr else { return [] }
+      var occurrences = index.occurrences(ofUSR: usr, roles: .baseOf)
+      if occurrences.isEmpty {
+        occurrences = index.occurrences(relatedToUSR: usr, roles: .overrideOf)
+      }
 
-    return .locations(occurrences.compactMap { indexToLSPLocation($0.location) }.sorted())
+      return occurrences.compactMap { indexToLSPLocation($0.location) }
+    }
+    return .locations(locations.sorted())
   }
 
   func references(
@@ -1986,17 +1987,19 @@ extension SourceKitServer {
         position: req.position
       )
     )
-    guard let symbol = symbols.first, let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
-    else {
+    guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
       return []
     }
-    guard let usr = symbol.usr else { return [] }
-    logger.info("performing indexed jump-to-def with usr \(usr)")
-    var roles: SymbolRole = [.reference]
-    if req.context.includeDeclaration {
-      roles.formUnion([.declaration, .definition])
+    let locations = symbols.flatMap { (symbol) -> [Location] in
+      guard let usr = symbol.usr else { return [] }
+      logger.info("Finding references for USR \(usr)")
+      var roles: SymbolRole = [.reference]
+      if req.context.includeDeclaration {
+        roles.formUnion([.declaration, .definition])
+      }
+      return index.occurrences(ofUSR: usr, roles: roles).compactMap { indexToLSPLocation($0.location) }
     }
-    return index.occurrences(ofUSR: usr, roles: roles).compactMap { indexToLSPLocation($0.location) }.sorted()
+    return locations.sorted()
   }
 
   private func indexToLSPCallHierarchyItem(
@@ -2031,29 +2034,31 @@ extension SourceKitServer {
         position: req.position
       )
     )
-    guard let symbol = symbols.first, let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index
-    else {
+    guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
       return nil
     }
     // For call hierarchy preparation we only locate the definition
-    guard let usr = symbol.usr else { return nil }
+    let usrs = symbols.compactMap(\.usr)
 
     // Only return a single call hierarchy item. Returning multiple doesn't make sense because they will all have the
     // same USR (because we query them by USR) and will thus expand to the exact same call hierarchy.
-    // Also, VS Code doesn't seem to like multiple call hierarchy items being returned and fails to display any results
-    // if they are, failing with `Cannot read properties of undefined (reading 'map')`.
-    guard let definition = index.definitionOrDeclarationOccurrences(ofUSR: usr).first else {
-      return nil
-    }
-    guard let location = indexToLSPLocation(definition.location) else {
-      return nil
-    }
-    let callHierarchyItem = self.indexToLSPCallHierarchyItem(
-      symbol: definition.symbol,
-      moduleName: definition.location.moduleName,
-      location: location
-    )
-    return [callHierarchyItem]
+    var callHierarchyItems = usrs.compactMap { (usr) -> CallHierarchyItem? in
+      guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
+        return nil
+      }
+      guard let location = indexToLSPLocation(definition.location) else {
+        return nil
+      }
+      return self.indexToLSPCallHierarchyItem(
+        symbol: definition.symbol,
+        moduleName: definition.location.moduleName,
+        location: location
+      )
+    }.sorted(by: { Location(uri: $0.uri, range: $0.range) < Location(uri: $1.uri, range: $1.range) })
+
+    // Ideally, we should show multiple symbols. But VS Code fails to display call hierarchies with multiple root items,
+    // failing with `Cannot read properties of undefined (reading 'map')`. Pick the first one.
+    return Array(callHierarchyItems.prefix(1))
   }
 
   /// Extracts our implementation-specific data about a call hierarchy
@@ -2089,7 +2094,7 @@ extension SourceKitServer {
       return occurrence.relations.filter { $0.symbol.kind.isCallable }
         .map { related in
           // Resolve the caller's definition to find its location
-          let definition = index.occurrences(ofUSR: related.symbol.usr, roles: [.definition, .declaration]).first
+          let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: related.symbol.usr)
           let definitionSymbolLocation = definition?.location
           let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
 
@@ -2120,7 +2125,7 @@ extension SourceKitServer {
       }
 
       // Resolve the callee's definition to find its location
-      let definition = index.occurrences(ofUSR: occurrence.symbol.usr, roles: [.definition, .declaration]).first
+      let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr)
       let definitionSymbolLocation = definition?.location
       let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
 
@@ -2196,26 +2201,42 @@ extension SourceKitServer {
         position: req.position
       )
     )
-    guard let symbol = symbols.first else {
+    guard !symbols.isEmpty else {
       return nil
     }
     guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
       return nil
     }
-    guard let usr = symbol.usr else { return nil }
-    return index.occurrences(ofUSR: usr, roles: [.definition, .declaration])
-      .compactMap { info -> TypeHierarchyItem? in
-        guard let location = indexToLSPLocation(info.location) else {
-          return nil
+    let usrs =
+      symbols
+      .filter {
+        // Only include references to type. For example, we don't want to find the type hierarchy of a constructor when
+        // starting the type hierarchy on `Foo()``.
+        switch $0.kind {
+        case .class, .enum, .interface, .struct: return true
+        default: return false
         }
-        return self.indexToLSPTypeHierarchyItem(
-          symbol: info.symbol,
-          moduleName: info.location.moduleName,
-          location: location,
-          index: index
-        )
       }
-      .sorted(by: { $0.name < $1.name })
+      .compactMap(\.usr)
+    let typeHierarchyItems = usrs.compactMap { (usr) -> TypeHierarchyItem? in
+      guard
+        let info = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr),
+        let location = indexToLSPLocation(info.location)
+      else {
+        return nil
+      }
+      return self.indexToLSPTypeHierarchyItem(
+        symbol: info.symbol,
+        moduleName: info.location.moduleName,
+        location: location,
+        index: index
+      )
+    }
+    .sorted(by: { $0.name < $1.name })
+
+    // Ideally, we should show multiple symbols. But VS Code fails to display type hierarchies with multiple root items,
+    // failing with `Cannot read properties of undefined (reading 'map')`. Pick the first one.
+    return Array(typeHierarchyItems.prefix(1))
   }
 
   /// Extracts our implementation-specific data about a type hierarchy
@@ -2249,7 +2270,12 @@ extension SourceKitServer {
     // Resolve retroactive conformances via the extensions
     let extensions = index.occurrences(ofUSR: data.usr, roles: .extendedBy)
     let retroactiveConformanceOccurs = extensions.flatMap { occurrence -> [SymbolOccurrence] in
-      guard let related = occurrence.relations.first else {
+      if occurrence.relations.count > 1 {
+        // When the occurrence has an `extendedBy` relation, it's an extension declaration. An extension can only extend
+        // a single type, so there can only be a single relation here.
+        logger.fault("Expected at most extendedBy relation but got \(occurrence.relations.count)")
+      }
+      guard let related = occurrence.relations.sorted().first else {
         return []
       }
       return index.occurrences(relatedToUSR: related.symbol.usr, roles: .baseOf)
@@ -2263,7 +2289,7 @@ extension SourceKitServer {
       }
 
       // Resolve the supertype's definition to find its location
-      let definition = index.occurrences(ofUSR: occurrence.symbol.usr, roles: [.definition, .declaration]).first
+      let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: occurrence.symbol.usr)
       let definitionSymbolLocation = definition?.location
       let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
 
@@ -2289,14 +2315,19 @@ extension SourceKitServer {
 
     // Convert occurrences to type hierarchy items
     let types = occurs.compactMap { occurrence -> TypeHierarchyItem? in
-      guard let location = indexToLSPLocation(occurrence.location),
-        let related = occurrence.relations.first
+      if occurrence.relations.count > 1 {
+        // An occurrence with a `baseOf` or `extendedBy` relation is an occurrence inside an inheritance clause.
+        // Such an occurrence can only be the source of a single type, namely the one that the inheritance clause belongs
+        // to.
+        logger.fault("Expected at most extendedBy or baseOf relation but got \(occurrence.relations.count)")
+      }
+      guard let related = occurrence.relations.sorted().first, let location = indexToLSPLocation(occurrence.location)
       else {
         return nil
       }
 
       // Resolve the subtype's definition to find its location
-      let definition = index.occurrences(ofUSR: related.symbol.usr, roles: [.definition, .declaration]).first
+      let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: related.symbol.usr)
       let definitionSymbolLocation = definition.map(\.location)
       let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
 
@@ -2348,6 +2379,14 @@ fileprivate extension IndexStoreDB {
     }
     return occurrences(ofUSR: usr, roles: [.declaration])
   }
+
+  /// Find a `SymbolOccurrence` that is considered the primary definition of the symbol with the given USR.
+  ///
+  /// If the USR has an ambiguous definition, the most important role of this function is to deterministically return
+  /// the same result every time.
+  func primaryDefinitionOrDeclarationOccurrence(ofUSR usr: String) -> SymbolOccurrence? {
+    return definitionOrDeclarationOccurrences(ofUSR: usr).sorted().first
+  }
 }
 
 extension IndexSymbolKind {
@@ -2394,7 +2433,11 @@ extension IndexSymbolKind {
 extension SymbolOccurrence {
   /// Get the name of the symbol that is a parent of this symbol, if one exists
   func getContainerName() -> String? {
-    return relations.first(where: { $0.roles.contains(.childOf) })?.symbol.name
+    let containers = relations.filter { $0.roles.contains(.childOf) }
+    if containers.count > 1 {
+      logger.fault("Expected an occurrence to a child of at most one symbol, not multiple")
+    }
+    return containers.sorted().first?.symbol.name
   }
 }
 
