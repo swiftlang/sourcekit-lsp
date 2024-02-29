@@ -1227,8 +1227,11 @@ extension SwiftLanguageServer {
       in: snapshot,
       includeNonEditableBaseNames: true
     )
-    guard let name = response.name else {
+    guard var name = response.name else {
       throw ResponseError.unknown("Running sourcekit-lsp with a version of sourcekitd that does not support rename")
+    }
+    if name.hasSuffix("()") {
+      name = String(name.dropLast(2))
     }
     guard let range = response.relatedIdentifiers.first(where: { $0.range.contains(renamePosition) })?.range
     else {

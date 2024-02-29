@@ -37,8 +37,8 @@ final class RenameTests: XCTestCase {
       2️⃣foo()
       _ = 3️⃣foo
       """,
-      newName: "bar()",
-      expectedPrepareRenamePlaceholder: "foo()",
+      newName: "bar",
+      expectedPrepareRenamePlaceholder: "foo",
       expected: """
         func bar() {}
         bar()
