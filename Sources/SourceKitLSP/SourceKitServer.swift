@@ -1051,6 +1051,7 @@ extension SourceKitServer: BuildSystemDelegate {
   }
 
   public func fileHandlingCapabilityChanged() {
+    logger.log("Resetting URI to workspace cache because file handling capability of a workspace changed")
     self.uriToWorkspaceCache = [:]
   }
 }

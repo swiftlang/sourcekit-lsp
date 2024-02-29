@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import LSPLogging
 import LSPTestSupport
 import LanguageServerProtocol
 @_spi(Testing) import SKCore
@@ -457,7 +458,7 @@ final class WorkspaceTests: XCTestCase {
       DocumentURI(ws.scratchDirectory.appendingPathComponent("PackageA"))
     )
 
-    // Add the otherlib target to Package.swift
+    // Add the MyExec target to PackageB/Package.swift
     let newPackageManifest = """
       // swift-tools-version: 5.7
 
@@ -477,7 +478,7 @@ final class WorkspaceTests: XCTestCase {
       .appendingPathComponent("Package.swift")
     try newPackageManifest.write(
       to: packageBManifestPath,
-      atomically: false,
+      atomically: true,
       encoding: .utf8
     )
 
@@ -490,7 +491,7 @@ final class WorkspaceTests: XCTestCase {
     // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
     _ = try await ws.testClient.send(BarrierRequest())
 
-    // After updating Package.swift in PackageB, PackageB can provide proper build settings for MyExec/main.swift and
+    // After updating PackageB/Package.swift, PackageB can provide proper build settings for MyExec/main.swift and
     // thus workspace membership should switch to PackageB.
 
     // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
@@ -499,10 +500,12 @@ final class WorkspaceTests: XCTestCase {
     // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
     let packageBRootUri = DocumentURI(ws.scratchDirectory.appendingPathComponent("PackageB"))
     for _ in 0..<30 {
-      if await ws.testClient.server.workspaceForDocument(uri: mainUri)?.rootUri == packageBRootUri {
+      let workspace = await ws.testClient.server.workspaceForDocument(uri: mainUri)
+      if workspace?.rootUri == packageBRootUri {
         didReceiveCorrectWorkspaceMembership = true
         break
       }
+      logger.log("Received incorrect workspace \(workspace?.rootUri?.pseudoPath ?? "<nil>"). Trying again in 1s")
       try await Task.sleep(nanoseconds: 1_000_000_000)
     }
 
