@@ -15,9 +15,14 @@ import Foundation
 // MARK: - Entry point
 
 extension RequestInfo {
-  func reduceCommandLineArguments(using executor: SourceKitRequestExecutor) async throws -> RequestInfo {
-    let reducer = CommandLineArgumentReducer(sourcekitdExecutor: executor)
-    return try await reducer.run(initialRequestInfo: self)
+  func reduceCommandLineArguments(
+    using executor: SourceKitRequestExecutor,
+    progressUpdate: (_ progress: Double, _ message: String) -> Void
+  ) async throws -> RequestInfo {
+    try await withoutActuallyEscaping(progressUpdate) { progressUpdate in
+      let reducer = CommandLineArgumentReducer(sourcekitdExecutor: executor, progressUpdate: progressUpdate)
+      return try await reducer.run(initialRequestInfo: self)
+    }
   }
 }
 
@@ -32,9 +37,19 @@ fileprivate class CommandLineArgumentReducer {
   /// The file to which we write the reduced source code.
   private let temporarySourceFile: URL
 
-  init(sourcekitdExecutor: SourceKitRequestExecutor) {
+  /// A callback to be called when the reducer has made progress reducing the request
+  private let progressUpdate: (_ progress: Double, _ message: String) -> Void
+
+  /// The number of command line arguments when the reducer was started.
+  private var initialCommandLineCount: Int = 0
+
+  init(
+    sourcekitdExecutor: SourceKitRequestExecutor,
+    progressUpdate: @escaping (_ progress: Double, _ message: String) -> Void
+  ) {
     self.sourcekitdExecutor = sourcekitdExecutor
-    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce-\(UUID()).swift")
+    self.temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce-\(UUID()).swift")
+    self.progressUpdate = progressUpdate
   }
 
   deinit {
@@ -42,12 +57,16 @@ fileprivate class CommandLineArgumentReducer {
   }
 
   func logSuccessfulReduction(_ requestInfo: RequestInfo) {
-    print("Reduced compiler arguments to \(requestInfo.compilerArgs.count)")
+    progressUpdate(
+      1 - (Double(requestInfo.compilerArgs.count) / Double(initialCommandLineCount)),
+      "Reduced compiler arguments to \(requestInfo.compilerArgs.count)"
+    )
   }
 
   func run(initialRequestInfo: RequestInfo) async throws -> RequestInfo {
     try initialRequestInfo.fileContents.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
     var requestInfo = initialRequestInfo
+    self.initialCommandLineCount = requestInfo.compilerArgs.count
 
     var argumentIndexToRemove = requestInfo.compilerArgs.count - 1
     while argumentIndexToRemove >= 0 {

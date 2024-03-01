@@ -16,6 +16,14 @@ import SKCore
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
+import var TSCBasic.stderrStream
+import class TSCUtility.PercentProgressAnimation
+
+/// When diagnosis is started, a progress bar displayed on the terminal that shows how far the diagnose command has
+/// progressed.
+/// Can't be a member of `DiagnoseCommand` because then `DiagnoseCommand` is no longer codable, which it needs to be
+/// to be a `AsyncParsableCommand`.
+private var progressBar: PercentProgressAnimation? = nil
 
 public struct DiagnoseCommand: AsyncParsableCommand {
   public static var configuration: CommandConfiguration = CommandConfiguration(
@@ -88,24 +96,30 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   public init() {}
 
   private func addSourcekitdCrashReproducer(toBundle bundlePath: URL) async throws {
+    reportProgress(.reproducingSourcekitdCrash(progress: 0), message: "Trying to reduce recent sourcekitd crashes")
     guard let sourcekitd = try await sourcekitd else {
       throw ReductionError("Unable to find sourcekitd.framework")
     }
 
     for (name, requestInfo) in try requestInfos() {
-      print("-- Reducing \(name)")
+      reportProgress(.reproducingSourcekitdCrash(progress: 0), message: "Reducing sourcekitd crash \(name)")
       do {
         try await reduce(
           requestInfo: requestInfo,
           sourcekitd: sourcekitd,
-          bundlePath: bundlePath.appendingPathComponent("reproducer")
+          bundlePath: bundlePath.appendingPathComponent("reproducer"),
+          progressUpdate: { (progress, message) in
+            reportProgress(
+              .reproducingSourcekitdCrash(progress: progress),
+              message: "Reducing sourcekitd crash \(name): \(message)"
+            )
+          }
         )
         // If reduce didn't throw, we have found a reproducer. Stop.
         // Looking further probably won't help because other crashes are likely the same cause.
         break
       } catch {
         // Reducing this request failed. Continue reducing the next one, maybe that one succeeds.
-        print(error)
       }
     }
   }
@@ -121,10 +135,14 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
   private func addOsLog(toBundle bundlePath: URL) async throws {
     #if os(macOS)
-    print("-- Collecting log messages")
+    reportProgress(.collectingLogMessages(progress: 0), message: "Collecting log messages")
     let outputFileUrl = bundlePath.appendingPathComponent("log.txt")
     FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil)
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
+    var bytesCollected = 0
+    // 50 MB is an average log size collected by sourcekit-lsp diagnose.
+    // It's a good proxy to show some progress indication for the majority of the time.
+    let expectedLogSize = 50_000_000
     let process = Process(
       arguments: [
         "/usr/bin/log",
@@ -134,7 +152,16 @@ public struct DiagnoseCommand: AsyncParsableCommand {
         "--debug",
       ],
       outputRedirection: .stream(
-        stdout: { try? fileHandle.write(contentsOf: $0) },
+        stdout: { bytes in
+          try? fileHandle.write(contentsOf: bytes)
+          bytesCollected += bytes.count
+          var progress = Double(bytesCollected) / Double(expectedLogSize)
+          if progress > 1 {
+            // The log is larger than we expected. Halt at 100%
+            progress = 1
+          }
+          reportProgress(.collectingLogMessages(progress: progress), message: "Collecting log messages")
+        },
         stderr: { _ in }
       )
     )
@@ -145,7 +172,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
   private func addCrashLogs(toBundle bundlePath: URL) throws {
     #if os(macOS)
-    print("-- Collecting crash reports")
+    reportProgress(.collectingCrashReports, message: "Collecting crash reports")
 
     let destinationDir = bundlePath.appendingPathComponent("crashes")
     try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
@@ -170,13 +197,18 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   }
 
   private func addSwiftVersion(toBundle bundlePath: URL) async throws {
-    print("-- Collecting installed Swift versions")
-
     let outputFileUrl = bundlePath.appendingPathComponent("swift-versions.txt")
     FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil)
     let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
 
-    for toolchain in try await toolchainRegistry.toolchains {
+    let toolchains = try await toolchainRegistry.toolchains
+
+    for (index, toolchain) in toolchains.enumerated() {
+      reportProgress(
+        .collectingSwiftVersions(progress: Double(index) / Double(toolchains.count)),
+        message: "Determining Swift version of \(toolchain.identifier)"
+      )
+
       guard let swiftUrl = toolchain.swift?.asURL else {
         continue
       }
@@ -195,6 +227,10 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     }
   }
 
+  private func reportProgress(_ state: DiagnoseProgressState, message: String) {
+    progressBar?.update(step: Int(state.progress * 100), total: 100, text: message)
+  }
+
   public func run() async throws {
     print(
       """
@@ -206,10 +242,11 @@ public struct DiagnoseCommand: AsyncParsableCommand {
       - If possible, a minimized project that caused SourceKit to crash
 
       All information is collected locally.
-      The collection might take a few minutes.
-      ----------------------------------------
+
       """
     )
+
+    progressBar = PercentProgressAnimation(stream: stderrStream, header: "Diagnosing sourcekit-lsp issues")
 
     let date = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
     let bundlePath = FileManager.default.temporaryDirectory
@@ -221,9 +258,12 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     await orPrintError { try await addSwiftVersion(toBundle: bundlePath) }
     await orPrintError { try await addSourcekitdCrashReproducer(toBundle: bundlePath) }
 
+    progressBar?.complete(success: true)
+    progressBar?.clear()
+
     print(
       """
-      ----------------------------------------
+
       Bundle created. 
       When filing an issue at https://github.com/apple/sourcekit-lsp/issues/new, 
       please attach the bundle located at 
@@ -233,7 +273,12 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
   }
 
-  private func reduce(requestInfo: RequestInfo, sourcekitd: String, bundlePath: URL) async throws {
+  private func reduce(
+    requestInfo: RequestInfo,
+    sourcekitd: String,
+    bundlePath: URL,
+    progressUpdate: (_ progress: Double, _ message: String) -> Void
+  ) async throws {
     var requestInfo = requestInfo
     var nspredicate: NSPredicate? = nil
     #if canImport(Darwin)
@@ -245,9 +290,70 @@ public struct DiagnoseCommand: AsyncParsableCommand {
       sourcekitd: URL(fileURLWithPath: sourcekitd),
       reproducerPredicate: nspredicate
     )
-    requestInfo = try await requestInfo.reduceInputFile(using: executor)
-    requestInfo = try await requestInfo.reduceCommandLineArguments(using: executor)
+
+    // How much time of the reduction is expected to be spent reducing the source compared to command line argument
+    // reduction.
+    let sourceReductionPercentage = 0.7
+
+    requestInfo = try await requestInfo.reduceInputFile(
+      using: executor,
+      progressUpdate: { progress, message in
+        progressUpdate(progress * sourceReductionPercentage, message)
+      }
+    )
+    requestInfo = try await requestInfo.reduceCommandLineArguments(
+      using: executor,
+      progressUpdate: { progress, message in
+        progressUpdate(sourceReductionPercentage + progress * (1 - sourceReductionPercentage), message)
+      }
+    )
 
     try makeReproducerBundle(for: requestInfo, bundlePath: bundlePath)
+  }
+}
+
+/// Describes the state that the diagnose command is in. This is used to compute a progress bar.
+fileprivate enum DiagnoseProgressState: Comparable {
+  case collectingCrashReports
+  case collectingLogMessages(progress: Double)
+  case collectingSwiftVersions(progress: Double)
+  case reproducingSourcekitdCrash(progress: Double)
+
+  var allFinalStates: [DiagnoseProgressState] {
+    return [
+      .collectingCrashReports,
+      .collectingLogMessages(progress: 1),
+      .collectingSwiftVersions(progress: 1),
+      .reproducingSourcekitdCrash(progress: 1),
+    ]
+  }
+
+  /// An estimate of how long this state takes in seconds.
+  ///
+  /// The actual values are never displayed. We use these values to allocate a portion of the overall progress to this
+  /// state.
+  var estimatedDuration: Double {
+    switch self {
+    case .collectingCrashReports:
+      return 1
+    case .collectingLogMessages:
+      return 15
+    case .collectingSwiftVersions:
+      return 10
+    case .reproducingSourcekitdCrash:
+      return 60
+    }
+  }
+
+  var progress: Double {
+    let estimatedTotalDuration = allFinalStates.reduce(0, { $0 + $1.estimatedDuration })
+    var elapsedEstimatedDuration = allFinalStates.filter { $0 < self }.reduce(0, { $0 + $1.estimatedDuration })
+    switch self {
+    case .collectingCrashReports: break
+    case .collectingLogMessages(let progress), .collectingSwiftVersions(progress: let progress),
+      .reproducingSourcekitdCrash(progress: let progress):
+      elapsedEstimatedDuration += progress * self.estimatedDuration
+    }
+    return elapsedEstimatedDuration / estimatedTotalDuration
   }
 }
