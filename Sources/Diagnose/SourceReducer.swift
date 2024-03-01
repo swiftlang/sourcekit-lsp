@@ -13,6 +13,7 @@
 import Foundation
 import LSPLogging
 import SourceKitD
+@_spi(FixItApplier) import SwiftIDEUtils
 import SwiftParser
 import SwiftSyntax
 

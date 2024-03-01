@@ -1,7 +1,6 @@
 add_library(Diagnose STATIC
   CommandLineArgumentsReducer.swift
   DiagnoseCommand.swift
-  FixItApplier.swift
   OSLogScraper.swift
   ReductionError.swift
   ReproducerBundle.swift
@@ -18,6 +17,7 @@ target_link_libraries(Diagnose PUBLIC
   SKCore
   SourceKitD
   ArgumentParser
+  SwiftSyntax::SwiftIDEUtils
   SwiftSyntax::SwiftSyntax
   SwiftSyntax::SwiftParser
   TSCBasic
