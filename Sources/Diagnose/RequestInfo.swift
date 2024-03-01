@@ -70,11 +70,16 @@ public struct RequestInfo {
       "key.offset: "
       Capture(ZeroOrMore(.digit))
     }
-    guard let offsetMatch = requestTemplate.matches(of: offsetRegex).only else {
-      throw ReductionError("Failed to find key.offset in the request")
+    if let offsetMatch = requestTemplate.matches(of: offsetRegex).only {
+      offset = Int(offsetMatch.1)!
+      requestTemplate.replace(offsetRegex, with: "key.offset: $OFFSET")
+    } else {
+      offset = 0
     }
-    offset = Int(offsetMatch.1)!
-    requestTemplate.replace(offsetRegex, with: "key.offset: $OFFSET")
+
+    // If the request contained source text, remove it. We want to pick it up from the file on disk and most (possibly
+    // all) sourcekitd requests use key.sourcefile if key.sourcetext is missing.
+    requestTemplate.replace(#/ *key.sourcetext: .*\n/#, with: "")
 
     // Extract source file
     let sourceFileRegex = Regex {
