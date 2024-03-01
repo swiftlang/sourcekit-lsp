@@ -39,6 +39,7 @@ extension SourceKitServer {
     return
       testSymbols
       .filter { $0.canBeTestDefinition }
+      .sorted()
       .map(WorkspaceSymbolItem.init)
   }
 
@@ -56,6 +57,7 @@ extension SourceKitServer {
     return
       testSymbols
       .filter { $0.canBeTestDefinition }
+      .sorted()
       .map(WorkspaceSymbolItem.init)
   }
 }

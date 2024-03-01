@@ -1091,38 +1091,37 @@ extension sourcekitd_api_uid_t {
 
   func asSymbolKind(_ vals: sourcekitd_api_values) -> SymbolKind? {
     switch self {
-    case vals.declClass:
+    case vals.declClass, vals.refClass, vals.declActor, vals.refActor:
       return .class
-    case vals.declMethodInstance,
-      vals.declMethodStatic,
-      vals.declMethodClass:
+    case vals.declMethodInstance, vals.refMethodInstance,
+      vals.declMethodStatic, vals.refMethodStatic,
+      vals.declMethodClass, vals.refMethodClass:
       return .method
-    case vals.declVarInstance,
-      vals.declVarStatic,
-      vals.declVarClass:
+    case vals.declVarInstance, vals.refVarInstance,
+      vals.declVarStatic, vals.refVarStatic,
+      vals.declVarClass, vals.refVarClass:
       return .property
-    case vals.declEnum:
+    case vals.declEnum, vals.refEnum:
       return .enum
-    case vals.declEnumElement:
+    case vals.declEnumElement, vals.refEnumElement:
       return .enumMember
-    case vals.declProtocol:
+    case vals.declProtocol, vals.refProtocol:
       return .interface
-    case vals.declFunctionFree:
+    case vals.declFunctionFree, vals.refFunctionFree:
       return .function
-    case vals.declVarGlobal,
-      vals.declVarLocal:
+    case vals.declVarGlobal, vals.refVarGlobal,
+      vals.declVarLocal, vals.refVarLocal:
       return .variable
-    case vals.declStruct:
+    case vals.declStruct, vals.refStruct:
       return .struct
-    case vals.declGenericTypeParam:
+    case vals.declGenericTypeParam, vals.refGenericTypeParam:
       return .typeParameter
     case vals.declExtension:
-      // There are no extensions in LSP, so I return something vaguely similar
+      // There are no extensions in LSP, so we return something vaguely similar
       return .namespace
     case vals.refModule:
       return .module
-    case vals.refConstructor,
-      vals.declConstructor:
+    case vals.declConstructor, vals.refConstructor:
       return .constructor
     default:
       return nil

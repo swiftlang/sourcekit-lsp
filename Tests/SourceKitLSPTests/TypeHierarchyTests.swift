@@ -64,8 +64,8 @@ final class TypeHierarchyTests: XCTestCase {
     assertEqualIgnoringData(
       supertypes,
       [
-        TypeHierarchyItem(name: "MyProtocol", kind: .interface, location: "1️⃣", in: ws),
         TypeHierarchyItem(name: "MyOtherProtocol", kind: .interface, location: "2️⃣", in: ws),
+        TypeHierarchyItem(name: "MyProtocol", kind: .interface, location: "1️⃣", in: ws),
       ]
     )
   }
@@ -107,8 +107,8 @@ final class TypeHierarchyTests: XCTestCase {
       subtypes,
       [
         TypeHierarchyItem(name: "MyClass", kind: .class, location: "2️⃣", in: ws),
-        TypeHierarchyItem(name: "MyStruct", kind: .struct, location: "3️⃣", in: ws),
         TypeHierarchyItem(name: "MyEnum", kind: .enum, location: "4️⃣", in: ws),
+        TypeHierarchyItem(name: "MyStruct", kind: .struct, location: "3️⃣", in: ws),
       ]
     )
   }
