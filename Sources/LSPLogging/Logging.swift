@@ -15,7 +15,9 @@
 ///  - Info: Helpful but not essential for troubleshooting (not persisted, logged to memory)
 ///  - Notice/log (Default): Essential for troubleshooting
 ///  - Error: Error seen during execution
+///    - Used eg. if the user sends an erroneous request or if a request fails
 ///  - Fault: Bug in program
+///    - Used eg. if invariants inside sourcekit-lsp are broken and the error is not due to user-provided input
 
 import Foundation
 

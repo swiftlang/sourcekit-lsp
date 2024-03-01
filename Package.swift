@@ -305,8 +305,20 @@ let package = Package(
     .testTarget(
       name: "SourceKitLSPTests",
       dependencies: [
+        "BuildServerProtocol",
+        "LSPLogging",
+        "LSPTestSupport",
+        "LanguageServerProtocol",
+        "SKCore",
+        "SKSupport",
         "SKTestSupport",
+        "SourceKitD",
         "SourceKitLSP",
+        .product(name: "IndexStoreDB", package: "indexstore-db"),
+        .product(name: "ISDBTestSupport", package: "indexstore-db"),
+        .product(name: "SwiftParser", package: "swift-syntax"),
+        .product(name: "SwiftSyntax", package: "swift-syntax"),
+        .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ]
     ),
   ]
