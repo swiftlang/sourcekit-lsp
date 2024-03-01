@@ -597,7 +597,16 @@ extension SwiftLanguageServer {
       }
 
       var result = escapeNameMarkdown(name)
-      if let doc = cursorInfo.documentationXML {
+      if let documentation = cursorInfo.documentation {
+        if let annotatedDeclaration = cursorInfo.annotatedDeclaration {
+          let markdownDecl =
+            orLog("Convert XML declaration to Markdown") {
+              try xmlDocumentationToMarkdown(annotatedDeclaration)
+            } ?? annotatedDeclaration
+          result += "\n\(markdownDecl)"
+        }
+        result += documentation
+      } else if let doc = cursorInfo.documentationXML {
         result += """
 
           \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(doc) } ?? doc)

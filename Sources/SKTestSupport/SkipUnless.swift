@@ -51,7 +51,7 @@ public enum SkipUnless {
   /// guaranteed to be up-to-date.
   private static func skipUnlessSupportedByToolchain(
     swiftVersion: SwiftVersion,
-    featureName: String,
+    featureName: String = #function,
     file: StaticString,
     line: UInt,
     featureCheck: () async throws -> Bool
@@ -99,12 +99,7 @@ public enum SkipUnless {
     file: StaticString = #file,
     line: UInt = #line
   ) async throws {
-    try await skipUnlessSupportedByToolchain(
-      swiftVersion: SwiftVersion(5, 11),
-      featureName: "semantic token support in sourcekitd",
-      file: file,
-      line: line
-    ) {
+    try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI.for(.swift)
       testClient.openDocument("0.bitPattern", uri: uri)
@@ -134,12 +129,7 @@ public enum SkipUnless {
     file: StaticString = #file,
     line: UInt = #line
   ) async throws {
-    try await skipUnlessSupportedByToolchain(
-      swiftVersion: SwiftVersion(5, 11),
-      featureName: "rename support in sourcekitd",
-      file: file,
-      line: line
-    ) {
+    try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI.for(.swift)
       let positions = testClient.openDocument("func 1️⃣test() {}", uri: uri)
@@ -159,12 +149,7 @@ public enum SkipUnless {
     file: StaticString = #file,
     line: UInt = #line
   ) async throws {
-    try await skipUnlessSupportedByToolchain(
-      swiftVersion: SwiftVersion(5, 11),
-      featureName: "rename support in clangd",
-      file: file,
-      line: line
-    ) {
+    try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI.for(.c)
       let positions = testClient.openDocument("void 1️⃣test() {}", uri: uri)
@@ -194,12 +179,7 @@ public enum SkipUnless {
     file: StaticString = #file,
     line: UInt = #line
   ) async throws {
-    try await skipUnlessSupportedByToolchain(
-      swiftVersion: SwiftVersion(5, 11),
-      featureName: "SwiftPM stores modules in subdirectory",
-      file: file,
-      line: line
-    ) {
+    try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       let workspace = try await SwiftPMTestWorkspace(
         files: ["test.swift": ""],
         build: true
@@ -217,13 +197,37 @@ public enum SkipUnless {
     file: StaticString = #file,
     line: UInt = #line
   ) async throws {
-    try await skipUnlessSupportedByToolchain(
-      swiftVersion: SwiftVersion(5, 11),
-      featureName: "Toolchain contains swift-format",
-      file: file,
-      line: line
-    ) {
+    try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       return await ToolchainRegistry.forTesting.default?.swiftFormat != nil
+    }
+  }
+
+  public static func sourcekitdReturnsRawDocumentationResponse(
+    file: StaticString = #file,
+    line: UInt = #line
+  ) async throws {
+    struct ExpectedMarkdownContentsError: Error {}
+
+    return try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      // The XML-based doc comment conversion did not preserve `Precondition`.
+      let testClient = try await TestSourceKitLSPClient()
+      let uri = DocumentURI.for(.swift)
+      let positions = testClient.openDocument(
+        """
+        /// - Precondition: Must have an apple
+        func 1️⃣test() {}
+        """,
+        uri: uri
+      )
+      let response = try await testClient.send(
+        HoverRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+      )
+      let hover = try XCTUnwrap(response, file: file, line: line)
+      XCTAssertNil(hover.range, file: file, line: line)
+      guard case .markupContent(let content) = hover.contents else {
+        throw ExpectedMarkdownContentsError()
+      }
+      return content.value.contains("Precondition")
     }
   }
 
@@ -295,7 +299,7 @@ private func getSwiftVersion(_ swiftcPath: AbsolutePath) async throws -> SwiftVe
   let result = try await process.waitUntilExit()
   let output = String(bytes: try result.output.get(), encoding: .utf8)
   let regex = Regex {
-    "Apple Swift version "
+    "Swift version "
     Capture { OneOrMore(.digit) }
     "."
     Capture { OneOrMore(.digit) }

@@ -28,9 +28,17 @@ struct CursorInfo {
   /// The annotated declaration XML string.
   var annotatedDeclaration: String?
 
+  #if swift(>=6.2)
+  #warning(
+    "Documentation transitioned from XML to the raw string in Swift 6.0. We should be able to remove documentationXML now"
+  )
+  #endif
   /// The documentation comment XML string. The schema is at
   /// https://github.com/apple/swift/blob/main/bindings/xml/comment-xml-schema.rng
   var documentationXML: String?
+
+  /// The documentation as it is spelled in
+  var documentation: String?
 
   /// The refactor actions available at this position.
   var refactorActions: [SemanticRefactorCommand]? = nil
@@ -38,11 +46,13 @@ struct CursorInfo {
   init(
     _ symbolInfo: SymbolDetails,
     annotatedDeclaration: String?,
-    documentationXML: String?
+    documentationXML: String?,
+    documentation: String?
   ) {
     self.symbolInfo = symbolInfo
     self.annotatedDeclaration = annotatedDeclaration
     self.documentationXML = documentationXML
+    self.documentation = documentation
   }
 
   init?(
@@ -79,7 +89,8 @@ struct CursorInfo {
         receiverUsrs: dict[keys.receivers]?.compactMap { $0[keys.usr] as String? } ?? []
       ),
       annotatedDeclaration: dict[keys.annotatedDecl],
-      documentationXML: dict[keys.docFullAsXML]
+      documentationXML: dict[keys.docFullAsXML],
+      documentation: dict[keys.docComment]
     )
   }
 }
