@@ -15,12 +15,12 @@ import Foundation
 import SKCore
 
 import struct TSCBasic.AbsolutePath
+import class TSCBasic.Process
 
 public struct DiagnoseCommand: AsyncParsableCommand {
   public static var configuration: CommandConfiguration = CommandConfiguration(
     commandName: "diagnose",
-    abstract: "Reduce sourcekitd crashes",
-    shouldDisplay: false
+    abstract: "Creates a bundle containing information that help diagnose issues with sourcekit-lsp"
   )
 
   @Option(
@@ -56,15 +56,19 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   var predicate: String?
   #endif
 
+  var toolchainRegistry: ToolchainRegistry {
+    get throws {
+      let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
+      return ToolchainRegistry(installPath: installPath)
+    }
+  }
+
   var sourcekitd: String? {
     get async throws {
       if let sourcekitdOverride {
         return sourcekitdOverride
       }
-
-      let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
-      let toolchainRegistry = ToolchainRegistry(installPath: installPath)
-      return await toolchainRegistry.default?.sourcekitd?.pathString
+      return try await toolchainRegistry.default?.sourcekitd?.pathString
     }
   }
 
@@ -83,16 +87,19 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
   public init() {}
 
-  public func run() async throws {
+  private func addSourcekitdCrashReproducer(toBundle bundlePath: URL) async throws {
     guard let sourcekitd = try await sourcekitd else {
       throw ReductionError("Unable to find sourcekitd.framework")
     }
 
-    var reproducerBundle: URL?
     for (name, requestInfo) in try requestInfos() {
-      print("-- Diagnosing \(name)")
+      print("-- Reducing \(name)")
       do {
-        reproducerBundle = try await reduce(requestInfo: requestInfo, sourcekitd: sourcekitd)
+        try await reduce(
+          requestInfo: requestInfo,
+          sourcekitd: sourcekitd,
+          bundlePath: bundlePath.appendingPathComponent("reproducer")
+        )
         // If reduce didn't throw, we have found a reproducer. Stop.
         // Looking further probably won't help because other crashes are likely the same cause.
         break
@@ -101,26 +108,132 @@ public struct DiagnoseCommand: AsyncParsableCommand {
         print(error)
       }
     }
+  }
 
-    guard let reproducerBundle else {
-      print("No reducible crashes found")
-      throw ExitCode(1)
+  /// Execute body and if it throws, log the error.
+  private func orPrintError(_ body: () async throws -> Void) async {
+    do {
+      try await body()
+    } catch {
+      print(error)
     }
+  }
+
+  private func addOsLog(toBundle bundlePath: URL) async throws {
+    #if os(macOS)
+    print("-- Collecting log messages")
+    let outputFileUrl = bundlePath.appendingPathComponent("log.txt")
+    FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil)
+    let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
+    let process = Process(
+      arguments: [
+        "/usr/bin/log",
+        "show",
+        "--predicate", #"subsystem = "org.swift.sourcekit-lsp" AND process = "sourcekit-lsp""#,
+        "--info",
+        "--debug",
+      ],
+      outputRedirection: .stream(
+        stdout: { try? fileHandle.write(contentsOf: $0) },
+        stderr: { _ in }
+      )
+    )
+    try process.launch()
+    try await process.waitUntilExit()
+    #endif
+  }
+
+  private func addCrashLogs(toBundle bundlePath: URL) throws {
+    #if os(macOS)
+    print("-- Collecting crash reports")
+
+    let destinationDir = bundlePath.appendingPathComponent("crashes")
+    try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
+
+    let processesToIncludeCrashReportsOf = ["SourceKitService", "sourcekit-lsp", "swift-frontend"]
+    let directoriesToScanForCrashReports = ["/Library/Logs/DiagnosticReports", "~/Library/Logs/DiagnosticReports"]
+
+    for directoryToScan in directoriesToScanForCrashReports {
+      let diagnosticReports = URL(filePath: (directoryToScan as NSString).expandingTildeInPath)
+      let enumerator = FileManager.default.enumerator(at: diagnosticReports, includingPropertiesForKeys: nil)
+      while let fileUrl = enumerator?.nextObject() as? URL {
+        guard processesToIncludeCrashReportsOf.contains(where: { fileUrl.lastPathComponent.hasPrefix($0) }) else {
+          continue
+        }
+        try? FileManager.default.copyItem(
+          at: fileUrl,
+          to: destinationDir.appendingPathComponent(fileUrl.lastPathComponent)
+        )
+      }
+    }
+    #endif
+  }
+
+  private func addSwiftVersion(toBundle bundlePath: URL) async throws {
+    print("-- Collecting installed Swift versions")
+
+    let outputFileUrl = bundlePath.appendingPathComponent("swift-versions.txt")
+    FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil)
+    let fileHandle = try FileHandle(forWritingTo: outputFileUrl)
+
+    for toolchain in try await toolchainRegistry.toolchains {
+      guard let swiftUrl = toolchain.swift?.asURL else {
+        continue
+      }
+
+      try fileHandle.write(contentsOf: "\(swiftUrl.path) --version\n".data(using: .utf8)!)
+      let process = Process(
+        arguments: [swiftUrl.path, "--version"],
+        outputRedirection: .stream(
+          stdout: { try? fileHandle.write(contentsOf: $0) },
+          stderr: { _ in }
+        )
+      )
+      try process.launch()
+      try await process.waitUntilExit()
+      fileHandle.write("\n".data(using: .utf8)!)
+    }
+  }
+
+  public func run() async throws {
     print(
       """
-        ----------------------------------------
-        Reduced SourceKit issue and created a bundle that contains a reduced sourcekitd request exhibiting the issue
-        and all the files referenced from the request.
-        The information in this bundle should be sufficient to reproduce the issue.
+      sourcekit-lsp diagnose collects information that helps the developers of sourcekit-lsp diagnose and fix issues. 
+      This information contains:
+      - Crash logs from SourceKit
+      - Log messages emitted by SourceKit
+      - Versions of Swift installed on your system
+      - If possible, a minimized project that caused SourceKit to crash
 
-        Please file an issue at https://github.com/apple/sourcekit-lsp/issues/new and attach the bundle located at
-        \(reproducerBundle.path)
+      All information is collected locally.
+      The collection might take a few minutes.
+      ----------------------------------------
+      """
+    )
+
+    let date = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+    let bundlePath = FileManager.default.temporaryDirectory
+      .appendingPathComponent("sourcekitd-reproducer-\(date)")
+    try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
+
+    await orPrintError { try addCrashLogs(toBundle: bundlePath) }
+    await orPrintError { try await addOsLog(toBundle: bundlePath) }
+    await orPrintError { try await addSwiftVersion(toBundle: bundlePath) }
+    await orPrintError { try await addSourcekitdCrashReproducer(toBundle: bundlePath) }
+
+    print(
+      """
+      ----------------------------------------
+      Bundle created. 
+      When filing an issue at https://github.com/apple/sourcekit-lsp/issues/new, 
+      please attach the bundle located at 
+      \(bundlePath.path)
       """
     )
 
   }
 
-  private func reduce(requestInfo: RequestInfo, sourcekitd: String) async throws -> URL {
+  private func reduce(requestInfo: RequestInfo, sourcekitd: String, bundlePath: URL) async throws {
     var requestInfo = requestInfo
     var nspredicate: NSPredicate? = nil
     #if canImport(Darwin)
@@ -135,6 +248,6 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     requestInfo = try await requestInfo.reduceInputFile(using: executor)
     requestInfo = try await requestInfo.reduceCommandLineArguments(using: executor)
 
-    return try makeReproducerBundle(for: requestInfo)
+    try makeReproducerBundle(for: requestInfo, bundlePath: bundlePath)
   }
 }

@@ -13,12 +13,7 @@
 import Foundation
 
 /// Create a folder that contains all files that should be necessary to reproduce a sourcekitd crash.
-func makeReproducerBundle(for requestInfo: RequestInfo) throws -> URL {
-  let date = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
-  let bundlePath = FileManager.default.temporaryDirectory
-    .appendingPathComponent("sourcekitd-reproducer-\(date)")
-  try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
-
+func makeReproducerBundle(for requestInfo: RequestInfo, bundlePath: URL) throws {
   try requestInfo.fileContents.write(
     to: bundlePath.appendingPathComponent("input.swift"),
     atomically: true,
@@ -41,5 +36,4 @@ func makeReproducerBundle(for requestInfo: RequestInfo) throws -> URL {
       try? FileManager.default.copyItem(at: URL(fileURLWithPath: compilerArg), to: dest)
     }
   }
-  return bundlePath
 }
