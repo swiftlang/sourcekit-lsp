@@ -61,6 +61,7 @@ target_link_libraries(SourceKitLSP PUBLIC
   SwiftSyntax::SwiftIDEUtils
   SwiftSyntax::SwiftParser
   SwiftSyntax::SwiftParserDiagnostics
+  SwiftSyntax::SwiftRefactor
   SwiftSyntax::SwiftSyntax)
 target_link_libraries(SourceKitLSP PRIVATE
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)

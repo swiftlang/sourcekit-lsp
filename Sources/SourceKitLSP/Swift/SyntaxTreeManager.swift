@@ -71,14 +71,19 @@ actor SyntaxTreeManager {
 
   /// Get the SwiftSyntax tree for the given document snapshot.
   func syntaxTree(for snapshot: DocumentSnapshot) async -> SourceFileSyntax {
+    return await incrementalParseResult(for: snapshot).tree
+  }
+
+  /// Get the `IncrementalParseResult` for the given document snapshot.
+  func incrementalParseResult(for snapshot: DocumentSnapshot) async -> IncrementalParseResult {
     if let syntaxTreeComputation = computation(for: snapshot.id) {
-      return await syntaxTreeComputation.value.tree
+      return await syntaxTreeComputation.value
     }
     let task = Task {
       return Parser.parseIncrementally(source: snapshot.text, parseTransition: nil)
     }
     setComputation(for: snapshot.id, computation: task)
-    return await task.value.tree
+    return await task.value
   }
 
   /// Register that we have made an edit to an old document snapshot.

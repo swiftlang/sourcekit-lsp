@@ -43,6 +43,14 @@ final class SwiftCompletionTests: XCTestCase {
     ])
   }
 
+  private var snippetCapabilities = ClientCapabilities(
+    textDocument: TextDocumentClientCapabilities(
+      completion: TextDocumentClientCapabilities.Completion(
+        completionItem: TextDocumentClientCapabilities.Completion.CompletionItem(snippetSupport: true)
+      )
+    )
+  )
+
   // MARK: - Tests
 
   func testCompletionServerFilter() async throws {
@@ -120,15 +128,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCompletionSnippetSupport() async throws {
-    let testClient = try await TestSourceKitLSPClient(
-      capabilities: ClientCapabilities(
-        textDocument: TextDocumentClientCapabilities(
-          completion: TextDocumentClientCapabilities.Completion(
-            completionItem: TextDocumentClientCapabilities.Completion.CompletionItem(snippetSupport: true)
-          )
-        )
-      )
-    )
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
     let uri = DocumentURI.for(.swift)
     testClient.openDocument(text, uri: uri)
 
@@ -974,6 +974,204 @@ final class SwiftCompletionTests: XCTestCase {
           insertText: "👨‍👩‍👦👨‍👩‍👦()",
           insertTextFormat: .plain,
           textEdit: .textEdit(TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: "👨‍👩‍👦👨‍👩‍👦()"))
+        )
+      ]
+    )
+  }
+  func testExpandClosurePlaceholder() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      struct MyArray {
+          func myMap(_ body: (Int) -> Bool) {}
+      }
+      func test(x: MyArray) {
+          x.1️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(
+      completions.items.filter { $0.label.contains("myMap") },
+      [
+        CompletionItem(
+          label: "myMap(body: (Int) -> Bool)",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          sortText: nil,
+          filterText: "myMap(:)",
+          insertText: """
+            myMap { ${1:Int} in
+                    ${2:Bool}
+            }
+            """,
+          insertTextFormat: .snippet,
+          textEdit: .textEdit(
+            TextEdit(
+              range: Range(positions["1️⃣"]),
+              newText: """
+                myMap { ${1:Int} in
+                        ${2:Bool}
+                }
+                """
+            )
+          )
+        )
+      ]
+    )
+  }
+  func testExpandClosurePlaceholderOnOptional() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      struct MyArray {
+          func myMap(_ body: (Int) -> Bool) {}
+      }
+      func test(x: MyArray?) {
+          x1️⃣.2️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    XCTAssertEqual(
+      completions.items.filter { $0.label.contains("myMap") },
+      [
+        CompletionItem(
+          label: "?.myMap(body: (Int) -> Bool)",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          sortText: nil,
+          filterText: ".myMap(:)",
+          insertText: """
+            ?.myMap { ${1:Int} in
+                    ${2:Bool}
+            }
+            """,
+          insertTextFormat: .snippet,
+          textEdit: .textEdit(
+            TextEdit(
+              range: positions["1️⃣"]..<positions["2️⃣"],
+              newText: """
+                ?.myMap { ${1:Int} in
+                        ${2:Bool}
+                }
+                """
+            )
+          )
+        )
+      ]
+    )
+  }
+
+  func testExpandMultipleClosurePlaceholders() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      struct MyArray {
+          func myMap(_ body: (Int) -> Bool, _ second: (Int) -> String) {}
+      }
+      func test(x: MyArray) {
+          x.1️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(
+      completions.items.filter { $0.label.contains("myMap") },
+      [
+        CompletionItem(
+          label: "myMap(body: (Int) -> Bool, second: (Int) -> String)",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          sortText: nil,
+          filterText: "myMap(::)",
+          insertText: """
+            myMap { ${1:Int} in
+                    ${2:Bool}
+            } _: { ${3:Int} in
+                    ${4:String}
+            }
+            """,
+          insertTextFormat: .snippet,
+          textEdit: .textEdit(
+            TextEdit(
+              range: Range(positions["1️⃣"]),
+              newText: """
+                myMap { ${1:Int} in
+                        ${2:Bool}
+                } _: { ${3:Int} in
+                        ${4:String}
+                }
+                """
+            )
+          )
+        )
+      ]
+    )
+  }
+
+  func testExpandMultipleClosurePlaceholdersWithLabel() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      struct MyArray {
+          func myMap(_ body: (Int) -> Bool, second: (Int) -> String) {}
+      }
+      func test(x: MyArray) {
+          x.1️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(
+      completions.items.filter { $0.label.contains("myMap") },
+      [
+        CompletionItem(
+          label: "myMap(body: (Int) -> Bool, second: (Int) -> String)",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          sortText: nil,
+          filterText: "myMap(:second:)",
+          insertText: """
+            myMap { ${1:Int} in
+                    ${2:Bool}
+            } second: { ${3:Int} in
+                    ${4:String}
+            }
+            """,
+          insertTextFormat: .snippet,
+          textEdit: .textEdit(
+            TextEdit(
+              range: Range(positions["1️⃣"]),
+              newText: """
+                myMap { ${1:Int} in
+                        ${2:Bool}
+                } second: { ${3:Int} in
+                        ${4:String}
+                }
+                """
+            )
+          )
         )
       ]
     )
