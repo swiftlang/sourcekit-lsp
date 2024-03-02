@@ -91,7 +91,7 @@ class CodeCompletionSession {
   static func completionList(
     sourcekitd: any SourceKitD,
     snapshot: DocumentSnapshot,
-    syntaxTreeParseResult: IncrementalParseResult,
+    indentationWidth: Trivia?,
     completionPosition: Position,
     completionUtf8Offset: Int,
     cursorPosition: Position,
@@ -123,7 +123,7 @@ class CodeCompletionSession {
       let session = CodeCompletionSession(
         sourcekitd: sourcekitd,
         snapshot: snapshot,
-        syntaxTreeParseResult: syntaxTreeParseResult,
+        indentationWidth: indentationWidth,
         utf8Offset: completionUtf8Offset,
         position: completionPosition,
         compileCommand: compileCommand,
@@ -140,7 +140,8 @@ class CodeCompletionSession {
 
   private let sourcekitd: any SourceKitD
   private let snapshot: DocumentSnapshot
-  private let syntaxTreeParseResult: IncrementalParseResult
+  /// The inferred indentation width of the source file the completion is being performed in
+  private let indentationWidth: Trivia?
   private let utf8StartOffset: Int
   private let position: Position
   private let compileCommand: SwiftCompileCommand?
@@ -158,14 +159,14 @@ class CodeCompletionSession {
   private init(
     sourcekitd: any SourceKitD,
     snapshot: DocumentSnapshot,
-    syntaxTreeParseResult: IncrementalParseResult,
+    indentationWidth: Trivia?,
     utf8Offset: Int,
     position: Position,
     compileCommand: SwiftCompileCommand?,
     clientSupportsSnippets: Bool
   ) {
     self.sourcekitd = sourcekitd
-    self.syntaxTreeParseResult = syntaxTreeParseResult
+    self.indentationWidth = indentationWidth
     self.snapshot = snapshot
     self.utf8StartOffset = utf8Offset
     self.position = position
@@ -308,7 +309,10 @@ class CodeCompletionSession {
     var parser = Parser(exprToExpand)
     let expr = ExprSyntax.parse(from: &parser)
     guard let call = OutermostFunctionCallFinder.findOutermostFunctionCall(in: expr),
-      let expandedCall = ExpandEditorPlaceholdersToTrailingClosures.refactor(syntax: call)
+      let expandedCall = ExpandEditorPlaceholdersToTrailingClosures.refactor(
+        syntax: call,
+        in: ExpandEditorPlaceholdersToTrailingClosures.Context(indentationWidth: indentationWidth)
+      )
     else {
       return nil
     }

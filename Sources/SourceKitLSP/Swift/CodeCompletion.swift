@@ -14,6 +14,7 @@ import Foundation
 import LSPLogging
 import LanguageServerProtocol
 import SourceKitD
+import SwiftBasicFormat
 
 extension SwiftLanguageServer {
 
@@ -43,10 +44,13 @@ extension SwiftLanguageServer {
     let clientSupportsSnippets =
       capabilityRegistry.clientCapabilities.textDocument?.completion?.completionItem?.snippetSupport ?? false
     let buildSettings = await buildSettings(for: snapshot.uri)
+
+    let inferredIndentationWidth = BasicFormat.inferIndentation(of: await syntaxTreeManager.syntaxTree(for: snapshot))
+
     return try await CodeCompletionSession.completionList(
       sourcekitd: sourcekitd,
       snapshot: snapshot,
-      syntaxTreeParseResult: syntaxTreeManager.incrementalParseResult(for: snapshot),
+      indentationWidth: inferredIndentationWidth,
       completionPosition: completionPos,
       completionUtf8Offset: offset,
       cursorPosition: req.position,
