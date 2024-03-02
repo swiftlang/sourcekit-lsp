@@ -361,7 +361,7 @@ class CodeCompletionSession {
       }
 
       let text = insertText.map {
-        rewriteSourceKitPlaceholders(inString: $0, clientSupportsSnippets: clientSupportsSnippets)
+        rewriteSourceKitPlaceholders(in: $0, clientSupportsSnippets: clientSupportsSnippets)
       }
       let isInsertTextSnippet = clientSupportsSnippets && text != insertText
 

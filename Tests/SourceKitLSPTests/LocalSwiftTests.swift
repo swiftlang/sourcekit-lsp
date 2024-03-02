@@ -1364,57 +1364,6 @@ final class LocalSwiftTests: XCTestCase {
     }
   }
 
-  func testEditorPlaceholderParsing() {
-    var text =
-      "<#basic placeholder"  // Need to end this in another line so Xcode doesn't treat it as a real placeholder
-      + "#>"
-    var data = EditorPlaceholder(text)
-    XCTAssertNotNil(data)
-    if let data = data {
-      XCTAssertEqual(data, .basic("basic placeholder"))
-      XCTAssertEqual(data.displayName, "basic placeholder")
-    }
-    text = "<#T##x: Int##Int" + "#>"
-    data = EditorPlaceholder(text)
-    XCTAssertNotNil(data)
-    if let data = data {
-      XCTAssertEqual(data, .typed(displayName: "x: Int", type: "Int", typeForExpansion: "Int"))
-      XCTAssertEqual(data.displayName, "x: Int")
-    }
-    text = "<#T##x: Int##Blah##()->Int" + "#>"
-    data = EditorPlaceholder(text)
-    XCTAssertNotNil(data)
-    if let data = data {
-      XCTAssertEqual(data, .typed(displayName: "x: Int", type: "Blah", typeForExpansion: "()->Int"))
-      XCTAssertEqual(data.displayName, "x: Int")
-    }
-    text = "<#T##Int" + "#>"
-    data = EditorPlaceholder(text)
-    XCTAssertNotNil(data)
-    if let data = data {
-      XCTAssertEqual(data, .typed(displayName: "Int", type: "Int", typeForExpansion: "Int"))
-      XCTAssertEqual(data.displayName, "Int")
-    }
-    text = "<#foo"
-    data = EditorPlaceholder(text)
-    XCTAssertNil(data)
-    text = " <#foo"
-    data = EditorPlaceholder(text)
-    XCTAssertNil(data)
-    text = "foo"
-    data = EditorPlaceholder(text)
-    XCTAssertNil(data)
-    text = "foo#>"
-    data = EditorPlaceholder(text)
-    XCTAssertNil(data)
-    text = "<#foo#"
-    data = EditorPlaceholder(text)
-    XCTAssertNil(data)
-    text = " <#foo" + "#>"
-    data = EditorPlaceholder(text)
-    XCTAssertNil(data)
-  }
-
   func testIncrementalParse() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")

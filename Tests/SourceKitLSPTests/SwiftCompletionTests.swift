@@ -172,11 +172,11 @@ final class SwiftCompletionTests: XCTestCase {
         .textEdit(
           TextEdit(
             range: Position(line: 9, utf16index: 9)..<Position(line: 9, utf16index: 9),
-            newText: "test(${1:b: Int})"
+            newText: "test(${1:Int})"
           )
         )
       )
-      XCTAssertEqual(test.insertText, "test(${1:b: Int})")
+      XCTAssertEqual(test.insertText, "test(${1:Int})")
       XCTAssertEqual(test.insertTextFormat, .snippet)
     }
   }
