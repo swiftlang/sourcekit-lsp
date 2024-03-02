@@ -623,6 +623,37 @@ extension SourceKitServer {
     }
   }
 
+  /// Starting from the given USR, compute the transitive closure of all declarations that are overridden or override
+  /// the symbol, including the USR itself.
+  ///
+  /// This includes symbols that need to traverse the inheritance hierarchy up and down. For example, it includes all
+  /// occurrences of `foo` in the following when started from `Inherited.foo`.
+  ///
+  /// ```swift
+  /// class Base { func foo() {} }
+  /// class Inherited: Base { override func foo() {} }
+  /// class OtherInherited: Base { override func foo() {} }
+  /// ```
+  private func overridingAndOverriddenUsrs(of usr: String, index: IndexStoreDB) -> [String] {
+    var workList = [usr]
+    var usrs: [String] = []
+    while let usr = workList.popLast() {
+      usrs.append(usr)
+      var relatedUsrs = index.occurrences(relatedToUSR: usr, roles: .overrideOf).map(\.symbol.usr)
+      relatedUsrs += index.occurrences(ofUSR: usr, roles: .overrideOf).flatMap { occurrence in
+        occurrence.relations.filter { $0.roles.contains(.overrideOf) }.map(\.symbol.usr)
+      }
+      for overriddenUsr in relatedUsrs {
+        if usrs.contains(overriddenUsr) || workList.contains(overriddenUsr) {
+          // Already handling this USR. Nothing to do.
+          continue
+        }
+        workList.append(overriddenUsr)
+      }
+    }
+    return usrs
+  }
+
   func rename(_ request: RenameRequest) async throws -> WorkspaceEdit? {
     let uri = request.textDocument.uri
     let snapshot = try documentManager.latestSnapshot(uri)
@@ -669,8 +700,46 @@ extension SourceKitServer {
     // If we have a USR + old name, perform an index lookup to find workspace-wide symbols to rename.
     // First, group all occurrences of that USR by the files they occur in.
     var locationsByFile: [URL: [RenameLocation]] = [:]
-    for occurrence in index.occurrences(ofUSR: usr, roles: renameRoles) {
+
+    var languageServerTypesCache: [URL: LanguageServerType?] = [:]
+    func languageServerType(of url: URL) -> LanguageServerType? {
+      if let cachedValue = languageServerTypesCache[url] {
+        return cachedValue
+      }
+      let serverType = LanguageServerType(symbolProvider: index.symbolProvider(for: url.path))
+      languageServerTypesCache[url] = serverType
+      return serverType
+    }
+
+    let usrsToRename = overridingAndOverriddenUsrs(of: usr, index: index)
+    let occurrencesToRename = usrsToRename.flatMap { index.occurrences(ofUSR: $0, roles: renameRoles) }
+    for occurrence in occurrencesToRename {
       let url = URL(fileURLWithPath: occurrence.location.path)
+
+      // Determine whether we should add the location produced by the index to those that will be renamed, or if it has
+      // already been handled by the set provided by the AST.
+      if changes[DocumentURI(url)] != nil {
+        if occurrence.symbol.usr == usr {
+          // If the language server's rename function already produced AST-based locations for this symbol, no need to
+          // perform an indexed rename for it.
+          continue
+        }
+        switch languageServerType(of: url) {
+        case .swift:
+          // sourcekitd only produces AST-based results for the direct calls to this USR. This is because the Swift
+          // AST only has upwards references to superclasses and overridden methods, not the other way round. It is
+          // thus not possible to (easily) compute an up-down closure like described in `overridingAndOverriddenUsrs`.
+          // We thus need to perform an indexed rename for other, related USRs.
+          break
+        case .clangd:
+          // clangd produces AST-based results for the entire class hierarchy, so nothing to do.
+          continue
+        case nil:
+          // Unknown symbol provider
+          continue
+        }
+      }
+
       let renameLocation = RenameLocation(
         line: occurrence.location.line,
         utf8Column: occurrence.location.utf8Column,
@@ -683,12 +752,11 @@ extension SourceKitServer {
     // edits.
     let urisAndEdits =
       await locationsByFile
-      .filter { changes[DocumentURI($0.key)] == nil }
       .concurrentMap { (url: URL, renameLocations: [RenameLocation]) -> (DocumentURI, [TextEdit])? in
         let uri = DocumentURI(url)
         let language: Language
-        switch index.symbolProvider(for: url.path) {
-        case .clang:
+        switch languageServerType(of: url) {
+        case .clangd:
           // Technically, we still don't know the language of the source file but defaulting to C is sufficient to
           // ensure we get the clang toolchain language server, which is all we care about.
           language = .c
@@ -728,12 +796,8 @@ extension SourceKitServer {
         return (uri, edits)
       }.compactMap { $0 }
     for (uri, editsForUri) in urisAndEdits {
-      precondition(
-        changes[uri] == nil,
-        "We should have only computed edits for URIs that didn't have edits from the initial rename request"
-      )
       if !editsForUri.isEmpty {
-        changes[uri] = editsForUri
+        changes[uri, default: []] += editsForUri
       }
     }
     var edits = renameResult.edits
@@ -754,15 +818,19 @@ extension SourceKitServer {
     guard
       let index = workspace.index,
       let usr = languageServicePrepareRename.usr,
-      let oldName = try await self.getCrossLanguageName(forUsr: usr, workspace: workspace, index: index)
+      let oldName = try await self.getCrossLanguageName(forUsr: usr, workspace: workspace, index: index),
+      var definitionName = oldName.definitionName
     else {
       return prepareRenameResult
+    }
+    if oldName.definitionLanguage == .swift, definitionName.hasSuffix("()") {
+      definitionName = String(definitionName.dropLast(2))
     }
 
     // Get the name of the symbol's definition, if possible.
     // This is necessary for cross-language rename. Eg. when renaming an Objective-C method from Swift,
     // the user still needs to enter the new Objective-C name.
-    prepareRenameResult.placeholder = oldName.definitionName
+    prepareRenameResult.placeholder = definitionName
     return prepareRenameResult
   }
 
