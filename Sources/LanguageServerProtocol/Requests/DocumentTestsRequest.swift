@@ -14,7 +14,7 @@
 ///
 /// **(LSP Extension)**
 public struct DocumentTestsRequest: TextDocumentRequest, Hashable {
-  public static let method: String = "document/tests"
+  public static let method: String = "textDocument/tests"
   public typealias Response = [WorkspaceSymbolItem]?
 
   public var textDocument: TextDocumentIdentifier
