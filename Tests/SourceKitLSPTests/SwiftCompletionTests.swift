@@ -1025,6 +1025,7 @@ final class SwiftCompletionTests: XCTestCase {
       ]
     )
   }
+
   func testExpandClosurePlaceholderOnOptional() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
     let uri = DocumentURI.for(.swift)
@@ -1169,6 +1170,56 @@ final class SwiftCompletionTests: XCTestCase {
                     } second: { ${3:Int} in
                         ${4:String}
                     }
+                """
+            )
+          )
+        )
+      ]
+    )
+  }
+
+  func testInferIndentationWhenExpandingClosurePlaceholder() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      struct MyArray {
+        func myMap(_ body: (Int) -> Bool) -> Int {
+          return 1
+        }
+      }
+      func test(x: MyArray) {
+        x.1️⃣
+      }
+      """,
+      uri: uri
+    )
+    let completions = try await testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertEqual(
+      completions.items.filter { $0.label.contains("myMap") },
+      [
+        CompletionItem(
+          label: "myMap(body: (Int) -> Bool)",
+          kind: .method,
+          detail: "Int",
+          deprecated: false,
+          sortText: nil,
+          filterText: "myMap(:)",
+          insertText: """
+            myMap { ${1:Int} in
+                ${2:Bool}
+              }
+            """,
+          insertTextFormat: .snippet,
+          textEdit: .textEdit(
+            TextEdit(
+              range: Range(positions["1️⃣"]),
+              newText: """
+                myMap { ${1:Int} in
+                    ${2:Bool}
+                  }
                 """
             )
           )
