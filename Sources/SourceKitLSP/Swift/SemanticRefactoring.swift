@@ -64,7 +64,7 @@ struct SemanticRefactoring {
         {
           // Snippets are only suppored in code completion.
           // Remove SourceKit placeholders in refactoring actions because they can't be represented in the editor properly.
-          let textWithSnippets = rewriteSourceKitPlaceholders(inString: text, clientSupportsSnippets: false)
+          let textWithSnippets = rewriteSourceKitPlaceholders(in: text, clientSupportsSnippets: false)
           let edit = TextEdit(range: startPosition..<endPosition, newText: textWithSnippets)
           textEdits.append(edit)
         }

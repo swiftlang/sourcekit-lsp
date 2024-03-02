@@ -27,10 +27,10 @@ target_sources(SourceKitLSP PRIVATE
   Swift/DiagnosticReportManager.swift
   Swift/DocumentFormatting.swift
   Swift/DocumentSymbols.swift
-  Swift/EditorPlaceholder.swift
   Swift/FoldingRange.swift
   Swift/OpenInterface.swift
   Swift/RelatedIdentifiers.swift
+  Swift/RewriteSourceKitPlaceholders.swift
   Swift/SemanticRefactorCommand.swift
   Swift/SemanticRefactoring.swift
   Swift/SemanticTokens.swift
