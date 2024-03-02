@@ -188,8 +188,7 @@ public actor SwiftPMWorkspace {
         buildSetup: buildSetup,
         reloadPackageStatusCallback: reloadPackageStatusCallback
       )
-    } catch Error.noManifest(let path) {
-      logger.error("could not find manifest, or not a SwiftPM package: \(path)")
+    } catch Error.noManifest {
       return nil
     } catch {
       logger.error("failed to create SwiftPMWorkspace at \(url.path): \(error.forLogging)")
