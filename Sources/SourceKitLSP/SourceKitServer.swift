@@ -2086,7 +2086,14 @@ extension SourceKitServer {
     else {
       return []
     }
-    let callableUsrs = [data.usr] + index.occurrences(relatedToUSR: data.usr, roles: .accessorOf).map(\.symbol.usr)
+    var callableUsrs = [data.usr]
+    // Calls to the accessors of a property count as calls to the property
+    callableUsrs += index.occurrences(relatedToUSR: data.usr, roles: .accessorOf).map(\.symbol.usr)
+    // Also show calls to the functions that this method overrides. This includes overridden class methods and
+    // satisfied protocol requirements.
+    callableUsrs += index.occurrences(ofUSR: data.usr, roles: .overrideOf).flatMap { occurrence in
+      occurrence.relations.filter { $0.roles.contains(.overrideOf) }.map(\.symbol.usr)
+    }
     let callOccurrences = callableUsrs.flatMap { index.occurrences(ofUSR: $0, roles: .calledBy) }
     let calls = callOccurrences.flatMap { occurrence -> [CallHierarchyIncomingCall] in
       guard let location = indexToLSPLocation(occurrence.location) else {

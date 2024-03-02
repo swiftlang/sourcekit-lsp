@@ -447,4 +447,102 @@ final class CallHierarchyTests: XCTestCase {
       ]
     )
   }
+
+  func testIncomingCallHierarchyLooksThroughProtocols() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      protocol MyProtocol {
+        func foo()
+      }
+      struct MyStruct: MyProtocol {
+        func 1️⃣foo() {}
+      }
+      struct Unrelated: MyProtocol {
+        func foo() {}
+      }
+      func 2️⃣test(proto: MyProtocol) {
+        proto.3️⃣foo()
+        Unrelated().foo() // should not be considered a call to MyStruct.foo
+      }
+      """
+    )
+    let prepare = try await ws.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(ws.fileURI),
+        position: ws.positions["1️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await ws.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "test(proto:)",
+            kind: .function,
+            tags: nil,
+            detail: "test",  // test is the module name because the file is called test.swift
+            uri: ws.fileURI,
+            range: Range(ws.positions["2️⃣"]),
+            selectionRange: Range(ws.positions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4testAA5protoyAA10MyProtocol_p_tF"),
+              "uri": .string(ws.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(ws.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testIncomingCallHierarchyLooksThroughSuperclasses() async throws {
+    let ws = try await IndexedSingleSwiftFileWorkspace(
+      """
+      class Base {
+        func foo() {}
+      }
+      class Inherited: Base {
+        override func 1️⃣foo() {}
+      }
+      class Unrelated: Base {
+        override func foo() {}
+      }
+      func 2️⃣test(base: Base) {
+        base.3️⃣foo()
+        Unrelated().foo() // should not be considered a call to MyStruct.foo
+      }
+      """
+    )
+    let prepare = try await ws.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(ws.fileURI),
+        position: ws.positions["1️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await ws.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "test(base:)",
+            kind: .function,
+            tags: nil,
+            detail: "test",  // test is the module name because the file is called test.swift
+            uri: ws.fileURI,
+            range: Range(ws.positions["2️⃣"]),
+            selectionRange: Range(ws.positions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4testAA4baseyAA4BaseC_tF"),
+              "uri": .string(ws.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(ws.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
 }
