@@ -1008,7 +1008,7 @@ final class SwiftCompletionTests: XCTestCase {
           insertText: """
             myMap { ${1:Int} in
                     ${2:Bool}
-            }
+                }
             """,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
@@ -1017,7 +1017,7 @@ final class SwiftCompletionTests: XCTestCase {
               newText: """
                 myMap { ${1:Int} in
                         ${2:Bool}
-                }
+                    }
                 """
             )
           )
@@ -1055,7 +1055,7 @@ final class SwiftCompletionTests: XCTestCase {
           insertText: """
             ?.myMap { ${1:Int} in
                     ${2:Bool}
-            }
+                }
             """,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
@@ -1064,7 +1064,7 @@ final class SwiftCompletionTests: XCTestCase {
               newText: """
                 ?.myMap { ${1:Int} in
                         ${2:Bool}
-                }
+                    }
                 """
             )
           )
@@ -1103,9 +1103,9 @@ final class SwiftCompletionTests: XCTestCase {
           insertText: """
             myMap { ${1:Int} in
                     ${2:Bool}
-            } _: { ${3:Int} in
+                } _: { ${3:Int} in
                     ${4:String}
-            }
+                }
             """,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
@@ -1114,9 +1114,9 @@ final class SwiftCompletionTests: XCTestCase {
               newText: """
                 myMap { ${1:Int} in
                         ${2:Bool}
-                } _: { ${3:Int} in
+                    } _: { ${3:Int} in
                         ${4:String}
-                }
+                    }
                 """
             )
           )
@@ -1155,9 +1155,9 @@ final class SwiftCompletionTests: XCTestCase {
           insertText: """
             myMap { ${1:Int} in
                     ${2:Bool}
-            } second: { ${3:Int} in
+                } second: { ${3:Int} in
                     ${4:String}
-            }
+                }
             """,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
@@ -1166,9 +1166,9 @@ final class SwiftCompletionTests: XCTestCase {
               newText: """
                 myMap { ${1:Int} in
                         ${2:Bool}
-                } second: { ${3:Int} in
+                    } second: { ${3:Int} in
                         ${4:String}
-                }
+                    }
                 """
             )
           )
