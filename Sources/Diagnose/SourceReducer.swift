@@ -21,9 +21,14 @@ import SwiftSyntax
 
 extension RequestInfo {
   @_spi(Testing)
-  public func reduceInputFile(using executor: SourceKitRequestExecutor) async throws -> RequestInfo {
-    let reducer = SourceReducer(sourcekitdExecutor: executor)
-    return try await reducer.run(initialRequestInfo: self)
+  public func reduceInputFile(
+    using executor: SourceKitRequestExecutor,
+    progressUpdate: (_ progress: Double, _ message: String) -> Void
+  ) async throws -> RequestInfo {
+    try await withoutActuallyEscaping(progressUpdate) { progressUpdate in
+      let reducer = SourceReducer(sourcekitdExecutor: executor, progressUpdate: progressUpdate)
+      return try await reducer.run(initialRequestInfo: self)
+    }
   }
 }
 
@@ -64,9 +69,22 @@ fileprivate class SourceReducer {
   /// The file to which we write the reduced source code.
   private let temporarySourceFile: URL
 
-  init(sourcekitdExecutor: SourceKitRequestExecutor) {
+  /// A callback to call to report progress
+  private let progressUpdate: (_ progress: Double, _ message: String) -> Void
+
+  /// The number of import declarations that the file had when the source reducer was started.
+  private var initialImportCount: Int = 0
+
+  /// The byte size of the file when source reduction was started. This gets reset every time an import gets inlined.
+  private var fileSizeAfterLastImportInline: Int = 0
+
+  init(
+    sourcekitdExecutor: SourceKitRequestExecutor,
+    progressUpdate: @escaping (_ progress: Double, _ message: String) -> Void
+  ) {
     self.sourcekitdExecutor = sourcekitdExecutor
-    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce-\(UUID()).swift")
+    self.temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce-\(UUID()).swift")
+    self.progressUpdate = progressUpdate
   }
 
   deinit {
@@ -76,7 +94,10 @@ fileprivate class SourceReducer {
   /// Reduce the file contents in `initialRequest` to a smaller file that still reproduces a crash.
   func run(initialRequestInfo: RequestInfo) async throws -> RequestInfo {
     var requestInfo = initialRequestInfo
-    try await validateRequestInfoReproucesIssue(requestInfo: requestInfo)
+    self.initialImportCount = Parser.parse(source: requestInfo.fileContents).numberOfImports
+    self.fileSizeAfterLastImportInline = initialRequestInfo.fileContents.utf8.count
+
+    try await validateRequestInfoReproducesIssue(requestInfo: requestInfo)
 
     requestInfo = try await fatalErrorFunctionBodies(requestInfo)
     requestInfo = try await removeMembersAndCodeBlockItemsBodies(requestInfo)
@@ -97,7 +118,7 @@ fileprivate class SourceReducer {
 
   // MARK: Reduction steps
 
-  private func validateRequestInfoReproucesIssue(requestInfo: RequestInfo) async throws {
+  private func validateRequestInfoReproducesIssue(requestInfo: RequestInfo) async throws {
     let reductionResult = try await runReductionStep(requestInfo: requestInfo) { tree in .edits([]) }
     switch reductionResult {
     case .reduced:
@@ -165,6 +186,7 @@ fileprivate class SourceReducer {
     }
     switch reductionResult {
     case .reduced(let requestInfo):
+      self.fileSizeAfterLastImportInline = requestInfo.fileContents.utf8.count
       return requestInfo
     case .didNotReproduce, .noChange:
       return nil
@@ -173,8 +195,21 @@ fileprivate class SourceReducer {
 
   // MARK: Primitives to run reduction steps
 
-  func logSuccessfulReduction(_ requestInfo: RequestInfo) {
-    print("Reduced source file to \(requestInfo.fileContents.utf8.count) bytes")
+  private func logSuccessfulReduction(_ requestInfo: RequestInfo, tree: SourceFileSyntax) {
+    let numberOfImports = tree.numberOfImports
+    let fileSize = requestInfo.fileContents.utf8.count
+
+    let progressPerRemovedImport = Double(1) / Double(initialImportCount + 1)
+    let removeImportProgress = Double(initialImportCount - numberOfImports) * progressPerRemovedImport
+    var fileReductionProgress =
+      (1 - Double(fileSize) / Double(fileSizeAfterLastImportInline)) * progressPerRemovedImport
+    if fileReductionProgress < 0 {
+      // Can happen if we replace empty function bodies with fatalError. In this case the file actually grows.
+      fileReductionProgress = 0
+    }
+    let progress = removeImportProgress + fileReductionProgress
+    precondition(progress >= 0 && progress <= 1)
+    progressUpdate(progress, "Reduced to \(numberOfImports) imports and \(fileSize) bytes")
   }
 
   /// Run a single reduction step.
@@ -213,7 +248,7 @@ fileprivate class SourceReducer {
     let result = try await sourcekitdExecutor.run(request: reducedRequestInfo.request(for: temporarySourceFile))
     if case .reproducesIssue = result {
       logger.debug("Reduction successful")
-      logSuccessfulReduction(reducedRequestInfo)
+      logSuccessfulReduction(reducedRequestInfo, tree: tree)
       return .reduced(reducedRequestInfo)
     } else {
       logger.debug("Reduction did not reproduce the issue")
@@ -522,4 +557,10 @@ fileprivate func inlineFirstImport(
   }
   let edit = SourceEdit(range: firstImport.position..<firstImport.endPosition, replacement: interface)
   return .edits([edit])
+}
+
+fileprivate extension SourceFileSyntax {
+  var numberOfImports: Int {
+    return self.statements.filter { $0.item.is(ImportDeclSyntax.self) }.count
+  }
 }

@@ -178,7 +178,14 @@ private func assertReduce(
       .replacingOccurrences(of: "$OFFSET", with: String(markerOffset))
 
     let requestInfo = try RequestInfo(request: request)
-    let reduced = try await requestInfo.reduceInputFile(using: requestExecutor)
+    var lastProgress = 0.0
+    let reduced = try await requestInfo.reduceInputFile(
+      using: requestExecutor,
+      progressUpdate: { progress, _ in
+        XCTAssertLessThanOrEqual(lastProgress, progress)
+        lastProgress = progress
+      }
+    )
 
     XCTAssertEqual(reduced.fileContents, expectedReducedFileContents, file: file, line: line)
   }
