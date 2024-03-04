@@ -138,7 +138,7 @@ let package = Package(
         .product(name: "Crypto", package: "swift-crypto")
       ],
       exclude: ["CMakeLists.txt"],
-      swiftSettings: lspLoggingSwiftSettings
+      swiftSettings: lspLoggingSwiftSettings + [.enableExperimentalFeature("StrictConcurrency")]
     ),
 
     .testTarget(
