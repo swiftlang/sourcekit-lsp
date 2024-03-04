@@ -47,8 +47,8 @@ public final class DynamicallyLoadedSourceKitD: SourceKitD {
   /// List of notification handlers that will be called for each notification.
   private var _notificationHandlers: [WeakSKDNotificationHandler] = []
 
-  public static func getOrCreate(dylibPath: AbsolutePath) throws -> SourceKitD {
-    try SourceKitDRegistry.shared
+  public static func getOrCreate(dylibPath: AbsolutePath) async throws -> SourceKitD {
+    try await SourceKitDRegistry.shared
       .getOrAdd(dylibPath, create: { try DynamicallyLoadedSourceKitD(dylib: dylibPath) })
   }
 
