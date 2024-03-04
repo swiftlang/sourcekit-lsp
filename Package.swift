@@ -37,7 +37,7 @@ let package = Package(
       linkerSettings: sourcekitLSPLinkSettings
     ),
 
-    // MARK: BuildServerProtocol:
+    // MARK: BuildServerProtocol
     // Connection between build server and language server to provide build and index info
 
     .target(
@@ -45,7 +45,8 @@ let package = Package(
       dependencies: [
         "LanguageServerProtocol"
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
     ),
 
     // MARK: CSKTestSupport

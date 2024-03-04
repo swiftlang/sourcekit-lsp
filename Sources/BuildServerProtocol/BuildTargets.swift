@@ -26,7 +26,7 @@ public struct BuildTargetsResult: ResponseType, Hashable {
   public var targets: [BuildTarget]
 }
 
-public struct BuildTarget: Codable, Hashable {
+public struct BuildTarget: Codable, Hashable, Sendable {
   /// The target’s unique identifier
   public var id: BuildTargetIdentifier
 
@@ -81,7 +81,7 @@ public struct BuildTarget: Codable, Hashable {
   }
 }
 
-public struct BuildTargetIdentifier: Codable, Hashable {
+public struct BuildTargetIdentifier: Codable, Hashable, Sendable {
   public var uri: URI
 
   public init(uri: URI) {
@@ -89,7 +89,7 @@ public struct BuildTargetIdentifier: Codable, Hashable {
   }
 }
 
-public struct BuildTargetTag: Codable, Hashable, RawRepresentable {
+public struct BuildTargetTag: Codable, Hashable, RawRepresentable, Sendable {
   public var rawValue: String
 
   public init(rawValue: String) {
@@ -113,7 +113,7 @@ public struct BuildTargetTag: Codable, Hashable, RawRepresentable {
   /// "test" and "integration-test" is that integration tests traditionally run
   /// slower compared to normal tests and require more computing resources to
   /// execute.
-  public static let integationTest: Self = Self(rawValue: "integration-test")
+  public static let integrationTest: Self = Self(rawValue: "integration-test")
 
   /// Target contains source code to measure performance of a program, may have
   /// but does not require the `canRun` build target capability.
@@ -123,7 +123,7 @@ public struct BuildTargetTag: Codable, Hashable, RawRepresentable {
   public static let noIDE: Self = Self(rawValue: "no-ide")
 }
 
-public struct BuildTargetCapabilities: Codable, Hashable {
+public struct BuildTargetCapabilities: Codable, Hashable, Sendable {
   /// This target can be compiled by the BSP server.
   public var canCompile: Bool
 
@@ -159,14 +159,14 @@ public struct BuildTargetSourcesResult: ResponseType, Hashable {
   public var items: [SourcesItem]
 }
 
-public struct SourcesItem: Codable, Hashable {
+public struct SourcesItem: Codable, Hashable, Sendable {
   public var target: BuildTargetIdentifier
 
   /// The text documents and directories that belong to this build target.
   public var sources: [SourceItem]
 }
 
-public struct SourceItem: Codable, Hashable {
+public struct SourceItem: Codable, Hashable, Sendable {
   /// Either a text document or a directory. A directory entry must end with a
   /// forward slash "/" and a directory entry implies that every nested text
   /// document within the directory belongs to this source item.
@@ -180,7 +180,7 @@ public struct SourceItem: Codable, Hashable {
   public var generated: Bool
 }
 
-public enum SourceItemKind: Int, Codable, Hashable {
+public enum SourceItemKind: Int, Codable, Hashable, Sendable {
   /// The source item references a normal file.
   case file = 1
 
@@ -205,7 +205,7 @@ public struct BuildTargetOutputPathsResponse: ResponseType, Hashable {
   public var items: [OutputsItem]
 }
 
-public struct OutputsItem: Codable, Hashable {
+public struct OutputsItem: Codable, Hashable, Sendable {
   public var target: BuildTargetIdentifier
 
   /// The output paths for sources that belong to this build target.
@@ -225,7 +225,7 @@ public struct BuildTargetsChangedNotification: NotificationType {
   }
 }
 
-public struct BuildTargetEvent: Codable, Hashable {
+public struct BuildTargetEvent: Codable, Hashable, Sendable {
   /// The identifier for the changed build target.
   public var target: BuildTargetIdentifier
 
@@ -242,7 +242,7 @@ public struct BuildTargetEvent: Codable, Hashable {
   }
 }
 
-public enum BuildTargetEventKind: Int, Codable, Hashable {
+public enum BuildTargetEventKind: Int, Codable, Hashable, Sendable {
   /// The build target is new.
   case created = 1
 
