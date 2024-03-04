@@ -15,7 +15,7 @@ import Foundation
 /// Wrapper around a task that allows multiple clients to depend on the task's value.
 ///
 /// If all of the dependents are cancelled, the underlying task is cancelled as well.
-public actor RefCountedCancellableTask<Success> {
+public actor RefCountedCancellableTask<Success: Sendable> {
   public let task: Task<Success, Error>
 
   /// The number of clients that depend on the task's result and that are not cancelled.
@@ -85,7 +85,7 @@ public extension Task {
 /// cancelled, `cancel` is invoked with the handle that `operation` provided.
 public func withCancellableCheckedThrowingContinuation<Handle, Result>(
   _ operation: (_ continuation: CheckedContinuation<Result, any Error>) -> Handle,
-  cancel: (Handle) -> Void
+  cancel: @Sendable (Handle) -> Void
 ) async throws -> Result {
   let handleWrapper = ThreadSafeBox<Handle?>(initialValue: nil)
 
@@ -117,11 +117,11 @@ public func withCancellableCheckedThrowingContinuation<Handle, Result>(
   )
 }
 
-extension Collection {
+extension Collection where Element: Sendable {
   /// Transforms all elements in the collection concurrently and returns the transformed collection.
-  public func concurrentMap<TransformedElement>(
+  public func concurrentMap<TransformedElement: Sendable>(
     maxConcurrentTasks: Int = ProcessInfo.processInfo.processorCount,
-    _ transform: @escaping (Element) async -> TransformedElement
+    _ transform: @escaping @Sendable (Element) async -> TransformedElement
   ) async -> [TransformedElement] {
     let indexedResults = await withTaskGroup(of: (index: Int, element: TransformedElement).self) { taskGroup in
       var indexedResults: [(index: Int, element: TransformedElement)] = []

@@ -13,7 +13,7 @@
 import Dispatch
 
 /// An abstract connection, allow messages to be sent to a (potentially remote) `MessageHandler`.
-public protocol Connection: AnyObject {
+public protocol Connection: AnyObject, Sendable {
 
   /// Send a notification without a reply.
   func send(_ notification: some NotificationType)
@@ -61,7 +61,9 @@ public protocol MessageHandler: AnyObject {
 /// conn.send(...) // handled by server
 /// conn.close()
 /// ```
-public final class LocalConnection {
+///
+/// - Note: Unchecked sendable conformance because shared state is guarded by `queue`.
+public final class LocalConnection: @unchecked Sendable {
 
   enum State {
     case ready, started, closed

@@ -197,7 +197,8 @@ let package = Package(
         "LanguageServerProtocol",
         "LSPLogging",
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
     ),
 
     .testTarget(
