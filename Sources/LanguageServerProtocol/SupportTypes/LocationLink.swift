@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct LocationLink: Codable, Hashable {
+public struct LocationLink: Codable, Hashable, Sendable {
   /// Span of the origin of this link.
   ///
   /// Used as the underlined span for mouse interaction. Defaults to the word range at the mouse position.

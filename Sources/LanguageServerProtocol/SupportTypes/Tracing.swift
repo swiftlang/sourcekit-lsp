@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public enum Tracing: String, Codable {
+public enum Tracing: String, Codable, Sendable {
   case off
   case messages
   case verbose

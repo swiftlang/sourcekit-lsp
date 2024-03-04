@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Position within a text document, expressed as a zero-based line and column (utf-16 code unit offset).
-public struct Position: Hashable {
+public struct Position: Hashable, Codable, Sendable {
 
   /// Line number within a document (zero-based).
   public var line: Int
@@ -25,7 +25,7 @@ public struct Position: Hashable {
   }
 }
 
-extension Position: Codable {
+extension Position {
   private enum CodingKeys: String, CodingKey {
     case line
     case utf16index = "character"

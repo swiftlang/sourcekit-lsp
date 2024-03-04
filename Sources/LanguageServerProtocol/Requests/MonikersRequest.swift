@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct MonikersRequest: TextDocumentRequest {
-  public static var method: String = "textDocument/moniker"
+  public static let method: String = "textDocument/moniker"
   public typealias Response = [Moniker]?
 
   /// The document in which to lookup the symbol location.
@@ -29,7 +29,7 @@ public struct MonikersRequest: TextDocumentRequest {
 /// Moniker definition to match LSIF 0.5 moniker definition.
 public struct Moniker: ResponseType, Hashable {
   /// Moniker uniqueness level to define scope of the moniker.
-  public struct UniquenessLevel: RawRepresentable, Codable, Hashable {
+  public struct UniquenessLevel: RawRepresentable, Codable, Hashable, Sendable {
     public var rawValue: String
 
     public init(rawValue: String) {
@@ -53,7 +53,7 @@ public struct Moniker: ResponseType, Hashable {
   }
 
   /// The moniker kind.
-  public struct Kind: RawRepresentable, Codable, Hashable {
+  public struct Kind: RawRepresentable, Codable, Hashable, Sendable {
     public var rawValue: String
 
     public init(rawValue: String) {

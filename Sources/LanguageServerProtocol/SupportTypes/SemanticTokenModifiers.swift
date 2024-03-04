@@ -16,7 +16,7 @@ import Foundation
 ///
 /// Similar to `SemanticTokenTypes`, the bit indices should
 /// be numbered starting at 0.
-public struct SemanticTokenModifiers: OptionSet, Hashable {
+public struct SemanticTokenModifiers: OptionSet, Hashable, Sendable {
   public let rawValue: UInt32
 
   public init(rawValue: UInt32) {

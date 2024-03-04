@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct WorkspaceSymbolResolveRequest: RequestType {
-  public static var method: String = "workspaceSymbol/resolve"
+  public static let method: String = "workspaceSymbol/resolve"
   public typealias Response = WorkspaceSymbol
 
   public var workspaceSymbol: WorkspaceSymbol

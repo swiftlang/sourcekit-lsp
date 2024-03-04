@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// The content and metadata of a text document.
-public struct TextDocumentItem: Hashable {
+public struct TextDocumentItem: Hashable, Sendable {
 
   public var uri: DocumentURI
 

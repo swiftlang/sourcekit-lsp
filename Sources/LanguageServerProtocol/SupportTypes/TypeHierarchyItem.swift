@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// A single type hierarchy item.
-public struct TypeHierarchyItem: ResponseType, Hashable {
+public struct TypeHierarchyItem: ResponseType, Hashable, Sendable {
   /// Name of this item.
   public var name: String
   /// The kind of this item.

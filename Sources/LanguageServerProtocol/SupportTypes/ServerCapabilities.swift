@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Capabilities provided by the language server.
-public struct ServerCapabilities: Codable, Hashable {
+public struct ServerCapabilities: Codable, Hashable, Sendable {
 
   /// The position encoding the server picked from the encodings offered
   /// by the client via the client capability `general.positionEncodings`.
@@ -238,7 +238,9 @@ public enum ValueOrBool<ValueType: Codable>: Codable, Hashable where ValueType: 
   }
 }
 
-public enum TextDocumentSync: Codable, Hashable {
+extension ValueOrBool: Sendable where ValueType: Sendable {}
+
+public enum TextDocumentSync: Codable, Hashable, Sendable {
   case options(TextDocumentSyncOptions)
   case kind(TextDocumentSyncKind)
 
@@ -270,7 +272,7 @@ public enum TextDocumentSync: Codable, Hashable {
 /// with `willSave` etc. and one that only contains `openClose` and `change`.
 /// Based on the VSCode implementation, the definition that contains `willSave`
 /// appears to be the correct one, so we use that one as well.
-public struct TextDocumentSyncOptions: Codable, Hashable {
+public struct TextDocumentSyncOptions: Codable, Hashable, Sendable {
 
   /// Open and close notifications are sent to the server.
   /// If omitted open close notifications should not be sent.
@@ -290,7 +292,7 @@ public struct TextDocumentSyncOptions: Codable, Hashable {
   /// Whether will-save-wait-until notifications should be sent to the server.
   public var willSaveWaitUntil: Bool?
 
-  public struct SaveOptions: Codable, Hashable {
+  public struct SaveOptions: Codable, Hashable, Sendable {
 
     /// Whether the client should include the file content in save notifications.
     public var includeText: Bool?
@@ -340,7 +342,7 @@ public struct TextDocumentSyncOptions: Codable, Hashable {
   }
 }
 
-public enum TextDocumentSyncKind: Int, Codable, Hashable {
+public enum TextDocumentSyncKind: Int, Codable, Hashable, Sendable {
 
   /// Documents should not be synced at all.
   case none = 0
@@ -353,7 +355,7 @@ public enum TextDocumentSyncKind: Int, Codable, Hashable {
   case incremental = 2
 }
 
-public enum NotebookFilter: Codable, Hashable {
+public enum NotebookFilter: Codable, Hashable, Sendable {
   case string(String)
   case documentFilter(DocumentFilter)
 
@@ -382,7 +384,7 @@ public enum NotebookFilter: Codable, Hashable {
 }
 public typealias NotebookSelector = [NotebookFilter]
 
-public struct NotebookDocumentSyncAndStaticRegistrationOptions: Codable, Hashable {
+public struct NotebookDocumentSyncAndStaticRegistrationOptions: Codable, Hashable, Sendable {
   /// The notebooks to be synced
   public var notebookSelector: NotebookSelector
 
@@ -408,7 +410,7 @@ public protocol WorkDoneProgressOptions {
   var workDoneProgress: Bool? { get }
 }
 
-public struct HoverOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct HoverOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   public var workDoneProgress: Bool?
 
   public init(
@@ -418,7 +420,7 @@ public struct HoverOptions: WorkDoneProgressOptions, Codable, Hashable {
   }
 }
 
-public struct CompletionItemOptions: LSPAnyCodable, Codable, Hashable {
+public struct CompletionItemOptions: LSPAnyCodable, Codable, Hashable, Sendable {
   /// The server has support for completion item label
   /// details (see also `CompletionItemLabelDetails`) when receiving
   /// a completion item in a resolve call.
@@ -447,7 +449,7 @@ public struct CompletionItemOptions: LSPAnyCodable, Codable, Hashable {
   }
 }
 
-public struct CompletionOptions: WorkDoneProgressOptions, Codable, LSPAnyCodable, Hashable {
+public struct CompletionOptions: WorkDoneProgressOptions, Codable, LSPAnyCodable, Hashable, Sendable {
   /// Whether to use `textDocument/resolveCompletion`
   public var resolveProvider: Bool?
 
@@ -525,7 +527,7 @@ public struct CompletionOptions: WorkDoneProgressOptions, Codable, LSPAnyCodable
   }
 }
 
-public struct DefinitionOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct DefinitionOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   public var workDoneProgress: Bool?
 
   public init(
@@ -535,7 +537,7 @@ public struct DefinitionOptions: WorkDoneProgressOptions, Codable, Hashable {
   }
 }
 
-public struct ReferenceOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct ReferenceOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   public var workDoneProgress: Bool?
 
   public init(
@@ -545,7 +547,7 @@ public struct ReferenceOptions: WorkDoneProgressOptions, Codable, Hashable {
   }
 }
 
-public struct DocumentHighlightOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct DocumentHighlightOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   public var workDoneProgress: Bool?
 
   public init(
@@ -555,7 +557,7 @@ public struct DocumentHighlightOptions: WorkDoneProgressOptions, Codable, Hashab
   }
 }
 
-public struct DocumentSymbolOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct DocumentSymbolOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   public var workDoneProgress: Bool?
 
   public init(
@@ -565,7 +567,7 @@ public struct DocumentSymbolOptions: WorkDoneProgressOptions, Codable, Hashable 
   }
 }
 
-public struct DocumentFormattingOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct DocumentFormattingOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   public var workDoneProgress: Bool?
 
   public init(
@@ -575,7 +577,7 @@ public struct DocumentFormattingOptions: WorkDoneProgressOptions, Codable, Hasha
   }
 }
 
-public struct DocumentRangeFormattingOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct DocumentRangeFormattingOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   public var workDoneProgress: Bool?
 
   public init(
@@ -590,7 +592,7 @@ public struct FoldingRangeOptions: Codable, Hashable {
   public init() {}
 }
 
-public struct SignatureHelpOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct SignatureHelpOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   /// The characters that trigger signature help automatically.
   public var triggerCharacters: [String]?
 
@@ -612,7 +614,7 @@ public struct SignatureHelpOptions: WorkDoneProgressOptions, Codable, Hashable {
   }
 }
 
-public struct DocumentFilter: Codable, Hashable {
+public struct DocumentFilter: Codable, Hashable, Sendable {
   /// A language id, like `typescript`.
   public var language: String?
 
@@ -675,7 +677,7 @@ extension DocumentFilter: LSPAnyCodable {
 
 public typealias DocumentSelector = [DocumentFilter]
 
-public struct TextDocumentAndStaticRegistrationOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct TextDocumentAndStaticRegistrationOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   /// A document selector to identify the scope of the registration. If set to null the document selector provided on the client side will be used.
   public var documentSelector: DocumentSelector?
 
@@ -695,9 +697,9 @@ public struct TextDocumentAndStaticRegistrationOptions: WorkDoneProgressOptions,
   }
 }
 
-public struct DocumentOnTypeFormattingOptions: Codable, Hashable {
+public struct DocumentOnTypeFormattingOptions: Codable, Hashable, Sendable {
 
-  /// A character that sould trigger formatting (e.g. '}').
+  /// A character that should trigger formatting (e.g. '}').
   public var firstTriggerCharacter: String
 
   /// Additional triggers.
@@ -714,7 +716,7 @@ public struct DocumentOnTypeFormattingOptions: Codable, Hashable {
 /// Wrapper type for a server's CodeActions' capabilities.
 /// If the client supports CodeAction literals, the server can return specific information about
 /// how CodeActions will be sent. Otherwise, the server's capabilities are determined by a boolean.
-public enum CodeActionServerCapabilities: Codable, Hashable {
+public enum CodeActionServerCapabilities: Codable, Hashable, Sendable {
 
   case supportsCodeActionRequests(Bool)
   case supportsCodeActionRequestsWithLiterals(CodeActionOptions)
@@ -754,7 +756,7 @@ public enum CodeActionServerCapabilities: Codable, Hashable {
   }
 }
 
-public struct CodeActionOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct CodeActionOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
 
   /// CodeActionKinds that this server may return.
   public var codeActionKinds: [CodeActionKind]?
@@ -776,7 +778,7 @@ public struct CodeActionOptions: WorkDoneProgressOptions, Codable, Hashable {
   }
 }
 
-public struct CodeLensOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct CodeLensOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   /// Code lens has a resolve provider as well.
   public var resolveProvider: Bool?
 
@@ -791,7 +793,7 @@ public struct CodeLensOptions: WorkDoneProgressOptions, Codable, Hashable {
   }
 }
 
-public struct ExecuteCommandOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct ExecuteCommandOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
 
   /// The commands to be executed on this server.
   public var commands: [String]
@@ -807,7 +809,7 @@ public struct ExecuteCommandOptions: WorkDoneProgressOptions, Codable, Hashable 
   }
 }
 
-public struct RenameOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct RenameOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   /// Renames should be checked and tested before being executed.
   public var prepareProvider: Bool?
 
@@ -822,7 +824,7 @@ public struct RenameOptions: WorkDoneProgressOptions, Codable, Hashable {
   }
 }
 
-public struct DocumentLinkOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct DocumentLinkOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   /// Document links have a resolve provider as well.
   public var resolveProvider: Bool?
 
@@ -837,9 +839,9 @@ public struct DocumentLinkOptions: WorkDoneProgressOptions, Codable, Hashable {
   }
 }
 
-public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable, LSPAnyCodable {
+public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable, LSPAnyCodable, Sendable {
 
-  public struct SemanticTokensRangeOptions: Equatable, Hashable, Codable, LSPAnyCodable {
+  public struct SemanticTokensRangeOptions: Equatable, Hashable, Codable, LSPAnyCodable, Sendable {
     public init() {
       // Empty in the LSP 3.16 spec.
     }
@@ -853,7 +855,7 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable,
     }
   }
 
-  public struct SemanticTokensFullOptions: Equatable, Hashable, Codable, LSPAnyCodable {
+  public struct SemanticTokensFullOptions: Equatable, Hashable, Codable, LSPAnyCodable, Sendable {
     /// The server supports deltas for full documents.
     public var delta: Bool?
 
@@ -972,7 +974,7 @@ public struct SemanticTokensOptions: WorkDoneProgressOptions, Codable, Hashable,
 
 }
 
-public struct InlayHintOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct InlayHintOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   /// The server provides support to resolve additional information
   /// for an inlay hint item.
   public var resolveProvider: Bool?
@@ -998,7 +1000,7 @@ public struct InlayHintOptions: WorkDoneProgressOptions, Codable, Hashable {
   }
 }
 
-public struct WorkspaceSymbolOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct WorkspaceSymbolOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   /// The server provides support to resolve additional information
   /// for an inlay hint item.
   public var resolveProvider: Bool?
@@ -1014,7 +1016,7 @@ public struct WorkspaceSymbolOptions: WorkDoneProgressOptions, Codable, Hashable
   }
 }
 
-public struct MonikerOptions: WorkDoneProgressOptions, Codable, Hashable {
+public struct MonikerOptions: WorkDoneProgressOptions, Codable, Hashable, Sendable {
   /// A document selector to identify the scope of the registration. If set to null the document selector provided on the client side will be used.
   public var documentSelector: DocumentSelector?
 
@@ -1029,7 +1031,7 @@ public struct MonikerOptions: WorkDoneProgressOptions, Codable, Hashable {
   }
 }
 
-public struct DiagnosticOptions: WorkDoneProgressOptions, LSPAnyCodable, Codable, Hashable {
+public struct DiagnosticOptions: WorkDoneProgressOptions, LSPAnyCodable, Codable, Hashable, Sendable {
   /// An optional identifier under which the diagnostics are managed by the client.
   public var identifier: String?
 
@@ -1107,8 +1109,8 @@ public struct DiagnosticOptions: WorkDoneProgressOptions, LSPAnyCodable, Codable
   }
 }
 
-public struct WorkspaceServerCapabilities: Codable, Hashable {
-  public struct WorkspaceFolders: Codable, Hashable {
+public struct WorkspaceServerCapabilities: Codable, Hashable, Sendable {
+  public struct WorkspaceFolders: Codable, Hashable, Sendable {
     /// The server has support for workspace folders
     public var supported: Bool?
 

@@ -52,7 +52,7 @@ public struct CompletionRequest: TextDocumentRequest, Hashable {
 }
 
 /// How a completion was triggered
-public struct CompletionTriggerKind: RawRepresentable, Codable, Hashable {
+public struct CompletionTriggerKind: RawRepresentable, Codable, Hashable, Sendable {
   /// Completion was triggered by typing an identifier (24x7 code complete), manual invocation (e.g Ctrl+Space) or via API.
   public static let invoked = CompletionTriggerKind(rawValue: 1)
 
@@ -69,7 +69,7 @@ public struct CompletionTriggerKind: RawRepresentable, Codable, Hashable {
 }
 
 /// Contains additional information about the context in which a completion request is triggered.
-public struct CompletionContext: Codable, Hashable {
+public struct CompletionContext: Codable, Hashable, Sendable {
   /// How the completion was triggered.
   public var triggerKind: CompletionTriggerKind
 
@@ -85,7 +85,7 @@ public struct CompletionContext: Codable, Hashable {
 /// List of completion items. If this list has been filtered already, the `isIncomplete` flag
 /// indicates that the client should re-query code-completions if the filter text changes.
 public struct CompletionList: ResponseType, Hashable {
-  public struct InsertReplaceRanges: Codable, Hashable {
+  public struct InsertReplaceRanges: Codable, Hashable, Sendable {
     @CustomCodable<PositionRange>
     var insert: Range<Position>
 
@@ -98,7 +98,7 @@ public struct CompletionList: ResponseType, Hashable {
     }
   }
 
-  public enum ItemDefaultsEditRange: Codable, Hashable {
+  public enum ItemDefaultsEditRange: Codable, Hashable, Sendable {
     case range(Range<Position>)
     case insertReplaceRanges(InsertReplaceRanges)
 
@@ -126,7 +126,7 @@ public struct CompletionList: ResponseType, Hashable {
     }
   }
 
-  public struct ItemDefaults: Codable, Hashable {
+  public struct ItemDefaults: Codable, Hashable, Sendable {
     /// A default commit character set.
     public var commitCharacters: [String]?
 

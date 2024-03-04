@@ -13,7 +13,7 @@
 /// A no-op request that ensures all previous notifications and requests have been handled before any message
 /// after the barrier request is handled.
 public struct BarrierRequest: RequestType {
-  public static var method: String = "workspace/_barrier"
+  public static let method: String = "workspace/_barrier"
   public typealias Response = VoidResponse
 
   public init() {}

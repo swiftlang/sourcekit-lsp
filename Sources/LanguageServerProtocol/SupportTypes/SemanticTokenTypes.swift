@@ -17,7 +17,7 @@ import Foundation
 /// The protocol defines a set of token types and modifiers but clients are
 /// allowed to extend these and announce the values they support in the
 /// corresponding client capability.
-public struct SemanticTokenTypes: Hashable {
+public struct SemanticTokenTypes: Hashable, Sendable {
   public let name: String
   public init(_ name: String) {
     self.name = name
@@ -50,7 +50,7 @@ public struct SemanticTokenTypes: Hashable {
   /// since 3.17.0
   public static let decorator = Self("decorator")
 
-  public static var predefined: [Self] = [
+  public static let predefined: [Self] = [
     .namespace,
     .type,
     .class,

@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Defines a watcher interested in specific file system change events.
-public struct FileSystemWatcher: Codable, Hashable {
+public struct FileSystemWatcher: Codable, Hashable, Sendable {
   /// The glob pattern to watch.
   public var globPattern: String
 
@@ -55,7 +55,7 @@ extension FileSystemWatcher: LSPAnyCodable {
 /// The type of file event a watcher is interested in.
 ///
 /// In LSP, this is an integer, so we don't use a closed set.
-public struct WatchKind: OptionSet, Codable, Hashable {
+public struct WatchKind: OptionSet, Codable, Hashable, Sendable {
   public var rawValue: Int
 
   public init(rawValue: Int) {

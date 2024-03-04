@@ -42,7 +42,7 @@ public struct ReferencesRequest: TextDocumentRequest, Hashable {
   }
 }
 
-public struct ReferencesContext: Codable, Hashable {
+public struct ReferencesContext: Codable, Hashable, Sendable {
   /// Whether to include the declaration in the list of symbols, or just the references.
   public var includeDeclaration: Bool
 

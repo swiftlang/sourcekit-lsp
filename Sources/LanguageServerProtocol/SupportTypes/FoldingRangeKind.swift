@@ -13,7 +13,7 @@
 /// A folding range kind.
 ///
 /// In LSP, this is a string, so we don't use a closed set.
-public struct FoldingRangeKind: RawRepresentable, Codable, Hashable {
+public struct FoldingRangeKind: RawRepresentable, Codable, Hashable, Sendable {
 
   public var rawValue: String
 

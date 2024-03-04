@@ -15,7 +15,7 @@
 /// If `range` and `rangeLength` are unspecified, the whole document content is replaced.
 ///
 /// The `range.end` and `rangeLength` are potentially redundant. Based on https://github.com/Microsoft/language-server-protocol/issues/9, servers should be lenient and accept either.
-public struct TextDocumentContentChangeEvent: Codable, Hashable {
+public struct TextDocumentContentChangeEvent: Codable, Hashable, Sendable {
 
   @CustomCodable<PositionRange?>
   public var range: Range<Position>?

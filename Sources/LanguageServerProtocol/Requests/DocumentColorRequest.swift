@@ -46,7 +46,7 @@ public struct ColorInformation: ResponseType, Hashable {
 }
 
 /// Represents a color in RGBA space.
-public struct Color: Hashable, Codable {
+public struct Color: Hashable, Codable, Sendable {
   /// The red component of this color in the range [0-1].
   public var red: Double
   /// The green component of this color in the range [0-1].

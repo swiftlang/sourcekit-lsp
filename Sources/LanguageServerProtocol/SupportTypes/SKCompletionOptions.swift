@@ -14,7 +14,7 @@
 ///
 /// **(LSP Extension)**: This is used as part of an extension to the
 /// code-completion request.
-public struct SKCompletionOptions: Codable, Hashable {
+public struct SKCompletionOptions: Codable, Hashable, Sendable {
   /// The maximum number of completion results to return, or `nil` for unlimited.
   public var maxResults: Int?
 

@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct InlayHintResolveRequest: RequestType {
-  public static var method: String = "inlayHint/resolve"
+  public static let method: String = "inlayHint/resolve"
   public typealias Response = InlayHint
 
   public var inlayHint: InlayHint

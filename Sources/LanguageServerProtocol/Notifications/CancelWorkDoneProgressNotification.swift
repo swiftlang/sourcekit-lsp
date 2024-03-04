@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct CancelWorkDoneProgressNotification: NotificationType {
-  public static var method: String = "window/workDoneProgress/cancel"
+  public static let method: String = "window/workDoneProgress/cancel"
 
   public var token: ProgressToken
 

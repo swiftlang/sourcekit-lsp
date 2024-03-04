@@ -16,7 +16,7 @@
 /// Users of PollIndex should set `"initializationOptions": { "listenToUnitEvents": false }` during
 /// the `initialize` request.
 public struct PollIndexRequest: RequestType {
-  public static var method: String = "workspace/_pollIndex"
+  public static let method: String = "workspace/_pollIndex"
   public typealias Response = VoidResponse
 
   public init() {}

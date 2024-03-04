@@ -55,7 +55,7 @@ public struct HoverResponse: ResponseType, Hashable {
   }
 }
 
-public enum HoverResponseContents: Hashable {
+public enum HoverResponseContents: Hashable, Sendable {
   case markedStrings([MarkedString])
   case markupContent(MarkupContent)
 }
@@ -70,7 +70,7 @@ public enum MarkedString: Hashable {
   case codeBlock(language: String, value: String)
 }
 
-extension MarkedString: Codable {
+extension MarkedString: Codable, Sendable {
   public init(from decoder: Decoder) throws {
     if let value = try? decoder.singleValueContainer().decode(String.self) {
       self = .markdown(value: value)

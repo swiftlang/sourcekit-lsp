@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct CompletionItemResolveRequest: RequestType {
-  public static var method: String = "completionItem/resolve"
+  public static let method: String = "completionItem/resolve"
   public typealias Response = CompletionItem
 
   public var item: CompletionItem

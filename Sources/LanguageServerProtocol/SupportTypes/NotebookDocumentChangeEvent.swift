@@ -12,7 +12,7 @@
 
 /// A change describing how to move a `NotebookCell`
 /// array from state S to S'.
-public struct NotebookCellArrayChange: Codable, Hashable {
+public struct NotebookCellArrayChange: Codable, Hashable, Sendable {
   /// The start offset of the cell that changed.
   public var start: Int
 
@@ -30,8 +30,8 @@ public struct NotebookCellArrayChange: Codable, Hashable {
 }
 
 /// A change event for a notebook document.
-public struct NotebookDocumentChangeEvent: Codable, Hashable {
-  public struct CellsStructure: Codable, Hashable {
+public struct NotebookDocumentChangeEvent: Codable, Hashable, Sendable {
+  public struct CellsStructure: Codable, Hashable, Sendable {
     /// The change to the cell array.
     public var array: NotebookCellArrayChange
 
@@ -52,7 +52,7 @@ public struct NotebookDocumentChangeEvent: Codable, Hashable {
     }
   }
 
-  public struct CellsTextContent: Codable, Hashable {
+  public struct CellsTextContent: Codable, Hashable, Sendable {
     public var document: VersionedTextDocumentIdentifier
     public var changes: [TextDocumentContentChangeEvent]
 
@@ -62,7 +62,7 @@ public struct NotebookDocumentChangeEvent: Codable, Hashable {
     }
   }
 
-  public struct Cells: Codable, Hashable {
+  public struct Cells: Codable, Hashable, Sendable {
     /// Changes to the cell structure to add or
     /// remove cells.
     public var structure: CellsStructure?

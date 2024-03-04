@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Represents information on a file/folder create.
-public struct FileCreate: Codable, Hashable {
+public struct FileCreate: Codable, Hashable, Sendable {
   /// A file:// URI for the location of the file/folder being created.
   public var uri: DocumentURI
 
@@ -21,7 +21,7 @@ public struct FileCreate: Codable, Hashable {
 }
 
 public struct WillCreateFilesRequest: RequestType {
-  public static var method: String = "workspace/willCreateFiles"
+  public static let method: String = "workspace/willCreateFiles"
   public typealias Response = WorkspaceEdit?
 
   /// An array of all files/folders created in this operation.
@@ -33,7 +33,7 @@ public struct WillCreateFilesRequest: RequestType {
 }
 
 /// Represents information on a file/folder rename.
-public struct FileRename: Codable, Hashable {
+public struct FileRename: Codable, Hashable, Sendable {
 
   /// A file:// URI for the original location of the file/folder being renamed.
   public var oldUri: DocumentURI
@@ -48,7 +48,7 @@ public struct FileRename: Codable, Hashable {
 }
 
 public struct WillRenameFilesRequest: RequestType {
-  public static var method: String = "workspace/willRenameFiles"
+  public static let method: String = "workspace/willRenameFiles"
   public typealias Response = WorkspaceEdit?
 
   /// An array of all files/folders renamed in this operation. When a folder
@@ -61,7 +61,7 @@ public struct WillRenameFilesRequest: RequestType {
 }
 
 /// Represents information on a file/folder delete.
-public struct FileDelete: Codable, Hashable {
+public struct FileDelete: Codable, Hashable, Sendable {
   /// A file:// URI for the location of the file/folder being deleted.
   public var uri: DocumentURI
 
@@ -71,7 +71,7 @@ public struct FileDelete: Codable, Hashable {
 }
 
 public struct WillDeleteFilesRequest: RequestType {
-  public static var method: String = "workspace/willDeleteFiles"
+  public static let method: String = "workspace/willDeleteFiles"
   public typealias Response = WorkspaceEdit?
 
   /// An array of all files/folders deleted in this operation.

@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// A workspace edit represents changes to many resources managed in the workspace.
-public struct WorkspaceEdit: Hashable, ResponseType {
+public struct WorkspaceEdit: Hashable, ResponseType, Sendable {
 
   /// The edits to be applied to existing resources.
   public var changes: [DocumentURI: [TextEdit]]?
@@ -72,7 +72,7 @@ extension WorkspaceEdit: Codable {
   }
 }
 
-public enum WorkspaceEditDocumentChange: Codable, Hashable {
+public enum WorkspaceEditDocumentChange: Codable, Hashable, Sendable {
   case textDocumentEdit(TextDocumentEdit)
   case createFile(CreateFile)
   case renameFile(RenameFile)
@@ -111,7 +111,7 @@ public enum WorkspaceEditDocumentChange: Codable, Hashable {
 }
 
 /// Options to create a file.
-public struct CreateFileOptions: Codable, Hashable {
+public struct CreateFileOptions: Codable, Hashable, Sendable {
   /// Overwrite existing file. Overwrite wins over `ignoreIfExists`
   public var overwrite: Bool?
   /// Ignore if exists.
@@ -124,7 +124,7 @@ public struct CreateFileOptions: Codable, Hashable {
 }
 
 /// Create file operation
-public struct CreateFile: Codable, Hashable {
+public struct CreateFile: Codable, Hashable, Sendable {
   /// The resource to create.
   public var uri: DocumentURI
   /// Additional options
@@ -172,7 +172,7 @@ public struct CreateFile: Codable, Hashable {
 }
 
 /// Rename file options
-public struct RenameFileOptions: Codable, Hashable {
+public struct RenameFileOptions: Codable, Hashable, Sendable {
   /// Overwrite target if existing. Overwrite wins over `ignoreIfExists`
   public var overwrite: Bool?
   /// Ignores if target exists.
@@ -185,7 +185,7 @@ public struct RenameFileOptions: Codable, Hashable {
 }
 
 /// Rename file operation
-public struct RenameFile: Codable, Hashable {
+public struct RenameFile: Codable, Hashable, Sendable {
   /// The old (existing) location.
   public var oldUri: DocumentURI
   /// The new location.
@@ -244,7 +244,7 @@ public struct RenameFile: Codable, Hashable {
 }
 
 /// Delete file options
-public struct DeleteFileOptions: Codable, Hashable {
+public struct DeleteFileOptions: Codable, Hashable, Sendable {
   /// Delete the content recursively if a folder is denoted.
   public var recursive: Bool?
   /// Ignore the operation if the file doesn't exist.
@@ -257,7 +257,7 @@ public struct DeleteFileOptions: Codable, Hashable {
 }
 
 /// Delete file operation
-public struct DeleteFile: Codable, Hashable {
+public struct DeleteFile: Codable, Hashable, Sendable {
   /// The file to delete.
   public var uri: DocumentURI
   /// Delete options.

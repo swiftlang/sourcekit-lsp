@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public enum ProgressToken: Codable, Hashable {
+public enum ProgressToken: Codable, Hashable, Sendable {
   case integer(Int)
   case string(String)
 

@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// A previous result id in a workspace pull request.
-public struct PreviousResultId: Codable {
+public struct PreviousResultId: Codable, Sendable {
   /// The URI for which the client knows a result id.
   public var uri: DocumentURI
 
@@ -25,7 +25,7 @@ public struct PreviousResultId: Codable {
 }
 
 public struct WorkspaceDiagnosticsRequest: RequestType {
-  public static var method: String = "workspace/diagnostic"
+  public static let method: String = "workspace/diagnostic"
   public typealias Response = WorkspaceDiagnosticReport
 
   /// The additional identifier provided during registration.
@@ -51,7 +51,7 @@ public struct WorkspaceDiagnosticReport: ResponseType {
 }
 
 /// A full document diagnostic report for a workspace diagnostic result.
-public struct WorkspaceFullDocumentDiagnosticReport: Codable, Hashable {
+public struct WorkspaceFullDocumentDiagnosticReport: Codable, Hashable, Sendable {
   /// An optional result id. If provided it will
   /// be sent on the next diagnostic request for the
   /// same document.
@@ -109,7 +109,7 @@ public struct WorkspaceFullDocumentDiagnosticReport: Codable, Hashable {
 }
 
 /// An unchanged document diagnostic report for a workspace diagnostic result.
-public struct WorkspaceUnchangedDocumentDiagnosticReport: Codable, Hashable {
+public struct WorkspaceUnchangedDocumentDiagnosticReport: Codable, Hashable, Sendable {
   /// A result id which will be sent on the next
   /// diagnostic request for the same document.
   public var resultId: String
@@ -159,7 +159,7 @@ public struct WorkspaceUnchangedDocumentDiagnosticReport: Codable, Hashable {
 }
 
 /// A workspace diagnostic document report.
-public enum WorkspaceDocumentDiagnosticReport: Codable, Hashable {
+public enum WorkspaceDocumentDiagnosticReport: Codable, Hashable, Sendable {
   case full(WorkspaceFullDocumentDiagnosticReport)
   case unchanged(WorkspaceUnchangedDocumentDiagnosticReport)
 

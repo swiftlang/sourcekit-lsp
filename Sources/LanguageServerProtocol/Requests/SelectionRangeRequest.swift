@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct SelectionRangeRequest: TextDocumentRequest {
-  public static var method: String = "textDocument/selectionRange"
+  public static let method: String = "textDocument/selectionRange"
   public typealias Response = [SelectionRange]
 
   /// The text document.
@@ -28,8 +28,8 @@ public struct SelectionRangeRequest: TextDocumentRequest {
 
 public struct SelectionRange: ResponseType, Codable, Hashable {
   /// Indirect reference to a `SelectionRange`.
-  final class SelectionRangeBox: Codable, Hashable {
-    var selectionRange: SelectionRange
+  final class SelectionRangeBox: Codable, Hashable, Sendable {
+    let selectionRange: SelectionRange
 
     init(selectionRange: SelectionRange) {
       self.selectionRange = selectionRange

@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Capabilities provided by the client editor/IDE.
-public struct ClientCapabilities: Hashable, Codable {
+public struct ClientCapabilities: Hashable, Codable, Sendable {
 
   /// Workspace-specific client capabilities.
   public var workspace: WorkspaceClientCapabilities?
@@ -49,8 +49,8 @@ public struct ClientCapabilities: Hashable, Codable {
 }
 
 /// Helper capability wrapper for structs that only have a `dynamicRegistration` member.
-public struct DynamicRegistrationCapability: Hashable, Codable {
-  /// Whether the client supports dynamic registaration of this feature.
+public struct DynamicRegistrationCapability: Hashable, Codable, Sendable {
+  /// Whether the client supports dynamic registration of this feature.
   public var dynamicRegistration: Bool? = nil
 
   public init(dynamicRegistration: Bool? = nil) {
@@ -59,7 +59,7 @@ public struct DynamicRegistrationCapability: Hashable, Codable {
 }
 
 /// Helper capability wrapper for structs that only have a `refreshSupport` member.
-public struct RefreshRegistrationCapability: Hashable, Codable {
+public struct RefreshRegistrationCapability: Hashable, Codable, Sendable {
   /// Whether the client implementation supports a refresh request sent from the
   /// server to the client.
   public var refreshSupport: Bool?
@@ -71,10 +71,10 @@ public struct RefreshRegistrationCapability: Hashable, Codable {
 
 /// Capabilities of the client editor/IDE related to managing the workspace.
 // FIXME: Instead of making all of these optional, provide default values and make the deserialization handle missing values.
-public struct WorkspaceClientCapabilities: Hashable, Codable {
+public struct WorkspaceClientCapabilities: Hashable, Codable, Sendable {
 
   /// Capabilities specific to `WorkspaceEdit`.
-  public struct WorkspaceEdit: Hashable, Codable {
+  public struct WorkspaceEdit: Hashable, Codable, Sendable {
     /// Whether the client supports the `documentChanges` field of `WorkspaceEdit`.
     public var documentChanges: Bool? = nil
 
@@ -84,10 +84,10 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
   }
 
   /// Capabilities specific to the `workspace/symbol` request.
-  public struct Symbol: Hashable, Codable {
+  public struct Symbol: Hashable, Codable, Sendable {
 
     /// Capabilities specific to `SymbolKind`.
-    public struct SymbolKind: Hashable, Codable {
+    public struct SymbolKind: Hashable, Codable, Sendable {
 
       /// The symbol kind values that the client can support.
       ///
@@ -101,7 +101,7 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
       }
     }
 
-    /// Whether the client supports dynamic registaration of this request.
+    /// Whether the client supports dynamic registration of this request.
     public var dynamicRegistration: Bool? = nil
 
     public var symbolKind: SymbolKind? = nil
@@ -112,7 +112,7 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
     }
   }
 
-  public struct FileOperations: Hashable, Codable {
+  public struct FileOperations: Hashable, Codable, Sendable {
     /// Whether the client supports dynamic registration for file
     /// requests/notifications.
     public var dynamicRegistration: Bool?
@@ -224,12 +224,12 @@ public struct WorkspaceClientCapabilities: Hashable, Codable {
 
 /// Capabilities of the client editor/IDE related to the document.
 // FIXME: Instead of making all of these optional, provide default values and make the deserialization handle missing values.
-public struct TextDocumentClientCapabilities: Hashable, Codable {
+public struct TextDocumentClientCapabilities: Hashable, Codable, Sendable {
 
   /// Capabilities specific to the `textDocument/...` change notifications.
-  public struct Synchronization: Hashable, Codable {
+  public struct Synchronization: Hashable, Codable, Sendable {
 
-    /// Whether the client supports dynamic registaration of these notifications.
+    /// Whether the client supports dynamic registration of these notifications.
     public var dynamicRegistration: Bool? = nil
 
     /// Whether the client supports the will-save notification.
@@ -255,10 +255,10 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   }
 
   /// Capabilities specific to the `textDocument/...` change notifications.
-  public struct Completion: Hashable, Codable {
+  public struct Completion: Hashable, Codable, Sendable {
 
     /// Capabilities specific to `CompletionItem`.
-    public struct CompletionItem: Hashable, Codable {
+    public struct CompletionItem: Hashable, Codable, Sendable {
 
       /// Whether the client supports rich snippets using placeholders, etc.
       public var snippetSupport: Bool? = nil
@@ -291,7 +291,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     }
 
     /// Capabilities specific to `CompletionItemKind`.
-    public struct CompletionItemKind: Hashable, Codable {
+    public struct CompletionItemKind: Hashable, Codable, Sendable {
 
       /// The completion kind values that the client can support.
       ///
@@ -307,7 +307,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 
     // MARK: Properties
 
-    /// Whether the client supports dynamic registaration of these capabilities.
+    /// Whether the client supports dynamic registration of these capabilities.
     public var dynamicRegistration: Bool? = nil
 
     public var completionItem: CompletionItem? = nil
@@ -331,9 +331,9 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   }
 
   /// Capabilities specific to the `textDocument/hover` request.
-  public struct Hover: Hashable, Codable {
+  public struct Hover: Hashable, Codable, Sendable {
 
-    /// Whether the client supports dynamic registaration of this request.
+    /// Whether the client supports dynamic registration of this request.
     public var dynamicRegistration: Bool? = nil
 
     /// Formats supported by the client for the `Hover.content` property from most to least preferred.
@@ -346,11 +346,11 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   }
 
   /// Capabilities specific to the `textDocument/signatureHelp` request.
-  public struct SignatureHelp: Hashable, Codable {
+  public struct SignatureHelp: Hashable, Codable, Sendable {
 
     /// Capabilities specific to `SignatureInformation`.
-    public struct SignatureInformation: Hashable, Codable {
-      public struct ParameterInformation: Hashable, Codable {
+    public struct SignatureInformation: Hashable, Codable, Sendable {
+      public struct ParameterInformation: Hashable, Codable, Sendable {
         /// The client supports processing label offsets instead of a simple label string.
         var labelOffsetSupport: Bool? = nil
 
@@ -370,7 +370,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
       }
     }
 
-    /// Whether the client supports dynamic registaration of this request.
+    /// Whether the client supports dynamic registration of this request.
     public var dynamicRegistration: Bool? = nil
 
     public var signatureInformation: SignatureInformation? = nil
@@ -382,10 +382,10 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   }
 
   /// Capabilities specific to the `textDocument/documentSymbol` request.
-  public struct DocumentSymbol: Hashable, Codable {
+  public struct DocumentSymbol: Hashable, Codable, Sendable {
 
     /// Capabilities specific to `SymbolKind`.
-    public struct SymbolKind: Hashable, Codable {
+    public struct SymbolKind: Hashable, Codable, Sendable {
 
       /// The symbol kind values that the client can support.
       ///
@@ -399,7 +399,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
       }
     }
 
-    /// Whether the client supports dynamic registaration of this request.
+    /// Whether the client supports dynamic registration of this request.
     public var dynamicRegistration: Bool? = nil
 
     public var symbolKind: SymbolKind? = nil
@@ -417,8 +417,8 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     }
   }
 
-  public struct DynamicRegistrationLinkSupportCapability: Hashable, Codable {
-    /// Whether the client supports dynamic registaration of this request.
+  public struct DynamicRegistrationLinkSupportCapability: Hashable, Codable, Sendable {
+    /// Whether the client supports dynamic registration of this request.
     public var dynamicRegistration: Bool? = nil
 
     /// The client supports additional metadata in the form of declaration links.
@@ -431,12 +431,12 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   }
 
   /// Capabilities specific to the `textDocument/codeAction` request.
-  public struct CodeAction: Hashable, Codable {
+  public struct CodeAction: Hashable, Codable, Sendable {
 
-    /// Liteals accepted by the client in response to a `textDocument/codeAction` request.
-    public struct CodeActionLiteralSupport: Hashable, Codable {
+    /// Literals accepted by the client in response to a `textDocument/codeAction` request.
+    public struct CodeActionLiteralSupport: Hashable, Codable, Sendable {
       /// Accepted code action kinds.
-      public struct CodeActionKind: Hashable, Codable {
+      public struct CodeActionKind: Hashable, Codable, Sendable {
 
         /// The code action kind values that the client can support.
         ///
@@ -455,7 +455,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
       }
     }
 
-    /// Whether the client supports dynamic registaration of this request.
+    /// Whether the client supports dynamic registration of this request.
     public var dynamicRegistration: Bool?
 
     public var codeActionLiteralSupport: CodeActionLiteralSupport? = nil
@@ -466,9 +466,9 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   }
 
   /// Capabilities specific to `textDocument/rename`.
-  public struct Rename: Hashable, Codable {
+  public struct Rename: Hashable, Codable, Sendable {
 
-    /// Whether the client supports dynamic registaration of this request.
+    /// Whether the client supports dynamic registration of this request.
     public var dynamicRegistration: Bool?
 
     /// The client supports testing for validity of rename operations before execution.
@@ -481,7 +481,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   }
 
   /// Capabilities specific to `textDocument/publishDiagnostics`.
-  public struct PublishDiagnostics: Hashable, Codable {
+  public struct PublishDiagnostics: Hashable, Codable, Sendable {
     /// Whether the client accepts diagnostics with related information.
     public var relatedInformation: Bool? = nil
 
@@ -504,7 +504,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   }
 
   /// Capabilities specific to `textDocument/foldingRange`.
-  public struct FoldingRange: Equatable, Hashable, Codable {
+  public struct FoldingRange: Equatable, Hashable, Codable, Sendable {
 
     /// Whether the client supports dynamic registration of this request.
     public var dynamicRegistration: Bool? = nil
@@ -523,12 +523,12 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     }
   }
 
-  public struct SemanticTokensRangeClientCapabilities: Equatable, Hashable, Codable {
+  public struct SemanticTokensRangeClientCapabilities: Equatable, Hashable, Codable, Sendable {
     // Empty in the LSP 3.16 spec.
     public init() {}
   }
 
-  public struct SemanticTokensFullClientCapabilities: Equatable, Hashable, Codable {
+  public struct SemanticTokensFullClientCapabilities: Equatable, Hashable, Codable, Sendable {
     /// The client will also send the `textDocument/semanticTokens/full/delta`
     /// request if the server provides a corresponding handler.
     public var delta: Bool?
@@ -538,7 +538,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
     }
   }
 
-  public struct SemanticTokensRequestsClientCapabilities: Equatable, Hashable, Codable {
+  public struct SemanticTokensRequestsClientCapabilities: Equatable, Hashable, Codable, Sendable {
     /// The client will send the `textDocument/semanticTokens/range` request
     /// if the server provides a corresponding handler.
     public var range: ValueOrBool<SemanticTokensRangeClientCapabilities>?
@@ -557,7 +557,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   }
 
   /// Capabilities specific to `textDocument/semanticTokens`.
-  public struct SemanticTokens: Equatable, Hashable, Codable {
+  public struct SemanticTokens: Equatable, Hashable, Codable, Sendable {
 
     /// Whether the client supports dynamic registration of this request.
     public var dynamicRegistration: Bool? = nil
@@ -599,9 +599,9 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   }
 
   /// Capabilities specific to 'textDocument/inlayHint'.
-  public struct InlayHint: Hashable, Codable {
+  public struct InlayHint: Hashable, Codable, Sendable {
     /// Properties a client can resolve lazily.
-    public struct ResolveSupport: Hashable, Codable {
+    public struct ResolveSupport: Hashable, Codable, Sendable {
       /// The properties that a client can resolve lazily.
       public var properties: [String]
 
@@ -626,7 +626,7 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
   }
 
   /// Capabilities specific to 'textDocument/diagnostic'. Since LSP 3.17.0.
-  public struct Diagnostic: Equatable, Hashable, Codable {
+  public struct Diagnostic: Equatable, Hashable, Codable, Sendable {
 
     /// Whether implementation supports dynamic registration.
     public var dynamicRegistration: Bool?
@@ -768,8 +768,8 @@ public struct TextDocumentClientCapabilities: Hashable, Codable {
 }
 
 /// Capabilities specific to the notebook document support.
-public struct NotebookDocumentClientCapabilities: Hashable, Codable {
-  public struct NotebookDocumentSync: Hashable, Codable {
+public struct NotebookDocumentClientCapabilities: Hashable, Codable, Sendable {
+  public struct NotebookDocumentSync: Hashable, Codable, Sendable {
     /// Whether implementation supports dynamic registration. If this is
     /// set to `true` the client supports the new
     /// `(TextDocumentRegistrationOptions & StaticRegistrationOptions)`
@@ -797,10 +797,10 @@ public struct NotebookDocumentClientCapabilities: Hashable, Codable {
 }
 
 /// Window specific client capabilities.
-public struct WindowClientCapabilities: Hashable, Codable {
+public struct WindowClientCapabilities: Hashable, Codable, Sendable {
   /// Show message request client capabilities
-  public struct ShowMessageRequest: Hashable, Codable {
-    public struct MessageActionItem: Hashable, Codable {
+  public struct ShowMessageRequest: Hashable, Codable, Sendable {
+    public struct MessageActionItem: Hashable, Codable, Sendable {
       /// Whether the client supports additional attributes which
       /// are preserved and sent back to the server in the
       /// request's response.
@@ -820,7 +820,7 @@ public struct WindowClientCapabilities: Hashable, Codable {
   }
 
   /// Client capabilities for the show document request.
-  public struct ShowDocument: Hashable, Codable {
+  public struct ShowDocument: Hashable, Codable, Sendable {
     /// The client has support for the show document
     /// request.
     public var support: Bool
@@ -856,8 +856,8 @@ public struct WindowClientCapabilities: Hashable, Codable {
 }
 
 /// General client capabilities.
-public struct GeneralClientCapabilities: Hashable, Codable {
-  public struct StaleRequestSupport: Hashable, Codable {
+public struct GeneralClientCapabilities: Hashable, Codable, Sendable {
+  public struct StaleRequestSupport: Hashable, Codable, Sendable {
     /// The client will actively cancel the request.
     public var cancel: Bool
 
@@ -873,7 +873,7 @@ public struct GeneralClientCapabilities: Hashable, Codable {
   }
 
   /// Client capabilities specific to regular expressions.
-  public struct RegularExpressions: Hashable, Codable {
+  public struct RegularExpressions: Hashable, Codable, Sendable {
     /// The engine's name.
     public var engine: String
 
@@ -887,7 +887,7 @@ public struct GeneralClientCapabilities: Hashable, Codable {
   }
 
   /// Client capabilities specific to the used markdown parser.
-  public struct Markdown: Hashable, Codable {
+  public struct Markdown: Hashable, Codable, Sendable {
     /// The name of the parser.
     public var parser: String
 
@@ -906,7 +906,7 @@ public struct GeneralClientCapabilities: Hashable, Codable {
 
   /// A type indicating how positions are encoded,
   /// specifically what column offsets mean.
-  public enum PositionEncodingKind: String, Hashable, Codable {
+  public enum PositionEncodingKind: String, Hashable, Codable, Sendable {
 
     /// Character offsets count UTF-8 code units (e.g bytes).
     case utf8 = "utf-8"

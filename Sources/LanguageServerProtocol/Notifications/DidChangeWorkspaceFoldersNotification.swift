@@ -27,7 +27,7 @@ public struct DidChangeWorkspaceFoldersNotification: NotificationType {
 }
 
 /// The workspace folder change event.
-public struct WorkspaceFoldersChangeEvent: Codable, Hashable {
+public struct WorkspaceFoldersChangeEvent: Codable, Hashable, Sendable {
 
   /// The array of added workspace folders
   public var added: [WorkspaceFolder]?

@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct DocumentDiagnosticsRequest: TextDocumentRequest {
-  public static var method: String = "textDocument/diagnostic"
+  public static let method: String = "textDocument/diagnostic"
   public typealias Response = DocumentDiagnosticReport
 
   /// The text document.
@@ -64,7 +64,7 @@ public enum DocumentDiagnosticReport: ResponseType, Codable, Hashable {
 }
 
 /// The document diagnostic report kinds.
-public struct DocumentDiagnosticReportKind: RawRepresentable, Codable, Hashable {
+public struct DocumentDiagnosticReportKind: RawRepresentable, Codable, Hashable, Sendable {
   public var rawValue: String
 
   public init(rawValue: String) {
@@ -81,7 +81,7 @@ public struct DocumentDiagnosticReportKind: RawRepresentable, Codable, Hashable 
 }
 
 /// A diagnostic report with a full set of problems.
-public struct RelatedFullDocumentDiagnosticReport: Codable, Hashable {
+public struct RelatedFullDocumentDiagnosticReport: Codable, Hashable, Sendable {
   /// An optional result id. If provided it will
   /// be sent on the next diagnostic request for the
   /// same document.
@@ -143,7 +143,7 @@ public struct RelatedFullDocumentDiagnosticReport: Codable, Hashable {
 
 /// A diagnostic report indicating that the last returned
 /// report is still accurate.
-public struct RelatedUnchangedDocumentDiagnosticReport: Codable, Hashable {
+public struct RelatedUnchangedDocumentDiagnosticReport: Codable, Hashable, Sendable {
   /// A result id which will be sent on the next
   /// diagnostic request for the same document.
   public var resultId: String

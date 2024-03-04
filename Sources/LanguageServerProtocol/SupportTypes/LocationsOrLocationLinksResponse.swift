@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public enum LocationsOrLocationLinksResponse: ResponseType, Hashable {
+public enum LocationsOrLocationLinksResponse: ResponseType, Hashable, Sendable {
   case locations([Location])
   case locationLinks([LocationLink])
 

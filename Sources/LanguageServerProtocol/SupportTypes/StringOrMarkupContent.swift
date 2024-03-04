@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public enum StringOrMarkupContent: Codable, Hashable {
+public enum StringOrMarkupContent: Codable, Hashable, Sendable {
   case string(String)
   case markupContent(MarkupContent)
 

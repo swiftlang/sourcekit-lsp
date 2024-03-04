@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct CodeActionResolveRequest: RequestType {
-  public static var method: String = "codeAction/resolve"
+  public static let method: String = "codeAction/resolve"
   public typealias Response = CodeAction
 
   public var codeAction: CodeAction

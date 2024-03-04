@@ -89,7 +89,7 @@ public enum CodeActionRequestResponse: ResponseType, Codable, Equatable {
 }
 
 /// The reason why code actions were requested.
-public struct CodeActionTriggerKind: RawRepresentable, Codable, Hashable {
+public struct CodeActionTriggerKind: RawRepresentable, Codable, Hashable, Sendable {
   public var rawValue: Int
 
   public init(rawValue: Int) {
@@ -106,7 +106,7 @@ public struct CodeActionTriggerKind: RawRepresentable, Codable, Hashable {
   public static let automatic = CodeActionTriggerKind(rawValue: 2)
 }
 
-public struct CodeActionContext: Codable, Hashable {
+public struct CodeActionContext: Codable, Hashable, Sendable {
 
   /// An array of diagnostics.
   public var diagnostics: [Diagnostic]

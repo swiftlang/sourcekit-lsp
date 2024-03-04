@@ -13,7 +13,7 @@
 /// A symbol kind.
 ///
 /// In LSP, this is an integer, so we don't use a closed set.
-public struct SymbolKind: RawRepresentable, Codable, Hashable {
+public struct SymbolKind: RawRepresentable, Codable, Hashable, Sendable {
 
   public var rawValue: Int
 
@@ -57,7 +57,7 @@ public struct SymbolKind: RawRepresentable, Codable, Hashable {
 /// Symbol tags are extra annotations that tweak the rendering of a symbol.
 ///
 /// In LSP, this is an integer, so we don't use a closed set.
-public struct SymbolTag: RawRepresentable, Codable, Hashable {
+public struct SymbolTag: RawRepresentable, Codable, Hashable, Sendable {
   public var rawValue: Int
 
   public init(rawValue: Int) {

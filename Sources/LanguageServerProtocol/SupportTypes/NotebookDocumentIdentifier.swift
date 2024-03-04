@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// A literal to identify a notebook document in the client.
-public struct NotebookDocumentIdentifier: Hashable, Codable {
+public struct NotebookDocumentIdentifier: Hashable, Codable, Sendable {
 
   /// The notebook document's URI.
   public var uri: DocumentURI

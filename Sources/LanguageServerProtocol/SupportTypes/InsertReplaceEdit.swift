@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// A special text edit to provide an insert and a replace operation.
-public struct InsertReplaceEdit: Codable, Hashable {
+public struct InsertReplaceEdit: Codable, Hashable, Sendable {
   /// The string to be inserted.
   public var newText: String
 

@@ -1,4 +1,4 @@
-// swift-tools-version:5.7
+// swift-tools-version:5.8
 
 import Foundation
 import PackageDescription
@@ -97,7 +97,8 @@ let package = Package(
     .target(
       name: "LanguageServerProtocol",
       dependencies: [],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
     ),
 
     .testTarget(

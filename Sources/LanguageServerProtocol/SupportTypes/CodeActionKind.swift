@@ -13,7 +13,7 @@
 /// A code action kind.
 ///
 /// In LSP, this is a string, so we don't use a closed set.
-public struct CodeActionKind: RawRepresentable, Codable, Hashable {
+public struct CodeActionKind: RawRepresentable, Codable, Hashable, Sendable {
 
   public var rawValue: String
 

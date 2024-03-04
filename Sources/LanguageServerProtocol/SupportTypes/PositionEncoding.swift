@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// A set of predefined position encoding kinds.
-public struct PositionEncodingKind: RawRepresentable, Codable, Hashable {
+public struct PositionEncodingKind: RawRepresentable, Codable, Hashable, Sendable {
   public var rawValue: String
 
   public init(rawValue: String) {

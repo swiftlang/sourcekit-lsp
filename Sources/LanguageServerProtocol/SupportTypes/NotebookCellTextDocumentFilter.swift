@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// A notebook document filter denotes a notebook document by different properties.
-public struct NotebookDocumentFilter: Codable, Hashable {
+public struct NotebookDocumentFilter: Codable, Hashable, Sendable {
   /// The type of the enclosing notebook.
   public var notebookType: String?
 
@@ -30,8 +30,8 @@ public struct NotebookDocumentFilter: Codable, Hashable {
 
 /// A notebook cell text document filter denotes a cell text
 /// document by different properties.
-public struct NotebookCellTextDocumentFilter: Codable, Hashable {
-  public enum NotebookFilter: Codable, Hashable {
+public struct NotebookCellTextDocumentFilter: Codable, Hashable, Sendable {
+  public enum NotebookFilter: Codable, Hashable, Sendable {
     case string(String)
     case notebookDocumentFilter(NotebookDocumentFilter)
 
