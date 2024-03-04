@@ -20,9 +20,9 @@ import Musl
 import CRT
 #endif
 
-public final class SKDResponseDictionary {
-  public let dict: sourcekitd_api_variant_t
-  let resp: SKDResponse
+public final class SKDResponseDictionary: Sendable {
+  private let dict: sourcekitd_api_variant_t
+  private let resp: SKDResponse
 
   public var sourcekitd: SourceKitD { return resp.sourcekitd }
 

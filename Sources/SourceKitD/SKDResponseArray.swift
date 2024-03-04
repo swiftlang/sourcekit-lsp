@@ -20,9 +20,9 @@ import Musl
 import CRT
 #endif
 
-public final class SKDResponseArray {
-  public let array: sourcekitd_api_variant_t
-  let resp: SKDResponse
+public final class SKDResponseArray: Sendable {
+  private let array: sourcekitd_api_variant_t
+  private let resp: SKDResponse
 
   public var sourcekitd: SourceKitD { return resp.sourcekitd }
 
