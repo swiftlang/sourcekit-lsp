@@ -49,7 +49,7 @@ public actor SourceKitDRegistry {
   /// Returns the existing SourceKitD for the given path, or creates it and registers it.
   public func getOrAdd(
     _ key: AbsolutePath,
-    create: () throws -> SourceKitD
+    create: @Sendable () throws -> SourceKitD
   ) rethrows -> SourceKitD {
     if let existing = active[key] {
       return existing

@@ -16,12 +16,17 @@ import SKSupport
 
 import struct TSCBasic.AbsolutePath
 
+extension DLHandle: @unchecked @retroactive Sendable {}
+extension sourcekitd_api_keys: @unchecked Sendable {}
+extension sourcekitd_api_requests: @unchecked Sendable {}
+extension sourcekitd_api_values: @unchecked Sendable {}
+
 /// Wrapper for sourcekitd, taking care of initialization, shutdown, and notification handler
 /// multiplexing.
 ///
 /// Users of this class should not call the api functions `initialize`, `shutdown`, or
 /// `set_notification_handler`, which are global state managed internally by this class.
-public final class DynamicallyLoadedSourceKitD: SourceKitD {
+public actor DynamicallyLoadedSourceKitD: SourceKitD {
 
   /// The path to the sourcekitd dylib.
   public let path: AbsolutePath
@@ -41,11 +46,10 @@ public final class DynamicallyLoadedSourceKitD: SourceKitD {
   /// Convenience for accessing known keys.
   public let values: sourcekitd_api_values
 
-  /// Lock protecting private state.
-  let lock: NSLock = NSLock()
+  private nonisolated let notificationHandlingQueue = AsyncQueue<Serial>()
 
   /// List of notification handlers that will be called for each notification.
-  private var _notificationHandlers: [WeakSKDNotificationHandler] = []
+  private var notificationHandlers: [WeakSKDNotificationHandler] = []
 
   public static func getOrCreate(dylibPath: AbsolutePath) async throws -> SourceKitD {
     try await SourceKitDRegistry.shared
@@ -67,11 +71,13 @@ public final class DynamicallyLoadedSourceKitD: SourceKitD {
     self.api.initialize()
     self.api.set_notification_handler { [weak self] rawResponse in
       guard let self, let rawResponse else { return }
-      let handlers = self.lock.withLock { self._notificationHandlers.compactMap(\.value) }
-
       let response = SKDResponse(rawResponse, sourcekitd: self)
-      for handler in handlers {
-        handler.notification(response)
+      self.notificationHandlingQueue.async {
+        let handlers = await self.notificationHandlers.compactMap(\.value)
+
+        for handler in handlers {
+          handler.notification(response)
+        }
       }
     }
   }
@@ -85,20 +91,16 @@ public final class DynamicallyLoadedSourceKitD: SourceKitD {
 
   /// Adds a new notification handler (referenced weakly).
   public func addNotificationHandler(_ handler: SKDNotificationHandler) {
-    lock.withLock {
-      _notificationHandlers.removeAll(where: { $0.value == nil })
-      _notificationHandlers.append(.init(handler))
-    }
+    notificationHandlers.removeAll(where: { $0.value == nil })
+    notificationHandlers.append(.init(handler))
   }
 
   /// Removes a previously registered notification handler.
   public func removeNotificationHandler(_ handler: SKDNotificationHandler) {
-    lock.withLock {
-      _notificationHandlers.removeAll(where: { $0.value == nil || $0.value === handler })
-    }
+    notificationHandlers.removeAll(where: { $0.value == nil || $0.value === handler })
   }
 
-  public func log(request: SKDRequestDictionary) {
+  public nonisolated func log(request: SKDRequestDictionary) {
     logger.info(
       """
       Sending sourcekitd request:
@@ -107,7 +109,7 @@ public final class DynamicallyLoadedSourceKitD: SourceKitD {
     )
   }
 
-  public func log(response: SKDResponse) {
+  public nonisolated func log(response: SKDResponse) {
     logger.log(
       level: (response.error == nil || response.error == .requestCancelled) ? .debug : .error,
       """
@@ -117,7 +119,7 @@ public final class DynamicallyLoadedSourceKitD: SourceKitD {
     )
   }
 
-  public func log(crashedRequest req: SKDRequestDictionary, fileContents: String?) {
+  public nonisolated func log(crashedRequest req: SKDRequestDictionary, fileContents: String?) {
     let log = """
       Request:
       \(req.description)
@@ -138,7 +140,7 @@ public final class DynamicallyLoadedSourceKitD: SourceKitD {
 
 }
 
-struct WeakSKDNotificationHandler {
+struct WeakSKDNotificationHandler: Sendable {
   weak private(set) var value: SKDNotificationHandler?
   init(_ value: SKDNotificationHandler) {
     self.value = value

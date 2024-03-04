@@ -84,8 +84,8 @@ private class PendingTasks<TaskMetadata: Sendable>: @unchecked Sendable {
 }
 
 /// A queue that allows the execution of asynchronous blocks of code.
-public final class AsyncQueue<TaskMetadata: DependencyTracker> {
-  private var pendingTasks: PendingTasks<TaskMetadata> = PendingTasks()
+public final class AsyncQueue<TaskMetadata: DependencyTracker>: Sendable {
+  private let pendingTasks: PendingTasks<TaskMetadata> = PendingTasks()
 
   public init() {}
 

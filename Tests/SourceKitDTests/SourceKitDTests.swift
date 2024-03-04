@@ -51,7 +51,7 @@ final class SourceKitDTests: XCTestCase {
     defer {
       _fixLifetime(handler1)
     }
-    sourcekitd.addNotificationHandler(handler1)
+    await sourcekitd.addNotificationHandler(handler1)
 
     let expectation2 = expectation(description: "handler 2")
     let handler2 = ClosureNotificationHandler { response in
@@ -63,7 +63,7 @@ final class SourceKitDTests: XCTestCase {
     defer {
       _fixLifetime(handler2)
     }
-    sourcekitd.addNotificationHandler(handler2)
+    await sourcekitd.addNotificationHandler(handler2)
 
     let args = SKDRequestArray(sourcekitd: sourcekitd)
     if case .darwin? = Platform.current,

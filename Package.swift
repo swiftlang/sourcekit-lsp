@@ -270,7 +270,8 @@ let package = Package(
         "SKSupport",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt", "sourcekitd_uids.swift.gyb"],
+      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
     ),
 
     .testTarget(

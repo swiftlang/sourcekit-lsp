@@ -232,8 +232,8 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
 extension SwiftLanguageServer {
 
-  public func initialize(_ initialize: InitializeRequest) throws -> InitializeResult {
-    sourcekitd.addNotificationHandler(self)
+  public func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
+    await sourcekitd.addNotificationHandler(self)
 
     return InitializeResult(
       capabilities: ServerCapabilities(
@@ -287,7 +287,7 @@ extension SwiftLanguageServer {
   }
 
   public func shutdown() async {
-    self.sourcekitd.removeNotificationHandler(self)
+    await self.sourcekitd.removeNotificationHandler(self)
   }
 
   /// Tell sourcekitd to crash itself. For testing purposes only.

@@ -21,10 +21,17 @@ import Musl
 import CRT
 #endif
 
-public final class SKDResponse {
-  public let response: sourcekitd_api_response_t
+public final class SKDResponse: Sendable {
+  /// - Note: `sourcekitd_api_response_t` is a typedef for `void *`, so we can't mark it as sendable. But we know that
+  ///   it stays alive until we deinit this `SKDResponse`. We also require that only a single `SKDResponse` may manage
+  ///   the `sourcekitd_api_response_t`, so raw response cannot be modified or disposed in any other way.
+  private nonisolated(unsafe) let response: sourcekitd_api_response_t
   public let sourcekitd: SourceKitD
 
+  /// Creates a new `SKDResponse` that exclusively manages the raw `sourcekitd_api_response_t`.
+  ///
+  /// - Important: When this `SKDResponse` object gets destroyed, it will dispose the response. It is thus illegal to
+  ///   have two `SDKResponse` objects managing the same `sourcekitd_api_response_t`.
   public init(_ response: sourcekitd_api_response_t, sourcekitd: SourceKitD) {
     self.response = response
     self.sourcekitd = sourcekitd
