@@ -84,7 +84,7 @@ public actor SwiftPMWorkspace {
   let workspacePath: TSCAbsolutePath
   /// The directory containing `Package.swift`.
   public var projectRoot: TSCAbsolutePath
-  var packageGraph: PackageGraph
+  var modulesGraph: ModulesGraph
   let workspace: Workspace
   public let buildParameters: BuildParameters
   let fileSystem: FileSystem
@@ -163,7 +163,7 @@ public actor SwiftPMWorkspace {
       flags: buildSetup.flags
     )
 
-    self.packageGraph = try PackageGraph(rootPackages: [], dependencies: [], binaryArtifacts: [:])
+    self.modulesGraph = try ModulesGraph(rootPackages: [], dependencies: [], binaryArtifacts: [:])
     self.reloadPackageStatusCallback = reloadPackageStatusCallback
 
     try await reloadPackage()
@@ -213,7 +213,7 @@ extension SwiftPMWorkspace {
       logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
     })
 
-    let packageGraph = try self.workspace.loadPackageGraph(
+    let modulesGraph = try self.workspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
       forceResolvedVersions: true,
       availableLibraries: self.buildParameters.toolchain.providedLibraries,
@@ -223,7 +223,7 @@ extension SwiftPMWorkspace {
     let plan = try BuildPlan(
       productsBuildParameters: buildParameters,
       toolsBuildParameters: buildParameters,
-      graph: packageGraph,
+      graph: modulesGraph,
       fileSystem: fileSystem,
       observabilityScope: observabilitySystem.topScope
     )
@@ -232,10 +232,10 @@ extension SwiftPMWorkspace {
     /// Make sure to execute any throwing statements before setting any
     /// properties because otherwise we might end up in an inconsistent state
     /// with only some properties modified.
-    self.packageGraph = packageGraph
+    self.modulesGraph = modulesGraph
 
     self.fileToTarget = [AbsolutePath: SwiftBuildTarget](
-      packageGraph.allTargets.flatMap { target in
+      modulesGraph.allTargets.flatMap { target in
         return target.sources.paths.compactMap {
           guard let buildTarget = buildDescription.getBuildTarget(for: target) else {
             return nil
@@ -250,7 +250,7 @@ extension SwiftPMWorkspace {
     )
 
     self.sourceDirToTarget = [AbsolutePath: SwiftBuildTarget](
-      packageGraph.allTargets.compactMap { (target) -> (AbsolutePath, SwiftBuildTarget)? in
+      modulesGraph.allTargets.compactMap { (target) -> (AbsolutePath, SwiftBuildTarget)? in
         guard let buildTarget = buildDescription.getBuildTarget(for: target) else {
           return nil
         }
@@ -351,7 +351,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
 
       return self.workspace.fileAffectsSwiftOrClangBuildSettings(
         filePath: path,
-        packageGraph: self.packageGraph
+        packageGraph: self.modulesGraph
       )
     case .changed:
       return fileURL.lastPathComponent == "Package.swift"
@@ -389,7 +389,7 @@ extension SwiftPMWorkspace {
   /// Retrieve settings for a package manifest (Package.swift).
   private func settings(forPackageManifest path: AbsolutePath) throws -> FileBuildSettings? {
     func impl(_ path: AbsolutePath) -> FileBuildSettings? {
-      for package in packageGraph.packages where path == package.manifest.path {
+      for package in modulesGraph.packages where path == package.manifest.path {
         let compilerArgs = workspace.interpreterFlags(for: package.path) + [path.pathString]
         return FileBuildSettings(compilerArguments: compilerArgs)
       }
