@@ -701,15 +701,25 @@ extension SourceKitServer {
     // First, group all occurrences of that USR by the files they occur in.
     var locationsByFile: [URL: [RenameLocation]] = [:]
 
-    var languageServerTypesCache: [URL: LanguageServerType?] = [:]
-    func languageServerType(of url: URL) -> LanguageServerType? {
-      if let cachedValue = languageServerTypesCache[url] {
-        return cachedValue
+    actor LanguageServerTypesCache {
+      let index: IndexStoreDB
+      var languageServerTypesCache: [URL: LanguageServerType?] = [:]
+
+      init(index: IndexStoreDB) {
+        self.index = index
       }
-      let serverType = LanguageServerType(symbolProvider: index.symbolProvider(for: url.path))
-      languageServerTypesCache[url] = serverType
-      return serverType
+
+      func languageServerType(for url: URL) -> LanguageServerType? {
+        if let cachedValue = languageServerTypesCache[url] {
+          return cachedValue
+        }
+        let serverType = LanguageServerType(symbolProvider: index.symbolProvider(for: url.path))
+        languageServerTypesCache[url] = serverType
+        return serverType
+      }
     }
+
+    let languageServerTypesCache = LanguageServerTypesCache(index: index)
 
     let usrsToRename = overridingAndOverriddenUsrs(of: usr, index: index)
     let occurrencesToRename = usrsToRename.flatMap { index.occurrences(ofUSR: $0, roles: renameRoles) }
@@ -724,7 +734,7 @@ extension SourceKitServer {
           // perform an indexed rename for it.
           continue
         }
-        switch languageServerType(of: url) {
+        switch await languageServerTypesCache.languageServerType(for: url) {
         case .swift:
           // sourcekitd only produces AST-based results for the direct calls to this USR. This is because the Swift
           // AST only has upwards references to superclasses and overridden methods, not the other way round. It is
@@ -755,7 +765,7 @@ extension SourceKitServer {
       .concurrentMap { (url: URL, renameLocations: [RenameLocation]) -> (DocumentURI, [TextEdit])? in
         let uri = DocumentURI(url)
         let language: Language
-        switch languageServerType(of: url) {
+        switch await languageServerTypesCache.languageServerType(for: url) {
         case .clangd:
           // Technically, we still don't know the language of the source file but defaulting to C is sufficient to
           // ensure we get the clang toolchain language server, which is all we care about.

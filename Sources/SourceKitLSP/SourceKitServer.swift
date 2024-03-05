@@ -1363,7 +1363,10 @@ extension SourceKitServer {
     cancellationMessageHandlingQueue.async(priority: .high) {
       guard let task = await self.inProgressRequests[notification.id] else {
         logger.error(
-          "Cannot cancel request \(notification.id, privacy: .public) because it hasn't been scheduled for execution yet"
+          """
+          Cannot cancel request \(notification.id, privacy: .public) because it hasn't been scheduled for execution \
+          yet or because the request already returned a response
+          """
         )
         return
       }
