@@ -44,8 +44,8 @@ final class FormattingTests: XCTestCase {
     XCTAssertEqual(
       edits,
       [
-        TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
         TextEdit(range: Range(positions["1️⃣"]), newText: "   "),
+        TextEdit(range: positions["2️⃣"]..<positions["3️⃣"], newText: ""),
         TextEdit(range: Range(positions["4️⃣"]), newText: "   "),
         TextEdit(range: Range(positions["5️⃣"]), newText: "\n"),
       ]
@@ -244,6 +244,58 @@ final class FormattingTests: XCTestCase {
       [
         TextEdit(range: positions["1️⃣"]..<positions["2️⃣"], newText: ""),
         TextEdit(range: Range(positions["3️⃣"]), newText: "public "),
+      ]
+    )
+  }
+
+  func testMultiLineStringInsertion() async throws {
+    try await SkipUnless.toolchainContainsSwiftFormat()
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
+    let positions = testClient.openDocument(
+      #"""
+      _ = [
+        Node(
+          documentation: """
+          1️⃣A
+          2️⃣B
+          3️⃣C
+          4️⃣""",
+          children: [
+            Child(
+              documentation: """
+              5️⃣A
+      6️⃣        7️⃣\#("")
+      8️⃣  9️⃣      🔟"""
+            )
+          ]
+        )
+      ]
+
+      """#,
+      uri: uri
+    )
+
+    let response = try await testClient.send(
+      DocumentFormattingRequest(
+        textDocument: TextDocumentIdentifier(uri),
+        options: FormattingOptions(tabSize: 2, insertSpaces: true)
+      )
+    )
+
+    let edits = try XCTUnwrap(response)
+    XCTAssertEqual(
+      edits,
+      [
+        TextEdit(range: Range(positions["1️⃣"]), newText: "  "),
+        TextEdit(range: Range(positions["2️⃣"]), newText: "  "),
+        TextEdit(range: Range(positions["3️⃣"]), newText: "  "),
+        TextEdit(range: Range(positions["4️⃣"]), newText: "  "),
+        TextEdit(range: Range(positions["5️⃣"]), newText: "  "),
+        TextEdit(range: Range(positions["6️⃣"]), newText: "\n"),
+        TextEdit(range: positions["7️⃣"]..<positions["8️⃣"], newText: ""),
+        TextEdit(range: positions["9️⃣"]..<positions["🔟"], newText: ""),
       ]
     )
   }
