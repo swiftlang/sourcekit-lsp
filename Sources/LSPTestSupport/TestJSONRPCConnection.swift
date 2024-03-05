@@ -12,6 +12,7 @@
 
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
+import SKSupport
 import XCTest
 
 import class Foundation.Pipe
@@ -24,7 +25,7 @@ public final class TestJSONRPCConnection {
   public let server: TestServer
   public let serverConnection: JSONRPCConnection
 
-  public init() {
+  public init(allowUnexpectedNotification: Bool = true) {
     clientConnection = JSONRPCConnection(
       name: "client",
       protocol: testMessageRegistry,
@@ -39,7 +40,7 @@ public final class TestJSONRPCConnection {
       outFD: serverToClient.fileHandleForWriting
     )
 
-    client = TestMessageHandler(server: clientConnection)
+    client = TestMessageHandler(server: clientConnection, allowUnexpectedNotification: allowUnexpectedNotification)
     server = TestServer(client: serverConnection)
 
     clientConnection.start(receiveHandler: client) {
@@ -66,8 +67,8 @@ public struct TestLocalConnection {
   public let server: TestServer
   public let serverConnection: LocalConnection = .init()
 
-  public init() {
-    client = TestMessageHandler(server: serverConnection)
+  public init(allowUnexpectedNotification: Bool = true) {
+    client = TestMessageHandler(server: serverConnection, allowUnexpectedNotification: allowUnexpectedNotification)
     server = TestServer(client: clientConnection)
 
     clientConnection.start(handler: client)
@@ -80,17 +81,20 @@ public struct TestLocalConnection {
   }
 }
 
-public final class TestMessageHandler: MessageHandler {
+public actor TestMessageHandler: MessageHandler {
   /// The connection to the language client.
   public let server: Connection
 
-  public init(server: Connection) {
+  private let messageHandlingQueue = AsyncQueue<Serial>()
+
+  private var oneShotNotificationHandlers: [((Any) -> Void)] = []
+
+  private let allowUnexpectedNotification: Bool
+
+  public init(server: Connection, allowUnexpectedNotification: Bool = true) {
     self.server = server
+    self.allowUnexpectedNotification = allowUnexpectedNotification
   }
-
-  var oneShotNotificationHandlers: [((Any) -> Void)] = []
-
-  public var allowUnexpectedNotification: Bool = true
 
   public func appendOneShotNotificationHandler<N: NotificationType>(_ handler: @escaping (N) -> Void) {
     oneShotNotificationHandlers.append({ anyNote in
@@ -101,7 +105,14 @@ public final class TestMessageHandler: MessageHandler {
     })
   }
 
-  public func handle(_ notification: some NotificationType, from clientID: ObjectIdentifier) {
+  /// The LSP server sent a notification to the client. Handle it.
+  public nonisolated func handle(_ notification: some NotificationType, from clientID: ObjectIdentifier) {
+    messageHandlingQueue.async {
+      await self.handleNotificationImpl(notification)
+    }
+  }
+
+  public func handleNotificationImpl(_ notification: some NotificationType) {
     guard !oneShotNotificationHandlers.isEmpty else {
       if allowUnexpectedNotification { return }
       fatalError("unexpected notification \(notification)")
@@ -110,25 +121,25 @@ public final class TestMessageHandler: MessageHandler {
     handler(notification)
   }
 
-  public func handle<R: RequestType>(
-    _ params: R,
+  /// The LSP server sent a request to the client. Handle it.
+  public nonisolated func handle<Request: RequestType>(
+    _ request: Request,
     id: RequestID,
     from clientID: ObjectIdentifier,
-    reply: @escaping (LSPResult<R.Response>) -> Void
+    reply: @escaping (LSPResult<Request.Response>) -> Void
   ) {
-    reply(.failure(.methodNotFound(R.method)))
+    reply(.failure(.methodNotFound(Request.method)))
   }
 }
 
 extension TestMessageHandler: Connection {
-
-  /// Send a notification to the language server.
-  public func send(_ notification: some NotificationType) {
+  /// Send a notification to the LSP server.
+  public nonisolated func send(_ notification: some NotificationType) {
     server.send(notification)
   }
 
-  /// Send a request to the language server and (asynchronously) receive a reply.
-  public func send<Request: RequestType>(
+  /// Send a request to the LSP server and (asynchronously) receive a reply.
+  public nonisolated func send<Request: RequestType>(
     _ request: Request,
     reply: @escaping (LSPResult<Request.Response>) -> Void
   ) -> RequestID {

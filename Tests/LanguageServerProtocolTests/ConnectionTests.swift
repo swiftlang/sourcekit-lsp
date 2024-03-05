@@ -19,8 +19,7 @@ class ConnectionTests: XCTestCase {
   var connection: TestLocalConnection! = nil
 
   override func setUp() {
-    connection = TestLocalConnection()
-    connection.client.allowUnexpectedNotification = false
+    connection = TestLocalConnection(allowUnexpectedNotification: false)
   }
 
   override func tearDown() {
@@ -61,17 +60,17 @@ class ConnectionTests: XCTestCase {
     waitForExpectations(timeout: defaultTimeout)
   }
 
-  func testEchoNote() {
+  func testEchoNote() async throws {
     let client = connection.client
     let expectation = self.expectation(description: "note received")
 
-    client.appendOneShotNotificationHandler { (note: EchoNotification) in
+    await client.appendOneShotNotificationHandler { (note: EchoNotification) in
       XCTAssertEqual(note.string, "hello!")
       expectation.fulfill()
     }
 
     client.send(EchoNotification(string: "hello!"))
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 }

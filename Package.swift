@@ -155,6 +155,7 @@ let package = Package(
       dependencies: [
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
+        "SKSupport",
       ]
     ),
 
