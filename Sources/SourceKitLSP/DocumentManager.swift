@@ -14,6 +14,7 @@ import Dispatch
 import LSPLogging
 import LanguageServerProtocol
 import SKSupport
+import SwiftSyntax
 
 /// An immutable snapshot of a document at a given time.
 ///
@@ -140,27 +141,25 @@ public final class DocumentManager {
   ///   - newVersion: The new version of the document. Must be greater than the
   ///     latest version of the document.
   ///   - edits: The edits to apply to the document
-  ///   - willEditDocument: Optional closure to call before each edit. Will be
-  ///     called multiple times if there are multiple edits.
-  /// - Returns: The snapshot of the document before the edit and the snapshot
-  ///   of the document after the edit.
+  /// - Returns: The snapshot of the document before the edit, the snapshot
+  ///   of the document after the edit, and the edits. The edits are sequential, ie.
+  ///   the edits are expected to be applied in order and later values in this array
+  ///   assume that previous edits are already applied.
   @discardableResult
   public func edit(
     _ uri: DocumentURI,
     newVersion: Int,
-    edits: [TextDocumentContentChangeEvent],
-    willEditDocument: ((_ before: LineTable, TextDocumentContentChangeEvent) -> Void)? = nil
-  ) throws -> (preEditSnapshot: DocumentSnapshot, postEditSnapshot: DocumentSnapshot) {
+    edits: [TextDocumentContentChangeEvent]
+  ) throws -> (preEditSnapshot: DocumentSnapshot, postEditSnapshot: DocumentSnapshot, edits: [SourceEdit]) {
     return try queue.sync {
       guard let document = documents[uri] else {
         throw Error.missingDocument(uri)
       }
       let preEditSnapshot = document.latestSnapshot
 
+      var sourceEdits: [SourceEdit] = []
       for edit in edits {
-        if let willEditDocument {
-          willEditDocument(document.latestLineTable, edit)
-        }
+        sourceEdits.append(SourceEdit(edit: edit, lineTableBeforeEdit: document.latestLineTable))
 
         if let range = edit.range {
           document.latestLineTable.replace(
@@ -180,7 +179,7 @@ public final class DocumentManager {
         logger.error("Document version did not increase on edit from \(document.latestVersion) to \(newVersion)")
       }
       document.latestVersion = newVersion
-      return (preEditSnapshot, document.latestSnapshot)
+      return (preEditSnapshot, document.latestSnapshot, sourceEdits)
     }
   }
 
@@ -214,19 +213,45 @@ extension DocumentManager {
     }
   }
 
-  /// Convenience wrapper for `edit(_:newVersion:edits:willEditDocument:updateDocumentTokens:)`
+  /// Convenience wrapper for `edit(_:newVersion:edits:updateDocumentTokens:)`
   /// that logs on failure.
   @discardableResult
   func edit(
-    _ note: DidChangeTextDocumentNotification,
-    willEditDocument: ((_ before: LineTable, TextDocumentContentChangeEvent) -> Void)? = nil
-  ) -> (preEditSnapshot: DocumentSnapshot, postEditSnapshot: DocumentSnapshot)? {
+    _ note: DidChangeTextDocumentNotification
+  ) -> (preEditSnapshot: DocumentSnapshot, postEditSnapshot: DocumentSnapshot, edits: [SourceEdit])? {
     return orLog("failed to edit document", level: .error) {
       return try edit(
         note.textDocument.uri,
         newVersion: note.textDocument.version,
-        edits: note.contentChanges,
-        willEditDocument: willEditDocument
+        edits: note.contentChanges
+      )
+    }
+  }
+}
+
+fileprivate extension SourceEdit {
+  init(edit: TextDocumentContentChangeEvent, lineTableBeforeEdit: LineTable) {
+    if let range = edit.range {
+      guard
+        let offset = lineTableBeforeEdit.utf8OffsetOf(
+          line: range.lowerBound.line,
+          utf16Column: range.lowerBound.utf16index
+        ),
+        let end = lineTableBeforeEdit.utf8OffsetOf(
+          line: range.upperBound.line,
+          utf16Column: range.upperBound.utf16index
+        )
+      else {
+        fatalError("invalid edit \(range)")
+      }
+      self.init(
+        range: AbsolutePosition(utf8Offset: offset)..<AbsolutePosition(utf8Offset: end),
+        replacement: edit.text
+      )
+    } else {
+      self.init(
+        range: AbsolutePosition(utf8Offset: 0)..<AbsolutePosition(utf8Offset: lineTableBeforeEdit.content.utf8.count),
+        replacement: edit.text
       )
     }
   }
