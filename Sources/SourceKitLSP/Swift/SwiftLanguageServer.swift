@@ -497,33 +497,10 @@ extension SwiftLanguageServer {
       let replacement: String
     }
 
-    var edits: [Edit] = []
-
-    let editResult = self.documentManager.edit(note) {
-      (before: LineTable, edit: TextDocumentContentChangeEvent) in
-      if let range = edit.range {
-        guard let offset = before.utf8OffsetOf(line: range.lowerBound.line, utf16Column: range.lowerBound.utf16index),
-          let end = before.utf8OffsetOf(line: range.upperBound.line, utf16Column: range.upperBound.utf16index)
-        else {
-          fatalError("invalid edit \(range)")
-        }
-        edits.append(
-          Edit(
-            offset: offset,
-            length: end - offset,
-            replacement: edit.text
-          )
-        )
-      } else {
-        edits.append(
-          Edit(
-            offset: 0,
-            length: before.content.utf8.count,
-            replacement: edit.text
-          )
-        )
-      }
+    guard let (preEditSnapshot, postEditSnapshot, edits) = self.documentManager.edit(note) else {
+      return
     }
+
     for edit in edits {
       let req = sourcekitd.dictionary([
         keys.request: self.requests.editorReplaceText,
@@ -532,8 +509,8 @@ extension SwiftLanguageServer {
         keys.enableStructure: 0,
         keys.enableDiagnostics: 0,
         keys.syntacticOnly: 1,
-        keys.offset: edit.offset,
-        keys.length: edit.length,
+        keys.offset: edit.range.lowerBound.utf8Offset,
+        keys.length: edit.length.utf8Length,
         keys.sourceText: edit.replacement,
       ])
       do {
@@ -543,12 +520,13 @@ extension SwiftLanguageServer {
       }
     }
 
-    guard let (preEditSnapshot, postEditSnapshot) = editResult else {
-      return
-    }
     let concurrentEdits = ConcurrentEdits(
       fromSequential: edits.map {
-        IncrementalEdit(offset: $0.offset, length: $0.length, replacementLength: $0.replacement.utf8.count)
+        IncrementalEdit(
+          offset: $0.range.lowerBound.utf8Offset,
+          length: $0.length.utf8Length,
+          replacementLength: $0.replacement.utf8.count
+        )
       }
     )
     await syntaxTreeManager.registerEdit(
