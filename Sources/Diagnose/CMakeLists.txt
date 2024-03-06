@@ -2,6 +2,7 @@ add_library(Diagnose STATIC
   CommandLineArgumentsReducer.swift
   DiagnoseCommand.swift
   OSLogScraper.swift
+  ReduceCommand.swift
   ReductionError.swift
   ReproducerBundle.swift
   RequestInfo.swift

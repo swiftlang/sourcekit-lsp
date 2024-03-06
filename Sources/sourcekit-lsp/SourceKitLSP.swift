@@ -105,6 +105,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     abstract: "Language Server Protocol implementation for Swift and C-based languages",
     subcommands: [
       DiagnoseCommand.self,
+      ReduceCommand.self,
       SourceKitdRequestCommand.self,
     ]
   )

@@ -32,13 +32,6 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   )
 
   @Option(
-    name: .customLong("request-file"),
-    help:
-      "Path to a sourcekitd request. If not specified, the command will look for crashed sourcekitd requests that have been logged to OSLog"
-  )
-  var sourcekitdRequestPath: String?
-
-  @Option(
     name: .customLong("os-log-history"),
     help: "If no request file is passed, how many minutes of OS Log history should be scraped for a crash."
   )
@@ -46,8 +39,10 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
   @Option(
     name: .customLong("sourcekitd"),
-    help:
-      "Path to sourcekitd.framework/sourcekitd. If not specified, the toolchain is found in the same way that sourcekit-lsp finds it"
+    help: """
+      Path to sourcekitd.framework/sourcekitd. \
+      If not specified, the toolchain is found in the same way that sourcekit-lsp finds it
+      """
   )
   var sourcekitdOverride: String?
 
@@ -82,14 +77,10 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
   /// Request infos of crashes that should be diagnosed.
   func requestInfos() throws -> [(name: String, info: RequestInfo)] {
-    if let sourcekitdRequestPath {
-      let request = try String(contentsOfFile: sourcekitdRequestPath)
-      return [(sourcekitdRequestPath, try RequestInfo(request: request))]
-    }
     #if canImport(OSLog)
     return try OSLogScraper(searchDuration: TimeInterval(osLogScrapeDuration * 60)).getCrashedRequests()
     #else
-    throw ReductionError("--request-file must be specified on all platforms other than macOS")
+    throw ReductionError("Reduction of sourcekitd crashes is not supported on platforms other than macOS")
     #endif
   }
 
@@ -259,7 +250,6 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     await orPrintError { try await addSourcekitdCrashReproducer(toBundle: bundlePath) }
 
     progressBar?.complete(success: true)
-    progressBar?.clear()
 
     print(
       """
