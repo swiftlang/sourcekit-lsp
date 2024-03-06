@@ -24,8 +24,7 @@ class ConnectionTests: XCTestCase {
   var connection: TestJSONRPCConnection! = nil
 
   override func setUp() {
-    connection = TestJSONRPCConnection()
-    connection.client.allowUnexpectedNotification = false
+    connection = TestJSONRPCConnection(allowUnexpectedNotification: false)
   }
 
   override func tearDown() {
@@ -52,12 +51,12 @@ class ConnectionTests: XCTestCase {
     waitForExpectations(timeout: defaultTimeout)
   }
 
-  func testMessageBuffer() throws {
+  func testMessageBuffer() async throws {
     let client = connection.client
     let clientConnection = connection.clientConnection
     let expectation = self.expectation(description: "note received")
 
-    client.appendOneShotNotificationHandler { (note: EchoNotification) in
+    await client.appendOneShotNotificationHandler { (note: EchoNotification) in
       XCTAssertEqual(note.string, "hello!")
       expectation.fulfill()
     }
@@ -76,11 +75,11 @@ class ConnectionTests: XCTestCase {
       _rawData: [note1Str.utf8.last!, note2Str.utf8.first!].withUnsafeBytes { DispatchData(bytes: $0) }
     )
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
 
     let expectation2 = self.expectation(description: "note received")
 
-    client.appendOneShotNotificationHandler { (note: EchoNotification) in
+    await client.appendOneShotNotificationHandler { (note: EchoNotification) in
       XCTAssertEqual(note.string, "no way!")
       expectation2.fulfill()
     }
@@ -89,7 +88,7 @@ class ConnectionTests: XCTestCase {
       clientConnection.send(_rawData: [b].withUnsafeBytes { DispatchData(bytes: $0) })
     }
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation2])
 
     // Close the connection before accessing _requestBuffer, which ensures we don't race.
     connection.serverConnection.close()
@@ -118,18 +117,18 @@ class ConnectionTests: XCTestCase {
     waitForExpectations(timeout: defaultTimeout)
   }
 
-  func testEchoNote() {
+  func testEchoNote() async throws {
     let client = connection.client
     let expectation = self.expectation(description: "note received")
 
-    client.appendOneShotNotificationHandler { (note: EchoNotification) in
+    await client.appendOneShotNotificationHandler { (note: EchoNotification) in
       XCTAssertEqual(note.string, "hello!")
       expectation.fulfill()
     }
 
     client.send(EchoNotification(string: "hello!"))
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 
   func testUnknownRequest() {
@@ -210,33 +209,33 @@ class ConnectionTests: XCTestCase {
     waitForExpectations(timeout: defaultTimeout)
   }
 
-  func testSendBeforeClose() {
+  func testSendBeforeClose() async throws {
     let client = connection.client
     let server = connection.server
 
     let expectation = self.expectation(description: "received notification")
-    client.appendOneShotNotificationHandler { (note: EchoNotification) in
+    await client.appendOneShotNotificationHandler { (note: EchoNotification) in
       expectation.fulfill()
     }
 
     server.client.send(EchoNotification(string: "about to close!"))
     connection.serverConnection.close()
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testSendSynchronouslyBeforeClose() {
+  func testSendSynchronouslyBeforeClose() async throws {
     let client = connection.client
 
     let expectation = self.expectation(description: "received notification")
-    client.appendOneShotNotificationHandler { (note: EchoNotification) in
+    await client.appendOneShotNotificationHandler { (note: EchoNotification) in
       expectation.fulfill()
     }
     let notification = EchoNotification(string: "about to close!")
     connection.serverConnection._send(.notification(notification), async: false)
     connection.serverConnection.close()
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 
   /// We can explicitly close a connection, but the connection also
