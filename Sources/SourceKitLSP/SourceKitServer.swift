@@ -1296,7 +1296,11 @@ extension SourceKitServer {
       callHierarchyProvider: .bool(true),
       typeHierarchyProvider: .bool(true),
       semanticTokensProvider: semanticTokensOptions,
-      inlayHintProvider: inlayHintOptions
+      inlayHintProvider: inlayHintOptions,
+      experimental: .dictionary([
+        "workspace/tests": .dictionary(["version": .int(1)]),
+        "textDocument/tests": .dictionary(["version": .int(1)]),
+      ])
     )
   }
 
