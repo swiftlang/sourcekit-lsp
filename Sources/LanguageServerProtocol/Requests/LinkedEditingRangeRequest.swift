@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct LinkedEditingRangeRequest: TextDocumentRequest {
-  public static var method: String = "textDocument/linkedEditingRange"
+  public static let method: String = "textDocument/linkedEditingRange"
   public typealias Response = LinkedEditingRanges?
 
   /// The document in which the given symbol is located.

@@ -13,7 +13,7 @@
 /// A document identifier representing a specific version of the document.
 ///
 /// Notionally a subtype of `TextDocumentIdentifier`.
-public struct VersionedTextDocumentIdentifier: Hashable, Codable {
+public struct VersionedTextDocumentIdentifier: Hashable, Codable, Sendable {
 
   /// A URI that uniquely identifies the document.
   public var uri: DocumentURI
@@ -33,7 +33,7 @@ public struct VersionedTextDocumentIdentifier: Hashable, Codable {
 /// An identifier which optionally denotes a specific version of a text document. This information usually flows from the server to the client.
 ///
 /// Notionally a subtype of `TextDocumentIdentifier`.
-public struct OptionalVersionedTextDocumentIdentifier: Hashable, Codable {
+public struct OptionalVersionedTextDocumentIdentifier: Hashable, Codable, Sendable {
 
   /// A URI that uniquely identifies the document.
   public var uri: DocumentURI

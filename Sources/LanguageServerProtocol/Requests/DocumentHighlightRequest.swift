@@ -41,7 +41,7 @@ public struct DocumentHighlightRequest: TextDocumentRequest, Hashable {
 }
 
 /// The kind of document highlight - read, write, or text (fuzzy).
-public enum DocumentHighlightKind: Int, Codable, Hashable {
+public enum DocumentHighlightKind: Int, Codable, Hashable, Sendable {
 
   /// Textual match.
   case text = 1

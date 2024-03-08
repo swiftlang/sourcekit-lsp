@@ -13,7 +13,7 @@
 /// The configuration to build a workspace in.
 ///
 /// **(LSP Extension)**
-public enum BuildConfiguration: Hashable, Codable {
+public enum BuildConfiguration: Hashable, Codable, Sendable {
   case debug
   case release
 }
@@ -21,14 +21,14 @@ public enum BuildConfiguration: Hashable, Codable {
 /// The type of workspace; default workspace type selection logic can be overridden.
 ///
 /// **(LSP Extension)**
-public enum WorkspaceType: Hashable, Codable {
+public enum WorkspaceType: Hashable, Codable, Sendable {
   case buildServer, compilationDatabase, swiftPM
 }
 
 /// Build settings that should be used for a workspace.
 ///
 /// **(LSP Extension)**
-public struct WorkspaceBuildSetup: Hashable, Codable {
+public struct WorkspaceBuildSetup: Hashable, Codable, Sendable {
   /// The configuration that the workspace should be built in.
   public let buildConfiguration: BuildConfiguration?
 
@@ -70,7 +70,7 @@ public struct WorkspaceBuildSetup: Hashable, Codable {
 }
 
 /// Unique identifier for a document.
-public struct WorkspaceFolder: ResponseType, Hashable, Codable {
+public struct WorkspaceFolder: ResponseType, Hashable, Codable, Sendable {
 
   /// A URI that uniquely identifies the workspace.
   public var uri: DocumentURI

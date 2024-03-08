@@ -13,7 +13,7 @@
 /// A completion kind.
 ///
 /// In LSP, this is an integer, so we don't use a closed set.
-public struct CompletionItemKind: RawRepresentable, Codable, Hashable {
+public struct CompletionItemKind: RawRepresentable, Codable, Hashable, Sendable {
 
   public var rawValue: Int
 

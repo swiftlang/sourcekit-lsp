@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Additional details for a completion item label.
-public struct CompletionItemLabelDetails: Codable, Hashable {
+public struct CompletionItemLabelDetails: Codable, Hashable, Sendable {
 
   /// An optional string which is rendered less prominently directly after
   /// {@link CompletionItem.label label}, without any spacing. Should be
@@ -31,7 +31,7 @@ public struct CompletionItemLabelDetails: Codable, Hashable {
 
 /// Completion item tags are extra annotations that tweak the rendering of a
 /// completion item.
-public struct CompletionItemTag: RawRepresentable, Codable, Hashable {
+public struct CompletionItemTag: RawRepresentable, Codable, Hashable, Sendable {
   public var rawValue: Int
 
   public init(rawValue: Int) {
@@ -42,7 +42,7 @@ public struct CompletionItemTag: RawRepresentable, Codable, Hashable {
   public static let deprecated = CompletionItemTag(rawValue: 1)
 }
 
-public enum CompletionItemEdit: Codable, Hashable {
+public enum CompletionItemEdit: Codable, Hashable, Sendable {
   case textEdit(TextEdit)
   case insertReplaceEdit(InsertReplaceEdit)
 
@@ -71,7 +71,7 @@ public enum CompletionItemEdit: Codable, Hashable {
 }
 
 /// A single completion result.
-public struct CompletionItem: ResponseType, Codable, Hashable {
+public struct CompletionItem: ResponseType, Codable, Hashable, Sendable {
 
   /// The display name of the completion.
   public var label: String
@@ -205,7 +205,7 @@ public struct CompletionItem: ResponseType, Codable, Hashable {
 }
 
 /// The format of the returned insertion text - either literal plain text or a snippet.
-public enum InsertTextFormat: Int, Codable, Hashable {
+public enum InsertTextFormat: Int, Codable, Hashable, Sendable {
 
   /// The text to insert is plain text.
   case plain = 1
@@ -216,7 +216,7 @@ public enum InsertTextFormat: Int, Codable, Hashable {
 
 /// How whitespace and indentation is handled during completion
 /// item insertion.
-public struct InsertTextMode: RawRepresentable, Codable, Hashable {
+public struct InsertTextMode: RawRepresentable, Codable, Hashable, Sendable {
   public var rawValue: Int
 
   public init(rawValue: Int) {

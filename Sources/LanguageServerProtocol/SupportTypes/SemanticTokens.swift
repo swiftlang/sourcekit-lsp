@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// The legend for a server's encoding of semantic tokens.
-public struct SemanticTokensLegend: Codable, Hashable, LSPAnyCodable {
+public struct SemanticTokensLegend: Codable, Hashable, LSPAnyCodable, Sendable {
   /// The token types for a server.
   ///
   /// Token types are looked up by indexing into this array, e.g. a `tokenType`
@@ -57,7 +57,7 @@ public struct SemanticTokensLegend: Codable, Hashable, LSPAnyCodable {
 }
 
 /// The encoding format for semantic tokens. Currently only `relative` is supported.
-public struct TokenFormat: RawRepresentable, Codable, Hashable {
+public struct TokenFormat: RawRepresentable, Codable, Hashable, Sendable {
   public var rawValue: String
   public init(rawValue: String) {
     self.rawValue = rawValue

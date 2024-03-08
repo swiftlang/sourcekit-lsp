@@ -35,7 +35,7 @@ public struct RegisterCapabilityRequest: RequestType, Hashable {
 }
 
 /// General parameters to register a capability.
-public struct CapabilityRegistration: Codable, Hashable {
+public struct CapabilityRegistration: Codable, Hashable, Sendable {
   /// The id used to register the capability which may be used to unregister support.
   public var id: String
 

@@ -55,7 +55,7 @@ public enum DocumentSemanticTokensDeltaResponse: ResponseType, Codable, Equatabl
   }
 }
 
-public struct SemanticTokensDelta: Codable, Hashable {
+public struct SemanticTokensDelta: Codable, Hashable, Sendable {
   /// An optional result identifier which enables supporting clients to request semantic token deltas
   /// subsequent requests.
   public var resultId: String?
@@ -69,7 +69,7 @@ public struct SemanticTokensDelta: Codable, Hashable {
   }
 }
 
-public struct SemanticTokensEdit: Codable, Hashable {
+public struct SemanticTokensEdit: Codable, Hashable, Sendable {
   /// Start offset of the edit.
   public var start: Int
 

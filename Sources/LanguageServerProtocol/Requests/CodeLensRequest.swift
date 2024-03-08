@@ -12,7 +12,7 @@
 
 /// The code lens request is sent from the client to the server to compute code lenses for a given text document.
 public struct CodeLensRequest: TextDocumentRequest {
-  public static var method: String = "textDocument/codeLens"
+  public static let method: String = "textDocument/codeLens"
   public typealias Response = [CodeLens]?
 
   /// The document to request code lens for.

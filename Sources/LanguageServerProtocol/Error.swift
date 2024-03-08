@@ -14,7 +14,7 @@
 public typealias LSPResult<T> = Swift.Result<T, ResponseError>
 
 /// Error code suitable for use between language server and client.
-public struct ErrorCode: RawRepresentable, Codable, Hashable {
+public struct ErrorCode: RawRepresentable, Codable, Hashable, Sendable {
 
   public var rawValue: Int
 
@@ -100,9 +100,9 @@ public struct ResponseError: Error, Codable, Hashable {
 extension ResponseError {
   // MARK: Convenience properties for common errors.
 
-  public static var cancelled: ResponseError = ResponseError(code: .cancelled, message: "request cancelled by client")
+  public static let cancelled: ResponseError = ResponseError(code: .cancelled, message: "request cancelled by client")
 
-  public static var serverCancelled: ResponseError = ResponseError(
+  public static let serverCancelled: ResponseError = ResponseError(
     code: .serverCancelled,
     message: "request cancelled by server"
   )
@@ -136,7 +136,7 @@ public struct MessageDecodingError: Error, Hashable {
   /// If it was possible to recover the request id, it is stored here. This can be used e.g. to reply with a `ResponseError` to invalid requests.
   public var id: RequestID?
 
-  public enum MessageKind {
+  public enum MessageKind: Sendable {
     case request
     case response
     case notification

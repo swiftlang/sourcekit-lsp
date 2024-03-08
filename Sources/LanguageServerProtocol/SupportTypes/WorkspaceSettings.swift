@@ -13,7 +13,7 @@
 /// The `settings` field of a `workspace/didChangeConfiguration`.
 ///
 /// This is typed as `Any` in the protocol, and this enum contains the formats we support.
-public enum WorkspaceSettingsChange: Codable, Hashable {
+public enum WorkspaceSettingsChange: Codable, Hashable, Sendable {
 
   case clangd(ClangWorkspaceSettings)
   case unknown(LSPAny)
@@ -41,7 +41,7 @@ public enum WorkspaceSettingsChange: Codable, Hashable {
 ///
 /// Clangd will accept *either* a path to a compilation database on disk, or the contents of a
 /// compilation database to be managed in-memory, but they cannot be mixed.
-public struct ClangWorkspaceSettings: Codable, Hashable {
+public struct ClangWorkspaceSettings: Codable, Hashable, Sendable {
 
   /// The path to a json compilation database.
   public var compilationDatabasePath: String?
@@ -66,7 +66,7 @@ public struct ClangWorkspaceSettings: Codable, Hashable {
 }
 
 /// A single compile command for use in a clangd workspace settings.
-public struct ClangCompileCommand: Codable, Hashable {
+public struct ClangCompileCommand: Codable, Hashable, Sendable {
 
   /// The command (executable + compiler arguments).
   public var compilationCommand: [String]

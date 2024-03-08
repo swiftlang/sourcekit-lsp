@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// An event describing a file change.
-public struct FileEvent: Codable, Hashable {
+public struct FileEvent: Codable, Hashable, Sendable {
   public var uri: DocumentURI
   public var type: FileChangeType
 
@@ -23,7 +23,7 @@ public struct FileEvent: Codable, Hashable {
 /// The type of file event.
 ///
 /// In LSP, this is an integer, so we don't use a closed set.
-public struct FileChangeType: RawRepresentable, Codable, Hashable {
+public struct FileChangeType: RawRepresentable, Codable, Hashable, Sendable {
   public var rawValue: Int
 
   public init(rawValue: Int) {

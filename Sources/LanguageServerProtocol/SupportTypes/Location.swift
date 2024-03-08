@@ -13,7 +13,7 @@
 /// Range within a particular document.
 ///
 /// For a location where the document is implied, use `Position` or `Range<Position>`.
-public struct Location: ResponseType, Hashable, Codable, CustomDebugStringConvertible, Comparable {
+public struct Location: ResponseType, Hashable, Codable, CustomDebugStringConvertible, Comparable, Sendable {
   public static func < (lhs: Location, rhs: Location) -> Bool {
     if lhs.uri != rhs.uri {
       return lhs.uri.stringValue < rhs.uri.stringValue

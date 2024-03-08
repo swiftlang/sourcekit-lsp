@@ -29,7 +29,7 @@
 /// - Returns:
 public struct InitializeRequest: RequestType, Hashable {
   /// Information about the client
-  public struct ClientInfo: Codable, Hashable {
+  public struct ClientInfo: Codable, Hashable, Sendable {
     // The name of the client as defined by the client.
     public var name: String
 

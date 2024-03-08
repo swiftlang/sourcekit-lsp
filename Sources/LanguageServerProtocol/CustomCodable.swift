@@ -51,6 +51,8 @@ public struct CustomCodable<CustomCoder: CustomCodableWrapper> {
   }
 }
 
+extension CustomCodable: Sendable where CustomCoder.WrappedValue: Sendable {}
+
 extension CustomCodable: Codable {
   public init(from decoder: Decoder) throws {
     self.wrappedValue = try CustomCoder(from: decoder).wrappedValue

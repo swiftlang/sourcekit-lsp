@@ -33,7 +33,7 @@ extension UnregisterCapabilityRequest: Codable {
 }
 
 /// General parameters to unregister a capability.
-public struct Unregistration: Codable, Hashable {
+public struct Unregistration: Codable, Hashable, Sendable {
   /// The id used to unregister the capability, usually provided through the
   /// register request.
   public var id: String

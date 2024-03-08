@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct InlineValueContext: Codable, Hashable {
+public struct InlineValueContext: Codable, Hashable, Sendable {
   /// The stack frame (as a DAP Id) where the execution has stopped.
   public var frameId: Int
 
@@ -28,7 +28,7 @@ public struct InlineValueContext: Codable, Hashable {
 
 /// The inline value request is sent from the client to the server to compute inline values for a given text document that may be rendered in the editor at the end of lines.
 public struct InlineValueRequest: TextDocumentRequest {
-  public static var method: String = "textDocument/inlineValue"
+  public static let method: String = "textDocument/inlineValue"
   public typealias Response = [InlineValue]?
 
   /// The text document.
@@ -50,7 +50,7 @@ public struct InlineValueRequest: TextDocumentRequest {
 }
 
 /// Provide inline value as text.
-public struct InlineValueText: Codable, Hashable {
+public struct InlineValueText: Codable, Hashable, Sendable {
   /// The document range for which the inline value applies.
   @CustomCodable<PositionRange>
   public var range: Range<Position>
@@ -70,7 +70,7 @@ public struct InlineValueText: Codable, Hashable {
 /// the underlying document.
 ///
 /// An optional variable name can be used to override the extracted name.
-public struct InlineValueVariableLookup: Codable, Hashable {
+public struct InlineValueVariableLookup: Codable, Hashable, Sendable {
   /// The document range for which the inline value applies.
   /// The range is used to extract the variable name from the underlying
   /// document.
@@ -96,7 +96,7 @@ public struct InlineValueVariableLookup: Codable, Hashable {
 /// underlying document.
 ///
 /// An optional expression can be used to override the extracted expression.
-public struct InlineValueEvaluatableExpression: Codable, Hashable {
+public struct InlineValueEvaluatableExpression: Codable, Hashable, Sendable {
   /// The document range for which the inline value applies.
   /// The range is used to extract the evaluatable expression from the
   /// underlying document.
@@ -117,7 +117,7 @@ public struct InlineValueEvaluatableExpression: Codable, Hashable {
 /// - as a name to use for a variable lookup (class InlineValueVariableLookup)
 /// - as an evaluatable expression (class InlineValueEvaluatableExpression)
 /// The InlineValue types combines all inline value types into one type.
-public enum InlineValue: ResponseType, Hashable {
+public enum InlineValue: ResponseType, Hashable, Sendable {
   case text(InlineValueText)
   case variableLookup(InlineValueVariableLookup)
   case evaluatableExpression(InlineValueEvaluatableExpression)

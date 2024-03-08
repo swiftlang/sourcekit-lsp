@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct CreateWorkDoneProgressRequest: RequestType {
-  public static var method: String = "window/workDoneProgress/create"
+  public static let method: String = "window/workDoneProgress/create"
   public typealias Response = VoidResponse
 
   /// The token to be used to report progress.

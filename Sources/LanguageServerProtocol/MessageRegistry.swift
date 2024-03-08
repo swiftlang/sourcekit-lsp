@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public final class MessageRegistry {
+public final class MessageRegistry: Sendable {
 
   public static let lspProtocol: MessageRegistry =
     MessageRegistry(requests: builtinRequests, notifications: builtinNotifications)

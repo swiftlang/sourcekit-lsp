@@ -10,8 +10,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-/// The serverity level of a Diagnostic, between hint and error.
-public enum DiagnosticSeverity: Int, Codable, Hashable {
+/// The severity level of a Diagnostic, between hint and error.
+public enum DiagnosticSeverity: Int, Codable, Hashable, Sendable {
   case error = 1
   case warning = 2
   case information = 3
@@ -19,13 +19,13 @@ public enum DiagnosticSeverity: Int, Codable, Hashable {
 }
 
 /// A unique diagnostic code, which may be used identifier the diagnostic in e.g. documentation.
-public enum DiagnosticCode: Hashable {
+public enum DiagnosticCode: Hashable, Sendable {
   case number(Int)
   case string(String)
 }
 
 /// Captures a description of a diagnostic error code.
-public struct CodeDescription: Codable, Hashable {
+public struct CodeDescription: Codable, Hashable, Sendable {
 
   /// A URI to open with more information about the diagnostic.
   public var href: DocumentURI
@@ -36,7 +36,7 @@ public struct CodeDescription: Codable, Hashable {
 }
 
 /// A diagnostic message such a compiler error or warning.
-public struct Diagnostic: Codable, Hashable {
+public struct Diagnostic: Codable, Hashable, Sendable {
 
   /// The primary position/range of the diagnostic.
   @CustomCodable<PositionRange>
@@ -100,7 +100,7 @@ public struct Diagnostic: Codable, Hashable {
 
 /// A small piece of metadata about a diagnostic that lets editors e.g. style the diagnostic
 /// in a special way.
-public struct DiagnosticTag: RawRepresentable, Codable, Hashable {
+public struct DiagnosticTag: RawRepresentable, Codable, Hashable, Sendable {
   public var rawValue: Int
 
   public init(rawValue: Int) {
@@ -119,8 +119,8 @@ public struct DiagnosticTag: RawRepresentable, Codable, Hashable {
   public static let deprecated: DiagnosticTag = DiagnosticTag(rawValue: 2)
 }
 
-/// A 'note' diagnostic attached to a primary diagonstic that provides additional information.
-public struct DiagnosticRelatedInformation: Codable, Hashable {
+/// A 'note' diagnostic attached to a primary diagnostic that provides additional information.
+public struct DiagnosticRelatedInformation: Codable, Hashable, Sendable {
 
   /// The location of this related diagnostic information.
   public var location: Location

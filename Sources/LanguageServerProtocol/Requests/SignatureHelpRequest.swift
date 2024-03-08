@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct SignatureHelpRequest: TextDocumentRequest {
-  public static var method: String = "textDocument/signatureHelp"
+  public static let method: String = "textDocument/signatureHelp"
   public typealias Response = SignatureHelp?
 
   /// The document in which the given symbol is located.
@@ -33,7 +33,7 @@ public struct SignatureHelpRequest: TextDocumentRequest {
 }
 
 /// How a signature help was triggered.
-public struct SignatureHelpTriggerKind: RawRepresentable, Codable, Hashable {
+public struct SignatureHelpTriggerKind: RawRepresentable, Codable, Hashable, Sendable {
   public var rawValue: Int
 
   public init(rawValue: Int) {
@@ -53,7 +53,7 @@ public struct SignatureHelpTriggerKind: RawRepresentable, Codable, Hashable {
 
 /// Additional information about the context in which a signature help request
 /// was triggered.
-public struct SignatureHelpContext: Codable, Hashable {
+public struct SignatureHelpContext: Codable, Hashable, Sendable {
   /// Action that caused signature help to be triggered.
   public var triggerKind: SignatureHelpTriggerKind
 
@@ -127,7 +127,7 @@ public struct SignatureHelp: ResponseType, Hashable {
 /// Represents the signature of something callable. A signature
 /// can have a label, like a function-name, a doc-comment, and
 /// a set of parameters.
-public struct SignatureInformation: Codable, Hashable {
+public struct SignatureInformation: Codable, Hashable, Sendable {
   /// The label of this signature. Will be shown in
   /// the UI.
   public var label: String
@@ -159,8 +159,8 @@ public struct SignatureInformation: Codable, Hashable {
 
 /// Represents a parameter of a callable-signature. A parameter can
 /// have a label and a doc-comment.
-public struct ParameterInformation: Codable, Hashable {
-  public enum Label: Codable, Hashable {
+public struct ParameterInformation: Codable, Hashable, Sendable {
+  public enum Label: Codable, Hashable, Sendable {
     case string(String)
     case offsets(start: Int, end: Int)
 

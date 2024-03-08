@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public struct NotebookDocument: Codable, Hashable {
+public struct NotebookDocument: Codable, Hashable, Sendable {
 
   /// The notebook document's URI.
   public var uri: DocumentURI
@@ -39,7 +39,7 @@ public struct NotebookDocument: Codable, Hashable {
 }
 
 /// A notebook cell kind.
-public struct NotebookCellKind: RawRepresentable, Codable, Hashable {
+public struct NotebookCellKind: RawRepresentable, Codable, Hashable, Sendable {
   public var rawValue: Int
 
   public init(rawValue: Int) {
@@ -47,13 +47,13 @@ public struct NotebookCellKind: RawRepresentable, Codable, Hashable {
   }
 
   /// A markup-cell is formatted source that is used for display.
-  public static var markup = NotebookCellKind(rawValue: 1)
+  public static let markup = NotebookCellKind(rawValue: 1)
 
   /// A code-cell is source code.
-  public static var code = NotebookCellKind(rawValue: 2)
+  public static let code = NotebookCellKind(rawValue: 2)
 }
 
-public struct ExecutionSummary: Codable, Hashable {
+public struct ExecutionSummary: Codable, Hashable, Sendable {
   /// A strict monotonically increasing value
   /// indicating the execution order of a cell
   /// inside a notebook.
@@ -74,7 +74,7 @@ public struct ExecutionSummary: Codable, Hashable {
 /// A cell's document URI must be unique across ALL notebook
 /// cells and can therefore be used to uniquely identify a
 /// notebook cell or the cell's text document.
-public struct NotebookCell: Codable, Hashable {
+public struct NotebookCell: Codable, Hashable, Sendable {
 
   /// The cell's kind
   public var kind: NotebookCellKind

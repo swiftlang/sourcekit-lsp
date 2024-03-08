@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Unique identifier for a document.
-public struct VersionedNotebookDocumentIdentifier: Codable, Hashable {
+public struct VersionedNotebookDocumentIdentifier: Codable, Hashable, Sendable {
 
   /// The version number of this notebook document.
   public var version: Int

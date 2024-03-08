@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// A source code language identifier, such as "swift", or "objective-c".
-public struct Language: RawRepresentable, Codable, Equatable, Hashable {
+public struct Language: RawRepresentable, Codable, Equatable, Hashable, Sendable {
   public typealias LanguageId = String
 
   public let rawValue: LanguageId

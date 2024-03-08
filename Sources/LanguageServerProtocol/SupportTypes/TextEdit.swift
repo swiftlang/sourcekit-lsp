@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Edit to a text document, replacing the contents of `range` with `text`.
-public struct TextEdit: ResponseType, Hashable {
+public struct TextEdit: ResponseType, Hashable, Sendable {
 
   /// The range of text to be replaced.
   @CustomCodable<PositionRange>
@@ -49,7 +49,7 @@ extension TextEdit: LSPAnyCodable {
 }
 
 /// Additional information that describes document changes.
-public struct ChangeAnnotation: Codable, Hashable {
+public struct ChangeAnnotation: Codable, Hashable, Sendable {
   /// A human-readable string describing the actual change. The string
   /// is rendered prominent in the user interface.
   public var label: String
@@ -76,7 +76,7 @@ public typealias ChangeAnnotationIdentifier = String
 /// A special text edit with an additional change annotation.
 ///
 /// Notionally a subtype of `TextEdit`.
-public struct AnnotatedTextEdit: ResponseType, Hashable {
+public struct AnnotatedTextEdit: ResponseType, Hashable, Sendable {
 
   /// The range of text to be replaced.
   @CustomCodable<PositionRange>

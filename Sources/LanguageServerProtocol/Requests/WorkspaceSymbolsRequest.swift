@@ -12,7 +12,7 @@
 
 /// Request for all symbols that match a certain query string.
 ///
-/// This request looks up the canonical occurence of each symbol which has a name that contains the query string.
+/// This request looks up the canonical occurrence of each symbol which has a name that contains the query string.
 /// The list of symbol information is returned
 ///
 /// Servers that provide workspace symbol queries should set the `workspaceSymbolProvider` server capability.
@@ -94,8 +94,8 @@ public struct SymbolInformation: Hashable, ResponseType {
 
 /// A special workspace symbol that supports locations without a range
 public struct WorkspaceSymbol: ResponseType, Hashable {
-  public enum WorkspaceSymbolLocation: Codable, Hashable {
-    public struct URI: Codable, Hashable {
+  public enum WorkspaceSymbolLocation: Codable, Hashable, Sendable {
+    public struct URI: Codable, Hashable, Sendable {
       public var uri: DocumentURI
 
       public init(uri: DocumentURI) {

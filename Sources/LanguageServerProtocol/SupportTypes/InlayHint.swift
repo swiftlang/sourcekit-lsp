@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Represents an inline annotation displayed by the editor in a source file.
-public struct InlayHint: ResponseType, Codable, Hashable {
+public struct InlayHint: ResponseType, Codable, Hashable, Sendable {
   /// The position within the code that this hint is attached to.
   public var position: Position
 
@@ -59,7 +59,7 @@ public struct InlayHint: ResponseType, Codable, Hashable {
 }
 
 /// A hint's kind, used for more flexible client-side styling.
-public struct InlayHintKind: RawRepresentable, Codable, Hashable {
+public struct InlayHintKind: RawRepresentable, Codable, Hashable, Sendable {
   public var rawValue: Int
 
   public init(rawValue: Int) {
@@ -74,7 +74,7 @@ public struct InlayHintKind: RawRepresentable, Codable, Hashable {
 }
 
 /// A hint's label, either being a single string or a composition of parts.
-public enum InlayHintLabel: Codable, Hashable {
+public enum InlayHintLabel: Codable, Hashable, Sendable {
   case parts([InlayHintLabelPart])
   case string(String)
 
@@ -115,7 +115,7 @@ extension InlayHintLabel: ExpressibleByStringInterpolation {
 }
 
 /// A part of an interactive or composite inlay hint label.
-public struct InlayHintLabelPart: Codable, Hashable {
+public struct InlayHintLabelPart: Codable, Hashable, Sendable {
   /// The value of this label part.
   public let value: String
 

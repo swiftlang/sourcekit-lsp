@@ -196,7 +196,7 @@ extension String: @retroactive ResponseType {}
 #endif
 
 public struct EchoRequest: RequestType {
-  public static var method: String = "test_server/echo"
+  public static let method: String = "test_server/echo"
   public typealias Response = String
 
   public var string: String
@@ -207,7 +207,7 @@ public struct EchoRequest: RequestType {
 }
 
 public struct EchoError: RequestType {
-  public static var method: String = "test_server/echo_error"
+  public static let method: String = "test_server/echo_error"
   public typealias Response = VoidResponse
 
   public var code: ErrorCode?
@@ -220,7 +220,7 @@ public struct EchoError: RequestType {
 }
 
 public struct EchoNotification: NotificationType {
-  public static var method: String = "test_server/echo_note"
+  public static let method: String = "test_server/echo_note"
 
   public var string: String
 

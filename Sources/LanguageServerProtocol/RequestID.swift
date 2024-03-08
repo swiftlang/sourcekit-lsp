@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public enum RequestID: Hashable {
+public enum RequestID: Hashable, Sendable {
   case string(String)
   case number(Int)
 }

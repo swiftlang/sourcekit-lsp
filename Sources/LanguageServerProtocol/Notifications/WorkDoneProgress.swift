@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct WorkDoneProgress: NotificationType, Hashable {
-  public static var method: String = "$/progress"
+  public static let method: String = "$/progress"
 
   /// The progress token provided by the client or server.
   public var token: ProgressToken
@@ -25,7 +25,7 @@ public struct WorkDoneProgress: NotificationType, Hashable {
   }
 }
 
-public enum WorkDoneProgressKind: Codable, Hashable {
+public enum WorkDoneProgressKind: Codable, Hashable, Sendable {
   case begin(WorkDoneProgressBegin)
   case report(WorkDoneProgressReport)
   case end(WorkDoneProgressEnd)
@@ -58,7 +58,7 @@ public enum WorkDoneProgressKind: Codable, Hashable {
   }
 }
 
-public struct WorkDoneProgressBegin: Codable, Hashable {
+public struct WorkDoneProgressBegin: Codable, Hashable, Sendable {
   /// Mandatory title of the progress operation. Used to briefly inform about
   /// the kind of operation being performed.
   ///
@@ -127,7 +127,7 @@ public struct WorkDoneProgressBegin: Codable, Hashable {
   }
 }
 
-public struct WorkDoneProgressReport: Codable, Hashable {
+public struct WorkDoneProgressReport: Codable, Hashable, Sendable {
   /// Controls enablement state of a cancel button. This property is only valid
   /// if a cancel button got requested in the `WorkDoneProgressBegin` payload.
   ///
@@ -188,7 +188,7 @@ public struct WorkDoneProgressReport: Codable, Hashable {
   }
 }
 
-public struct WorkDoneProgressEnd: Codable, Hashable {
+public struct WorkDoneProgressEnd: Codable, Hashable, Sendable {
   /// Optional, a final message indicating to for example indicate the outcome
   /// of the operation.
   public var message: String?

@@ -1,4 +1,4 @@
-// swift-tools-version:5.7
+// swift-tools-version:5.8
 
 import Foundation
 import PackageDescription
@@ -97,7 +97,8 @@ let package = Package(
     .target(
       name: "LanguageServerProtocol",
       dependencies: [],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
     ),
 
     .testTarget(
@@ -137,7 +138,7 @@ let package = Package(
         .product(name: "Crypto", package: "swift-crypto")
       ],
       exclude: ["CMakeLists.txt"],
-      swiftSettings: lspLoggingSwiftSettings
+      swiftSettings: lspLoggingSwiftSettings + [.enableExperimentalFeature("StrictConcurrency")]
     ),
 
     .testTarget(
@@ -197,7 +198,8 @@ let package = Package(
         "LanguageServerProtocol",
         "LSPLogging",
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
     ),
 
     .testTarget(

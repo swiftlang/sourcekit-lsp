@@ -65,7 +65,7 @@ public enum DocumentSymbolResponse: ResponseType, Hashable {
 /// Represents programming constructs like variables, classes, interfaces etc. that appear
 /// in a document. Document symbols can be hierarchical and they have two ranges: one that encloses
 /// its definition and one that points to its most interesting range, e.g. the range of an identifier.
-public struct DocumentSymbol: Hashable, Codable {
+public struct DocumentSymbol: Hashable, Codable, Sendable {
 
   /// The name of this symbol. Will be displayed in the user interface and therefore must not be
   /// an empty string or a string only consisting of white spaces.

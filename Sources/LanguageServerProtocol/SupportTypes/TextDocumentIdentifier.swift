@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 /// Unique identifier for a document.
-public struct TextDocumentIdentifier: Hashable, Codable {
+public struct TextDocumentIdentifier: Hashable, Codable, Sendable {
 
   /// A URI that uniquely identifies the document.
   public var uri: DocumentURI

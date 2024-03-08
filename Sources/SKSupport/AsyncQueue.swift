@@ -34,7 +34,7 @@ fileprivate extension NSLock {
 }
 
 /// A type that is able to track dependencies between tasks.
-public protocol DependencyTracker {
+public protocol DependencyTracker: Sendable {
   /// Whether the task described by `self` needs to finish executing before
   /// `other` can start executing.
   func isDependency(of other: Self) -> Bool
@@ -48,28 +48,46 @@ public struct Serial: DependencyTracker {
   }
 }
 
-/// A queue that allows the execution of asynchronous blocks of code.
-public final class AsyncQueue<TaskMetadata: DependencyTracker> {
-  private struct PendingTask {
-    /// The task that is pending.
-    let task: any AnyTask
+private struct PendingTask<TaskMetadata: Sendable>: Sendable {
+  /// The task that is pending.
+  let task: any AnyTask
 
-    let metadata: TaskMetadata
+  let metadata: TaskMetadata
 
-    /// A unique value used to identify the task. This allows tasks to get
-    /// removed from `pendingTasks` again after they finished executing.
-    let id: UUID
-  }
+  /// A unique value used to identify the task. This allows tasks to get
+  /// removed from `pendingTasks` again after they finished executing.
+  let id: UUID
+}
 
+/// A list of pending tasks that can be sent across actor boundaries and is guarded by a lock.
+///
+/// - Note: Unchecked sendable because the tasks are being protected by a lock.
+private class PendingTasks<TaskMetadata: Sendable>: @unchecked Sendable {
   ///  Lock guarding `pendingTasks`.
-  private let pendingTasksLock = NSLock()
+  private let lock = NSLock()
 
   /// Pending tasks that have not finished execution yet.
-  private var pendingTasks = [PendingTask]()
+  ///
+  /// - Important: This must only be accessed while `lock` has been acquired.
+  private var tasks: [PendingTask<TaskMetadata>] = []
 
-  public init() {
-    self.pendingTasksLock.name = "AsyncQueue"
+  init() {
+    self.lock.name = "AsyncQueue"
   }
+
+  /// Capture a lock and execute the closure, which may modify the pending tasks.
+  func withLock<T>(_ body: (_ pendingTasks: inout [PendingTask<TaskMetadata>]) throws -> T) rethrows -> T {
+    try lock.withLock {
+      try body(&tasks)
+    }
+  }
+}
+
+/// A queue that allows the execution of asynchronous blocks of code.
+public final class AsyncQueue<TaskMetadata: DependencyTracker> {
+  private var pendingTasks: PendingTasks<TaskMetadata> = PendingTasks()
+
+  public init() {}
 
   /// Schedule a new closure to be executed on the queue.
   ///
@@ -108,13 +126,13 @@ public final class AsyncQueue<TaskMetadata: DependencyTracker> {
   ) -> Task<Success, any Error> {
     let id = UUID()
 
-    return pendingTasksLock.withLock {
+    return pendingTasks.withLock { tasks in
       // Build the list of tasks that need to finished execution before this one
       // can be executed
-      let dependencies: [PendingTask] = pendingTasks.filter { $0.metadata.isDependency(of: metadata) }
+      let dependencies: [PendingTask] = tasks.filter { $0.metadata.isDependency(of: metadata) }
 
       // Schedule the task.
-      let task = Task {
+      let task = Task { [pendingTasks] in
         // IMPORTANT: The only throwing call in here must be the call to
         // operation. Otherwise the assumption that the task will never throw
         // if `operation` does not throw, which we are making in `async` does
@@ -125,14 +143,14 @@ public final class AsyncQueue<TaskMetadata: DependencyTracker> {
 
         let result = try await operation()
 
-        pendingTasksLock.withLock {
-          pendingTasks.removeAll(where: { $0.id == id })
+        pendingTasks.withLock { tasks in
+          tasks.removeAll(where: { $0.id == id })
         }
 
         return result
       }
 
-      pendingTasks.append(PendingTask(task: task, metadata: metadata, id: id))
+      tasks.append(PendingTask(task: task, metadata: metadata, id: id))
 
       return task
     }

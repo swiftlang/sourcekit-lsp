@@ -12,7 +12,7 @@
 
 import Foundation
 
-public struct DocumentURI: Codable, Hashable {
+public struct DocumentURI: Codable, Hashable, Sendable {
   /// The URL that store the URIs value
   private let storage: URL
 

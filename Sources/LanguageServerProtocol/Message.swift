@@ -12,7 +12,7 @@
 
 import Dispatch
 
-public protocol MessageType: Codable {}
+public protocol MessageType: Codable, Sendable {}
 
 /// `RequestType` with no associated type or same-type requirements. Most users should prefer
 /// `RequestType`.

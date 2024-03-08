@@ -12,7 +12,7 @@
 
 /// The code lens resolve request is sent from the client to the server to resolve the command for a given code lens item.
 public struct CodeLensResolveRequest: RequestType {
-  public static var method: String = "codeLens/resolve"
+  public static let method: String = "codeLens/resolve"
   public typealias Response = CodeLens
 
   public var codeLens: CodeLens

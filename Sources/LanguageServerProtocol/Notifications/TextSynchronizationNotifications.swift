@@ -169,7 +169,7 @@ public struct DidOpenNotebookDocumentNotification: NotificationType, Hashable {
 
 /// The change notification is sent from the client to the server when a notebook document changes. It is only sent by a client if the server requested the synchronization mode `notebook` in its `notebookDocumentSync` capability.
 public struct DidChangeNotebookDocumentNotification: NotificationType, Hashable {
-  public static var method: String = "notebookDocument/didChange"
+  public static let method: String = "notebookDocument/didChange"
 
   /// The notebook document that did change. The version number points
   /// to the version after all provided changes have been applied.
@@ -196,7 +196,7 @@ public struct DidChangeNotebookDocumentNotification: NotificationType, Hashable 
 
 /// The save notification is sent from the client to the server when a notebook document is saved. It is only sent by a client if the server requested the synchronization mode `notebook` in its `notebookDocumentSync` capability.
 public struct DidSaveNotebookDocumentNotification: NotificationType {
-  public static var method: String = "notebookDocument/didSave"
+  public static let method: String = "notebookDocument/didSave"
 
   /// The notebook document that got saved.
   public var notebookDocument: NotebookDocumentIdentifier
@@ -208,7 +208,7 @@ public struct DidSaveNotebookDocumentNotification: NotificationType {
 
 /// The close notification is sent from the client to the server when a notebook document is closed. It is only sent by a client if the server requested the synchronization mode `notebook` in its `notebookDocumentSync` capability.
 public struct DidCloseNotebookDocumentNotification: NotificationType {
-  public static var method: String = "notebookDocument/didClose"
+  public static let method: String = "notebookDocument/didClose"
 
   /// The notebook document that got closed.
   public var notebookDocument: NotebookDocumentIdentifier

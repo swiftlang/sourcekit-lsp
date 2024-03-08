@@ -45,7 +45,7 @@ public enum LogConfig {
 ///
 /// For documentation of the different log levels see
 /// https://developer.apple.com/documentation/os/oslogtype.
-public enum NonDarwinLogLevel: Comparable, CustomStringConvertible {
+public enum NonDarwinLogLevel: Comparable, CustomStringConvertible, Sendable {
   case debug
   case info
   case `default`
@@ -102,7 +102,7 @@ public enum NonDarwinLogLevel: Comparable, CustomStringConvertible {
 ///
 /// For documentation of the different privacy levels see
 /// https://developer.apple.com/documentation/os/oslogprivacy.
-public enum NonDarwinLogPrivacy: Comparable {
+public enum NonDarwinLogPrivacy: Comparable, Sendable {
   case `public`
   case `private`
   case sensitive
@@ -132,16 +132,16 @@ public enum NonDarwinLogPrivacy: Comparable {
 /// sourcekit-lsp.
 ///
 /// This is used on platforms that don't have OSLog.
-public struct NonDarwinLogInterpolation: StringInterpolationProtocol {
-  private enum LogPiece {
+public struct NonDarwinLogInterpolation: StringInterpolationProtocol, Sendable {
+  private enum LogPiece: Sendable {
     /// A segment of the log message that will always be displayed.
     case string(String)
 
     /// A segment of the log message that might need to be redacted if the
     /// privacy level is lower than `privacy`.
     case possiblyRedacted(
-      description: () -> String,
-      redactedDescription: () -> String,
+      description: @Sendable () -> String,
+      redactedDescription: @Sendable () -> String,
       privacy: NonDarwinLogPrivacy
     )
   }
@@ -158,8 +158,8 @@ public struct NonDarwinLogInterpolation: StringInterpolationProtocol {
   }
 
   private mutating func append(
-    description: @autoclosure @escaping () -> String,
-    redactedDescription: @autoclosure @escaping () -> String,
+    description: @autoclosure @escaping @Sendable () -> String,
+    redactedDescription: @autoclosure @escaping @Sendable () -> String,
     privacy: NonDarwinLogPrivacy
   ) {
     if privacy == .public {
@@ -181,13 +181,15 @@ public struct NonDarwinLogInterpolation: StringInterpolationProtocol {
   }
 
   @_disfavoredOverload  // Prefer to use the StaticString overload when possible.
-  public mutating func appendInterpolation(_ message: CustomStringConvertible, privacy: NonDarwinLogPrivacy = .private)
-  {
+  public mutating func appendInterpolation(
+    _ message: some CustomStringConvertible & Sendable,
+    privacy: NonDarwinLogPrivacy = .private
+  ) {
     append(description: message.description, redactedDescription: "<private>", privacy: privacy)
   }
 
   public mutating func appendInterpolation(
-    _ message: CustomLogStringConvertibleWrapper,
+    _ message: some CustomLogStringConvertibleWrapper & Sendable,
     privacy: NonDarwinLogPrivacy = .private
   ) {
     append(description: message.description, redactedDescription: message.redactedDescription, privacy: privacy)
@@ -198,7 +200,7 @@ public struct NonDarwinLogInterpolation: StringInterpolationProtocol {
   }
 
   /// Builds the string that represents the log message, masking all interpolation
-  /// segments whose privacy level is greater thatn `logPrivacyLevel`.
+  /// segments whose privacy level is greater that `logPrivacyLevel`.
   fileprivate func string(for logPrivacyLevel: NonDarwinLogPrivacy) -> String {
     var result = ""
     for piece in pieces {
@@ -221,7 +223,7 @@ public struct NonDarwinLogInterpolation: StringInterpolationProtocol {
 /// sourcekit-lsp.
 ///
 /// This is used on platforms that don't have OSLog.
-public struct NonDarwinLogMessage: ExpressibleByStringInterpolation, ExpressibleByStringLiteral {
+public struct NonDarwinLogMessage: ExpressibleByStringInterpolation, ExpressibleByStringLiteral, Sendable {
   fileprivate let value: NonDarwinLogInterpolation
 
   public init(stringInterpolation: NonDarwinLogInterpolation) {
@@ -257,12 +259,12 @@ private let loggingQueue: DispatchQueue = DispatchQueue(label: "loggingQueue", q
 ///
 /// This logger is used to log messages to stderr on platforms where OSLog is
 /// not available.
-public struct NonDarwinLogger {
+public struct NonDarwinLogger: Sendable {
   private let subsystem: String
   private let category: String
   private let logLevel: NonDarwinLogLevel
   private let privacyLevel: NonDarwinLogPrivacy
-  private let logHandler: (String) -> Void
+  private let logHandler: @Sendable (String) -> Void
 
   /// - Parameters:
   ///   - subsystem: See os.Logger
@@ -277,7 +279,7 @@ public struct NonDarwinLogger {
     category: String,
     logLevel: NonDarwinLogLevel? = nil,
     privacyLevel: NonDarwinLogPrivacy? = nil,
-    logHandler: @escaping (String) -> Void = { fputs($0 + "\n", stderr) }
+    logHandler: @escaping @Sendable (String) -> Void = { fputs($0 + "\n", stderr) }
   ) {
     self.subsystem = subsystem
     self.category = category
@@ -292,7 +294,7 @@ public struct NonDarwinLogger {
   /// program to finish as quickly as possible.
   public func log(
     level: NonDarwinLogLevel,
-    _ message: @autoclosure @escaping () -> NonDarwinLogMessage
+    _ message: @autoclosure @escaping @Sendable () -> NonDarwinLogMessage
   ) {
     guard level >= self.logLevel else { return }
     let date = Date()

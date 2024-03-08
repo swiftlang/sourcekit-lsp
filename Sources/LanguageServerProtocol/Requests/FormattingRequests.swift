@@ -108,7 +108,7 @@ public struct DocumentOnTypeFormattingRequest: TextDocumentRequest, Hashable {
 }
 
 /// Options to customize how document formatting requests are performed.
-public struct FormattingOptions: Codable, Hashable {
+public struct FormattingOptions: Codable, Hashable, Sendable {
 
   /// The number of space characters in a tab.
   public var tabSize: Int

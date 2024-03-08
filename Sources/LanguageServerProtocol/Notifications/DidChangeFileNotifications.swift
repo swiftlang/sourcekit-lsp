@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct DidCreateFilesNotification: NotificationType {
-  public static var method: String = "workspace/didCreateFiles"
+  public static let method: String = "workspace/didCreateFiles"
 
   /// An array of all files/folders created in this operation.
   public var files: [FileCreate]
@@ -22,7 +22,7 @@ public struct DidCreateFilesNotification: NotificationType {
 }
 
 public struct DidRenameFilesNotification: NotificationType {
-  public static var method: String = "workspace/didRenameFiles"
+  public static let method: String = "workspace/didRenameFiles"
 
   /// An array of all files/folders renamed in this operation. When a folder
   /// is renamed, only the folder will be included, and not its children.
@@ -34,7 +34,7 @@ public struct DidRenameFilesNotification: NotificationType {
 }
 
 public struct DidDeleteFilesNotification: NotificationType {
-  public static var method: String = "workspace/didDeleteFiles"
+  public static let method: String = "workspace/didDeleteFiles"
 
   /// An array of all files/folders created in this operation.
   public var files: [FileDelete]

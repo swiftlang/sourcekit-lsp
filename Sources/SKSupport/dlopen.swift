@@ -57,7 +57,7 @@ public final class DLHandle {
   }
 }
 
-public struct DLOpenFlags: RawRepresentable, OptionSet {
+public struct DLOpenFlags: RawRepresentable, OptionSet, Sendable {
 
   #if !os(Windows)
   public static let lazy: DLOpenFlags = DLOpenFlags(rawValue: RTLD_LAZY)

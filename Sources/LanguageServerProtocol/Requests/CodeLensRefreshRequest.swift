@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 public struct CodeLensRefreshRequest: RequestType {
-  public static var method: String = "workspace/codeLens/refresh"
+  public static let method: String = "workspace/codeLens/refresh"
 
   public typealias Response = VoidResponse
 
