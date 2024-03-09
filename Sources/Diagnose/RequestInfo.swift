@@ -34,7 +34,8 @@ public struct RequestInfo {
   @_spi(Testing)
   public var fileContents: String
 
-  func request(for file: URL) throws -> String {
+  @_spi(Testing)
+  public func request(for file: URL) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .prettyPrinted
     guard var compilerArgs = String(data: try encoder.encode(compilerArgs), encoding: .utf8) else {

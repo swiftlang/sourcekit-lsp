@@ -191,12 +191,17 @@ private func assertReduce(
   }
 }
 
-private struct InProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
+/// We can't run the `OutOfProcessSourceKitRequestExecutor` in tests because that runs the sourcekit-lsp executable,
+/// which isn't built when running tests.
+private class InProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
   /// The path to `sourcekitd.framework/sourcekitd`.
   private let sourcekitd: URL
 
-  /// The file to which we write the JSON request that we want to run.
+  /// The file to which we write the reduce source file.
   private let temporarySourceFile: URL
+
+  /// The file to which we write the AYML request that we want to run.
+  private let temporaryRequestFile: URL
 
   /// If this predicate evaluates to true on the sourcekitd response, the request is
   /// considered to reproduce the issue.
@@ -205,16 +210,24 @@ private struct InProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
   init(sourcekitd: URL, reproducerPredicate: NSPredicate) {
     self.sourcekitd = sourcekitd
     self.reproducerPredicate = reproducerPredicate
-    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("request.json")
+    temporaryRequestFile = FileManager.default.temporaryDirectory.appendingPathComponent("request-\(UUID()).yml")
+    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("recude-\(UUID()).swift")
   }
 
-  func run(request requestYaml: String) async throws -> SourceKitDRequestResult {
-    logger.info("Sending request: \(requestYaml)")
+  deinit {
+    try? FileManager.default.removeItem(at: temporaryRequestFile)
+    try? FileManager.default.removeItem(at: temporarySourceFile)
+  }
+
+  func run(request: RequestInfo) async throws -> SourceKitDRequestResult {
+    try request.fileContents.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
+    let requestString = try request.request(for: temporarySourceFile)
+    logger.info("Sending request: \(requestString)")
 
     let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
       dylibPath: try! AbsolutePath(validating: sourcekitd.path)
     )
-    let response = try await sourcekitd.run(requestYaml: requestYaml)
+    let response = try await sourcekitd.run(requestYaml: requestString)
 
     logger.info("Received response: \(response.description)")
 

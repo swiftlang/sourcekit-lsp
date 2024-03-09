@@ -34,9 +34,6 @@ fileprivate class CommandLineArgumentReducer {
   /// still crashes.
   private let sourcekitdExecutor: SourceKitRequestExecutor
 
-  /// The file to which we write the reduced source code.
-  private let temporarySourceFile: URL
-
   /// A callback to be called when the reducer has made progress reducing the request
   private let progressUpdate: (_ progress: Double, _ message: String) -> Void
 
@@ -48,12 +45,7 @@ fileprivate class CommandLineArgumentReducer {
     progressUpdate: @escaping (_ progress: Double, _ message: String) -> Void
   ) {
     self.sourcekitdExecutor = sourcekitdExecutor
-    self.temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce-\(UUID()).swift")
     self.progressUpdate = progressUpdate
-  }
-
-  deinit {
-    try? FileManager.default.removeItem(at: temporarySourceFile)
   }
 
   func logSuccessfulReduction(_ requestInfo: RequestInfo) {
@@ -64,7 +56,6 @@ fileprivate class CommandLineArgumentReducer {
   }
 
   func run(initialRequestInfo: RequestInfo) async throws -> RequestInfo {
-    try initialRequestInfo.fileContents.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
     var requestInfo = initialRequestInfo
     self.initialCommandLineCount = requestInfo.compilerArgs.count
 
@@ -123,7 +114,7 @@ fileprivate class CommandLineArgumentReducer {
     var reducedRequestInfo = requestInfo
     reducedRequestInfo.compilerArgs.removeSubrange(argumentsToRemove)
 
-    let result = try await sourcekitdExecutor.run(request: reducedRequestInfo.request(for: temporarySourceFile))
+    let result = try await sourcekitdExecutor.run(request: reducedRequestInfo)
     if case .reproducesIssue = result {
       logSuccessfulReduction(reducedRequestInfo)
       return reducedRequestInfo

@@ -45,16 +45,19 @@ fileprivate extension String {
 /// An executor that can run a sourcekitd request and indicate whether the request reprodes a specified issue.
 @_spi(Testing)
 public protocol SourceKitRequestExecutor {
-  func run(request requestString: String) async throws -> SourceKitDRequestResult
+  func run(request: RequestInfo) async throws -> SourceKitDRequestResult
 }
 
 /// Runs `sourcekit-lsp run-sourcekitd-request` to check if a sourcekit-request crashes.
-struct OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
+class OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
   /// The path to `sourcekitd.framework/sourcekitd`.
   private let sourcekitd: URL
 
-  /// The file to which we write the JSON request that we want to run.
+  /// The file to which we write the reduce source file.
   private let temporarySourceFile: URL
+
+  /// The file to which we write the YAML request that we want to run.
+  private let temporaryRequestFile: URL
 
   /// If this predicate evaluates to true on the sourcekitd response, the request is
   /// considered to reproduce the issue.
@@ -63,11 +66,19 @@ struct OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
   init(sourcekitd: URL, reproducerPredicate: NSPredicate?) {
     self.sourcekitd = sourcekitd
     self.reproducerPredicate = reproducerPredicate
-    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("request.json")
+    temporaryRequestFile = FileManager.default.temporaryDirectory.appendingPathComponent("request-\(UUID()).yml")
+    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("recude-\(UUID()).swift")
   }
 
-  func run(request requestString: String) async throws -> SourceKitDRequestResult {
-    try requestString.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
+  deinit {
+    try? FileManager.default.removeItem(at: temporaryRequestFile)
+    try? FileManager.default.removeItem(at: temporarySourceFile)
+  }
+
+  func run(request: RequestInfo) async throws -> SourceKitDRequestResult {
+    try request.fileContents.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
+    let requestString = try request.request(for: temporarySourceFile)
+    try requestString.write(to: temporaryRequestFile, atomically: true, encoding: .utf8)
 
     let process = Process(
       arguments: [
@@ -76,7 +87,7 @@ struct OutOfProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
         "--sourcekitd",
         sourcekitd.path,
         "--request-file",
-        temporarySourceFile.path,
+        temporaryRequestFile.path,
       ]
     )
     try process.launch()

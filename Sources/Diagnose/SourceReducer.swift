@@ -66,9 +66,6 @@ fileprivate class SourceReducer {
   /// still crashes.
   private let sourcekitdExecutor: SourceKitRequestExecutor
 
-  /// The file to which we write the reduced source code.
-  private let temporarySourceFile: URL
-
   /// A callback to call to report progress
   private let progressUpdate: (_ progress: Double, _ message: String) -> Void
 
@@ -83,12 +80,7 @@ fileprivate class SourceReducer {
     progressUpdate: @escaping (_ progress: Double, _ message: String) -> Void
   ) {
     self.sourcekitdExecutor = sourcekitdExecutor
-    self.temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce-\(UUID()).swift")
     self.progressUpdate = progressUpdate
-  }
-
-  deinit {
-    try? FileManager.default.removeItem(at: temporarySourceFile)
   }
 
   /// Reduce the file contents in `initialRequest` to a smaller file that still reproduces a crash.
@@ -243,9 +235,8 @@ fileprivate class SourceReducer {
       fileContents: reducedSource
     )
 
-    try reducedSource.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
     logger.debug("Try reduction to the following input file:\n\(reducedSource)")
-    let result = try await sourcekitdExecutor.run(request: reducedRequestInfo.request(for: temporarySourceFile))
+    let result = try await sourcekitdExecutor.run(request: reducedRequestInfo)
     if case .reproducesIssue = result {
       logger.debug("Reduction successful")
       logSuccessfulReduction(reducedRequestInfo, tree: tree)
@@ -511,9 +502,8 @@ fileprivate func getSwiftInterface(
     compilerArgs: compilerArgs,
     fileContents: ""
   )
-  let request = try requestInfo.request(for: URL(fileURLWithPath: "/"))
 
-  guard case .success(let result) = try await executor.run(request: request) else {
+  guard case .success(let result) = try await executor.run(request: requestInfo) else {
     throw ReductionError("Failed to get Swift Interface for \(moduleName)")
   }
 
