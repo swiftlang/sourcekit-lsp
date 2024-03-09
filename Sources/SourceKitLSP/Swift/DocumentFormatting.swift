@@ -11,7 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import LSPLogging
 import LanguageServerProtocol
+import SwiftParser
+import SwiftSyntax
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
@@ -97,74 +100,38 @@ extension CollectionDifference.Change {
 
 /// Compute the text edits that need to be made to transform `original` into `edited`.
 private func edits(from original: DocumentSnapshot, to edited: String) -> [TextEdit] {
-  let difference = edited.difference(from: original.text)
+  let difference = edited.utf8.difference(from: original.text.utf8)
 
-  // `Collection.difference` returns sequential edits that are expected to be applied on-by-one. Offsets reference
-  // the string that results if all previous edits are applied.
-  // LSP expects concurrent edits that are applied simultaneously. Translate between them.
-
-  struct StringBasedEdit {
-    /// Offset into the collection originalString.
-    /// Ie. to get a string index out of this, run `original(original.startIndex, offsetBy: range.lowerBound)`.
-    var range: Range<Int>
-    /// The string the range is being replaced with.
-    var replacement: String
-  }
-
-  var edits: [StringBasedEdit] = []
-  for change in difference {
-    // Adjust the index offset based on changes that `Collection.difference` expects to already have been applied.
-    var adjustment: Int = 0
-    for edit in edits {
-      if edit.range.upperBound < change.offset + adjustment {
-        adjustment = adjustment + edit.range.count - edit.replacement.count
-      }
-    }
-    let adjustedOffset = change.offset + adjustment
-    let edit =
-      switch change {
-      case .insert(offset: _, element: let element, associatedWith: _):
-        StringBasedEdit(range: adjustedOffset..<adjustedOffset, replacement: String(element))
-      case .remove(offset: _, element: _, associatedWith: _):
-        StringBasedEdit(range: adjustedOffset..<(adjustedOffset + 1), replacement: "")
-      }
-
-    // If we have an existing edit that is adjacent to this one, merge them.
-    // Otherwise, just append them.
-    if let mergableEditIndex = edits.firstIndex(where: {
-      $0.range.upperBound == edit.range.lowerBound || edit.range.upperBound == $0.range.lowerBound
-    }) {
-      let mergableEdit = edits[mergableEditIndex]
-      if mergableEdit.range.upperBound == edit.range.lowerBound {
-        edits[mergableEditIndex] = StringBasedEdit(
-          range: mergableEdit.range.lowerBound..<edit.range.upperBound,
-          replacement: mergableEdit.replacement + edit.replacement
-        )
-      } else {
-        precondition(edit.range.upperBound == mergableEdit.range.lowerBound)
-        edits[mergableEditIndex] = StringBasedEdit(
-          range: edit.range.lowerBound..<mergableEdit.range.upperBound,
-          replacement: edit.replacement + mergableEdit.replacement
-        )
-      }
-    } else {
-      edits.append(edit)
+  let sequentialEdits = difference.map { change in
+    switch change {
+    case .insert(offset: let offset, element: let element, associatedWith: _):
+      IncrementalEdit(offset: offset, length: 0, replacement: [element])
+    case .remove(offset: let offset, element: _, associatedWith: _):
+      IncrementalEdit(offset: offset, length: 1, replacement: [])
     }
   }
 
-  // Map the string-based edits to line-column based edits to be consumed by LSP
+  let concurrentEdits = ConcurrentEdits(fromSequential: sequentialEdits)
 
-  return edits.map { edit in
-    let (startLine, startColumn) = original.lineTable.lineAndUTF16ColumnOf(
-      original.text.index(original.text.startIndex, offsetBy: edit.range.lowerBound)
-    )
-    let (endLine, endColumn) = original.lineTable.lineAndUTF16ColumnOf(
-      original.text.index(original.text.startIndex, offsetBy: edit.range.upperBound)
-    )
+  // Map the offset-based edits to line-column based edits to be consumed by LSP
+
+  return concurrentEdits.edits.compactMap { (edit) -> TextEdit? in
+    guard let (startLine, startColumn) = original.lineTable.lineAndUTF16ColumnOf(utf8Offset: edit.offset) else {
+      logger.fault("Failed to convert offset \(edit.offset) into line:column")
+      return nil
+    }
+    guard let (endLine, endColumn) = original.lineTable.lineAndUTF16ColumnOf(utf8Offset: edit.endOffset) else {
+      logger.fault("Failed to convert offset \(edit.endOffset) into line:column")
+      return nil
+    }
+    guard let newText = String(bytes: edit.replacement, encoding: .utf8) else {
+      logger.fault("Failed to get String from UTF-8 bytes \(edit.replacement)")
+      return nil
+    }
 
     return TextEdit(
       range: Position(line: startLine, utf16index: startColumn)..<Position(line: endLine, utf16index: endColumn),
-      newText: edit.replacement
+      newText: newText
     )
   }
 }
