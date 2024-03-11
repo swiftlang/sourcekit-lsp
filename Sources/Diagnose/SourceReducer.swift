@@ -91,15 +91,14 @@ fileprivate class SourceReducer {
 
     try await validateRequestInfoReproducesIssue(requestInfo: requestInfo)
 
-    requestInfo = try await fatalErrorFunctionBodies(requestInfo)
+    requestInfo = try await mergeDuplicateTopLevelItems(requestInfo)
+    requestInfo = try await removeTopLevelItems(requestInfo)
+    requestInfo = try await removeFunctionBodies(requestInfo)
     requestInfo = try await removeMembersAndCodeBlockItemsBodies(requestInfo)
     while let importInlined = try await inlineFirstImport(requestInfo) {
       requestInfo = importInlined
-      requestInfo = try await fatalErrorFunctionBodies(requestInfo)
-      // Generated interfaces are huge. Try removing multiple consecutive declarations at once
-      // before going into fine-grained mode
-      requestInfo = try await removeMembersAndCodeBlockItemsBodies(requestInfo, simultaneousRemove: 100)
-      requestInfo = try await removeMembersAndCodeBlockItemsBodies(requestInfo, simultaneousRemove: 10)
+      requestInfo = try await removeTopLevelItems(requestInfo)
+      requestInfo = try await removeFunctionBodies(requestInfo)
       requestInfo = try await removeMembersAndCodeBlockItemsBodies(requestInfo)
     }
 
@@ -122,12 +121,42 @@ fileprivate class SourceReducer {
     }
   }
 
-  /// Replace function bodies by `fatalError()`
-  private func fatalErrorFunctionBodies(_ requestInfo: RequestInfo) async throws -> RequestInfo {
+  /// Remove the bodies of functions by an empty body.
+  private func removeFunctionBodies(_ requestInfo: RequestInfo) async throws -> RequestInfo {
     try await runStatefulReductionStep(
       requestInfo: requestInfo,
-      reducer: ReplaceFunctionBodiesByFatalError()
+      reducer: RemoveFunctionBodies()
     )
+  }
+
+  /// Merge any top level items. These can happen if eg. the frontend reducer merged multiple files into one, resulting
+  /// in duplicate import statements. Merging these is important because `RemoveTopLevelItems` keeps track of nodes
+  /// that have already been visited by node contents and thus fails to remove multiple occurrences of the same import
+  /// statement in one go.
+  private func mergeDuplicateTopLevelItems(_ requestInfo: RequestInfo) async throws -> RequestInfo {
+    let reductionResult = try await runReductionStep(requestInfo: requestInfo, reduce: mergeDuplicateTopLevelItems(in:))
+    switch reductionResult {
+    case .reduced(let reducedRequestInfo):
+      return reducedRequestInfo
+    case .didNotReproduce, .noChange:
+      return requestInfo
+    }
+  }
+
+  /// Removes top level items in the source file.
+  private func removeTopLevelItems(_ requestInfo: RequestInfo) async throws -> RequestInfo {
+    var requestInfo = requestInfo
+
+    // Try removing multiple top-level items at once first. This is useful eg. after inlining a Swift interface or after
+    // merging .swift files. Once that's done, go into a more fine-grained mode.
+    for simultaneousRemove in [100, 10, 1] {
+      let reducedRequestInfo = try await runStatefulReductionStep(
+        requestInfo: requestInfo,
+        reducer: RemoveTopLevelItems(simultaneousRemove: simultaneousRemove)
+      )
+      requestInfo = reducedRequestInfo
+    }
+    return requestInfo
   }
 
   /// Remove members and code block items.
@@ -135,8 +164,7 @@ fileprivate class SourceReducer {
   /// When `simultaneousRemove` is set, this automatically removes `simultaneousRemove` number of adjacent items.
   /// This can significantly speed up the reduction of large files with many top-level items.
   private func removeMembersAndCodeBlockItemsBodies(
-    _ requestInfo: RequestInfo,
-    simultaneousRemove: Int = 1
+    _ requestInfo: RequestInfo
   ) async throws -> RequestInfo {
     var requestInfo = requestInfo
     // Run removal of members and code block items in a loop. Sometimes the removal of a code block item further down in the
@@ -144,7 +172,7 @@ fileprivate class SourceReducer {
     while true {
       let reducedRequestInfo = try await runStatefulReductionStep(
         requestInfo: requestInfo,
-        reducer: RemoveMembersAndCodeBlockItems(simultaneousRemove: simultaneousRemove)
+        reducer: RemoveMembersAndCodeBlockItems()
       )
       if reducedRequestInfo.fileContents == requestInfo.fileContents {
         // No changes were made during reduction. We are done.
@@ -193,12 +221,8 @@ fileprivate class SourceReducer {
 
     let progressPerRemovedImport = Double(1) / Double(initialImportCount + 1)
     let removeImportProgress = Double(initialImportCount - numberOfImports) * progressPerRemovedImport
-    var fileReductionProgress =
+    let fileReductionProgress =
       (1 - Double(fileSize) / Double(fileSizeAfterLastImportInline)) * progressPerRemovedImport
-    if fileReductionProgress < 0 {
-      // Can happen if we replace empty function bodies with fatalError. In this case the file actually grows.
-      fileReductionProgress = 0
-    }
     let progress = removeImportProgress + fileReductionProgress
     precondition(progress >= 0 && progress <= 1)
     progressUpdate(progress, "Reduced to \(numberOfImports) imports and \(fileSize) bytes")
@@ -286,19 +310,16 @@ fileprivate protocol StatefulReducer {
   func reduce(tree: SourceFileSyntax) -> ReducerResult
 }
 
-// MARK: Replace function bodies
+// MARK: Remove function bodies
 
-/// Tries replacing one function body by `fatalError()` at a time.
-fileprivate class ReplaceFunctionBodiesByFatalError: StatefulReducer {
-  /// The function bodies that should not be replaced by `fatalError()`.
+/// Tries removing the contents of function bodies one at a time.
+fileprivate class RemoveFunctionBodies: StatefulReducer {
+  /// The function bodies that should not be removed.
   ///
-  /// When we tried replacing a function body by `fatalError`, it gets added to this list.
+  /// When we tried removing a function, it gets added to this list.
   /// That way, if replacing it did not result in a reduced reproducer, we won't try replacing it again
   /// on the next invocation of `reduce(tree:)`.
-  ///
-  /// `fatalError()` is in here from the start to mark functions that we have replaced by `fatalError()` as done.
-  /// There's no point replacing a `fatalError()` function by `fatalError()` again.
-  var keepFunctionBodies: [String] = ["fatalError()"]
+  var keepFunctionBodies: [String] = []
 
   func reduce(tree: SourceFileSyntax) -> ReducerResult {
     let visitor = Visitor(keepFunctionBodies: keepFunctionBodies)
@@ -328,6 +349,9 @@ fileprivate class ReplaceFunctionBodiesByFatalError: StatefulReducer {
       if !edits.isEmpty {
         return .skipChildren
       }
+      guard node.statements.count > 0 else {
+        return .skipChildren
+      }
       if keepFunctionBodies.contains(node.statements.description.trimmingCharacters(in: .whitespacesAndNewlines)) {
         return .visitChildren
       }
@@ -335,7 +359,7 @@ fileprivate class ReplaceFunctionBodiesByFatalError: StatefulReducer {
       edits.append(
         SourceEdit(
           range: node.statements.position..<node.statements.endPosition,
-          replacement: "\(node.statements.leadingTrivia)fatalError()"
+          replacement: ""
         )
       )
       return .skipChildren
@@ -343,11 +367,14 @@ fileprivate class ReplaceFunctionBodiesByFatalError: StatefulReducer {
   }
 }
 
-// MARK: Remove members and code block items
+// MARK: Remove top level items
 
-/// Tries removing `MemberBlockItemSyntax` and `CodeBlockItemSyntax` one at a time.
-fileprivate class RemoveMembersAndCodeBlockItems: StatefulReducer {
-  /// The code block items / members that shouldn't be removed.
+/// Tries removing top level items in the source file.
+///
+/// If `simultaneousRemove` is set, it tries to remove that many adjacent top-level items at a time to quickly reduce
+/// the source file.
+fileprivate class RemoveTopLevelItems: StatefulReducer {
+  /// The code block items that shouldn't be removed.
   ///
   /// See `ReplaceFunctionBodiesByFatalError.keepFunctionBodies`.
   var keepItems: [String] = []
@@ -359,6 +386,11 @@ fileprivate class RemoveMembersAndCodeBlockItems: StatefulReducer {
   }
 
   func reduce(tree: SourceFileSyntax) -> ReducerResult {
+    if tree.statements.count <= simultaneousRemove {
+      // There are fewer top-level items in the source file than we want to remove. Since removing everything in the
+      // source file is very unlikely to be successful, we are done.
+      return .done
+    }
     let visitor = Visitor(keepMembers: keepItems, maxEdits: simultaneousRemove)
     visitor.walk(tree)
     keepItems = visitor.keepItems
@@ -377,14 +409,64 @@ fileprivate class RemoveMembersAndCodeBlockItems: StatefulReducer {
     }
 
     override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
-      if edits.count >= maxEdits {
+      guard edits.count < maxEdits else {
+        return .skipChildren
+      }
+      return .visitChildren
+    }
+
+    override func visit(_ node: CodeBlockItemSyntax) -> SyntaxVisitorContinueKind {
+      guard node.parent?.parent?.is(SourceFileSyntax.self) ?? false else {
+        return .skipChildren
+      }
+      guard edits.count < maxEdits else {
+        return .skipChildren
+      }
+      if keepItems.contains(node.description.trimmingCharacters(in: .whitespacesAndNewlines)) {
+        return .visitChildren
+      } else {
+        keepItems.append(node.description.trimmingCharacters(in: .whitespacesAndNewlines))
+        edits.append(SourceEdit(range: node.position..<node.endPosition, replacement: ""))
+        return .skipChildren
+      }
+    }
+  }
+}
+
+// MARK: Remove members and code block items
+
+/// Tries removing `MemberBlockItemSyntax` and `CodeBlockItemSyntax` one at a time.
+fileprivate class RemoveMembersAndCodeBlockItems: StatefulReducer {
+  /// The code block items / members that shouldn't be removed.
+  ///
+  /// See `ReplaceFunctionBodiesByFatalError.keepFunctionBodies`.
+  var keepItems: [String] = []
+
+  func reduce(tree: SourceFileSyntax) -> ReducerResult {
+    let visitor = Visitor(keepMembers: keepItems)
+    visitor.walk(tree)
+    keepItems = visitor.keepItems
+    return ReducerResult(doneIfEmpty: visitor.edits)
+  }
+
+  private class Visitor: SyntaxAnyVisitor {
+    var keepItems: [String]
+    var edits: [SourceEdit] = []
+
+    init(keepMembers: [String]) {
+      self.keepItems = keepMembers
+      super.init(viewMode: .sourceAccurate)
+    }
+
+    override func visitAny(_ node: Syntax) -> SyntaxVisitorContinueKind {
+      guard edits.isEmpty else {
         return .skipChildren
       }
       return .visitChildren
     }
 
     override func visit(_ node: MemberBlockItemSyntax) -> SyntaxVisitorContinueKind {
-      if edits.count >= maxEdits {
+      guard edits.isEmpty else {
         return .skipChildren
       }
       if keepItems.contains(node.description.trimmingCharacters(in: .whitespacesAndNewlines)) {
@@ -397,7 +479,7 @@ fileprivate class RemoveMembersAndCodeBlockItems: StatefulReducer {
     }
 
     override func visit(_ node: CodeBlockItemSyntax) -> SyntaxVisitorContinueKind {
-      if edits.count >= maxEdits {
+      guard edits.isEmpty else {
         return .skipChildren
       }
       if keepItems.contains(node.description.trimmingCharacters(in: .whitespacesAndNewlines)) {
@@ -409,6 +491,33 @@ fileprivate class RemoveMembersAndCodeBlockItems: StatefulReducer {
       }
     }
   }
+}
+
+/// For any top-level items in the source file that occur multiple times, only keep the first occurrence.
+fileprivate func mergeDuplicateTopLevelItems(in tree: SourceFileSyntax) -> ReducerResult {
+  class DuplicateTopLevelItemMerger: SyntaxVisitor {
+    var seenItems: Set<String> = []
+    var edits: [SourceEdit] = []
+
+    override func visit(_ node: CodeBlockItemSyntax) -> SyntaxVisitorContinueKind {
+      guard node.parent?.parent?.is(SourceFileSyntax.self) ?? false else {
+        return .skipChildren
+      }
+      if !seenItems.insert(node.trimmedDescription).inserted {
+        edits.append(
+          SourceEdit(
+            range: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia,
+            replacement: ""
+          )
+        )
+      }
+      return .skipChildren
+    }
+  }
+
+  let remover = DuplicateTopLevelItemMerger(viewMode: .sourceAccurate)
+  remover.walk(tree)
+  return .edits(remover.edits)
 }
 
 /// Removes all comments from the source file.
@@ -480,10 +589,17 @@ fileprivate class FirstImportFinder: SyntaxAnyVisitor {
   }
 }
 
+/// Return the generated interface of the given module.
+///
+/// `compilerArgs` are the compiler args used to generate the interface. Initially these are the compiler arguments of
+/// the file that imports the module. If `areFallbackArgs` is set, we have synthesized fallback arguments that only
+/// contain a target and SDK. This is useful when reducing a swift-frontend crash because sourcekitd requires driver
+/// arguments but the swift-frontend crash has frontend args.
 fileprivate func getSwiftInterface(
   _ moduleName: String,
   executor: SourceKitRequestExecutor,
-  compilerArgs: [String]
+  compilerArgs: [String],
+  areFallbackArgs: Bool = false
 ) async throws -> String {
   // We use `RequestInfo` and its template to add the compiler arguments to the request.
   let requestTemplate = """
@@ -503,7 +619,28 @@ fileprivate func getSwiftInterface(
     fileContents: ""
   )
 
-  guard case .success(let result) = try await executor.run(request: requestInfo) else {
+  let result: String
+  switch try await executor.run(request: requestInfo) {
+  case .success(response: let response):
+    result = response
+  case .error where !areFallbackArgs:
+    var fallbackArgs: [String] = []
+    var argsIterator = compilerArgs.makeIterator()
+    while let arg = argsIterator.next() {
+      if arg == "-target" || arg == "-sdk" {
+        fallbackArgs.append(arg)
+        if let value = argsIterator.next() {
+          fallbackArgs.append(value)
+        }
+      }
+    }
+    return try await getSwiftInterface(
+      moduleName,
+      executor: executor,
+      compilerArgs: fallbackArgs,
+      areFallbackArgs: true
+    )
+  default:
     throw ReductionError("Failed to get Swift Interface for \(moduleName)")
   }
 
@@ -551,6 +688,8 @@ fileprivate func inlineFirstImport(
 
 fileprivate extension SourceFileSyntax {
   var numberOfImports: Int {
-    return self.statements.filter { $0.item.is(ImportDeclSyntax.self) }.count
+    // If a module is imported multiple times (eg. because we merged .swift files), only count it once.
+    let importedModules = self.statements.compactMap { $0.item.as(ImportDeclSyntax.self)?.path.trimmedDescription }
+    return Set(importedModules).count
   }
 }
