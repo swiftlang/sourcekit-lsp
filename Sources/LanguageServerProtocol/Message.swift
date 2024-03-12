@@ -26,7 +26,6 @@ public protocol _RequestType: MessageType {
   func _handle(
     _ handler: MessageHandler,
     id: RequestID,
-    connection: Connection,
     reply: @escaping (LSPResult<ResponseType>, RequestID) -> Void
   )
 }
@@ -52,18 +51,17 @@ extension RequestType {
   public func _handle(
     _ handler: MessageHandler,
     id: RequestID,
-    connection: Connection,
     reply: @escaping (LSPResult<ResponseType>, RequestID) -> Void
   ) {
-    handler.handle(self, id: id, from: ObjectIdentifier(connection)) { response in
+    handler.handle(self, id: id) { response in
       reply(response.map({ $0 as ResponseType }), id)
     }
   }
 }
 
 extension NotificationType {
-  public func _handle(_ handler: MessageHandler, connection: Connection) {
-    handler.handle(self, from: ObjectIdentifier(connection))
+  public func _handle(_ handler: MessageHandler) {
+    handler.handle(self)
   }
 }
 

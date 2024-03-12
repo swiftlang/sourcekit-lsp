@@ -106,7 +106,7 @@ public actor TestMessageHandler: MessageHandler {
   }
 
   /// The LSP server sent a notification to the client. Handle it.
-  public nonisolated func handle(_ notification: some NotificationType, from clientID: ObjectIdentifier) {
+  public nonisolated func handle(_ notification: some NotificationType) {
     messageHandlingQueue.async {
       await self.handleNotificationImpl(notification)
     }
@@ -125,7 +125,6 @@ public actor TestMessageHandler: MessageHandler {
   public nonisolated func handle<Request: RequestType>(
     _ request: Request,
     id: RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<Request.Response>) -> Void
   ) {
     reply(.failure(.methodNotFound(Request.method)))
@@ -154,7 +153,7 @@ public final class TestServer: MessageHandler {
     self.client = client
   }
 
-  public func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+  public func handle(_ params: some NotificationType) {
     if params is EchoNotification {
       self.client.send(params)
     } else {
@@ -165,7 +164,6 @@ public final class TestServer: MessageHandler {
   public func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
     if let params = params as? EchoRequest {

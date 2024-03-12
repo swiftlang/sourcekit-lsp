@@ -258,12 +258,11 @@ class ConnectionTests: XCTestCase {
       )
 
       final class DummyHandler: MessageHandler {
-        func handle<N: NotificationType>(_: N, from: ObjectIdentifier) {}
-        func handle<R: RequestType>(
-          _: R,
+        func handle(_: some NotificationType) {}
+        func handle<Request: RequestType>(
+          _ request: Request,
           id: RequestID,
-          from: ObjectIdentifier,
-          reply: @escaping (LSPResult<R.Response>) -> Void
+          reply: @escaping (LSPResult<Request.Response>) -> Void
         ) {}
       }
 

@@ -795,7 +795,7 @@ private func getNextNotificationIDForLogging() -> Int {
 }
 
 extension SourceKitServer: MessageHandler {
-  public nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+  public nonisolated func handle(_ params: some NotificationType) {
     if let params = params as? CancelRequestNotification {
       // Request cancellation needs to be able to overtake any other message we
       // are currently handling. Ordering is not important here. We thus don't
@@ -815,13 +815,13 @@ extension SourceKitServer: MessageHandler {
       // See comment in `withLoggingScope`.
       // The last 2 digits should be sufficient to differentiate between multiple concurrently running notifications.
       await withLoggingScope("notification-\(notificationID % 100)") {
-        await self.handleImpl(params, from: clientID)
+        await self.handleImpl(params)
         signposter.endInterval("Notification", state, "Done")
       }
     }
   }
 
-  private func handleImpl(_ notification: some NotificationType, from clientID: ObjectIdentifier) async {
+  private func handleImpl(_ notification: some NotificationType) async {
     logger.log("Received notification: \(notification.forLogging)")
 
     switch notification {
@@ -852,7 +852,6 @@ extension SourceKitServer: MessageHandler {
   public nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
     let signposter = Logger(subsystem: subsystem, category: "request-\(id)").makeSignposter()
@@ -865,7 +864,7 @@ extension SourceKitServer: MessageHandler {
       // See comment in `withLoggingScope`.
       // The last 2 digits should be sufficient to differentiate between multiple concurrently running requests.
       await withLoggingScope("request-\(id.numericValue % 100)") {
-        await self.handleImpl(params, id: id, from: clientID, reply: reply)
+        await self.handleImpl(params, id: id, reply: reply)
         signposter.endInterval("Request", state, "Done")
       }
       // We have handled the request and can't cancel it anymore.
@@ -885,7 +884,6 @@ extension SourceKitServer: MessageHandler {
   private func handleImpl<R: RequestType>(
     _ params: R,
     id: RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) async {
     let startDate = Date()

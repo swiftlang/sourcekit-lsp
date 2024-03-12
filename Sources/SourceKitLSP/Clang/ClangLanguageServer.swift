@@ -302,7 +302,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// sending a notification that's intended for the editor.
   ///
   /// We should either handle it ourselves or forward it to the editor.
-  nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+  nonisolated func handle(_ params: some NotificationType) {
     logger.info(
       """
       Received notification from clangd:
@@ -328,7 +328,6 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
     logger.info(
