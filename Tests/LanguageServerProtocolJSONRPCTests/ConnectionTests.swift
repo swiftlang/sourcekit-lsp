@@ -90,9 +90,9 @@ class ConnectionTests: XCTestCase {
 
     try await fulfillmentOfOrThrow([expectation2])
 
-    // Close the connection before accessing _requestBuffer, which ensures we don't race.
+    // Close the connection before accessing requestBuffer, which ensures we don't race.
     connection.serverToClientConnection.close()
-    XCTAssertEqual(connection.serverToClientConnection._requestBuffer, [])
+    XCTAssert(connection.serverToClientConnection.requestBufferIsEmpty)
   }
 
   func testEchoError() {

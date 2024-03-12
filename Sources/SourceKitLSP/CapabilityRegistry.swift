@@ -196,7 +196,7 @@ public final actor CapabilityRegistry {
   public func registerDidChangeWatchedFiles(
     watchers: [FileSystemWatcher],
     server: SourceKitServer
-  ) {
+  ) async {
     guard clientHasDynamicDidChangeWatchedFilesRegistration else { return }
     if let registration = didChangeWatchedFiles {
       if watchers != registration.watchers {
@@ -216,11 +216,11 @@ public final actor CapabilityRegistry {
 
     self.didChangeWatchedFiles = registrationOptions
 
-    let _ = server.client.send(RegisterCapabilityRequest(registrations: [registration])) { result in
-      if let error = result.failure {
-        logger.error("Failed to dynamically register for watched files: \(error.forLogging)")
-        self.didChangeWatchedFiles = nil
-      }
+    do {
+      _ = try await server.client.send(RegisterCapabilityRequest(registrations: [registration]))
+    } catch {
+      logger.error("Failed to dynamically register for watched files: \(error.forLogging)")
+      self.didChangeWatchedFiles = nil
     }
   }
 

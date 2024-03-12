@@ -138,21 +138,30 @@ final actor WorkDoneProgressState {
       state = .creating
       // Discard the handle. We don't support cancellation of the creation of a work done progress.
       _ = server.client.send(CreateWorkDoneProgressRequest(token: token)) { result in
-        if result.success != nil {
-          if self.activeTasks == 0 {
-            // ActiveTasks might have been decreased while we created the `WorkDoneProgress`
-            self.state = .noProgress
-            server.client.send(WorkDoneProgress(token: self.token, value: .end(WorkDoneProgressEnd())))
-          } else {
-            self.state = .created
-            server.client.send(
-              WorkDoneProgress(token: self.token, value: .begin(WorkDoneProgressBegin(title: self.title)))
-            )
-          }
-        } else {
-          self.state = .progressCreationFailed
+        Task {
+          await self.handleCreateWorkDoneProgressResponse(result, server: server)
         }
       }
+    }
+  }
+
+  private func handleCreateWorkDoneProgressResponse(
+    _ result: Result<VoidResponse, ResponseError>,
+    server: SourceKitServer
+  ) {
+    if result.success != nil {
+      if self.activeTasks == 0 {
+        // ActiveTasks might have been decreased while we created the `WorkDoneProgress`
+        self.state = .noProgress
+        server.client.send(WorkDoneProgress(token: self.token, value: .end(WorkDoneProgressEnd())))
+      } else {
+        self.state = .created
+        server.client.send(
+          WorkDoneProgress(token: self.token, value: .begin(WorkDoneProgressBegin(title: self.title)))
+        )
+      }
+    } else {
+      self.state = .progressCreationFailed
     }
   }
 

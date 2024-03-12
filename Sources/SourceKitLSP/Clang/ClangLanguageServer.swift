@@ -445,7 +445,7 @@ extension ClangLanguageServerShim {
     await withCheckedContinuation { continuation in
       _ = clangd.send(ShutdownRequest()) { _ in
         Task {
-          self.clangd.send(ExitNotification())
+          await self.clangd.send(ExitNotification())
           continuation.resume()
         }
       }

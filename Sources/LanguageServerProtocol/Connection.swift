@@ -21,12 +21,12 @@ public protocol Connection: AnyObject, Sendable {
   /// Send a request and (asynchronously) receive a reply.
   func send<Request: RequestType>(
     _ request: Request,
-    reply: @escaping (LSPResult<Request.Response>) -> Void
+    reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
   ) -> RequestID
 }
 
 /// An abstract message handler, such as a language server or client.
-public protocol MessageHandler: AnyObject {
+public protocol MessageHandler: AnyObject, Sendable {
 
   /// Handle a notification without a reply.
   ///

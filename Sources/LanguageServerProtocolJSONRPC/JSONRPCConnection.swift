@@ -30,8 +30,8 @@ public final class JSONRPCConnection: Connection {
   /// The message handler that handles requests and notifications sent through this connection.
   ///
   /// Access to this must be be guaranteed to be sequential to avoid data races. Currently, all access are
-  ///  - `init`: Can trivially only be called once
-  ///  - `start`: Is required to be call in the same sequential code region as the initializer, so
+  ///  - `init`: Reference to `JSONRPCConnection` trivially can't have escaped to other isolation domains yet.
+  ///  - `start`: Is required to be call in the same serial code region as the initializer, so
   ///    `JSONRPCConnection` can't have escaped to other isolation domains yet.
   ///  - `deinit`: Can also only trivially be called once.
   nonisolated(unsafe) private var receiveHandler: MessageHandler?
@@ -56,35 +56,54 @@ public final class JSONRPCConnection: Connection {
   /// Current state of the connection, used to ensure correct usage.
   ///
   /// Access to this must be be guaranteed to be sequential to avoid data races. Currently, all access are
-  ///  - `init`: Can trivially only be called once
-  ///  - `start`: Is required to be called in the same sequential region as the initializer, so
+  ///  - `init`: Reference to `JSONRPCConnection` trivially can't have escaped to other isolation domains yet.
+  ///  - `start`: Is required to be called in the same serial region as the initializer, so
   ///    `JSONRPCConnection` can't have escaped to other isolation domains yet.
   ///  - `_close`: Synchronized on `queue`.
   ///  - `readyToSend`: Synchronized on `queue`.
   ///  - `deinit`: Can also only trivially be called once.
-  nonisolated(unsafe) private var state: State
+  private nonisolated(unsafe) var state: State
 
   /// Buffer of received bytes that haven't been parsed.
+  ///
+  /// Access to this must be be guaranteed to be sequential to avoid data races. Currently, all access are
+  ///  - The `receiveIO` handler: This is synchronized on `queue`.
+  ///  - `requestBufferIsEmpty`: Also synchronized on `queue`.
+  private nonisolated(unsafe) var requestBuffer: [UInt8] = []
+
   @_spi(Testing)
-  public var _requestBuffer: [UInt8] = []
-
-  private var _nextRequestID: Int = 0
-
-  struct OutstandingRequest {
-    var responseType: ResponseType.Type
-    var replyHandler: (LSPResult<Any>) -> Void
+  public var requestBufferIsEmpty: Bool {
+    queue.sync {
+      requestBuffer.isEmpty
+    }
   }
 
-  /// The set of currently outstanding outgoing requests along with information about how to decode and handle their responses.
-  private var outstandingRequests: [RequestID: OutstandingRequest] = [:]
+  /// An integer that hasn't been used for a request ID yet.
+  ///
+  /// Access to this must be be guaranteed to be sequential to avoid data races. Currently, all access are
+  ///  - `nextRequestID()`: This is synchronized on `queue`.
+  private nonisolated(unsafe) var nextRequestIDStorage: Int = 0
+
+  struct OutstandingRequest: Sendable {
+    var responseType: ResponseType.Type
+    var replyHandler: @Sendable (LSPResult<Any>) -> Void
+  }
+
+  /// The set of currently outstanding outgoing requests along with information about how to decode and handle their
+  /// responses.
+  ///
+  /// All accesses to `outstandingRequests` must be on `queue` to avoid race conditions.
+  private nonisolated(unsafe) var outstandingRequests: [RequestID: OutstandingRequest] = [:]
 
   /// A handler that will be called asynchronously when the connection is being
   /// closed.
-  private var closeHandler: (() async -> Void)? = nil
+  ///
+  /// There are no race conditions to `closeHandler` because it is only set from `start`, which is required to be called
+  /// in the same serial code region domain as the initializer, so it's serial and the `JSONRPCConnection` can't
+  /// have escaped to other isolation domains yet.
+  private nonisolated(unsafe) var closeHandler: (@Sendable () async -> Void)? = nil
 
-  /// - Important: `start` must be called within the same sequential code region that created the `JSONRPCConnection`.
-  ///   This means that no `await` calls must exist between the creation of the connection and the call to `start` and
-  ///   the `JSONRPCConnection` must not be accessible to any other threads yet.
+  /// - Important: `start` must be called before sending any data over the `JSONRPCConnection`.
   public init(
     name: String,
     protocol messageRegistry: MessageRegistry,
@@ -95,7 +114,8 @@ public final class JSONRPCConnection: Connection {
     self.name = name
     self.receiveHandler = nil
     #if os(Linux) || os(Android)
-    // We receive a `SIGPIPE` if we write to a pipe that points to a crashed process. This in particular happens if the target of a `JSONRPCConnection` has crashed and we try to send it a message.
+    // We receive a `SIGPIPE` if we write to a pipe that points to a crashed process. This in particular happens if the
+    // target of a `JSONRPCConnection` has crashed and we try to send it a message.
     // On Darwin, `DispatchIO` ignores `SIGPIPE` for the pipes handled by it, but that features is not available on Linux.
     // Instead, globally ignore `SIGPIPE` on Linux to prevent us from crashing if the `JSONRPCConnection`'s target crashes.
     globallyDisableSigpipe()
@@ -168,49 +188,49 @@ public final class JSONRPCConnection: Connection {
   ///
   /// - parameter receiveHandler: The message handler to invoke for requests received on the `inFD`.
   ///
-  /// - Important: `start` must be called within the same sequential code region that created the `JSONRPCConnection`.
-  ///   This means that no `await` calls must exist between the creation of the connection and the call to `start` and
-  ///   the `JSONRPCConnection` must not be accessible to any other threads yet.
-  public func start(receiveHandler: MessageHandler, closeHandler: @escaping () async -> Void = {}) {
-    precondition(state == .created)
-    state = .running
-    self.receiveHandler = receiveHandler
-    self.closeHandler = closeHandler
+  /// - Important: `start` must be called before sending any data over the `JSONRPCConnection`.
+  public func start(receiveHandler: MessageHandler, closeHandler: @escaping @Sendable () async -> Void = {}) {
+    queue.sync {
+      precondition(state == .created)
+      state = .running
+      self.receiveHandler = receiveHandler
+      self.closeHandler = closeHandler
 
-    receiveIO.read(offset: 0, length: Int.max, queue: queue) { done, data, errorCode in
-      guard errorCode == 0 else {
-        #if !os(Windows)
-        if errorCode != POSIXError.ECANCELED.rawValue {
-          logger.error("IO error reading \(errorCode)")
+      receiveIO.read(offset: 0, length: Int.max, queue: queue) { done, data, errorCode in
+        guard errorCode == 0 else {
+          #if !os(Windows)
+          if errorCode != POSIXError.ECANCELED.rawValue {
+            logger.error("IO error reading \(errorCode)")
+          }
+          #endif
+          if done { self.closeAssumingOnQueue() }
+          return
         }
-        #endif
-        if done { self.closeOnQueue() }
-        return
-      }
 
-      if done {
-        self.closeOnQueue()
-        return
-      }
-
-      guard let data = data, !data.isEmpty else {
-        return
-      }
-
-      // Parse and handle any messages in `buffer + data`, leaving any remaining unparsed bytes in `buffer`.
-      if self._requestBuffer.isEmpty {
-        data.withUnsafeBytes { (pointer: UnsafePointer<UInt8>) in
-          let rest = self.parseAndHandleMessages(from: UnsafeBufferPointer(start: pointer, count: data.count))
-          self._requestBuffer.append(contentsOf: rest)
+        if done {
+          self.closeAssumingOnQueue()
+          return
         }
-      } else {
-        self._requestBuffer.append(contentsOf: data)
-        var unused = 0
-        self._requestBuffer.withUnsafeBufferPointer { buffer in
-          let rest = self.parseAndHandleMessages(from: buffer)
-          unused = rest.count
+
+        guard let data = data, !data.isEmpty else {
+          return
         }
-        self._requestBuffer.removeFirst(self._requestBuffer.count - unused)
+
+        // Parse and handle any messages in `buffer + data`, leaving any remaining unparsed bytes in `buffer`.
+        if self.requestBuffer.isEmpty {
+          data.withUnsafeBytes { (pointer: UnsafePointer<UInt8>) in
+            let rest = self.parseAndHandleMessages(from: UnsafeBufferPointer(start: pointer, count: data.count))
+            self.requestBuffer.append(contentsOf: rest)
+          }
+        } else {
+          self.requestBuffer.append(contentsOf: data)
+          var unused = 0
+          self.requestBuffer.withUnsafeBufferPointer { buffer in
+            let rest = self.parseAndHandleMessages(from: buffer)
+            unused = rest.count
+          }
+          self.requestBuffer.removeFirst(self.requestBuffer.count - unused)
+        }
       }
     }
   }
@@ -231,7 +251,10 @@ public final class JSONRPCConnection: Connection {
   }
 
   /// Parse and handle all messages in `bytes`, returning a slice containing any remaining incomplete data.
+  ///
+  /// - Important: Must be called on `queue`
   func parseAndHandleMessages(from bytes: UnsafeBufferPointer<UInt8>) -> UnsafeBufferPointer<UInt8>.SubSequence {
+    dispatchPrecondition(condition: .onQueue(queue))
     let decoder = JSONDecoder()
 
     // Set message registry to use for model decoding.
@@ -299,7 +322,10 @@ public final class JSONRPCConnection: Connection {
   }
 
   /// Handle a single message by dispatching it to `receiveHandler` or an appropriate reply handler.
+  ///
+  /// - Important: Must be called on `queue`
   func handle(_ message: JSONRPCMessage) {
+    dispatchPrecondition(condition: .onQueue(queue))
     switch message {
     case .notification(let notification):
       notification._handle(self.receiveHandler!)
@@ -341,11 +367,11 @@ public final class JSONRPCConnection: Connection {
     sendIO.write(offset: 0, data: dispatchData, queue: sendQueue) { [weak self] done, _, errorCode in
       if errorCode != 0 {
         logger.error("IO error sending message \(errorCode)")
-        if done {
+        if done, let self {
           // An unrecoverable error occurs on the channel’s file descriptor.
           // Close the connection.
-          self?.queue.async {
-            self?.closeOnQueue()
+          self.queue.async {
+            self.closeAssumingOnQueue()
           }
         }
       }
@@ -398,13 +424,13 @@ public final class JSONRPCConnection: Connection {
   /// The user-provided close handler will be called *asynchronously* when all outstanding I/O
   /// operations have completed. No new I/O will be accepted after `close` returns.
   public func close() {
-    queue.sync { closeOnQueue() }
+    queue.sync { closeAssumingOnQueue() }
   }
 
   /// Close the connection, assuming that the code is already executing on `queue`.
   ///
   /// - Important: Must be called on `queue`.
-  func closeOnQueue() {
+  private func closeAssumingOnQueue() {
     dispatchPrecondition(condition: .onQueue(queue))
     sendQueue.sync {
       guard state == .running else { return }
@@ -419,9 +445,12 @@ public final class JSONRPCConnection: Connection {
   }
 
   /// Request id for the next outgoing request.
-  func nextRequestID() -> RequestID {
-    _nextRequestID += 1
-    return .number(_nextRequestID)
+  ///
+  /// - Important: Must be called on `queue`
+  private func nextRequestID() -> RequestID {
+    dispatchPrecondition(condition: .onQueue(queue))
+    nextRequestIDStorage += 1
+    return .number(nextRequestIDStorage)
   }
 
   // MARK: Connection interface
@@ -444,7 +473,7 @@ public final class JSONRPCConnection: Connection {
   /// When the receiving end replies to the request, execute `reply` with the response.
   public func send<Request: RequestType>(
     _ request: Request,
-    reply: @escaping (LSPResult<Request.Response>) -> Void
+    reply: @escaping @Sendable (LSPResult<Request.Response>) -> Void
   ) -> RequestID {
     let id: RequestID = self.queue.sync {
       let id = nextRequestID()
