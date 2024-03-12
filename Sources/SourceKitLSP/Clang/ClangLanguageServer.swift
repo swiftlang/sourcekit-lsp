@@ -55,9 +55,9 @@ fileprivate class ClangdStderrLogForwarder {
 /// A thin wrapper over a connection to a clangd server providing build setting handling.
 ///
 /// In addition, it also intercepts notifications and replies from clangd in order to do things
-/// like witholding diagnostics when fallback build settings are being used.
+/// like withholding diagnostics when fallback build settings are being used.
 ///
-/// ``ClangLangaugeServerShim`` conforms to ``MessageHandler`` to receive
+/// ``ClangLanguageServerShim`` conforms to ``MessageHandler`` to receive
 /// requests and notifications **from** clangd, not from the editor, and it will
 /// forward these requests and notifications to the editor.
 actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {

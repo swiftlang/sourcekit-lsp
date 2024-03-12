@@ -112,14 +112,14 @@ public final class TestSourceKitLSPClient: MessageHandler {
     }
     self.notificationYielder = notificationYielder
 
-    let clientConnection = LocalConnection()
-    self.serverToClientConnection = clientConnection
+    let serverToClientConnection = LocalConnection()
+    self.serverToClientConnection = serverToClientConnection
     server = SourceKitServer(
-      client: clientConnection,
+      client: serverToClientConnection,
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: serverOptions,
       onExit: {
-        clientConnection.close()
+        serverToClientConnection.close()
       }
     )
 

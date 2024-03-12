@@ -20,7 +20,7 @@ public protocol Connection: AnyObject, Sendable {
 
   /// Send a request and (asynchronously) receive a reply.
   func send<Request: RequestType>(
-    _: Request,
+    _ request: Request,
     reply: @escaping (LSPResult<Request.Response>) -> Void
   ) -> RequestID
 }
@@ -33,7 +33,7 @@ public protocol MessageHandler: AnyObject {
   /// The method should return as soon as the notification has been sufficiently
   /// handled to avoid out-of-order requests, e.g. once the notification has
   /// been forwarded to clangd.
-  func handle(_ params: some NotificationType)
+  func handle(_ notification: some NotificationType)
 
   /// Handle a request and (asynchronously) receive a reply.
   ///
@@ -62,7 +62,7 @@ public protocol MessageHandler: AnyObject {
 /// ```
 ///
 /// - Note: Unchecked sendable conformance because shared state is guarded by `queue`.
-public final class LocalConnection: @unchecked Sendable {
+public final class LocalConnection: Connection, @unchecked Sendable {
 
   enum State {
     case ready, started, closed
@@ -103,9 +103,7 @@ public final class LocalConnection: @unchecked Sendable {
       return .number(_nextRequestID)
     }
   }
-}
 
-extension LocalConnection: Connection {
   public func send<Notification>(_ notification: Notification) where Notification: NotificationType {
     self.handler?.handle(notification)
   }

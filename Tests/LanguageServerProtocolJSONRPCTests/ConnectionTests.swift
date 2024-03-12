@@ -53,7 +53,7 @@ class ConnectionTests: XCTestCase {
 
   func testMessageBuffer() async throws {
     let client = connection.client
-    let clientConnection = connection.clientConnection
+    let clientConnection = connection.clientToServerConnection
     let expectation = self.expectation(description: "note received")
 
     await client.appendOneShotNotificationHandler { (note: EchoNotification) in
@@ -91,8 +91,8 @@ class ConnectionTests: XCTestCase {
     try await fulfillmentOfOrThrow([expectation2])
 
     // Close the connection before accessing _requestBuffer, which ensures we don't race.
-    connection.serverConnection.close()
-    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
+    connection.serverToClientConnection.close()
+    XCTAssertEqual(connection.serverToClientConnection._requestBuffer, [])
   }
 
   func testEchoError() {
@@ -175,7 +175,7 @@ class ConnectionTests: XCTestCase {
     let expectation = self.expectation(description: "response received")
 
     // response to unknown request
-    connection.clientConnection.sendReply(.success(VoidResponse()), id: .string("unknown"))
+    connection.clientToServerConnection.sendReply(.success(VoidResponse()), id: .string("unknown"))
 
     // Nothing bad should happen; check that the next request works.
 
@@ -193,7 +193,7 @@ class ConnectionTests: XCTestCase {
     let client = connection.client
     let expectation = self.expectation(description: "note received")
 
-    connection.clientConnection.close()
+    connection.clientToServerConnection.close()
 
     client.send(EchoNotification(string: "hi"))
     _ = client.send(EchoRequest(string: "yo")) { result in
@@ -201,10 +201,10 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    connection.clientConnection.sendReply(.success(VoidResponse()), id: .number(1))
+    connection.clientToServerConnection.sendReply(.success(VoidResponse()), id: .number(1))
 
-    connection.clientConnection.close()
-    connection.clientConnection.close()
+    connection.clientToServerConnection.close()
+    connection.clientToServerConnection.close()
 
     waitForExpectations(timeout: defaultTimeout)
   }
@@ -219,7 +219,7 @@ class ConnectionTests: XCTestCase {
     }
 
     server.client.send(EchoNotification(string: "about to close!"))
-    connection.serverConnection.close()
+    connection.serverToClientConnection.close()
 
     try await fulfillmentOfOrThrow([expectation])
   }
@@ -232,8 +232,8 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
     let notification = EchoNotification(string: "about to close!")
-    connection.serverConnection._send(.notification(notification), async: false)
-    connection.serverConnection.close()
+    connection.serverToClientConnection._send(.notification(notification), async: false)
+    connection.serverToClientConnection.close()
 
     try await fulfillmentOfOrThrow([expectation])
   }
