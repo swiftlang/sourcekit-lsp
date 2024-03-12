@@ -59,7 +59,7 @@ public struct InitializeBuild: RequestType, Hashable {
   }
 }
 
-public struct BuildClientCapabilities: Codable, Hashable {
+public struct BuildClientCapabilities: Codable, Hashable, Sendable {
   /// The languages that this client supports.
   /// The ID strings for each language is defined in the LSP.
   /// The server must never respond with build targets for other
@@ -102,7 +102,7 @@ public struct InitializeBuildResult: ResponseType, Hashable {
   }
 }
 
-public struct BuildServerCapabilities: Codable, Hashable {
+public struct BuildServerCapabilities: Codable, Hashable, Sendable {
   /// The languages the server supports compilation via method buildTarget/compile.
   public var compileProvider: CompileProvider? = nil
 
@@ -129,7 +129,7 @@ public struct BuildServerCapabilities: Codable, Hashable {
   public var buildTargetChangedProvider: Bool? = nil
 }
 
-public struct CompileProvider: Codable, Hashable {
+public struct CompileProvider: Codable, Hashable, Sendable {
   public var languageIds: [Language]
 
   public init(languageIds: [Language]) {
@@ -137,7 +137,7 @@ public struct CompileProvider: Codable, Hashable {
   }
 }
 
-public struct RunProvider: Codable, Hashable {
+public struct RunProvider: Codable, Hashable, Sendable {
   public var languageIds: [Language]
 
   public init(languageIds: [Language]) {
@@ -145,7 +145,7 @@ public struct RunProvider: Codable, Hashable {
   }
 }
 
-public struct TestProvider: Codable, Hashable {
+public struct TestProvider: Codable, Hashable, Sendable {
   public var languageIds: [Language]
 
   public init(languageIds: [Language]) {

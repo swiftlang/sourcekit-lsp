@@ -31,7 +31,7 @@ public struct RegisterForChanges: RequestType {
   }
 }
 
-public enum RegisterAction: String, Hashable, Codable {
+public enum RegisterAction: String, Hashable, Codable, Sendable {
   case register = "register"
   case unregister = "unregister"
 }
