@@ -12,7 +12,7 @@
 
 import LSPTestSupport
 import LanguageServerProtocol
-import LanguageServerProtocolJSONRPC
+@_spi(Testing) import LanguageServerProtocolJSONRPC
 import XCTest
 
 #if os(Windows)
@@ -219,20 +219,6 @@ class ConnectionTests: XCTestCase {
     }
 
     server.client.send(EchoNotification(string: "about to close!"))
-    connection.serverToClientConnection.close()
-
-    try await fulfillmentOfOrThrow([expectation])
-  }
-
-  func testSendSynchronouslyBeforeClose() async throws {
-    let client = connection.client
-
-    let expectation = self.expectation(description: "received notification")
-    await client.appendOneShotNotificationHandler { (note: EchoNotification) in
-      expectation.fulfill()
-    }
-    let notification = EchoNotification(string: "about to close!")
-    connection.serverToClientConnection._send(.notification(notification), async: false)
     connection.serverToClientConnection.close()
 
     try await fulfillmentOfOrThrow([expectation])
