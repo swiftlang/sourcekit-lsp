@@ -10,49 +10,50 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPTestSupport
 import SourceKitD
 import TSCBasic
 import XCTest
 
 final class SourceKitDRegistryTests: XCTestCase {
 
-  func testAdd() throws {
+  func testAdd() async throws {
     let registry = SourceKitDRegistry()
 
-    let a = try FakeSourceKitD.getOrCreate(AbsolutePath(validating: "/a"), in: registry)
-    let b = try FakeSourceKitD.getOrCreate(AbsolutePath(validating: "/b"), in: registry)
-    let a2 = try FakeSourceKitD.getOrCreate(AbsolutePath(validating: "/a"), in: registry)
+    let a = try await FakeSourceKitD.getOrCreate(AbsolutePath(validating: "/a"), in: registry)
+    let b = try await FakeSourceKitD.getOrCreate(AbsolutePath(validating: "/b"), in: registry)
+    let a2 = try await FakeSourceKitD.getOrCreate(AbsolutePath(validating: "/a"), in: registry)
 
     XCTAssert(a === a2)
     XCTAssert(a !== b)
   }
 
-  func testRemove() throws {
+  func testRemove() async throws {
     let registry = SourceKitDRegistry()
 
-    let a = FakeSourceKitD.getOrCreate(try AbsolutePath(validating: "/a"), in: registry)
-    XCTAssert(registry.remove(try AbsolutePath(validating: "/a")) === a)
-    XCTAssertNil(registry.remove(try AbsolutePath(validating: "/a")))
+    let a = await FakeSourceKitD.getOrCreate(try AbsolutePath(validating: "/a"), in: registry)
+    await assertTrue(registry.remove(try AbsolutePath(validating: "/a")) === a)
+    await assertNil(registry.remove(try AbsolutePath(validating: "/a")))
   }
 
-  func testRemoveResurrect() throws {
+  func testRemoveResurrect() async throws {
     let registry = SourceKitDRegistry()
 
     @inline(never)
-    func scope(registry: SourceKitDRegistry) throws -> Int {
-      let a = FakeSourceKitD.getOrCreate(try AbsolutePath(validating: "/a"), in: registry)
+    func scope(registry: SourceKitDRegistry) async throws -> Int {
+      let a = await FakeSourceKitD.getOrCreate(try AbsolutePath(validating: "/a"), in: registry)
 
-      XCTAssert(a === FakeSourceKitD.getOrCreate(try AbsolutePath(validating: "/a"), in: registry))
-      XCTAssert(registry.remove(try AbsolutePath(validating: "/a")) === a)
+      await assertTrue(a === FakeSourceKitD.getOrCreate(try AbsolutePath(validating: "/a"), in: registry))
+      await assertTrue(registry.remove(try AbsolutePath(validating: "/a")) === a)
       // Resurrected.
-      XCTAssert(a === FakeSourceKitD.getOrCreate(try AbsolutePath(validating: "/a"), in: registry))
+      await assertTrue(a === FakeSourceKitD.getOrCreate(try AbsolutePath(validating: "/a"), in: registry))
       // Remove again.
-      XCTAssert(registry.remove(try AbsolutePath(validating: "/a")) === a)
+      await assertTrue(registry.remove(try AbsolutePath(validating: "/a")) === a)
       return (a as! FakeSourceKitD).token
     }
 
-    let id = try scope(registry: registry)
-    let a2 = FakeSourceKitD.getOrCreate(try AbsolutePath(validating: "/a"), in: registry)
+    let id = try await scope(registry: registry)
+    let a2 = await FakeSourceKitD.getOrCreate(try AbsolutePath(validating: "/a"), in: registry)
     XCTAssertNotEqual(id, (a2 as! FakeSourceKitD).token)
   }
 }
@@ -72,8 +73,8 @@ final class FakeSourceKitD: SourceKitD {
     nextToken += 1
   }
 
-  static func getOrCreate(_ path: AbsolutePath, in registry: SourceKitDRegistry) -> SourceKitD {
-    return registry.getOrAdd(path, create: { Self.init() })
+  static func getOrCreate(_ path: AbsolutePath, in registry: SourceKitDRegistry) async -> SourceKitD {
+    return await registry.getOrAdd(path, create: { Self.init() })
   }
 
   public func log(request: SKDRequestDictionary) {}

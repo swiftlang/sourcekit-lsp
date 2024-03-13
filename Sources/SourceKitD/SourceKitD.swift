@@ -23,7 +23,7 @@ import SKSupport
 ///
 /// *Implementors* are expected to handle initialization and shutdown, e.g. during `init` and
 /// `deinit` or by wrapping an existing sourcekitd session that outlives this object.
-public protocol SourceKitD: AnyObject {
+public protocol SourceKitD: AnyObject, Sendable {
   /// The sourcekitd API functions.
   var api: sourcekitd_api_functions_t { get }
 
@@ -37,10 +37,10 @@ public protocol SourceKitD: AnyObject {
   var values: sourcekitd_api_values { get }
 
   /// Adds a new notification handler, which will be weakly referenced.
-  func addNotificationHandler(_ handler: SKDNotificationHandler)
+  func addNotificationHandler(_ handler: SKDNotificationHandler) async
 
   /// Removes a previously registered notification handler.
-  func removeNotificationHandler(_ handler: SKDNotificationHandler)
+  func removeNotificationHandler(_ handler: SKDNotificationHandler) async
 
   /// Log the given request.
   ///
@@ -115,6 +115,6 @@ extension SourceKitD {
 }
 
 /// A sourcekitd notification handler in a class to allow it to be uniquely referenced.
-public protocol SKDNotificationHandler: AnyObject {
+public protocol SKDNotificationHandler: AnyObject, Sendable {
   func notification(_: SKDResponse) -> Void
 }
