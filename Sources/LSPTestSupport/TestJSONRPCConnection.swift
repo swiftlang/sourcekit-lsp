@@ -189,7 +189,7 @@ private let testMessageRegistry = MessageRegistry(
   notifications: [EchoNotification.self]
 )
 
-#if swift(<5.11)
+#if compiler(<5.11)
 extension String: ResponseType {}
 #else
 extension String: @retroactive ResponseType {}
