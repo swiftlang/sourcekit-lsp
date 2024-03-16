@@ -90,7 +90,7 @@ def get_build_target(swift_exec: str, args: argparse.Namespace, cross_compile: b
 # Build SourceKit-LSP
 
 
-def get_swiftpm_options(swift_exec: str, args: argparse.Namespace) -> List[str]:
+def get_swiftpm_options(swift_exec: str, args: argparse.Namespace, suppress_verbose: bool = False) -> List[str]:
     swiftpm_args = [
         '--package-path', args.package_path,
         '--scratch-path', args.build_path,
@@ -100,7 +100,7 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace) -> List[str]:
     if args.multiroot_data_file:
         swiftpm_args += ['--multiroot-data-file', args.multiroot_data_file]
 
-    if args.verbose:
+    if args.verbose and not suppress_verbose:
         swiftpm_args += ['--verbose']
 
     if args.sanitize:
@@ -197,7 +197,7 @@ def run_tests(swift_exec: str, args: argparse.Namespace) -> None:
     """
     Run all tests in the package
     """
-    swiftpm_args = get_swiftpm_options(swift_exec, args)
+    swiftpm_args = get_swiftpm_options(swift_exec, args, suppress_verbose=True)
     additional_env = get_swiftpm_environment_variables(swift_exec, args)
     # 'swift test' doesn't print os_log output to the command line. Use the 
     # `NonDarwinLogger` that prints to stderr so we can view the log output in CI test 
