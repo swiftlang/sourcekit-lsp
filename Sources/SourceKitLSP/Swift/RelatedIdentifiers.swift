@@ -59,7 +59,7 @@ struct RelatedIdentifiersResponse {
   let name: String?
 }
 
-extension SwiftLanguageServer {
+extension SwiftLanguageService {
   func relatedIdentifiers(
     at position: Position,
     in snapshot: DocumentSnapshot,

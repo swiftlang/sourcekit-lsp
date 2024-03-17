@@ -60,8 +60,11 @@ public struct RenameLocation {
   let usage: Usage
 }
 
-/// A `LanguageServer` that exists within the context of the current process.
-public protocol ToolchainLanguageServer: AnyObject {
+/// Provides language specific functionality to sourcekit-lsp from a specific toolchain.
+///
+/// For example, we may have a language service that provides semantic functionality for c-family using a clangd server,
+/// launched from a specific toolchain or from sourcekitd.
+public protocol LanguageService: AnyObject {
 
   // MARK: - Creation
 

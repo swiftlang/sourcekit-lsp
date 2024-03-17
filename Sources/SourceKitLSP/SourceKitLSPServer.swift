@@ -56,13 +56,13 @@ enum LanguageServerType: Hashable {
     }
   }
 
-  /// The `ToolchainLanguageServer` class used to provide functionality for this language class.
-  var serverType: ToolchainLanguageServer.Type {
+  /// The `LanguageService` class used to provide functionality for this language class.
+  var serverType: LanguageService.Type {
     switch self {
     case .clangd:
-      return ClangLanguageServerShim.self
+      return ClangLanguageService.self
     case .swift:
-      return SwiftLanguageServer.self
+      return SwiftLanguageService.self
     }
   }
 }
@@ -417,7 +417,7 @@ public actor SourceKitLSPServer {
 
   var capabilityRegistry: CapabilityRegistry?
 
-  var languageServices: [LanguageServerType: [ToolchainLanguageServer]] = [:]
+  var languageServices: [LanguageServerType: [LanguageService]] = [:]
 
   let documentManager = DocumentManager()
 
@@ -571,7 +571,7 @@ public actor SourceKitLSPServer {
   /// and language that handle this document.
   private func withLanguageServiceAndWorkspace<NotificationType: TextDocumentNotification>(
     for notification: NotificationType,
-    notificationHandler: @escaping (NotificationType, ToolchainLanguageServer) async -> Void
+    notificationHandler: @escaping (NotificationType, LanguageService) async -> Void
   ) async {
     let doc = notification.textDocument.uri
     guard let workspace = await self.workspaceForDocument(uri: doc) else {
@@ -589,7 +589,8 @@ public actor SourceKitLSPServer {
 
   private func handleRequest<RequestType: TextDocumentRequest>(
     for request: RequestAndReply<RequestType>,
-    requestHandler: @escaping (RequestType, Workspace, ToolchainLanguageServer) async throws -> RequestType.Response
+    requestHandler: @escaping (RequestType, Workspace, LanguageService) async throws ->
+      RequestType.Response
   ) async {
     await request.reply {
       let request = request.params
@@ -642,7 +643,7 @@ public actor SourceKitLSPServer {
   }
 
   /// After the language service has crashed, send `DidOpenTextDocumentNotification`s to a newly instantiated language service for previously open documents.
-  func reopenDocuments(for languageService: ToolchainLanguageServer) async {
+  func reopenDocuments(for languageService: LanguageService) async {
     for documentUri in self.documentManager.openDocuments {
       guard let workspace = await self.workspaceForDocument(uri: documentUri) else {
         continue
@@ -674,7 +675,7 @@ public actor SourceKitLSPServer {
   private func existingLanguageService(
     _ serverType: LanguageServerType,
     workspace: Workspace
-  ) -> ToolchainLanguageServer? {
+  ) -> LanguageService? {
     for languageService in languageServices[serverType, default: []] {
       if languageService.canHandle(workspace: workspace) {
         return languageService
@@ -687,7 +688,7 @@ public actor SourceKitLSPServer {
     for toolchain: Toolchain,
     _ language: Language,
     in workspace: Workspace
-  ) async -> ToolchainLanguageServer? {
+  ) async -> LanguageService? {
     guard let serverType = LanguageServerType(language: language) else {
       return nil
     }
@@ -764,7 +765,7 @@ public actor SourceKitLSPServer {
     for uri: DocumentURI,
     _ language: Language,
     in workspace: Workspace
-  ) async -> ToolchainLanguageServer? {
+  ) async -> LanguageService? {
     return await languageService(for: uri, language, in: workspace)
   }
 
@@ -772,7 +773,7 @@ public actor SourceKitLSPServer {
     for uri: DocumentURI,
     _ language: Language,
     in workspace: Workspace
-  ) async -> ToolchainLanguageServer? {
+  ) async -> LanguageService? {
     if let service = workspace.documentService[uri] {
       return service
     }
@@ -1327,7 +1328,7 @@ extension SourceKitLSPServer {
     languages: [Language],
     registry: CapabilityRegistry
   ) async {
-    // IMPORTANT: When adding new capabilities here, also add the value of that capability in `SwiftLanguageServer`
+    // IMPORTANT: When adding new capabilities here, also add the value of that capability in `SwiftLanguageService`
     // to SourceKitLSPServer.serverCapabilities. That way the capabilities get registered for all languages in case the
     // client does not support dynamic capability registration.
 
@@ -1524,14 +1525,14 @@ extension SourceKitLSPServer {
 
   func willSaveDocument(
     _ notification: WillSaveTextDocumentNotification,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async {
     await languageService.willSaveDocument(notification)
   }
 
   func didSaveDocument(
     _ note: DidSaveTextDocumentNotification,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async {
     await languageService.didSaveDocument(note)
   }
@@ -1617,7 +1618,7 @@ extension SourceKitLSPServer {
   func completion(
     _ req: CompletionRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> CompletionList {
     return try await languageService.completion(req)
   }
@@ -1625,7 +1626,7 @@ extension SourceKitLSPServer {
   func hover(
     _ req: HoverRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> HoverResponse? {
     return try await languageService.hover(req)
   }
@@ -1633,7 +1634,7 @@ extension SourceKitLSPServer {
   func openInterface(
     _ req: OpenInterfaceRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> InterfaceDetails? {
     return try await languageService.openInterface(req)
   }
@@ -1682,7 +1683,7 @@ extension SourceKitLSPServer {
   func symbolInfo(
     _ req: SymbolInfoRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [SymbolDetails] {
     return try await languageService.symbolInfo(req)
   }
@@ -1690,7 +1691,7 @@ extension SourceKitLSPServer {
   func documentSymbolHighlight(
     _ req: DocumentHighlightRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [DocumentHighlight]? {
     return try await languageService.documentSymbolHighlight(req)
   }
@@ -1698,7 +1699,7 @@ extension SourceKitLSPServer {
   func foldingRange(
     _ req: FoldingRangeRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [FoldingRange]? {
     return try await languageService.foldingRange(req)
   }
@@ -1706,7 +1707,7 @@ extension SourceKitLSPServer {
   func documentSymbol(
     _ req: DocumentSymbolRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> DocumentSymbolResponse? {
     return try await languageService.documentSymbol(req)
   }
@@ -1714,7 +1715,7 @@ extension SourceKitLSPServer {
   func documentColor(
     _ req: DocumentColorRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [ColorInformation] {
     return try await languageService.documentColor(req)
   }
@@ -1722,7 +1723,7 @@ extension SourceKitLSPServer {
   func documentSemanticTokens(
     _ req: DocumentSemanticTokensRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> DocumentSemanticTokensResponse? {
     return try await languageService.documentSemanticTokens(req)
   }
@@ -1730,7 +1731,7 @@ extension SourceKitLSPServer {
   func documentSemanticTokensDelta(
     _ req: DocumentSemanticTokensDeltaRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> DocumentSemanticTokensDeltaResponse? {
     return try await languageService.documentSemanticTokensDelta(req)
   }
@@ -1738,7 +1739,7 @@ extension SourceKitLSPServer {
   func documentSemanticTokensRange(
     _ req: DocumentSemanticTokensRangeRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> DocumentSemanticTokensResponse? {
     return try await languageService.documentSemanticTokensRange(req)
   }
@@ -1746,7 +1747,7 @@ extension SourceKitLSPServer {
   func documentFormatting(
     _ req: DocumentFormattingRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [TextEdit]? {
     return try await languageService.documentFormatting(req)
   }
@@ -1754,7 +1755,7 @@ extension SourceKitLSPServer {
   func colorPresentation(
     _ req: ColorPresentationRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [ColorPresentation] {
     return try await languageService.colorPresentation(req)
   }
@@ -1781,7 +1782,7 @@ extension SourceKitLSPServer {
   func codeAction(
     _ req: CodeActionRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> CodeActionRequestResponse? {
     let response = try await languageService.codeAction(req)
     return req.injectMetadata(toResponse: response)
@@ -1790,7 +1791,7 @@ extension SourceKitLSPServer {
   func inlayHint(
     _ req: InlayHintRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [InlayHint] {
     return try await languageService.inlayHint(req)
   }
@@ -1798,7 +1799,7 @@ extension SourceKitLSPServer {
   func documentDiagnostic(
     _ req: DocumentDiagnosticsRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> DocumentDiagnosticReport {
     return try await languageService.documentDiagnostic(req)
   }
@@ -1826,7 +1827,7 @@ extension SourceKitLSPServer {
   func declaration(
     _ req: DeclarationRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> LocationsOrLocationLinksResponse? {
     return try await languageService.declaration(req)
   }
@@ -1835,7 +1836,7 @@ extension SourceKitLSPServer {
   private func definitionLocations(
     for symbol: SymbolDetails,
     in uri: DocumentURI,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [Location] {
     // If this symbol is a module then generate a textual interface
     if symbol.kind == .module, let name = symbol.name {
@@ -1913,7 +1914,7 @@ extension SourceKitLSPServer {
   private func indexBasedDefinition(
     _ req: DefinitionRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [Location] {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
@@ -1943,15 +1944,15 @@ extension SourceKitLSPServer {
   func definition(
     _ req: DefinitionRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> LocationsOrLocationLinksResponse? {
     let indexBasedResponse = try await indexBasedDefinition(req, workspace: workspace, languageService: languageService)
     // If we're unable to handle the definition request using our index, see if the
     // language service can handle it (e.g. clangd can provide AST based definitions).
     // We are on only calling the language service's `definition` function if your index-based lookup failed.
-    // If this fallback request fails, its error is usually not very enlightening. For example the `SwiftLanguageServer`
-    // will always respond with `unsupported method`. Thus, only log such a failure instead of returning it to the
-    // client.
+    // If this fallback request fails, its error is usually not very enlightening. For example the
+    // `SwiftLanguageService` will always respond with `unsupported method`. Thus, only log such a failure instead of
+    // returning it to the client.
     if indexBasedResponse.isEmpty {
       return await orLog("Fallback definition request") {
         return try await languageService.definition(req)
@@ -1969,7 +1970,7 @@ extension SourceKitLSPServer {
     moduleName: String,
     symbolUSR: String?,
     originatorUri: DocumentURI,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> Location {
     let openInterface = OpenInterfaceRequest(
       textDocument: TextDocumentIdentifier(originatorUri),
@@ -1987,7 +1988,7 @@ extension SourceKitLSPServer {
   func implementation(
     _ req: ImplementationRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> LocationsOrLocationLinksResponse? {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
@@ -2013,7 +2014,7 @@ extension SourceKitLSPServer {
   func references(
     _ req: ReferencesRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [Location] {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
@@ -2060,7 +2061,7 @@ extension SourceKitLSPServer {
   func prepareCallHierarchy(
     _ req: CallHierarchyPrepareRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [CallHierarchyItem]? {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
@@ -2234,7 +2235,7 @@ extension SourceKitLSPServer {
   func prepareTypeHierarchy(
     _ req: TypeHierarchyPrepareRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [TypeHierarchyItem]? {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(

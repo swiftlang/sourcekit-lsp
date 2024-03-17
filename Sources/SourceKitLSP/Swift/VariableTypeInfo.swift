@@ -76,7 +76,7 @@ struct VariableTypeInfo {
   }
 }
 
-extension SwiftLanguageServer {
+extension SwiftLanguageService {
   /// Provides typed variable declarations in a document.
   ///
   /// - Parameters:

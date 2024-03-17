@@ -66,7 +66,7 @@ public final class Workspace {
   private let documentManager: DocumentManager
 
   /// Language service for an open document, if available.
-  var documentService: [DocumentURI: ToolchainLanguageServer] = [:]
+  var documentService: [DocumentURI: LanguageService] = [:]
 
   public init(
     documentManager: DocumentManager,

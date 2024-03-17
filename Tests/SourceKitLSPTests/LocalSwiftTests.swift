@@ -1371,10 +1371,10 @@ final class LocalSwiftTests: XCTestCase {
 
     let reusedNodeCallback = self.expectation(description: "reused node callback called")
     var reusedNodes: [Syntax] = []
-    let swiftLanguageServer =
+    let swiftLanguageService =
       await testClient.server._languageService(for: uri, .swift, in: testClient.server.workspaceForDocument(uri: uri)!)
-      as! SwiftLanguageServer
-    await swiftLanguageServer.setReusedNodeCallback {
+      as! SwiftLanguageService
+    await swiftLanguageService.setReusedNodeCallback {
       reusedNodes.append($0)
       reusedNodeCallback.fulfill()
     }

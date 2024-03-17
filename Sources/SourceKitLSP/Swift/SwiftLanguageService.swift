@@ -90,8 +90,8 @@ public struct SwiftCompileCommand: Equatable {
   }
 }
 
-public actor SwiftLanguageServer: ToolchainLanguageServer {
-  /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageServerShim`.
+public actor SwiftLanguageService: LanguageService {
+  /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageService`.
   weak var sourceKitServer: SourceKitLSPServer?
 
   let sourcekitd: SourceKitD
@@ -169,7 +169,8 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   }
 
   /// Creates a language server for the given client using the sourcekitd dylib specified in `toolchain`.
-  /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageServer` asks its parent server to reopen all of its documents.
+  /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageService` asks its
+  /// parent server to reopen all of its documents.
   /// Returns `nil` if `sourcekitd` couldn't be found.
   public init?(
     sourceKitServer: SourceKitLSPServer,
@@ -231,7 +232,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   }
 }
 
-extension SwiftLanguageServer {
+extension SwiftLanguageService {
 
   public func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
     await sourcekitd.addNotificationHandler(self)
@@ -549,7 +550,6 @@ extension SwiftLanguageServer {
 
   // MARK: - Language features
 
-  /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
   public func definition(_ request: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
     throw ResponseError.unknown("unsupported method")
   }
@@ -885,7 +885,7 @@ extension SwiftLanguageServer {
   }
 }
 
-extension SwiftLanguageServer: SKDNotificationHandler {
+extension SwiftLanguageService: SKDNotificationHandler {
   public nonisolated func notification(_ notification: SKDResponse) {
     sourcekitdNotificationHandlingQueue.async {
       await self.notificationImpl(notification)

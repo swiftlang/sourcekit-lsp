@@ -60,7 +60,7 @@ fileprivate class ClangdStderrLogForwarder {
 /// ``ClangLanguageServerShim`` conforms to ``MessageHandler`` to receive
 /// requests and notifications **from** clangd, not from the editor, and it will
 /// forward these requests and notifications to the editor.
-actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
+actor ClangLanguageService: LanguageService, MessageHandler {
   /// The queue on which all messages that originate from clangd are handled.
   ///
   /// These are requests and notifications sent *from* clangd, not replies from
@@ -71,7 +71,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// requests and notifications sent from clangd to the client is quite small.
   public let clangdMessageHandlingQueue = AsyncQueue<Serial>()
 
-  /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageServerShim`.
+  /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageService`.
   ///
   /// Used to send requests and notifications to the editor.
   private weak var sourceKitServer: SourceKitLSPServer?
@@ -191,7 +191,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     }
   }
 
-  /// Start the `clangd` process, either on creation of the `ClangLanguageServerShim` or after `clangd` has crashed.
+  /// Start the `clangd` process, either on creation of the `ClangLanguageService` or after `clangd` has crashed.
   private func startClangdProcess() throws {
     // Since we are starting a new clangd process, reset the list of open document
     openDocuments = [:]
@@ -387,7 +387,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
 
 // MARK: - LanguageServer
 
-extension ClangLanguageServerShim {
+extension ClangLanguageService {
 
   /// Intercept clangd's `PublishDiagnosticsNotification` to withold it if we're using fallback
   /// build settings.
@@ -424,9 +424,9 @@ extension ClangLanguageServerShim {
 
 }
 
-// MARK: - ToolchainLanguageServer
+// MARK: - LanguageService
 
-extension ClangLanguageServerShim {
+extension ClangLanguageService {
 
   func initialize(_ initialize: InitializeRequest) async throws -> InitializeResult {
     // Store the initialize request so we can replay it in case clangd crashes
@@ -521,7 +521,6 @@ extension ClangLanguageServerShim {
 
   // MARK: - Text Document
 
-  /// Returns true if the `ToolchainLanguageServer` will take ownership of the request.
   public func definition(_ req: DefinitionRequest) async throws -> LocationsOrLocationLinksResponse? {
     // We handle it to provide jump-to-header support for #import/#include.
     return try await self.forwardRequestToClangd(req)

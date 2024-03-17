@@ -42,8 +42,8 @@ extension SourceKitLSPServer {
     /// Override the default directory where generated interfaces will be stored
     public var generatedInterfacesPath: AbsolutePath
 
-    /// The time that `SwiftLanguageServer` should wait after an edit before starting to compute diagnostics and sending
-    /// a `PublishDiagnosticsNotification`.
+    /// The time that `SwiftLanguageService` should wait after an edit before starting to compute diagnostics and
+    /// sending a `PublishDiagnosticsNotification`.
     ///
     /// This is mostly intended for testing purposes so we don't need to wait the debouncing time to get a diagnostics
     /// notification when running unit tests.

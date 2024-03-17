@@ -81,14 +81,14 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Crash sourcekitd
 
-    let sourcekitdServer =
+    let swiftLanguageService =
       await testClient.server._languageService(
         for: uri,
         .swift,
         in: testClient.server.workspaceForDocument(uri: uri)!
-      ) as! SwiftLanguageServer
+      ) as! SwiftLanguageService
 
-    await sourcekitdServer._crash()
+    await swiftLanguageService._crash()
 
     let crashedNotification = try await testClient.nextNotification(ofType: WorkDoneProgress.self, timeout: 5)
     XCTAssertEqual(

@@ -46,7 +46,7 @@ extension SourceKitLSPServer {
   func documentTests(
     _ req: DocumentTestsRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [WorkspaceSymbolItem]? {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
     let mainFileUri = await workspace.buildSystemManager.mainFile(
