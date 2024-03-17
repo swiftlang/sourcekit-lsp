@@ -52,8 +52,10 @@ public protocol BuildSystem: AnyObject {
   /// Path remappings for remapping index data for local use.
   var indexPrefixMappings: [PathPrefixMapping] { get async }
 
-  /// Delegate to handle any build system events such as file build settings
-  /// initial reports as well as changes.
+  /// Delegate to handle any build system events such as file build settings initial reports as well as changes.
+  ///
+  /// The build system must not retain the delegate because the delegate can be the `BuildSystemManager`, which could
+  /// result in a retain cycle `BuildSystemManager` -> `BuildSystem` -> `BuildSystemManager`.
   var delegate: BuildSystemDelegate? { get async }
 
   /// Set the build system's delegate.
