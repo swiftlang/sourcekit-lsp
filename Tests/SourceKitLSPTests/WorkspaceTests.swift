@@ -40,7 +40,7 @@ final class WorkspaceTests: XCTestCase {
       )
       """
 
-    let ws = try await MultiFileTestProject(
+    let project = try await MultiFileTestProject(
       files: [
         // PackageA
         "PackageA/Sources/MyLibrary/libA.swift": """
@@ -79,12 +79,12 @@ final class WorkspaceTests: XCTestCase {
       }
     )
 
-    try await SwiftPMTestProject.build(at: ws.scratchDirectory.appendingPathComponent("PackageA"))
-    try await SwiftPMTestProject.build(at: ws.scratchDirectory.appendingPathComponent("PackageB"))
+    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageA"))
+    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageB"))
 
-    let (bUri, bPositions) = try ws.openDocument("execB.swift")
+    let (bUri, bPositions) = try project.openDocument("execB.swift")
 
-    let completions = try await ws.testClient.send(
+    let completions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(bUri), position: bPositions["2️⃣"])
     )
 
@@ -120,9 +120,9 @@ final class WorkspaceTests: XCTestCase {
       ]
     )
 
-    let (aUri, aPositions) = try ws.openDocument("execA.swift")
+    let (aUri, aPositions) = try project.openDocument("execA.swift")
 
-    let otherCompletions = try await ws.testClient.send(
+    let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(aUri), position: aPositions["1️⃣"])
     )
 
@@ -178,7 +178,7 @@ final class WorkspaceTests: XCTestCase {
       )
       """
 
-    let ws = try await MultiFileTestProject(
+    let project = try await MultiFileTestProject(
       files: [
         // PackageA
         "PackageA/Sources/MyLibrary/libA.swift": """
@@ -197,11 +197,11 @@ final class WorkspaceTests: XCTestCase {
         "PackageA/Package.swift": packageManifest,
       ]
     )
-    try await SwiftPMTestProject.build(at: ws.scratchDirectory.appendingPathComponent("PackageA"))
+    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageA"))
 
-    let (uri, positions) = try ws.openDocument("execA.swift")
+    let (uri, positions) = try project.openDocument("execA.swift")
 
-    let otherCompletions = try await ws.testClient.send(
+    let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
 
@@ -258,7 +258,7 @@ final class WorkspaceTests: XCTestCase {
       )
       """
 
-    let ws = try await MultiFileTestProject(
+    let project = try await MultiFileTestProject(
       files: [
         // PackageA
         "PackageA/Sources/MyLibrary/libA.swift": """
@@ -291,12 +291,12 @@ final class WorkspaceTests: XCTestCase {
       ]
     )
 
-    try await SwiftPMTestProject.build(at: ws.scratchDirectory.appendingPathComponent("PackageA"))
-    try await SwiftPMTestProject.build(at: ws.scratchDirectory)
+    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("PackageA"))
+    try await SwiftPMTestProject.build(at: project.scratchDirectory)
 
-    let (bUri, bPositions) = try ws.openDocument("execB.swift")
+    let (bUri, bPositions) = try project.openDocument("execB.swift")
 
-    let completions = try await ws.testClient.send(
+    let completions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(bUri), position: bPositions["2️⃣"])
     )
 
@@ -332,9 +332,9 @@ final class WorkspaceTests: XCTestCase {
       ]
     )
 
-    let (aUri, aPositions) = try ws.openDocument("execA.swift")
+    let (aUri, aPositions) = try project.openDocument("execA.swift")
 
-    let otherCompletions = try await ws.testClient.send(
+    let otherCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(aUri), position: aPositions["1️⃣"])
     )
 
@@ -374,7 +374,7 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testMultipleClangdWorkspaces() async throws {
-    let ws = try await MultiFileTestProject(
+    let project = try await MultiFileTestProject(
       files: [
         "WorkspaceA/main.cpp": """
         #if FOO
@@ -401,18 +401,18 @@ final class WorkspaceTests: XCTestCase {
       usePullDiagnostics: false
     )
 
-    _ = try ws.openDocument("test.m")
+    _ = try project.openDocument("test.m")
 
-    let diags = try await ws.testClient.nextDiagnosticsNotification()
+    let diags = try await project.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 0)
 
-    let (mainUri, positions) = try ws.openDocument("main.cpp")
+    let (mainUri, positions) = try project.openDocument("main.cpp")
 
     let highlightRequest = DocumentHighlightRequest(
       textDocument: TextDocumentIdentifier(mainUri),
       position: positions["3️⃣"]
     )
-    let highlightResponse = try await ws.testClient.send(highlightRequest)
+    let highlightResponse = try await project.testClient.send(highlightRequest)
     XCTAssertEqual(
       highlightResponse,
       [
@@ -423,7 +423,7 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testRecomputeFileWorkspaceMembershipOnPackageSwiftChange() async throws {
-    let ws = try await MultiFileTestProject(
+    let project = try await MultiFileTestProject(
       files: [
         "PackageA/Sources/MyLibrary/libA.swift": "",
         "PackageA/Package.swift": SwiftPMTestProject.defaultPackageManifest,
@@ -449,13 +449,13 @@ final class WorkspaceTests: XCTestCase {
       }
     )
 
-    let (mainUri, _) = try ws.openDocument("main.swift")
+    let (mainUri, _) = try project.openDocument("main.swift")
 
     // We open PackageA first. Thus, MyExec/main (which is a file in PackageB that hasn't been added to Package.swift
     // yet) will belong to PackageA by default (because it provides fallback build settings for it).
     assertEqual(
-      await ws.testClient.server.workspaceForDocument(uri: mainUri)?.rootUri,
-      DocumentURI(ws.scratchDirectory.appendingPathComponent("PackageA"))
+      await project.testClient.server.workspaceForDocument(uri: mainUri)?.rootUri,
+      DocumentURI(project.scratchDirectory.appendingPathComponent("PackageA"))
     )
 
     // Add the MyExec target to PackageB/Package.swift
@@ -473,7 +473,7 @@ final class WorkspaceTests: XCTestCase {
       )
       """
 
-    let packageBManifestPath = ws.scratchDirectory
+    let packageBManifestPath = project.scratchDirectory
       .appendingPathComponent("PackageB")
       .appendingPathComponent("Package.swift")
     try newPackageManifest.write(
@@ -482,14 +482,14 @@ final class WorkspaceTests: XCTestCase {
       encoding: .utf8
     )
 
-    ws.testClient.send(
+    project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: DocumentURI(packageBManifestPath), type: .changed)
       ])
     )
 
     // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
-    _ = try await ws.testClient.send(BarrierRequest())
+    _ = try await project.testClient.send(BarrierRequest())
 
     // After updating PackageB/Package.swift, PackageB can provide proper build settings for MyExec/main.swift and
     // thus workspace membership should switch to PackageB.
@@ -498,9 +498,9 @@ final class WorkspaceTests: XCTestCase {
     var didReceiveCorrectWorkspaceMembership = false
 
     // Updating the build settings takes a few seconds. Send code completion requests every second until we receive correct results.
-    let packageBRootUri = DocumentURI(ws.scratchDirectory.appendingPathComponent("PackageB"))
+    let packageBRootUri = DocumentURI(project.scratchDirectory.appendingPathComponent("PackageB"))
     for _ in 0..<30 {
-      let workspace = await ws.testClient.server.workspaceForDocument(uri: mainUri)
+      let workspace = await project.testClient.server.workspaceForDocument(uri: mainUri)
       if workspace?.rootUri == packageBRootUri {
         didReceiveCorrectWorkspaceMembership = true
         break
@@ -513,7 +513,7 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testMixedPackage() async throws {
-    let ws = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "clib/include/clib.h": """
         #ifndef CLIB_H
@@ -552,15 +552,15 @@ final class WorkspaceTests: XCTestCase {
         """
     )
 
-    let (swiftUri, swiftPositions) = try ws.openDocument("lib.swift")
-    let (cUri, cPositions) = try ws.openDocument("clib.c")
+    let (swiftUri, swiftPositions) = try project.openDocument("lib.swift")
+    let (cUri, cPositions) = try project.openDocument("clib.c")
 
-    let cCompletions = try await ws.testClient.send(
+    let cCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(cUri), position: cPositions["1️⃣"])
     )
     XCTAssertGreaterThanOrEqual(cCompletions.items.count, 0)
 
-    let swiftCompletions = try await ws.testClient.send(
+    let swiftCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(swiftUri), position: swiftPositions["2️⃣"])
     )
     XCTAssertGreaterThanOrEqual(swiftCompletions.items.count, 0)
@@ -569,7 +569,7 @@ final class WorkspaceTests: XCTestCase {
   func testChangeWorkspaceFolders() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
 
-    let ws = try await MultiFileTestProject(
+    let project = try await MultiFileTestProject(
       files: [
         "subdir/Sources/otherPackage/otherPackage.swift": """
         import package
@@ -618,7 +618,7 @@ final class WorkspaceTests: XCTestCase {
       }
     )
 
-    let packageDir = try ws.uri(for: "Package.swift").fileURL!.deletingLastPathComponent()
+    let packageDir = try project.uri(for: "Package.swift").fileURL!.deletingLastPathComponent()
 
     try await TSCBasic.Process.checkNonZeroExit(arguments: [
       ToolchainRegistry.forTesting.default!.swift!.pathString,
@@ -628,10 +628,10 @@ final class WorkspaceTests: XCTestCase {
       "-Xcc", "-index-ignore-system-symbols",
     ])
 
-    let (otherPackageUri, positions) = try ws.openDocument("otherPackage.swift")
+    let (otherPackageUri, positions) = try project.openDocument("otherPackage.swift")
     let testPosition = positions["1️⃣"]
 
-    let preChangeWorkspaceResponse = try await ws.testClient.send(
+    let preChangeWorkspaceResponse = try await project.testClient.send(
       CompletionRequest(
         textDocument: TextDocumentIdentifier(otherPackageUri),
         position: testPosition
@@ -644,7 +644,7 @@ final class WorkspaceTests: XCTestCase {
       "Should not receive cross-module code completion results when opening an unrelated directory as workspace root"
     )
 
-    ws.testClient.send(
+    project.testClient.send(
       DidChangeWorkspaceFoldersNotification(
         event: WorkspaceFoldersChangeEvent(added: [
           WorkspaceFolder(uri: DocumentURI(packageDir))
@@ -652,7 +652,7 @@ final class WorkspaceTests: XCTestCase {
       )
     )
 
-    let postChangeWorkspaceResponse = try await ws.testClient.send(
+    let postChangeWorkspaceResponse = try await project.testClient.send(
       CompletionRequest(
         textDocument: TextDocumentIdentifier(otherPackageUri),
         position: testPosition
@@ -701,7 +701,7 @@ final class WorkspaceTests: XCTestCase {
   }
 
   public func testWorkspaceSpecificBuildSettings() async throws {
-    let ws = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "test.swift": """
         #if MY_FLAG
@@ -726,9 +726,9 @@ final class WorkspaceTests: XCTestCase {
       }
     )
 
-    _ = try ws.openDocument("test.swift")
-    let report = try await ws.testClient.send(
-      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(ws.uri(for: "test.swift")))
+    _ = try project.openDocument("test.swift")
+    let report = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(project.uri(for: "test.swift")))
     )
     guard case .full(let fullReport) = report else {
       XCTFail("Expected full diagnostics report")
@@ -744,7 +744,7 @@ final class WorkspaceTests: XCTestCase {
 
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
 
-    let ws = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "Sources/clib/include/clib.h": """
         #ifndef CLIB_H
@@ -789,30 +789,30 @@ final class WorkspaceTests: XCTestCase {
         """,
       build: true
     )
-    let (mainUri, mainPositions) = try ws.openDocument("main.swift")
-    _ = try await ws.testClient.send(PollIndexRequest())
+    let (mainUri, mainPositions) = try project.openDocument("main.swift")
+    _ = try await project.testClient.send(PollIndexRequest())
 
-    let fooDefinitionResponse = try await ws.testClient.send(
+    let fooDefinitionResponse = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(mainUri), position: mainPositions["3️⃣"])
     )
     XCTAssertEqual(
       fooDefinitionResponse,
       .locations([
-        Location(uri: try ws.uri(for: "lib.swift"), range: try Range(ws.position(of: "5️⃣", in: "lib.swift")))
+        Location(uri: try project.uri(for: "lib.swift"), range: try Range(project.position(of: "5️⃣", in: "lib.swift")))
       ])
     )
 
-    let clibFuncDefinitionResponse = try await ws.testClient.send(
+    let clibFuncDefinitionResponse = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(mainUri), position: mainPositions["4️⃣"])
     )
     XCTAssertEqual(
       clibFuncDefinitionResponse,
       .locations([
-        Location(uri: try ws.uri(for: "clib.c"), range: try Range(ws.position(of: "1️⃣", in: "clib.c")))
+        Location(uri: try project.uri(for: "clib.c"), range: try Range(project.position(of: "1️⃣", in: "clib.c")))
       ])
     )
 
-    let swiftCompletionResponse = try await ws.testClient.send(
+    let swiftCompletionResponse = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(mainUri), position: mainPositions["3️⃣"])
     )
     XCTAssertEqual(
@@ -841,9 +841,9 @@ final class WorkspaceTests: XCTestCase {
       ]
     )
 
-    let (clibcUri, clibcPositions) = try ws.openDocument("clib.c")
+    let (clibcUri, clibcPositions) = try project.openDocument("clib.c")
 
-    let cCompletionResponse = try await ws.testClient.send(
+    let cCompletionResponse = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(clibcUri), position: clibcPositions["2️⃣"])
     )
     XCTAssertEqual(

@@ -16,7 +16,7 @@ import XCTest
 
 class WorkspaceSymbolsTests: XCTestCase {
   func testWorkspaceSymbolsAcrossPackages() async throws {
-    let ws = try await MultiFileTestProject(
+    let project = try await MultiFileTestProject(
       files: [
         "packageA/Sources/PackageALib/PackageALib.swift": """
         public func 1️⃣afuncFromA() {}
@@ -63,10 +63,10 @@ class WorkspaceSymbolsTests: XCTestCase {
       }
     )
 
-    try await SwiftPMTestProject.build(at: ws.scratchDirectory.appendingPathComponent("packageB"))
+    try await SwiftPMTestProject.build(at: project.scratchDirectory.appendingPathComponent("packageB"))
 
-    _ = try await ws.testClient.send(PollIndexRequest())
-    let response = try await ws.testClient.send(WorkspaceSymbolsRequest(query: "funcFrom"))
+    _ = try await project.testClient.send(PollIndexRequest())
+    let response = try await project.testClient.send(WorkspaceSymbolsRequest(query: "funcFrom"))
 
     // Ideally, the item from the current package (PackageB) should be returned before the item from PackageA
     // https://github.com/apple/sourcekit-lsp/issues/1094
@@ -78,8 +78,8 @@ class WorkspaceSymbolsTests: XCTestCase {
             name: "afuncFromA()",
             kind: .function,
             location: Location(
-              uri: try ws.uri(for: "PackageALib.swift"),
-              range: Range(try ws.position(of: "1️⃣", in: "PackageALib.swift"))
+              uri: try project.uri(for: "PackageALib.swift"),
+              range: Range(try project.position(of: "1️⃣", in: "PackageALib.swift"))
             )
           )
         ),
@@ -88,8 +88,8 @@ class WorkspaceSymbolsTests: XCTestCase {
             name: "funcFromB()",
             kind: .function,
             location: Location(
-              uri: try ws.uri(for: "PackageBLib.swift"),
-              range: Range(try ws.position(of: "2️⃣", in: "PackageBLib.swift"))
+              uri: try project.uri(for: "PackageBLib.swift"),
+              range: Range(try project.position(of: "2️⃣", in: "PackageBLib.swift"))
             )
           )
         ),

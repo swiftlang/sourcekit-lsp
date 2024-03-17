@@ -16,20 +16,20 @@ import XCTest
 
 final class ClangdTests: XCTestCase {
   func testClangdGoToInclude() async throws {
-    let ws = try await MultiFileTestProject(files: [
+    let project = try await MultiFileTestProject(files: [
       "Object.h": "",
       "main.c": """
       #include 1️⃣"Object.h"
       """,
     ])
-    let (mainUri, positions) = try ws.openDocument("main.c")
-    let headerUri = try ws.uri(for: "Object.h")
+    let (mainUri, positions) = try project.openDocument("main.c")
+    let headerUri = try project.uri(for: "Object.h")
 
     let goToInclude = DefinitionRequest(
       textDocument: TextDocumentIdentifier(mainUri),
       position: positions["1️⃣"]
     )
-    let resp = try await ws.testClient.send(goToInclude)
+    let resp = try await project.testClient.send(goToInclude)
 
     let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-#include")
     switch locationsOrLinks {
@@ -47,7 +47,7 @@ final class ClangdTests: XCTestCase {
   }
 
   func testClangdGoToDefinitionWithoutIndex() async throws {
-    let ws = try await MultiFileTestProject(files: [
+    let project = try await MultiFileTestProject(files: [
       "Object.h": """
       struct Object {
         int field;
@@ -62,14 +62,14 @@ final class ClangdTests: XCTestCase {
       """,
     ])
 
-    let (mainUri, positions) = try ws.openDocument("main.c")
-    let headerUri = try ws.uri(for: "Object.h")
+    let (mainUri, positions) = try project.openDocument("main.c")
+    let headerUri = try project.uri(for: "Object.h")
 
     let goToDefinition = DefinitionRequest(
       textDocument: TextDocumentIdentifier(mainUri),
       position: positions["1️⃣"]
     )
-    let resp = try await ws.testClient.send(goToDefinition)
+    let resp = try await project.testClient.send(goToDefinition)
 
     let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-definition")
     switch locationsOrLinks {
@@ -87,7 +87,7 @@ final class ClangdTests: XCTestCase {
   }
 
   func testClangdGoToDeclaration() async throws {
-    let ws = try await MultiFileTestProject(files: [
+    let project = try await MultiFileTestProject(files: [
       "Object.h": """
       struct Object {
         int field;
@@ -104,14 +104,14 @@ final class ClangdTests: XCTestCase {
       """,
     ])
 
-    let (mainUri, positions) = try ws.openDocument("main.c")
-    let headerUri = try ws.uri(for: "Object.h")
+    let (mainUri, positions) = try project.openDocument("main.c")
+    let headerUri = try project.uri(for: "Object.h")
 
     let goToInclude = DeclarationRequest(
       textDocument: TextDocumentIdentifier(mainUri),
       position: positions["1️⃣"]
     )
-    let resp = try await ws.testClient.send(goToInclude)
+    let resp = try await project.testClient.send(goToInclude)
 
     let locationsOrLinks = try XCTUnwrap(resp, "No response for go-to-declaration")
     switch locationsOrLinks {

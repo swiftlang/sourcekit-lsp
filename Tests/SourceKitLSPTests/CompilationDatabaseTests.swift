@@ -19,7 +19,7 @@ import XCTest
 
 final class CompilationDatabaseTests: XCTestCase {
   func testModifyCompilationDatabase() async throws {
-    let ws = try await MultiFileTestProject(files: [
+    let project = try await MultiFileTestProject(files: [
       "main.cpp": """
       #if FOO
       void 1️⃣foo2️⃣() {}
@@ -36,7 +36,7 @@ final class CompilationDatabaseTests: XCTestCase {
       """,
     ])
 
-    let (mainUri, positions) = try ws.openDocument("main.cpp")
+    let (mainUri, positions) = try project.openDocument("main.cpp")
 
     // Do a sanity check and verify that we get the expected result from a hover response before modifing the compile commands.
 
@@ -44,7 +44,7 @@ final class CompilationDatabaseTests: XCTestCase {
       textDocument: TextDocumentIdentifier(mainUri),
       position: positions["5️⃣"]
     )
-    let preChangeHighlightResponse = try await ws.testClient.send(highlightRequest)
+    let preChangeHighlightResponse = try await project.testClient.send(highlightRequest)
     XCTAssertEqual(
       preChangeHighlightResponse,
       [
@@ -55,17 +55,17 @@ final class CompilationDatabaseTests: XCTestCase {
 
     // Remove -DFOO from the compile commands.
 
-    let compileFlagsUri = try ws.uri(for: "compile_flags.txt")
+    let compileFlagsUri = try project.uri(for: "compile_flags.txt")
     try "".write(to: compileFlagsUri.fileURL!, atomically: false, encoding: .utf8)
 
-    ws.testClient.send(
+    project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: compileFlagsUri, type: .changed)
       ])
     )
 
     // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
-    _ = try await ws.testClient.send(BarrierRequest())
+    _ = try await project.testClient.send(BarrierRequest())
 
     // DocumentHighlight should now point to the definition in the `#else` block.
 
@@ -79,7 +79,7 @@ final class CompilationDatabaseTests: XCTestCase {
     // Updating the build settings takes a few seconds.
     // Send highlight requests every second until we receive correct results.
     for _ in 0..<30 {
-      let postChangeHighlightResponse = try await ws.testClient.send(highlightRequest)
+      let postChangeHighlightResponse = try await project.testClient.send(highlightRequest)
 
       if postChangeHighlightResponse == expectedPostEditHighlight {
         didReceiveCorrectHighlight = true

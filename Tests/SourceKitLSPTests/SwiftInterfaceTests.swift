@@ -57,7 +57,7 @@ final class SwiftInterfaceTests: XCTestCase {
 
   func testOpenInterface() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-    let ws = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "MyLibrary/MyLibrary.swift": """
         public struct Lib {
@@ -83,13 +83,13 @@ final class SwiftInterfaceTests: XCTestCase {
       build: true
     )
 
-    let (mainUri, _) = try ws.openDocument("main.swift")
+    let (mainUri, _) = try project.openDocument("main.swift")
     let openInterface = OpenInterfaceRequest(
       textDocument: TextDocumentIdentifier(mainUri),
       name: "MyLibrary",
       symbolUSR: nil
     )
-    let interfaceDetails = try unwrap(await ws.testClient.send(openInterface))
+    let interfaceDetails = try unwrap(await project.testClient.send(openInterface))
     XCTAssert(interfaceDetails.uri.pseudoPath.hasSuffix("/MyLibrary.swiftinterface"))
     let fileContents = try XCTUnwrap(
       interfaceDetails.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) })
@@ -141,7 +141,7 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   func testDefinitionInSystemModuleInterface() async throws {
-    let ws = try await IndexedSingleSwiftFileTestProject(
+    let project = try await IndexedSingleSwiftFileTestProject(
       """
       public func libFunc() async {
         let a: 1️⃣String = "test"
@@ -159,25 +159,25 @@ final class SwiftInterfaceTests: XCTestCase {
 
     // Test stdlib with one submodule
     try await testSystemSwiftInterface(
-      uri: ws.fileURI,
-      position: ws.positions["1️⃣"],
-      testClient: ws.testClient,
+      uri: project.fileURI,
+      position: project.positions["1️⃣"],
+      testClient: project.testClient,
       swiftInterfaceFile: "/Swift.String.swiftinterface",
       linePrefix: "@frozen public struct String"
     )
     // Test stdlib with two submodules
     try await testSystemSwiftInterface(
-      uri: ws.fileURI,
-      position: ws.positions["2️⃣"],
-      testClient: ws.testClient,
+      uri: project.fileURI,
+      position: project.positions["2️⃣"],
+      testClient: project.testClient,
       swiftInterfaceFile: "/Swift.Math.Integers.swiftinterface",
       linePrefix: "@frozen public struct Int"
     )
     // Test concurrency
     try await testSystemSwiftInterface(
-      uri: ws.fileURI,
-      position: ws.positions["3️⃣"],
-      testClient: ws.testClient,
+      uri: project.fileURI,
+      position: project.positions["3️⃣"],
+      testClient: project.testClient,
       swiftInterfaceFile: "/_Concurrency.swiftinterface",
       linePrefix: "@inlinable public func withTaskGroup"
     )
@@ -185,7 +185,7 @@ final class SwiftInterfaceTests: XCTestCase {
 
   func testSwiftInterfaceAcrossModules() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-    let ws = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "MyLibrary/MyLibrary.swift": """
         public struct Lib {
@@ -211,9 +211,9 @@ final class SwiftInterfaceTests: XCTestCase {
       build: true
     )
 
-    let (mainUri, mainPositions) = try ws.openDocument("main.swift")
+    let (mainUri, mainPositions) = try project.openDocument("main.swift")
     let _resp =
-      try await ws.testClient.send(
+      try await project.testClient.send(
         DefinitionRequest(
           textDocument: TextDocumentIdentifier(mainUri),
           position: mainPositions["1️⃣"]

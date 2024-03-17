@@ -40,7 +40,7 @@ class DefinitionTests: XCTestCase {
   }
 
   func testJumpToDefinitionIncludesOverrides() async throws {
-    let ws = try await IndexedSingleSwiftFileTestProject(
+    let project = try await IndexedSingleSwiftFileTestProject(
       """
       protocol TestProtocol {
         func 1️⃣doThing()
@@ -56,8 +56,8 @@ class DefinitionTests: XCTestCase {
       """
     )
 
-    let response = try await ws.testClient.send(
-      DefinitionRequest(textDocument: TextDocumentIdentifier(ws.fileURI), position: ws.positions["3️⃣"])
+    let response = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["3️⃣"])
     )
     guard case .locations(let locations) = response else {
       XCTFail("Expected locations response")
@@ -66,14 +66,14 @@ class DefinitionTests: XCTestCase {
     XCTAssertEqual(
       locations,
       [
-        Location(uri: ws.fileURI, range: Range(ws.positions["1️⃣"])),
-        Location(uri: ws.fileURI, range: Range(ws.positions["2️⃣"])),
+        Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
+        Location(uri: project.fileURI, range: Range(project.positions["2️⃣"])),
       ]
     )
   }
 
   func testJumpToDefinitionFiltersByReceiver() async throws {
-    let ws = try await IndexedSingleSwiftFileTestProject(
+    let project = try await IndexedSingleSwiftFileTestProject(
       """
       class A {
         func 1️⃣doThing() {}
@@ -92,8 +92,8 @@ class DefinitionTests: XCTestCase {
       """
     )
 
-    let response = try await ws.testClient.send(
-      DefinitionRequest(textDocument: TextDocumentIdentifier(ws.fileURI), position: ws.positions["3️⃣"])
+    let response = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["3️⃣"])
     )
     guard case .locations(let locations) = response else {
       XCTFail("Expected locations response")
@@ -102,14 +102,14 @@ class DefinitionTests: XCTestCase {
     XCTAssertEqual(
       locations,
       [
-        Location(uri: ws.fileURI, range: Range(ws.positions["1️⃣"])),
-        Location(uri: ws.fileURI, range: Range(ws.positions["2️⃣"])),
+        Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
+        Location(uri: project.fileURI, range: Range(project.positions["2️⃣"])),
       ]
     )
   }
 
   func testDynamicJumpToDefinitionInClang() async throws {
-    let ws = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "Sources/MyLibrary/include/dummy.h": "",
         "test.cpp": """
@@ -128,9 +128,9 @@ class DefinitionTests: XCTestCase {
       ],
       build: true
     )
-    let (uri, positions) = try ws.openDocument("test.cpp")
+    let (uri, positions) = try project.openDocument("test.cpp")
 
-    let response = try await ws.testClient.send(
+    let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
     )
     guard case .locations(let locations) = response else {
@@ -147,7 +147,7 @@ class DefinitionTests: XCTestCase {
   }
 
   func testJumpToCDefinitionFromSwift() async throws {
-    let ws = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "Sources/MyLibrary/include/test.h": """
         void myFunc(void);
@@ -180,9 +180,9 @@ class DefinitionTests: XCTestCase {
       build: true
     )
 
-    let (uri, positions) = try ws.openDocument("main.swift")
+    let (uri, positions) = try project.openDocument("main.swift")
 
-    let response = try await ws.testClient.send(
+    let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
     )
     guard case .locations(let locations) = response else {
@@ -194,7 +194,7 @@ class DefinitionTests: XCTestCase {
     let location = try XCTUnwrap(locations.first)
     XCTAssertEqual(
       location,
-      Location(uri: try ws.uri(for: "test.c"), range: Range(try ws.position(of: "1️⃣", in: "test.c")))
+      Location(uri: try project.uri(for: "test.c"), range: Range(try project.position(of: "1️⃣", in: "test.c")))
     )
   }
 
@@ -226,7 +226,7 @@ class DefinitionTests: XCTestCase {
   func testAmbiguousDefinition() async throws {
     // FIXME: This shouldn't have to be an indexed workspace but solver-based cursor info currently fails if the file
     // does not exist on disk.
-    let ws = try await IndexedSingleSwiftFileTestProject(
+    let project = try await IndexedSingleSwiftFileTestProject(
       """
       func 1️⃣foo() -> Int { 1 }
       func 2️⃣foo() -> String { "" }
@@ -237,21 +237,21 @@ class DefinitionTests: XCTestCase {
       allowBuildFailure: true
     )
 
-    let response = try await ws.testClient.send(
-      DefinitionRequest(textDocument: TextDocumentIdentifier(ws.fileURI), position: ws.positions["3️⃣"])
+    let response = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(project.fileURI), position: project.positions["3️⃣"])
     )
     XCTAssertEqual(
       response,
       .locations([
-        Location(uri: ws.fileURI, range: Range(ws.positions["1️⃣"])),
-        Location(uri: ws.fileURI, range: Range(ws.positions["2️⃣"])),
+        Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
+        Location(uri: project.fileURI, range: Range(project.positions["2️⃣"])),
       ])
     )
   }
 
   func testDefinitionOfClassBetweenModulesObjC() async throws {
     try SkipUnless.platformIsDarwin("@import in Objective-C is not enabled on non-Darwin")
-    let ws = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "LibA/include/LibA.h": """
         @interface 1️⃣LibAClass2️⃣
@@ -285,8 +285,8 @@ class DefinitionTests: XCTestCase {
         )
         """
     )
-    let (uri, positions) = try ws.openDocument("LibB.m")
-    let response = try await ws.testClient.send(
+    let (uri, positions) = try project.openDocument("LibB.m")
+    let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
     )
 
@@ -300,15 +300,15 @@ class DefinitionTests: XCTestCase {
     XCTAssertEqual(
       location,
       Location(
-        uri: try ws.uri(for: "LibA.h"),
-        range: try ws.position(of: "1️⃣", in: "LibA.h")..<ws.position(of: "2️⃣", in: "LibA.h")
+        uri: try project.uri(for: "LibA.h"),
+        range: try project.position(of: "1️⃣", in: "LibA.h")..<project.position(of: "2️⃣", in: "LibA.h")
       )
     )
   }
 
   func testDefinitionOfMethodBetweenModulesObjC() async throws {
     try SkipUnless.platformIsDarwin("@import in Objective-C is not enabled on non-Darwin")
-    let ws = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "LibA/include/LibA.h": """
         @interface LibAClass
@@ -342,8 +342,8 @@ class DefinitionTests: XCTestCase {
         )
         """
     )
-    let (uri, positions) = try ws.openDocument("LibB.m")
-    let response = try await ws.testClient.send(
+    let (uri, positions) = try project.openDocument("LibB.m")
+    let response = try await project.testClient.send(
       DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["3️⃣"])
     )
 
@@ -357,8 +357,8 @@ class DefinitionTests: XCTestCase {
     XCTAssertEqual(
       location,
       Location(
-        uri: try ws.uri(for: "LibA.h"),
-        range: try ws.position(of: "1️⃣", in: "LibA.h")..<ws.position(of: "2️⃣", in: "LibA.h")
+        uri: try project.uri(for: "LibA.h"),
+        range: try project.position(of: "1️⃣", in: "LibA.h")..<project.position(of: "2️⃣", in: "LibA.h")
       )
     )
   }

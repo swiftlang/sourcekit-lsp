@@ -26,11 +26,11 @@ final class ImplementationTests: XCTestCase {
     testName: String = #function,
     line: UInt = #line
   ) async throws {
-    let ws = try await IndexedSingleSwiftFileTestProject(markedText, testName: testName)
-    let response = try await ws.testClient.send(
+    let project = try await IndexedSingleSwiftFileTestProject(markedText, testName: testName)
+    let response = try await project.testClient.send(
       ImplementationRequest(
-        textDocument: TextDocumentIdentifier(ws.fileURI),
-        position: ws.positions["1️⃣"]
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["1️⃣"]
       )
     )
     guard case .locations(let implementations) = response else {
@@ -38,7 +38,7 @@ final class ImplementationTests: XCTestCase {
       return
     }
     let expectedLocations = expectedLocationMarkers.map {
-      Location(uri: ws.fileURI, range: Range(ws.positions[$0]))
+      Location(uri: project.fileURI, range: Range(project.positions[$0]))
     }
     XCTAssertEqual(implementations, expectedLocations, line: line)
   }
@@ -287,7 +287,7 @@ final class ImplementationTests: XCTestCase {
   }
 
   func testCrossFile() async throws {
-    let ws = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "a.swift": """
         protocol 1️⃣MyProto {}
@@ -299,9 +299,9 @@ final class ImplementationTests: XCTestCase {
       build: true
     )
 
-    let (aUri, aPositions) = try ws.openDocument("a.swift")
+    let (aUri, aPositions) = try project.openDocument("a.swift")
 
-    let response = try await ws.testClient.send(
+    let response = try await project.testClient.send(
       ImplementationRequest(
         textDocument: TextDocumentIdentifier(aUri),
         position: aPositions["1️⃣"]
@@ -313,7 +313,7 @@ final class ImplementationTests: XCTestCase {
     }
     XCTAssertEqual(
       implementations,
-      [Location(uri: try ws.uri(for: "b.swift"), range: Range(try ws.position(of: "2️⃣", in: "b.swift")))]
+      [Location(uri: try project.uri(for: "b.swift"), range: Range(try project.position(of: "2️⃣", in: "b.swift")))]
     )
   }
 }

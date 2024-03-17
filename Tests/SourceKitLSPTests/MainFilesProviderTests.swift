@@ -20,7 +20,7 @@ import XCTest
 
 final class MainFilesProviderTests: XCTestCase {
   func testMainFileForHeaderInPackageTarget() async throws {
-    let ws = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "MyLibrary/include/MyLibrary.h": """
         void bridging(void) {
@@ -52,15 +52,15 @@ final class MainFilesProviderTests: XCTestCase {
 
     // Use the definition of `VARIABLE_NAME` together with `-Wunused-variable` to check that we are getting compiler
     // arguments from the target.
-    _ = try ws.openDocument("MyLibrary.h", language: .c)
-    let diags = try await ws.testClient.nextDiagnosticsNotification()
+    _ = try project.openDocument("MyLibrary.h", language: .c)
+    let diags = try await project.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 1)
     let diag = try XCTUnwrap(diags.diagnostics.first)
     XCTAssertEqual(diag.message, "Unused variable 'fromMyLibrary'")
   }
 
   func testMainFileForHeaderOutsideOfTarget() async throws {
-    let ws = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "Sources/shared.h": """
         void bridging(void) {
@@ -91,25 +91,25 @@ final class MainFilesProviderTests: XCTestCase {
       usePullDiagnostics: false
     )
 
-    _ = try ws.openDocument("shared.h", language: .c)
+    _ = try project.openDocument("shared.h", language: .c)
 
     // Before we build, we shouldn't have an index and thus we don't infer the build setting for 'shared.h' form
     // 'MyLibrary.c'. Hence, we don't have the '-Wunused-variable' build setting and thus no diagnostics.
-    let preBuildDiags = try await ws.testClient.nextDiagnosticsNotification()
+    let preBuildDiags = try await project.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(preBuildDiags.diagnostics.count, 0)
 
-    try await SwiftPMTestProject.build(at: ws.scratchDirectory)
+    try await SwiftPMTestProject.build(at: project.scratchDirectory)
 
     // After building we know that 'shared.h' is included from 'MyLibrary.c' and thus we use its build settings,
     // defining `VARIABLE_NAME` to `fromMyLibrary`.
-    let postBuildDiags = try await ws.testClient.nextDiagnosticsNotification()
+    let postBuildDiags = try await project.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(postBuildDiags.diagnostics.count, 1)
     let diag = try XCTUnwrap(postBuildDiags.diagnostics.first)
     XCTAssertEqual(diag.message, "Unused variable 'fromMyLibrary'")
   }
 
   func testMainFileForSharedHeaderOutsideOfTarget() async throws {
-    let ws = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "Sources/shared.h": """
         void bridging(void) {
@@ -148,19 +148,19 @@ final class MainFilesProviderTests: XCTestCase {
       usePullDiagnostics: false
     )
 
-    _ = try ws.openDocument("shared.h", language: .c)
+    _ = try project.openDocument("shared.h", language: .c)
 
     // We could pick build settings from either 'MyLibrary.c' or 'MyFancyLibrary.c'. We currently pick the
     // lexicographically first to be deterministic, which is 'MyFancyLibrary'. Thus `VARIABLE_NAME` is set to
     // `fromMyFancyLibrary`.
-    let diags = try await ws.testClient.nextDiagnosticsNotification()
+    let diags = try await project.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 1)
     let diag = try XCTUnwrap(diags.diagnostics.first)
     XCTAssertEqual(diag.message, "Unused variable 'fromMyFancyLibrary'")
   }
 
   func testMainFileChangesIfIncludeIsAdded() async throws {
-    let ws = try await SwiftPMTestProject(
+    let project = try await SwiftPMTestProject(
       files: [
         "Sources/shared.h": """
         void bridging(void) {
@@ -197,26 +197,26 @@ final class MainFilesProviderTests: XCTestCase {
       usePullDiagnostics: false
     )
 
-    _ = try ws.openDocument("shared.h", language: .c)
+    _ = try project.openDocument("shared.h", language: .c)
 
     // 'MyLibrary.c' is the only file that includes 'shared.h' at first. So we use build settings from MyLibrary and
     // define `VARIABLE_NAME` to `fromMyLibrary`.
-    let preEditDiags = try await ws.testClient.nextDiagnosticsNotification()
+    let preEditDiags = try await project.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(preEditDiags.diagnostics.count, 1)
     let preEditDiag = try XCTUnwrap(preEditDiags.diagnostics.first)
     XCTAssertEqual(preEditDiag.message, "Unused variable 'fromMyLibrary'")
 
     let newFancyLibraryContents = """
-      #include "\(ws.scratchDirectory.path)/Sources/shared.h"
+      #include "\(project.scratchDirectory.path)/Sources/shared.h"
       """
-    let fancyLibraryURL = try ws.uri(for: "MyFancyLibrary.c").fileURL!
+    let fancyLibraryURL = try project.uri(for: "MyFancyLibrary.c").fileURL!
     try newFancyLibraryContents.write(to: fancyLibraryURL, atomically: false, encoding: .utf8)
 
-    try await SwiftPMTestProject.build(at: ws.scratchDirectory)
+    try await SwiftPMTestProject.build(at: project.scratchDirectory)
 
     // 'MyFancyLibrary.c' now also includes 'shared.h'. Since it lexicographically preceeds MyLibrary, we should use its
     // build settings.
-    let postEditDiags = try await ws.testClient.nextDiagnosticsNotification()
+    let postEditDiags = try await project.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(postEditDiags.diagnostics.count, 1)
     let postEditDiag = try XCTUnwrap(postEditDiags.diagnostics.first)
     XCTAssertEqual(postEditDiag.message, "Unused variable 'fromMyFancyLibrary'")

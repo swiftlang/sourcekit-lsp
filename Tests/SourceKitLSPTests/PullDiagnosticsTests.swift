@@ -110,14 +110,16 @@ final class PullDiagnosticsTests: XCTestCase {
   func testNotesFromIntegratedSwiftSyntaxDiagnostics() async throws {
     // Create a workspace that has compile_commands.json so that it has a build system but no compiler arguments
     // for test.swift so that we fall back to producing diagnostics from the built-in swift-syntax.
-    let ws = try await MultiFileTestProject(files: [
+    let project = try await MultiFileTestProject(files: [
       "test.swift": "func foo() 1️⃣{2️⃣",
       "compile_commands.json": "[]",
     ])
 
-    let (uri, positions) = try ws.openDocument("test.swift")
+    let (uri, positions) = try project.openDocument("test.swift")
 
-    let report = try await ws.testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
+    let report = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
     guard case .full(let fullReport) = report else {
       XCTFail("Expected full diagnostics report")
       return

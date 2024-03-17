@@ -430,14 +430,16 @@ final class CodeActionTests: XCTestCase {
   }
 
   func testCodeActionForFixItsProducedBySwiftSyntax() async throws {
-    let ws = try await MultiFileTestProject(files: [
+    let project = try await MultiFileTestProject(files: [
       "test.swift": "protocol 1️⃣Multi 2️⃣ident 3️⃣{}",
       "compile_commands.json": "[]",
     ])
 
-    let (uri, positions) = try ws.openDocument("test.swift")
+    let (uri, positions) = try project.openDocument("test.swift")
 
-    let report = try await ws.testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri)))
+    let report = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
     guard case .full(let fullReport) = report else {
       XCTFail("Expected full diagnostics report")
       return
