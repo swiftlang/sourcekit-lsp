@@ -71,10 +71,10 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// requests and notifications sent from clangd to the client is quite small.
   public let clangdMessageHandlingQueue = AsyncQueue<Serial>()
 
-  /// The ``SourceKitServer`` instance that created this `ClangLanguageServerShim`.
+  /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageServerShim`.
   ///
   /// Used to send requests and notifications to the editor.
-  private weak var sourceKitServer: SourceKitServer?
+  private weak var sourceKitServer: SourceKitLSPServer?
 
   /// The connection to the clangd LSP. `nil` until `startClangdProcesss` has been called.
   var clangd: Connection!
@@ -133,9 +133,9 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// Creates a language server for the given client referencing the clang binary specified in `toolchain`.
   /// Returns `nil` if `clangd` can't be found.
   public init?(
-    sourceKitServer: SourceKitServer,
+    sourceKitServer: SourceKitLSPServer,
     toolchain: Toolchain,
-    options: SourceKitServer.Options,
+    options: SourceKitLSPServer.Options,
     workspace: Workspace
   ) async throws {
     guard let clangdPath = toolchain.clangd else {
@@ -282,14 +282,14 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
       do {
         try self.startClangdProcess()
         // FIXME: We assume that clangd will return the same capabilities after restarting.
-        // Theoretically they could have changed and we would need to inform SourceKitServer about them.
-        // But since SourceKitServer more or less ignores them right now anyway, this should be fine for now.
+        // Theoretically they could have changed and we would need to inform SourceKitLSPServer about them.
+        // But since SourceKitLSPServer more or less ignores them right now anyway, this should be fine for now.
         _ = try await self.initialize(initializeRequest)
         self.clientInitialized(InitializedNotification())
         if let sourceKitServer {
           await sourceKitServer.reopenDocuments(for: self)
         } else {
-          logger.fault("Cannot reopen documents because SourceKitServer is no longer alive")
+          logger.fault("Cannot reopen documents because SourceKitLSPServer is no longer alive")
         }
         self.state = .connected
       } catch {
@@ -338,7 +338,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
     )
     clangdMessageHandlingQueue.async {
       guard let sourceKitServer = await self.sourceKitServer else {
-        // `SourceKitServer` has been destructed. We are tearing down the language
+        // `SourceKitLSPServer` has been destructed. We are tearing down the language
         // server. Nothing left to do.
         reply(.failure(.unknown("Connection to the editor closed")))
         return
@@ -405,7 +405,7 @@ extension ClangLanguageServerShim {
     // incorrect result, making it very temporary.
     let buildSettings = await self.buildSettings(for: notification.uri)
     guard let sourceKitServer else {
-      logger.fault("Cannot publish diagnostics because SourceKitServer has been destroyed")
+      logger.fault("Cannot publish diagnostics because SourceKitLSPServer has been destroyed")
       return
     }
     if buildSettings?.isFallback ?? true {

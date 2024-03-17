@@ -91,8 +91,8 @@ public struct SwiftCompileCommand: Equatable {
 }
 
 public actor SwiftLanguageServer: ToolchainLanguageServer {
-  /// The ``SourceKitServer`` instance that created this `ClangLanguageServerShim`.
-  weak var sourceKitServer: SourceKitServer?
+  /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageServerShim`.
+  weak var sourceKitServer: SourceKitLSPServer?
 
   let sourcekitd: SourceKitD
 
@@ -105,7 +105,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   let capabilityRegistry: CapabilityRegistry
 
-  let serverOptions: SourceKitServer.Options
+  let serverOptions: SourceKitLSPServer.Options
 
   /// Directory where generated Swift interfaces will be stored.
   let generatedInterfacesPath: URL
@@ -172,9 +172,9 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
   /// `reopenDocuments` is a closure that will be called if sourcekitd crashes and the `SwiftLanguageServer` asks its parent server to reopen all of its documents.
   /// Returns `nil` if `sourcekitd` couldn't be found.
   public init?(
-    sourceKitServer: SourceKitServer,
+    sourceKitServer: SourceKitLSPServer,
     toolchain: Toolchain,
-    options: SourceKitServer.Options,
+    options: SourceKitLSPServer.Options,
     workspace: Workspace
   ) async throws {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
@@ -203,7 +203,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
 
   func buildSettings(for document: DocumentURI) async -> SwiftCompileCommand? {
     guard let sourceKitServer else {
-      logger.fault("Cannot retrieve build settings because SourceKitServer is no longer alive")
+      logger.fault("Cannot retrieve build settings because SourceKitLSPServer is no longer alive")
       return nil
     }
     guard let workspace = await sourceKitServer.workspaceForDocument(uri: document) else {
@@ -861,7 +861,7 @@ extension SwiftLanguageServer {
   public func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     // TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
     guard let sourceKitServer else {
-      // `SourceKitServer` has been destructed. We are tearing down the language
+      // `SourceKitLSPServer` has been destructed. We are tearing down the language
       // server. Nothing left to do.
       throw ResponseError.unknown("Connection to the editor closed")
     }
@@ -913,7 +913,7 @@ extension SwiftLanguageServer: SKDNotificationHandler {
       if let sourceKitServer {
         await sourceKitServer.reopenDocuments(for: self)
       } else {
-        logger.fault("Cannot reopen documents because SourceKitServer is no longer alive")
+        logger.fault("Cannot reopen documents because SourceKitLSPServer is no longer alive")
       }
     }
 

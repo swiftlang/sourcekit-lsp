@@ -8,8 +8,8 @@ add_library(SourceKitLSP STATIC
   Sequence+AsyncMap.swift
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
-  SourceKitServer.swift
-  SourceKitServer+Options.swift
+  SourceKitLSPServer.swift
+  SourceKitLSPServer+Options.swift
   TestDiscovery.swift
   ToolchainLanguageServer.swift
   WorkDoneProgressManager.swift

@@ -62,7 +62,7 @@ public final class Workspace {
   /// The source code index, if available.
   public var index: IndexStoreDB? = nil
 
-  /// Documents open in the SourceKitServer. This may include open documents from other workspaces.
+  /// Documents open in the SourceKitLSPServer. This may include open documents from other workspaces.
   private let documentManager: DocumentManager
 
   /// Language service for an open document, if available.

@@ -132,7 +132,7 @@ final actor WorkDoneProgressState {
   /// Start a new task, creating a new `WorkDoneProgress` if none is running right now.
   ///
   /// - Parameter server: The server that is used to create the `WorkDoneProgress` on the client
-  func startProgress(server: SourceKitServer) async {
+  func startProgress(server: SourceKitLSPServer) async {
     activeTasks += 1
     guard await server.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false else {
       // If the client doesn't support workDoneProgress, keep track of the active task count but don't update the state.
@@ -154,7 +154,7 @@ final actor WorkDoneProgressState {
 
   private func handleCreateWorkDoneProgressResponse(
     _ result: Result<VoidResponse, ResponseError>,
-    server: SourceKitServer
+    server: SourceKitLSPServer
   ) {
     if result.success != nil {
       if self.activeTasks == 0 {
@@ -177,7 +177,7 @@ final actor WorkDoneProgressState {
   /// If this drops the active task count to 0, the work done progress is ended on the client.
   ///
   /// - Parameter server: The server that is used to send and update of the `WorkDoneProgress` to the client
-  func endProgress(server: SourceKitServer) async {
+  func endProgress(server: SourceKitLSPServer) async {
     assert(activeTasks > 0, "Unbalanced startProgress/endProgress calls")
     activeTasks -= 1
     guard await server.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false else {
@@ -385,12 +385,12 @@ fileprivate enum TaskMetadata: DependencyTracker {
   }
 }
 
-/// The SourceKit language server.
+/// The SourceKit-LSP server.
 ///
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
 /// and cross-language support. Requests may be dispatched to language-specific services or handled
 /// centrally, but this is transparent to the client.
-public actor SourceKitServer {
+public actor SourceKitLSPServer {
   /// The queue on which all messages (notifications, requests, responses) are
   /// handled.
   ///
@@ -422,7 +422,7 @@ public actor SourceKitServer {
   let documentManager = DocumentManager()
 
   private var packageLoadingWorkDoneProgress = WorkDoneProgressState(
-    "SourceKitLSP.SourceKitServer.reloadPackage",
+    "SourceKitLSP.SourceKitLSPServer.reloadPackage",
     title: "SourceKit-LSP: Reloading Package"
   )
 
@@ -813,7 +813,7 @@ private func getNextNotificationIDForLogging() -> Int {
   }
 }
 
-extension SourceKitServer: MessageHandler {
+extension SourceKitLSPServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType) {
     if let params = params as? CancelRequestNotification {
       // Request cancellation needs to be able to overtake any other message we
@@ -1018,7 +1018,7 @@ extension SourceKitServer: MessageHandler {
 
 // MARK: - Build System Delegate
 
-extension SourceKitServer: BuildSystemDelegate {
+extension SourceKitLSPServer: BuildSystemDelegate {
   public func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
     // TODO: do something with these changes once build target support is in place
   }
@@ -1104,7 +1104,7 @@ private extension LanguageServerProtocol.WorkspaceType {
 
 // MARK: - Request and notification handling
 
-extension SourceKitServer {
+extension SourceKitLSPServer {
 
   // MARK: - General
 
@@ -1328,7 +1328,7 @@ extension SourceKitServer {
     registry: CapabilityRegistry
   ) async {
     // IMPORTANT: When adding new capabilities here, also add the value of that capability in `SwiftLanguageServer`
-    // to SourceKitServer.serverCapabilities. That way the capabilities get registered for all languages in case the
+    // to SourceKitLSPServer.serverCapabilities. That way the capabilities get registered for all languages in case the
     // client does not support dynamic capability registration.
 
     if let completionOptions = server.completionProvider {
@@ -1544,7 +1544,7 @@ extension SourceKitServer {
     // In practice, it is fine: sourcekit-lsp will not handle any new messages
     // while we are executing this function and thus there's no risk of
     // documents or workspaces changing. To hit the race condition, you need
-    // to invoke the API of `SourceKitServer` directly and open documents
+    // to invoke the API of `SourceKitLSPServer` directly and open documents
     // while this function is executing. Even in such an API use case, hitting
     // that race condition seems very unlikely.
     var preChangeWorkspaces: [DocumentURI: Workspace] = [:]
@@ -2492,7 +2492,7 @@ fileprivate struct NotificationRequestOperation {
 /// Used to queue up notifications and requests for documents which are blocked
 /// on `BuildSystem` operations such as fetching build settings.
 ///
-/// Note: This is not thread safe. Must be called from the `SourceKitServer.queue`.
+/// Note: This is not thread safe. Must be called from the `SourceKitLSPServer.queue`.
 fileprivate struct DocumentNotificationRequestQueue {
   fileprivate var queue = [NotificationRequestOperation]()
 

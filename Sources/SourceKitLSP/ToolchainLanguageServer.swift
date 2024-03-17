@@ -66,9 +66,9 @@ public protocol ToolchainLanguageServer: AnyObject {
   // MARK: - Creation
 
   init?(
-    sourceKitServer: SourceKitServer,
+    sourceKitServer: SourceKitLSPServer,
     toolchain: Toolchain,
-    options: SourceKitServer.Options,
+    options: SourceKitLSPServer.Options,
     workspace: Workspace
   ) async throws
 
@@ -148,8 +148,8 @@ public protocol ToolchainLanguageServer: AnyObject {
   ///
   /// Rename is implemented as a two-step process:  This function returns all the edits it knows need to be performed.
   /// For Swift these edits are those within the current file. In addition, it can return a USR + the old name of the
-  /// symbol to be renamed so that `SourceKitServer` can perform an index lookup to discover more locations to rename
-  /// within the entire workspace. `SourceKitServer` will transform those into edits by calling
+  /// symbol to be renamed so that `SourceKitLSPServer` can perform an index lookup to discover more locations to rename
+  /// within the entire workspace. `SourceKitLSPServer` will transform those into edits by calling
   /// `editsToRename(locations:in:oldName:newName:)` on the toolchain server to perform the actual rename.
   func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?)
 

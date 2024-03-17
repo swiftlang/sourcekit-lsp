@@ -495,7 +495,7 @@ public struct CrossLanguageName {
   }
 }
 
-// MARK: - SourceKitServer
+// MARK: - SourceKitLSPServer
 
 /// The kinds of symbol occurrence roles that should be renamed.
 fileprivate let renameRoles: SymbolRole = [.declaration, .definition, .reference]
@@ -508,7 +508,7 @@ extension DocumentManager {
   }
 }
 
-extension SourceKitServer {
+extension SourceKitLSPServer {
   /// Returns a `DocumentSnapshot`, a position and the corresponding language service that references
   /// `usr` from a Swift file. If `usr` is not referenced from Swift, returns `nil`.
   private func getReferenceFromSwift(

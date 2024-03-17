@@ -18,7 +18,7 @@ import SKSupport
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
 
-extension SourceKitServer {
+extension SourceKitLSPServer {
 
   /// Configuration options for the SourceKitServer.
   public struct Options {

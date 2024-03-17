@@ -31,7 +31,7 @@ fileprivate extension SymbolOccurrence {
   }
 }
 
-extension SourceKitServer {
+extension SourceKitLSPServer {
   func workspaceTests(_ req: WorkspaceTestsRequest) async throws -> [WorkspaceSymbolItem]? {
     let testSymbols = workspaces.flatMap { (workspace) -> [SymbolOccurrence] in
       return workspace.index?.unitTests() ?? []
