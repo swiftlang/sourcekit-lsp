@@ -183,7 +183,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
   }
 
   func testNestedPackage() async throws {
-    let ws = try await MultiFileTestWorkspace(files: [
+    let project = try await MultiFileTestProject(files: [
       "pkg/Sources/lib/lib.swift": "",
       "pkg/Package.swift": """
       // swift-tools-version:4.2
@@ -209,9 +209,9 @@ final class SwiftPMIntegrationTests: XCTestCase {
       """,
     ])
 
-    let (uri, positions) = try ws.openDocument("b.swift")
+    let (uri, positions) = try project.openDocument("b.swift")
 
-    let result = try await ws.testClient.send(
+    let result = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
 

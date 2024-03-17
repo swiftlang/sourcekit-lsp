@@ -69,7 +69,7 @@ public protocol LanguageService: AnyObject {
   // MARK: - Creation
 
   init?(
-    sourceKitServer: SourceKitLSPServer,
+    sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
     options: SourceKitLSPServer.Options,
     workspace: Workspace

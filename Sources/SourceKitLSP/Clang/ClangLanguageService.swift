@@ -74,7 +74,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageService`.
   ///
   /// Used to send requests and notifications to the editor.
-  private weak var sourceKitServer: SourceKitLSPServer?
+  private weak var sourceKitLSPServer: SourceKitLSPServer?
 
   /// The connection to the clangd LSP. `nil` until `startClangdProcesss` has been called.
   var clangd: Connection!
@@ -133,7 +133,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   /// Creates a language server for the given client referencing the clang binary specified in `toolchain`.
   /// Returns `nil` if `clangd` can't be found.
   public init?(
-    sourceKitServer: SourceKitLSPServer,
+    sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
     options: SourceKitLSPServer.Options,
     workspace: Workspace
@@ -146,7 +146,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
     self.clangdOptions = options.clangdOptions
     self.workspace = WeakWorkspace(workspace)
     self.state = .connected
-    self.sourceKitServer = sourceKitServer
+    self.sourceKitLSPServer = sourceKitLSPServer
     try startClangdProcess()
   }
 
@@ -286,8 +286,8 @@ actor ClangLanguageService: LanguageService, MessageHandler {
         // But since SourceKitLSPServer more or less ignores them right now anyway, this should be fine for now.
         _ = try await self.initialize(initializeRequest)
         self.clientInitialized(InitializedNotification())
-        if let sourceKitServer {
-          await sourceKitServer.reopenDocuments(for: self)
+        if let sourceKitLSPServer {
+          await sourceKitLSPServer.reopenDocuments(for: self)
         } else {
           logger.fault("Cannot reopen documents because SourceKitLSPServer is no longer alive")
         }
@@ -337,7 +337,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
       """
     )
     clangdMessageHandlingQueue.async {
-      guard let sourceKitServer = await self.sourceKitServer else {
+      guard let sourceKitLSPServer = await self.sourceKitLSPServer else {
         // `SourceKitLSPServer` has been destructed. We are tearing down the language
         // server. Nothing left to do.
         reply(.failure(.unknown("Connection to the editor closed")))
@@ -345,7 +345,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
       }
 
       do {
-        let result = try await sourceKitServer.sendRequestToClient(params)
+        let result = try await sourceKitLSPServer.sendRequestToClient(params)
         reply(.success(result))
       } catch {
         reply(.failure(ResponseError(error)))
@@ -404,13 +404,13 @@ extension ClangLanguageService {
     // non-fallback settings very shortly after, which will override the
     // incorrect result, making it very temporary.
     let buildSettings = await self.buildSettings(for: notification.uri)
-    guard let sourceKitServer else {
+    guard let sourceKitLSPServer else {
       logger.fault("Cannot publish diagnostics because SourceKitLSPServer has been destroyed")
       return
     }
     if buildSettings?.isFallback ?? true {
       // Fallback: send empty publish notification instead.
-      await sourceKitServer.sendNotificationToClient(
+      await sourceKitLSPServer.sendNotificationToClient(
         PublishDiagnosticsNotification(
           uri: notification.uri,
           version: notification.version,
@@ -418,7 +418,7 @@ extension ClangLanguageService {
         )
       )
     } else {
-      await sourceKitServer.sendNotificationToClient(notification)
+      await sourceKitLSPServer.sendNotificationToClient(notification)
     }
   }
 

@@ -700,7 +700,7 @@ public actor SourceKitLSPServer {
     // Start a new service.
     return await orLog("failed to start language service", level: .error) {
       let service = try await serverType.serverType.init(
-        sourceKitServer: self,
+        sourceKitLSPServer: self,
         toolchain: toolchain,
         options: options,
         workspace: workspace

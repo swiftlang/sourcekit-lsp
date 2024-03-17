@@ -92,7 +92,7 @@ public struct SwiftCompileCommand: Equatable {
 
 public actor SwiftLanguageService: LanguageService {
   /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageService`.
-  weak var sourceKitServer: SourceKitLSPServer?
+  weak var sourceKitLSPServer: SourceKitLSPServer?
 
   let sourcekitd: SourceKitD
 
@@ -136,7 +136,7 @@ public actor SwiftLanguageService: LanguageService {
         handler(oldValue, state)
       }
 
-      guard let sourceKitServer else {
+      guard let sourceKitLSPServer else {
         sourcekitdCrashedWorkDoneProgress = nil
         return
       }
@@ -146,7 +146,7 @@ public actor SwiftLanguageService: LanguageService {
       case .connectionInterrupted, .semanticFunctionalityDisabled:
         if sourcekitdCrashedWorkDoneProgress == nil {
           sourcekitdCrashedWorkDoneProgress = WorkDoneProgressManager(
-            server: sourceKitServer,
+            server: sourceKitLSPServer,
             capabilityRegistry: capabilityRegistry,
             title: "SourceKit-LSP: Restoring functionality",
             message: "Please run 'sourcekit-lsp diagnose' to file an issue"
@@ -173,13 +173,13 @@ public actor SwiftLanguageService: LanguageService {
   /// parent server to reopen all of its documents.
   /// Returns `nil` if `sourcekitd` couldn't be found.
   public init?(
-    sourceKitServer: SourceKitLSPServer,
+    sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
     options: SourceKitLSPServer.Options,
     workspace: Workspace
   ) async throws {
     guard let sourcekitd = toolchain.sourcekitd else { return nil }
-    self.sourceKitServer = sourceKitServer
+    self.sourceKitLSPServer = sourceKitLSPServer
     self.swiftFormat = toolchain.swiftFormat
     self.sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(dylibPath: sourcekitd)
     self.capabilityRegistry = workspace.capabilityRegistry
@@ -203,11 +203,11 @@ public actor SwiftLanguageService: LanguageService {
   }
 
   func buildSettings(for document: DocumentURI) async -> SwiftCompileCommand? {
-    guard let sourceKitServer else {
+    guard let sourceKitLSPServer else {
       logger.fault("Cannot retrieve build settings because SourceKitLSPServer is no longer alive")
       return nil
     }
-    guard let workspace = await sourceKitServer.workspaceForDocument(uri: document) else {
+    guard let workspace = await sourceKitLSPServer.workspaceForDocument(uri: document) else {
       return nil
     }
     if let settings = await workspace.buildSystemManager.buildSettingsInferredFromMainFile(
@@ -365,7 +365,7 @@ extension SwiftLanguageService {
     if buildSettings == nil || buildSettings!.isFallback, let fileUrl = note.textDocument.uri.fileURL {
       // Do not show this notification for non-file URIs to make sure we don't see this notificaiton for newly created
       // files (which get opened as with a `untitled:Unitled-1` URI by VS Code.
-      await sourceKitServer?.sendNotificationToClient(
+      await sourceKitLSPServer?.sendNotificationToClient(
         ShowMessageNotification(
           type: .warning,
           message: """
@@ -435,8 +435,8 @@ extension SwiftLanguageService {
     }
     cancelInFlightPublishDiagnosticsTask(for: document)
     inFlightPublishDiagnosticsTasks[document] = Task(priority: .medium) { [weak self] in
-      guard let self, let sourceKitServer = await self.sourceKitServer else {
-        logger.fault("Cannot produce PublishDiagnosticsNotification because sourceKitServer was deallocated")
+      guard let self, let sourceKitLSPServer = await self.sourceKitLSPServer else {
+        logger.fault("Cannot produce PublishDiagnosticsNotification because sourceKitLSPServer was deallocated")
         return
       }
       do {
@@ -444,7 +444,7 @@ extension SwiftLanguageService {
         // generation since any later edit will cancel the previous in-flight task, which will thus never go on to send
         // the `DocumentDiagnosticsRequest`.
         try await Task.sleep(
-          nanoseconds: UInt64(sourceKitServer.options.swiftPublishDiagnosticsDebounceDuration * 1_000_000_000)
+          nanoseconds: UInt64(sourceKitLSPServer.options.swiftPublishDiagnosticsDebounceDuration * 1_000_000_000)
         )
       } catch {
         return
@@ -471,7 +471,7 @@ extension SwiftLanguageService {
           throw CancellationError()
         }
 
-        await sourceKitServer.sendNotificationToClient(
+        await sourceKitLSPServer.sendNotificationToClient(
           PublishDiagnosticsNotification(
             uri: document,
             diagnostics: diagnosticReport.items
@@ -860,7 +860,7 @@ extension SwiftLanguageService {
 
   public func executeCommand(_ req: ExecuteCommandRequest) async throws -> LSPAny? {
     // TODO: If there's support for several types of commands, we might need to structure this similarly to the code actions request.
-    guard let sourceKitServer else {
+    guard let sourceKitLSPServer else {
       // `SourceKitLSPServer` has been destructed. We are tearing down the language
       // server. Nothing left to do.
       throw ResponseError.unknown("Connection to the editor closed")
@@ -871,7 +871,7 @@ extension SwiftLanguageService {
     let refactor = try await semanticRefactoring(swiftCommand)
     let edit = refactor.edit
     let req = ApplyEditRequest(label: refactor.title, edit: edit)
-    let response = try await sourceKitServer.sendRequestToClient(req)
+    let response = try await sourceKitLSPServer.sendRequestToClient(req)
     if !response.applied {
       let reason: String
       if let failureReason = response.failureReason {
@@ -910,8 +910,8 @@ extension SwiftLanguageService: SKDNotificationHandler {
       self.state = .semanticFunctionalityDisabled
 
       // Ask our parent to re-open all of our documents.
-      if let sourceKitServer {
-        await sourceKitServer.reopenDocuments(for: self)
+      if let sourceKitLSPServer {
+        await sourceKitLSPServer.reopenDocuments(for: self)
       } else {
         logger.fault("Cannot reopen documents because SourceKitLSPServer is no longer alive")
       }
