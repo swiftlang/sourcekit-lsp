@@ -146,10 +146,17 @@ public final class Workspace {
       } else if let compdb = buildCompDBWorkspace(rootPath: rootPath) {
         buildSystem = compdb
       } else {
+        buildSystem = nil
+      }
+      if let buildSystem {
+        let projectRoot = await buildSystem.projectRoot
+        logger.log(
+          "Opening workspace at \(rootUrl) as \(type(of: buildSystem)) with project root \(projectRoot.pathString)"
+        )
+      } else {
         logger.error(
           "Could not set up a build system for workspace at '\(rootUri.forLogging)'"
         )
-        buildSystem = nil
       }
     } else {
       // We assume that workspaces are directories. This is only true for URLs not for URIs in general.
