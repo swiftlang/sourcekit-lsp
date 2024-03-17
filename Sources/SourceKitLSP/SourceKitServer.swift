@@ -1129,7 +1129,8 @@ extension SourceKitServer {
       buildSetup: self.options.buildSetup.merging(workspaceBuildSetup),
       compilationDatabaseSearchPaths: self.options.compilationDatabaseSearchPaths,
       indexOptions: self.options.indexOptions,
-      reloadPackageStatusCallback: { status in
+      reloadPackageStatusCallback: { [weak self] status in
+        guard let self else { return }
         guard capabilityRegistry.clientCapabilities.window?.workDoneProgress ?? false else {
           // Client doesn’t support work done progress
           return
