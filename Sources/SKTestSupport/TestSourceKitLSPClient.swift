@@ -70,7 +70,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
 
   /// A closure that is called when the `TestSourceKitLSPClient` is destructed.
   ///
-  /// This allows e.g. a `IndexedSingleSwiftFileWorkspace` to delete its temporary files when they are no longer needed.
+  /// This allows e.g. a `IndexedSingleSwiftFileTestProject` to delete its temporary files when they are no longer needed.
   private let cleanUp: () -> Void
 
   /// - Parameters:
@@ -84,7 +84,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///   - usePullDiagnostics: Whether to use push diagnostics or use push-based diagnostics
   ///   - workspaceFolders: Workspace folders to open.
   ///   - cleanUp: A closure that is called when the `TestSourceKitLSPClient` is destructed.
-  ///     This allows e.g. a `IndexedSingleSwiftFileWorkspace` to delete its temporary files when they are no longer
+  ///     This allows e.g. a `IndexedSingleSwiftFileTestProject` to delete its temporary files when they are no longer
   ///     needed.
   public init(
     serverOptions: SourceKitLSPServer.Options = .testDefault,

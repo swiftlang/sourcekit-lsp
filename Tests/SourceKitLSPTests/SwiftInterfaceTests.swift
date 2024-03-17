@@ -57,7 +57,7 @@ final class SwiftInterfaceTests: XCTestCase {
 
   func testOpenInterface() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "MyLibrary/MyLibrary.swift": """
         public struct Lib {
@@ -141,7 +141,7 @@ final class SwiftInterfaceTests: XCTestCase {
   }
 
   func testDefinitionInSystemModuleInterface() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       public func libFunc() async {
         let a: 1️⃣String = "test"
@@ -185,7 +185,7 @@ final class SwiftInterfaceTests: XCTestCase {
 
   func testSwiftInterfaceAcrossModules() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "MyLibrary/MyLibrary.swift": """
         public struct Lib {

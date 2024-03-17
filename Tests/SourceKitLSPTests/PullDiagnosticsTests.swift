@@ -110,7 +110,7 @@ final class PullDiagnosticsTests: XCTestCase {
   func testNotesFromIntegratedSwiftSyntaxDiagnostics() async throws {
     // Create a workspace that has compile_commands.json so that it has a build system but no compiler arguments
     // for test.swift so that we fall back to producing diagnostics from the built-in swift-syntax.
-    let ws = try await MultiFileTestWorkspace(files: [
+    let ws = try await MultiFileTestProject(files: [
       "test.swift": "func foo() 1️⃣{2️⃣",
       "compile_commands.json": "[]",
     ])

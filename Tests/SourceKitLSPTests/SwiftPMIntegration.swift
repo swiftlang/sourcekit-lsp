@@ -18,7 +18,7 @@ import XCTest
 final class SwiftPMIntegrationTests: XCTestCase {
 
   func testSwiftPMIntegration() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "Lib.swift": """
         struct Lib {
@@ -91,7 +91,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
   }
 
   func testAddFile() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "Lib.swift": """
         struct Lib {

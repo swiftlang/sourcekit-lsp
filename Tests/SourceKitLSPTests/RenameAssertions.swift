@@ -83,7 +83,7 @@ func assertRenamedSourceMatches(
   originalFiles: [RelativeFileLocation: String],
   changes: [DocumentURI: [TextEdit]],
   expected: [RelativeFileLocation: String],
-  in ws: MultiFileTestWorkspace,
+  in ws: MultiFileTestProject,
   message: String,
   testName: String = #function,
   file: StaticString = #file,
@@ -122,14 +122,14 @@ func assertMultiFileRename(
   newName: String,
   expectedPrepareRenamePlaceholder: String,
   expected: [RelativeFileLocation: String],
-  manifest: String = SwiftPMTestWorkspace.defaultPackageManifest,
-  preRenameActions: (SwiftPMTestWorkspace) throws -> Void = { _ in },
+  manifest: String = SwiftPMTestProject.defaultPackageManifest,
+  preRenameActions: (SwiftPMTestProject) throws -> Void = { _ in },
   testName: String = #function,
   file: StaticString = #file,
   line: UInt = #line
 ) async throws {
   try await SkipUnless.sourcekitdSupportsRename()
-  let ws = try await SwiftPMTestWorkspace(
+  let ws = try await SwiftPMTestProject(
     files: files,
     manifest: manifest,
     build: true,

@@ -430,7 +430,7 @@ final class CodeActionTests: XCTestCase {
   }
 
   func testCodeActionForFixItsProducedBySwiftSyntax() async throws {
-    let ws = try await MultiFileTestWorkspace(files: [
+    let ws = try await MultiFileTestProject(files: [
       "test.swift": "protocol 1️⃣Multi 2️⃣ident 3️⃣{}",
       "compile_commands.json": "[]",
     ])

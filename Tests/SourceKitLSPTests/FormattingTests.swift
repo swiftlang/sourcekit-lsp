@@ -81,7 +81,7 @@ final class FormattingTests: XCTestCase {
   func testConfigFileOnDisk() async throws {
     try await SkipUnless.toolchainContainsSwiftFormat()
     // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
-    let ws = try await MultiFileTestWorkspace(files: [
+    let ws = try await MultiFileTestProject(files: [
       ".swift-format": """
       {
         "version": 1,
@@ -116,7 +116,7 @@ final class FormattingTests: XCTestCase {
   func testConfigFileInParentDirectory() async throws {
     try await SkipUnless.toolchainContainsSwiftFormat()
     // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
-    let ws = try await MultiFileTestWorkspace(files: [
+    let ws = try await MultiFileTestProject(files: [
       ".swift-format": """
       {
         "version": 1,
@@ -151,7 +151,7 @@ final class FormattingTests: XCTestCase {
   func testConfigFileInNestedDirectory() async throws {
     try await SkipUnless.toolchainContainsSwiftFormat()
     // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
-    let ws = try await MultiFileTestWorkspace(files: [
+    let ws = try await MultiFileTestProject(files: [
       ".swift-format": """
       {
         "version": 1,
@@ -195,7 +195,7 @@ final class FormattingTests: XCTestCase {
     try await SkipUnless.toolchainContainsSwiftFormat()
     // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
     // The swift-format default is 2 spaces.
-    let ws = try await MultiFileTestWorkspace(files: [
+    let ws = try await MultiFileTestProject(files: [
       ".swift-format": "",
       "test.swift": """
       struct Root {

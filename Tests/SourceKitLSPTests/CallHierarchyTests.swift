@@ -19,7 +19,7 @@ import XCTest
 
 final class CallHierarchyTests: XCTestCase {
   func testCallHierarchy() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       func 1️⃣a() {}
 
@@ -185,7 +185,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testReportSingleItemInPrepareCallHierarchy() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "MyLibrary/include/lib.h": """
         struct FilePathIndex {
@@ -227,7 +227,7 @@ final class CallHierarchyTests: XCTestCase {
 
   func testIncomingCallHierarchyShowsSurroundingFunctionCall() async throws {
     // We used to show `myVar` as the caller here
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       func 1️⃣foo() {}
 
@@ -268,7 +268,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testIncomingCallHierarchyFromComputedProperty() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       func 1️⃣foo() {}
 
@@ -310,7 +310,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testIncomingCallHierarchyShowsAccessToVariables() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       var 1️⃣foo: Int
       func 2️⃣testFunc() {
@@ -368,7 +368,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testOutgoingCallHierarchyShowsAccessesToVariable() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       var 1️⃣foo: Int
       func 2️⃣testFunc() {
@@ -409,7 +409,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testOutgoingCallHierarchyFromVariableAccessor() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       func 1️⃣testFunc() -> Int { 0 }
       var 2️⃣foo: Int {
@@ -449,7 +449,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testIncomingCallHierarchyLooksThroughProtocols() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       protocol MyProtocol {
         func foo()
@@ -498,7 +498,7 @@ final class CallHierarchyTests: XCTestCase {
   }
 
   func testIncomingCallHierarchyLooksThroughSuperclasses() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       class Base {
         func foo() {}

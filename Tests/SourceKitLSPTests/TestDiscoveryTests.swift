@@ -18,7 +18,7 @@ final class TestDiscoveryTests: XCTestCase {
   func testWorkspaceTests() async throws {
     try SkipUnless.longTestsEnabled()
 
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "Tests/MyLibraryTests/MyTests.swift": """
         import XCTest
@@ -75,7 +75,7 @@ final class TestDiscoveryTests: XCTestCase {
   func testDocumentTests() async throws {
     try SkipUnless.longTestsEnabled()
 
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "Tests/MyLibraryTests/MyTests.swift": """
         import XCTest

@@ -26,7 +26,7 @@ final class ImplementationTests: XCTestCase {
     testName: String = #function,
     line: UInt = #line
   ) async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(markedText, testName: testName)
+    let ws = try await IndexedSingleSwiftFileTestProject(markedText, testName: testName)
     let response = try await ws.testClient.send(
       ImplementationRequest(
         textDocument: TextDocumentIdentifier(ws.fileURI),
@@ -287,7 +287,7 @@ final class ImplementationTests: XCTestCase {
   }
 
   func testCrossFile() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "a.swift": """
         protocol 1️⃣MyProto {}

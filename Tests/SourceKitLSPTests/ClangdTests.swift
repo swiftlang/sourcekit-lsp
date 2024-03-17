@@ -16,7 +16,7 @@ import XCTest
 
 final class ClangdTests: XCTestCase {
   func testClangdGoToInclude() async throws {
-    let ws = try await MultiFileTestWorkspace(files: [
+    let ws = try await MultiFileTestProject(files: [
       "Object.h": "",
       "main.c": """
       #include 1️⃣"Object.h"
@@ -47,7 +47,7 @@ final class ClangdTests: XCTestCase {
   }
 
   func testClangdGoToDefinitionWithoutIndex() async throws {
-    let ws = try await MultiFileTestWorkspace(files: [
+    let ws = try await MultiFileTestProject(files: [
       "Object.h": """
       struct Object {
         int field;
@@ -87,7 +87,7 @@ final class ClangdTests: XCTestCase {
   }
 
   func testClangdGoToDeclaration() async throws {
-    let ws = try await MultiFileTestWorkspace(files: [
+    let ws = try await MultiFileTestProject(files: [
       "Object.h": """
       struct Object {
         int field;

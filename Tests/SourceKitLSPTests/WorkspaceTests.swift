@@ -40,7 +40,7 @@ final class WorkspaceTests: XCTestCase {
       )
       """
 
-    let ws = try await MultiFileTestWorkspace(
+    let ws = try await MultiFileTestProject(
       files: [
         // PackageA
         "PackageA/Sources/MyLibrary/libA.swift": """
@@ -79,8 +79,8 @@ final class WorkspaceTests: XCTestCase {
       }
     )
 
-    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory.appendingPathComponent("PackageA"))
-    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory.appendingPathComponent("PackageB"))
+    try await SwiftPMTestProject.build(at: ws.scratchDirectory.appendingPathComponent("PackageA"))
+    try await SwiftPMTestProject.build(at: ws.scratchDirectory.appendingPathComponent("PackageB"))
 
     let (bUri, bPositions) = try ws.openDocument("execB.swift")
 
@@ -178,7 +178,7 @@ final class WorkspaceTests: XCTestCase {
       )
       """
 
-    let ws = try await MultiFileTestWorkspace(
+    let ws = try await MultiFileTestProject(
       files: [
         // PackageA
         "PackageA/Sources/MyLibrary/libA.swift": """
@@ -197,7 +197,7 @@ final class WorkspaceTests: XCTestCase {
         "PackageA/Package.swift": packageManifest,
       ]
     )
-    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory.appendingPathComponent("PackageA"))
+    try await SwiftPMTestProject.build(at: ws.scratchDirectory.appendingPathComponent("PackageA"))
 
     let (uri, positions) = try ws.openDocument("execA.swift")
 
@@ -258,7 +258,7 @@ final class WorkspaceTests: XCTestCase {
       )
       """
 
-    let ws = try await MultiFileTestWorkspace(
+    let ws = try await MultiFileTestProject(
       files: [
         // PackageA
         "PackageA/Sources/MyLibrary/libA.swift": """
@@ -291,8 +291,8 @@ final class WorkspaceTests: XCTestCase {
       ]
     )
 
-    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory.appendingPathComponent("PackageA"))
-    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory)
+    try await SwiftPMTestProject.build(at: ws.scratchDirectory.appendingPathComponent("PackageA"))
+    try await SwiftPMTestProject.build(at: ws.scratchDirectory)
 
     let (bUri, bPositions) = try ws.openDocument("execB.swift")
 
@@ -374,7 +374,7 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testMultipleClangdWorkspaces() async throws {
-    let ws = try await MultiFileTestWorkspace(
+    let ws = try await MultiFileTestProject(
       files: [
         "WorkspaceA/main.cpp": """
         #if FOO
@@ -423,10 +423,10 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testRecomputeFileWorkspaceMembershipOnPackageSwiftChange() async throws {
-    let ws = try await MultiFileTestWorkspace(
+    let ws = try await MultiFileTestProject(
       files: [
         "PackageA/Sources/MyLibrary/libA.swift": "",
-        "PackageA/Package.swift": SwiftPMTestWorkspace.defaultPackageManifest,
+        "PackageA/Package.swift": SwiftPMTestProject.defaultPackageManifest,
 
         "PackageB/Sources/MyLibrary/libB.swift": """
         public struct Lib {
@@ -439,7 +439,7 @@ final class WorkspaceTests: XCTestCase {
 
         Lib().1️⃣
         """,
-        "PackageB/Package.swift": SwiftPMTestWorkspace.defaultPackageManifest,
+        "PackageB/Package.swift": SwiftPMTestProject.defaultPackageManifest,
       ],
       workspaces: { scratchDir in
         return [
@@ -513,7 +513,7 @@ final class WorkspaceTests: XCTestCase {
   }
 
   func testMixedPackage() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "clib/include/clib.h": """
         #ifndef CLIB_H
@@ -569,7 +569,7 @@ final class WorkspaceTests: XCTestCase {
   func testChangeWorkspaceFolders() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
 
-    let ws = try await MultiFileTestWorkspace(
+    let ws = try await MultiFileTestProject(
       files: [
         "subdir/Sources/otherPackage/otherPackage.swift": """
         import package
@@ -701,7 +701,7 @@ final class WorkspaceTests: XCTestCase {
   }
 
   public func testWorkspaceSpecificBuildSettings() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "test.swift": """
         #if MY_FLAG
@@ -744,7 +744,7 @@ final class WorkspaceTests: XCTestCase {
 
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
 
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "Sources/clib/include/clib.h": """
         #ifndef CLIB_H

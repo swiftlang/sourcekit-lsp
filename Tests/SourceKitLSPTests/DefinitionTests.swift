@@ -40,7 +40,7 @@ class DefinitionTests: XCTestCase {
   }
 
   func testJumpToDefinitionIncludesOverrides() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       protocol TestProtocol {
         func 1️⃣doThing()
@@ -73,7 +73,7 @@ class DefinitionTests: XCTestCase {
   }
 
   func testJumpToDefinitionFiltersByReceiver() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       class A {
         func 1️⃣doThing() {}
@@ -109,7 +109,7 @@ class DefinitionTests: XCTestCase {
   }
 
   func testDynamicJumpToDefinitionInClang() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "Sources/MyLibrary/include/dummy.h": "",
         "test.cpp": """
@@ -147,7 +147,7 @@ class DefinitionTests: XCTestCase {
   }
 
   func testJumpToCDefinitionFromSwift() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "Sources/MyLibrary/include/test.h": """
         void myFunc(void);
@@ -226,7 +226,7 @@ class DefinitionTests: XCTestCase {
   func testAmbiguousDefinition() async throws {
     // FIXME: This shouldn't have to be an indexed workspace but solver-based cursor info currently fails if the file
     // does not exist on disk.
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       func 1️⃣foo() -> Int { 1 }
       func 2️⃣foo() -> String { "" }
@@ -251,7 +251,7 @@ class DefinitionTests: XCTestCase {
 
   func testDefinitionOfClassBetweenModulesObjC() async throws {
     try SkipUnless.platformIsDarwin("@import in Objective-C is not enabled on non-Darwin")
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "LibA/include/LibA.h": """
         @interface 1️⃣LibAClass2️⃣
@@ -308,7 +308,7 @@ class DefinitionTests: XCTestCase {
 
   func testDefinitionOfMethodBetweenModulesObjC() async throws {
     try SkipUnless.platformIsDarwin("@import in Objective-C is not enabled on non-Darwin")
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "LibA/include/LibA.h": """
         @interface LibAClass

@@ -829,7 +829,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCodeCompleteSwiftPackage() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "a.swift": """
         struct A {

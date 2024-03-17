@@ -17,7 +17,7 @@ import XCTest
 final class IndexTests: XCTestCase {
   func testIndexSwiftModules() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
         public func 1️⃣aaa() {}
@@ -113,7 +113,7 @@ final class IndexTests: XCTestCase {
     }
 
     func checkRunningIndex(cleanUp: Bool, workspaceDirectory: URL) async throws -> URL? {
-      let ws = try await IndexedSingleSwiftFileWorkspace(
+      let ws = try await IndexedSingleSwiftFileTestProject(
         """
         func 1️⃣foo() {}
 

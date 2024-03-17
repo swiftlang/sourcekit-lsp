@@ -19,7 +19,7 @@ import XCTest
 
 final class CompilationDatabaseTests: XCTestCase {
   func testModifyCompilationDatabase() async throws {
-    let ws = try await MultiFileTestWorkspace(files: [
+    let ws = try await MultiFileTestProject(files: [
       "main.cpp": """
       #if FOO
       void 1️⃣foo2️⃣() {}

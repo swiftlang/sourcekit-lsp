@@ -17,7 +17,7 @@ import XCTest
 /// Tests that test the overall state of the SourceKit-LSP server, that's not really specific to any language
 final class ReferencesTests: XCTestCase {
   func testReferencesInMacro() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       import Observation
 

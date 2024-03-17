@@ -20,7 +20,7 @@ import XCTest
 
 final class MainFilesProviderTests: XCTestCase {
   func testMainFileForHeaderInPackageTarget() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "MyLibrary/include/MyLibrary.h": """
         void bridging(void) {
@@ -60,7 +60,7 @@ final class MainFilesProviderTests: XCTestCase {
   }
 
   func testMainFileForHeaderOutsideOfTarget() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "Sources/shared.h": """
         void bridging(void) {
@@ -98,7 +98,7 @@ final class MainFilesProviderTests: XCTestCase {
     let preBuildDiags = try await ws.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(preBuildDiags.diagnostics.count, 0)
 
-    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory)
+    try await SwiftPMTestProject.build(at: ws.scratchDirectory)
 
     // After building we know that 'shared.h' is included from 'MyLibrary.c' and thus we use its build settings,
     // defining `VARIABLE_NAME` to `fromMyLibrary`.
@@ -109,7 +109,7 @@ final class MainFilesProviderTests: XCTestCase {
   }
 
   func testMainFileForSharedHeaderOutsideOfTarget() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "Sources/shared.h": """
         void bridging(void) {
@@ -160,7 +160,7 @@ final class MainFilesProviderTests: XCTestCase {
   }
 
   func testMainFileChangesIfIncludeIsAdded() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let ws = try await SwiftPMTestProject(
       files: [
         "Sources/shared.h": """
         void bridging(void) {
@@ -212,7 +212,7 @@ final class MainFilesProviderTests: XCTestCase {
     let fancyLibraryURL = try ws.uri(for: "MyFancyLibrary.c").fileURL!
     try newFancyLibraryContents.write(to: fancyLibraryURL, atomically: false, encoding: .utf8)
 
-    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory)
+    try await SwiftPMTestProject.build(at: ws.scratchDirectory)
 
     // 'MyFancyLibrary.c' now also includes 'shared.h'. Since it lexicographically preceeds MyLibrary, we should use its
     // build settings.

@@ -202,7 +202,7 @@ final class CrashRecoveryTests: XCTestCase {
   func testClangdCrashRecoveryReopensWithCorrectBuildSettings() async throws {
     try SkipUnless.longTestsEnabled()
 
-    let ws = try await MultiFileTestWorkspace(files: [
+    let ws = try await MultiFileTestProject(files: [
       "main.cpp": """
       #if FOO
       void 1️⃣foo2️⃣() {}

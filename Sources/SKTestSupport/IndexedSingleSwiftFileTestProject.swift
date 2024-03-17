@@ -17,7 +17,7 @@ import LanguageServerProtocol
 import SourceKitLSP
 import TSCBasic
 
-public struct IndexedSingleSwiftFileWorkspace {
+public struct IndexedSingleSwiftFileTestProject {
   enum Error: Swift.Error {
     case swiftcNotFound
   }

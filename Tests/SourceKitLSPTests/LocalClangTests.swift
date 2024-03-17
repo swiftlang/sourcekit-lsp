@@ -220,7 +220,7 @@ final class LocalClangTests: XCTestCase {
     // Note: tests generally should avoid including system headers
     // to keep them fast and portable. This test is specifically
     // ensuring clangd can find libc++ and builtin headers.
-    let ws = try await MultiFileTestWorkspace(
+    let ws = try await MultiFileTestProject(
       files: [
         "main.cpp": """
         #include <cstdint>
@@ -246,7 +246,7 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testClangModules() async throws {
-    let ws = try await MultiFileTestWorkspace(
+    let ws = try await MultiFileTestProject(
       files: [
         "ClangModuleA.h": """
         #ifndef ClangModuleA_h
@@ -304,7 +304,7 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testDocumentDependenciesUpdated() async throws {
-    let ws = try await MultiFileTestWorkspace(
+    let ws = try await MultiFileTestProject(
       files: [
         "Object.h": """
         struct Object {

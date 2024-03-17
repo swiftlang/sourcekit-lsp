@@ -18,7 +18,7 @@ import XCTest
 
 final class TypeHierarchyTests: XCTestCase {
   func testRootClassSupertypes() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       class 1️⃣MyClass {}
       """
@@ -30,7 +30,7 @@ final class TypeHierarchyTests: XCTestCase {
   }
 
   func testSupertypesOfClass() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       class 1️⃣MyClass {}
       protocol 2️⃣MyProtocol {}
@@ -50,7 +50,7 @@ final class TypeHierarchyTests: XCTestCase {
   }
 
   func testConformedProtocolsOfStruct() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       protocol 1️⃣MyProtocol {}
       protocol 2️⃣MyOtherProtocol {}
@@ -71,7 +71,7 @@ final class TypeHierarchyTests: XCTestCase {
   }
 
   func testSubtypesOfClass() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       class MySuperclass {}
       class 1️⃣MyClass: MySuperclass {}
@@ -92,7 +92,7 @@ final class TypeHierarchyTests: XCTestCase {
   }
 
   func testProtocolConformancesAsSubtypes() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       protocol 1️⃣MyProtocol {}
       class 2️⃣MyClass: MyProtocol {}
@@ -114,7 +114,7 @@ final class TypeHierarchyTests: XCTestCase {
   }
 
   func testExtensionsWithConformancesAsSubtypes() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       protocol MyProtocol {}
       enum 1️⃣MyEnum {}
@@ -143,7 +143,7 @@ final class TypeHierarchyTests: XCTestCase {
   }
 
   func testRetroactiveConformancesAsSubtypes() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       protocol 1️⃣MyProtocol {}
       struct MyStruct {}
@@ -168,7 +168,7 @@ final class TypeHierarchyTests: XCTestCase {
   }
 
   func testSupertypesFromCall() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let ws = try await IndexedSingleSwiftFileTestProject(
       """
       class 1️⃣MyClass {}
       class MySubclass: MyClass {}
@@ -224,7 +224,7 @@ fileprivate extension TypeHierarchyItem {
     kind: SymbolKind,
     detail: String = "test",
     location locationMarker: String,
-    in ws: IndexedSingleSwiftFileWorkspace
+    in ws: IndexedSingleSwiftFileTestProject
   ) {
     self.init(
       name: name,
@@ -238,7 +238,7 @@ fileprivate extension TypeHierarchyItem {
   }
 }
 
-fileprivate extension IndexedSingleSwiftFileWorkspace {
+fileprivate extension IndexedSingleSwiftFileTestProject {
   func prepareTypeHierarchy(at locationMarker: String, line: UInt = #line) async throws -> TypeHierarchyItem {
     let items = try await testClient.send(
       TypeHierarchyPrepareRequest(
