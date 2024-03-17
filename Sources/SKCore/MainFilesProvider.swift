@@ -25,10 +25,3 @@ public protocol MainFilesProvider: AnyObject {
   /// ```
   func mainFilesContainingFile(_: DocumentURI) async -> Set<DocumentURI>
 }
-
-/// Delegate that responds to possible main file changes.
-public protocol MainFilesDelegate: AnyObject {
-
-  /// The mapping from files to main files (may have) changed.
-  func mainFilesChanged() async
-}
