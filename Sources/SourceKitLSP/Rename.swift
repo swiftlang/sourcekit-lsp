@@ -554,12 +554,14 @@ extension SourceKitServer {
     index: IndexStoreDB
   ) async throws -> CrossLanguageName? {
     let definitions = index.occurrences(ofUSR: usr, roles: [.definition])
-    guard let definitionSymbol = definitions.only else {
-      if definitions.isEmpty {
-        logger.error("no definitions for \(usr) found")
-      } else {
-        logger.error("Multiple definitions for \(usr) found")
-      }
+    if definitions.count > 1 {
+      logger.log("Multiple definitions for \(usr) found")
+    }
+    // There might be multiple definitions of the same symbol eg. in different `#if` branches. In this case pick any of
+    // them because with very high likelihood they all translate to the same clang and Swift name. Sort the entries to
+    // ensure that we deterministically pick the same entry every time.
+    guard let definitionSymbol = definitions.sorted().first else {
+      logger.error("no definitions for \(usr) found")
       return nil
     }
     let definitionLanguage: Language =
