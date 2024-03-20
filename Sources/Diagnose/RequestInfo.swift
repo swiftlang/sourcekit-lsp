@@ -34,7 +34,8 @@ public struct RequestInfo {
   @_spi(Testing)
   public var fileContents: String
 
-  func request(for file: URL) throws -> String {
+  @_spi(Testing)
+  public func request(for file: URL) throws -> String {
     let encoder = JSONEncoder()
     encoder.outputFormatting = .prettyPrinted
     guard var compilerArgs = String(data: try encoder.encode(compilerArgs), encoding: .utf8) else {
@@ -47,8 +48,17 @@ public struct RequestInfo {
       .replacingOccurrences(of: "$OFFSET", with: String(offset))
       .replacingOccurrences(of: "$COMPILER_ARGS", with: compilerArgs)
       .replacingOccurrences(of: "$FILE", with: file.path)
-
   }
+
+  /// A fake value that is used to indicate that we are reducing a `swift-frontend` issue instead of a sourcekitd issue.
+  static var fakeRequestTemplateForFrontendIssues = """
+    {
+      key.request: sourcekit-lsp-fake-request-for-frontend-crash
+      key.compilerargs: [
+        $COMPILER_ARGS
+      ]
+    }
+    """
 
   @_spi(Testing)
   public init(requestTemplate: String, offset: Int, compilerArgs: [String], fileContents: String) {
@@ -101,6 +111,41 @@ public struct RequestInfo {
     self.requestTemplate = requestTemplate
 
     fileContents = try String(contentsOf: URL(fileURLWithPath: sourceFilePath))
+  }
+
+  /// Create a `RequestInfo` that is used to reduce a `swift-frontend issue`
+  init(frontendArgs: [String]) throws {
+    var frontendArgsWithFilelistInlined: [String] = []
+
+    var iterator = frontendArgs.makeIterator()
+
+    // Inline the file list so we can reduce the compiler arguments by removing individual source files.
+    // A couple `output-filelist`-related compiler arguments don't work with the file list inlined. Remove them as they
+    // are unlikely to be responsible for the swift-frontend cache
+    while let frontendArg = iterator.next() {
+      switch frontendArg {
+      case "-supplementary-output-file-map", "-output-filelist", "-index-unit-output-path-filelist":
+        _ = iterator.next()
+      case "-filelist":
+        guard let fileList = iterator.next() else {
+          throw ReductionError("Expected file path after -filelist command line argument")
+        }
+        frontendArgsWithFilelistInlined += try String(contentsOfFile: fileList)
+          .split(separator: "\n")
+          .map { String($0) }
+      default:
+        frontendArgsWithFilelistInlined.append(frontendArg)
+      }
+    }
+
+    // File contents are not known because there are multiple input files. Will usually be set after running
+    // `mergeSwiftFiles`.
+    self.init(
+      requestTemplate: Self.fakeRequestTemplateForFrontendIssues,
+      offset: 0,
+      compilerArgs: frontendArgsWithFilelistInlined,
+      fileContents: ""
+    )
   }
 }
 

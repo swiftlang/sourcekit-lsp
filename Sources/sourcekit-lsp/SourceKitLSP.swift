@@ -106,6 +106,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     subcommands: [
       DiagnoseCommand.self,
       ReduceCommand.self,
+      ReduceFrontendCommand.self,
       SourceKitdRequestCommand.self,
     ]
   )
@@ -116,7 +117,7 @@ struct SourceKitLSP: AsyncParsableCommand {
   var syncRequests = false
 
   @Option(
-    name: [.customLong("configuration"), .customShort("c")],
+    name: [.customLong("configuration")],
     help: "Build with configuration [debug|release]"
   )
   var buildConfiguration = BuildConfiguration.debug

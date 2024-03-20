@@ -19,24 +19,12 @@ import class TSCBasic.Process
 import var TSCBasic.stderrStream
 import class TSCUtility.PercentProgressAnimation
 
-public struct ReduceCommand: AsyncParsableCommand {
+public struct ReduceFrontendCommand: AsyncParsableCommand {
   public static var configuration: CommandConfiguration = CommandConfiguration(
-    commandName: "reduce",
-    abstract: "Reduce a single sourcekitd crash",
+    commandName: "reduce-frontend",
+    abstract: "Reduce a single swift-frontend crash",
     shouldDisplay: false
   )
-
-  @Option(name: .customLong("request-file"), help: "Path to a sourcekitd request to reduce.")
-  var sourcekitdRequestPath: String
-
-  @Option(
-    name: .customLong("toolchain"),
-    help: """
-      The toolchain used to reduce the sourcekitd issue. \
-      If not specified, the toolchain is found in the same way that sourcekit-lsp finds it
-      """
-  )
-  var toolchainOverride: String?
 
   #if canImport(Darwin)
   // Creating an NSPredicate from a string is not supported in corelibs-foundation.
@@ -46,7 +34,10 @@ public struct ReduceCommand: AsyncParsableCommand {
       sourcekitd crashes are always considered as reproducers.
 
       The predicate is an NSPredicate. `stdout` and `stderr` are standard output and standard error of the \
-      sourcekitd execution using `sourcekit-lsp run-sourcekitd-request`, respectively.
+      swift-frontend execution, respectively.
+
+      Example:
+       - stderr CONTAINS "failed to produce diagnostic for expression"
       """
   )
   var predicate: String?
@@ -55,6 +46,23 @@ public struct ReduceCommand: AsyncParsableCommand {
   #else
   private var nsPredicate: NSPredicate? { nil }
   #endif
+
+  @Option(
+    name: .customLong("toolchain"),
+    help: """
+      The toolchain used to reduce the swift-frontend issue. \
+      If not specified, the toolchain is found in the same way that sourcekit-lsp finds it
+      """
+  )
+  var toolchainOverride: String?
+
+  @Option(
+    parsing: .remaining,
+    help: """
+      The swift-frontend arguments that exhibit the issue that should be reduced.
+      """
+  )
+  var frontendArgs: [String]
 
   var toolchain: Toolchain? {
     get async throws {
@@ -73,13 +81,10 @@ public struct ReduceCommand: AsyncParsableCommand {
       throw ReductionError("Unable to find sourcekitd.framework")
     }
     guard let swiftFrontend = try await toolchain?.swiftFrontend else {
-      throw ReductionError("Unable to find sourcekitd.framework")
+      throw ReductionError("Unable to find swift-frontend")
     }
 
-    let progressBar = PercentProgressAnimation(stream: stderrStream, header: "Reducing sourcekitd issue")
-
-    let request = try String(contentsOfFile: sourcekitdRequestPath)
-    let requestInfo = try RequestInfo(request: request)
+    let progressBar = PercentProgressAnimation(stream: stderrStream, header: "Reducing swift-frontend crash")
 
     let executor = OutOfProcessSourceKitRequestExecutor(
       sourcekitd: sourcekitd.asURL,
@@ -87,16 +92,20 @@ public struct ReduceCommand: AsyncParsableCommand {
       reproducerPredicate: nsPredicate
     )
 
-    let reduceRequestInfo = try await requestInfo.reduce(using: executor) { progress, message in
+    let reducedRequestInfo = try await reduceFrontendIssue(
+      frontendArgs: frontendArgs,
+      using: executor
+    ) { progress, message in
       progressBar.update(step: Int(progress * 100), total: 100, text: message)
     }
 
     progressBar.complete(success: true)
 
-    let reducedSourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduced.swift")
-    try reduceRequestInfo.fileContents.write(to: reducedSourceFile, atomically: true, encoding: .utf8)
+    print("Reduced compiler arguments:")
+    print(reducedRequestInfo.compilerArgs)
 
-    print("Reduced Request:")
-    print(try reduceRequestInfo.request(for: reducedSourceFile))
+    print("")
+    print("Reduced file contents:")
+    print(reducedRequestInfo.fileContents)
   }
 }
