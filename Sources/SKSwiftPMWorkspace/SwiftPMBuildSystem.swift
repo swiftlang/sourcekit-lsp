@@ -39,7 +39,7 @@ import SPMBuildCore
 /// Parameter of `reloadPackageStatusCallback` in ``SwiftPMWorkspace``.
 ///
 /// Informs the callback about whether `reloadPackage` started or finished executing.
-public enum ReloadPackageStatus {
+public enum ReloadPackageStatus: Sendable {
   case start
   case end
 }
@@ -363,9 +363,11 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
   public func filesDidChange(_ events: [FileEvent]) async {
     if events.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
       logger.log("Reloading package because of file change")
-      await orLog("Reloading package") {
+      do {
         // TODO: It should not be necessary to reload the entire package just to get build settings for one file.
         try await self.reloadPackage()
+      } catch {
+        logError(prefix: "Reloading package", error: error)
       }
     }
   }

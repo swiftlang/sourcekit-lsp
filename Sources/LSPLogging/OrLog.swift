@@ -14,7 +14,7 @@
 import os
 #endif
 
-private func logError(prefix: String, error: Error, level: LogLevel) {
+public func logError(prefix: String, error: Error, level: LogLevel = .error) {
   logger.log(
     level: level,
     "\(prefix, privacy: .public)\(prefix.isEmpty ? "" : ": ", privacy: .public)\(error.forLogging)"
