@@ -25,6 +25,14 @@ import class TSCUtility.PercentProgressAnimation
 /// to be a `AsyncParsableCommand`.
 private var progressBar: PercentProgressAnimation? = nil
 
+/// A component of the diagnostic bundle that's collected in independent stages.
+fileprivate enum BundleComponent: String, CaseIterable, ExpressibleByArgument {
+  case crashReports
+  case logs
+  case swiftVersions
+  case sourcekitdCrashes
+}
+
 public struct DiagnoseCommand: AsyncParsableCommand {
   public static var configuration: CommandConfiguration = CommandConfiguration(
     commandName: "diagnose",
@@ -58,6 +66,16 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   )
   var predicate: String?
   #endif
+
+  @Option(
+    parsing: .upToNextOption,
+    help: """
+      A space separated list of components to include in the diagnostic bundle. Includes all components by default.
+
+      Possible options are: \(BundleComponent.allCases.map(\.rawValue).joined(separator: ", "))
+      """
+  )
+  private var components: [BundleComponent] = BundleComponent.allCases
 
   var toolchainRegistry: ToolchainRegistry {
     get throws {
@@ -225,7 +243,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   public func run() async throws {
     print(
       """
-      sourcekit-lsp diagnose collects information that helps the developers of sourcekit-lsp diagnose and fix issues. 
+      sourcekit-lsp diagnose collects information that helps the developers of sourcekit-lsp diagnose and fix issues.
       This information contains:
       - Crash logs from SourceKit
       - Log messages emitted by SourceKit
@@ -244,10 +262,18 @@ public struct DiagnoseCommand: AsyncParsableCommand {
       .appendingPathComponent("sourcekitd-reproducer-\(date)")
     try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
 
-    await orPrintError { try addCrashLogs(toBundle: bundlePath) }
-    await orPrintError { try await addOsLog(toBundle: bundlePath) }
-    await orPrintError { try await addSwiftVersion(toBundle: bundlePath) }
-    await orPrintError { try await addSourcekitdCrashReproducer(toBundle: bundlePath) }
+    if components.isEmpty || components.contains(.crashReports) {
+      await orPrintError { try addCrashLogs(toBundle: bundlePath) }
+    }
+    if components.isEmpty || components.contains(.logs) {
+      await orPrintError { try await addOsLog(toBundle: bundlePath) }
+    }
+    if components.isEmpty || components.contains(.swiftVersions) {
+      await orPrintError { try await addSwiftVersion(toBundle: bundlePath) }
+    }
+    if components.isEmpty || components.contains(.sourcekitdCrashes) {
+      await orPrintError { try await addSourcekitdCrashReproducer(toBundle: bundlePath) }
+    }
 
     progressBar?.complete(success: true)
 
