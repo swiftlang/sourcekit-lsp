@@ -112,14 +112,14 @@ public final class TestSourceKitLSPClient: MessageHandler {
     }
     self.notificationYielder = notificationYielder
 
-    let clientConnection = LocalConnection()
-    self.serverToClientConnection = clientConnection
+    let serverToClientConnection = LocalConnection()
+    self.serverToClientConnection = serverToClientConnection
     server = SourceKitServer(
-      client: clientConnection,
+      client: serverToClientConnection,
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: serverOptions,
       onExit: {
-        clientConnection.close()
+        serverToClientConnection.close()
       }
     )
 
@@ -166,7 +166,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
     // deinits, we could await the sending of a ShutdownRequest.
     let sema = DispatchSemaphore(value: 0)
     nextRequestID += 1
-    server.handle(ShutdownRequest(), id: .number(nextRequestID), from: ObjectIdentifier(self)) { result in
+    server.handle(ShutdownRequest(), id: .number(nextRequestID)) { result in
       sema.signal()
     }
     sema.wait()
@@ -184,7 +184,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   public func send<R: RequestType>(_ request: R) async throws -> R.Response {
     nextRequestID += 1
     return try await withCheckedThrowingContinuation { continuation in
-      server.handle(request, id: .number(self.nextRequestID), from: ObjectIdentifier(self)) { result in
+      server.handle(request, id: .number(self.nextRequestID)) { result in
         continuation.resume(with: result)
       }
     }
@@ -192,7 +192,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
 
   /// Send the notification to `server`.
   public func send(_ notification: some NotificationType) {
-    server.handle(notification, from: ObjectIdentifier(self))
+    server.handle(notification)
   }
 
   // MARK: - Handling messages sent to the editor
@@ -276,7 +276,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
 
   /// - Important: Implementation detail of `TestSourceKitServer`. Do not call
   ///   from tests.
-  public func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+  public func handle(_ params: some NotificationType) {
     notificationYielder.yield(params)
   }
 
@@ -285,7 +285,6 @@ public final class TestSourceKitLSPClient: MessageHandler {
   public func handle<Request: RequestType>(
     _ params: Request,
     id: LanguageServerProtocol.RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<Request.Response>) -> Void
   ) {
     guard let requestHandler = requestHandlers.first else {
@@ -403,20 +402,19 @@ private class WeakMessageHandler: MessageHandler {
     self.handler = handler
   }
 
-  func handle(_ params: some LanguageServerProtocol.NotificationType, from clientID: ObjectIdentifier) {
-    handler?.handle(params, from: clientID)
+  func handle(_ params: some LanguageServerProtocol.NotificationType) {
+    handler?.handle(params)
   }
 
   func handle<Request: RequestType>(
     _ params: Request,
     id: LanguageServerProtocol.RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LanguageServerProtocol.LSPResult<Request.Response>) -> Void
   ) {
     guard let handler = handler else {
       reply(.failure(.unknown("Handler has been deallocated")))
       return
     }
-    handler.handle(params, id: id, from: clientID, reply: reply)
+    handler.handle(params, id: id, reply: reply)
   }
 }

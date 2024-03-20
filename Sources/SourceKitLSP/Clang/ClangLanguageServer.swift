@@ -55,9 +55,9 @@ fileprivate class ClangdStderrLogForwarder {
 /// A thin wrapper over a connection to a clangd server providing build setting handling.
 ///
 /// In addition, it also intercepts notifications and replies from clangd in order to do things
-/// like witholding diagnostics when fallback build settings are being used.
+/// like withholding diagnostics when fallback build settings are being used.
 ///
-/// ``ClangLangaugeServerShim`` conforms to ``MessageHandler`` to receive
+/// ``ClangLanguageServerShim`` conforms to ``MessageHandler`` to receive
 /// requests and notifications **from** clangd, not from the editor, and it will
 /// forward these requests and notifications to the editor.
 actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
@@ -302,7 +302,7 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   /// sending a notification that's intended for the editor.
   ///
   /// We should either handle it ourselves or forward it to the editor.
-  nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+  nonisolated func handle(_ params: some NotificationType) {
     logger.info(
       """
       Received notification from clangd:
@@ -328,7 +328,6 @@ actor ClangLanguageServerShim: ToolchainLanguageServer, MessageHandler {
   nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
     logger.info(
@@ -446,7 +445,7 @@ extension ClangLanguageServerShim {
     await withCheckedContinuation { continuation in
       _ = clangd.send(ShutdownRequest()) { _ in
         Task {
-          self.clangd.send(ExitNotification())
+          await self.clangd.send(ExitNotification())
           continuation.resume()
         }
       }

@@ -15,7 +15,7 @@ import Foundation
 
 /// An object that can printed for logging and also offers a redacted description
 /// when logging in contexts in which private information shouldn't be captured.
-public protocol CustomLogStringConvertible: CustomStringConvertible {
+public protocol CustomLogStringConvertible: CustomStringConvertible, Sendable {
   /// A full description of the object.
   var description: String { get }
 
@@ -30,7 +30,7 @@ public protocol CustomLogStringConvertible: CustomStringConvertible {
 /// There currently is no way to get equivalent functionality in pure Swift. We
 /// thus pass this object to OSLog, which just forwards to `description` or
 /// `redactedDescription` of an object that implements `CustomLogStringConvertible`.
-public class CustomLogStringConvertibleWrapper: NSObject {
+public final class CustomLogStringConvertibleWrapper: NSObject, Sendable {
   private let underlyingObject: any CustomLogStringConvertible
 
   fileprivate init(_ underlyingObject: any CustomLogStringConvertible) {

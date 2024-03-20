@@ -190,7 +190,7 @@ public actor BuildServerBuildSystem: MessageHandler {
   /// the build server has sent us a notification.
   ///
   /// We need to notify the delegate about any updated build settings.
-  public nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+  public nonisolated func handle(_ params: some NotificationType) {
     logger.info(
       """
       Received notification from build server:
@@ -212,7 +212,6 @@ public actor BuildServerBuildSystem: MessageHandler {
   public nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
     logger.info(
