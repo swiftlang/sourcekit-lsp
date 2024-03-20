@@ -13,7 +13,7 @@ import BuildServerProtocol
 import LanguageServerProtocol
 
 /// Handles build system events, such as file build settings changes.
-public protocol BuildSystemDelegate: AnyObject {
+public protocol BuildSystemDelegate: AnyObject, Sendable {
   /// Notify the delegate that the build targets have changed.
   ///
   /// The callee should request new sources and outputs for the build targets of

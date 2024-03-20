@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public enum WorkspaceType: String {
+public enum WorkspaceType: String, Sendable {
   case buildServer
   case compilationDatabase
   case swiftPM

@@ -16,7 +16,7 @@ import Foundation
 import LanguageServerProtocol
 import SKSupport
 
-import enum PackageLoading.Platform
+@preconcurrency import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 
