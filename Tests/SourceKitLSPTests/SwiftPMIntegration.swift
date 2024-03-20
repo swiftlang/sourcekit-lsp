@@ -181,4 +181,64 @@ final class SwiftPMIntegrationTests: XCTestCase {
     )
     XCTAssert(oldFileCompletions.items.contains(where: { $0.label == "baz(l: Lib)" }))
   }
+
+  func testNestedPackage() async throws {
+    let ws = try await MultiFileTestWorkspace(files: [
+      "pkg/Sources/lib/lib.swift": "",
+      "pkg/Package.swift": """
+      // swift-tools-version:4.2
+      import PackageDescription
+      let package = Package(name: "a", products: [], dependencies: [],
+      targets: [.target(name: "lib", dependencies: [])])
+      """,
+      "nested/pkg/Sources/lib/a.swift.swift": """
+      struct Foo {
+        func bar() {}
+      }
+      """,
+      "nested/pkg/Sources/lib/b.swift": """
+      func test(foo: Foo) {
+        foo.1️⃣
+      }
+      """,
+      "nested/pkg/Package.swift": """
+      // swift-tools-version:4.2
+      import PackageDescription
+      let package = Package(name: "a", products: [], dependencies: [],
+      targets: [.target(name: "lib", dependencies: [])])
+      """,
+    ])
+
+    let (uri, positions) = try ws.openDocument("b.swift")
+
+    let result = try await ws.testClient.send(
+      CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    XCTAssertEqual(
+      result.items,
+      [
+        CompletionItem(
+          label: "bar()",
+          kind: .method,
+          detail: "Void",
+          deprecated: false,
+          filterText: "bar()",
+          insertText: "bar()",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(TextEdit(range: positions["1️⃣"]..<positions["1️⃣"], newText: "bar()"))
+        ),
+        CompletionItem(
+          label: "self",
+          kind: .keyword,
+          detail: "Foo",
+          deprecated: false,
+          filterText: "self",
+          insertText: "self",
+          insertTextFormat: .plain,
+          textEdit: .textEdit(TextEdit(range: positions["1️⃣"]..<positions["1️⃣"], newText: "self"))
+        ),
+      ]
+    )
+  }
 }
