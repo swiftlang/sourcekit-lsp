@@ -132,8 +132,15 @@ final actor WorkDoneProgressState {
   /// Start a new task, creating a new `WorkDoneProgress` if none is running right now.
   ///
   /// - Parameter server: The server that is used to create the `WorkDoneProgress` on the client
-  func startProgress(server: SourceKitServer) {
+  func startProgress(server: SourceKitServer) async {
     activeTasks += 1
+    guard await server.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false else {
+      // If the client doesn't support workDoneProgress, keep track of the active task count but don't update the state.
+      // That way, if we call `startProgress` before initialization finishes, we won't send the
+      // `CreateWorkDoneProgressRequest` but if we call `startProgress` again after initialization finished (and thus
+      // the capability is set), we will create the work done progress.
+      return
+    }
     if state == .noProgress {
       state = .creating
       // Discard the handle. We don't support cancellation of the creation of a work done progress.
@@ -170,9 +177,12 @@ final actor WorkDoneProgressState {
   /// If this drops the active task count to 0, the work done progress is ended on the client.
   ///
   /// - Parameter server: The server that is used to send and update of the `WorkDoneProgress` to the client
-  func endProgress(server: SourceKitServer) {
+  func endProgress(server: SourceKitServer) async {
     assert(activeTasks > 0, "Unbalanced startProgress/endProgress calls")
     activeTasks -= 1
+    guard await server.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false else {
+      return
+    }
     if state == .created && activeTasks == 0 {
       server.client.send(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
     }

@@ -147,6 +147,7 @@ public actor SwiftLanguageServer: ToolchainLanguageServer {
         if sourcekitdCrashedWorkDoneProgress == nil {
           sourcekitdCrashedWorkDoneProgress = WorkDoneProgressManager(
             server: sourceKitServer,
+            capabilityRegistry: capabilityRegistry,
             title: "SourceKit-LSP: Restoring functionality",
             message: "Please run 'sourcekit-lsp diagnose' to file an issue"
           )
