@@ -238,7 +238,7 @@ extension BuildSystemManager: BuildSystemDelegate {
   }
 }
 
-extension BuildSystemManager: MainFilesDelegate {
+extension BuildSystemManager {
   // FIXME: Consider debouncing/limiting this, seems to trigger often during a build.
   /// Checks if there are any files in `mainFileAssociations` where the main file
   /// that we have stored has changed.
