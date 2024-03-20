@@ -1081,4 +1081,77 @@ final class RenameTests: XCTestCase {
         """
     )
   }
+
+  func testRenameAfterFileMove() async throws {
+    let ws = try await SwiftPMTestWorkspace(
+      files: [
+        "definition.swift": """
+        func 1️⃣foo2️⃣() {}
+        """,
+        "caller.swift": """
+        func test() {
+          3️⃣foo4️⃣()
+        }
+        """,
+      ],
+      build: true
+    )
+
+    let definitionUri = try ws.uri(for: "definition.swift")
+    let (callerUri, callerPositions) = try ws.openDocument("caller.swift")
+
+    // Validate that we get correct rename results before moving the definition file.
+    let resultBeforeFileMove = try await ws.testClient.send(
+      RenameRequest(textDocument: TextDocumentIdentifier(callerUri), position: callerPositions["3️⃣"], newName: "bar")
+    )
+    XCTAssertEqual(
+      resultBeforeFileMove,
+      WorkspaceEdit(
+        changes: [
+          definitionUri: [
+            TextEdit(
+              range: try ws.position(of: "1️⃣", in: "definition.swift")..<ws.position(of: "2️⃣", in: "definition.swift"),
+              newText: "bar"
+            )
+          ],
+          callerUri: [TextEdit(range: callerPositions["3️⃣"]..<callerPositions["4️⃣"], newText: "bar")],
+        ]
+      )
+    )
+
+    let movedDefinitionUri =
+      DocumentURI(
+        definitionUri.fileURL!
+          .deletingLastPathComponent()
+          .appendingPathComponent("movedDefinition.swift")
+      )
+
+    try FileManager.default.moveItem(at: XCTUnwrap(definitionUri.fileURL), to: XCTUnwrap(movedDefinitionUri.fileURL))
+
+    ws.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: definitionUri, type: .deleted), FileEvent(uri: movedDefinitionUri, type: .created),
+      ])
+    )
+
+    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory)
+
+    let resultAfterFileMove = try await ws.testClient.send(
+      RenameRequest(textDocument: TextDocumentIdentifier(callerUri), position: callerPositions["3️⃣"], newName: "bar")
+    )
+    XCTAssertEqual(
+      resultAfterFileMove,
+      WorkspaceEdit(
+        changes: [
+          movedDefinitionUri: [
+            TextEdit(
+              range: try ws.position(of: "1️⃣", in: "definition.swift")..<ws.position(of: "2️⃣", in: "definition.swift"),
+              newText: "bar"
+            )
+          ],
+          callerUri: [TextEdit(range: callerPositions["3️⃣"]..<callerPositions["4️⃣"], newText: "bar")],
+        ]
+      )
+    )
+  }
 }
