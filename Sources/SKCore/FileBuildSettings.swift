@@ -17,7 +17,7 @@ import LanguageServerProtocol
 ///
 /// Encapsulates all the settings needed to compile a single file, including the compiler arguments
 /// and working directory. FileBuildSettings are typically the result of a BuildSystem query.
-public struct FileBuildSettings: Equatable {
+public struct FileBuildSettings: Equatable, Sendable {
 
   /// The compiler arguments to use for this file.
   public var compilerArguments: [String]

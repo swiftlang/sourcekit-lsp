@@ -12,11 +12,11 @@
 
 import SKSupport
 
-import struct PackageModel.BuildFlags
+@preconcurrency import struct PackageModel.BuildFlags
 import struct TSCBasic.AbsolutePath
 
 /// Build configuration
-public struct BuildSetup {
+public struct BuildSetup: Sendable {
 
   /// Default configuration
   public static let `default` = BuildSetup(

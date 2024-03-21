@@ -22,11 +22,8 @@ import CRT
 #endif
 
 public final class SKDResponse: Sendable {
-  /// - Note: `sourcekitd_api_response_t` is a typedef for `void *`, so we can't mark it as sendable. But we know that
-  ///   it stays alive until we deinit this `SKDResponse`. We also require that only a single `SKDResponse` may manage
-  ///   the `sourcekitd_api_response_t`, so raw response cannot be modified or disposed in any other way.
-  private nonisolated(unsafe) let response: sourcekitd_api_response_t
-  public let sourcekitd: SourceKitD
+  private nonisolated let response: sourcekitd_api_response_t
+  let sourcekitd: SourceKitD
 
   /// Creates a new `SKDResponse` that exclusively manages the raw `sourcekitd_api_response_t`.
   ///

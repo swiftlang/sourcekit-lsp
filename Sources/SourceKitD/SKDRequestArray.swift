@@ -31,9 +31,9 @@ extension SourceKitD {
   }
 }
 
-public final class SKDRequestArray {
-  public let array: sourcekitd_api_object_t
-  public let sourcekitd: SourceKitD
+public final class SKDRequestArray: Sendable {
+  nonisolated(unsafe) let array: sourcekitd_api_object_t
+  private let sourcekitd: SourceKitD
 
   public init(_ array: sourcekitd_api_object_t? = nil, sourcekitd: SourceKitD) {
     self.array = array ?? sourcekitd.api.request_array_create(nil, 0)!

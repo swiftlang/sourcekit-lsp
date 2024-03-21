@@ -14,7 +14,7 @@ import LSPLogging
 import LanguageServerProtocol
 import SKSupport
 
-import enum PackageLoading.Platform
+@preconcurrency import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 import var TSCBasic.localFileSystem
@@ -114,7 +114,6 @@ public final class Toolchain {
 }
 
 extension Toolchain {
-
   /// Create a toolchain for the given path, if it contains at least one tool, otherwise return nil.
   ///
   /// This initializer looks for a toolchain using the following basic layout:

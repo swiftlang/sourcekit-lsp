@@ -16,7 +16,7 @@ import LanguageServerProtocol
 import struct TSCBasic.AbsolutePath
 
 /// Defines how well a `BuildSystem` can handle a file with a given URI.
-public enum FileHandlingCapability: Comparable {
+public enum FileHandlingCapability: Comparable, Sendable {
   /// The build system can't handle the file at all
   case unhandled
 
@@ -36,7 +36,7 @@ public enum FileHandlingCapability: Comparable {
 ///
 /// For example, a SwiftPMWorkspace provides compiler arguments for the files
 /// contained in a SwiftPM package root directory.
-public protocol BuildSystem: AnyObject {
+public protocol BuildSystem: AnyObject, Sendable {
 
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
