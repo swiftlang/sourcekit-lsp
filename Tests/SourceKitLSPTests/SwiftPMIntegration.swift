@@ -18,7 +18,7 @@ import XCTest
 final class SwiftPMIntegrationTests: XCTestCase {
 
   func testSwiftPMIntegration() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let project = try await SwiftPMTestProject(
       files: [
         "Lib.swift": """
         struct Lib {
@@ -34,10 +34,10 @@ final class SwiftPMIntegrationTests: XCTestCase {
       build: true
     )
 
-    let (otherUri, otherPositions) = try ws.openDocument("Other.swift")
+    let (otherUri, otherPositions) = try project.openDocument("Other.swift")
     let callPosition = otherPositions["2️⃣"]
 
-    let refs = try await ws.testClient.send(
+    let refs = try await project.testClient.send(
       ReferencesRequest(
         textDocument: TextDocumentIdentifier(otherUri),
         position: callPosition,
@@ -49,11 +49,11 @@ final class SwiftPMIntegrationTests: XCTestCase {
       Set(refs),
       [
         Location(uri: otherUri, range: Range(callPosition)),
-        Location(uri: try ws.uri(for: "Lib.swift"), range: Range(try ws.position(of: "1️⃣", in: "Lib.swift"))),
+        Location(uri: try project.uri(for: "Lib.swift"), range: Range(try project.position(of: "1️⃣", in: "Lib.swift"))),
       ]
     )
 
-    let completions = try await ws.testClient.send(
+    let completions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(otherUri), position: callPosition)
     )
 
@@ -91,7 +91,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
   }
 
   func testAddFile() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let project = try await SwiftPMTestProject(
       files: [
         "Lib.swift": """
         struct Lib {
@@ -104,7 +104,7 @@ final class SwiftPMIntegrationTests: XCTestCase {
       build: true
     )
 
-    let newFileUrl = ws.scratchDirectory
+    let newFileUrl = project.scratchDirectory
       .appendingPathComponent("Sources")
       .appendingPathComponent("MyLibrary")
       .appendingPathComponent("Other.swift")
@@ -119,25 +119,25 @@ final class SwiftPMIntegrationTests: XCTestCase {
 
     // Check that we don't get cross-file code completion before we send a `DidChangeWatchedFilesNotification` to make
     // sure we didn't include the file in the initial retrieval of build settings.
-    let (oldFileUri, oldFilePositions) = try ws.openDocument("Lib.swift")
-    let newFilePositions = ws.testClient.openDocument(newFileContents, uri: newFileUri)
+    let (oldFileUri, oldFilePositions) = try project.openDocument("Lib.swift")
+    let newFilePositions = project.testClient.openDocument(newFileContents, uri: newFileUri)
 
-    let completionsBeforeDidChangeNotification = try await ws.testClient.send(
+    let completionsBeforeDidChangeNotification = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(newFileUri), position: newFilePositions["2️⃣"])
     )
     XCTAssertEqual(completionsBeforeDidChangeNotification.items, [])
 
     // Send a `DidChangeWatchedFilesNotification` and verify that we now get cross-file code completion.
-    ws.testClient.send(
+    project.testClient.send(
       DidChangeWatchedFilesNotification(changes: [
         FileEvent(uri: newFileUri, type: .created)
       ])
     )
 
     // Ensure that the DidChangeWatchedFilesNotification is handled before we continue.
-    _ = try await ws.testClient.send(BarrierRequest())
+    _ = try await project.testClient.send(BarrierRequest())
 
-    let completions = try await ws.testClient.send(
+    let completions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(newFileUri), position: newFilePositions["2️⃣"])
     )
 
@@ -176,14 +176,14 @@ final class SwiftPMIntegrationTests: XCTestCase {
     // Check that we get code completion for `baz` (defined in the new file) in the old file.
     // I.e. check that the existing file's build settings have been updated to include the new file.
 
-    let oldFileCompletions = try await ws.testClient.send(
+    let oldFileCompletions = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(oldFileUri), position: oldFilePositions["1️⃣"])
     )
     XCTAssert(oldFileCompletions.items.contains(where: { $0.label == "baz(l: Lib)" }))
   }
 
   func testNestedPackage() async throws {
-    let ws = try await MultiFileTestWorkspace(files: [
+    let project = try await MultiFileTestProject(files: [
       "pkg/Sources/lib/lib.swift": "",
       "pkg/Package.swift": """
       // swift-tools-version:4.2
@@ -209,9 +209,9 @@ final class SwiftPMIntegrationTests: XCTestCase {
       """,
     ])
 
-    let (uri, positions) = try ws.openDocument("b.swift")
+    let (uri, positions) = try project.openDocument("b.swift")
 
-    let result = try await ws.testClient.send(
+    let result = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
     )
 

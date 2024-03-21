@@ -40,7 +40,7 @@ fileprivate class StartOfIdentifierFinder: SyntaxAnyVisitor {
   }
 }
 
-extension SwiftLanguageServer {
+extension SwiftLanguageService {
   /// VS Code considers the position after an identifier as part of an identifier. Ie. if you have `let foo| = 1`, then
   /// it considers the cursor to be positioned at the identifier. This scenario is hit, when selecting an identifier by
   /// double-clicking it and then eg. performing jump-to-definition. In that case VS Code will send the position after

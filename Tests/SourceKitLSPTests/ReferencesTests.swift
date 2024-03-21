@@ -17,7 +17,7 @@ import XCTest
 /// Tests that test the overall state of the SourceKit-LSP server, that's not really specific to any language
 final class ReferencesTests: XCTestCase {
   func testReferencesInMacro() async throws {
-    let ws = try await IndexedSingleSwiftFileWorkspace(
+    let project = try await IndexedSingleSwiftFileTestProject(
       """
       import Observation
 
@@ -29,18 +29,18 @@ final class ReferencesTests: XCTestCase {
       """
     )
 
-    let response = try await ws.testClient.send(
+    let response = try await project.testClient.send(
       ReferencesRequest(
-        textDocument: TextDocumentIdentifier(ws.fileURI),
-        position: ws.positions["2️⃣"],
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["2️⃣"],
         context: ReferencesContext(includeDeclaration: true)
       )
     )
     XCTAssertEqual(
       response,
       [
-        Location(uri: ws.fileURI, range: Range(ws.positions["1️⃣"])),
-        Location(uri: ws.fileURI, range: Range(ws.positions["2️⃣"])),
+        Location(uri: project.fileURI, range: Range(project.positions["1️⃣"])),
+        Location(uri: project.fileURI, range: Range(project.positions["2️⃣"])),
       ]
     )
   }

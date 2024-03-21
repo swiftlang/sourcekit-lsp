@@ -21,9 +21,9 @@ import SKSupport
 final class WorkDoneProgressManager {
   private let token: ProgressToken
   private let queue = AsyncQueue<Serial>()
-  private let server: SourceKitServer
+  private let server: SourceKitLSPServer
 
-  init?(server: SourceKitServer, capabilityRegistry: CapabilityRegistry, title: String, message: String? = nil) {
+  init?(server: SourceKitLSPServer, capabilityRegistry: CapabilityRegistry, title: String, message: String? = nil) {
     guard capabilityRegistry.clientCapabilities.window?.workDoneProgress ?? false else {
       return nil
     }

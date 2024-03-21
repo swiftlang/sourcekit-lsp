@@ -20,8 +20,8 @@ import SourceKitLSP
 import SwiftSyntax
 import XCTest
 
-extension SourceKitServer.Options {
-  /// The default SourceKitServer options for testing.
+extension SourceKitLSPServer.Options {
+  /// The default SourceKitLSPServer options for testing.
   public static var testDefault = Self(swiftPublishDiagnosticsDebounceDuration: 0)
 }
 
@@ -44,7 +44,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   private let moduleCache: URL?
 
   /// The server that handles the requests.
-  public let server: SourceKitServer
+  public let server: SourceKitLSPServer
 
   /// Whether pull or push-model diagnostics should be used.
   ///
@@ -70,7 +70,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
 
   /// A closure that is called when the `TestSourceKitLSPClient` is destructed.
   ///
-  /// This allows e.g. a `IndexedSingleSwiftFileWorkspace` to delete its temporary files when they are no longer needed.
+  /// This allows e.g. a `IndexedSingleSwiftFileTestProject` to delete its temporary files when they are no longer needed.
   private let cleanUp: () -> Void
 
   /// - Parameters:
@@ -84,10 +84,10 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///   - usePullDiagnostics: Whether to use push diagnostics or use push-based diagnostics
   ///   - workspaceFolders: Workspace folders to open.
   ///   - cleanUp: A closure that is called when the `TestSourceKitLSPClient` is destructed.
-  ///     This allows e.g. a `IndexedSingleSwiftFileWorkspace` to delete its temporary files when they are no longer
+  ///     This allows e.g. a `IndexedSingleSwiftFileTestProject` to delete its temporary files when they are no longer
   ///     needed.
   public init(
-    serverOptions: SourceKitServer.Options = .testDefault,
+    serverOptions: SourceKitLSPServer.Options = .testDefault,
     useGlobalModuleCache: Bool = true,
     initialize: Bool = true,
     initializationOptions: LSPAny? = nil,
@@ -114,7 +114,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
 
     let serverToClientConnection = LocalConnection()
     self.serverToClientConnection = serverToClientConnection
-    server = SourceKitServer(
+    server = SourceKitLSPServer(
       client: serverToClientConnection,
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: serverOptions,
@@ -262,26 +262,25 @@ public final class TestSourceKitLSPClient: MessageHandler {
 
   /// Handle the next request that is sent to the client with the given handler.
   ///
-  /// By default, `TestSourceKitServer` emits an `XCTFail` if a request is sent
+  /// By default, `TestSourceKitLSPClient` emits an `XCTFail` if a request is sent
   /// to the client, since it doesn't know how to handle it. This allows the
   /// simulation of a single request's handling on the client.
   ///
   /// If the next request that is sent to the client is of a different kind than
-  /// the given handler, `TestSourceKitServer` will emit an `XCTFail`.
+  /// the given handler, `TestSourceKitLSPClient` will emit an `XCTFail`.
   public func handleNextRequest<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
     requestHandlers.append(requestHandler)
   }
 
   // MARK: - Conformance to MessageHandler
 
-  /// - Important: Implementation detail of `TestSourceKitServer`. Do not call
+  /// - Important: Implementation detail of `TestSourceKitLSPServer`. Do not call
   ///   from tests.
   public func handle(_ params: some NotificationType) {
     notificationYielder.yield(params)
   }
 
-  /// - Important: Implementation detail of `TestSourceKitServer`. Do not call
-  ///   from tests.
+  /// - Important: Implementation detail of `TestSourceKitLSPClient`. Do not call from tests.
   public func handle<Request: RequestType>(
     _ params: Request,
     id: LanguageServerProtocol.RequestID,
@@ -393,8 +392,8 @@ public struct DocumentPositions {
 
 /// Wrapper around a weak `MessageHandler`.
 ///
-/// This allows us to set the ``TestSourceKitServer`` as the message handler of
-/// `SourceKitServer` without retaining it.
+/// This allows us to set the ``TestSourceKitLSPClient`` as the message handler of
+/// `SourceKitLSPServer` without retaining it.
 private class WeakMessageHandler: MessageHandler {
   private weak var handler: (any MessageHandler)?
 

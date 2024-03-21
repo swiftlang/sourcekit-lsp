@@ -220,7 +220,7 @@ final class LocalClangTests: XCTestCase {
     // Note: tests generally should avoid including system headers
     // to keep them fast and portable. This test is specifically
     // ensuring clangd can find libc++ and builtin headers.
-    let ws = try await MultiFileTestWorkspace(
+    let project = try await MultiFileTestProject(
       files: [
         "main.cpp": """
         #include <cstdint>
@@ -234,9 +234,9 @@ final class LocalClangTests: XCTestCase {
       usePullDiagnostics: false
     )
 
-    let (_, positions) = try ws.openDocument("main.cpp")
+    let (_, positions) = try project.openDocument("main.cpp")
 
-    let diags = try await ws.testClient.nextDiagnosticsNotification()
+    let diags = try await project.testClient.nextDiagnosticsNotification()
     // Don't use exact equality because of differences in recent clang.
     XCTAssertEqual(diags.diagnostics.count, 1)
     let diag = try XCTUnwrap(diags.diagnostics.first)
@@ -246,7 +246,7 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testClangModules() async throws {
-    let ws = try await MultiFileTestWorkspace(
+    let project = try await MultiFileTestProject(
       files: [
         "ClangModuleA.h": """
         #ifndef ClangModuleA_h
@@ -276,9 +276,9 @@ final class LocalClangTests: XCTestCase {
       ],
       usePullDiagnostics: false
     )
-    _ = try ws.openDocument("ClangModules_main.m")
+    _ = try project.openDocument("ClangModules_main.m")
 
-    let diags = try await ws.testClient.nextDiagnosticsNotification()
+    let diags = try await project.testClient.nextDiagnosticsNotification()
     XCTAssertEqual(diags.diagnostics.count, 0)
   }
 
@@ -304,7 +304,7 @@ final class LocalClangTests: XCTestCase {
   }
 
   func testDocumentDependenciesUpdated() async throws {
-    let ws = try await MultiFileTestWorkspace(
+    let project = try await MultiFileTestProject(
       files: [
         "Object.h": """
         struct Object {
@@ -325,11 +325,11 @@ final class LocalClangTests: XCTestCase {
       usePullDiagnostics: false
     )
 
-    let (mainUri, _) = try ws.openDocument("main.c")
-    let headerUri = try ws.uri(for: "Object.h")
+    let (mainUri, _) = try project.openDocument("main.c")
+    let headerUri = try project.uri(for: "Object.h")
 
     // Initially the workspace should build fine.
-    let initialDiags = try await ws.testClient.nextDiagnosticsNotification()
+    let initialDiags = try await project.testClient.nextDiagnosticsNotification()
     XCTAssert(initialDiags.diagnostics.isEmpty)
 
     // We rename Object to MyObject in the header.
@@ -341,16 +341,16 @@ final class LocalClangTests: XCTestCase {
     struct MyObject * newObject();
     """.write(to: headerUri.fileURL!, atomically: false, encoding: .utf8)
 
-    let clangdServer = await ws.testClient.server._languageService(
+    let clangdServer = await project.testClient.server._languageService(
       for: mainUri,
       .c,
-      in: ws.testClient.server.workspaceForDocument(uri: mainUri)!
+      in: project.testClient.server.workspaceForDocument(uri: mainUri)!
     )!
 
     await clangdServer.documentDependenciesUpdated(mainUri)
 
     // Now we should get a diagnostic in main.c file because `Object` is no longer defined.
-    let editedDiags = try await ws.testClient.nextDiagnosticsNotification()
+    let editedDiags = try await project.testClient.nextDiagnosticsNotification()
     XCTAssertFalse(editedDiags.diagnostics.isEmpty)
   }
 }

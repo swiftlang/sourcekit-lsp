@@ -81,14 +81,14 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Crash sourcekitd
 
-    let sourcekitdServer =
+    let swiftLanguageService =
       await testClient.server._languageService(
         for: uri,
         .swift,
         in: testClient.server.workspaceForDocument(uri: uri)!
-      ) as! SwiftLanguageServer
+      ) as! SwiftLanguageService
 
-    await sourcekitdServer._crash()
+    await swiftLanguageService._crash()
 
     let crashedNotification = try await testClient.nextNotification(ofType: WorkDoneProgress.self, timeout: 5)
     XCTAssertEqual(
@@ -202,7 +202,7 @@ final class CrashRecoveryTests: XCTestCase {
   func testClangdCrashRecoveryReopensWithCorrectBuildSettings() async throws {
     try SkipUnless.longTestsEnabled()
 
-    let ws = try await MultiFileTestWorkspace(files: [
+    let project = try await MultiFileTestProject(files: [
       "main.cpp": """
       #if FOO
       void 1️⃣foo2️⃣() {}
@@ -219,7 +219,7 @@ final class CrashRecoveryTests: XCTestCase {
       """,
     ])
 
-    let (mainUri, positions) = try ws.openDocument("main.cpp")
+    let (mainUri, positions) = try project.openDocument("main.cpp")
 
     // Do a sanity check and verify that we get the expected result from a hover response before crashing clangd.
 
@@ -232,7 +232,7 @@ final class CrashRecoveryTests: XCTestCase {
       textDocument: TextDocumentIdentifier(mainUri),
       position: positions["3️⃣"]
     )
-    let preCrashHighlightResponse = try await ws.testClient.send(highlightRequest)
+    let preCrashHighlightResponse = try await project.testClient.send(highlightRequest)
     precondition(
       preCrashHighlightResponse == expectedHighlightResponse,
       "Sanity check failed. The Hover response was not what we expected, even before crashing sourcekitd"
@@ -240,14 +240,14 @@ final class CrashRecoveryTests: XCTestCase {
 
     // Crash clangd
 
-    try await crashClangd(for: ws.testClient, document: mainUri)
+    try await crashClangd(for: project.testClient, document: mainUri)
 
     // Check that we have re-opened the document with the correct build settings
     // If we did not recover the correct build settings, document highlight would
     // pick the definition of foo() in the #else branch.
 
     await assertNoThrow {
-      let postCrashHighlightResponse = try await ws.testClient.send(highlightRequest)
+      let postCrashHighlightResponse = try await project.testClient.send(highlightRequest)
       XCTAssertEqual(postCrashHighlightResponse, expectedHighlightResponse)
     }
   }

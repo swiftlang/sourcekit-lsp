@@ -17,7 +17,7 @@ import LanguageServerProtocol
 import SourceKitLSP
 import TSCBasic
 
-public struct IndexedSingleSwiftFileWorkspace {
+public struct IndexedSingleSwiftFileTestProject {
   enum Error: Swift.Error {
     case swiftcNotFound
   }
@@ -95,7 +95,7 @@ public struct IndexedSingleSwiftFileWorkspace {
     }
 
     // Create the test client
-    var options = SourceKitServer.Options.testDefault
+    var options = SourceKitLSPServer.Options.testDefault
     options.indexOptions = IndexOptions(
       indexStorePath: try AbsolutePath(validating: indexURL.path),
       indexDatabasePath: try AbsolutePath(validating: indexDBURL.path)

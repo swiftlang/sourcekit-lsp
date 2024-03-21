@@ -310,7 +310,7 @@ private extension IndexSymbolKind {
 
 // MARK: - Name translation
 
-extension SwiftLanguageServer {
+extension SwiftLanguageService {
   enum NameTranslationError: Error, CustomStringConvertible {
     case cannotComputeOffset(SymbolLocation)
     case malformedSwiftToClangTranslateNameResponse(SKDResponseDictionary)
@@ -495,7 +495,7 @@ public struct CrossLanguageName {
   }
 }
 
-// MARK: - SourceKitServer
+// MARK: - SourceKitLSPServer
 
 /// The kinds of symbol occurrence roles that should be renamed.
 fileprivate let renameRoles: SymbolRole = [.declaration, .definition, .reference]
@@ -508,14 +508,14 @@ extension DocumentManager {
   }
 }
 
-extension SourceKitServer {
+extension SourceKitLSPServer {
   /// Returns a `DocumentSnapshot`, a position and the corresponding language service that references
   /// `usr` from a Swift file. If `usr` is not referenced from Swift, returns `nil`.
   private func getReferenceFromSwift(
     usr: String,
     index: IndexStoreDB,
     workspace: Workspace
-  ) async -> (languageServer: SwiftLanguageServer, snapshot: DocumentSnapshot, location: SymbolLocation)? {
+  ) async -> (swiftLanguageService: SwiftLanguageService, snapshot: DocumentSnapshot, location: SymbolLocation)? {
     var reference: SymbolOccurrence? = nil
     index.forEachSymbolOccurrence(byUSR: usr, roles: renameRoles) {
       if index.symbolProvider(for: $0.location.path) == .swift {
@@ -533,11 +533,11 @@ extension SourceKitServer {
     guard let snapshot = self.documentManager.latestSnapshotOrDisk(uri, language: .swift) else {
       return nil
     }
-    let swiftLanguageServer = await self.languageService(for: uri, .swift, in: workspace) as? SwiftLanguageServer
-    guard let swiftLanguageServer else {
+    let swiftLanguageService = await self.languageService(for: uri, .swift, in: workspace) as? SwiftLanguageService
+    guard let swiftLanguageService else {
       return nil
     }
-    return (swiftLanguageServer, snapshot, reference.location)
+    return (swiftLanguageService, snapshot, reference.location)
   }
 
   /// Returns a `CrossLanguageName` for the symbol with the given USR.
@@ -612,11 +612,11 @@ extension SourceKitServer {
     let definitionName = overrideName ?? definitionSymbol.name
 
     switch definitionLanguageService {
-    case is ClangLanguageServerShim:
+    case is ClangLanguageService:
       let swiftName: String?
       if let swiftReference = await getReferenceFromSwift(usr: usr, index: index, workspace: workspace) {
         let isObjectiveCSelector = definitionLanguage == .objective_c && definitionSymbol.kind.isMethod
-        swiftName = try await swiftReference.languageServer.translateClangNameToSwift(
+        swiftName = try await swiftReference.swiftLanguageService.translateClangNameToSwift(
           at: swiftReference.location,
           in: swiftReference.snapshot,
           isObjectiveCSelector: isObjectiveCSelector,
@@ -627,7 +627,7 @@ extension SourceKitServer {
         swiftName = nil
       }
       return CrossLanguageName(clangName: definitionName, swiftName: swiftName, definitionLanguage: definitionLanguage)
-    case let swiftLanguageServer as SwiftLanguageServer:
+    case let swiftLanguageService as SwiftLanguageService:
       // Continue iteration if the symbol provider is not clang.
       // If we terminate early by returning `false` from the closure, `forEachSymbolOccurrence` returns `true`,
       // indicating that we have found a reference from clang.
@@ -636,7 +636,7 @@ extension SourceKitServer {
       }
       let clangName: String?
       if hasReferenceFromClang {
-        clangName = try await swiftLanguageServer.translateSwiftNameToClang(
+        clangName = try await swiftLanguageService.translateSwiftNameToClang(
           at: definitionOccurrence.location,
           in: definitionDocumentUri,
           name: CompoundDeclName(definitionName)
@@ -845,7 +845,7 @@ extension SourceKitServer {
   func prepareRename(
     _ request: PrepareRenameRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> PrepareRenameResponse? {
     guard let languageServicePrepareRename = try await languageService.prepareRename(request) else {
       return nil
@@ -874,7 +874,7 @@ extension SourceKitServer {
   func indexedRename(
     _ request: IndexedRenameRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> WorkspaceEdit? {
     return try await languageService.indexedRename(request)
   }
@@ -882,7 +882,7 @@ extension SourceKitServer {
 
 // MARK: - Swift
 
-extension SwiftLanguageServer {
+extension SwiftLanguageService {
   /// From a list of rename locations compute the list of `SyntacticRenameName`s that define which ranges need to be
   /// edited to rename a compound decl name.
   ///
@@ -1368,7 +1368,7 @@ extension SwiftLanguageServer {
 
 // MARK: - Clang
 
-extension ClangLanguageServerShim {
+extension ClangLanguageService {
   func rename(_ renameRequest: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
     async let edits = forwardRequestToClangd(renameRequest)
     let symbolInfoRequest = SymbolInfoRequest(

@@ -1371,10 +1371,10 @@ final class LocalSwiftTests: XCTestCase {
 
     let reusedNodeCallback = self.expectation(description: "reused node callback called")
     var reusedNodes: [Syntax] = []
-    let swiftLanguageServer =
+    let swiftLanguageService =
       await testClient.server._languageService(for: uri, .swift, in: testClient.server.workspaceForDocument(uri: uri)!)
-      as! SwiftLanguageServer
-    await swiftLanguageServer.setReusedNodeCallback {
+      as! SwiftLanguageService
+    await swiftLanguageService.setReusedNodeCallback {
       reusedNodes.append($0)
       reusedNodeCallback.fulfill()
     }
@@ -1418,7 +1418,7 @@ final class LocalSwiftTests: XCTestCase {
   func testDebouncePublishDiagnosticsNotification() async throws {
     try SkipUnless.longTestsEnabled()
 
-    var serverOptions = SourceKitServer.Options.testDefault
+    var serverOptions = SourceKitLSPServer.Options.testDefault
     serverOptions.swiftPublishDiagnosticsDebounceDuration = 1 /* 1s */
 
     // Construct our own  `TestSourceKitLSPClient` instead of the one from set up because we want a higher debounce interval.

@@ -829,7 +829,7 @@ final class SwiftCompletionTests: XCTestCase {
   }
 
   func testCodeCompleteSwiftPackage() async throws {
-    let ws = try await SwiftPMTestWorkspace(
+    let project = try await SwiftPMTestProject(
       files: [
         "a.swift": """
         struct A {
@@ -843,10 +843,10 @@ final class SwiftCompletionTests: XCTestCase {
         """,
       ]
     )
-    let (uri, positions) = try ws.openDocument("b.swift")
+    let (uri, positions) = try project.openDocument("b.swift")
 
     let testPosition = positions["1️⃣"]
-    let results = try await ws.testClient.send(
+    let results = try await project.testClient.send(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: testPosition)
     )
 

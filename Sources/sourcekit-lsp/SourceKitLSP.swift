@@ -205,8 +205,8 @@ struct SourceKitLSP: AsyncParsableCommand {
   )
   var completionMaxResults = 200
 
-  func mapOptions() -> SourceKitServer.Options {
-    var serverOptions = SourceKitServer.Options()
+  func mapOptions() -> SourceKitLSPServer.Options {
+    var serverOptions = SourceKitLSPServer.Options()
 
     serverOptions.buildSetup.configuration = buildConfiguration
     serverOptions.buildSetup.defaultWorkspaceType = defaultWorkspaceType
@@ -249,7 +249,7 @@ struct SourceKitLSP: AsyncParsableCommand {
 
     let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
 
-    let server = SourceKitServer(
+    let server = SourceKitLSPServer(
       client: clientConnection,
       toolchainRegistry: ToolchainRegistry(installPath: installPath, localFileSystem),
       options: mapOptions(),

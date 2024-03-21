@@ -31,7 +31,7 @@ fileprivate extension SymbolOccurrence {
   }
 }
 
-extension SourceKitServer {
+extension SourceKitLSPServer {
   func workspaceTests(_ req: WorkspaceTestsRequest) async throws -> [WorkspaceSymbolItem]? {
     let testSymbols = workspaces.flatMap { (workspace) -> [SymbolOccurrence] in
       return workspace.index?.unitTests() ?? []
@@ -46,7 +46,7 @@ extension SourceKitServer {
   func documentTests(
     _ req: DocumentTestsRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [WorkspaceSymbolItem]? {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
     let mainFileUri = await workspace.buildSystemManager.mainFile(
