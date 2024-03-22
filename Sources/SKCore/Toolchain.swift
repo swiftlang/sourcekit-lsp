@@ -24,44 +24,44 @@ import var TSCBasic.localFileSystem
 ///
 /// This can be an explicit toolchain, such as an xctoolchain directory on Darwin, or an implicit
 /// toolchain, such as the contents from `/usr/bin`.
-public final class Toolchain {
+public final class Toolchain: Sendable {
 
   /// The unique toolchain identifier.
   ///
   /// For an xctoolchain, this is a reverse domain name e.g. "com.apple.dt.toolchain.XcodeDefault".
   /// Otherwise, it is typically derived from `path`.
-  public var identifier: String
+  public let identifier: String
 
   /// The human-readable name for the toolchain.
-  public var displayName: String
+  public let displayName: String
 
   /// The path to this toolchain, if applicable.
   ///
   /// For example, this may be the path to an ".xctoolchain" directory.
-  public var path: AbsolutePath? = nil
+  public let path: AbsolutePath?
 
   // MARK: Tool Paths
 
   /// The path to the Clang compiler if available.
-  public var clang: AbsolutePath?
+  public let clang: AbsolutePath?
 
   /// The path to the Swift driver if available.
-  public var swift: AbsolutePath?
+  public let swift: AbsolutePath?
 
   /// The path to the Swift compiler if available.
-  public var swiftc: AbsolutePath?
+  public let swiftc: AbsolutePath?
 
   /// The path to the swift-format executable, if available.
-  public var swiftFormat: AbsolutePath?
+  public let swiftFormat: AbsolutePath?
 
   /// The path to the clangd language server if available.
-  public var clangd: AbsolutePath?
+  public let clangd: AbsolutePath?
 
   /// The path to the Swift language server if available.
-  public var sourcekitd: AbsolutePath?
+  public let sourcekitd: AbsolutePath?
 
   /// The path to the indexstore library if available.
-  public var libIndexStore: AbsolutePath?
+  public let libIndexStore: AbsolutePath?
 
   public init(
     identifier: String,
@@ -135,101 +135,123 @@ extension Toolchain {
   /// If `path` contains an ".xctoolchain", we try to read an Info.plist file to provide the
   /// toolchain identifier, etc.  Otherwise this information is derived from the path.
   convenience public init?(_ path: AbsolutePath, _ fileSystem: FileSystem = localFileSystem) {
+    // Properties that need to be initialized
+    let identifier: String
+    let displayName: String
+    let toolchainPath: AbsolutePath?
+    var clang: AbsolutePath? = nil
+    var clangd: AbsolutePath? = nil
+    var swift: AbsolutePath? = nil
+    var swiftc: AbsolutePath? = nil
+    var swiftFormat: AbsolutePath? = nil
+    var sourcekitd: AbsolutePath? = nil
+    var libIndexStore: AbsolutePath? = nil
+
     if let (infoPlist, xctoolchainPath) = containingXCToolchain(path, fileSystem) {
-      let displayName = infoPlist.displayName ?? xctoolchainPath.basenameWithoutExt
-      self.init(identifier: infoPlist.identifier, displayName: displayName, path: xctoolchainPath)
+      identifier = infoPlist.identifier
+      displayName = infoPlist.displayName ?? xctoolchainPath.basenameWithoutExt
+      toolchainPath = xctoolchainPath
     } else {
-      self.init(identifier: path.pathString, displayName: path.basename, path: path)
+      identifier = path.pathString
+      displayName = path.basename
+      toolchainPath = path
     }
 
-    if !searchForTools(path, fileSystem) {
-      return nil
-    }
-  }
-
-  /// Search `path` for tools, returning true if any are found.
-  @discardableResult
-  func searchForTools(_ path: AbsolutePath, _ fs: FileSystem = localFileSystem) -> Bool {
-    return
-      searchForTools(binPath: path, fs) || searchForTools(binPath: path.appending(components: "bin"), fs)
-      || searchForTools(binPath: path.appending(components: "usr", "bin"), fs)
-  }
-
-  private func searchForTools(binPath: AbsolutePath, _ fs: FileSystem) -> Bool {
-
-    let libPath = binPath.parentDirectory.appending(component: "lib")
-
-    guard fs.isDirectory(binPath) || fs.isDirectory(libPath) else { return false }
+    // Find tools in the toolchain
 
     var foundAny = false
+    let searchPaths = [path, path.appending(components: "bin"), path.appending(components: "usr", "bin")]
+    for binPath in searchPaths {
+      let libPath = binPath.parentDirectory.appending(component: "lib")
 
-    let execExt = Platform.current?.executableExtension ?? ""
+      guard fileSystem.isDirectory(binPath) || fileSystem.isDirectory(libPath) else { continue }
 
-    let clangPath = binPath.appending(component: "clang\(execExt)")
-    if fs.isExecutableFile(clangPath) {
-      self.clang = clangPath
-      foundAny = true
-    }
-    let clangdPath = binPath.appending(component: "clangd\(execExt)")
-    if fs.isExecutableFile(clangdPath) {
-      self.clangd = clangdPath
-      foundAny = true
-    }
+      let execExt = Platform.current?.executableExtension ?? ""
 
-    let swiftPath = binPath.appending(component: "swift\(execExt)")
-    if fs.isExecutableFile(swiftPath) {
-      self.swift = swiftPath
-      foundAny = true
-    }
-
-    let swiftcPath = binPath.appending(component: "swiftc\(execExt)")
-    if fs.isExecutableFile(swiftcPath) {
-      self.swiftc = swiftcPath
-      foundAny = true
-    }
-
-    let swiftFormatPath = binPath.appending(component: "swift-format\(execExt)")
-    if fs.isExecutableFile(swiftFormatPath) {
-      self.swiftFormat = swiftFormatPath
-      foundAny = true
-    }
-
-    // If 'currentPlatform' is nil it's most likely an unknown linux flavor.
-    let dylibExt: String
-    if let dynamicLibraryExtension = Platform.current?.dynamicLibraryExtension {
-      dylibExt = dynamicLibraryExtension
-    } else {
-      logger.fault("Could not determine host OS. Falling back to using '.so' as dynamic library extension")
-      dylibExt = ".so"
-    }
-
-    let sourcekitdPath = libPath.appending(components: "sourcekitd.framework", "sourcekitd")
-    if fs.isFile(sourcekitdPath) {
-      self.sourcekitd = sourcekitdPath
-      foundAny = true
-    } else {
-      #if os(Windows)
-      let sourcekitdPath = binPath.appending(component: "sourcekitdInProc\(dylibExt)")
-      #else
-      let sourcekitdPath = libPath.appending(component: "libsourcekitdInProc\(dylibExt)")
-      #endif
-      if fs.isFile(sourcekitdPath) {
-        self.sourcekitd = sourcekitdPath
+      let clangPath = binPath.appending(component: "clang\(execExt)")
+      if fileSystem.isExecutableFile(clangPath) {
+        clang = clangPath
         foundAny = true
       }
+      let clangdPath = binPath.appending(component: "clangd\(execExt)")
+      if fileSystem.isExecutableFile(clangdPath) {
+        clangd = clangdPath
+        foundAny = true
+      }
+
+      let swiftPath = binPath.appending(component: "swift\(execExt)")
+      if fileSystem.isExecutableFile(swiftPath) {
+        swift = swiftPath
+        foundAny = true
+      }
+
+      let swiftcPath = binPath.appending(component: "swiftc\(execExt)")
+      if fileSystem.isExecutableFile(swiftcPath) {
+        swiftc = swiftcPath
+        foundAny = true
+      }
+
+      let swiftFormatPath = binPath.appending(component: "swift-format\(execExt)")
+      if fileSystem.isExecutableFile(swiftFormatPath) {
+        swiftFormat = swiftFormatPath
+        foundAny = true
+      }
+
+      // If 'currentPlatform' is nil it's most likely an unknown linux flavor.
+      let dylibExt: String
+      if let dynamicLibraryExtension = Platform.current?.dynamicLibraryExtension {
+        dylibExt = dynamicLibraryExtension
+      } else {
+        logger.fault("Could not determine host OS. Falling back to using '.so' as dynamic library extension")
+        dylibExt = ".so"
+      }
+
+      let sourcekitdPath = libPath.appending(components: "sourcekitd.framework", "sourcekitd")
+      if fileSystem.isFile(sourcekitdPath) {
+        sourcekitd = sourcekitdPath
+        foundAny = true
+      } else {
+        #if os(Windows)
+        let sourcekitdPath = binPath.appending(component: "sourcekitdInProc\(dylibExt)")
+        #else
+        let sourcekitdPath = libPath.appending(component: "libsourcekitdInProc\(dylibExt)")
+        #endif
+        if fileSystem.isFile(sourcekitdPath) {
+          sourcekitd = sourcekitdPath
+          foundAny = true
+        }
+      }
+
+      #if os(Windows)
+      let libIndexStorePath = binPath.appending(components: "libIndexStore\(dylibExt)")
+      #else
+      let libIndexStorePath = libPath.appending(components: "libIndexStore\(dylibExt)")
+      #endif
+      if fileSystem.isFile(libIndexStorePath) {
+        libIndexStore = libIndexStorePath
+        foundAny = true
+      }
+
+      if foundAny {
+        break
+      }
+    }
+    if !foundAny {
+      return nil
     }
 
-    #if os(Windows)
-    let libIndexStore = binPath.appending(components: "libIndexStore\(dylibExt)")
-    #else
-    let libIndexStore = libPath.appending(components: "libIndexStore\(dylibExt)")
-    #endif
-    if fs.isFile(libIndexStore) {
-      self.libIndexStore = libIndexStore
-      foundAny = true
-    }
-
-    return foundAny
+    self.init(
+      identifier: identifier,
+      displayName: displayName,
+      path: toolchainPath,
+      clang: clang,
+      swift: swift,
+      swiftc: swiftc,
+      swiftFormat: swiftFormat,
+      clangd: clangd,
+      sourcekitd: sourcekitd,
+      libIndexStore: libIndexStore
+    )
   }
 }
 
