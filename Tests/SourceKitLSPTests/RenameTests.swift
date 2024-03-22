@@ -1083,6 +1083,7 @@ final class RenameTests: XCTestCase {
   }
 
   func testRenameAfterFileMove() async throws {
+    try await SkipUnless.sourcekitdSupportsRename()
     let project = try await SwiftPMTestProject(
       files: [
         "definition.swift": """
