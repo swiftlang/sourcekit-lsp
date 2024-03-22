@@ -46,9 +46,6 @@ public final class JSONRPCConnection: Connection {
   private let sendIO: DispatchIO
   private let messageRegistry: MessageRegistry
 
-  /// *For Testing* Whether to wait for requests to finish before handling the next message.
-  private let syncRequests: Bool
-
   enum State {
     case created, running, closed
   }
@@ -108,8 +105,7 @@ public final class JSONRPCConnection: Connection {
     name: String,
     protocol messageRegistry: MessageRegistry,
     inFD: FileHandle,
-    outFD: FileHandle,
-    syncRequests: Bool = false
+    outFD: FileHandle
   ) {
     self.name = name
     self.receiveHandler = nil
@@ -122,7 +118,6 @@ public final class JSONRPCConnection: Connection {
     #endif
     state = .created
     self.messageRegistry = messageRegistry
-    self.syncRequests = syncRequests
 
     let ioGroup = DispatchGroup()
 
@@ -330,12 +325,9 @@ public final class JSONRPCConnection: Connection {
     case .notification(let notification):
       notification._handle(self.receiveHandler!)
     case .request(let request, id: let id):
-      let semaphore: DispatchSemaphore? = syncRequests ? .init(value: 0) : nil
       request._handle(self.receiveHandler!, id: id) { (response, id) in
         self.sendReply(response, id: id)
-        semaphore?.signal()
       }
-      semaphore?.wait()
     case .response(let response, id: let id):
       guard let outstanding = outstandingRequests.removeValue(forKey: id) else {
         logger.error("No outstanding requests for response ID \(id, privacy: .public)")

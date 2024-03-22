@@ -111,11 +111,6 @@ struct SourceKitLSP: AsyncParsableCommand {
     ]
   )
 
-  /// Whether to wait for a response before handling the next request.
-  /// Used for testing.
-  @Flag(name: .customLong("sync"))
-  var syncRequests = false
-
   @Option(
     name: [.customLong("configuration")],
     help: "Build with configuration [debug|release]"
@@ -243,8 +238,7 @@ struct SourceKitLSP: AsyncParsableCommand {
       name: "client",
       protocol: MessageRegistry.lspProtocol,
       inFD: FileHandle.standardInput,
-      outFD: realStdoutHandle,
-      syncRequests: syncRequests
+      outFD: realStdoutHandle
     )
 
     let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
