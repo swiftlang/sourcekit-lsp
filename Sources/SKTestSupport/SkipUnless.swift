@@ -106,6 +106,8 @@ public enum SkipUnless {
       let response = try unwrap(
         await testClient.send(DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri)))
       )
+
+      // TODO: This part is not directly related, should i change it to new struct?
       let tokens = [SyntaxHighlightingToken](lspEncodedTokens: response.data)
 
       // If we don't have semantic token support in sourcekitd, the second token is an identifier based on the syntax

@@ -13,6 +13,7 @@
 import LanguageServerProtocol
 import SourceKitLSP
 
+// TODO: This part is deprecated, Should i remove it?
 extension Array where Element == SyntaxHighlightingToken {
   /// Decodes the LSP representation of syntax highlighting tokens
   public init(lspEncodedTokens rawTokens: [UInt32]) {

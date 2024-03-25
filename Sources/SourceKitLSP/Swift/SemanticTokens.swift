@@ -19,7 +19,7 @@ import SwiftSyntax
 
 extension SwiftLanguageService {
   /// Requests the semantic highlighting tokens for the given snapshot from sourcekitd.
-  private func semanticHighlightingTokens(for snapshot: DocumentSnapshot) async throws -> [SyntaxHighlightingToken]? {
+  private func semanticHighlightingTokens(for snapshot: DocumentSnapshot) async throws -> SyntaxHighlightingTokens? {
     guard let buildSettings = await self.buildSettings(for: snapshot.uri), !buildSettings.isFallback else {
       return nil
     }
@@ -35,7 +35,9 @@ extension SwiftLanguageService {
     guard let skTokens: SKDResponseArray = dict[keys.semanticTokens] else {
       return nil
     }
-    return SyntaxHighlightingTokenParser(sourcekitd: sourcekitd).parseTokens(skTokens, in: snapshot)
+
+    let parsedTokens = SyntaxHighlightingTokenParser(sourcekitd: sourcekitd).parseTokens(skTokens, in: snapshot)
+    return SyntaxHighlightingTokens(members: parsedTokens)
   }
 
   /// Computes an array of syntax highlighting tokens from the syntax tree that
@@ -49,7 +51,7 @@ extension SwiftLanguageService {
   private func mergedAndSortedTokens(
     for snapshot: DocumentSnapshot,
     in range: Range<Position>? = nil
-  ) async throws -> [SyntaxHighlightingToken] {
+  ) async throws -> SyntaxHighlightingTokens {
     async let tree = syntaxTreeManager.syntaxTree(for: snapshot)
     let semanticTokens = await orLog("Loading semantic tokens") { try await semanticHighlightingTokens(for: snapshot) }
 
@@ -59,10 +61,13 @@ extension SwiftLanguageService {
       } else {
         ByteSourceRange(offset: 0, length: await tree.totalLength.utf8Length)
       }
-    return
+    
+    let tokens = 
       await tree
       .classifications(in: range)
       .flatMap({ $0.highlightingTokens(in: snapshot) })
+
+    return SyntaxHighlightingTokens(members: tokens)
       .mergingTokens(with: semanticTokens ?? [])
       .sorted { $0.start < $1.start }
   }
@@ -102,7 +107,7 @@ extension Range where Bound == Position {
 }
 
 extension SyntaxClassifiedRange {
-  fileprivate func highlightingTokens(in snapshot: DocumentSnapshot) -> [SyntaxHighlightingToken] {
+  fileprivate func highlightingTokens(in snapshot: DocumentSnapshot) -> SyntaxHighlightingTokens {
     guard let (kind, modifiers) = self.kind.highlightingKindAndModifiers else {
       return []
     }
@@ -117,13 +122,15 @@ extension SyntaxClassifiedRange {
     let multiLineRange = start..<end
     let ranges = multiLineRange.splitToSingleLineRanges(in: snapshot)
 
-    return ranges.map {
+    let tokens = ranges.map {
       SyntaxHighlightingToken(
         range: $0,
         kind: kind,
         modifiers: modifiers
       )
     }
+
+    return SyntaxHighlightingTokens(members: tokens)
   }
 }
 

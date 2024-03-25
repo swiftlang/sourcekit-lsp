@@ -18,6 +18,7 @@ import SourceKitLSP
 import XCTest
 
 private typealias Token = SyntaxHighlightingToken
+private typealias Tokens = SyntaxHighlightingTokens
 
 final class SemanticTokensTests: XCTestCase {
   /// The mock client used to communicate with the SourceKit-LSP server.
@@ -146,6 +147,8 @@ final class SemanticTokensTests: XCTestCase {
         )
       )
     }
+
+    // TODO: This part is also not directly using the methods member, should i change it new struct type?
 
     return [Token](lspEncodedTokens: response.data)
   }
