@@ -18,7 +18,6 @@ import SourceKitLSP
 import XCTest
 
 private typealias Token = SyntaxHighlightingToken
-private typealias Tokens = SyntaxHighlightingTokens
 
 final class SemanticTokensTests: XCTestCase {
   /// The mock client used to communicate with the SourceKit-LSP server.
@@ -129,7 +128,7 @@ final class SemanticTokensTests: XCTestCase {
     )
   }
 
-  private func performSemanticTokensRequest(range: Range<Position>? = nil) async throws -> Tokens {
+  private func performSemanticTokensRequest(range: Range<Position>? = nil) async throws -> SyntaxHighlightingTokens {
     try await SkipUnless.sourcekitdHasSemanticTokensRequest()
     let response: DocumentSemanticTokensResponse!
 
@@ -138,7 +137,7 @@ final class SemanticTokensTests: XCTestCase {
         DocumentSemanticTokensRangeRequest(
           textDocument: TextDocumentIdentifier(uri),
           range: range
-        ) 
+        )
       )
     } else {
       response = try await testClient.send(
@@ -148,13 +147,13 @@ final class SemanticTokensTests: XCTestCase {
       )
     }
 
-    return Tokens(lspEncodedTokens: response.data)
+    return SyntaxHighlightingTokens(lspEncodedTokens: response.data)
   }
 
   private func openAndPerformSemanticTokensRequest(
     text: String,
     range: Range<Position>? = nil
-  ) async throws -> Tokens {
+  ) async throws -> SyntaxHighlightingTokens {
     openDocument(text: text)
     return try await performSemanticTokensRequest(range: range)
   }
