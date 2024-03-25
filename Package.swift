@@ -119,7 +119,8 @@ let package = Package(
         "LanguageServerProtocol",
         "LSPLogging",
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
     ),
 
     .testTarget(
@@ -177,7 +178,8 @@ let package = Package(
         .product(name: "SwiftPMDataModel-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
     ),
 
     .testTarget(
@@ -224,7 +226,8 @@ let package = Package(
         .product(name: "SwiftPM-auto", package: "swift-package-manager"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ],
-      exclude: ["CMakeLists.txt"]
+      exclude: ["CMakeLists.txt"],
+      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
     ),
 
     .testTarget(

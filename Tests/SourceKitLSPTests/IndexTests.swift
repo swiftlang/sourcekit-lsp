@@ -17,7 +17,7 @@ import XCTest
 final class IndexTests: XCTestCase {
   func testIndexSwiftModules() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-    let ws = try await SwiftPMTestWorkspace(
+    let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
         public func 1️⃣aaa() {}
@@ -52,17 +52,17 @@ final class IndexTests: XCTestCase {
       build: true
     )
 
-    let (libAUri, libAPositions) = try ws.openDocument("LibA.swift")
-    let libBUri = try ws.uri(for: "LibB.swift")
-    let (libCUri, libCPositions) = try ws.openDocument("LibC.swift")
+    let (libAUri, libAPositions) = try project.openDocument("LibA.swift")
+    let libBUri = try project.uri(for: "LibB.swift")
+    let (libCUri, libCPositions) = try project.openDocument("LibC.swift")
 
     let definitionPos = libAPositions["1️⃣"]
-    let referencePos = try ws.position(of: "2️⃣", in: "LibB.swift")
+    let referencePos = try project.position(of: "2️⃣", in: "LibB.swift")
     let callPos = libCPositions["3️⃣"]
 
     // MARK: Jump to definition
 
-    let response = try await ws.testClient.send(
+    let response = try await project.testClient.send(
       DefinitionRequest(
         textDocument: TextDocumentIdentifier(libCUri),
         position: libCPositions["3️⃣"]
@@ -79,7 +79,7 @@ final class IndexTests: XCTestCase {
 
     // MARK: Find references
 
-    let refs = try await ws.testClient.send(
+    let refs = try await project.testClient.send(
       ReferencesRequest(
         textDocument: TextDocumentIdentifier(libAUri),
         position: definitionPos,
@@ -113,7 +113,7 @@ final class IndexTests: XCTestCase {
     }
 
     func checkRunningIndex(cleanUp: Bool, workspaceDirectory: URL) async throws -> URL? {
-      let ws = try await IndexedSingleSwiftFileWorkspace(
+      let project = try await IndexedSingleSwiftFileTestProject(
         """
         func 1️⃣foo() {}
 
@@ -124,10 +124,10 @@ final class IndexTests: XCTestCase {
         cleanUp: cleanUp
       )
 
-      let response = try await ws.testClient.send(
+      let response = try await project.testClient.send(
         DefinitionRequest(
-          textDocument: TextDocumentIdentifier(ws.fileURI),
-          position: ws.positions["2️⃣"]
+          textDocument: TextDocumentIdentifier(project.fileURI),
+          position: project.positions["2️⃣"]
         )
       )
       guard case .locations(let jump) = response else {
@@ -135,10 +135,10 @@ final class IndexTests: XCTestCase {
         return nil
       }
       XCTAssertEqual(jump.count, 1)
-      XCTAssertEqual(jump.first?.uri, ws.fileURI)
-      XCTAssertEqual(jump.first?.range.lowerBound, ws.positions["1️⃣"])
+      XCTAssertEqual(jump.first?.uri, project.fileURI)
+      XCTAssertEqual(jump.first?.range.lowerBound, project.positions["1️⃣"])
 
-      let tmpContents = try listdir(ws.indexDBURL)
+      let tmpContents = try listdir(project.indexDBURL)
       guard let versionedPath = tmpContents.filter({ $0.lastPathComponent.starts(with: "v") }).spm_only else {
         XCTFail("expected one version path 'v[0-9]*', found \(tmpContents)")
         return nil
@@ -148,7 +148,7 @@ final class IndexTests: XCTestCase {
       XCTAssertEqual(versionContentsBefore.count, 1)
       XCTAssert(versionContentsBefore.first?.lastPathComponent.starts(with: "p") ?? false)
 
-      _ = try await ws.testClient.send(ShutdownRequest())
+      _ = try await project.testClient.send(ShutdownRequest())
       return versionedPath
     }
 

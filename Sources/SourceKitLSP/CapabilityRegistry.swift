@@ -135,7 +135,7 @@ public final actor CapabilityRegistry {
     options: Options,
     forMethod method: String,
     languages: [Language],
-    in server: SourceKitServer,
+    in server: SourceKitLSPServer,
     registrationDict: [CapabilityRegistration: Options],
     setRegistrationDict: (CapabilityRegistration, Options?) -> Void
   ) async {
@@ -176,7 +176,7 @@ public final actor CapabilityRegistry {
   public func registerCompletionIfNeeded(
     options: CompletionOptions,
     for languages: [Language],
-    server: SourceKitServer
+    server: SourceKitLSPServer
   ) async {
     guard clientHasDynamicCompletionRegistration else { return }
 
@@ -195,8 +195,8 @@ public final actor CapabilityRegistry {
 
   public func registerDidChangeWatchedFiles(
     watchers: [FileSystemWatcher],
-    server: SourceKitServer
-  ) {
+    server: SourceKitLSPServer
+  ) async {
     guard clientHasDynamicDidChangeWatchedFilesRegistration else { return }
     if let registration = didChangeWatchedFiles {
       if watchers != registration.watchers {
@@ -216,11 +216,11 @@ public final actor CapabilityRegistry {
 
     self.didChangeWatchedFiles = registrationOptions
 
-    let _ = server.client.send(RegisterCapabilityRequest(registrations: [registration])) { result in
-      if let error = result.failure {
-        logger.error("Failed to dynamically register for watched files: \(error.forLogging)")
-        self.didChangeWatchedFiles = nil
-      }
+    do {
+      _ = try await server.client.send(RegisterCapabilityRequest(registrations: [registration]))
+    } catch {
+      logger.error("Failed to dynamically register for watched files: \(error.forLogging)")
+      self.didChangeWatchedFiles = nil
     }
   }
 
@@ -230,7 +230,7 @@ public final actor CapabilityRegistry {
   public func registerFoldingRangeIfNeeded(
     options: FoldingRangeOptions,
     for languages: [Language],
-    server: SourceKitServer
+    server: SourceKitLSPServer
   ) async {
     guard clientHasDynamicFoldingRangeRegistration else { return }
 
@@ -253,7 +253,7 @@ public final actor CapabilityRegistry {
   public func registerSemanticTokensIfNeeded(
     options: SemanticTokensOptions,
     for languages: [Language],
-    server: SourceKitServer
+    server: SourceKitLSPServer
   ) async {
     guard clientHasDynamicSemanticTokensRegistration else { return }
 
@@ -276,7 +276,7 @@ public final actor CapabilityRegistry {
   public func registerInlayHintIfNeeded(
     options: InlayHintOptions,
     for languages: [Language],
-    server: SourceKitServer
+    server: SourceKitLSPServer
   ) async {
     guard clientHasDynamicInlayHintRegistration else { return }
     await registerLanguageSpecificCapability(
@@ -297,7 +297,7 @@ public final actor CapabilityRegistry {
   public func registerDiagnosticIfNeeded(
     options: DiagnosticOptions,
     for languages: [Language],
-    server: SourceKitServer
+    server: SourceKitLSPServer
   ) async {
     guard clientHasDynamicDocumentDiagnosticsRegistration else { return }
 
@@ -318,7 +318,7 @@ public final actor CapabilityRegistry {
   /// it and we haven't yet registered the given command IDs yet.
   public func registerExecuteCommandIfNeeded(
     commands: [String],
-    server: SourceKitServer
+    server: SourceKitLSPServer
   ) {
     guard clientHasDynamicExecuteCommandRegistration else { return }
 

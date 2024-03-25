@@ -115,8 +115,7 @@ extension CursorInfoError: CustomStringConvertible {
   }
 }
 
-extension SwiftLanguageServer {
-
+extension SwiftLanguageService {
   /// Provides detailed information about a symbol under the cursor, if any.
   ///
   /// Wraps the information returned by sourcekitd's `cursor_info` request, such as symbol name,

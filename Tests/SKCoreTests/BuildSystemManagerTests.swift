@@ -429,7 +429,7 @@ class ManualBuildSystem: BuildSystem {
 
   var map: [DocumentURI: FileBuildSettings] = [:]
 
-  var delegate: BuildSystemDelegate? = nil
+  weak var delegate: BuildSystemDelegate? = nil
 
   func setDelegate(_ delegate: SKCore.BuildSystemDelegate?) async {
     self.delegate = delegate

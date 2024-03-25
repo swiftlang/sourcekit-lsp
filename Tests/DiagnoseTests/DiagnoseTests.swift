@@ -35,11 +35,21 @@ final class DiagnoseTests: XCTestCase {
     }
   }
 
+  /// If a default SDK is present on the test machine, return the `-sdk` argument that can be placed in the request
+  /// YAML. Otherwise, return an empty string.
+  private var sdkArgs: [String] {
+    if let sdk = TibsBuilder.defaultSDKPath {
+      return ["-sdk", "\(sdk)"]
+    } else {
+      return []
+    }
+  }
+
   func testRemoveCodeItemsAndMembers() async throws {
     // We consider the test case reproducing if cursor info returns the two ambiguous results including their doc
     // comments.
     // We should strip away unrelated declarations and statements.
-    try await assertReduce(
+    try await assertReduceSourceKitD(
       """
       func test() {
         let foo = Foo()
@@ -96,7 +106,7 @@ final class DiagnoseTests: XCTestCase {
   }
 
   func testRemoveComments() async throws {
-    try await assertReduce(
+    try await assertReduceSourceKitD(
       """
       /// Doc comment
       func test() {
@@ -135,6 +145,76 @@ final class DiagnoseTests: XCTestCase {
         """
     )
   }
+
+  func testReduceFrontend() async throws {
+    try await withTestScratchDir { scratchDir in
+      let fileAContents = """
+        func makeThing() -> Int { 1 }
+
+        func test() { let b = makeThing() }
+        func unrelatedA() {}
+        """
+
+      let fileBContents = """
+        func makeThing() -> String { "" }
+
+        func unrelatedB() {}
+        """
+
+      let fileAPath = scratchDir.appending(component: "a.swift").pathString
+      let fileBPath = scratchDir.appending(component: "b.swift").pathString
+
+      try fileAContents.write(toFile: fileAPath, atomically: true, encoding: .utf8)
+      try fileBContents.write(toFile: fileBPath, atomically: true, encoding: .utf8)
+
+      let toolchain = try await unwrap(ToolchainRegistry.forTesting.default)
+
+      let requestExecutor = try InProcessSourceKitRequestExecutor(
+        toolchain: toolchain,
+        reproducerPredicate: NSPredicate(block: { (result, _) -> Bool in
+          guard let dict = (result as? [String: Any]) else {
+            return false
+          }
+          guard let stderr = dict["stderr"] as? String else {
+            return false
+          }
+          return stderr.contains("ambiguous use of 'makeThing()'")
+        })
+      )
+
+      var lastProgress = 0.0
+      // '-swift-version 5' is irrelevant and should get removed by the reducer.
+      let frontendArgs = ["-typecheck", fileAPath, fileBPath, "-swift-version", "5"] + sdkArgs
+      let reduced = try await reduceFrontendIssue(
+        frontendArgs: frontendArgs,
+        using: requestExecutor,
+        progressUpdate: { progress, _ in
+          XCTAssertLessThanOrEqual(lastProgress, progress)
+          lastProgress = progress
+        }
+      )
+
+      XCTAssertEqual(
+        reduced.fileContents,
+        """
+        func makeThing() -> Int { }
+
+        func test() { let b = makeThing() }
+
+
+
+        func makeThing() -> String { }
+        """
+      )
+
+      // When running swift-frontend from an Xcode toolchain, the -sdk argument is required to find the stdlib.
+      // When running using an open source toolchain snapshot or on Linux, the SDK is found next to the compiler and the
+      // -sdk argument is not required.
+      XCTAssert(
+        reduced.compilerArgs == ["-typecheck", "$FILE"] || reduced.compilerArgs == ["-typecheck"] + sdkArgs + ["$FILE"]
+      )
+    }
+  }
 }
 
 /// Check that reducing `request` with the given file contents results in `expectedReducedFileContents`.
@@ -147,7 +227,7 @@ final class DiagnoseTests: XCTestCase {
 ///     - `$OFFSET`: The UTF-8 offset of the 1️⃣ location marker in `markedFileContents`
 ///   - reproducerPredicate: A predicate that indicates whether a run request reproduces the issue.
 ///   - expectedReducedFileContents: The contents of the file that the reducer is expected to produce.
-private func assertReduce(
+private func assertReduceSourceKitD(
   _ markedFileContents: String,
   request: String,
   reproducerPredicate: @escaping (String) -> Bool,
@@ -157,10 +237,10 @@ private func assertReduce(
 ) async throws {
   let (markers, fileContents) = extractMarkers(markedFileContents)
 
-  let sourcekitd = try await unwrap(ToolchainRegistry.forTesting.default?.sourcekitd?.asURL)
-  logger.debug("Using \(sourcekitd.path) to reduce source file")
-  let requestExecutor = InProcessSourceKitRequestExecutor(
-    sourcekitd: sourcekitd,
+  let toolchain = try await unwrap(ToolchainRegistry.forTesting.default)
+  logger.debug("Using \(toolchain.path?.pathString ?? "<nil>") to reduce source file")
+  let requestExecutor = try InProcessSourceKitRequestExecutor(
+    toolchain: toolchain,
     reproducerPredicate: NSPredicate(block: { (requestResponse, _) -> Bool in
       reproducerPredicate(requestResponse as! String)
     })
@@ -182,7 +262,7 @@ private func assertReduce(
     let reduced = try await requestInfo.reduceInputFile(
       using: requestExecutor,
       progressUpdate: { progress, _ in
-        XCTAssertLessThanOrEqual(lastProgress, progress)
+        XCTAssertLessThanOrEqual(lastProgress, progress, file: file, line: line)
         lastProgress = progress
       }
     )
@@ -191,30 +271,55 @@ private func assertReduce(
   }
 }
 
-private struct InProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
+/// We can't run the `OutOfProcessSourceKitRequestExecutor` in tests because that runs the sourcekit-lsp executable,
+/// which isn't built when running tests.
+private class InProcessSourceKitRequestExecutor: SourceKitRequestExecutor {
   /// The path to `sourcekitd.framework/sourcekitd`.
   private let sourcekitd: URL
 
-  /// The file to which we write the JSON request that we want to run.
+  /// The path to `swift-frontend`.
+  private let swiftFrontend: URL
+
+  /// The file to which we write the reduce source file.
   private let temporarySourceFile: URL
+
+  /// The file to which we write the AYML request that we want to run.
+  private let temporaryRequestFile: URL
 
   /// If this predicate evaluates to true on the sourcekitd response, the request is
   /// considered to reproduce the issue.
   private let reproducerPredicate: NSPredicate
 
-  init(sourcekitd: URL, reproducerPredicate: NSPredicate) {
-    self.sourcekitd = sourcekitd
+  init(toolchain: Toolchain, reproducerPredicate: NSPredicate) throws {
+    self.sourcekitd = try XCTUnwrap(toolchain.sourcekitd?.asURL)
+    self.swiftFrontend = try XCTUnwrap(toolchain.swiftFrontend)
     self.reproducerPredicate = reproducerPredicate
-    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("request.json")
+    temporaryRequestFile = FileManager.default.temporaryDirectory.appendingPathComponent("request-\(UUID()).yml")
+    temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce-\(UUID()).swift")
   }
 
-  func run(request requestYaml: String) async throws -> SourceKitDRequestResult {
-    logger.info("Sending request: \(requestYaml)")
+  deinit {
+    try? FileManager.default.removeItem(at: temporaryRequestFile)
+    try? FileManager.default.removeItem(at: temporarySourceFile)
+  }
+
+  func runSwiftFrontend(request: RequestInfo) async throws -> SourceKitDRequestResult {
+    return try await OutOfProcessSourceKitRequestExecutor(
+      sourcekitd: sourcekitd,
+      swiftFrontend: swiftFrontend,
+      reproducerPredicate: reproducerPredicate
+    ).runSwiftFrontend(request: request)
+  }
+
+  func runSourceKitD(request: RequestInfo) async throws -> SourceKitDRequestResult {
+    try request.fileContents.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
+    let requestString = try request.request(for: temporarySourceFile)
+    logger.info("Sending request: \(requestString)")
 
     let sourcekitd = try await DynamicallyLoadedSourceKitD.getOrCreate(
       dylibPath: try! AbsolutePath(validating: sourcekitd.path)
     )
-    let response = try await sourcekitd.run(requestYaml: requestYaml)
+    let response = try await sourcekitd.run(requestYaml: requestString)
 
     logger.info("Received response: \(response.description)")
 

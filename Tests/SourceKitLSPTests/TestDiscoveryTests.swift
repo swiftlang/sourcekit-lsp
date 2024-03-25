@@ -18,7 +18,7 @@ final class TestDiscoveryTests: XCTestCase {
   func testWorkspaceTests() async throws {
     try SkipUnless.longTestsEnabled()
 
-    let ws = try await SwiftPMTestWorkspace(
+    let project = try await SwiftPMTestProject(
       files: [
         "Tests/MyLibraryTests/MyTests.swift": """
         import XCTest
@@ -43,7 +43,7 @@ final class TestDiscoveryTests: XCTestCase {
       build: true
     )
 
-    let tests = try await ws.testClient.send(WorkspaceTestsRequest())
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(
       tests,
       [
@@ -52,8 +52,8 @@ final class TestDiscoveryTests: XCTestCase {
             name: "MyTests",
             kind: .class,
             location: Location(
-              uri: try ws.uri(for: "MyTests.swift"),
-              range: Range(try ws.position(of: "1️⃣", in: "MyTests.swift"))
+              uri: try project.uri(for: "MyTests.swift"),
+              range: Range(try project.position(of: "1️⃣", in: "MyTests.swift"))
             )
           )
         ),
@@ -62,8 +62,8 @@ final class TestDiscoveryTests: XCTestCase {
             name: "testMyLibrary()",
             kind: .method,
             location: Location(
-              uri: try ws.uri(for: "MyTests.swift"),
-              range: Range(try ws.position(of: "2️⃣", in: "MyTests.swift"))
+              uri: try project.uri(for: "MyTests.swift"),
+              range: Range(try project.position(of: "2️⃣", in: "MyTests.swift"))
             ),
             containerName: "MyTests"
           )
@@ -75,7 +75,7 @@ final class TestDiscoveryTests: XCTestCase {
   func testDocumentTests() async throws {
     try SkipUnless.longTestsEnabled()
 
-    let ws = try await SwiftPMTestWorkspace(
+    let project = try await SwiftPMTestProject(
       files: [
         "Tests/MyLibraryTests/MyTests.swift": """
         import XCTest
@@ -107,8 +107,8 @@ final class TestDiscoveryTests: XCTestCase {
       build: true
     )
 
-    let (uri, positions) = try ws.openDocument("MyTests.swift")
-    let tests = try await ws.testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    let (uri, positions) = try project.openDocument("MyTests.swift")
+    let tests = try await project.testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
     XCTAssertEqual(
       tests,
       [
@@ -127,7 +127,7 @@ final class TestDiscoveryTests: XCTestCase {
             name: "testMyLibrary()",
             kind: .method,
             location: Location(
-              uri: try ws.uri(for: "MyTests.swift"),
+              uri: try project.uri(for: "MyTests.swift"),
               range: Range(positions["2️⃣"])
             ),
             containerName: "MyTests"

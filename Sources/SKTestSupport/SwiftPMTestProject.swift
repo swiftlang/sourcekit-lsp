@@ -15,7 +15,7 @@ import LanguageServerProtocol
 @_spi(Testing) import SKCore
 import TSCBasic
 
-public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
+public class SwiftPMTestProject: MultiFileTestProject {
   enum Error: Swift.Error {
     /// The `swift` executable could not be found.
     case swiftNotFound
@@ -37,7 +37,7 @@ public class SwiftPMTestWorkspace: MultiFileTestWorkspace {
   /// If `index` is `true`, then the package will be built, indexing all modules within the package.
   public init(
     files: [RelativeFileLocation: String],
-    manifest: String = SwiftPMTestWorkspace.defaultPackageManifest,
+    manifest: String = SwiftPMTestProject.defaultPackageManifest,
     workspaces: (URL) -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
     build: Bool = false,
     usePullDiagnostics: Bool = true,

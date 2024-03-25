@@ -136,7 +136,7 @@ private func edits(from original: DocumentSnapshot, to edited: String) -> [TextE
   }
 }
 
-extension SwiftLanguageServer {
+extension SwiftLanguageService {
   public func documentFormatting(_ req: DocumentFormattingRequest) async throws -> [TextEdit]? {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
 

@@ -20,35 +20,48 @@ import class Foundation.Pipe
 public final class TestJSONRPCConnection {
   public let clientToServer: Pipe = Pipe()
   public let serverToClient: Pipe = Pipe()
-  public let client: TestMessageHandler
-  public let clientConnection: JSONRPCConnection
+
+  /// Mocks a client (aka. editor) that can send requests to the LSP server.
+  public let client: TestClient
+
+  /// The connection with which the client can send requests and notifications to the LSP server and using which it
+  /// receives replies to the requests.
+  public let clientToServerConnection: JSONRPCConnection
+
+  /// Mocks an LSP server that handles requests from the client.
   public let server: TestServer
-  public let serverConnection: JSONRPCConnection
+
+  /// The connection with which the server can send requests and notifications to the client and using which it
+  /// receives replies to the requests.
+  public let serverToClientConnection: JSONRPCConnection
 
   public init(allowUnexpectedNotification: Bool = true) {
-    clientConnection = JSONRPCConnection(
+    clientToServerConnection = JSONRPCConnection(
       name: "client",
       protocol: testMessageRegistry,
       inFD: serverToClient.fileHandleForReading,
       outFD: clientToServer.fileHandleForWriting
     )
 
-    serverConnection = JSONRPCConnection(
+    serverToClientConnection = JSONRPCConnection(
       name: "server",
       protocol: testMessageRegistry,
       inFD: clientToServer.fileHandleForReading,
       outFD: serverToClient.fileHandleForWriting
     )
 
-    client = TestMessageHandler(server: clientConnection, allowUnexpectedNotification: allowUnexpectedNotification)
-    server = TestServer(client: serverConnection)
+    client = TestClient(
+      connectionToServer: clientToServerConnection,
+      allowUnexpectedNotification: allowUnexpectedNotification
+    )
+    server = TestServer(client: serverToClientConnection)
 
-    clientConnection.start(receiveHandler: client) {
+    clientToServerConnection.start(receiveHandler: client) {
       // FIXME: keep the pipes alive until we close the connection. This
       // should be fixed systemically.
       withExtendedLifetime(self) {}
     }
-    serverConnection.start(receiveHandler: server) {
+    serverToClientConnection.start(receiveHandler: server) {
       // FIXME: keep the pipes alive until we close the connection. This
       // should be fixed systemically.
       withExtendedLifetime(self) {}
@@ -56,19 +69,19 @@ public final class TestJSONRPCConnection {
   }
 
   public func close() {
-    clientConnection.close()
-    serverConnection.close()
+    clientToServerConnection.close()
+    serverToClientConnection.close()
   }
 }
 
 public struct TestLocalConnection {
-  public let client: TestMessageHandler
-  public let clientConnection: LocalConnection = .init()
+  public let client: TestClient
+  public let clientConnection: LocalConnection = LocalConnection()
   public let server: TestServer
-  public let serverConnection: LocalConnection = .init()
+  public let serverConnection: LocalConnection = LocalConnection()
 
   public init(allowUnexpectedNotification: Bool = true) {
-    client = TestMessageHandler(server: serverConnection, allowUnexpectedNotification: allowUnexpectedNotification)
+    client = TestClient(connectionToServer: serverConnection, allowUnexpectedNotification: allowUnexpectedNotification)
     server = TestServer(client: clientConnection)
 
     clientConnection.start(handler: client)
@@ -81,9 +94,9 @@ public struct TestLocalConnection {
   }
 }
 
-public actor TestMessageHandler: MessageHandler {
-  /// The connection to the language client.
-  public let server: Connection
+public actor TestClient: MessageHandler {
+  /// The connection to the LSP server.
+  public let connectionToServer: Connection
 
   private let messageHandlingQueue = AsyncQueue<Serial>()
 
@@ -91,8 +104,8 @@ public actor TestMessageHandler: MessageHandler {
 
   private let allowUnexpectedNotification: Bool
 
-  public init(server: Connection, allowUnexpectedNotification: Bool = true) {
-    self.server = server
+  public init(connectionToServer: Connection, allowUnexpectedNotification: Bool = true) {
+    self.connectionToServer = connectionToServer
     self.allowUnexpectedNotification = allowUnexpectedNotification
   }
 
@@ -106,7 +119,7 @@ public actor TestMessageHandler: MessageHandler {
   }
 
   /// The LSP server sent a notification to the client. Handle it.
-  public nonisolated func handle(_ notification: some NotificationType, from clientID: ObjectIdentifier) {
+  public nonisolated func handle(_ notification: some NotificationType) {
     messageHandlingQueue.async {
       await self.handleNotificationImpl(notification)
     }
@@ -125,17 +138,14 @@ public actor TestMessageHandler: MessageHandler {
   public nonisolated func handle<Request: RequestType>(
     _ request: Request,
     id: RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<Request.Response>) -> Void
   ) {
     reply(.failure(.methodNotFound(Request.method)))
   }
-}
 
-extension TestMessageHandler: Connection {
   /// Send a notification to the LSP server.
   public nonisolated func send(_ notification: some NotificationType) {
-    server.send(notification)
+    connectionToServer.send(notification)
   }
 
   /// Send a request to the LSP server and (asynchronously) receive a reply.
@@ -143,7 +153,7 @@ extension TestMessageHandler: Connection {
     _ request: Request,
     reply: @escaping (LSPResult<Request.Response>) -> Void
   ) -> RequestID {
-    return server.send(request, reply: reply)
+    return connectionToServer.send(request, reply: reply)
   }
 }
 
@@ -154,27 +164,28 @@ public final class TestServer: MessageHandler {
     self.client = client
   }
 
-  public func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
-    if params is EchoNotification {
-      self.client.send(params)
+  /// The client sent a notification to the server. Handle it.
+  public func handle(_ notification: some NotificationType) {
+    if notification is EchoNotification {
+      self.client.send(notification)
     } else {
       fatalError("Unhandled notification")
     }
   }
 
-  public func handle<R: RequestType>(
-    _ params: R,
+  /// The client sent a request to the server. Handle it.
+  public func handle<Request: RequestType>(
+    _ request: Request,
     id: RequestID,
-    from clientID: ObjectIdentifier,
-    reply: @escaping (LSPResult<R.Response>) -> Void
+    reply: @escaping (LSPResult<Request.Response>) -> Void
   ) {
-    if let params = params as? EchoRequest {
-      reply(.success(params.string as! R.Response))
-    } else if let params = params as? EchoError {
+    if let params = request as? EchoRequest {
+      reply(.success(params.string as! Request.Response))
+    } else if let params = request as? EchoError {
       if let code = params.code {
         reply(.failure(ResponseError(code: code, message: params.message!)))
       } else {
-        reply(.success(VoidResponse() as! R.Response))
+        reply(.success(VoidResponse() as! Request.Response))
       }
     } else {
       fatalError("Unhandled request")
@@ -182,7 +193,7 @@ public final class TestServer: MessageHandler {
   }
 }
 
-// MARK: Test requests.
+// MARK: Test requests
 
 private let testMessageRegistry = MessageRegistry(
   requests: [EchoRequest.self, EchoError.self],

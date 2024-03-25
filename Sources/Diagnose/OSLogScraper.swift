@@ -82,7 +82,12 @@ struct OSLogScraper {
   /// Name is a human readable name that identifies the crash.
   func getCrashedRequests() throws -> [(name: String, info: RequestInfo)] {
     let crashedRequests = try crashedSourceKitLSPRequests().reversed()
-    return try crashedRequests.map { ($0.name, try requestInfo(for: $0.logCategory)) }
+    return crashedRequests.compactMap { (name: String, logCategory: String) -> (name: String, info: RequestInfo)? in
+      guard let requestInfo = try? requestInfo(for: logCategory) else {
+        return nil
+      }
+      return (name, requestInfo)
+    }
   }
 }
 #endif

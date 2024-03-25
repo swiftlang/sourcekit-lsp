@@ -17,7 +17,7 @@ import XCTest
 final class DependencyTrackingTests: XCTestCase {
   func testDependenciesUpdatedSwift() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
-    let ws = try await SwiftPMTestWorkspace(
+    let project = try await SwiftPMTestProject(
       files: [
         "LibA/LibA.swift": """
         public func aaa() {}
@@ -45,9 +45,9 @@ final class DependencyTrackingTests: XCTestCase {
       usePullDiagnostics: false
     )
 
-    let (libBUri, _) = try ws.openDocument("LibB.swift")
+    let (libBUri, _) = try project.openDocument("LibB.swift")
 
-    let initialDiags = try await ws.testClient.nextDiagnosticsNotification()
+    let initialDiags = try await project.testClient.nextDiagnosticsNotification()
     // Semantic analysis: expect module import error.
     XCTAssertEqual(initialDiags.diagnostics.count, 1)
     if let diagnostic = initialDiags.diagnostics.first {
@@ -60,17 +60,17 @@ final class DependencyTrackingTests: XCTestCase {
       )
     }
 
-    try await SwiftPMTestWorkspace.build(at: ws.scratchDirectory)
+    try await SwiftPMTestProject.build(at: project.scratchDirectory)
 
-    await ws.testClient.server.filesDependenciesUpdated([libBUri])
+    await project.testClient.server.filesDependenciesUpdated([libBUri])
 
-    let updatedDiags = try await ws.testClient.nextDiagnosticsNotification()
+    let updatedDiags = try await project.testClient.nextDiagnosticsNotification()
     // Semantic analysis: no more errors expected, import should resolve since we built.
     XCTAssertEqual(updatedDiags.diagnostics.count, 0)
   }
 
   func testDependenciesUpdatedCXX() async throws {
-    let ws = try await MultiFileTestWorkspace(
+    let project = try await MultiFileTestProject(
       files: [
         "lib.c": """
         int libX(int value) {
@@ -89,15 +89,15 @@ final class DependencyTrackingTests: XCTestCase {
       usePullDiagnostics: false
     )
 
-    let generatedHeaderURL = try ws.uri(for: "main.c").fileURL!.deletingLastPathComponent()
+    let generatedHeaderURL = try project.uri(for: "main.c").fileURL!.deletingLastPathComponent()
       .appendingPathComponent("lib-generated.h", isDirectory: false)
 
     // Write an empty header file first since clangd doesn't handle missing header
     // files without a recently upstreamed extension.
     try "".write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
-    let (mainUri, _) = try ws.openDocument("main.c")
+    let (mainUri, _) = try project.openDocument("main.c")
 
-    let openDiags = try await ws.testClient.nextDiagnosticsNotification()
+    let openDiags = try await project.testClient.nextDiagnosticsNotification()
     // Expect one error:
     // - Implicit declaration of function invalid
     XCTAssertEqual(openDiags.diagnostics.count, 1)
@@ -106,9 +106,9 @@ final class DependencyTrackingTests: XCTestCase {
     let contents = "int libX(int value);"
     try contents.write(to: generatedHeaderURL, atomically: true, encoding: .utf8)
 
-    await ws.testClient.server.filesDependenciesUpdated([mainUri])
+    await project.testClient.server.filesDependenciesUpdated([mainUri])
 
-    let updatedDiags = try await ws.testClient.nextDiagnosticsNotification()
+    let updatedDiags = try await project.testClient.nextDiagnosticsNotification()
     // No more errors expected, import should resolve since we the generated header file
     // now has the proper contents.
     XCTAssertEqual(updatedDiags.diagnostics.count, 0)

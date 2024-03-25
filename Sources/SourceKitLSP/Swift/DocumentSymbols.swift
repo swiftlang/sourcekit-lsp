@@ -15,7 +15,7 @@ import LSPLogging
 import LanguageServerProtocol
 import SwiftSyntax
 
-extension SwiftLanguageServer {
+extension SwiftLanguageService {
   public func documentSymbol(_ req: DocumentSymbolRequest) async throws -> DocumentSymbolResponse? {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
 

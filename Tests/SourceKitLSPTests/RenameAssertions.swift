@@ -83,7 +83,7 @@ func assertRenamedSourceMatches(
   originalFiles: [RelativeFileLocation: String],
   changes: [DocumentURI: [TextEdit]],
   expected: [RelativeFileLocation: String],
-  in ws: MultiFileTestWorkspace,
+  in ws: MultiFileTestProject,
   message: String,
   testName: String = #function,
   file: StaticString = #file,
@@ -122,34 +122,34 @@ func assertMultiFileRename(
   newName: String,
   expectedPrepareRenamePlaceholder: String,
   expected: [RelativeFileLocation: String],
-  manifest: String = SwiftPMTestWorkspace.defaultPackageManifest,
-  preRenameActions: (SwiftPMTestWorkspace) throws -> Void = { _ in },
+  manifest: String = SwiftPMTestProject.defaultPackageManifest,
+  preRenameActions: (SwiftPMTestProject) throws -> Void = { _ in },
   testName: String = #function,
   file: StaticString = #file,
   line: UInt = #line
 ) async throws {
   try await SkipUnless.sourcekitdSupportsRename()
-  let ws = try await SwiftPMTestWorkspace(
+  let project = try await SwiftPMTestProject(
     files: files,
     manifest: manifest,
     build: true,
     testName: testName
   )
-  try preRenameActions(ws)
+  try preRenameActions(project)
   for (fileLocation, markedSource) in files.sorted(by: { $0.key.fileName < $1.key.fileName }) {
     let markers = extractMarkers(markedSource).markers.keys.sorted().filter { $0 != "0️⃣" }
     if markers.isEmpty {
       continue
     }
-    let (uri, positions) = try ws.openDocument(
+    let (uri, positions) = try project.openDocument(
       fileLocation.fileName,
       language: fileLocation.fileName.hasSuffix(".h") ? headerFileLanguage : nil
     )
     defer {
-      ws.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
+      project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(uri)))
     }
     for marker in markers {
-      let prepareRenameResponse = try await ws.testClient.send(
+      let prepareRenameResponse = try await project.testClient.send(
         PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions[marker])
       )
       XCTAssertEqual(
@@ -160,7 +160,7 @@ func assertMultiFileRename(
         line: line
       )
 
-      let response = try await ws.testClient.send(
+      let response = try await project.testClient.send(
         RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions[marker], newName: newName)
       )
       let changes = try XCTUnwrap(response?.changes, "Did not receive any edits", file: file, line: line)
@@ -168,7 +168,7 @@ func assertMultiFileRename(
         originalFiles: files,
         changes: changes,
         expected: expected,
-        in: ws,
+        in: project,
         message: "while performing rename at \(marker)",
         file: file,
         line: line

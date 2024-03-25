@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import LSPLogging
 
 // MARK: - Entry point
 
@@ -34,9 +35,6 @@ fileprivate class CommandLineArgumentReducer {
   /// still crashes.
   private let sourcekitdExecutor: SourceKitRequestExecutor
 
-  /// The file to which we write the reduced source code.
-  private let temporarySourceFile: URL
-
   /// A callback to be called when the reducer has made progress reducing the request
   private let progressUpdate: (_ progress: Double, _ message: String) -> Void
 
@@ -48,69 +46,68 @@ fileprivate class CommandLineArgumentReducer {
     progressUpdate: @escaping (_ progress: Double, _ message: String) -> Void
   ) {
     self.sourcekitdExecutor = sourcekitdExecutor
-    self.temporarySourceFile = FileManager.default.temporaryDirectory.appendingPathComponent("reduce-\(UUID()).swift")
     self.progressUpdate = progressUpdate
   }
 
-  deinit {
-    try? FileManager.default.removeItem(at: temporarySourceFile)
-  }
-
-  func logSuccessfulReduction(_ requestInfo: RequestInfo) {
-    progressUpdate(
-      1 - (Double(requestInfo.compilerArgs.count) / Double(initialCommandLineCount)),
-      "Reduced compiler arguments to \(requestInfo.compilerArgs.count)"
-    )
-  }
-
   func run(initialRequestInfo: RequestInfo) async throws -> RequestInfo {
-    try initialRequestInfo.fileContents.write(to: temporarySourceFile, atomically: true, encoding: .utf8)
+    var requestInfo = initialRequestInfo
+    requestInfo = try await reduce(initialRequestInfo: requestInfo, simultaneousRemove: 10)
+    requestInfo = try await reduce(initialRequestInfo: requestInfo, simultaneousRemove: 1)
+    return requestInfo
+  }
+
+  /// Reduce the command line arguments of the given `RequestInfo`.
+  ///
+  /// If `simultaneousRemove` is set, the reducer will try to remove that many arguments at once. This is useful to
+  /// quickly remove multiple arguments from the request.
+  private func reduce(initialRequestInfo: RequestInfo, simultaneousRemove: Int) async throws -> RequestInfo {
+    guard initialRequestInfo.compilerArgs.count > simultaneousRemove else {
+      // Trying to remove more command line arguments than we have. This isn't going to work.
+      return initialRequestInfo
+    }
+
     var requestInfo = initialRequestInfo
     self.initialCommandLineCount = requestInfo.compilerArgs.count
 
     var argumentIndexToRemove = requestInfo.compilerArgs.count - 1
-    while argumentIndexToRemove >= 0 {
-      var numberOfArgumentsToRemove = 1
+    while argumentIndexToRemove + 1 >= simultaneousRemove {
+      defer {
+        // argumentIndexToRemove can become negative by being decremented in the code below
+        let progress = 1 - (Double(max(argumentIndexToRemove, 0)) / Double(initialCommandLineCount))
+        progressUpdate(progress, "Reduced compiler arguments to \(requestInfo.compilerArgs.count)")
+      }
+      var numberOfArgumentsToRemove = simultaneousRemove
       // If the argument is preceded by -Xswiftc or -Xcxx, we need to remove the `-X` flag as well.
-      if argumentIndexToRemove - numberOfArgumentsToRemove >= 0
-        && requestInfo.compilerArgs[argumentIndexToRemove - numberOfArgumentsToRemove].hasPrefix("-X")
-      {
+      if requestInfo.compilerArgs[safe: argumentIndexToRemove - numberOfArgumentsToRemove]?.hasPrefix("-X") ?? false {
         numberOfArgumentsToRemove += 1
       }
 
-      if let reduced = try await tryRemoving(
-        (argumentIndexToRemove - numberOfArgumentsToRemove + 1)...argumentIndexToRemove,
-        from: requestInfo
-      ) {
+      let rangeToRemove = (argumentIndexToRemove - numberOfArgumentsToRemove + 1)...argumentIndexToRemove
+      if let reduced = try await tryRemoving(rangeToRemove, from: requestInfo) {
         requestInfo = reduced
         argumentIndexToRemove -= numberOfArgumentsToRemove
         continue
       }
 
-      // If removing the argument failed and the argument is preceded by an argument starting with `-`, try removing that as well.
-      // E.g. removing `-F` followed by a search path.
-      if argumentIndexToRemove - numberOfArgumentsToRemove >= 0
-        && requestInfo.compilerArgs[argumentIndexToRemove - numberOfArgumentsToRemove].hasPrefix("-")
-      {
+      // If removing the argument failed and the argument is preceded by an argument starting with `-`, try removing
+      // that as well. E.g. removing `-F` followed by a search path.
+      if requestInfo.compilerArgs[safe: argumentIndexToRemove - numberOfArgumentsToRemove]?.hasPrefix("-") ?? false {
         numberOfArgumentsToRemove += 1
+
+        // If the argument is preceded by -Xswiftc or -Xcxx, we need to remove the `-X` flag as well.
+        if requestInfo.compilerArgs[safe: argumentIndexToRemove - numberOfArgumentsToRemove]?.hasPrefix("-X") ?? false {
+          numberOfArgumentsToRemove += 1
+        }
+
+        let rangeToRemove = (argumentIndexToRemove - numberOfArgumentsToRemove + 1)...argumentIndexToRemove
+        if let reduced = try await tryRemoving(rangeToRemove, from: requestInfo) {
+          requestInfo = reduced
+          argumentIndexToRemove -= numberOfArgumentsToRemove
+          continue
+        }
       }
 
-      // If the argument is preceded by -Xswiftc or -Xcxx, we need to remove the `-X` flag as well.
-      if argumentIndexToRemove - numberOfArgumentsToRemove >= 0
-        && requestInfo.compilerArgs[argumentIndexToRemove - numberOfArgumentsToRemove].hasPrefix("-X")
-      {
-        numberOfArgumentsToRemove += 1
-      }
-
-      if let reduced = try await tryRemoving(
-        (argumentIndexToRemove - numberOfArgumentsToRemove + 1)...argumentIndexToRemove,
-        from: requestInfo
-      ) {
-        requestInfo = reduced
-        argumentIndexToRemove -= numberOfArgumentsToRemove
-        continue
-      }
-      argumentIndexToRemove -= 1
+      argumentIndexToRemove -= simultaneousRemove
     }
 
     return requestInfo
@@ -120,16 +117,28 @@ fileprivate class CommandLineArgumentReducer {
     _ argumentsToRemove: ClosedRange<Int>,
     from requestInfo: RequestInfo
   ) async throws -> RequestInfo? {
+    logger.debug("Try removing the following compiler arguments:\n\(requestInfo.compilerArgs[argumentsToRemove])")
     var reducedRequestInfo = requestInfo
     reducedRequestInfo.compilerArgs.removeSubrange(argumentsToRemove)
 
-    let result = try await sourcekitdExecutor.run(request: reducedRequestInfo.request(for: temporarySourceFile))
+    let result = try await sourcekitdExecutor.run(request: reducedRequestInfo)
     if case .reproducesIssue = result {
-      logSuccessfulReduction(reducedRequestInfo)
+      logger.debug("Reduction successful")
       return reducedRequestInfo
     } else {
       // The reduced request did not crash. We did not find a reduced test case, so return `nil`.
+      logger.debug("Reduction did not reproduce the issue")
       return nil
     }
+  }
+}
+
+fileprivate extension Array {
+  /// Access index in the array if it's in bounds or return `nil` if `index` is outside of the array's bounds.
+  subscript(safe index: Int) -> Element? {
+    if index < 0 || index >= count {
+      return nil
+    }
+    return self[index]
   }
 }

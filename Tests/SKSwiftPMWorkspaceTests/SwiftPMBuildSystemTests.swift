@@ -41,11 +41,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
       await assertThrowsError(
-        try await SwiftPMWorkspace(
+        try await SwiftPMBuildSystem(
           workspacePath: packageRoot,
           toolchainRegistry: tr,
           fileSystem: fs,
-          buildSetup: SourceKitServer.Options.testDefault.buildSetup
+          buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
         )
       )
     }
@@ -68,11 +68,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
       await assertThrowsError(
-        try await SwiftPMWorkspace(
+        try await SwiftPMBuildSystem(
           workspacePath: packageRoot,
           toolchainRegistry: tr,
           fileSystem: fs,
-          buildSetup: SourceKitServer.Options.testDefault.buildSetup
+          buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
         )
       )
     }
@@ -95,11 +95,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
       let packageRoot = tempDir.appending(component: "pkg")
       await assertThrowsError(
-        try await SwiftPMWorkspace(
+        try await SwiftPMBuildSystem(
           workspacePath: packageRoot,
           toolchainRegistry: ToolchainRegistry(toolchains: []),
           fileSystem: fs,
-          buildSetup: SourceKitServer.Options.testDefault.buildSetup
+          buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
         )
       )
     }
@@ -122,20 +122,20 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
-      let ws = try await SwiftPMWorkspace(
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitServer.Options.testDefault.buildSetup
+        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let hostTriple = await ws.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
-      assertEqual(await ws.buildPath, build)
-      assertNotNil(await ws.indexStorePath)
-      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      assertEqual(await swiftpmBuildSystem.buildPath, build)
+      assertNotNil(await swiftpmBuildSystem.indexStorePath)
+      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
 
       assertArgumentsContain("-module-name", "lib", arguments: arguments)
       assertArgumentsContain("-emit-dependencies", arguments: arguments)
@@ -190,7 +190,7 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         flags: BuildFlags(cCompilerFlags: ["-m32"], swiftCompilerFlags: ["-typecheck"])
       )
 
-      let ws = try await SwiftPMWorkspace(
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
@@ -198,11 +198,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let hostTriple = await ws.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
       let build = buildPath(root: packageRoot, config: config, platform: hostTriple.platformBuildPathComponent)
 
-      assertEqual(await ws.buildPath, build)
-      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      assertEqual(await swiftpmBuildSystem.buildPath, build)
+      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
 
       assertArgumentsContain("-typecheck", arguments: arguments)
       assertArgumentsContain("-Xcc", "-m32", arguments: arguments)
@@ -227,15 +227,15 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
-      let ws = try await SwiftPMWorkspace(
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitServer.Options.testDefault.buildSetup
+        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
       )
 
       let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
-      let arguments = try await ws.buildSettings(for: source.asURI, language: .swift)!.compilerArguments
+      let arguments = try await swiftpmBuildSystem.buildSettings(for: source.asURI, language: .swift)!.compilerArguments
 
       assertArgumentsContain("-swift-version", "4.2", arguments: arguments)
       assertArgumentsContain(source.pathString, arguments: arguments)
@@ -260,20 +260,22 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
-      let ws = try await SwiftPMWorkspace(
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitServer.Options.testDefault.buildSetup
+        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
 
-      let argumentsA = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let argumentsA = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!
+        .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: argumentsA)
       assertArgumentsContain(bswift.pathString, arguments: argumentsA)
-      let argumentsB = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let argumentsB = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!
+        .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: argumentsB)
       assertArgumentsContain(bswift.pathString, arguments: argumentsB)
     }
@@ -303,16 +305,16 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
-      let ws = try await SwiftPMWorkspace(
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitServer.Options.testDefault.buildSetup
+        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
       )
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
-      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: arguments)
       assertArgumentsDoNotContain(bswift.pathString, arguments: arguments)
       // Temporary conditional to work around revlock between SourceKit-LSP and SwiftPM
@@ -333,7 +335,8 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         )
       }
 
-      let argumentsB = try await ws.buildSettings(for: bswift.asURI, language: .swift)!.compilerArguments
+      let argumentsB = try await swiftpmBuildSystem.buildSettings(for: bswift.asURI, language: .swift)!
+        .compilerArguments
       assertArgumentsContain(bswift.pathString, arguments: argumentsB)
       assertArgumentsDoNotContain(aswift.pathString, arguments: argumentsB)
       assertArgumentsDoNotContain(
@@ -364,18 +367,23 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
-      let ws = try await SwiftPMWorkspace(
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitServer.Options.testDefault.buildSetup
+        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
       )
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
-      assertNotNil(try await ws.buildSettings(for: aswift.asURI, language: .swift))
-      assertNil(try await ws.buildSettings(for: bswift.asURI, language: .swift))
-      assertNil(try await ws.buildSettings(for: DocumentURI(URL(string: "https://www.apple.com")!), language: .swift))
+      assertNotNil(try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
+      assertNil(try await swiftpmBuildSystem.buildSettings(for: bswift.asURI, language: .swift))
+      assertNil(
+        try await swiftpmBuildSystem.buildSettings(
+          for: DocumentURI(URL(string: "https://www.apple.com")!),
+          language: .swift
+        )
+      )
     }
   }
 
@@ -399,24 +407,24 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
-      let ws = try await SwiftPMWorkspace(
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitServer.Options.testDefault.buildSetup
+        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
       )
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
       let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
-      let hostTriple = await ws.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
-      assertEqual(await ws.buildPath, build)
-      assertNotNil(await ws.indexStorePath)
+      assertEqual(await swiftpmBuildSystem.buildPath, build)
+      assertNotNil(await swiftpmBuildSystem.indexStorePath)
 
       for file in [acxx, header] {
-        let args = try await ws.buildSettings(for: file.asURI, language: .cpp)!.compilerArguments
+        let args = try await swiftpmBuildSystem.buildSettings(for: file.asURI, language: .cpp)!.compilerArguments
 
         assertArgumentsContain("-std=c++14", arguments: args)
 
@@ -478,17 +486,17 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         ]
       )
       let packageRoot = tempDir.appending(component: "pkg")
-      let ws = try await SwiftPMWorkspace(
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: packageRoot,
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
-        buildSetup: SourceKitServer.Options.testDefault.buildSetup
+        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
       assertArgumentsContain("-target", arguments: arguments)  // Only one!
-      let hostTriple = await ws.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
 
       #if os(macOS)
       assertArgumentsContain(
@@ -525,11 +533,11 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
 
       let tr = ToolchainRegistry.forTesting
-      let ws = try await SwiftPMWorkspace(
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitServer.Options.testDefault.buildSetup
+        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
       )
 
       let aswift1 = packageRoot.appending(components: "Sources", "lib", "a.swift")
@@ -539,8 +547,10 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         .appending(components: "Sources", "lib", "a.swift")
       let manifest = packageRoot.appending(components: "Package.swift")
 
-      let arguments1 = try await ws.buildSettings(for: aswift1.asURI, language: .swift)?.compilerArguments
-      let arguments2 = try await ws.buildSettings(for: aswift2.asURI, language: .swift)?.compilerArguments
+      let arguments1 = try await swiftpmBuildSystem.buildSettings(for: aswift1.asURI, language: .swift)?
+        .compilerArguments
+      let arguments2 = try await swiftpmBuildSystem.buildSettings(for: aswift2.asURI, language: .swift)?
+        .compilerArguments
       XCTAssertNotNil(arguments1)
       XCTAssertNotNil(arguments2)
       XCTAssertEqual(arguments1, arguments2)
@@ -548,7 +558,8 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       assertArgumentsDoNotContain(aswift1.pathString, arguments: arguments1 ?? [])
       assertArgumentsContain(try resolveSymlinks(aswift1).pathString, arguments: arguments1 ?? [])
 
-      let argsManifest = try await ws.buildSettings(for: manifest.asURI, language: .swift)?.compilerArguments
+      let argsManifest = try await swiftpmBuildSystem.buildSettings(for: manifest.asURI, language: .swift)?
+        .compilerArguments
       XCTAssertNotNil(argsManifest)
 
       assertArgumentsDoNotContain(manifest.pathString, arguments: argsManifest ?? [])
@@ -586,16 +597,16 @@ final class SwiftPMWorkspaceTests: XCTestCase {
         withDestinationURL: URL(fileURLWithPath: tempDir.appending(component: "pkg_real").pathString)
       )
 
-      let ws = try await SwiftPMWorkspace(
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: symlinkRoot,
         toolchainRegistry: ToolchainRegistry.forTesting,
         fileSystem: fs,
-        buildSetup: SourceKitServer.Options.testDefault.buildSetup
+        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
       )
 
       for file in [acpp, ah] {
         let args = try unwrap(
-          await ws.buildSettings(for: symlinkRoot.appending(components: file).asURI, language: .cpp)?
+          await swiftpmBuildSystem.buildSettings(for: symlinkRoot.appending(components: file).asURI, language: .cpp)?
             .compilerArguments
         )
         assertArgumentsContain(realRoot.appending(components: file).pathString, arguments: args)
@@ -626,15 +637,15 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(component: "pkg"))
       let tr = ToolchainRegistry.forTesting
-      let ws = try await SwiftPMWorkspace(
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitServer.Options.testDefault.buildSetup
+        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: arguments)
       XCTAssertNotNil(
         arguments.firstIndex(where: {
@@ -662,14 +673,14 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
       let packageRoot = try resolveSymlinks(tempDir.appending(components: "pkg", "Sources", "lib"))
       let tr = ToolchainRegistry.forTesting
-      let ws = try await SwiftPMWorkspace(
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitServer.Options.testDefault.buildSetup
+        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
       )
 
-      assertEqual(await ws.projectRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
+      assertEqual(await swiftpmBuildSystem.projectRoot, try resolveSymlinks(tempDir.appending(component: "pkg")))
     }
   }
 
@@ -698,20 +709,20 @@ final class SwiftPMWorkspaceTests: XCTestCase {
       )
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
-      let ws = try await SwiftPMWorkspace(
+      let swiftpmBuildSystem = try await SwiftPMBuildSystem(
         workspacePath: packageRoot,
         toolchainRegistry: tr,
         fileSystem: fs,
-        buildSetup: SourceKitServer.Options.testDefault.buildSetup
+        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup
       )
 
       let aswift = packageRoot.appending(components: "Plugins", "MyPlugin", "a.swift")
-      let hostTriple = await ws.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
-      assertEqual(await ws.buildPath, build)
-      assertNotNil(await ws.indexStorePath)
-      let arguments = try await ws.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      assertEqual(await swiftpmBuildSystem.buildPath, build)
+      assertNotNil(await swiftpmBuildSystem.indexStorePath)
+      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
 
       // Plugins get compiled with the same compiler arguments as the package manifest
       assertArgumentsContain("-package-description-version", "5.7.0", arguments: arguments)
@@ -759,7 +770,7 @@ private func assertArgumentsContain(
 
 private func buildPath(
   root: AbsolutePath,
-  config: BuildSetup = SourceKitServer.Options.testDefault.buildSetup,
+  config: BuildSetup = SourceKitLSPServer.Options.testDefault.buildSetup,
   platform: String
 ) -> AbsolutePath {
   let buildPath = config.path ?? root.appending(component: ".build")

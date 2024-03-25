@@ -62,11 +62,11 @@ public final class Workspace {
   /// The source code index, if available.
   public var index: IndexStoreDB? = nil
 
-  /// Documents open in the SourceKitServer. This may include open documents from other workspaces.
+  /// Documents open in the SourceKitLSPServer. This may include open documents from other workspaces.
   private let documentManager: DocumentManager
 
   /// Language service for an open document, if available.
-  var documentService: [DocumentURI: ToolchainLanguageServer] = [:]
+  var documentService: [DocumentURI: LanguageService] = [:]
 
   public init(
     documentManager: DocumentManager,
@@ -88,7 +88,9 @@ public final class Workspace {
       fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
       mainFilesProvider: index
     )
-    await indexDelegate?.registerMainFileChanged(buildSystemManager)
+    await indexDelegate?.addMainFileChangedCallback { [weak self] in
+      await self?.buildSystemManager.mainFilesChanged()
+    }
   }
 
   /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
@@ -109,8 +111,8 @@ public final class Workspace {
   ) async throws {
     var buildSystem: BuildSystem? = nil
 
-    func buildSwiftPMWorkspace(rootUrl: URL) async -> SwiftPMWorkspace? {
-      return await SwiftPMWorkspace(
+    func createSwiftPMBuildSystem(rootUrl: URL) async -> SwiftPMBuildSystem? {
+      return await SwiftPMBuildSystem(
         url: rootUrl,
         toolchainRegistry: toolchainRegistry,
         buildSetup: buildSetup,
@@ -118,38 +120,45 @@ public final class Workspace {
       )
     }
 
-    func buildCompDBWorkspace(rootPath: AbsolutePath) -> CompilationDatabaseBuildSystem? {
+    func createCompilationDatabaseBuildSystem(rootPath: AbsolutePath) -> CompilationDatabaseBuildSystem? {
       return CompilationDatabaseBuildSystem(
         projectRoot: rootPath,
         searchPaths: compilationDatabaseSearchPaths
       )
     }
 
-    func buildBuildServerWorkspace(rootPath: AbsolutePath) async -> BuildServerBuildSystem? {
+    func createBuildServerBuildSystem(rootPath: AbsolutePath) async -> BuildServerBuildSystem? {
       return await BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup)
     }
 
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
       let defaultBuildSystem: BuildSystem? =
         switch buildSetup.defaultWorkspaceType {
-        case .buildServer: await buildBuildServerWorkspace(rootPath: rootPath)
-        case .compilationDatabase: buildCompDBWorkspace(rootPath: rootPath)
-        case .swiftPM: await buildSwiftPMWorkspace(rootUrl: rootUrl)
+        case .buildServer: await createBuildServerBuildSystem(rootPath: rootPath)
+        case .compilationDatabase: createCompilationDatabaseBuildSystem(rootPath: rootPath)
+        case .swiftPM: await createSwiftPMBuildSystem(rootUrl: rootUrl)
         case nil: nil
         }
       if let defaultBuildSystem {
         buildSystem = defaultBuildSystem
-      } else if let buildServer = await buildBuildServerWorkspace(rootPath: rootPath) {
+      } else if let buildServer = await createBuildServerBuildSystem(rootPath: rootPath) {
         buildSystem = buildServer
-      } else if let swiftpm = await buildSwiftPMWorkspace(rootUrl: rootUrl) {
+      } else if let swiftpm = await createSwiftPMBuildSystem(rootUrl: rootUrl) {
         buildSystem = swiftpm
-      } else if let compdb = buildCompDBWorkspace(rootPath: rootPath) {
+      } else if let compdb = createCompilationDatabaseBuildSystem(rootPath: rootPath) {
         buildSystem = compdb
+      } else {
+        buildSystem = nil
+      }
+      if let buildSystem {
+        let projectRoot = await buildSystem.projectRoot
+        logger.log(
+          "Opening workspace at \(rootUrl) as \(type(of: buildSystem)) with project root \(projectRoot.pathString)"
+        )
       } else {
         logger.error(
           "Could not set up a build system for workspace at '\(rootUri.forLogging)'"
         )
-        buildSystem = nil
       }
     } else {
       // We assume that workspaces are directories. This is only true for URLs not for URIs in general.

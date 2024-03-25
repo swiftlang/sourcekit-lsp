@@ -20,7 +20,7 @@ struct InterfaceInfo {
   var contents: String
 }
 
-extension SwiftLanguageServer {
+extension SwiftLanguageService {
   public func openInterface(_ request: OpenInterfaceRequest) async throws -> InterfaceDetails? {
     let uri = request.textDocument.uri
     let moduleName = request.moduleName

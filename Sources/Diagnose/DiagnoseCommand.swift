@@ -25,6 +25,15 @@ import class TSCUtility.PercentProgressAnimation
 /// to be a `AsyncParsableCommand`.
 private var progressBar: PercentProgressAnimation? = nil
 
+/// A component of the diagnostic bundle that's collected in independent stages.
+fileprivate enum BundleComponent: String, CaseIterable, ExpressibleByArgument {
+  case crashReports
+  case logs
+  case swiftVersions
+  case sourcekitdCrashes
+  case swiftFrontendCrashes
+}
+
 public struct DiagnoseCommand: AsyncParsableCommand {
   public static var configuration: CommandConfiguration = CommandConfiguration(
     commandName: "diagnose",
@@ -38,26 +47,23 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   var osLogScrapeDuration: Int = 60
 
   @Option(
-    name: .customLong("sourcekitd"),
+    name: .customLong("toolchain"),
     help: """
-      Path to sourcekitd.framework/sourcekitd. \
+      The toolchain used to reduce the sourcekitd issue. \
       If not specified, the toolchain is found in the same way that sourcekit-lsp finds it
       """
   )
-  var sourcekitdOverride: String?
+  var toolchainOverride: String?
 
-  #if canImport(Darwin)
-  // Creating an NSPredicate from a string is not supported in corelibs-foundation.
   @Option(
+    parsing: .upToNextOption,
     help: """
-      If the sourcekitd response matches this predicate, consider it as reproducing the issue.
-      sourcekitd crashes are always considered as reproducers.
+      A space separated list of components to include in the diagnostic bundle. Includes all components by default.
 
-      The predicate is an NSPredicate and `self` is the sourcekitd response.
+      Possible options are: \(BundleComponent.allCases.map(\.rawValue).joined(separator: ", "))
       """
   )
-  var predicate: String?
-  #endif
+  private var components: [BundleComponent] = BundleComponent.allCases
 
   var toolchainRegistry: ToolchainRegistry {
     get throws {
@@ -66,12 +72,12 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     }
   }
 
-  var sourcekitd: String? {
+  var toolchain: Toolchain? {
     get async throws {
-      if let sourcekitdOverride {
-        return sourcekitdOverride
+      if let toolchainOverride {
+        return Toolchain(try AbsolutePath(validating: toolchainOverride))
       }
-      return try await toolchainRegistry.default?.sourcekitd?.pathString
+      return try await toolchainRegistry.default
     }
   }
 
@@ -84,21 +90,21 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     #endif
   }
 
+  private var directoriesToScanForCrashReports: [String] {
+    ["/Library/Logs/DiagnosticReports", "~/Library/Logs/DiagnosticReports"]
+  }
+
   public init() {}
 
   private func addSourcekitdCrashReproducer(toBundle bundlePath: URL) async throws {
     reportProgress(.reproducingSourcekitdCrash(progress: 0), message: "Trying to reduce recent sourcekitd crashes")
-    guard let sourcekitd = try await sourcekitd else {
-      throw ReductionError("Unable to find sourcekitd.framework")
-    }
-
     for (name, requestInfo) in try requestInfos() {
       reportProgress(.reproducingSourcekitdCrash(progress: 0), message: "Reducing sourcekitd crash \(name)")
       do {
         try await reduce(
           requestInfo: requestInfo,
-          sourcekitd: sourcekitd,
-          bundlePath: bundlePath.appendingPathComponent("reproducer"),
+          toolchain: toolchain,
+          bundlePath: bundlePath.appendingPathComponent("sourcekitd-crash"),
           progressUpdate: { (progress, message) in
             reportProgress(
               .reproducingSourcekitdCrash(progress: progress),
@@ -106,6 +112,65 @@ public struct DiagnoseCommand: AsyncParsableCommand {
             )
           }
         )
+        // If reduce didn't throw, we have found a reproducer. Stop.
+        // Looking further probably won't help because other crashes are likely the same cause.
+        break
+      } catch {
+        // Reducing this request failed. Continue reducing the next one, maybe that one succeeds.
+      }
+    }
+  }
+
+  private func addSwiftFrontendCrashReproducer(toBundle bundlePath: URL) async throws {
+    reportProgress(
+      .reproducingSwiftFrontendCrash(progress: 0),
+      message: "Trying to reduce recent Swift compiler crashes"
+    )
+
+    let crashInfos = SwiftFrontendCrashScraper(directoriesToScanForCrashReports: directoriesToScanForCrashReports)
+      .findSwiftFrontendCrashes()
+      .filter { $0.date > Date().addingTimeInterval(-TimeInterval(osLogScrapeDuration * 60)) }
+      .sorted(by: { $0.date > $1.date })
+
+    for crashInfo in crashInfos {
+      let dateFormatter = DateFormatter()
+      dateFormatter.dateStyle = .none
+      dateFormatter.timeStyle = .medium
+      let progressMessagePrefix = "Reducing Swift compiler crash at \(dateFormatter.string(from: crashInfo.date))"
+
+      reportProgress(.reproducingSwiftFrontendCrash(progress: 0), message: progressMessagePrefix)
+
+      let toolchainPath = crashInfo.swiftFrontend
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+
+      guard let toolchain = try Toolchain(AbsolutePath(validating: toolchainPath.path)),
+        let sourcekitd = toolchain.sourcekitd
+      else {
+        continue
+      }
+
+      let executor = OutOfProcessSourceKitRequestExecutor(
+        sourcekitd: sourcekitd.asURL,
+        swiftFrontend: crashInfo.swiftFrontend,
+        reproducerPredicate: nil
+      )
+
+      do {
+        let reducedRequesInfo = try await reduceFrontendIssue(
+          frontendArgs: crashInfo.frontendArgs,
+          using: executor,
+          progressUpdate: { (progress, message) in
+            reportProgress(
+              .reproducingSwiftFrontendCrash(progress: progress),
+              message: "\(progressMessagePrefix): \(message)"
+            )
+          }
+        )
+
+        let bundleDirectory = bundlePath.appendingPathComponent("swift-frontend-crash")
+        try makeReproducerBundle(for: reducedRequesInfo, toolchain: toolchain, bundlePath: bundleDirectory)
+
         // If reduce didn't throw, we have found a reproducer. Stop.
         // Looking further probably won't help because other crashes are likely the same cause.
         break
@@ -169,7 +234,6 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     try FileManager.default.createDirectory(at: destinationDir, withIntermediateDirectories: true)
 
     let processesToIncludeCrashReportsOf = ["SourceKitService", "sourcekit-lsp", "swift-frontend"]
-    let directoriesToScanForCrashReports = ["/Library/Logs/DiagnosticReports", "~/Library/Logs/DiagnosticReports"]
 
     for directoryToScan in directoriesToScanForCrashReports {
       let diagnosticReports = URL(filePath: (directoryToScan as NSString).expandingTildeInPath)
@@ -225,12 +289,13 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   public func run() async throws {
     print(
       """
-      sourcekit-lsp diagnose collects information that helps the developers of sourcekit-lsp diagnose and fix issues. 
+      sourcekit-lsp diagnose collects information that helps the developers of sourcekit-lsp diagnose and fix issues.
       This information contains:
       - Crash logs from SourceKit
       - Log messages emitted by SourceKit
       - Versions of Swift installed on your system
       - If possible, a minimized project that caused SourceKit to crash
+      - If possible, a minimized project that caused the Swift compiler to crash
 
       All information is collected locally.
 
@@ -244,10 +309,21 @@ public struct DiagnoseCommand: AsyncParsableCommand {
       .appendingPathComponent("sourcekitd-reproducer-\(date)")
     try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
 
-    await orPrintError { try addCrashLogs(toBundle: bundlePath) }
-    await orPrintError { try await addOsLog(toBundle: bundlePath) }
-    await orPrintError { try await addSwiftVersion(toBundle: bundlePath) }
-    await orPrintError { try await addSourcekitdCrashReproducer(toBundle: bundlePath) }
+    if components.isEmpty || components.contains(.crashReports) {
+      await orPrintError { try addCrashLogs(toBundle: bundlePath) }
+    }
+    if components.isEmpty || components.contains(.logs) {
+      await orPrintError { try await addOsLog(toBundle: bundlePath) }
+    }
+    if components.isEmpty || components.contains(.swiftVersions) {
+      await orPrintError { try await addSwiftVersion(toBundle: bundlePath) }
+    }
+    if components.isEmpty || components.contains(.sourcekitdCrashes) {
+      await orPrintError { try await addSourcekitdCrashReproducer(toBundle: bundlePath) }
+    }
+    if components.isEmpty || components.contains(.swiftFrontendCrashes) {
+      await orPrintError { try await addSwiftFrontendCrashReproducer(toBundle: bundlePath) }
+    }
 
     progressBar?.complete(success: true)
 
@@ -265,40 +341,30 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
   private func reduce(
     requestInfo: RequestInfo,
-    sourcekitd: String,
+    toolchain: Toolchain?,
     bundlePath: URL,
     progressUpdate: (_ progress: Double, _ message: String) -> Void
   ) async throws {
-    var requestInfo = requestInfo
-    var nspredicate: NSPredicate? = nil
-    #if canImport(Darwin)
-    if let predicate {
-      nspredicate = NSPredicate(format: predicate)
+    guard let toolchain else {
+      throw ReductionError("Unable to find a toolchain")
     }
-    #endif
+    guard let sourcekitd = toolchain.sourcekitd else {
+      throw ReductionError("Unable to find sourcekitd.framework")
+    }
+    guard let swiftFrontend = toolchain.swiftFrontend else {
+      throw ReductionError("Unable to find swift-frontend")
+    }
+
+    let requestInfo = requestInfo
     let executor = OutOfProcessSourceKitRequestExecutor(
-      sourcekitd: URL(fileURLWithPath: sourcekitd),
-      reproducerPredicate: nspredicate
+      sourcekitd: sourcekitd.asURL,
+      swiftFrontend: swiftFrontend,
+      reproducerPredicate: nil
     )
 
-    // How much time of the reduction is expected to be spent reducing the source compared to command line argument
-    // reduction.
-    let sourceReductionPercentage = 0.7
+    let reducedRequesInfo = try await requestInfo.reduce(using: executor, progressUpdate: progressUpdate)
 
-    requestInfo = try await requestInfo.reduceInputFile(
-      using: executor,
-      progressUpdate: { progress, message in
-        progressUpdate(progress * sourceReductionPercentage, message)
-      }
-    )
-    requestInfo = try await requestInfo.reduceCommandLineArguments(
-      using: executor,
-      progressUpdate: { progress, message in
-        progressUpdate(sourceReductionPercentage + progress * (1 - sourceReductionPercentage), message)
-      }
-    )
-
-    try makeReproducerBundle(for: requestInfo, bundlePath: bundlePath)
+    try makeReproducerBundle(for: reducedRequesInfo, toolchain: toolchain, bundlePath: bundlePath)
   }
 }
 
@@ -308,6 +374,7 @@ fileprivate enum DiagnoseProgressState: Comparable {
   case collectingLogMessages(progress: Double)
   case collectingSwiftVersions(progress: Double)
   case reproducingSourcekitdCrash(progress: Double)
+  case reproducingSwiftFrontendCrash(progress: Double)
 
   var allFinalStates: [DiagnoseProgressState] {
     return [
@@ -315,6 +382,7 @@ fileprivate enum DiagnoseProgressState: Comparable {
       .collectingLogMessages(progress: 1),
       .collectingSwiftVersions(progress: 1),
       .reproducingSourcekitdCrash(progress: 1),
+      .reproducingSwiftFrontendCrash(progress: 1),
     ]
   }
 
@@ -332,6 +400,8 @@ fileprivate enum DiagnoseProgressState: Comparable {
       return 10
     case .reproducingSourcekitdCrash:
       return 60
+    case .reproducingSwiftFrontendCrash:
+      return 60
     }
   }
 
@@ -341,7 +411,7 @@ fileprivate enum DiagnoseProgressState: Comparable {
     switch self {
     case .collectingCrashReports: break
     case .collectingLogMessages(let progress), .collectingSwiftVersions(progress: let progress),
-      .reproducingSourcekitdCrash(progress: let progress):
+      .reproducingSourcekitdCrash(progress: let progress), .reproducingSwiftFrontendCrash(progress: let progress):
       elapsedEstimatedDuration += progress * self.estimatedDuration
     }
     return elapsedEstimatedDuration / estimatedTotalDuration
