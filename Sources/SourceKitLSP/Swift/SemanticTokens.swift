@@ -35,7 +35,7 @@ extension SwiftLanguageService {
     guard let skTokens: SKDResponseArray = dict[keys.semanticTokens] else {
       return nil
     }
-    
+
     return SyntaxHighlightingTokenParser(sourcekitd: sourcekitd).parseTokens(skTokens, in: snapshot)
   }
 
@@ -60,8 +60,8 @@ extension SwiftLanguageService {
       } else {
         ByteSourceRange(offset: 0, length: await tree.totalLength.utf8Length)
       }
-    
-    let tokens = 
+
+    let tokens =
       await tree
       .classifications(in: range)
       .flatMap({ $0.highlightingTokens(in: snapshot) })
