@@ -35,9 +35,8 @@ extension SwiftLanguageService {
     guard let skTokens: SKDResponseArray = dict[keys.semanticTokens] else {
       return nil
     }
-
-    let parsedTokens = SyntaxHighlightingTokenParser(sourcekitd: sourcekitd).parseTokens(skTokens, in: snapshot)
-    return SyntaxHighlightingTokens(members: parsedTokens)
+    
+    return SyntaxHighlightingTokenParser(sourcekitd: sourcekitd).parseTokens(skTokens, in: snapshot)
   }
 
   /// Computes an array of syntax highlighting tokens from the syntax tree that
@@ -67,7 +66,7 @@ extension SwiftLanguageService {
       .classifications(in: range)
       .flatMap({ $0.highlightingTokens(in: snapshot) })
 
-    return SyntaxHighlightingTokens(members: tokens)
+    return SyntaxHighlightingTokens(tokens: tokens)
       .mergingTokens(with: semanticTokens ?? [])
       .sorted { $0.start < $1.start }
   }
@@ -130,7 +129,7 @@ extension SyntaxClassifiedRange {
       )
     }
 
-    return SyntaxHighlightingTokens(members: tokens)
+    return SyntaxHighlightingTokens(tokens: tokens)
   }
 }
 

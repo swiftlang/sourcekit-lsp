@@ -52,12 +52,13 @@ struct SyntaxHighlightingTokenParser {
         let multiLineRange = start..<end
         let ranges = multiLineRange.splitToSingleLineRanges(in: snapshot)
 
-        tokens.members += ranges.map {
+        tokens.tokens += ranges.map {
           SyntaxHighlightingToken(
             range: $0,
             kind: kind,
             modifiers: modifiers
           )
+        }
       }
     }
 
@@ -78,7 +79,7 @@ struct SyntaxHighlightingTokenParser {
   }
 
   func parseTokens(_ response: SKDResponseArray, in snapshot: DocumentSnapshot) -> SyntaxHighlightingTokens {
-    var tokens: SyntaxHighlightingTokens = SyntaxHighlightingTokens(members: [])
+    var tokens: SyntaxHighlightingTokens = SyntaxHighlightingTokens(tokens: [])
     parseTokens(response, in: snapshot, into: &tokens)
     return tokens
   }
