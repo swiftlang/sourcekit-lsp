@@ -49,9 +49,9 @@ extension SourceKitD {
   }
 }
 
-public final class SKDRequestDictionary {
-  public let dict: sourcekitd_api_object_t
-  public let sourcekitd: SourceKitD
+public final class SKDRequestDictionary: Sendable {
+  nonisolated(unsafe) let dict: sourcekitd_api_object_t
+  private let sourcekitd: SourceKitD
 
   public init(_ dict: sourcekitd_api_object_t? = nil, sourcekitd: SourceKitD) {
     self.dict = dict ?? sourcekitd.api.request_dictionary_create(nil, nil, 0)!

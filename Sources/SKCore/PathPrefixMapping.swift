@@ -1,6 +1,6 @@
 import Foundation
 
-public struct PathPrefixMapping {
+public struct PathPrefixMapping: Sendable {
   /// Path prefix to be replaced, typically the canonical or hermetic path.
   public let original: String
 

@@ -20,8 +20,8 @@ import SourceKitLSP
 import SwiftSyntax
 import XCTest
 
-extension SourceKitServer.Options {
-  /// The default SourceKitServer options for testing.
+extension SourceKitLSPServer.Options {
+  /// The default SourceKitLSPServer options for testing.
   public static var testDefault = Self(swiftPublishDiagnosticsDebounceDuration: 0)
 }
 
@@ -44,7 +44,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   private let moduleCache: URL?
 
   /// The server that handles the requests.
-  public let server: SourceKitServer
+  public let server: SourceKitLSPServer
 
   /// Whether pull or push-model diagnostics should be used.
   ///
@@ -70,7 +70,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
 
   /// A closure that is called when the `TestSourceKitLSPClient` is destructed.
   ///
-  /// This allows e.g. a `IndexedSingleSwiftFileWorkspace` to delete its temporary files when they are no longer needed.
+  /// This allows e.g. a `IndexedSingleSwiftFileTestProject` to delete its temporary files when they are no longer needed.
   private let cleanUp: () -> Void
 
   /// - Parameters:
@@ -84,10 +84,10 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///   - usePullDiagnostics: Whether to use push diagnostics or use push-based diagnostics
   ///   - workspaceFolders: Workspace folders to open.
   ///   - cleanUp: A closure that is called when the `TestSourceKitLSPClient` is destructed.
-  ///     This allows e.g. a `IndexedSingleSwiftFileWorkspace` to delete its temporary files when they are no longer
+  ///     This allows e.g. a `IndexedSingleSwiftFileTestProject` to delete its temporary files when they are no longer
   ///     needed.
   public init(
-    serverOptions: SourceKitServer.Options = .testDefault,
+    serverOptions: SourceKitLSPServer.Options = .testDefault,
     useGlobalModuleCache: Bool = true,
     initialize: Bool = true,
     initializationOptions: LSPAny? = nil,
@@ -112,14 +112,14 @@ public final class TestSourceKitLSPClient: MessageHandler {
     }
     self.notificationYielder = notificationYielder
 
-    let clientConnection = LocalConnection()
-    self.serverToClientConnection = clientConnection
-    server = SourceKitServer(
-      client: clientConnection,
+    let serverToClientConnection = LocalConnection()
+    self.serverToClientConnection = serverToClientConnection
+    server = SourceKitLSPServer(
+      client: serverToClientConnection,
       toolchainRegistry: ToolchainRegistry.forTesting,
       options: serverOptions,
       onExit: {
-        clientConnection.close()
+        serverToClientConnection.close()
       }
     )
 
@@ -166,7 +166,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
     // deinits, we could await the sending of a ShutdownRequest.
     let sema = DispatchSemaphore(value: 0)
     nextRequestID += 1
-    server.handle(ShutdownRequest(), id: .number(nextRequestID), from: ObjectIdentifier(self)) { result in
+    server.handle(ShutdownRequest(), id: .number(nextRequestID)) { result in
       sema.signal()
     }
     sema.wait()
@@ -184,7 +184,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
   public func send<R: RequestType>(_ request: R) async throws -> R.Response {
     nextRequestID += 1
     return try await withCheckedThrowingContinuation { continuation in
-      server.handle(request, id: .number(self.nextRequestID), from: ObjectIdentifier(self)) { result in
+      server.handle(request, id: .number(self.nextRequestID)) { result in
         continuation.resume(with: result)
       }
     }
@@ -192,7 +192,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
 
   /// Send the notification to `server`.
   public func send(_ notification: some NotificationType) {
-    server.handle(notification, from: ObjectIdentifier(self))
+    server.handle(notification)
   }
 
   // MARK: - Handling messages sent to the editor
@@ -262,30 +262,28 @@ public final class TestSourceKitLSPClient: MessageHandler {
 
   /// Handle the next request that is sent to the client with the given handler.
   ///
-  /// By default, `TestSourceKitServer` emits an `XCTFail` if a request is sent
+  /// By default, `TestSourceKitLSPClient` emits an `XCTFail` if a request is sent
   /// to the client, since it doesn't know how to handle it. This allows the
   /// simulation of a single request's handling on the client.
   ///
   /// If the next request that is sent to the client is of a different kind than
-  /// the given handler, `TestSourceKitServer` will emit an `XCTFail`.
+  /// the given handler, `TestSourceKitLSPClient` will emit an `XCTFail`.
   public func handleNextRequest<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
     requestHandlers.append(requestHandler)
   }
 
   // MARK: - Conformance to MessageHandler
 
-  /// - Important: Implementation detail of `TestSourceKitServer`. Do not call
+  /// - Important: Implementation detail of `TestSourceKitLSPServer`. Do not call
   ///   from tests.
-  public func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+  public func handle(_ params: some NotificationType) {
     notificationYielder.yield(params)
   }
 
-  /// - Important: Implementation detail of `TestSourceKitServer`. Do not call
-  ///   from tests.
+  /// - Important: Implementation detail of `TestSourceKitLSPClient`. Do not call from tests.
   public func handle<Request: RequestType>(
     _ params: Request,
     id: LanguageServerProtocol.RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<Request.Response>) -> Void
   ) {
     guard let requestHandler = requestHandlers.first else {
@@ -394,8 +392,8 @@ public struct DocumentPositions {
 
 /// Wrapper around a weak `MessageHandler`.
 ///
-/// This allows us to set the ``TestSourceKitServer`` as the message handler of
-/// `SourceKitServer` without retaining it.
+/// This allows us to set the ``TestSourceKitLSPClient`` as the message handler of
+/// `SourceKitLSPServer` without retaining it.
 private class WeakMessageHandler: MessageHandler {
   private weak var handler: (any MessageHandler)?
 
@@ -403,20 +401,19 @@ private class WeakMessageHandler: MessageHandler {
     self.handler = handler
   }
 
-  func handle(_ params: some LanguageServerProtocol.NotificationType, from clientID: ObjectIdentifier) {
-    handler?.handle(params, from: clientID)
+  func handle(_ params: some LanguageServerProtocol.NotificationType) {
+    handler?.handle(params)
   }
 
   func handle<Request: RequestType>(
     _ params: Request,
     id: LanguageServerProtocol.RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LanguageServerProtocol.LSPResult<Request.Response>) -> Void
   ) {
     guard let handler = handler else {
       reply(.failure(.unknown("Handler has been deallocated")))
       return
     }
-    handler.handle(params, id: id, from: clientID, reply: reply)
+    handler.handle(params, id: id, reply: reply)
   }
 }

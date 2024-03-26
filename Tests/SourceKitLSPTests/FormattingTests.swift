@@ -81,7 +81,7 @@ final class FormattingTests: XCTestCase {
   func testConfigFileOnDisk() async throws {
     try await SkipUnless.toolchainContainsSwiftFormat()
     // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
-    let ws = try await MultiFileTestWorkspace(files: [
+    let project = try await MultiFileTestProject(files: [
       ".swift-format": """
       {
         "version": 1,
@@ -97,9 +97,9 @@ final class FormattingTests: XCTestCase {
 
       """,
     ])
-    let (uri, positions) = try ws.openDocument("test.swift")
+    let (uri, positions) = try project.openDocument("test.swift")
 
-    let response = try await ws.testClient.send(
+    let response = try await project.testClient.send(
       DocumentFormattingRequest(
         textDocument: TextDocumentIdentifier(uri),
         options: FormattingOptions(tabSize: 2, insertSpaces: true)
@@ -116,7 +116,7 @@ final class FormattingTests: XCTestCase {
   func testConfigFileInParentDirectory() async throws {
     try await SkipUnless.toolchainContainsSwiftFormat()
     // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
-    let ws = try await MultiFileTestWorkspace(files: [
+    let project = try await MultiFileTestProject(files: [
       ".swift-format": """
       {
         "version": 1,
@@ -132,9 +132,9 @@ final class FormattingTests: XCTestCase {
 
       """,
     ])
-    let (uri, positions) = try ws.openDocument("test.swift")
+    let (uri, positions) = try project.openDocument("test.swift")
 
-    let response = try await ws.testClient.send(
+    let response = try await project.testClient.send(
       DocumentFormattingRequest(
         textDocument: TextDocumentIdentifier(uri),
         options: FormattingOptions(tabSize: 2, insertSpaces: true)
@@ -151,7 +151,7 @@ final class FormattingTests: XCTestCase {
   func testConfigFileInNestedDirectory() async throws {
     try await SkipUnless.toolchainContainsSwiftFormat()
     // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
-    let ws = try await MultiFileTestWorkspace(files: [
+    let project = try await MultiFileTestProject(files: [
       ".swift-format": """
       {
         "version": 1,
@@ -175,9 +175,9 @@ final class FormattingTests: XCTestCase {
 
       """,
     ])
-    let (uri, positions) = try ws.openDocument("test.swift")
+    let (uri, positions) = try project.openDocument("test.swift")
 
-    let response = try await ws.testClient.send(
+    let response = try await project.testClient.send(
       DocumentFormattingRequest(
         textDocument: TextDocumentIdentifier(uri),
         options: FormattingOptions(tabSize: 2, insertSpaces: true)
@@ -195,7 +195,7 @@ final class FormattingTests: XCTestCase {
     try await SkipUnless.toolchainContainsSwiftFormat()
     // We pick up an invalid swift-format configuration file and thus don't set the user-provided options.
     // The swift-format default is 2 spaces.
-    let ws = try await MultiFileTestWorkspace(files: [
+    let project = try await MultiFileTestProject(files: [
       ".swift-format": "",
       "test.swift": """
       struct Root {
@@ -204,10 +204,10 @@ final class FormattingTests: XCTestCase {
 
       """,
     ])
-    let (uri, _) = try ws.openDocument("test.swift")
+    let (uri, _) = try project.openDocument("test.swift")
 
     await assertThrowsError(
-      try await ws.testClient.send(
+      try await project.testClient.send(
         DocumentFormattingRequest(
           textDocument: TextDocumentIdentifier(uri),
           options: FormattingOptions(tabSize: 3, insertSpaces: true)

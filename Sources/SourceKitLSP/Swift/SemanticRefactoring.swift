@@ -112,8 +112,7 @@ extension SemanticRefactoringError: CustomStringConvertible {
   }
 }
 
-extension SwiftLanguageServer {
-
+extension SwiftLanguageService {
   /// Provides detailed information about the result of a specific refactoring operation.
   ///
   /// Wraps the information returned by sourcekitd's `semantic_refactoring` request, such as the necessary edits and placeholder locations.

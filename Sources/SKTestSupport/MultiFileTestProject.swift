@@ -33,11 +33,11 @@ public struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {
   }
 }
 
-/// A workspace that writes multiple files to disk and opens a `TestSourceKitLSPClient` client with a workspace pointing
-/// to a temporary directory containing those files.
+/// A test project that writes multiple files to disk and opens a `TestSourceKitLSPClient` client with a workspace
+/// pointing to a temporary directory containing those files.
 ///
 /// The temporary files will be deleted when the `TestSourceKitLSPClient` is destructed.
-public class MultiFileTestWorkspace {
+public class MultiFileTestProject {
   /// Information necessary to open a file in the LSP server by its filename.
   private struct FileData {
     /// The URI at which the file is stored on disk.
@@ -53,7 +53,7 @@ public class MultiFileTestWorkspace {
   private let fileData: [String: FileData]
 
   enum Error: Swift.Error {
-    /// No file with the given filename is known to the `SwiftPMTestWorkspace`.
+    /// No file with the given filename is known to the `MultiFileTestProject`.
     case fileNotFound
   }
 

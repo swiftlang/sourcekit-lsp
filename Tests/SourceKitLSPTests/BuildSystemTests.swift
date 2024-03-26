@@ -19,7 +19,7 @@ import SKTestSupport
 import TSCBasic
 import XCTest
 
-/// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitServer
+/// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitLSPServer
 /// and other components.
 final class TestBuildSystem: BuildSystem {
   var projectRoot: AbsolutePath = try! AbsolutePath(validating: "/")
@@ -74,7 +74,7 @@ final class BuildSystemTests: XCTestCase {
   /// - Note: Set before each test run in `setUp`.
   private var workspace: Workspace! = nil
 
-  /// The build system that we use to verify SourceKitServer behavior.
+  /// The build system that we use to verify SourceKitLSPServer behavior.
   ///
   /// - Note: Set before each test run in `setUp`.
   private var buildSystem: TestBuildSystem! = nil
@@ -95,7 +95,7 @@ final class BuildSystemTests: XCTestCase {
       rootUri: nil,
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
       toolchainRegistry: ToolchainRegistry.forTesting,
-      buildSetup: SourceKitServer.Options.testDefault.buildSetup,
+      buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
       underlyingBuildSystem: buildSystem,
       index: nil,
       indexDelegate: nil

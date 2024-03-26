@@ -180,7 +180,7 @@ public enum SkipUnless {
     line: UInt = #line
   ) async throws {
     try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
-      let workspace = try await SwiftPMTestWorkspace(
+      let workspace = try await SwiftPMTestProject(
         files: ["test.swift": ""],
         build: true
       )

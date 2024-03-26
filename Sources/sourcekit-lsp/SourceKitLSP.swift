@@ -106,17 +106,13 @@ struct SourceKitLSP: AsyncParsableCommand {
     subcommands: [
       DiagnoseCommand.self,
       ReduceCommand.self,
+      ReduceFrontendCommand.self,
       SourceKitdRequestCommand.self,
     ]
   )
 
-  /// Whether to wait for a response before handling the next request.
-  /// Used for testing.
-  @Flag(name: .customLong("sync"))
-  var syncRequests = false
-
   @Option(
-    name: [.customLong("configuration"), .customShort("c")],
+    name: [.customLong("configuration")],
     help: "Build with configuration [debug|release]"
   )
   var buildConfiguration = BuildConfiguration.debug
@@ -204,8 +200,8 @@ struct SourceKitLSP: AsyncParsableCommand {
   )
   var completionMaxResults = 200
 
-  func mapOptions() -> SourceKitServer.Options {
-    var serverOptions = SourceKitServer.Options()
+  func mapOptions() -> SourceKitLSPServer.Options {
+    var serverOptions = SourceKitLSPServer.Options()
 
     serverOptions.buildSetup.configuration = buildConfiguration
     serverOptions.buildSetup.defaultWorkspaceType = defaultWorkspaceType
@@ -242,13 +238,12 @@ struct SourceKitLSP: AsyncParsableCommand {
       name: "client",
       protocol: MessageRegistry.lspProtocol,
       inFD: FileHandle.standardInput,
-      outFD: realStdoutHandle,
-      syncRequests: syncRequests
+      outFD: realStdoutHandle
     )
 
     let installPath = try AbsolutePath(validating: Bundle.main.bundlePath)
 
-    let server = SourceKitServer(
+    let server = SourceKitLSPServer(
       client: clientConnection,
       toolchainRegistry: ToolchainRegistry(installPath: installPath, localFileSystem),
       options: mapOptions(),

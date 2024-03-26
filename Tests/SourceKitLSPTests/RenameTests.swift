@@ -1081,4 +1081,84 @@ final class RenameTests: XCTestCase {
         """
     )
   }
+
+  func testRenameAfterFileMove() async throws {
+    try await SkipUnless.sourcekitdSupportsRename()
+    let project = try await SwiftPMTestProject(
+      files: [
+        "definition.swift": """
+        func 1️⃣foo2️⃣() {}
+        """,
+        "caller.swift": """
+        func test() {
+          3️⃣foo4️⃣()
+        }
+        """,
+      ],
+      build: true
+    )
+
+    let definitionUri = try project.uri(for: "definition.swift")
+    let (callerUri, callerPositions) = try project.openDocument("caller.swift")
+
+    // Validate that we get correct rename results before moving the definition file.
+    let resultBeforeFileMove = try await project.testClient.send(
+      RenameRequest(textDocument: TextDocumentIdentifier(callerUri), position: callerPositions["3️⃣"], newName: "bar")
+    )
+    XCTAssertEqual(
+      resultBeforeFileMove,
+      WorkspaceEdit(
+        changes: [
+          definitionUri: [
+            TextEdit(
+              range: try project.position(
+                of: "1️⃣",
+                in: "definition.swift"
+              )..<project.position(of: "2️⃣", in: "definition.swift"),
+              newText: "bar"
+            )
+          ],
+          callerUri: [TextEdit(range: callerPositions["3️⃣"]..<callerPositions["4️⃣"], newText: "bar")],
+        ]
+      )
+    )
+
+    let movedDefinitionUri =
+      DocumentURI(
+        definitionUri.fileURL!
+          .deletingLastPathComponent()
+          .appendingPathComponent("movedDefinition.swift")
+      )
+
+    try FileManager.default.moveItem(at: XCTUnwrap(definitionUri.fileURL), to: XCTUnwrap(movedDefinitionUri.fileURL))
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: definitionUri, type: .deleted), FileEvent(uri: movedDefinitionUri, type: .created),
+      ])
+    )
+
+    try await SwiftPMTestProject.build(at: project.scratchDirectory)
+
+    let resultAfterFileMove = try await project.testClient.send(
+      RenameRequest(textDocument: TextDocumentIdentifier(callerUri), position: callerPositions["3️⃣"], newName: "bar")
+    )
+    XCTAssertEqual(
+      resultAfterFileMove,
+      WorkspaceEdit(
+        changes: [
+          movedDefinitionUri: [
+            TextEdit(
+              range: try project.position(
+                of: "1️⃣",
+                in: "definition.swift"
+              )..<project.position(of: "2️⃣", in: "definition.swift"),
+              newText: "bar"
+            )
+          ],
+          callerUri: [TextEdit(range: callerPositions["3️⃣"]..<callerPositions["4️⃣"], newText: "bar")],
+        ]
+      )
+    )
+  }
 }

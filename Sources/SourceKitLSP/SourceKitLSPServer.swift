@@ -56,13 +56,13 @@ enum LanguageServerType: Hashable {
     }
   }
 
-  /// The `ToolchainLanguageServer` class used to provide functionality for this language class.
-  var serverType: ToolchainLanguageServer.Type {
+  /// The `LanguageService` class used to provide functionality for this language class.
+  var serverType: LanguageService.Type {
     switch self {
     case .clangd:
-      return ClangLanguageServerShim.self
+      return ClangLanguageService.self
     case .swift:
-      return SwiftLanguageServer.self
+      return SwiftLanguageService.self
     }
   }
 }
@@ -132,27 +132,43 @@ final actor WorkDoneProgressState {
   /// Start a new task, creating a new `WorkDoneProgress` if none is running right now.
   ///
   /// - Parameter server: The server that is used to create the `WorkDoneProgress` on the client
-  func startProgress(server: SourceKitServer) {
+  func startProgress(server: SourceKitLSPServer) async {
     activeTasks += 1
+    guard await server.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false else {
+      // If the client doesn't support workDoneProgress, keep track of the active task count but don't update the state.
+      // That way, if we call `startProgress` before initialization finishes, we won't send the
+      // `CreateWorkDoneProgressRequest` but if we call `startProgress` again after initialization finished (and thus
+      // the capability is set), we will create the work done progress.
+      return
+    }
     if state == .noProgress {
       state = .creating
       // Discard the handle. We don't support cancellation of the creation of a work done progress.
       _ = server.client.send(CreateWorkDoneProgressRequest(token: token)) { result in
-        if result.success != nil {
-          if self.activeTasks == 0 {
-            // ActiveTasks might have been decreased while we created the `WorkDoneProgress`
-            self.state = .noProgress
-            server.client.send(WorkDoneProgress(token: self.token, value: .end(WorkDoneProgressEnd())))
-          } else {
-            self.state = .created
-            server.client.send(
-              WorkDoneProgress(token: self.token, value: .begin(WorkDoneProgressBegin(title: self.title)))
-            )
-          }
-        } else {
-          self.state = .progressCreationFailed
+        Task {
+          await self.handleCreateWorkDoneProgressResponse(result, server: server)
         }
       }
+    }
+  }
+
+  private func handleCreateWorkDoneProgressResponse(
+    _ result: Result<VoidResponse, ResponseError>,
+    server: SourceKitLSPServer
+  ) {
+    if result.success != nil {
+      if self.activeTasks == 0 {
+        // ActiveTasks might have been decreased while we created the `WorkDoneProgress`
+        self.state = .noProgress
+        server.client.send(WorkDoneProgress(token: self.token, value: .end(WorkDoneProgressEnd())))
+      } else {
+        self.state = .created
+        server.client.send(
+          WorkDoneProgress(token: self.token, value: .begin(WorkDoneProgressBegin(title: self.title)))
+        )
+      }
+    } else {
+      self.state = .progressCreationFailed
     }
   }
 
@@ -161,9 +177,12 @@ final actor WorkDoneProgressState {
   /// If this drops the active task count to 0, the work done progress is ended on the client.
   ///
   /// - Parameter server: The server that is used to send and update of the `WorkDoneProgress` to the client
-  func endProgress(server: SourceKitServer) {
+  func endProgress(server: SourceKitLSPServer) async {
     assert(activeTasks > 0, "Unbalanced startProgress/endProgress calls")
     activeTasks -= 1
+    guard await server.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false else {
+      return
+    }
     if state == .created && activeTasks == 0 {
       server.client.send(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
     }
@@ -366,12 +385,12 @@ fileprivate enum TaskMetadata: DependencyTracker {
   }
 }
 
-/// The SourceKit language server.
+/// The SourceKit-LSP server.
 ///
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
 /// and cross-language support. Requests may be dispatched to language-specific services or handled
 /// centrally, but this is transparent to the client.
-public actor SourceKitServer {
+public actor SourceKitLSPServer {
   /// The queue on which all messages (notifications, requests, responses) are
   /// handled.
   ///
@@ -398,12 +417,12 @@ public actor SourceKitServer {
 
   var capabilityRegistry: CapabilityRegistry?
 
-  var languageServices: [LanguageServerType: [ToolchainLanguageServer]] = [:]
+  var languageServices: [LanguageServerType: [LanguageService]] = [:]
 
   let documentManager = DocumentManager()
 
   private var packageLoadingWorkDoneProgress = WorkDoneProgressState(
-    "SourceKitLSP.SourceKitServer.reloadPackage",
+    "SourceKitLSP.SourceKitLSPServer.reloadPackage",
     title: "SourceKit-LSP: Reloading Package"
   )
 
@@ -552,7 +571,7 @@ public actor SourceKitServer {
   /// and language that handle this document.
   private func withLanguageServiceAndWorkspace<NotificationType: TextDocumentNotification>(
     for notification: NotificationType,
-    notificationHandler: @escaping (NotificationType, ToolchainLanguageServer) async -> Void
+    notificationHandler: @escaping (NotificationType, LanguageService) async -> Void
   ) async {
     let doc = notification.textDocument.uri
     guard let workspace = await self.workspaceForDocument(uri: doc) else {
@@ -570,7 +589,8 @@ public actor SourceKitServer {
 
   private func handleRequest<RequestType: TextDocumentRequest>(
     for request: RequestAndReply<RequestType>,
-    requestHandler: @escaping (RequestType, Workspace, ToolchainLanguageServer) async throws -> RequestType.Response
+    requestHandler: @escaping (RequestType, Workspace, LanguageService) async throws ->
+      RequestType.Response
   ) async {
     await request.reply {
       let request = request.params
@@ -623,7 +643,7 @@ public actor SourceKitServer {
   }
 
   /// After the language service has crashed, send `DidOpenTextDocumentNotification`s to a newly instantiated language service for previously open documents.
-  func reopenDocuments(for languageService: ToolchainLanguageServer) async {
+  func reopenDocuments(for languageService: LanguageService) async {
     for documentUri in self.documentManager.openDocuments {
       guard let workspace = await self.workspaceForDocument(uri: documentUri) else {
         continue
@@ -655,7 +675,7 @@ public actor SourceKitServer {
   private func existingLanguageService(
     _ serverType: LanguageServerType,
     workspace: Workspace
-  ) -> ToolchainLanguageServer? {
+  ) -> LanguageService? {
     for languageService in languageServices[serverType, default: []] {
       if languageService.canHandle(workspace: workspace) {
         return languageService
@@ -668,7 +688,7 @@ public actor SourceKitServer {
     for toolchain: Toolchain,
     _ language: Language,
     in workspace: Workspace
-  ) async -> ToolchainLanguageServer? {
+  ) async -> LanguageService? {
     guard let serverType = LanguageServerType(language: language) else {
       return nil
     }
@@ -680,7 +700,7 @@ public actor SourceKitServer {
     // Start a new service.
     return await orLog("failed to start language service", level: .error) {
       let service = try await serverType.serverType.init(
-        sourceKitServer: self,
+        sourceKitLSPServer: self,
         toolchain: toolchain,
         options: options,
         workspace: workspace
@@ -745,7 +765,7 @@ public actor SourceKitServer {
     for uri: DocumentURI,
     _ language: Language,
     in workspace: Workspace
-  ) async -> ToolchainLanguageServer? {
+  ) async -> LanguageService? {
     return await languageService(for: uri, language, in: workspace)
   }
 
@@ -753,7 +773,7 @@ public actor SourceKitServer {
     for uri: DocumentURI,
     _ language: Language,
     in workspace: Workspace
-  ) async -> ToolchainLanguageServer? {
+  ) async -> LanguageService? {
     if let service = workspace.documentService[uri] {
       return service
     }
@@ -794,8 +814,8 @@ private func getNextNotificationIDForLogging() -> Int {
   }
 }
 
-extension SourceKitServer: MessageHandler {
-  public nonisolated func handle(_ params: some NotificationType, from clientID: ObjectIdentifier) {
+extension SourceKitLSPServer: MessageHandler {
+  public nonisolated func handle(_ params: some NotificationType) {
     if let params = params as? CancelRequestNotification {
       // Request cancellation needs to be able to overtake any other message we
       // are currently handling. Ordering is not important here. We thus don't
@@ -815,13 +835,13 @@ extension SourceKitServer: MessageHandler {
       // See comment in `withLoggingScope`.
       // The last 2 digits should be sufficient to differentiate between multiple concurrently running notifications.
       await withLoggingScope("notification-\(notificationID % 100)") {
-        await self.handleImpl(params, from: clientID)
+        await self.handleImpl(params)
         signposter.endInterval("Notification", state, "Done")
       }
     }
   }
 
-  private func handleImpl(_ notification: some NotificationType, from clientID: ObjectIdentifier) async {
+  private func handleImpl(_ notification: some NotificationType) async {
     logger.log("Received notification: \(notification.forLogging)")
 
     switch notification {
@@ -852,7 +872,6 @@ extension SourceKitServer: MessageHandler {
   public nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
     let signposter = Logger(subsystem: subsystem, category: "request-\(id)").makeSignposter()
@@ -865,7 +884,7 @@ extension SourceKitServer: MessageHandler {
       // See comment in `withLoggingScope`.
       // The last 2 digits should be sufficient to differentiate between multiple concurrently running requests.
       await withLoggingScope("request-\(id.numericValue % 100)") {
-        await self.handleImpl(params, id: id, from: clientID, reply: reply)
+        await self.handleImpl(params, id: id, reply: reply)
         signposter.endInterval("Request", state, "Done")
       }
       // We have handled the request and can't cancel it anymore.
@@ -885,7 +904,6 @@ extension SourceKitServer: MessageHandler {
   private func handleImpl<R: RequestType>(
     _ params: R,
     id: RequestID,
-    from clientID: ObjectIdentifier,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) async {
     let startDate = Date()
@@ -1001,7 +1019,7 @@ extension SourceKitServer: MessageHandler {
 
 // MARK: - Build System Delegate
 
-extension SourceKitServer: BuildSystemDelegate {
+extension SourceKitLSPServer: BuildSystemDelegate {
   public func buildTargetsChanged(_ changes: [BuildTargetEvent]) {
     // TODO: do something with these changes once build target support is in place
   }
@@ -1087,7 +1105,7 @@ private extension LanguageServerProtocol.WorkspaceType {
 
 // MARK: - Request and notification handling
 
-extension SourceKitServer {
+extension SourceKitLSPServer {
 
   // MARK: - General
 
@@ -1129,7 +1147,8 @@ extension SourceKitServer {
       buildSetup: self.options.buildSetup.merging(workspaceBuildSetup),
       compilationDatabaseSearchPaths: self.options.compilationDatabaseSearchPaths,
       indexOptions: self.options.indexOptions,
-      reloadPackageStatusCallback: { status in
+      reloadPackageStatusCallback: { [weak self] status in
+        guard let self else { return }
         guard capabilityRegistry.clientCapabilities.window?.workDoneProgress ?? false else {
           // Client doesn’t support work done progress
           return
@@ -1309,8 +1328,8 @@ extension SourceKitServer {
     languages: [Language],
     registry: CapabilityRegistry
   ) async {
-    // IMPORTANT: When adding new capabilities here, also add the value of that capability in `SwiftLanguageServer`
-    // to SourceKitServer.serverCapabilities. That way the capabilities get registered for all languages in case the
+    // IMPORTANT: When adding new capabilities here, also add the value of that capability in `SwiftLanguageService`
+    // to SourceKitLSPServer.serverCapabilities. That way the capabilities get registered for all languages in case the
     // client does not support dynamic capability registration.
 
     if let completionOptions = server.completionProvider {
@@ -1506,14 +1525,14 @@ extension SourceKitServer {
 
   func willSaveDocument(
     _ notification: WillSaveTextDocumentNotification,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async {
     await languageService.willSaveDocument(notification)
   }
 
   func didSaveDocument(
     _ note: DidSaveTextDocumentNotification,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async {
     await languageService.didSaveDocument(note)
   }
@@ -1526,7 +1545,7 @@ extension SourceKitServer {
     // In practice, it is fine: sourcekit-lsp will not handle any new messages
     // while we are executing this function and thus there's no risk of
     // documents or workspaces changing. To hit the race condition, you need
-    // to invoke the API of `SourceKitServer` directly and open documents
+    // to invoke the API of `SourceKitLSPServer` directly and open documents
     // while this function is executing. Even in such an API use case, hitting
     // that race condition seems very unlikely.
     var preChangeWorkspaces: [DocumentURI: Workspace] = [:]
@@ -1599,7 +1618,7 @@ extension SourceKitServer {
   func completion(
     _ req: CompletionRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> CompletionList {
     return try await languageService.completion(req)
   }
@@ -1607,7 +1626,7 @@ extension SourceKitServer {
   func hover(
     _ req: HoverRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> HoverResponse? {
     return try await languageService.hover(req)
   }
@@ -1615,7 +1634,7 @@ extension SourceKitServer {
   func openInterface(
     _ req: OpenInterfaceRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> InterfaceDetails? {
     return try await languageService.openInterface(req)
   }
@@ -1664,7 +1683,7 @@ extension SourceKitServer {
   func symbolInfo(
     _ req: SymbolInfoRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [SymbolDetails] {
     return try await languageService.symbolInfo(req)
   }
@@ -1672,7 +1691,7 @@ extension SourceKitServer {
   func documentSymbolHighlight(
     _ req: DocumentHighlightRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [DocumentHighlight]? {
     return try await languageService.documentSymbolHighlight(req)
   }
@@ -1680,7 +1699,7 @@ extension SourceKitServer {
   func foldingRange(
     _ req: FoldingRangeRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [FoldingRange]? {
     return try await languageService.foldingRange(req)
   }
@@ -1688,7 +1707,7 @@ extension SourceKitServer {
   func documentSymbol(
     _ req: DocumentSymbolRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> DocumentSymbolResponse? {
     return try await languageService.documentSymbol(req)
   }
@@ -1696,7 +1715,7 @@ extension SourceKitServer {
   func documentColor(
     _ req: DocumentColorRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [ColorInformation] {
     return try await languageService.documentColor(req)
   }
@@ -1704,7 +1723,7 @@ extension SourceKitServer {
   func documentSemanticTokens(
     _ req: DocumentSemanticTokensRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> DocumentSemanticTokensResponse? {
     return try await languageService.documentSemanticTokens(req)
   }
@@ -1712,7 +1731,7 @@ extension SourceKitServer {
   func documentSemanticTokensDelta(
     _ req: DocumentSemanticTokensDeltaRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> DocumentSemanticTokensDeltaResponse? {
     return try await languageService.documentSemanticTokensDelta(req)
   }
@@ -1720,7 +1739,7 @@ extension SourceKitServer {
   func documentSemanticTokensRange(
     _ req: DocumentSemanticTokensRangeRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> DocumentSemanticTokensResponse? {
     return try await languageService.documentSemanticTokensRange(req)
   }
@@ -1728,7 +1747,7 @@ extension SourceKitServer {
   func documentFormatting(
     _ req: DocumentFormattingRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [TextEdit]? {
     return try await languageService.documentFormatting(req)
   }
@@ -1736,7 +1755,7 @@ extension SourceKitServer {
   func colorPresentation(
     _ req: ColorPresentationRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [ColorPresentation] {
     return try await languageService.colorPresentation(req)
   }
@@ -1763,7 +1782,7 @@ extension SourceKitServer {
   func codeAction(
     _ req: CodeActionRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> CodeActionRequestResponse? {
     let response = try await languageService.codeAction(req)
     return req.injectMetadata(toResponse: response)
@@ -1772,7 +1791,7 @@ extension SourceKitServer {
   func inlayHint(
     _ req: InlayHintRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [InlayHint] {
     return try await languageService.inlayHint(req)
   }
@@ -1780,7 +1799,7 @@ extension SourceKitServer {
   func documentDiagnostic(
     _ req: DocumentDiagnosticsRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> DocumentDiagnosticReport {
     return try await languageService.documentDiagnostic(req)
   }
@@ -1808,7 +1827,7 @@ extension SourceKitServer {
   func declaration(
     _ req: DeclarationRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> LocationsOrLocationLinksResponse? {
     return try await languageService.declaration(req)
   }
@@ -1817,7 +1836,7 @@ extension SourceKitServer {
   private func definitionLocations(
     for symbol: SymbolDetails,
     in uri: DocumentURI,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [Location] {
     // If this symbol is a module then generate a textual interface
     if symbol.kind == .module, let name = symbol.name {
@@ -1895,7 +1914,7 @@ extension SourceKitServer {
   private func indexBasedDefinition(
     _ req: DefinitionRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [Location] {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
@@ -1925,15 +1944,15 @@ extension SourceKitServer {
   func definition(
     _ req: DefinitionRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> LocationsOrLocationLinksResponse? {
     let indexBasedResponse = try await indexBasedDefinition(req, workspace: workspace, languageService: languageService)
     // If we're unable to handle the definition request using our index, see if the
     // language service can handle it (e.g. clangd can provide AST based definitions).
     // We are on only calling the language service's `definition` function if your index-based lookup failed.
-    // If this fallback request fails, its error is usually not very enlightening. For example the `SwiftLanguageServer`
-    // will always respond with `unsupported method`. Thus, only log such a failure instead of returning it to the
-    // client.
+    // If this fallback request fails, its error is usually not very enlightening. For example the
+    // `SwiftLanguageService` will always respond with `unsupported method`. Thus, only log such a failure instead of
+    // returning it to the client.
     if indexBasedResponse.isEmpty {
       return await orLog("Fallback definition request") {
         return try await languageService.definition(req)
@@ -1951,7 +1970,7 @@ extension SourceKitServer {
     moduleName: String,
     symbolUSR: String?,
     originatorUri: DocumentURI,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> Location {
     let openInterface = OpenInterfaceRequest(
       textDocument: TextDocumentIdentifier(originatorUri),
@@ -1969,7 +1988,7 @@ extension SourceKitServer {
   func implementation(
     _ req: ImplementationRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> LocationsOrLocationLinksResponse? {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
@@ -1995,7 +2014,7 @@ extension SourceKitServer {
   func references(
     _ req: ReferencesRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [Location] {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
@@ -2042,7 +2061,7 @@ extension SourceKitServer {
   func prepareCallHierarchy(
     _ req: CallHierarchyPrepareRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [CallHierarchyItem]? {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
@@ -2216,7 +2235,7 @@ extension SourceKitServer {
   func prepareTypeHierarchy(
     _ req: TypeHierarchyPrepareRequest,
     workspace: Workspace,
-    languageService: ToolchainLanguageServer
+    languageService: LanguageService
   ) async throws -> [TypeHierarchyItem]? {
     let symbols = try await languageService.symbolInfo(
       SymbolInfoRequest(
@@ -2474,7 +2493,7 @@ fileprivate struct NotificationRequestOperation {
 /// Used to queue up notifications and requests for documents which are blocked
 /// on `BuildSystem` operations such as fetching build settings.
 ///
-/// Note: This is not thread safe. Must be called from the `SourceKitServer.queue`.
+/// Note: This is not thread safe. Must be called from the `SourceKitLSPServer.queue`.
 fileprivate struct DocumentNotificationRequestQueue {
   fileprivate var queue = [NotificationRequestOperation]()
 

@@ -39,7 +39,7 @@ import SPMBuildCore
 /// Parameter of `reloadPackageStatusCallback` in ``SwiftPMWorkspace``.
 ///
 /// Informs the callback about whether `reloadPackage` started or finished executing.
-public enum ReloadPackageStatus {
+public enum ReloadPackageStatus: Sendable {
   case start
   case end
 }
@@ -63,7 +63,7 @@ private func getDefaultToolchain(_ toolchainRegistry: ToolchainRegistry) async -
 /// This class implements the `BuildSystem` interface to provide the build settings for a Swift
 /// Package Manager (SwiftPM) package. The settings are determined by loading the Package.swift
 /// manifest using `libSwiftPM` and constructing a build plan using the default (debug) parameters.
-public actor SwiftPMWorkspace {
+public actor SwiftPMBuildSystem {
 
   public enum Error: Swift.Error {
 
@@ -197,7 +197,7 @@ public actor SwiftPMWorkspace {
   }
 }
 
-extension SwiftPMWorkspace {
+extension SwiftPMBuildSystem {
 
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
@@ -270,7 +270,7 @@ extension SwiftPMWorkspace {
   }
 }
 
-extension SwiftPMWorkspace: SKCore.BuildSystem {
+extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
   public var buildPath: TSCAbsolutePath {
     return TSCAbsolutePath(buildParameters.buildPath)
@@ -363,9 +363,11 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
   public func filesDidChange(_ events: [FileEvent]) async {
     if events.contains(where: { self.fileEventShouldTriggerPackageReload(event: $0) }) {
       logger.log("Reloading package because of file change")
-      await orLog("Reloading package") {
+      do {
         // TODO: It should not be necessary to reload the entire package just to get build settings for one file.
         try await self.reloadPackage()
+      } catch {
+        logError(prefix: "Reloading package", error: error)
       }
     }
   }
@@ -382,7 +384,7 @@ extension SwiftPMWorkspace: SKCore.BuildSystem {
   }
 }
 
-extension SwiftPMWorkspace {
+extension SwiftPMBuildSystem {
 
   // MARK: Implementation details
 

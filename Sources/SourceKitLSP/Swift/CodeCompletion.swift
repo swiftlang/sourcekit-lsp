@@ -16,8 +16,7 @@ import LanguageServerProtocol
 import SourceKitD
 import SwiftBasicFormat
 
-extension SwiftLanguageServer {
-
+extension SwiftLanguageService {
   public func completion(_ req: CompletionRequest) async throws -> CompletionList {
     let snapshot = try documentManager.latestSnapshot(req.textDocument.uri)
 

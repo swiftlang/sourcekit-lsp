@@ -16,7 +16,11 @@ import SKSupport
 
 import struct TSCBasic.AbsolutePath
 
+#if compiler(<5.11)
+extension DLHandle: @unchecked Sendable {}
+#else
 extension DLHandle: @unchecked @retroactive Sendable {}
+#endif
 extension sourcekitd_api_keys: @unchecked Sendable {}
 extension sourcekitd_api_requests: @unchecked Sendable {}
 extension sourcekitd_api_values: @unchecked Sendable {}

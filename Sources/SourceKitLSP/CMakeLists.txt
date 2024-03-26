@@ -3,20 +3,20 @@ add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
   DocumentManager.swift
   IndexStoreDB+MainFilesProvider.swift
-  ResponseError+Init.swift
+  LanguageService.swift
   Rename.swift
+  ResponseError+Init.swift
   Sequence+AsyncMap.swift
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
-  SourceKitServer.swift
-  SourceKitServer+Options.swift
+  SourceKitLSPServer.swift
+  SourceKitLSPServer+Options.swift
   TestDiscovery.swift
-  ToolchainLanguageServer.swift
   WorkDoneProgressManager.swift
   Workspace.swift
 )
 target_sources(SourceKitLSP PRIVATE
-  Clang/ClangLanguageServer.swift)
+  Clang/ClangLanguageService.swift)
 target_sources(SourceKitLSP PRIVATE
   Swift/AdjustPositionToStartOfIdentifier.swift
   Swift/CodeCompletion.swift
@@ -36,7 +36,7 @@ target_sources(SourceKitLSP PRIVATE
   Swift/SemanticTokens.swift
   Swift/SourceKitD+ResponseError.swift
   Swift/SwiftCommand.swift
-  Swift/SwiftLanguageServer.swift
+  Swift/SwiftLanguageService.swift
   Swift/SymbolInfo.swift
   Swift/SyntaxHighlightingToken.swift
   Swift/SyntaxHighlightingTokenParser.swift

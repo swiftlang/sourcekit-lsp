@@ -11,20 +11,41 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
+import SKCore
 
 /// Create a folder that contains all files that should be necessary to reproduce a sourcekitd crash.
-func makeReproducerBundle(for requestInfo: RequestInfo, bundlePath: URL) throws {
+/// - Parameters:
+///   - requestInfo: The reduced request info
+///   - toolchain: The toolchain that was used to reduce the request
+///   - bundlePath: The path to which to write the reproducer bundle
+func makeReproducerBundle(for requestInfo: RequestInfo, toolchain: Toolchain, bundlePath: URL) throws {
+  try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
   try requestInfo.fileContents.write(
     to: bundlePath.appendingPathComponent("input.swift"),
     atomically: true,
     encoding: .utf8
   )
-  let request = try requestInfo.request(for: URL(fileURLWithPath: "/input.swift"))
-  try request.write(
-    to: bundlePath.appendingPathComponent("request.json"),
-    atomically: true,
-    encoding: .utf8
-  )
+  if let toolchainPath = toolchain.path {
+    try toolchainPath.pathString
+      .write(
+        to: bundlePath.appendingPathComponent("toolchain.txt"),
+        atomically: true,
+        encoding: .utf8
+      )
+  }
+  if requestInfo.requestTemplate == RequestInfo.fakeRequestTemplateForFrontendIssues {
+    let command =
+      "swift-frontend \\\n"
+      + requestInfo.compilerArgs.replacing(["$FILE"], with: ["./input.swift"]).joined(separator: " \\\n")
+    try command.write(to: bundlePath.appendingPathComponent("command.sh"), atomically: true, encoding: .utf8)
+  } else {
+    let request = try requestInfo.request(for: URL(fileURLWithPath: "/input.swift"))
+    try request.write(
+      to: bundlePath.appendingPathComponent("request.json"),
+      atomically: true,
+      encoding: .utf8
+    )
+  }
   for compilerArg in requestInfo.compilerArgs {
     // Copy all files from the compiler arguments into the reproducer bundle.
     // Don't include files in Xcode (.app), Xcode toolchains or usr because they are most likely binary files that aren't user specific and would bloat the reproducer bundle.

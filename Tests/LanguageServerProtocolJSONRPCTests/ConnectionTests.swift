@@ -12,7 +12,7 @@
 
 import LSPTestSupport
 import LanguageServerProtocol
-import LanguageServerProtocolJSONRPC
+@_spi(Testing) import LanguageServerProtocolJSONRPC
 import XCTest
 
 #if os(Windows)
@@ -53,7 +53,7 @@ class ConnectionTests: XCTestCase {
 
   func testMessageBuffer() async throws {
     let client = connection.client
-    let clientConnection = connection.clientConnection
+    let clientConnection = connection.clientToServerConnection
     let expectation = self.expectation(description: "note received")
 
     await client.appendOneShotNotificationHandler { (note: EchoNotification) in
@@ -90,9 +90,9 @@ class ConnectionTests: XCTestCase {
 
     try await fulfillmentOfOrThrow([expectation2])
 
-    // Close the connection before accessing _requestBuffer, which ensures we don't race.
-    connection.serverConnection.close()
-    XCTAssertEqual(connection.serverConnection._requestBuffer, [])
+    // Close the connection before accessing requestBuffer, which ensures we don't race.
+    connection.serverToClientConnection.close()
+    XCTAssert(connection.serverToClientConnection.requestBufferIsEmpty)
   }
 
   func testEchoError() {
@@ -175,7 +175,7 @@ class ConnectionTests: XCTestCase {
     let expectation = self.expectation(description: "response received")
 
     // response to unknown request
-    connection.clientConnection.sendReply(.success(VoidResponse()), id: .string("unknown"))
+    connection.clientToServerConnection.sendReply(.success(VoidResponse()), id: .string("unknown"))
 
     // Nothing bad should happen; check that the next request works.
 
@@ -193,7 +193,7 @@ class ConnectionTests: XCTestCase {
     let client = connection.client
     let expectation = self.expectation(description: "note received")
 
-    connection.clientConnection.close()
+    connection.clientToServerConnection.close()
 
     client.send(EchoNotification(string: "hi"))
     _ = client.send(EchoRequest(string: "yo")) { result in
@@ -201,10 +201,10 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    connection.clientConnection.sendReply(.success(VoidResponse()), id: .number(1))
+    connection.clientToServerConnection.sendReply(.success(VoidResponse()), id: .number(1))
 
-    connection.clientConnection.close()
-    connection.clientConnection.close()
+    connection.clientToServerConnection.close()
+    connection.clientToServerConnection.close()
 
     waitForExpectations(timeout: defaultTimeout)
   }
@@ -219,21 +219,7 @@ class ConnectionTests: XCTestCase {
     }
 
     server.client.send(EchoNotification(string: "about to close!"))
-    connection.serverConnection.close()
-
-    try await fulfillmentOfOrThrow([expectation])
-  }
-
-  func testSendSynchronouslyBeforeClose() async throws {
-    let client = connection.client
-
-    let expectation = self.expectation(description: "received notification")
-    await client.appendOneShotNotificationHandler { (note: EchoNotification) in
-      expectation.fulfill()
-    }
-    let notification = EchoNotification(string: "about to close!")
-    connection.serverConnection._send(.notification(notification), async: false)
-    connection.serverConnection.close()
+    connection.serverToClientConnection.close()
 
     try await fulfillmentOfOrThrow([expectation])
   }
@@ -258,12 +244,11 @@ class ConnectionTests: XCTestCase {
       )
 
       final class DummyHandler: MessageHandler {
-        func handle<N: NotificationType>(_: N, from: ObjectIdentifier) {}
-        func handle<R: RequestType>(
-          _: R,
+        func handle(_: some NotificationType) {}
+        func handle<Request: RequestType>(
+          _ request: Request,
           id: RequestID,
-          from: ObjectIdentifier,
-          reply: @escaping (LSPResult<R.Response>) -> Void
+          reply: @escaping (LSPResult<Request.Response>) -> Void
         ) {}
       }
 

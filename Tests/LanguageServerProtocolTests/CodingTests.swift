@@ -1347,7 +1347,7 @@ func with<T>(_ value: T, mutate: (inout T) -> Void) -> T {
 
 extension String {
   func indented(_ spaces: Int, skipFirstLine: Bool = false) -> String {
-    let ws = String(repeating: " ", count: spaces)
-    return (skipFirstLine ? "" : ws) + self.replacingOccurrences(of: "\n", with: "\n" + ws)
+    let spaces = String(repeating: " ", count: spaces)
+    return (skipFirstLine ? "" : spaces) + self.replacingOccurrences(of: "\n", with: "\n" + spaces)
   }
 }

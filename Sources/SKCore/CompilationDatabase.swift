@@ -141,7 +141,7 @@ extension FixedCompilationDatabase {
     var fixedArgs: [String] = ["clang"]
     try bytes.withUnsafeData { data in
       guard let fileContents = String(data: data, encoding: .utf8) else {
-        throw CompilationDatabaseDecodingError.fixedDatabaseDecordingError
+        throw CompilationDatabaseDecodingError.fixedDatabaseDecodingError
       }
 
       fileContents.enumerateLines { line, _ in
@@ -238,7 +238,7 @@ extension JSONCompilationDatabase {
 
 enum CompilationDatabaseDecodingError: Error {
   case missingCommandOrArguments
-  case fixedDatabaseDecordingError
+  case fixedDatabaseDecodingError
 }
 
 extension CompilationDatabase.Command: Codable {

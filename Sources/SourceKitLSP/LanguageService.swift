@@ -60,15 +60,18 @@ public struct RenameLocation {
   let usage: Usage
 }
 
-/// A `LanguageServer` that exists within the context of the current process.
-public protocol ToolchainLanguageServer: AnyObject {
+/// Provides language specific functionality to sourcekit-lsp from a specific toolchain.
+///
+/// For example, we may have a language service that provides semantic functionality for c-family using a clangd server,
+/// launched from a specific toolchain or from sourcekitd.
+public protocol LanguageService: AnyObject {
 
   // MARK: - Creation
 
   init?(
-    sourceKitServer: SourceKitServer,
+    sourceKitLSPServer: SourceKitLSPServer,
     toolchain: Toolchain,
-    options: SourceKitServer.Options,
+    options: SourceKitLSPServer.Options,
     workspace: Workspace
   ) async throws
 
@@ -148,8 +151,8 @@ public protocol ToolchainLanguageServer: AnyObject {
   ///
   /// Rename is implemented as a two-step process:  This function returns all the edits it knows need to be performed.
   /// For Swift these edits are those within the current file. In addition, it can return a USR + the old name of the
-  /// symbol to be renamed so that `SourceKitServer` can perform an index lookup to discover more locations to rename
-  /// within the entire workspace. `SourceKitServer` will transform those into edits by calling
+  /// symbol to be renamed so that `SourceKitLSPServer` can perform an index lookup to discover more locations to rename
+  /// within the entire workspace. `SourceKitLSPServer` will transform those into edits by calling
   /// `editsToRename(locations:in:oldName:newName:)` on the toolchain server to perform the actual rename.
   func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?)
 

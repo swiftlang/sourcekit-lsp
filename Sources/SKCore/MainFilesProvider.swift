@@ -13,7 +13,7 @@
 import LanguageServerProtocol
 
 /// A type that can provide the set of main files that include a particular file.
-public protocol MainFilesProvider: AnyObject {
+public protocol MainFilesProvider: AnyObject, Sendable {
 
   /// Returns the set of main files that contain the given file.
   ///
@@ -24,11 +24,4 @@ public protocol MainFilesProvider: AnyObject {
   /// mainFilesContainingFile("foo.h") == Set(["foo.cpp", "bar.cpp"])
   /// ```
   func mainFilesContainingFile(_: DocumentURI) async -> Set<DocumentURI>
-}
-
-/// Delegate that responds to possible main file changes.
-public protocol MainFilesDelegate: AnyObject {
-
-  /// The mapping from files to main files (may have) changed.
-  func mainFilesChanged() async
 }

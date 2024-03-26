@@ -12,7 +12,7 @@
 
 import LanguageServerProtocol
 
-extension SwiftLanguageServer {
+extension SwiftLanguageService {
   public func symbolInfo(_ req: SymbolInfoRequest) async throws -> [SymbolDetails] {
     let uri = req.textDocument.uri
     let snapshot = try documentManager.latestSnapshot(uri)

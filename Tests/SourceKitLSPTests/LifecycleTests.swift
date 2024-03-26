@@ -66,8 +66,7 @@ final class LifecycleTests: XCTestCase {
     let requestID = RequestID.string("cancellation-test")
     testClient.server.handle(
       CompletionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"]),
-      id: requestID,
-      from: ObjectIdentifier(self)
+      id: requestID
     ) { reply in
       switch reply {
       case .success:
