@@ -66,7 +66,7 @@ extension SwiftLanguageService {
       .classifications(in: range)
       .flatMap({ $0.highlightingTokens(in: snapshot) })
 
-    return SyntaxHighlightingTokens(tokens: tokens)
+    return SyntaxHighlightingTokens(tokens: tokens.tokens)
       .mergingTokens(with: semanticTokens ?? [])
       .sorted { $0.start < $1.start }
   }
@@ -108,14 +108,14 @@ extension Range where Bound == Position {
 extension SyntaxClassifiedRange {
   fileprivate func highlightingTokens(in snapshot: DocumentSnapshot) -> SyntaxHighlightingTokens {
     guard let (kind, modifiers) = self.kind.highlightingKindAndModifiers else {
-      return []
+      return SyntaxHighlightingTokens(tokens: [])
     }
 
     guard
       let start: Position = snapshot.positionOf(utf8Offset: self.offset),
       let end: Position = snapshot.positionOf(utf8Offset: self.endOffset)
     else {
-      return []
+      return SyntaxHighlightingTokens(tokens: [])
     }
 
     let multiLineRange = start..<end
