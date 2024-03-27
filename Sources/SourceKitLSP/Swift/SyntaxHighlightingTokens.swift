@@ -27,7 +27,7 @@ public struct SyntaxHighlightingTokens {
   public var lspEncoded: [UInt32] {
     var previous = Position(line: 0, utf16index: 0)
     var rawTokens: [UInt32] = []
-    rawTokens.reserveCapacity(count * 5)
+    rawTokens.reserveCapacity(tokens.count * 5)
 
     for token in self.tokens {
       let lineDelta = token.start.line - previous.line
@@ -80,7 +80,7 @@ extension SyntaxHighlightingTokens {
   public init(lspEncodedTokens rawTokens: [UInt32]) {
     self.init(tokens: [])
     assert(rawTokens.count.isMultiple(of: 5))
-    reserveCapacity(rawTokens.count / 5)
+    self.tokens.reserveCapacity(rawTokens.count / 5)
 
     var current = Position(line: 0, utf16index: 0)
 
@@ -102,12 +102,12 @@ extension SyntaxHighlightingTokens {
       let kind = SemanticTokenTypes.all[Int(rawKind)]
       let modifiers = SemanticTokenModifiers(rawValue: rawModifiers)
 
-      self.tokens += SyntaxHighlightingToken(
+      self.tokens.append(SyntaxHighlightingToken(
         start: current,
         utf16length: length,
         kind: kind,
         modifiers: modifiers
-      )
+      ))
     }
   }
 }
