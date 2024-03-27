@@ -64,10 +64,12 @@ extension SwiftLanguageService {
     let tokens =
       await tree
       .classifications(in: range)
-      .flatMap({ $0.highlightingTokens(in: snapshot) })
+      .map { $0.highlightingTokens(in: snapshot) }
+      .reduce(into: SyntaxHighlightingTokens(tokens: [])) { $0.tokens += $1.tokens }
+      
 
-    return SyntaxHighlightingTokens(tokens: tokens.tokens)
-      .mergingTokens(with: semanticTokens ?? [])
+    return tokens
+      .mergingTokens(with: semanticTokens ?? SyntaxHighlightingTokens(tokens: []))
       .sorted { $0.start < $1.start }
   }
 
