@@ -62,6 +62,11 @@ public struct SyntaxHighlightingTokens {
     return SyntaxHighlightingTokens(tokens: tokens.filter { !otherRanges.contains($0.range) } + other.tokens)
   }
 
+  public func mergingTokens(with other: [SyntaxHighlightingToken]) -> SyntaxHighlightingTokens {
+    let otherRanges = Set(other.map(\.range))
+    return SyntaxHighlightingTokens(tokens: tokens.filter { !otherRanges.contains($0.range) } + other)
+  }
+
   /// Sorts the tokens in this array by their start position.
   public func sorted(_ areInIncreasingOrder: (SyntaxHighlightingToken, SyntaxHighlightingToken) -> Bool)
     -> SyntaxHighlightingTokens
