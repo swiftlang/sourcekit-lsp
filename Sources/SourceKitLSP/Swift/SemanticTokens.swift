@@ -66,9 +66,9 @@ extension SwiftLanguageService {
       .classifications(in: range)
       .map { $0.highlightingTokens(in: snapshot) }
       .reduce(into: SyntaxHighlightingTokens(tokens: [])) { $0.tokens += $1.tokens }
-      
 
-    return tokens
+    return
+      tokens
       .mergingTokens(with: semanticTokens ?? SyntaxHighlightingTokens(tokens: []))
       .sorted { $0.start < $1.start }
   }

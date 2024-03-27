@@ -102,12 +102,14 @@ extension SyntaxHighlightingTokens {
       let kind = SemanticTokenTypes.all[Int(rawKind)]
       let modifiers = SemanticTokenModifiers(rawValue: rawModifiers)
 
-      self.tokens.append(SyntaxHighlightingToken(
-        start: current,
-        utf16length: length,
-        kind: kind,
-        modifiers: modifiers
-      ))
+      self.tokens.append(
+        SyntaxHighlightingToken(
+          start: current,
+          utf16length: length,
+          kind: kind,
+          modifiers: modifiers
+        )
+      )
     }
   }
 }
