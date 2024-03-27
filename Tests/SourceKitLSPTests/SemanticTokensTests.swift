@@ -159,7 +159,7 @@ final class SemanticTokensTests: XCTestCase {
   }
 
   func testIntArrayCoding() async throws {
-    let tokens = [
+    let tokens = SyntaxHighlightingTokens(tokens: [
       Token(
         start: Position(line: 2, utf16index: 3),
         utf16length: 5,
@@ -171,7 +171,7 @@ final class SemanticTokensTests: XCTestCase {
         kind: .interface,
         modifiers: [.deprecated, .definition]
       ),
-    ]
+    ])
 
     let encoded = tokens.lspEncoded
     XCTAssertEqual(
@@ -191,8 +191,8 @@ final class SemanticTokensTests: XCTestCase {
       ]
     )
 
-    let decoded = [Token](lspEncodedTokens: encoded)
-    XCTAssertEqual(decoded, tokens)
+    let decoded = SyntaxHighlightingTokens(lspEncodedTokens: encoded)
+    XCTAssertEqual(decoded.tokens, tokens.tokens)
   }
 
   func testRangeSplitting() async throws {
