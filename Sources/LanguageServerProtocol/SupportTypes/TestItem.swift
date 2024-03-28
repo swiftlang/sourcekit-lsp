@@ -35,13 +35,16 @@ public struct TestItem: ResponseType, Equatable {
   public let description: String?
 
   /// A string that should be used when comparing this item with other items.
+  ///
   /// When `nil` the `label` is used.
   public let sortText: String?
 
   /// The location of the test item in the source code.
   public let location: Location
 
-  /// The children of this test item. For a test suite, this may contain the individual test cases or nested suites.
+  /// The children of this test item.
+  ///
+  /// For a test suite, this may contain the individual test cases or nested suites.
   public let children: [TestItem]
 
   /// Tags associated with this test item.
