@@ -197,7 +197,7 @@ public final class TestServer: MessageHandler {
 
 private let testMessageRegistry = MessageRegistry(
   requests: [EchoRequest.self, EchoError.self],
-  notifications: [EchoNotification.self]
+  notifications: [EchoNotification.self, ShowMessageNotification.self]
 )
 
 #if compiler(<5.11)
