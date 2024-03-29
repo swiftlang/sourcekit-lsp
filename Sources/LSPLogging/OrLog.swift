@@ -14,7 +14,7 @@
 import os
 #endif
 
-public func logError(prefix: String, error: Error, level: LogLevel = .error) {
+private func logError(prefix: String, error: Error, level: LogLevel = .error) {
   logger.log(
     level: level,
     "\(prefix, privacy: .public)\(prefix.isEmpty ? "" : ": ", privacy: .public)\(error.forLogging)"
@@ -41,7 +41,7 @@ public func orLog<R>(
 public func orLog<R>(
   _ prefix: String,
   level: LogLevel = .error,
-  _ block: () async throws -> R?
+  @_inheritActorContext _ block: @Sendable () async throws -> R?
 ) async -> R? {
   do {
     return try await block()
