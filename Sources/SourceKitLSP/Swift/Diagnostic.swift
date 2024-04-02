@@ -87,7 +87,6 @@ extension CodeAction {
       snapshot.text.indices.contains(startIndex),
       endIndex <= snapshot.text.endIndex
     else {
-      logger.fault("position mapped, but indices failed for edit range \(String(reflecting: edits[0]))")
       return nil
     }
     let oldText = String(snapshot.text[startIndex..<endIndex])
@@ -279,12 +278,6 @@ extension Diagnostic {
     in snapshot: DocumentSnapshot
   ) {
     guard let position = snapshot.position(of: diag.position) else {
-      logger.error(
-        """
-        Cannot construct Diagnostic from SwiftSyntax diagnostic because its UTF-8 offset \(diag.position.utf8Offset) \
-        is out of range of the source file \(snapshot.uri.forLogging)
-        """
-      )
       return nil
     }
     // Start with a zero-length range based on the position.

@@ -933,76 +933,228 @@ extension DocumentSnapshot {
 
   // MARK: String.Index <-> Raw UTF-8
 
-  func indexOf(utf8Offset: Int) -> String.Index? {
-    return text.utf8.index(text.startIndex, offsetBy: utf8Offset, limitedBy: text.endIndex)
+  /// Converts the given UTF-8 offset to `String.Index`.
+  ///
+  /// If the offset is after the end of the snapshot, returns `nil` and logs a fault containing the file and line of
+  /// the caller (from `callerFile` and `callerLine`).
+  func indexOf(utf8Offset: Int, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> String.Index? {
+    guard let index = text.utf8.index(text.startIndex, offsetBy: utf8Offset, limitedBy: text.endIndex) else {
+      logger.fault(
+        """
+        Unable to get String index for UTF-8 offset \(utf8Offset) because offset is out of range \
+        (\(callerFile, privacy: .public):\(callerLine, privacy: .public))
+        """
+      )
+      return nil
+    }
+    return index
   }
 
   // MARK: Position <-> Raw UTF-8
 
-  func utf8Offset(of pos: Position) -> Int? {
-    return lineTable.utf8OffsetOf(line: pos.line, utf16Column: pos.utf16index)
+  /// Converts the given UTF-16-based line:column position to the UTF-8 offset of that position within the source file.
+  ///
+  /// If `position` does not refer to a valid position with in the snapshot, returns `nil` and logs a fault
+  /// containing the file and line of the caller (from `callerFile` and `callerLine`).
+  func utf8Offset(of position: Position, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> Int? {
+    return lineTable.utf8OffsetOf(
+      line: position.line,
+      utf16Column: position.utf16index,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
   }
 
-  func utf8OffsetRange(of range: Range<Position>) -> Range<Int>? {
-    guard let startOffset = utf8Offset(of: range.lowerBound),
-      let endOffset = utf8Offset(of: range.upperBound)
+  // MARK: Position <-> String.Index
+
+  /// Converts the given UTF-16-based `line:column`` position to a `String.Index`.
+  ///
+  /// If `position` does not refer to a valid position with in the snapshot, returns `nil` and logs a fault
+  /// containing the file and line of the caller (from `callerFile` and `callerLine`).
+  func index(of position: Position, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> String.Index? {
+    return lineTable.stringIndexOf(
+      line: position.line,
+      utf16Column: position.utf16index,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
+  }
+
+  /// Converts the given UTF-16 based line:column range to a UTF-8 based offset range.
+  ///
+  /// If either the lower or upper bound of `range` do not refer to valid positions with in the snapshot, returns
+  /// `nil` and logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  func utf8OffsetRange(
+    of range: Range<Position>,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> Range<Int>? {
+    guard let startOffset = utf8Offset(of: range.lowerBound, callerFile: callerFile, callerLine: callerLine),
+      let endOffset = utf8Offset(of: range.upperBound, callerFile: callerFile, callerLine: callerLine)
     else {
       return nil
     }
     return startOffset..<endOffset
   }
 
-  func positionOf(utf8Offset: Int) -> Position? {
-    return lineTable.lineAndUTF16ColumnOf(utf8Offset: utf8Offset).map {
-      Position(line: $0.line, utf16index: $0.utf16Column)
+  /// Converts the given UTF-8 offset to a UTF-16-based line:column position.
+  ///
+  /// If the offset is after the end of the snapshot, returns `nil` and logs a fault containing the file and line of
+  /// the caller (from `callerFile` and `callerLine`).
+  func positionOf(utf8Offset: Int, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> Position? {
+    guard
+      let (line, utf16Column) = lineTable.lineAndUTF16ColumnOf(
+        utf8Offset: utf8Offset,
+        callerFile: callerFile,
+        callerLine: callerLine
+      )
+    else {
+      return nil
     }
+    return Position(line: line, utf16index: utf16Column)
   }
 
-  func positionOf(zeroBasedLine: Int, utf8Column: Int) -> Position? {
-    return lineTable.utf16ColumnAt(line: zeroBasedLine, utf8Column: utf8Column).map {
-      Position(line: zeroBasedLine, utf16index: $0)
+  /// Converts the given UTF-8 based line:column position to a UTF-16 based line-column position.
+  ///
+  /// If the UTF-8 based line:column pair does not refer to a valid position within the snapshot, returns `nil` and logs
+  /// a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  func positionOf(
+    zeroBasedLine: Int,
+    utf8Column: Int,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> Position? {
+    guard
+      let utf16Column = lineTable.utf16ColumnAt(
+        line: zeroBasedLine,
+        utf8Column: utf8Column,
+        callerFile: callerFile,
+        callerLine: callerLine
+      )
+    else {
+      return nil
     }
+    return Position(line: zeroBasedLine, utf16index: utf16Column)
   }
 
   // MARK: Position <-> AbsolutePosition
 
-  func position(of position: AbsolutePosition) -> Position? {
-    return positionOf(utf8Offset: position.utf8Offset)
+  /// Converts the given UTF-8-offset-based `AbsolutePosition` to a UTF-16-based line:column.
+  ///
+  /// If the `AbsolutePosition` out of bounds of the source file, returns `nil` and logs a fault containing the file and
+  /// line of the caller (from `callerFile` and `callerLine`).
+  func position(
+    of position: AbsolutePosition,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> Position? {
+    return positionOf(utf8Offset: position.utf8Offset, callerFile: callerFile, callerLine: callerLine)
   }
 
-  func absolutePosition(of position: Position) -> AbsolutePosition? {
-    guard let offset = utf8Offset(of: position) else {
+  /// Converts the given UTF-16-based line:column `Position` to a UTF-8-offset-based `AbsolutePosition`.
+  ///
+  /// If the UTF-16 based line:column pair does not refer to a valid position within the snapshot, returns `nil` and
+  /// logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  func absolutePosition(
+    of position: Position,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> AbsolutePosition? {
+    guard let offset = utf8Offset(of: position, callerFile: callerFile, callerLine: callerLine) else {
       return nil
     }
     return AbsolutePosition(utf8Offset: offset)
   }
 
-  func range(of range: Range<AbsolutePosition>) -> Range<Position>? {
-    guard let lowerBound = self.position(of: range.lowerBound),
-      let upperBound = self.position(of: range.upperBound)
+  /// Converts the lower and upper bound of the given UTF-8-offset-based `AbsolutePosition` range to a UTF-16-based
+  /// line:column range for use in LSP.
+  ///
+  /// If either the lower or the upper bound of the range is out of bounds of the source file, returns `nil` and logs
+  /// a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  func range(
+    of range: Range<AbsolutePosition>,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> Range<Position>? {
+    guard let lowerBound = self.position(of: range.lowerBound, callerFile: callerFile, callerLine: callerLine),
+      let upperBound = self.position(of: range.upperBound, callerFile: callerFile, callerLine: callerLine)
     else {
       return nil
     }
     return lowerBound..<upperBound
   }
 
+  /// Converts the given UTF-16-based line:column range to a UTF-8-offset-based `ByteSourceRange`.
+  ///
+  /// If either the lower or upper bound of the range does not refer to a valid position within the snapshot, returns
+  /// `nil` and logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  func byteSourceRange(
+    of range: Range<Position>,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> ByteSourceRange? {
+    guard let utf8OffsetRange = utf8OffsetRange(of: range, callerFile: callerFile, callerLine: callerLine) else {
+      return nil
+    }
+    return ByteSourceRange(offset: utf8OffsetRange.startIndex, length: utf8OffsetRange.count)
+  }
+
   // MARK: Position <-> RenameLocation
 
-  func position(of renameLocation: RenameLocation) -> Position? {
-    return positionOf(zeroBasedLine: renameLocation.line - 1, utf8Column: renameLocation.utf8Column - 1)
+  /// Converts the given UTF-8-based line:column `RenamedLocation` to a UTF-16-based line:column `Position`.
+  ///
+  /// If the UTF-8 based line:column pair does not refer to a valid position within the snapshot, returns `nil` and
+  /// logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  func position(
+    of renameLocation: RenameLocation,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> Position? {
+    return positionOf(
+      zeroBasedLine: renameLocation.line - 1,
+      utf8Column: renameLocation.utf8Column - 1,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
   }
 
   // MAR: Position <-> SymbolLocation
 
-  func position(of symbolLocation: SymbolLocation) -> Position? {
-    return positionOf(zeroBasedLine: symbolLocation.line - 1, utf8Column: symbolLocation.utf8Column - 1)
+  /// Converts the given UTF-8-offset-based `SymbolLocation` to a UTF-16-based line:column `Position`.
+  ///
+  /// If the UTF-8 offset is out-of-bounds of the snapshot, returns `nil` and  logs a fault containing the file and line
+  /// of the caller (from `callerFile` and `callerLine`).
+  func position(
+    of symbolLocation: SymbolLocation,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> Position? {
+    return positionOf(
+      zeroBasedLine: symbolLocation.line - 1,
+      utf8Column: symbolLocation.utf8Column - 1,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
   }
 
   // MARK: AbsolutePosition <-> RenameLocation
 
-  func absolutePosition(of renameLocation: RenameLocation) -> AbsolutePosition? {
+  /// Converts the given UTF-8-based line:column `RenamedLocation` to a UTF-8-offset-based `AbsolutePosition`.
+  ///
+  /// If the UTF-8 based line:column pair does not refer to a valid position within the snapshot, returns `nil` and
+  /// logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  func absolutePosition(
+    of renameLocation: RenameLocation,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> AbsolutePosition? {
     guard
-      let utf8Offset = lineTable.utf8OffsetOf(line: renameLocation.line - 1, utf8Column: renameLocation.utf8Column - 1)
+      let utf8Offset = lineTable.utf8OffsetOf(
+        line: renameLocation.line - 1,
+        utf8Column: renameLocation.utf8Column - 1,
+        callerFile: callerFile,
+        callerLine: callerLine
+      )
     else {
       return nil
     }

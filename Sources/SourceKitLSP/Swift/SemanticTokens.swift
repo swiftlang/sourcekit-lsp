@@ -55,7 +55,7 @@ extension SwiftLanguageService {
     let semanticTokens = await orLog("Loading semantic tokens") { try await semanticHighlightingTokens(for: snapshot) }
 
     let range =
-      if let range = range.flatMap({ $0.byteSourceRange(in: snapshot) }) {
+      if let range = range.flatMap({ snapshot.byteSourceRange(of: $0) }) {
         range
       } else {
         ByteSourceRange(offset: 0, length: await tree.totalLength.utf8Length)
@@ -98,12 +98,6 @@ extension SwiftLanguageService {
     let encodedTokens = tokens.lspEncoded
 
     return DocumentSemanticTokensResponse(data: encodedTokens)
-  }
-}
-
-extension Range where Bound == Position {
-  fileprivate func byteSourceRange(in snapshot: DocumentSnapshot) -> ByteSourceRange? {
-    return snapshot.utf8OffsetRange(of: self).map({ ByteSourceRange(offset: $0.startIndex, length: $0.count) })
   }
 }
 

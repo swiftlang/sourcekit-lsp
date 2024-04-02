@@ -123,9 +123,6 @@ private final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
         return nil
       }
       guard let position = snapshot.position(of: function.name.positionAfterSkippingLeadingTrivia) else {
-        logger.fault(
-          "Failed to convert offset \(function.name.positionAfterSkippingLeadingTrivia.utf8Offset) to UTF-16-based position"
-        )
         return nil
       }
       let symbolInformation = SymbolInformation(
@@ -158,9 +155,6 @@ private final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
       return .visitChildren
     }
     guard let position = snapshot.position(of: node.name.positionAfterSkippingLeadingTrivia) else {
-      logger.fault(
-        "Failed to convert offset \(node.name.positionAfterSkippingLeadingTrivia.utf8Offset) to UTF-16-based position"
-      )
       return .visitChildren
     }
     let testClassSymbolInformation = SymbolInformation(
