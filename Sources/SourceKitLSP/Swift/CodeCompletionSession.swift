@@ -294,16 +294,14 @@ class CodeCompletionSession {
       return nil
     }
 
-    let indentationOfLine = snapshot.lineTable[requestPosition.line].prefix(while: { $0.isWhitespace })
-
     let strippedPrefix: String
     let exprToExpand: String
     if insertText.starts(with: "?.") {
       strippedPrefix = "?."
-      exprToExpand = indentationOfLine + String(insertText.dropFirst(2))
+      exprToExpand = String(insertText.dropFirst(2))
     } else {
       strippedPrefix = ""
-      exprToExpand = indentationOfLine + insertText
+      exprToExpand = insertText
     }
 
     var parser = Parser(exprToExpand)
@@ -325,7 +323,7 @@ class CodeCompletionSession {
     // Add any part of the expression that didn't end up being part of the function call
     expandedBytes += bytesToExpand[0..<call.position.utf8Offset]
     // Add the expanded function call excluding the added `indentationOfLine`
-    expandedBytes += expandedCall.syntaxTextBytes[indentationOfLine.utf8.count...]
+    expandedBytes += expandedCall.syntaxTextBytes
     // Add any trailing text that didn't end up being part of the function call
     expandedBytes += bytesToExpand[call.endPosition.utf8Offset...]
     return String(bytes: expandedBytes, encoding: .utf8)
