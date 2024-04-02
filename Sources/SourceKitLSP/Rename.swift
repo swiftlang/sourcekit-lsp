@@ -927,8 +927,10 @@ extension SwiftLanguageService {
     return categorizedRanges.compactMap { SyntacticRenameName($0, in: snapshot, keys: keys, values: values) }
   }
 
-  /// If `position` is on an argument label or a parameter name, find the position of the function's base name.
-  private func findFunctionBaseNamePosition(of position: Position, in snapshot: DocumentSnapshot) async -> Position? {
+  /// If `position` is on an argument label or a parameter name, find the range from the function's base name to the
+  /// token that terminates the arguments or parameters of the function. Typically, this is the closing ')' but it can
+  /// also be a closing ']' for subscripts or the end of a trailing closure.
+  private func findFunctionLikeRange(of position: Position, in snapshot: DocumentSnapshot) async -> Range<Position>? {
     let tree = await self.syntaxTreeManager.syntaxTree(for: snapshot)
     guard let absolutePosition = snapshot.absolutePosition(of: position) else {
       return nil
@@ -939,22 +941,28 @@ extension SwiftLanguageService {
 
     // The node that contains the function's base name. This might be an expression like `self.doStuff`.
     // The start position of the last token in this node will be used as the base name position.
-    var baseNode: Syntax? = nil
+    var startToken: TokenSyntax? = nil
+    var endToken: TokenSyntax? = nil
 
     switch token.keyPathInParent {
     case \LabeledExprSyntax.label:
       let callLike = token.parent(as: LabeledExprSyntax.self)?.parent(as: LabeledExprListSyntax.self)?.parent
       switch callLike?.as(SyntaxEnum.self) {
       case .attribute(let attribute):
-        baseNode = Syntax(attribute.attributeName)
+        startToken = attribute.attributeName.lastToken(viewMode: .sourceAccurate)
+        endToken = attribute.lastToken(viewMode: .sourceAccurate)
       case .functionCallExpr(let functionCall):
-        baseNode = Syntax(functionCall.calledExpression)
+        startToken = functionCall.calledExpression.lastToken(viewMode: .sourceAccurate)
+        endToken = functionCall.lastToken(viewMode: .sourceAccurate)
       case .macroExpansionDecl(let macroExpansionDecl):
-        baseNode = Syntax(macroExpansionDecl.macroName)
+        startToken = macroExpansionDecl.macroName
+        endToken = macroExpansionDecl.lastToken(viewMode: .sourceAccurate)
       case .macroExpansionExpr(let macroExpansionExpr):
-        baseNode = Syntax(macroExpansionExpr.macroName)
+        startToken = macroExpansionExpr.macroName
+        endToken = macroExpansionExpr.lastToken(viewMode: .sourceAccurate)
       case .subscriptCallExpr(let subscriptCall):
-        baseNode = Syntax(subscriptCall.leftSquare)
+        startToken = subscriptCall.leftSquare
+        endToken = subscriptCall.lastToken(viewMode: .sourceAccurate)
       default:
         break
       }
@@ -967,16 +975,20 @@ extension SwiftLanguageService {
       if let functionSignature = parameterClause?.parent(as: FunctionSignatureSyntax.self) {
         switch functionSignature.parent?.as(SyntaxEnum.self) {
         case .functionDecl(let functionDecl):
-          baseNode = Syntax(functionDecl.name)
+          startToken = functionDecl.name
+          endToken = functionSignature.parameterClause.rightParen
         case .initializerDecl(let initializerDecl):
-          baseNode = Syntax(initializerDecl.initKeyword)
+          startToken = initializerDecl.initKeyword
+          endToken = functionSignature.parameterClause.rightParen
         case .macroDecl(let macroDecl):
-          baseNode = Syntax(macroDecl.name)
+          startToken = macroDecl.name
+          endToken = functionSignature.parameterClause.rightParen
         default:
           break
         }
       } else if let subscriptDecl = parameterClause?.parent(as: SubscriptDeclSyntax.self) {
-        baseNode = Syntax(subscriptDecl.subscriptKeyword)
+        startToken = subscriptDecl.subscriptKeyword
+        endToken = subscriptDecl.parameterClause.rightParen
       }
     case \DeclNameArgumentSyntax.name:
       let declReference =
@@ -985,21 +997,24 @@ extension SwiftLanguageService {
         .parent(as: DeclNameArgumentListSyntax.self)?
         .parent(as: DeclNameArgumentsSyntax.self)?
         .parent(as: DeclReferenceExprSyntax.self)
-      baseNode = Syntax(declReference?.baseName)
+      startToken = declReference?.baseName
+      endToken = declReference?.argumentNames?.rightParen
     default:
       break
     }
 
-    if let lastToken = baseNode?.lastToken(viewMode: .sourceAccurate),
-      let position = snapshot.position(of: lastToken.positionAfterSkippingLeadingTrivia)
+    if let startToken, let endToken,
+      let startPosition = snapshot.position(of: startToken.positionAfterSkippingLeadingTrivia),
+      let endPosition = snapshot.position(of: endToken.endPositionBeforeTrailingTrivia)
     {
-      return position
+      return startPosition..<endPosition
     }
     return nil
   }
 
   /// When the user requested a rename at `position` in `snapshot`, determine the position at which the rename should be
-  /// performed internally and USR of the symbol to rename.
+  /// performed internally, the USR of the symbol to rename and the range to rename that should be returned to the
+  /// editor.
   ///
   /// This is necessary to adjust the rename position when renaming function parameters. For example when invoking
   /// rename on `x` in `foo(x:)`, we need to perform a rename of `foo` in sourcekitd so that we can rename the function
@@ -1010,41 +1025,49 @@ extension SwiftLanguageService {
   /// file. In this case, there is no base name that refers to the initializer of `MyStruct`. When `position` is `nil`
   /// a pure index-based rename from the usr USR or `symbolDetails` needs to be performed and no `relatedIdentifiers`
   /// request can be used to rename symbols in the current file.
+  ///
+  /// `position` might be at a different location in the source file than where the user initiated the rename.
+  /// For example, `position` could point to the definition of a function within the file when rename was initiated on
+  /// a call.
+  ///
+  /// If a `range` is returned, this is an expanded range that contains both the symbol to rename as well as the
+  /// position at which the rename was requested. For example, when rename was initiated from the argument label of a
+  /// function call, the `range` will contain the entire function call from the base name to the closing `)`.
   func symbolToRename(
     at position: Position,
     in snapshot: DocumentSnapshot
-  ) async -> (position: Position?, usr: String?) {
+  ) async -> (position: Position?, usr: String?, functionLikeRange: Range<Position>?) {
     let symbolInfo = try? await self.symbolInfo(
       SymbolInfoRequest(textDocument: TextDocumentIdentifier(snapshot.uri), position: position)
     )
 
-    guard let baseNamePosition = await findFunctionBaseNamePosition(of: position, in: snapshot) else {
-      return (position, symbolInfo?.only?.usr)
+    guard let functionLikeRange = await findFunctionLikeRange(of: position, in: snapshot) else {
+      return (position, symbolInfo?.only?.usr, nil)
     }
     if let onlySymbol = symbolInfo?.only, onlySymbol.kind == .constructor {
       // We have a rename like `MyStruct(x: 1)`, invoked from `x`.
       if let bestLocalDeclaration = onlySymbol.bestLocalDeclaration, bestLocalDeclaration.uri == snapshot.uri {
         // If the initializer is declared within the same file, we can perform rename in the current file based on
         // the declaration's location.
-        return (bestLocalDeclaration.range.lowerBound, onlySymbol.usr)
+        return (bestLocalDeclaration.range.lowerBound, onlySymbol.usr, functionLikeRange)
       }
       // Otherwise, we don't have a reference to the base name of the initializer and we can't use related
       // identifiers to perform the rename.
       // Return `nil` for the position to perform a pure index-based rename.
-      return (nil, onlySymbol.usr)
+      return (nil, onlySymbol.usr, functionLikeRange)
     }
     // Adjust the symbol info to the symbol info of the base name.
     // This ensures that we get the symbol info of the function's base instead of the parameter.
     let baseNameSymbolInfo = try? await self.symbolInfo(
-      SymbolInfoRequest(textDocument: TextDocumentIdentifier(snapshot.uri), position: baseNamePosition)
+      SymbolInfoRequest(textDocument: TextDocumentIdentifier(snapshot.uri), position: functionLikeRange.lowerBound)
     )
-    return (baseNamePosition, baseNameSymbolInfo?.only?.usr)
+    return (functionLikeRange.lowerBound, baseNameSymbolInfo?.only?.usr, functionLikeRange)
   }
 
   public func rename(_ request: RenameRequest) async throws -> (edits: WorkspaceEdit, usr: String?) {
     let snapshot = try self.documentManager.latestSnapshot(request.textDocument.uri)
 
-    let (renamePosition, usr) = await symbolToRename(at: request.position, in: snapshot)
+    let (renamePosition, usr, _) = await symbolToRename(at: request.position, in: snapshot)
     guard let renamePosition else {
       return (edits: WorkspaceEdit(), usr: usr)
     }
@@ -1342,7 +1365,7 @@ extension SwiftLanguageService {
   ) async throws -> (prepareRename: PrepareRenameResponse, usr: String?)? {
     let snapshot = try self.documentManager.latestSnapshot(request.textDocument.uri)
 
-    let (renamePosition, usr) = await symbolToRename(at: request.position, in: snapshot)
+    let (renamePosition, usr, functionLikeRange) = await symbolToRename(at: request.position, in: snapshot)
     guard let renamePosition else {
       return nil
     }
@@ -1358,11 +1381,11 @@ extension SwiftLanguageService {
     if name.hasSuffix("()") {
       name = String(name.dropLast(2))
     }
-    guard let range = response.relatedIdentifiers.first(where: { $0.range.contains(renamePosition) })?.range
+    guard let relatedIdentRange = response.relatedIdentifiers.first(where: { $0.range.contains(renamePosition) })?.range
     else {
       return nil
     }
-    return (PrepareRenameResponse(range: range, placeholder: name), usr)
+    return (PrepareRenameResponse(range: functionLikeRange ?? relatedIdentRange, placeholder: name), usr)
   }
 }
 
