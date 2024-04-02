@@ -1037,12 +1037,13 @@ extension SwiftLanguageService {
     at position: Position,
     in snapshot: DocumentSnapshot
   ) async -> (position: Position?, usr: String?, functionLikeRange: Range<Position>?) {
+    let startOfIdentifierPosition = await adjustPositionToStartOfIdentifier(position, in: snapshot)
     let symbolInfo = try? await self.symbolInfo(
-      SymbolInfoRequest(textDocument: TextDocumentIdentifier(snapshot.uri), position: position)
+      SymbolInfoRequest(textDocument: TextDocumentIdentifier(snapshot.uri), position: startOfIdentifierPosition)
     )
 
-    guard let functionLikeRange = await findFunctionLikeRange(of: position, in: snapshot) else {
-      return (position, symbolInfo?.only?.usr, nil)
+    guard let functionLikeRange = await findFunctionLikeRange(of: startOfIdentifierPosition, in: snapshot) else {
+      return (startOfIdentifierPosition, symbolInfo?.only?.usr, nil)
     }
     if let onlySymbol = symbolInfo?.only, onlySymbol.kind == .constructor {
       // We have a rename like `MyStruct(x: 1)`, invoked from `x`.

@@ -51,8 +51,9 @@ func assertSingleFileRename(
     return
   }
   for marker in positions.allMarkers {
+    let position = positions[marker]
     let prepareRenameResponse = try await testClient.send(
-      PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions[marker])
+      PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: position)
     )
     if let prepareRenameResponse {
       XCTAssertEqual(
@@ -62,9 +63,11 @@ func assertSingleFileRename(
         file: file,
         line: line
       )
+      // VS Code considers the upper bound of a range as part of the identifier so both `contains` and equality in
+      // `upperBound` are fine.
       XCTAssert(
-        prepareRenameResponse.range.contains(positions[marker]),
-        "Prepare rename range \(prepareRenameResponse.range) does not contain rename position \(positions[marker])",
+        prepareRenameResponse.range.contains(position) || prepareRenameResponse.range.upperBound == position,
+        "Prepare rename range \(prepareRenameResponse.range) does not contain rename position \(position)",
         file: file,
         line: line
       )
