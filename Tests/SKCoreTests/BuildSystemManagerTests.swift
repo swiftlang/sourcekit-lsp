@@ -19,11 +19,11 @@ import XCTest
 
 final class BuildSystemManagerTests: XCTestCase {
 
-  func testMainFiles() async {
-    let a = DocumentURI(string: "bsm:a")
-    let b = DocumentURI(string: "bsm:b")
-    let c = DocumentURI(string: "bsm:c")
-    let d = DocumentURI(string: "bsm:d")
+  func testMainFiles() async throws {
+    let a = try DocumentURI(string: "bsm:a")
+    let b = try DocumentURI(string: "bsm:b")
+    let c = try DocumentURI(string: "bsm:c")
+    let d = try DocumentURI(string: "bsm:d")
 
     let mainFiles = ManualMainFilesProvider(
       [
@@ -88,7 +88,7 @@ final class BuildSystemManagerTests: XCTestCase {
   }
 
   func testSettingsMainFile() async throws {
-    let a = DocumentURI(string: "bsm:a.swift")
+    let a = try try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
@@ -111,7 +111,7 @@ final class BuildSystemManagerTests: XCTestCase {
   }
 
   func testSettingsMainFileInitialNil() async throws {
-    let a = DocumentURI(string: "bsm:a.swift")
+    let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
@@ -132,7 +132,7 @@ final class BuildSystemManagerTests: XCTestCase {
   }
 
   func testSettingsMainFileWithFallback() async throws {
-    let a = DocumentURI(string: "bsm:a.swift")
+    let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
     let bs = ManualBuildSystem()
     let fallback = FallbackBuildSystem(buildSetup: .default)
@@ -161,8 +161,8 @@ final class BuildSystemManagerTests: XCTestCase {
   }
 
   func testSettingsMainFileInitialIntersect() async throws {
-    let a = DocumentURI(string: "bsm:a.swift")
-    let b = DocumentURI(string: "bsm:b.swift")
+    let a = try DocumentURI(string: "bsm:a.swift")
+    let b = try DocumentURI(string: "bsm:b.swift")
     let mainFiles = ManualMainFilesProvider([a: [a], b: [b]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
@@ -201,8 +201,8 @@ final class BuildSystemManagerTests: XCTestCase {
   }
 
   func testSettingsMainFileUnchanged() async throws {
-    let a = DocumentURI(string: "bsm:a.swift")
-    let b = DocumentURI(string: "bsm:b.swift")
+    let a = try DocumentURI(string: "bsm:a.swift")
+    let b = try DocumentURI(string: "bsm:b.swift")
     let mainFiles = ManualMainFilesProvider([a: [a], b: [b]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
@@ -231,9 +231,9 @@ final class BuildSystemManagerTests: XCTestCase {
   }
 
   func testSettingsHeaderChangeMainFile() async throws {
-    let h = DocumentURI(string: "bsm:header.h")
-    let cpp1 = DocumentURI(string: "bsm:main.cpp")
-    let cpp2 = DocumentURI(string: "bsm:other.cpp")
+    let h = try DocumentURI(string: "bsm:header.h")
+    let cpp1 = try DocumentURI(string: "bsm:main.cpp")
+    let cpp2 = try DocumentURI(string: "bsm:other.cpp")
     let mainFiles = ManualMainFilesProvider(
       [
         h: [cpp1],
@@ -286,9 +286,9 @@ final class BuildSystemManagerTests: XCTestCase {
   }
 
   func testSettingsOneMainTwoHeader() async throws {
-    let h1 = DocumentURI(string: "bsm:header1.h")
-    let h2 = DocumentURI(string: "bsm:header2.h")
-    let cpp = DocumentURI(string: "bsm:main.cpp")
+    let h1 = try DocumentURI(string: "bsm:header1.h")
+    let h2 = try DocumentURI(string: "bsm:header2.h")
+    let cpp = try DocumentURI(string: "bsm:main.cpp")
     let mainFiles = ManualMainFilesProvider(
       [
         h1: [cpp],
@@ -333,9 +333,9 @@ final class BuildSystemManagerTests: XCTestCase {
   }
 
   func testSettingsChangedAfterUnregister() async throws {
-    let a = DocumentURI(string: "bsm:a.swift")
-    let b = DocumentURI(string: "bsm:b.swift")
-    let c = DocumentURI(string: "bsm:c.swift")
+    let a = try DocumentURI(string: "bsm:a.swift")
+    let b = try DocumentURI(string: "bsm:b.swift")
+    let c = try DocumentURI(string: "bsm:c.swift")
     let mainFiles = ManualMainFilesProvider([a: [a], b: [b], c: [c]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
@@ -376,7 +376,7 @@ final class BuildSystemManagerTests: XCTestCase {
   }
 
   func testDependenciesUpdated() async throws {
-    let a = DocumentURI(string: "bsm:a.swift")
+    let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
 
     let bs = ManualBuildSystem()

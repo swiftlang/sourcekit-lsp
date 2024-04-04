@@ -16,7 +16,7 @@ import XCTest
 
 final class CodingTests: XCTestCase {
 
-  func testValueCoding() {
+  func testValueCoding() throws {
     let url = URL(fileURLWithPath: "/foo.swift")
     let uri = DocumentURI(url)
     // The \\/\\/\\/ is escaping file:// + /foo.swift, which is silly but allowed by json.
@@ -252,7 +252,7 @@ final class CodingTests: XCTestCase {
     checkCoding(DiagnosticCode.string("hi"), json: "\"hi\"")
 
     checkCoding(
-      CodeDescription(href: DocumentURI(string: "file:///some/path")),
+      CodeDescription(href: try DocumentURI(string: "file:///some/path")),
       json: """
         {
           "href" : "file:\\/\\/\\/some\\/path"
@@ -816,7 +816,7 @@ final class CodingTests: XCTestCase {
     checkCoding(ProgressToken.string("foobar"), json: #""foobar""#)
   }
 
-  func testDocumentDiagnosticReport() {
+  func testDocumentDiagnosticReport() throws {
     checkCoding(
       DocumentDiagnosticReport.full(RelatedFullDocumentDiagnosticReport(items: [])),
       json: """
@@ -848,7 +848,7 @@ final class CodingTests: XCTestCase {
           resultId: "myResults",
           items: [],
           relatedDocuments: [
-            DocumentURI(string: "file:///some/path"): DocumentDiagnosticReport.unchanged(
+            try DocumentURI(string: "file:///some/path"): DocumentDiagnosticReport.unchanged(
               RelatedUnchangedDocumentDiagnosticReport(resultId: "myOtherResults")
             )
           ]
@@ -887,7 +887,7 @@ final class CodingTests: XCTestCase {
         RelatedUnchangedDocumentDiagnosticReport(
           resultId: "myResults",
           relatedDocuments: [
-            DocumentURI(string: "file:///some/path"): DocumentDiagnosticReport.unchanged(
+            try DocumentURI(string: "file:///some/path"): DocumentDiagnosticReport.unchanged(
               RelatedUnchangedDocumentDiagnosticReport(resultId: "myOtherResults")
             )
           ]
@@ -1033,10 +1033,10 @@ final class CodingTests: XCTestCase {
     )
   }
 
-  func testWorkspaceDocumentDiagnosticReport() {
+  func testWorkspaceDocumentDiagnosticReport() throws {
     checkCoding(
       WorkspaceDocumentDiagnosticReport.full(
-        WorkspaceFullDocumentDiagnosticReport(items: [], uri: DocumentURI(string: "file:///some/path"))
+        WorkspaceFullDocumentDiagnosticReport(items: [], uri: try DocumentURI(string: "file:///some/path"))
       ),
       json: #"""
         {
@@ -1051,7 +1051,10 @@ final class CodingTests: XCTestCase {
 
     checkCoding(
       WorkspaceDocumentDiagnosticReport.unchanged(
-        WorkspaceUnchangedDocumentDiagnosticReport(resultId: "myResults", uri: DocumentURI(string: "file:///some/path"))
+        WorkspaceUnchangedDocumentDiagnosticReport(
+          resultId: "myResults",
+          uri: try DocumentURI(string: "file:///some/path")
+        )
       ),
       json: #"""
         {
@@ -1063,14 +1066,14 @@ final class CodingTests: XCTestCase {
     )
   }
 
-  func testWorkspaceSymbolItem() {
+  func testWorkspaceSymbolItem() throws {
     checkCoding(
       WorkspaceSymbolItem.symbolInformation(
         SymbolInformation(
           name: "mySym",
           kind: .constant,
           location: Location(
-            uri: DocumentURI(string: "file:///some/path"),
+            uri: try DocumentURI(string: "file:///some/path"),
             range: Position(line: 3, utf16index: 14)..<Position(line: 4, utf16index: 3)
           )
         )
@@ -1101,7 +1104,9 @@ final class CodingTests: XCTestCase {
         WorkspaceSymbol(
           name: "mySym",
           kind: .boolean,
-          location: WorkspaceSymbol.WorkspaceSymbolLocation.uri(.init(uri: DocumentURI(string: "file:///some/path")))
+          location: WorkspaceSymbol.WorkspaceSymbolLocation.uri(
+            .init(uri: try DocumentURI(string: "file:///some/path"))
+          )
         )
       ),
       json: #"""
@@ -1116,9 +1121,9 @@ final class CodingTests: XCTestCase {
     )
   }
 
-  func testWorkspapceSymbolLocation() {
+  func testWorkspapceSymbolLocation() throws {
     checkCoding(
-      WorkspaceSymbol.WorkspaceSymbolLocation.uri(.init(uri: DocumentURI(string: "file:///some/path"))),
+      WorkspaceSymbol.WorkspaceSymbolLocation.uri(.init(uri: try DocumentURI(string: "file:///some/path"))),
       json: #"""
         {
           "uri" : "file:\/\/\/some\/path"
@@ -1129,7 +1134,7 @@ final class CodingTests: XCTestCase {
     checkCoding(
       WorkspaceSymbol.WorkspaceSymbolLocation.location(
         Location(
-          uri: DocumentURI(string: "file:///some/path"),
+          uri: try DocumentURI(string: "file:///some/path"),
           range: Position(line: 3, utf16index: 14)..<Position(line: 4, utf16index: 3)
         )
       ),

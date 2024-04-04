@@ -49,7 +49,7 @@ extension WorkspaceEdit: Codable {
     if let changesDict = try container.decodeIfPresent([String: [TextEdit]].self, forKey: .changes) {
       var changes = [DocumentURI: [TextEdit]]()
       for change in changesDict {
-        let uri = DocumentURI(string: change.key)
+        let uri = try DocumentURI(string: change.key)
         changes[uri] = change.value
       }
       self.changes = changes
@@ -311,8 +311,10 @@ extension WorkspaceEdit: LSPAnyCodable {
     }
     var dictionary = [DocumentURI: [TextEdit]]()
     for (key, value) in lspDict {
-      let uri = DocumentURI(string: key)
-      guard let edits = [TextEdit](fromLSPArray: value) else {
+      guard
+        let uri = try? DocumentURI(string: key),
+        let edits = [TextEdit](fromLSPArray: value)
+      else {
         return nil
       }
       dictionary[uri] = edits

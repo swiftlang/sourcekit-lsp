@@ -87,7 +87,7 @@ final class BuildServerBuildSystemTests: XCTestCase {
 
     let fileUrl = URL(fileURLWithPath: "/some/file/path")
     let expectation = XCTestExpectation(description: "target changed")
-    let targetIdentifier = BuildTargetIdentifier(uri: DocumentURI(string: "build://target/a"))
+    let targetIdentifier = BuildTargetIdentifier(uri: try DocumentURI(string: "build://target/a"))
     let buildSystemDelegate = TestDelegate(targetExpectations: [
       BuildTargetEvent(
         target: targetIdentifier,

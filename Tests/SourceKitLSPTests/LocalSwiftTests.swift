@@ -158,7 +158,7 @@ final class LocalSwiftTests: XCTestCase {
 
   func testEditingNonURL() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    let uri = DocumentURI(string: "urn:uuid:A1B08909-E791-469E-BF0F-F5790977E051")
+    let uri = try DocumentURI(string: "urn:uuid:A1B08909-E791-469E-BF0F-F5790977E051")
 
     let documentManager = await testClient.server._documentManager
 
@@ -285,7 +285,7 @@ final class LocalSwiftTests: XCTestCase {
     let includedURL = URL(fileURLWithPath: "/a.swift")
     let includedURI = DocumentURI(includedURL)
 
-    let excludedURI = DocumentURI(string: "git:/a.swift")
+    let excludedURI = try DocumentURI(string: "git:/a.swift")
 
     // Open the excluded URI first so our later notification handlers can confirm
     // that no diagnostics were emitted for this excluded URI.

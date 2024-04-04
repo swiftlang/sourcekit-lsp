@@ -2104,14 +2104,12 @@ extension SourceKitLSPServer {
   private nonisolated func extractCallHierarchyItemData(_ rawData: LSPAny?) -> (uri: DocumentURI, usr: String)? {
     guard case let .dictionary(data) = rawData,
       case let .string(uriString) = data["uri"],
-      case let .string(usr) = data["usr"]
+      case let .string(usr) = data["usr"],
+      let uri = orLog("DocumentURI for call hierarchy item", { try DocumentURI(string: uriString) })
     else {
       return nil
     }
-    return (
-      uri: DocumentURI(string: uriString),
-      usr: usr
-    )
+    return (uri: uri, usr: usr)
   }
 
   func incomingCalls(_ req: CallHierarchyIncomingCallsRequest) async throws -> [CallHierarchyIncomingCall]? {
@@ -2289,14 +2287,12 @@ extension SourceKitLSPServer {
   private nonisolated func extractTypeHierarchyItemData(_ rawData: LSPAny?) -> (uri: DocumentURI, usr: String)? {
     guard case let .dictionary(data) = rawData,
       case let .string(uriString) = data["uri"],
-      case let .string(usr) = data["usr"]
+      case let .string(usr) = data["usr"],
+      let uri = orLog("DocumentURI for type hierarchy item", { try DocumentURI(string: uriString) })
     else {
       return nil
     }
-    return (
-      uri: DocumentURI(string: uriString),
-      usr: usr
-    )
+    return (uri: uri, usr: usr)
   }
 
   func supertypes(_ req: TypeHierarchySupertypesRequest) async throws -> [TypeHierarchyItem]? {
