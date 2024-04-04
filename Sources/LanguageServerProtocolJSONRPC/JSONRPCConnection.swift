@@ -230,13 +230,13 @@ public final class JSONRPCConnection: Connection {
     }
   }
 
-  /// Send a notification to the client that informs the user about a message decoding error and tells them to file an
-  /// issue.
+  /// Send a notification to the client that informs the user about a message encoding or decoding error and asks them
+  /// to file an issue.
   ///
   /// `message` describes what has gone wrong to the user.
   ///
   /// - Important: Must be called on `queue`
-  private func sendMessageDecodingErrorNotificationToClient(message: String) {
+  private func sendMessageCodingErrorNotificationToClient(message: String) {
     dispatchPrecondition(condition: .onQueue(queue))
     let showMessage = ShowMessageNotification(
       type: .error,
@@ -302,7 +302,7 @@ public final class JSONRPCConnection: Connection {
         // That way the user at least knows that something is going wrong even if the client never gets a response
         // for the request.
         logger.fault("Ignoring request because we failed to decode the request and don't have a request ID")
-        sendMessageDecodingErrorNotificationToClient(message: "sourcekit-lsp failed to decode a request")
+        sendMessageCodingErrorNotificationToClient(message: "sourcekit-lsp failed to decode a request")
         return nil
       case .response:
         if let id = error.id {
@@ -338,19 +338,19 @@ public final class JSONRPCConnection: Connection {
         // `textDocument/didChange` will result in an out-of-sync state between the editor and sourcekit-lsp.
         // Warn the user about the error.
         logger.fault("Ignoring notification that may cause corrupted behavior")
-        sendMessageDecodingErrorNotificationToClient(message: "sourcekit-lsp failed to decode a notification")
+        sendMessageCodingErrorNotificationToClient(message: "sourcekit-lsp failed to decode a notification")
         return nil
       case .unknown:
         // We don't know what has gone wrong. This could be any level of badness. Inform the user about it.
         logger.fault("Ignoring unknown message")
-        sendMessageDecodingErrorNotificationToClient(message: "sourcekit-lsp failed to decode a message")
+        sendMessageCodingErrorNotificationToClient(message: "sourcekit-lsp failed to decode a message")
         return nil
       }
     } catch {
       // We don't know what has gone wrong. This could be any level of badness. Inform the user about it and ignore the
       // message.
       logger.fault("Ignoring unknown message")
-      sendMessageDecodingErrorNotificationToClient(message: "sourcekit-lsp failed to decode an unknown message")
+      sendMessageCodingErrorNotificationToClient(message: "sourcekit-lsp failed to decode an unknown message")
       return nil
     }
   }
@@ -391,7 +391,7 @@ public final class JSONRPCConnection: Connection {
         // We failed to parse the message header. There isn't really much we can do to recover because we lost our
         // anchor in the stream where new messages start. Crashing and letting ourselves be restarted by the client is
         // probably the best option.
-        sendMessageDecodingErrorNotificationToClient(message: "Failed to find next message in connection to editor")
+        sendMessageCodingErrorNotificationToClient(message: "Failed to find next message in connection to editor")
         fatalError("fatal error encountered while splitting JSON RPC messages \(error)")
       }
 
@@ -481,8 +481,40 @@ public final class JSONRPCConnection: Connection {
     do {
       data = try encoder.encode(message)
     } catch {
-      // FIXME: attempt recovery?
-      fatalError("unexpected error while encoding response: \(error)")
+      logger.fault("Failed to encode message: \(error.forLogging)")
+      logger.fault("Malformed message: \(String(describing: message))")
+      switch message {
+      case .notification(_):
+        // We want to send a notification to the editor but failed to encode it. Since dropping the notification might
+        // result in getting out-of-sync state-wise with the editor (eg. for work progress notifications), inform the
+        // user about it.
+        sendMessageCodingErrorNotificationToClient(
+          message: "sourcekit-lsp failed to encode a notification to the editor"
+        )
+        return
+      case .request(_, _):
+        // We want to send a notification to the editor but failed to encode it. We don't know the `reply` handle for
+        // the request at this point so we can't synthesize an errorResponse for the request. This means that the
+        // request will never receive a reply. Inform the user about it.
+        sendMessageCodingErrorNotificationToClient(
+          message: "sourcekit-lsp failed to encode a request to the editor"
+        )
+        return
+      case .response(_, _):
+        // The editor sent a request to sourcekit-lsp, which failed but we can't serialize the result back to the
+        // client. This means that the request will never receive a reply. Inform the user about it and accept that
+        // we'll never send a reply.
+        sendMessageCodingErrorNotificationToClient(
+          message: "sourcekit-lsp failed to encode a response to the editor"
+        )
+        return
+      case .errorResponse(_, _):
+        // Same as `.response`. Has an optional `id`, so can't share the case.
+        sendMessageCodingErrorNotificationToClient(
+          message: "sourcekit-lsp failed to encode an error response to the editor"
+        )
+        return
+      }
     }
 
     var dispatchData = DispatchData.empty
