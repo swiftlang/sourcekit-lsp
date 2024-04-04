@@ -196,7 +196,10 @@ fileprivate class SourceReducer {
 
   /// Replace the first `import` declaration in the source file by the contents of the Swift interface.
   private func inlineFirstImport(_ requestInfo: RequestInfo) async throws -> RequestInfo? {
-    let reductionResult = try await runReductionStep(requestInfo: requestInfo) { tree in
+    // Don't report progress after inlining an import because it might increase the file size before we have a chance
+    // to increase `fileSizeAfterLastImportInline`. Progress will get updated again on the next successful reduction
+    // step.
+    let reductionResult = try await runReductionStep(requestInfo: requestInfo, reportProgress: false) { tree in
       let edits = await Diagnose.inlineFirstImport(
         in: tree,
         executor: sourcekitdExecutor,
@@ -216,15 +219,22 @@ fileprivate class SourceReducer {
   // MARK: Primitives to run reduction steps
 
   private func logSuccessfulReduction(_ requestInfo: RequestInfo, tree: SourceFileSyntax) {
-    let numberOfImports = tree.numberOfImports
+    // The number of imports can grow if inlining a single module adds more than 1 new import.
+    // To keep progress between 0 and 1, clamp the number of imports to the initial import count.
+    let numberOfImports = min(tree.numberOfImports, initialImportCount)
     let fileSize = requestInfo.fileContents.utf8.count
 
     let progressPerRemovedImport = Double(1) / Double(initialImportCount + 1)
     let removeImportProgress = Double(initialImportCount - numberOfImports) * progressPerRemovedImport
     let fileReductionProgress =
       (1 - Double(fileSize) / Double(fileSizeAfterLastImportInline)) * progressPerRemovedImport
-    let progress = removeImportProgress + fileReductionProgress
-    precondition(progress >= 0 && progress <= 1)
+    var progress = removeImportProgress + fileReductionProgress
+    if progress < 0 || progress > 1 {
+      logger.fault(
+        "Trying to report progress \(progress) from remove import progress \(removeImportProgress) and file reduction progress \(fileReductionProgress)"
+      )
+      progress = max(min(progress, 1), 0)
+    }
     progressUpdate(progress, "Reduced to \(numberOfImports) imports and \(fileSize) bytes")
   }
 
@@ -234,6 +244,7 @@ fileprivate class SourceReducer {
   /// Otherwise, return `nil`
   private func runReductionStep(
     requestInfo: RequestInfo,
+    reportProgress: Bool = true,
     reduce: (_ tree: SourceFileSyntax) async throws -> ReducerResult
   ) async throws -> ReductionStepResult {
     let tree = Parser.parse(source: requestInfo.fileContents)
@@ -263,7 +274,9 @@ fileprivate class SourceReducer {
     let result = try await sourcekitdExecutor.run(request: reducedRequestInfo)
     if case .reproducesIssue = result {
       logger.debug("Reduction successful")
-      logSuccessfulReduction(reducedRequestInfo, tree: tree)
+      if reportProgress {
+        logSuccessfulReduction(reducedRequestInfo, tree: tree)
+      }
       return .reduced(reducedRequestInfo)
     } else {
       logger.debug("Reduction did not reproduce the issue")
