@@ -105,9 +105,11 @@ private func edits(from original: DocumentSnapshot, to edited: String) -> [TextE
   let sequentialEdits = difference.map { change in
     switch change {
     case .insert(offset: let offset, element: let element, associatedWith: _):
-      IncrementalEdit(offset: offset, length: 0, replacement: [element])
+      let absolutePosition = AbsolutePosition(utf8Offset: offset)
+      return IncrementalEdit(range: absolutePosition..<absolutePosition, replacement: [element])
     case .remove(offset: let offset, element: _, associatedWith: _):
-      IncrementalEdit(offset: offset, length: 1, replacement: [])
+      let absolutePosition = AbsolutePosition(utf8Offset: offset)
+      return IncrementalEdit(range: absolutePosition..<absolutePosition.advanced(by: 1), replacement: [])
     }
   }
 
