@@ -198,9 +198,6 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
     guard let start: Position = snapshot.positionOf(utf8Offset: start.utf8Offset),
       let end: Position = snapshot.positionOf(utf8Offset: end.utf8Offset)
     else {
-      logger.error(
-        "folding range failed to retrieve position of \(self.snapshot.uri.forLogging): \(start.utf8Offset)-\(end.utf8Offset)"
-      )
       return .visitChildren
     }
     let range: FoldingRange

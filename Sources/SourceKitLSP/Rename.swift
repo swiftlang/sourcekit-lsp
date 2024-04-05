@@ -266,9 +266,24 @@ fileprivate struct SyntacticRenameName {
 }
 
 private extension LineTable {
-  subscript(range: Range<Position>) -> Substring? {
-    guard let start = self.stringIndexOf(line: range.lowerBound.line, utf16Column: range.lowerBound.utf16index),
-      let end = self.stringIndexOf(line: range.upperBound.line, utf16Column: range.upperBound.utf16index)
+  /// Returns the string in the source file that's with the given position range.
+  ///
+  /// If either the lower or upper bound of `range` do not refer to valid positions with in the snapshot, returns
+  /// `nil` and logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
+  subscript(range: Range<Position>, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> Substring? {
+    guard
+      let start = self.stringIndexOf(
+        line: range.lowerBound.line,
+        utf16Column: range.lowerBound.utf16index,
+        callerFile: callerFile,
+        callerLine: callerLine
+      ),
+      let end = self.stringIndexOf(
+        line: range.upperBound.line,
+        utf16Column: range.upperBound.utf16index,
+        callerFile: callerFile,
+        callerLine: callerLine
+      )
     else {
       return nil
     }
@@ -1116,7 +1131,6 @@ extension SwiftLanguageService {
     newName: CrossLanguageName
   ) async -> [TextEdit] {
     guard let position = snapshot.absolutePosition(of: renameLocation) else {
-      logger.fault("Failed to convert \(renameLocation.line):\(renameLocation.utf8Column) to AbsolutePosition")
       return []
     }
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
@@ -1179,7 +1193,6 @@ extension SwiftLanguageService {
       )
 
       guard let parameterPosition = snapshot.position(of: parameter.positionAfterSkippingLeadingTrivia) else {
-        logger.fault("Failed to convert position of \(parameter.firstName.text) to line-column")
         continue
       }
 
@@ -1471,7 +1484,6 @@ fileprivate extension RelatedIdentifiersResponse {
       let position = relatedIdentifier.range.lowerBound
       guard let utf8Column = snapshot.lineTable.utf8ColumnAt(line: position.line, utf16Column: position.utf16index)
       else {
-        logger.fault("Unable to find UTF-8 column for \(position.description, privacy: .public)")
         return nil
       }
       return RenameLocation(line: position.line + 1, utf8Column: utf8Column + 1, usage: relatedIdentifier.usage)

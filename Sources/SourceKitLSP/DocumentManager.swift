@@ -57,10 +57,6 @@ public struct DocumentSnapshot: Identifiable {
     self.language = language
     self.lineTable = lineTable
   }
-
-  func index(of pos: Position) -> String.Index? {
-    return lineTable.stringIndexOf(line: pos.line, utf16Column: pos.utf16index)
-  }
 }
 
 public final class Document {
