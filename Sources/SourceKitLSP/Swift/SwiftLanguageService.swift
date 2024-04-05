@@ -736,7 +736,7 @@ extension SwiftLanguageService {
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     let scope = try CodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, parameters: params)
-    return await allCodeActions.concurrentMap { provider in
+    return await allLocalCodeActions.concurrentMap { provider in
       return provider.provideAssistance(in: scope).map {
         let edit = WorkspaceEdit(changes: [
           uri: $0.edits.map { $0.asEdit(in: scope) },
