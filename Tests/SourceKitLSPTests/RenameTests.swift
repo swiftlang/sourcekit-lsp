@@ -18,8 +18,8 @@ final class RenameTests: XCTestCase {
   func testRenameVariableBaseName() async throws {
     try await assertSingleFileRename(
       """
-      let 1️⃣foo = 1
-      print(2️⃣foo)
+      let 1️⃣foo2️⃣ = 1
+      print(3️⃣foo4️⃣)
       """,
       newName: "bar",
       expectedPrepareRenamePlaceholder: "foo",
