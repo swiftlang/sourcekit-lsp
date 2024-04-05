@@ -107,14 +107,7 @@ extension SyntaxClassifiedRange {
       return SyntaxHighlightingTokens(tokens: [])
     }
 
-    guard
-      let start: Position = snapshot.positionOf(utf8Offset: self.offset),
-      let end: Position = snapshot.positionOf(utf8Offset: self.endOffset)
-    else {
-      return SyntaxHighlightingTokens(tokens: [])
-    }
-
-    let multiLineRange = start..<end
+    let multiLineRange = snapshot.positionOf(utf8Offset: self.offset)..<snapshot.positionOf(utf8Offset: self.endOffset)
     let ranges = multiLineRange.splitToSingleLineRanges(in: snapshot)
 
     let tokens = ranges.map {

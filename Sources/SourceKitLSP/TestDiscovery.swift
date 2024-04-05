@@ -105,10 +105,8 @@ extension SourceKitLSPServer {
       let symbolPosition: Position
       if let snapshot = try? documentManager.latestSnapshot(
         DocumentURI(URL(fileURLWithPath: testSymbolOccurrence.location.path))
-      ),
-        let position = snapshot.position(of: testSymbolOccurrence.location)
-      {
-        symbolPosition = position
+      ) {
+        symbolPosition = snapshot.position(of: testSymbolOccurrence.location)
       } else {
         // Technically, we always need to convert UTF-8 columns to UTF-16 columns, which requires reading the file.
         // In practice, they are almost always the same.
@@ -256,13 +254,10 @@ private final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
         // declarations are probably less common than helper functions that start with `test` and have a return type.
         return nil
       }
-      guard
-        let range = snapshot.range(
-          of: function.positionAfterSkippingLeadingTrivia..<function.endPositionBeforeTrailingTrivia
-        )
-      else {
-        return nil
-      }
+      let range = snapshot.range(
+        of: function.positionAfterSkippingLeadingTrivia..<function.endPositionBeforeTrailingTrivia
+      )
+
       return TestItem(
         id: "\(containerName)/\(function.name.text)()",
         label: "\(function.name.text)()",
@@ -292,10 +287,7 @@ private final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
       // Don't report a test class if it doesn't contain any test methods.
       return .visitChildren
     }
-    guard let range = snapshot.range(of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia)
-    else {
-      return .visitChildren
-    }
+    let range = snapshot.range(of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia)
     let testItem = TestItem(
       id: node.name.text,
       label: node.name.text,

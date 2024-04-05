@@ -132,9 +132,7 @@ extension SwiftLanguageService {
   ) async throws -> (cursorInfo: [CursorInfo], refactorActions: [SemanticRefactorCommand]) {
     let snapshot = try documentManager.latestSnapshot(uri)
 
-    guard let offsetRange = snapshot.utf8OffsetRange(of: range) else {
-      throw CursorInfoError.invalidRange(range)
-    }
+    let offsetRange = snapshot.utf8OffsetRange(of: range)
 
     let keys = self.keys
 
