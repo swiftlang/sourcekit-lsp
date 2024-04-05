@@ -54,13 +54,23 @@ func assertSingleFileRename(
     let prepareRenameResponse = try await testClient.send(
       PrepareRenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions[marker])
     )
-    XCTAssertEqual(
-      prepareRenameResponse?.placeholder,
-      expectedPrepareRenamePlaceholder,
-      "Prepare rename placeholder does not match while performing rename at \(marker)",
-      file: file,
-      line: line
-    )
+    if let prepareRenameResponse {
+      XCTAssertEqual(
+        prepareRenameResponse.placeholder,
+        expectedPrepareRenamePlaceholder,
+        "Prepare rename placeholder does not match while performing rename at \(marker)",
+        file: file,
+        line: line
+      )
+      XCTAssert(
+        prepareRenameResponse.range.contains(positions[marker]),
+        "Prepare rename range \(prepareRenameResponse.range) does not contain rename position \(positions[marker])",
+        file: file,
+        line: line
+      )
+    } else {
+      XCTFail("Expected non-nil prepareRename response", file: file, line: line)
+    }
 
     let response = try await testClient.send(
       RenameRequest(
