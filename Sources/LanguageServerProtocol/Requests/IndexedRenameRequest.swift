@@ -72,7 +72,9 @@ extension IndexedRenameRequest: Codable {
     )
     self.oldName = try container.decode(String.self, forKey: IndexedRenameRequest.CodingKeys.oldName)
     self.newName = try container.decode(String.self, forKey: IndexedRenameRequest.CodingKeys.newName)
-    self.positions = try container.decode([String: [Position]].self, forKey: .positions).mapKeys(DocumentURI.init)
+    self.positions = try container.decode([String: [Position]].self, forKey: .positions).compactMapKeys {
+      try? DocumentURI(string: $0)
+    }
   }
 
   public func encode(to encoder: Encoder) throws {
@@ -81,13 +83,22 @@ extension IndexedRenameRequest: Codable {
     try container.encode(self.textDocument, forKey: IndexedRenameRequest.CodingKeys.textDocument)
     try container.encode(self.oldName, forKey: IndexedRenameRequest.CodingKeys.oldName)
     try container.encode(self.newName, forKey: IndexedRenameRequest.CodingKeys.newName)
-    try container.encode(self.positions.mapKeys(\.stringValue), forKey: IndexedRenameRequest.CodingKeys.positions)
+    try container.encode(
+      self.positions.compactMapKeys { $0.stringValue },
+      forKey: IndexedRenameRequest.CodingKeys.positions
+    )
 
   }
 }
 
 fileprivate extension Dictionary {
-  func mapKeys<NewKeyType: Hashable>(_ transform: (Key) -> NewKeyType) -> [NewKeyType: Value] {
-    return [NewKeyType: Value](uniqueKeysWithValues: self.map { (transform($0.key), $0.value) })
+  func compactMapKeys<NewKeyType: Hashable>(_ transform: (Key) -> NewKeyType?) -> [NewKeyType: Value] {
+    let newKeysAndValues = self.compactMap { (key, value) -> (NewKeyType, Value)? in
+      guard let newKey = transform(key) else {
+        return nil
+      }
+      return (newKey, value)
+    }
+    return [NewKeyType: Value](uniqueKeysWithValues: newKeysAndValues)
   }
 }

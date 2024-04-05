@@ -26,7 +26,10 @@ extension TextDocumentIdentifier: LSPAnyCodable {
     guard case .string(let uriString)? = dictionary[CodingKeys.uri.stringValue] else {
       return nil
     }
-    self.uri = DocumentURI(string: uriString)
+    guard let uri = try? DocumentURI(string: uriString) else {
+      return nil
+    }
+    self.uri = uri
   }
 
   public func encodeToLSPAny() -> LSPAny {

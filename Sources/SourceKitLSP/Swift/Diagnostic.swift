@@ -110,7 +110,8 @@ extension CodeAction {
     case (true, false):
       return "Insert '\(newText)'"
     case (true, true):
-      preconditionFailure("FixIt makes no changes")
+      logger.fault("Both oldText and newText of FixIt are empty")
+      return "Fix"
     }
   }
 }
