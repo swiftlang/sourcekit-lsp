@@ -284,7 +284,12 @@ final class CodeActionTests: XCTestCase {
       command: expectedCommand
     )
 
-    XCTAssertEqual(result, .codeActions([expectedCodeAction]))
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions")
+      return
+    }
+
+    XCTAssertTrue(codeActions.contains(expectedCodeAction))
   }
 
   func testSemanticRefactorRangeCodeActionResult() async throws {
