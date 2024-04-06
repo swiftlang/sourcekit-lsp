@@ -64,9 +64,9 @@ public struct ConvertJSONToCodableStructRefactor: SyntaxRefactoringProvider {
     var text = ""
     switch unexpected {
     case let .closure(closure):
-      closure.write(to: &text)
+      closure.trimmed.write(to: &text)
     case let .tail(closure, unexpected):
-      closure.write(to: &text)
+      closure.trimmed.write(to: &text)
       unexpected.write(to: &text)
     }
     guard
