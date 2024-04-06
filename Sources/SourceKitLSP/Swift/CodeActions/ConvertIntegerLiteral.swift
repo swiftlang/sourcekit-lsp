@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SwiftSyntax
 import LanguageServerProtocol
 import SwiftRefactor
+import SwiftSyntax
 
 // TODO: Make the type IntegerLiteralExprSyntax.Radix conform to CaseEnumerable
 // in swift-syntax.
@@ -55,9 +55,11 @@ public struct ConvertIntegerLiteral: CodeActionProvider {
 
       let convertedValue: ExprSyntax =
         "\(raw: prefix)\(raw: String(integerValue, radix: radix.size))"
-      actions.append(ProvidedAction(title: "Convert \(lit) to \(convertedValue)") {
-        Replace(lit, with: convertedValue)
-      })
+      actions.append(
+        ProvidedAction(title: "Convert \(lit) to \(convertedValue)") {
+          Replace(lit, with: convertedValue)
+        }
+      )
     }
 
     return actions

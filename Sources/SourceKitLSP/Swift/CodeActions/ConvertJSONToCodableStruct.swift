@@ -11,9 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import SwiftSyntax
-import SwiftRefactor
 import LanguageServerProtocol
+import SwiftRefactor
+import SwiftSyntax
 
 /// Convert JSON literals into corresponding Swift structs that conform to the
 /// `Codable` protocol.
@@ -86,15 +86,13 @@ extension ConvertJSONToCodableStructRefactor {
     case tail(ClosureExprSyntax, UnexpectedNodesSyntax)
   }
   public static func preflightRefactoring(_ closure: ClosureExprSyntax) -> Preflight? {
-    if
-      let file = closure.parent?.parent?.parent?.as(SourceFileSyntax.self),
+    if let file = closure.parent?.parent?.parent?.as(SourceFileSyntax.self),
       let unexpected = file.unexpectedBetweenStatementsAndEndOfFileToken
     {
       return .tail(closure, unexpected)
     }
 
-    if
-      closure.hasError,
+    if closure.hasError,
       closure.unexpectedBetweenStatementsAndRightBrace != nil
     {
       return .closure(closure)
@@ -148,8 +146,7 @@ extension ConvertJSONToCodableStructRefactor {
       let type = self.jsonType(of: value, suggestion: key)
       if case let .object(name) = type, let subObject = value as? Dictionary<String, Any> {
         addNestedType(name, object: subObject)
-      } else if
-        case let .array(innerType) = type,
+      } else if case let .array(innerType) = type,
         let array = value as? [Any],
         let (nesting, elementType) = innerType.outermostObject
       {
@@ -251,7 +248,7 @@ extension Array where Element == Any {
 
 public struct ConvertJSONToCodableStruct: CodeActionProvider {
   public static var kind: CodeActionKind { .refactorRewrite }
-  
+
   public static func provideAssistance(in scope: CodeActionScope) -> [ProvidedAction] {
     guard
       let token = scope.file.token(at: scope.range.offset),

@@ -10,10 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-import LanguageServerProtocol
-import SwiftSyntax
 import LSPLogging
+import LanguageServerProtocol
 import SwiftRefactor
+import SwiftSyntax
 
 public protocol CodeActionProvider {
   static var kind: CodeActionKind { get }
@@ -67,7 +67,9 @@ extension ByteSourceRange {
 
 extension SyntaxProtocol {
   var textRange: ByteSourceRange {
-    return ByteSourceRange(offset: self.positionAfterSkippingLeadingTrivia.utf8Offset,
-                           length: self.trimmedLength.utf8Length)
+    return ByteSourceRange(
+      offset: self.positionAfterSkippingLeadingTrivia.utf8Offset,
+      length: self.trimmedLength.utf8Length
+    )
   }
 }

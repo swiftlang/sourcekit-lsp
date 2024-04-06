@@ -10,9 +10,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-import SwiftSyntax
 import LanguageServerProtocol
 import SwiftRefactor
+import SwiftSyntax
 
 ///
 ///
@@ -44,7 +44,7 @@ struct Demorgan: CodeActionProvider {
       return []
     }
 
-    var workList = [ op ]
+    var workList = [op]
     var terms = [ExprSyntax]()
     var operatorRanges = [ByteSourceRange]()
 
@@ -63,7 +63,6 @@ struct Demorgan: CodeActionProvider {
           terms.append(expr)
           return
         }
-
 
         if logicalOp == childLogicalOp {
           workList.append(binOp)
@@ -113,8 +112,7 @@ extension ExprSyntax {
       }
     } else if let prefixOp = self.as(PrefixOperatorExprSyntax.self) {
       if prefixOp.operator.text == "!" {
-        if
-          let parens = prefixOp.expression.as(TupleExprSyntax.self),
+        if let parens = prefixOp.expression.as(TupleExprSyntax.self),
           parens.elements.count == 1,
           let first = parens.elements.first,
           first.label == nil
@@ -129,26 +127,35 @@ extension ExprSyntax {
         // Don't know what this is, leave it alone
         return self
       }
-    } else if
-      let infixOp = self.as(InfixOperatorExprSyntax.self),
+    } else if let infixOp = self.as(InfixOperatorExprSyntax.self),
       let binaryOp = infixOp.operator.as(BinaryOperatorExprSyntax.self)
     {
       if let comparison = InfixOperatorExprSyntax.Comparison(rawValue: binaryOp.operator.text) {
         // Replace x < y with x >= y
-        return ExprSyntax(infixOp
-          .with(\.operator, ExprSyntax(
-            binaryOp
-              .with(\.operator, .identifier(comparison.inverted.rawValue)))))
+        return ExprSyntax(
+          infixOp
+            .with(
+              \.operator,
+              ExprSyntax(
+                binaryOp
+                  .with(\.operator, .identifier(comparison.inverted.rawValue))
+              )
+            )
+        )
       } else {
         // Replace x <foo> y with !(x <foo> y)
-        return ExprSyntax(PrefixOperatorExprSyntax(
-          operator: .exclamationMarkToken(),
-          expression: TupleExprSyntax(
-            leftParen: .leftParenToken(),
-            elementList: LabeledExprListSyntax([
-              .init(expression: infixOp)
-            ]),
-            rightParen: .rightParenToken())))
+        return ExprSyntax(
+          PrefixOperatorExprSyntax(
+            operator: .exclamationMarkToken(),
+            expression: TupleExprSyntax(
+              leftParen: .leftParenToken(),
+              elementList: LabeledExprListSyntax([
+                .init(expression: infixOp)
+              ]),
+              rightParen: .rightParenToken()
+            )
+          )
+        )
       }
     } else {
       // Fallback

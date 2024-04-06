@@ -35,7 +35,9 @@ public struct Replace<OldTree: SyntaxProtocol, NewTree: SyntaxProtocol>: Buildab
 
   public func asEdit(in scope: CodeActionScope) -> TextEdit {
     let oldRange = self.old.totalByteRange
-    let lower = scope.snapshot.positionOf(utf8Offset: self.old.positionAfterSkippingLeadingTrivia.utf8Offset) ?? Position(line: 0, utf16index: 0)
+    let lower =
+      scope.snapshot.positionOf(utf8Offset: self.old.positionAfterSkippingLeadingTrivia.utf8Offset)
+      ?? Position(line: 0, utf16index: 0)
     let upper = scope.snapshot.positionOf(utf8Offset: oldRange.endOffset) ?? Position(line: 0, utf16index: 0)
     return TextEdit(range: Range(uncheckedBounds: (lower: lower, upper: upper)), newText: "\(self.new)")
   }
@@ -50,7 +52,9 @@ public struct Remove<Tree: SyntaxProtocol>: BuildableWorkspaceEdit {
 
   public func asEdit(in scope: CodeActionScope) -> TextEdit {
     let oldRange = self.tree.totalByteRange
-    let lower = scope.snapshot.positionOf(utf8Offset: self.tree.positionAfterSkippingLeadingTrivia.utf8Offset) ?? Position(line: 0, utf16index: 0)
+    let lower =
+      scope.snapshot.positionOf(utf8Offset: self.tree.positionAfterSkippingLeadingTrivia.utf8Offset)
+      ?? Position(line: 0, utf16index: 0)
     let upper = scope.snapshot.positionOf(utf8Offset: oldRange.endOffset) ?? Position(line: 0, utf16index: 0)
     return TextEdit(range: Range(uncheckedBounds: (lower: lower, upper: upper)), newText: "")
   }

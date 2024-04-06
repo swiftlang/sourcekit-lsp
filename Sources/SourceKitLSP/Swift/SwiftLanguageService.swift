@@ -716,7 +716,9 @@ extension SwiftLanguageService {
     return response
   }
 
-  func retrieveCodeActions(_ req: CodeActionRequest, providers: [CodeActionRequestProvider]) async throws -> [CodeAction] {
+  func retrieveCodeActions(_ req: CodeActionRequest, providers: [CodeActionRequestProvider]) async throws
+    -> [CodeAction]
+  {
     guard providers.isEmpty == false else {
       return []
     }
@@ -739,7 +741,7 @@ extension SwiftLanguageService {
     return await allLocalCodeActions.concurrentMap { provider in
       return provider.provideAssistance(in: scope).map {
         let edit = WorkspaceEdit(changes: [
-          uri: $0.edits.map { $0.asEdit(in: scope) },
+          uri: $0.edits.map { $0.asEdit(in: scope) }
         ])
         return CodeAction(title: $0.title, kind: provider.kind, edit: edit)
       }
