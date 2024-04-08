@@ -2039,14 +2039,14 @@ extension SourceKitLSPServer {
 
   private func indexToLSPCallHierarchyItem(
     symbol: Symbol,
-    moduleName: String?,
+    containerName: String?,
     location: Location
   ) -> CallHierarchyItem {
     CallHierarchyItem(
       name: symbol.name,
       kind: symbol.kind.asLspSymbolKind(),
       tags: nil,
-      detail: moduleName,
+      detail: containerName,
       uri: location.uri,
       range: location.range,
       selectionRange: location.range,
@@ -2077,7 +2077,7 @@ extension SourceKitLSPServer {
 
     // Only return a single call hierarchy item. Returning multiple doesn't make sense because they will all have the
     // same USR (because we query them by USR) and will thus expand to the exact same call hierarchy.
-    var callHierarchyItems = usrs.compactMap { (usr) -> CallHierarchyItem? in
+    let callHierarchyItems = usrs.compactMap { (usr) -> CallHierarchyItem? in
       guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
         return nil
       }
@@ -2086,7 +2086,7 @@ extension SourceKitLSPServer {
       }
       return self.indexToLSPCallHierarchyItem(
         symbol: definition.symbol,
-        moduleName: definition.location.moduleName,
+        containerName: definition.containerName,
         location: location
       )
     }.sorted(by: { Location(uri: $0.uri, range: $0.range) < Location(uri: $1.uri, range: $1.range) })
@@ -2141,7 +2141,7 @@ extension SourceKitLSPServer {
           return CallHierarchyIncomingCall(
             from: indexToLSPCallHierarchyItem(
               symbol: related.symbol,
-              moduleName: definitionSymbolLocation?.moduleName,
+              containerName: definition?.containerName,
               location: definitionLocation ?? location  // Use occurrence location as fallback
             ),
             fromRanges: [location.range]
@@ -2172,7 +2172,7 @@ extension SourceKitLSPServer {
       return CallHierarchyOutgoingCall(
         to: indexToLSPCallHierarchyItem(
           symbol: occurrence.symbol,
-          moduleName: definitionSymbolLocation?.moduleName,
+          containerName: definition?.containerName,
           location: definitionLocation ?? location  // Use occurrence location as fallback
         ),
         fromRanges: [location.range]
@@ -2470,12 +2470,21 @@ extension IndexSymbolKind {
 
 extension SymbolOccurrence {
   /// Get the name of the symbol that is a parent of this symbol, if one exists
-  func getContainerName() -> String? {
+  var containerName: String? {
     let containers = relations.filter { $0.roles.contains(.childOf) }
     if containers.count > 1 {
       logger.fault("Expected an occurrence to a child of at most one symbol, not multiple")
     }
-    return containers.sorted().first?.symbol.name
+    return containers.filter {
+      switch $0.symbol.kind {
+      case .module, .namespace, .enum, .struct, .class, .protocol, .extension, .union:
+        return true
+      case .unknown, .namespaceAlias, .macro, .typealias, .function, .variable, .field, .enumConstant,
+        .instanceMethod, .classMethod, .staticMethod, .instanceProperty, .classProperty, .staticProperty, .constructor,
+        .destructor, .conversionFunction, .parameter, .using, .concept, .commentTag:
+        return false
+      }
+    }.sorted().first?.symbol.name
   }
 }
 
@@ -2543,7 +2552,7 @@ extension WorkspaceSymbolItem {
         kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
         deprecated: nil,
         location: symbolLocation,
-        containerName: symbolOccurrence.getContainerName()
+        containerName: symbolOccurrence.containerName
       )
     )
   }
