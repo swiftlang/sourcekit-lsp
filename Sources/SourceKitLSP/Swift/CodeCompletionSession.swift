@@ -294,16 +294,14 @@ class CodeCompletionSession {
       return nil
     }
 
-    let indentationOfLine = snapshot.lineTable[requestPosition.line].prefix(while: { $0.isWhitespace })
-
     let strippedPrefix: String
     let exprToExpand: String
     if insertText.starts(with: "?.") {
       strippedPrefix = "?."
-      exprToExpand = indentationOfLine + String(insertText.dropFirst(2))
+      exprToExpand = String(insertText.dropFirst(2))
     } else {
       strippedPrefix = ""
-      exprToExpand = indentationOfLine + insertText
+      exprToExpand = insertText
     }
 
     var parser = Parser(exprToExpand)
@@ -325,7 +323,7 @@ class CodeCompletionSession {
     // Add any part of the expression that didn't end up being part of the function call
     expandedBytes += bytesToExpand[0..<call.position.utf8Offset]
     // Add the expanded function call excluding the added `indentationOfLine`
-    expandedBytes += expandedCall.syntaxTextBytes[indentationOfLine.utf8.count...]
+    expandedBytes += expandedCall.syntaxTextBytes
     // Add any trailing text that didn't end up being part of the function call
     expandedBytes += bytesToExpand[call.endPosition.utf8Offset...]
     return String(bytes: expandedBytes, encoding: .utf8)
@@ -367,27 +365,36 @@ class CodeCompletionSession {
 
       let textEdit: TextEdit?
       if let text = text {
-        textEdit = self.computeCompletionTextEdit(
-          completionPos: completionPos,
-          requestPosition: requestPosition,
-          utf8CodeUnitsToErase: utf8CodeUnitsToErase,
-          newText: text,
-          snapshot: snapshot
-        )
+        guard
+          let edit = self.computeCompletionTextEdit(
+            completionPos: completionPos,
+            requestPosition: requestPosition,
+            utf8CodeUnitsToErase: utf8CodeUnitsToErase,
+            newText: text,
+            snapshot: snapshot
+          )
+        else {
+          return true  // continue
+        }
+        textEdit = edit
 
         if utf8CodeUnitsToErase != 0, filterName != nil, let textEdit = textEdit {
           // To support the case where the client is doing prefix matching on the TextEdit range,
           // we need to prepend the deleted text to filterText.
           // This also works around a behaviour in VS Code that causes completions to not show up
           // if a '.' is being replaced for Optional completion.
-          let startIndex = snapshot.lineTable.stringIndexOf(
-            line: textEdit.range.lowerBound.line,
-            utf16Column: textEdit.range.lowerBound.utf16index
-          )!
-          let endIndex = snapshot.lineTable.stringIndexOf(
-            line: completionPos.line,
-            utf16Column: completionPos.utf16index
-          )!
+          guard
+            let startIndex = snapshot.lineTable.stringIndexOf(
+              line: textEdit.range.lowerBound.line,
+              utf16Column: textEdit.range.lowerBound.utf16index
+            ),
+            let endIndex = snapshot.lineTable.stringIndexOf(
+              line: completionPos.line,
+              utf16Column: completionPos.utf16index
+            )
+          else {
+            return true  // continue
+          }
           let filterPrefix = snapshot.text[startIndex..<endIndex]
           filterName = filterPrefix + filterName!
         }
@@ -426,7 +433,7 @@ class CodeCompletionSession {
     utf8CodeUnitsToErase: Int,
     newText: String,
     snapshot: DocumentSnapshot
-  ) -> TextEdit {
+  ) -> TextEdit? {
     let textEditRangeStart: Position
 
     // Compute the TextEdit
@@ -449,10 +456,14 @@ class CodeCompletionSession {
       assert(completionPos.line == requestPosition.line)
       // Construct a string index for the edit range start by subtracting the UTF-8 code units to erase from the completion position.
       let line = snapshot.lineTable[completionPos.line]
-      let completionPosStringIndex = snapshot.lineTable.stringIndexOf(
-        line: completionPos.line,
-        utf16Column: completionPos.utf16index
-      )!
+      guard
+        let completionPosStringIndex = snapshot.lineTable.stringIndexOf(
+          line: completionPos.line,
+          utf16Column: completionPos.utf16index
+        )
+      else {
+        return nil
+      }
       let deletionStartStringIndex = line.utf8.index(completionPosStringIndex, offsetBy: -utf8CodeUnitsToErase)
 
       // Compute the UTF-16 offset of the deletion start range. If the start lies in a previous line, this will be negative

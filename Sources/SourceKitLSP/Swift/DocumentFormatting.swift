@@ -117,11 +117,9 @@ private func edits(from original: DocumentSnapshot, to edited: String) -> [TextE
 
   return concurrentEdits.edits.compactMap { (edit) -> TextEdit? in
     guard let (startLine, startColumn) = original.lineTable.lineAndUTF16ColumnOf(utf8Offset: edit.offset) else {
-      logger.fault("Failed to convert offset \(edit.offset) into line:column")
       return nil
     }
     guard let (endLine, endColumn) = original.lineTable.lineAndUTF16ColumnOf(utf8Offset: edit.endOffset) else {
-      logger.fault("Failed to convert offset \(edit.endOffset) into line:column")
       return nil
     }
     guard let newText = String(bytes: edit.replacement, encoding: .utf8) else {

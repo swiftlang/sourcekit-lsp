@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import LanguageServerProtocol
-import LanguageServerProtocolJSONRPC
+@_spi(Testing) import LanguageServerProtocolJSONRPC
 import XCTest
 
 final class MessageParsingTests: XCTestCase {
@@ -25,7 +25,7 @@ final class MessageParsingTests: XCTestCase {
       line: UInt = #line
     ) throws {
       let bytes: [UInt8] = [UInt8](string.utf8)
-      guard let ((content, header), rest) = try bytes.jsonrpcSplitMessage() else {
+      guard let (header, content, rest) = try bytes.jsonrpcSplitMessage() else {
         XCTAssert(restLen == nil, "expected non-empty field", file: file, line: line)
         return
       }

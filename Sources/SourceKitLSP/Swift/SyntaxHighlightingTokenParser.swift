@@ -206,7 +206,7 @@ struct SyntaxHighlightingTokenParser {
   }
 }
 
-extension Range where Bound == Position {
+extension Range<Position> {
   /// Splits a potentially multi-line range to multiple single-line ranges.
   func splitToSingleLineRanges(in snapshot: DocumentSnapshot) -> [Self] {
     if isEmpty {
@@ -220,7 +220,8 @@ extension Range where Bound == Position {
     guard let startIndex = snapshot.index(of: lowerBound),
       let endIndex = snapshot.index(of: upperBound)
     else {
-      fatalError("Range \(self) reaches outside of the document")
+      logger.fault("Range \(self) reaches outside of the document")
+      return [self]
     }
 
     let text = snapshot.text[startIndex..<endIndex]

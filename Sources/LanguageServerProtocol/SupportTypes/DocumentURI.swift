@@ -12,6 +12,14 @@
 
 import Foundation
 
+struct FailedToConstructDocumentURIFromStringError: Error, CustomStringConvertible {
+  let string: String
+
+  var description: String {
+    return "Failed to construct DocumentURI from '\(string)'"
+  }
+}
+
 public struct DocumentURI: Codable, Hashable, Sendable {
   /// The URL that store the URIs value
   private let storage: URL
@@ -55,9 +63,9 @@ public struct DocumentURI: Codable, Hashable, Sendable {
 
   /// Construct a DocumentURI from the given URI string, automatically parsing
   ///  it either as a URL or an opaque URI.
-  public init(string: String) {
+  public init(string: String) throws {
     guard let url = URL(string: string) else {
-      fatalError("Failed to construct DocumentURI from '\(string)'")
+      throw FailedToConstructDocumentURIFromStringError(string: string)
     }
     self.init(url)
   }
@@ -68,7 +76,7 @@ public struct DocumentURI: Codable, Hashable, Sendable {
   }
 
   public init(from decoder: Decoder) throws {
-    self.init(string: try decoder.singleValueContainer().decode(String.self))
+    try self.init(string: decoder.singleValueContainer().decode(String.self))
   }
 
   /// Equality check to handle escape sequences in file URLs.

@@ -279,4 +279,32 @@ class ConnectionTests: XCTestCase {
       }
     }
   }
+
+  func testMessageWithMissingParameter() async throws {
+    let expectation = self.expectation(description: "Received ShowMessageNotification")
+    await connection.client.appendOneShotNotificationHandler { (note: ShowMessageNotification) in
+      XCTAssertEqual(note.type, .error)
+      expectation.fulfill()
+    }
+
+    let messageContents = """
+      {
+        "method": "test_server/echo_note",
+        "jsonrpc": "2.0",
+        "params": {}
+      }
+      """
+    connection.clientToServerConnection.send(message: messageContents)
+
+    try await self.fulfillmentOfOrThrow([expectation])
+  }
+}
+
+fileprivate extension JSONRPCConnection {
+  func send(message: String) {
+    let messageWithHeader = "Content-Length: \(message.utf8.count)\r\n\r\n\(message)".data(using: .utf8)!
+    messageWithHeader.withUnsafeBytes { bytes in
+      send(_rawData: DispatchData(bytes: bytes))
+    }
+  }
 }

@@ -978,6 +978,7 @@ final class SwiftCompletionTests: XCTestCase {
       ]
     )
   }
+
   func testExpandClosurePlaceholder() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: snippetCapabilities)
     let uri = DocumentURI.for(.swift)
@@ -1007,8 +1008,8 @@ final class SwiftCompletionTests: XCTestCase {
           filterText: "myMap(:)",
           insertText: """
             myMap { ${1:Int} in
-                    ${2:Bool}
-                }
+                ${2:Bool}
+            }
             """,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
@@ -1016,8 +1017,8 @@ final class SwiftCompletionTests: XCTestCase {
               range: Range(positions["1️⃣"]),
               newText: """
                 myMap { ${1:Int} in
-                        ${2:Bool}
-                    }
+                    ${2:Bool}
+                }
                 """
             )
           )
@@ -1055,8 +1056,8 @@ final class SwiftCompletionTests: XCTestCase {
           filterText: ".myMap(:)",
           insertText: """
             ?.myMap { ${1:Int} in
-                    ${2:Bool}
-                }
+                ${2:Bool}
+            }
             """,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
@@ -1064,8 +1065,8 @@ final class SwiftCompletionTests: XCTestCase {
               range: positions["1️⃣"]..<positions["2️⃣"],
               newText: """
                 ?.myMap { ${1:Int} in
-                        ${2:Bool}
-                    }
+                    ${2:Bool}
+                }
                 """
             )
           )
@@ -1103,10 +1104,10 @@ final class SwiftCompletionTests: XCTestCase {
           filterText: "myMap(::)",
           insertText: """
             myMap { ${1:Int} in
-                    ${2:Bool}
-                } _: { ${3:Int} in
-                    ${4:String}
-                }
+                ${2:Bool}
+            } _: { ${3:Int} in
+                ${4:String}
+            }
             """,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
@@ -1114,10 +1115,10 @@ final class SwiftCompletionTests: XCTestCase {
               range: Range(positions["1️⃣"]),
               newText: """
                 myMap { ${1:Int} in
-                        ${2:Bool}
-                    } _: { ${3:Int} in
-                        ${4:String}
-                    }
+                    ${2:Bool}
+                } _: { ${3:Int} in
+                    ${4:String}
+                }
                 """
             )
           )
@@ -1155,10 +1156,10 @@ final class SwiftCompletionTests: XCTestCase {
           filterText: "myMap(:second:)",
           insertText: """
             myMap { ${1:Int} in
-                    ${2:Bool}
-                } second: { ${3:Int} in
-                    ${4:String}
-                }
+                ${2:Bool}
+            } second: { ${3:Int} in
+                ${4:String}
+            }
             """,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
@@ -1166,10 +1167,10 @@ final class SwiftCompletionTests: XCTestCase {
               range: Range(positions["1️⃣"]),
               newText: """
                 myMap { ${1:Int} in
-                        ${2:Bool}
-                    } second: { ${3:Int} in
-                        ${4:String}
-                    }
+                    ${2:Bool}
+                } second: { ${3:Int} in
+                    ${4:String}
+                }
                 """
             )
           )
@@ -1209,8 +1210,8 @@ final class SwiftCompletionTests: XCTestCase {
           filterText: "myMap(:)",
           insertText: """
             myMap { ${1:Int} in
-                ${2:Bool}
-              }
+              ${2:Bool}
+            }
             """,
           insertTextFormat: .snippet,
           textEdit: .textEdit(
@@ -1218,8 +1219,8 @@ final class SwiftCompletionTests: XCTestCase {
               range: Range(positions["1️⃣"]),
               newText: """
                 myMap { ${1:Int} in
-                    ${2:Bool}
-                  }
+                  ${2:Bool}
+                }
                 """
             )
           )
