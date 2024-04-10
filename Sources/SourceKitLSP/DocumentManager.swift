@@ -57,10 +57,6 @@ public struct DocumentSnapshot: Identifiable {
     self.language = language
     self.lineTable = lineTable
   }
-
-  func index(of pos: Position) -> String.Index? {
-    return lineTable.stringIndexOf(line: pos.line, utf16Column: pos.utf16index)
-  }
 }
 
 public final class Document {
@@ -92,6 +88,7 @@ public final class DocumentManager {
   public enum Error: Swift.Error {
     case alreadyOpen(DocumentURI)
     case missingDocument(DocumentURI)
+    case failedToConvertPosition
   }
 
   let queue: DispatchQueue = DispatchQueue(label: "document-manager-queue")
@@ -159,7 +156,10 @@ public final class DocumentManager {
 
       var sourceEdits: [SourceEdit] = []
       for edit in edits {
-        sourceEdits.append(SourceEdit(edit: edit, lineTableBeforeEdit: document.latestLineTable))
+        guard let sourceEdit = SourceEdit(edit: edit, lineTableBeforeEdit: document.latestLineTable) else {
+          throw Error.failedToConvertPosition
+        }
+        sourceEdits.append(sourceEdit)
 
         if let range = edit.range {
           document.latestLineTable.replace(
@@ -230,7 +230,11 @@ extension DocumentManager {
 }
 
 fileprivate extension SourceEdit {
-  init(edit: TextDocumentContentChangeEvent, lineTableBeforeEdit: LineTable) {
+  /// Constructs a `SourceEdit` from the given `TextDocumentContentChangeEvent`.
+  ///
+  /// Returns `nil` if the `TextDocumentContentChangeEvent` refers to line:column positions that don't exist in
+  /// `LineTable`.
+  init?(edit: TextDocumentContentChangeEvent, lineTableBeforeEdit: LineTable) {
     if let range = edit.range {
       guard
         let offset = lineTableBeforeEdit.utf8OffsetOf(
@@ -242,7 +246,7 @@ fileprivate extension SourceEdit {
           utf16Column: range.upperBound.utf16index
         )
       else {
-        fatalError("invalid edit \(range)")
+        return nil
       }
       self.init(
         range: AbsolutePosition(utf8Offset: offset)..<AbsolutePosition(utf8Offset: end),

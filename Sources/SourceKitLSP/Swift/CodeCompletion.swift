@@ -23,9 +23,6 @@ extension SwiftLanguageService {
     let completionPos = await adjustPositionToStartOfIdentifier(req.position, in: snapshot)
 
     guard let offset = snapshot.utf8Offset(of: completionPos) else {
-      logger.error(
-        "invalid completion position \(req.position, privacy: .public) (adjusted: \(completionPos, privacy: .public)"
-      )
       return CompletionList(isIncomplete: true, items: [])
     }
 
@@ -34,7 +31,6 @@ extension SwiftLanguageService {
     guard let start = snapshot.indexOf(utf8Offset: offset),
       let end = snapshot.index(of: req.position)
     else {
-      logger.error("invalid completion position \(req.position, privacy: .public)")
       return CompletionList(isIncomplete: true, items: [])
     }
 

@@ -18,8 +18,8 @@ final class RenameTests: XCTestCase {
   func testRenameVariableBaseName() async throws {
     try await assertSingleFileRename(
       """
-      let 1️⃣foo = 1
-      print(2️⃣foo)
+      let 1️⃣foo2️⃣ = 1
+      print(3️⃣foo4️⃣)
       """,
       newName: "bar",
       expectedPrepareRenamePlaceholder: "foo",
@@ -66,12 +66,12 @@ final class RenameTests: XCTestCase {
     )
   }
 
-  func testFoo() async throws {
+  func testRenameFromFunctionParameter() async throws {
     try await assertSingleFileRename(
       """
-      func foo(5️⃣x: Int) {}
-      foo(x: 1)
-      _ = foo(x:)
+      func foo(1️⃣x: Int) {}
+      foo(2️⃣x: 1)
+      _ = foo(3️⃣x:)
       _ = foo
       """,
       newName: "bar(y:)",
@@ -81,6 +81,25 @@ final class RenameTests: XCTestCase {
         bar(y: 1)
         _ = bar(y:)
         _ = bar
+        """
+    )
+  }
+
+  func testRenameFromFunctionParameterOnSeparateLine() async throws {
+    try await assertSingleFileRename(
+      """
+      func foo(
+        1️⃣x: Int
+      ) {}
+      foo(x: 1)
+      """,
+      newName: "bar(y:)",
+      expectedPrepareRenamePlaceholder: "foo(x:)",
+      expected: """
+        func bar(
+          y: Int
+        ) {}
+        bar(y: 1)
         """
     )
   }
