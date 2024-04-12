@@ -53,10 +53,7 @@ extension SwiftLanguageService {
     in snapshot: DocumentSnapshot
   ) async -> Position {
     let tree = await self.syntaxTreeManager.syntaxTree(for: snapshot)
-    guard let swiftSyntaxPosition = snapshot.absolutePosition(of: position) else {
-      return position
-    }
-    let visitor = StartOfIdentifierFinder(position: swiftSyntaxPosition)
+    let visitor = StartOfIdentifierFinder(position: snapshot.absolutePosition(of: position))
     visitor.walk(tree)
     if let resolvedPosition = visitor.resolvedPosition {
       return snapshot.position(of: resolvedPosition) ?? position

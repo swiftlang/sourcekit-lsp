@@ -76,24 +76,18 @@ final class SupportTests: XCTestCase {
   func checkLineAndColumns(
     _ table: LineTable,
     _ utf8Offset: Int,
-    _ expected: (line: Int, utf16Column: Int)?,
+    _ expected: (line: Int, utf16Column: Int),
     file: StaticString = #filePath,
     line: UInt = #line
   ) {
-    switch (table.lineAndUTF16ColumnOf(utf8Offset: utf8Offset), expected) {
-    case (nil, nil):
-      break
-    case (let result?, let _expected?):
-      XCTAssertTrue(result == _expected, "\(result) != \(_expected)", file: file, line: line)
-    case (let result, let _expected):
-      XCTFail("\(String(describing: result)) != \(String(describing: _expected))", file: file, line: line)
-    }
+    let actual = table.lineAndUTF16ColumnOf(utf8Offset: utf8Offset)
+    XCTAssert(actual == expected, "\(actual) != \(expected)", file: file, line: line)
   }
 
   func checkUTF8OffsetOf(
     _ table: LineTable,
     _ query: (line: Int, utf16Column: Int),
-    _ expected: Int?,
+    _ expected: Int,
     file: StaticString = #filePath,
     line: UInt = #line
   ) {
@@ -108,7 +102,7 @@ final class SupportTests: XCTestCase {
   func checkUTF16ColumnAt(
     _ table: LineTable,
     _ query: (line: Int, utf8Column: Int),
-    _ expected: Int?,
+    _ expected: Int,
     file: StaticString = #filePath,
     line: UInt = #line
   ) {
@@ -135,25 +129,25 @@ final class SupportTests: XCTestCase {
     checkLineAndColumns(t1, 9, (line: 1, utf16Column: 4))
     checkLineAndColumns(t1, 10, (line: 2, utf16Column: 0))
     checkLineAndColumns(t1, 14, (line: 2, utf16Column: 4))
-    checkLineAndColumns(t1, 15, nil)
+    checkLineAndColumns(t1, 15, (line: 2, utf16Column: 4))
 
     checkUTF8OffsetOf(t1, (line: 0, utf16Column: 0), 0)
     checkUTF8OffsetOf(t1, (line: 0, utf16Column: 2), 2)
     checkUTF8OffsetOf(t1, (line: 0, utf16Column: 4), 4)
     checkUTF8OffsetOf(t1, (line: 0, utf16Column: 5), 5)
-    checkUTF8OffsetOf(t1, (line: 0, utf16Column: 6), nil)
+    checkUTF8OffsetOf(t1, (line: 0, utf16Column: 6), 5)  // Recovers to end of line 0
     checkUTF8OffsetOf(t1, (line: 1, utf16Column: 0), 5)
     checkUTF8OffsetOf(t1, (line: 1, utf16Column: 4), 9)
     checkUTF8OffsetOf(t1, (line: 2, utf16Column: 0), 10)
     checkUTF8OffsetOf(t1, (line: 2, utf16Column: 4), 14)
-    checkUTF8OffsetOf(t1, (line: 2, utf16Column: 5), nil)
-    checkUTF8OffsetOf(t1, (line: 3, utf16Column: 0), nil)
+    checkUTF8OffsetOf(t1, (line: 2, utf16Column: 5), 14)  // Recovers to end of line 2
+    checkUTF8OffsetOf(t1, (line: 3, utf16Column: 0), 14)  // Recovers to end of source file
 
     checkUTF16ColumnAt(t1, (line: 0, utf8Column: 4), 4)
     checkUTF16ColumnAt(t1, (line: 0, utf8Column: 5), 5)
-    checkUTF16ColumnAt(t1, (line: 0, utf8Column: 6), nil)
+    checkUTF16ColumnAt(t1, (line: 0, utf8Column: 6), 5)  // Recovers to end of line 0
     checkUTF16ColumnAt(t1, (line: 2, utf8Column: 0), 0)
-    checkUTF16ColumnAt(t1, (line: 3, utf8Column: 0), nil)
+    checkUTF16ColumnAt(t1, (line: 3, utf8Column: 0), 0)  // Line out of bounds, so keeps column
 
     let t2 = LineTable(
       """
@@ -174,11 +168,11 @@ final class SupportTests: XCTestCase {
     checkUTF8OffsetOf(t2, (line: 0, utf16Column: 6), 16)
     checkUTF8OffsetOf(t2, (line: 1, utf16Column: 1), 19)
     checkUTF8OffsetOf(t2, (line: 1, utf16Column: 6), 32)
-    checkUTF8OffsetOf(t2, (line: 1, utf16Column: 7), nil)
+    checkUTF8OffsetOf(t2, (line: 1, utf16Column: 7), 32)  // Recovers to end of line 1
     checkUTF8OffsetOf(t2, (line: 2, utf16Column: 0), 32)
     checkUTF8OffsetOf(t2, (line: 2, utf16Column: 2), 36)
     checkUTF8OffsetOf(t2, (line: 2, utf16Column: 4), 40)
-    checkUTF8OffsetOf(t2, (line: 2, utf16Column: 5), nil)
+    checkUTF8OffsetOf(t2, (line: 2, utf16Column: 5), 40)  // Recovers to end of line 2
 
     checkUTF16ColumnAt(t2, (line: 0, utf8Column: 3), 1)
     checkUTF16ColumnAt(t2, (line: 0, utf8Column: 15), 5)

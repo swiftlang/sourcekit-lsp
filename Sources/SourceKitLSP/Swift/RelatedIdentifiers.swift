@@ -65,14 +65,10 @@ extension SwiftLanguageService {
     in snapshot: DocumentSnapshot,
     includeNonEditableBaseNames: Bool
   ) async throws -> RelatedIdentifiersResponse {
-    guard let offset = snapshot.utf8Offset(of: position) else {
-      throw ResponseError.unknown("invalid position \(position)")
-    }
-
     let skreq = sourcekitd.dictionary([
       keys.request: requests.relatedIdents,
       keys.cancelOnSubsequentRequest: 0,
-      keys.offset: offset,
+      keys.offset: snapshot.utf8Offset(of: position),
       keys.sourceFile: snapshot.uri.pseudoPath,
       keys.includeNonEditableBaseNames: includeNonEditableBaseNames ? 1 : 0,
       keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
@@ -90,17 +86,14 @@ extension SwiftLanguageService {
     var relatedIdentifiers: [RelatedIdentifier] = []
 
     results.forEach { _, value in
-      if let offset: Int = value[keys.offset],
-        let start: Position = snapshot.positionOf(utf8Offset: offset),
-        let length: Int = value[keys.length],
-        let end: Position = snapshot.positionOf(utf8Offset: offset + length)
-      {
-        let usage = RenameLocation.Usage(value[keys.nameType], values) ?? .unknown
-        relatedIdentifiers.append(
-          RelatedIdentifier(range: start..<end, usage: usage)
-        )
+      guard let offset: Int = value[keys.offset], let length: Int = value[keys.length] else {
+        return true  // continue
       }
-      return true
+      let start = snapshot.positionOf(utf8Offset: offset)
+      let end = snapshot.positionOf(utf8Offset: offset + length)
+      let usage = RenameLocation.Usage(value[keys.nameType], values) ?? .unknown
+      relatedIdentifiers.append(RelatedIdentifier(range: start..<end, usage: usage))
+      return true  // continue
     }
     return RelatedIdentifiersResponse(relatedIdentifiers: relatedIdentifiers, name: name)
   }
