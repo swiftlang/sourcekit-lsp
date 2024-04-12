@@ -275,9 +275,15 @@ final class CallHierarchyTests: XCTestCase {
       """
       func 1️⃣foo() {}
 
-      var testVar: Int 2️⃣{
-        let myVar = 3️⃣foo()
-        return 2
+      var testVar: Int {
+        2️⃣get {
+          let myVar = 3️⃣foo()
+          return 2
+        }
+      }
+
+      func 4️⃣testFunc() {
+        _ = 5️⃣testVar
       }
       """
     )
@@ -307,6 +313,31 @@ final class CallHierarchyTests: XCTestCase {
             ])
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
+        )
+      ]
+    )
+
+    let testVarItem = try XCTUnwrap(calls?.first?.from)
+
+    let callsToTestVar = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: testVarItem))
+    XCTAssertEqual(
+      callsToTestVar,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "testFunc()",
+            kind: .function,
+            tags: nil,
+            detail: nil,
+            uri: project.fileURI,
+            range: Range(project.positions["4️⃣"]),
+            selectionRange: Range(project.positions["4️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test0A4FuncyyF"),
+              "uri": .string(project.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(project.positions["5️⃣"])]
         )
       ]
     )
@@ -348,24 +379,8 @@ final class CallHierarchyTests: XCTestCase {
               "uri": .string(project.fileURI.stringValue),
             ])
           ),
-          fromRanges: [Range(project.positions["3️⃣"])]
-        ),
-        CallHierarchyIncomingCall(
-          from: CallHierarchyItem(
-            name: "testFunc()",
-            kind: .function,
-            tags: nil,
-            detail: nil,
-            uri: project.fileURI,
-            range: Range(project.positions["2️⃣"]),
-            selectionRange: Range(project.positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test0A4FuncyyF"),
-              "uri": .string(project.fileURI.stringValue),
-            ])
-          ),
-          fromRanges: [Range(project.positions["4️⃣"])]
-        ),
+          fromRanges: [Range(project.positions["3️⃣"]), Range(project.positions["4️⃣"])]
+        )
       ]
     )
   }
