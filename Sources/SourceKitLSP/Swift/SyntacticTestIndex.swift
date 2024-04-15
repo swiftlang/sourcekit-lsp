@@ -18,7 +18,7 @@ import SKSupport
 /// Task metadata for `SyntacticTestIndexer.indexingQueue`
 fileprivate enum TaskMetadata: DependencyTracker, Equatable {
   case read
-  case index(DocumentURI)
+  case index(Set<DocumentURI>)
 
   /// Reads can be concurrent and files can be indexed concurrently. But we need to wait for all files to finish
   /// indexing before reading the index.
@@ -38,12 +38,12 @@ fileprivate enum TaskMetadata: DependencyTracker, Equatable {
       // This ensures that the index has been updated at least to the state of file at which the read was scheduled.
       // Adding the dependency also elevates the index task's priorities.
       return true
-    case (.index(let lhsUri), .index(let rhsUri)):
-      // Technically, we should be able to allow simultaneous indexing of the same file. But conceptually the code
-      // becomes simpler if we don't need to think racing indexing tasks for the same file and it shouldn't make a
-      // performance impact because if the same file state is indexed twice, the second one will realize that the mtime
-      // hasn't changed and thus be a no-op.
-      return lhsUri == rhsUri
+    case (.index(let lhsUris), .index(let rhsUris)):
+      // Technically, we should be able to allow simultaneous indexing of the same file. When a file gets re-scheduled
+      // for indexing, all previous index invocations should get cancelled. But conceptually the code becomes simpler
+      // if we don't need to think racing indexing tasks for the same file and it shouldn't make a performance impact
+      // in practice because of the cancellation described before.
+      return !lhsUris.intersection(rhsUris).isEmpty
     }
   }
 }
@@ -86,6 +86,13 @@ actor SyntacticTestIndex {
   /// The tests discovered by the index.
   private var indexedTests: [DocumentURI: IndexedTests] = [:]
 
+  /// Files that have been removed using `removeFileForIndex`.
+  ///
+  /// We need to keep track of these files because when the files get removed, there might be an in-progress indexing
+  /// operation running for that file. We need to ensure that this indexing operation doesn't write add the removed file
+  /// back to `indexTests`.
+  private var removedFiles: Set<DocumentURI> = []
+
   /// The queue on which the index is being updated and queried.
   ///
   /// Tracking dependencies between tasks within this queue allows us to start indexing tasks in parallel with low
@@ -96,14 +103,7 @@ actor SyntacticTestIndex {
   init() {}
 
   private func removeFilesFromIndex(_ removedFiles: Set<DocumentURI>) {
-    // Cancel any tasks for the removed files to ensure any pending indexing tasks don't re-add index data for the
-    // removed files.
-    self.indexingQueue.cancelTasks(where: { taskMetadata in
-      guard case .index(let uri) = taskMetadata else {
-        return false
-      }
-      return removedFiles.contains(uri)
-    })
+    self.removedFiles.formUnion(removedFiles)
     for removedFile in removedFiles {
       self.indexedTests[removedFile] = nil
     }
@@ -112,14 +112,11 @@ actor SyntacticTestIndex {
   /// Called when the list of files that may contain tests is updated.
   ///
   /// All files that are not in the new list of test files will be removed from the index.
-  func listOfTestFilesDidChange(_ testFiles: Set<DocumentURI>) {
-    let testFiles = Set(testFiles)
-    let removedFiles = Set(self.indexedTests.keys.filter { !testFiles.contains($0) })
+  func listOfTestFilesDidChange(_ testFiles: [DocumentURI]) {
+    let removedFiles = Set(self.indexedTests.keys).subtracting(testFiles)
     removeFilesFromIndex(removedFiles)
 
-    for testFile in testFiles {
-      rescanFile(testFile)
-    }
+    rescanFiles(testFiles)
   }
 
   func filesDidChange(_ events: [FileEvent]) {
@@ -130,7 +127,7 @@ actor SyntacticTestIndex {
         // `listOfTestFilesDidChange`
         break
       case .changed:
-        rescanFile(fileEvent.uri)
+        rescanFiles([fileEvent.uri])
       case .deleted:
         removeFilesFromIndex([fileEvent.uri])
       default:
@@ -139,42 +136,61 @@ actor SyntacticTestIndex {
     }
   }
 
-  /// Called when a single file was updated. Just re-scans that file.
-  private func rescanFile(_ uri: DocumentURI) {
-    self.indexingQueue.async(priority: .low, metadata: .index(uri)) {
-      guard let url = uri.fileURL else {
-        logger.log("Not indexing \(uri.forLogging) for swift-testing tests because it is not a file URL")
-        return
+  /// Called when a list of files was updated. Re-scans those files
+  private func rescanFiles(_ uris: [DocumentURI]) {
+    // Divide the files into multiple batches. This is more efficient than spawning a new task for every file, mostly
+    // because it keeps the number of pending items in `indexingQueue` low and adding a new task to `indexingQueue` is
+    // in O(number of pending tasks), since we need to scan for dependency edges to add, which would make scanning files
+    // be O(number of files).
+    // Over-subscribe the processor count in case one batch finishes more quickly than another.
+    let batches = uris.partition(intoNumberOfBatches: ProcessInfo.processInfo.processorCount * 4)
+    for batch in batches {
+      self.indexingQueue.async(priority: .low, metadata: .index(Set(batch))) {
+        for uri in batch {
+          await self.rescanFileAssumingOnQueue(uri)
+        }
       }
-      if Task.isCancelled {
-        return
-      }
-      guard
-        let fileModificationDate = try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate]
-          as? Date
-      else {
-        logger.fault("Not indexing \(uri.forLogging) for tests because the modification date could not be determined")
-        return
-      }
-      if let indexModificationDate = self.indexedTests[uri]?.sourceFileModificationDate,
-        indexModificationDate >= fileModificationDate
-      {
-        // Index already up to date.
-        return
-      }
-      if Task.isCancelled {
-        return
-      }
-      let testItems = await testItems(in: url)
-
-      if Task.isCancelled {
-        // This `isCancelled` check is essential for correctness. When `testFilesDidChange` is called, it cancels all
-        // indexing tasks for files that have been removed. If we didn't have this check, an index task that was already
-        // started might add the file back into `indexedTests`.
-        return
-      }
-      self.indexedTests[uri] = IndexedTests(tests: testItems, sourceFileModificationDate: fileModificationDate)
     }
+  }
+
+  /// Re-scans a single file.
+  ///
+  /// - Important: This method must be called in a task that is executing on `indexingQueue`.
+  private func rescanFileAssumingOnQueue(_ uri: DocumentURI) async {
+    guard let url = uri.fileURL else {
+      logger.log("Not indexing \(uri.forLogging) for swift-testing tests because it is not a file URL")
+      return
+    }
+    if Task.isCancelled {
+      return
+    }
+    guard !removedFiles.contains(uri) else {
+      return
+    }
+    guard
+      let fileModificationDate = try? FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate]
+        as? Date
+    else {
+      logger.fault("Not indexing \(uri.forLogging) for tests because the modification date could not be determined")
+      return
+    }
+    if let indexModificationDate = self.indexedTests[uri]?.sourceFileModificationDate,
+      indexModificationDate >= fileModificationDate
+    {
+      // Index already up to date.
+      return
+    }
+    if Task.isCancelled {
+      return
+    }
+    let testItems = await testItems(in: url)
+
+    guard !removedFiles.contains(uri) else {
+      // Check whether the file got removed while we were scanning it for tests. If so, don't add it back to
+      // `indexedTests`.
+      return
+    }
+    self.indexedTests[uri] = IndexedTests(tests: testItems, sourceFileModificationDate: fileModificationDate)
   }
 
   /// Gets all the tests in the syntactic index.
@@ -185,5 +201,29 @@ actor SyntacticTestIndex {
       return await self.indexedTests.values.flatMap { $0.tests }
     }
     return await readTask.value
+  }
+}
+
+fileprivate extension Collection {
+  /// Partition the elements of the collection into `numberOfBatches` roughly equally sized batches.
+  ///
+  /// Elements are assigned to the batches round-robin. This ensures that elements that are close to each other in the
+  /// original collection end up in different batches. This is important because eg. test files will live close to each
+  /// other in the file system and test scanning wants to scan them in different batches so we don't end up with one
+  /// batch only containing source files and the other only containing test files.
+  func partition(intoNumberOfBatches numberOfBatches: Int) -> [[Element]] {
+    var batches: [[Element]] = Array(
+      repeating: {
+        var batch: [Element] = []
+        batch.reserveCapacity(self.count / numberOfBatches)
+        return batch
+      }(),
+      count: numberOfBatches
+    )
+
+    for (index, element) in self.enumerated() {
+      batches[index % numberOfBatches].append(element)
+    }
+    return batches.filter { !$0.isEmpty }
   }
 }

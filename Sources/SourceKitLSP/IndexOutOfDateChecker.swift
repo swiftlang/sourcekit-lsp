@@ -55,7 +55,7 @@ struct IndexOutOfDateChecker {
 
   private func modificationDateUncached(of url: URL) throws -> ModificationTime {
     do {
-      let attributes = try FileManager.default.attributesOfItem(atPath: url.path())
+      let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
       guard let modificationDate = attributes[FileAttributeKey.modificationDate] as? Date else {
         throw Error.fileAttributesDontHaveModificationDate
       }
@@ -124,7 +124,7 @@ struct IndexOutOfDateChecker {
     if fileHasInMemoryModifications(filePath) {
       return false
     }
-    guard let lastUnitDate = index.dateOfLatestUnitFor(filePath: filePath.path()) else {
+    guard let lastUnitDate = index.dateOfLatestUnitFor(filePath: filePath.path) else {
       return false
     }
     do {
