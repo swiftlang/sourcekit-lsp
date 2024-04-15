@@ -51,17 +51,17 @@ public actor SourceKitIndexDelegate: IndexDelegate {
   private func processCompleted(_ count: Int) {
     pendingUnitCount -= count
     if pendingUnitCount == 0 {
-      _indexChanged()
+      indexChanged()
     }
 
     if pendingUnitCount < 0 {
       assertionFailure("pendingUnitCount = \(pendingUnitCount) < 0")
       pendingUnitCount = 0
-      _indexChanged()
+      indexChanged()
     }
   }
 
-  func _indexChanged() {
+  private func indexChanged() {
     for callback in mainFilesChangedCallbacks {
       queue.async {
         await callback()
