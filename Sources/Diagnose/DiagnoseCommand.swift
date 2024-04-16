@@ -134,6 +134,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
     for crashInfo in crashInfos {
       let dateFormatter = DateFormatter()
+      dateFormatter.timeZone = NSTimeZone.local
       dateFormatter.dateStyle = .none
       dateFormatter.timeStyle = .medium
       let progressMessagePrefix = "Reducing Swift compiler crash at \(dateFormatter.string(from: crashInfo.date))"
@@ -304,7 +305,9 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
     progressBar = PercentProgressAnimation(stream: stderrStream, header: "Diagnosing sourcekit-lsp issues")
 
-    let date = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+    let dateFormatter = ISO8601DateFormatter()
+    dateFormatter.timeZone = NSTimeZone.local
+    let date = dateFormatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
     let bundlePath = FileManager.default.temporaryDirectory
       .appendingPathComponent("sourcekitd-reproducer-\(date)")
     try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
@@ -330,9 +333,9 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     print(
       """
 
-      Bundle created. 
-      When filing an issue at https://github.com/apple/sourcekit-lsp/issues/new, 
-      please attach the bundle located at 
+      Bundle created.
+      When filing an issue at https://github.com/apple/sourcekit-lsp/issues/new,
+      please attach the bundle located at
       \(bundlePath.path)
       """
     )
