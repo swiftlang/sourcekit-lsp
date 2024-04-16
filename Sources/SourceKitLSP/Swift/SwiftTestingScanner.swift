@@ -180,6 +180,13 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     in snapshot: DocumentSnapshot,
     syntaxTreeManager: SyntaxTreeManager
   ) async -> [TestItem] {
+    guard snapshot.text.contains("Suite") || snapshot.text.contains("Test") else {
+      // If the file contains swift-testing tests, it must contain a `@Suite` or `@Test` attribute.
+      // Only check for the attribute name because the attribute may be module qualified and contain an arbitrary amount
+      // of whitespace.
+      // This is intended to filter out files that obviously do not contain tests.
+      return []
+    }
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     let visitor = SyntacticSwiftTestingTestScanner(snapshot: snapshot, allTestsDisabled: false, parentTypeNames: [])
     visitor.walk(syntaxTree)

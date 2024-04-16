@@ -362,7 +362,7 @@ public struct DocumentPositions {
     }
   }
 
-  init(markedText: String) {
+  public init(markedText: String) {
     let (markers, textWithoutMarker) = extractMarkers(markedText)
     self.init(markers: markers, textWithoutMarkers: textWithoutMarker)
   }

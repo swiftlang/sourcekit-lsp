@@ -109,7 +109,7 @@ extension SourceKitLSPServer {
     ) -> TestItem {
       let symbolPosition: Position
       if let snapshot = try? documentManager.latestSnapshot(
-        DocumentURI(URL(fileURLWithPath: testSymbolOccurrence.location.path))
+        testSymbolOccurrence.location.documentUri
       ) {
         symbolPosition = snapshot.position(of: testSymbolOccurrence.location)
       } else {
@@ -122,8 +122,7 @@ extension SourceKitLSPServer {
         )
       }
       let id = (context + [testSymbolOccurrence.symbol.name]).joined(separator: "/")
-      let uri = DocumentURI(URL(fileURLWithPath: testSymbolOccurrence.location.path))
-      let location = resolveLocation(uri, symbolPosition)
+      let location = resolveLocation(testSymbolOccurrence.location.documentUri, symbolPosition)
 
       let children =
         occurrencesByParent[testSymbolOccurrence.symbol.usr, default: []]
@@ -147,16 +146,92 @@ extension SourceKitLSPServer {
       .map { testItem(for: $0, documentManager: documentManager, context: []) }
   }
 
-  func workspaceTests(_ req: WorkspaceTestsRequest) async throws -> [TestItem] {
-    // Gather all tests classes and test methods.
-    let testSymbolOccurrences =
-      workspaces
-      .flatMap { $0.index?.unitTests() ?? [] }
-      .filter { $0.canBeTestDefinition }
-    return testItems(
-      for: testSymbolOccurrences,
+  /// Return all the tests in the given workspace.
+  ///
+  /// This merges tests from the semantic index, the syntactic index and in-memory file states.
+  ///
+  /// The returned list of tests is not sorted. It should be sorted before being returned to the editor.
+  private func tests(in workspace: Workspace) async -> [TestItem] {
+    // Gather all tests classes and test methods. We include test from different sources:
+    //  - For all files that have been not been modified since they were last indexed in the semantic index, include
+    //    XCTests from the semantic index.
+    //  - For all files that have been modified since the last semantic index but that don't have any in-memory
+    //    modifications (ie. modifications that the user has made in the editor but not saved), include XCTests from
+    //    the syntactic test index
+    //  - For all files that don't have any in-memory modifications, include swift-testing tests from the syntactic test
+    //    index.
+    //  - All files that have in-memory modifications are syntactically scanned for tests here.
+    var outOfDateChecker = IndexOutOfDateChecker(documentManager: documentManager)
+
+    let filesWithInMemoryState = documentManager.documents.keys.filter { uri in
+      guard let url = uri.fileURL else {
+        return true
+      }
+      return outOfDateChecker.fileHasInMemoryModifications(url)
+    }
+
+    let testsFromFilesWithInMemoryState = await filesWithInMemoryState.concurrentMap { (uri) -> [TestItem] in
+      guard let languageService = workspace.documentService[uri] else {
+        return []
+      }
+      return await orLog("Getting document tests for \(uri)") {
+        try await self.documentTests(
+          DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)),
+          workspace: workspace,
+          languageService: languageService
+        )
+      } ?? []
+    }.flatMap { $0 }
+
+    let semanticTestSymbolOccurrences =
+      (workspace.index?.unitTests() ?? [])
+      .filter { return $0.canBeTestDefinition && outOfDateChecker.isUpToDate($0.location) }
+
+    let testsFromSyntacticIndex = await workspace.syntacticTestIndex.tests()
+    let testsFromSemanticIndex = testItems(
+      for: semanticTestSymbolOccurrences,
       resolveLocation: { uri, position in Location(uri: uri, range: Range(position)) }
     )
+    let filesWithTestsFromSemanticIndex = Set(testsFromSemanticIndex.map(\.location.uri))
+
+    let syntacticTestsToInclude =
+      testsFromSyntacticIndex
+      .filter { testItem in
+        if testItem.style == TestStyle.swiftTesting {
+          // Swift-testing tests aren't part of the semantic index. Always include them.
+          return true
+        }
+        if filesWithTestsFromSemanticIndex.contains(testItem.location.uri) {
+          // If we have an semantic tests from this file, then the semantic index is up-to-date for this file. We thus
+          // don't need to include results from the syntactic index.
+          return false
+        }
+        if filesWithInMemoryState.contains(testItem.location.uri) {
+          // If the file has been modified in the editor, the syntactic index (which indexes on-disk files) is no longer
+          // up-to-date. Include the tests from `testsFromFilesWithInMemoryState`.
+          return false
+        }
+        if let fileUrl = testItem.location.uri.fileURL,
+          let index = workspace.index,
+          outOfDateChecker.indexHasUpToDateUnit(for: fileUrl, index: index)
+        {
+          // We don't have a test for this file in the semantic index but an up-to-date unit file. This means that the
+          // index is up-to-date and has more knowledge that identifies a `TestItem` as not actually being a test, eg.
+          // because it starts with `test` but doesn't appear in a class inheriting from `XCTestCase`.
+          return false
+        }
+        return true
+      }
+
+    // We don't need to sort the tests here because they will get
+    return testsFromSemanticIndex + syntacticTestsToInclude + testsFromFilesWithInMemoryState
+  }
+
+  func workspaceTests(_ req: WorkspaceTestsRequest) async throws -> [TestItem] {
+    return await self.workspaces
+      .concurrentMap { await self.tests(in: $0) }
+      .flatMap { $0 }
+      .sorted { $0.location < $1.location }
   }
 
   /// Extracts a flat dictionary mapping test IDs to their locations from the given `testItems`.
@@ -187,7 +262,7 @@ extension SourceKitLSPServer {
         syntacticTests.filter { $0.style == TestStyle.swiftTesting }
       }
 
-      var outOfDateChecker = IndexOutOfDateChecker()
+      var outOfDateChecker = IndexOutOfDateChecker(documentManager: documentManager)
       let testSymbols =
         index.unitTests(referencedByMainFiles: [mainFileUri.pseudoPath])
         .filter { $0.canBeTestDefinition && outOfDateChecker.isUpToDate($0.location) }
@@ -211,7 +286,7 @@ extension SourceKitLSPServer {
           }
         ) + syntacticSwiftTestingTests
       }
-      if let fileURL = mainFileUri.fileURL, outOfDateChecker.indexHasUpToDateUnit(for: fileURL.path, index: index) {
+      if let fileURL = mainFileUri.fileURL, outOfDateChecker.indexHasUpToDateUnit(for: fileURL, index: index) {
         // The semantic index is up-to-date and doesn't contain any tests. We don't need to do a syntactic fallback for
         // XCTest. We do still need to return swift-testing tests which don't have a semantic index.
         return syntacticSwiftTestingTests
@@ -226,7 +301,7 @@ extension SourceKitLSPServer {
 ///
 /// The syntax visitor scans from class and extension declarations that could be `XCTestCase` classes or extensions
 /// thereof. It then calls into `findTestMethods` to find the actual test methods.
-private final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
+final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
   /// The document snapshot of the syntax tree that is being walked.
   private var snapshot: DocumentSnapshot
 
@@ -242,6 +317,12 @@ private final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
     in snapshot: DocumentSnapshot,
     syntaxTreeManager: SyntaxTreeManager
   ) async -> [TestItem] {
+    guard snapshot.text.contains("XCTestCase") || snapshot.text.contains("test") else {
+      // If the file contains tests that can be discovered syntactically, it needs to have a class inheriting from
+      // `XCTestCase` or a function starting with `test`.
+      // This is intended to filter out files that obviously do not contain tests.
+      return []
+    }
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     let visitor = SyntacticSwiftXCTestScanner(snapshot: snapshot)
     visitor.walk(syntaxTree)

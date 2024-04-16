@@ -81,6 +81,9 @@ public actor SwiftPMBuildSystem {
     self.delegate = delegate
   }
 
+  /// Callbacks that should be called if the list of possible test files has changed.
+  public var testFilesDidChangeCallbacks: [() async -> Void] = []
+
   let workspacePath: TSCAbsolutePath
   /// The directory containing `Package.swift`.
   public var projectRoot: TSCAbsolutePath
@@ -267,6 +270,9 @@ extension SwiftPMBuildSystem {
     }
     await delegate.fileBuildSettingsChanged(self.watchedFiles)
     await delegate.fileHandlingCapabilityChanged()
+    for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
+      await testFilesDidChangeCallback()
+    }
   }
 }
 
@@ -379,6 +385,15 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     } else {
       return .unhandled
     }
+  }
+
+  public func testFiles() -> [DocumentURI] {
+    // We should only include source files from test targets (https://github.com/apple/sourcekit-lsp/issues/1174).
+    return fileToTarget.map { DocumentURI($0.key.asURL) }
+  }
+
+  public func addTestFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async {
+    testFilesDidChangeCallbacks.append(callback)
   }
 }
 

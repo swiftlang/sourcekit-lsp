@@ -176,6 +176,10 @@ extension BuildSystemManager {
       fallbackBuildSystem != nil ? .fallback : .unhandled
     )
   }
+
+  public func testFiles() async -> [DocumentURI] {
+    return await buildSystem?.testFiles() ?? []
+  }
 }
 
 extension BuildSystemManager: BuildSystemDelegate {

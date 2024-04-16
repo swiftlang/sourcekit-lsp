@@ -46,7 +46,7 @@ class DefinitionTests: XCTestCase {
         func 1️⃣doThing()
       }
 
-      struct TestImpl: TestProtocol { 
+      struct TestImpl: TestProtocol {
         func 2️⃣doThing() { }
       }
 
@@ -297,13 +297,7 @@ class DefinitionTests: XCTestCase {
 
     XCTAssertEqual(locations.count, 1)
     let location = try XCTUnwrap(locations.first)
-    XCTAssertEqual(
-      location,
-      Location(
-        uri: try project.uri(for: "LibA.h"),
-        range: try project.position(of: "1️⃣", in: "LibA.h")..<project.position(of: "2️⃣", in: "LibA.h")
-      )
-    )
+    XCTAssertEqual(location, try project.location(from: "1️⃣", to: "2️⃣", in: "LibA.h"))
   }
 
   func testDefinitionOfMethodBetweenModulesObjC() async throws {
@@ -354,13 +348,7 @@ class DefinitionTests: XCTestCase {
 
     XCTAssertEqual(locations.count, 1)
     let location = try XCTUnwrap(locations.first)
-    XCTAssertEqual(
-      location,
-      Location(
-        uri: try project.uri(for: "LibA.h"),
-        range: try project.position(of: "1️⃣", in: "LibA.h")..<project.position(of: "2️⃣", in: "LibA.h")
-      )
-    )
+    XCTAssertEqual(location, try project.location(from: "1️⃣", to: "2️⃣", in: "LibA.h"))
   }
 
   func testDefinitionOfImplicitInitializer() async throws {
