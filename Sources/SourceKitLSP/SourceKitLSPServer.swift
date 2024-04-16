@@ -2291,6 +2291,13 @@ extension SourceKitLSPServer {
     }
     .sorted(by: { $0.name < $1.name })
 
+    if typeHierarchyItems.isEmpty {
+      // When returning an empty array, VS Code fails with the following two errors. Returning `nil` works around those
+      // VS Code-internal errors showing up
+      //  - MISSING provider
+      //  - Cannot read properties of null (reading 'kind')
+      return nil
+    }
     // Ideally, we should show multiple symbols. But VS Code fails to display type hierarchies with multiple root items,
     // failing with `Cannot read properties of undefined (reading 'map')`. Pick the first one.
     return Array(typeHierarchyItems.prefix(1))
