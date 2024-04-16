@@ -195,11 +195,8 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
       return .visitChildren
     }
 
-    guard let start: Position = snapshot.positionOf(utf8Offset: start.utf8Offset),
-      let end: Position = snapshot.positionOf(utf8Offset: end.utf8Offset)
-    else {
-      return .visitChildren
-    }
+    let start = snapshot.positionOf(utf8Offset: start.utf8Offset)
+    let end = snapshot.positionOf(utf8Offset: end.utf8Offset)
     let range: FoldingRange
     if lineFoldingOnly {
       // Since the client cannot fold less than a single line, if the

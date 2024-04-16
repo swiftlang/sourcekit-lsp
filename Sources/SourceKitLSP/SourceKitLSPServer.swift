@@ -1317,8 +1317,8 @@ extension SourceKitLSPServer {
       semanticTokensProvider: semanticTokensOptions,
       inlayHintProvider: inlayHintOptions,
       experimental: .dictionary([
-        "workspace/tests": .dictionary(["version": .int(1)]),
-        "textDocument/tests": .dictionary(["version": .int(1)]),
+        "workspace/tests": .dictionary(["version": .int(2)]),
+        "textDocument/tests": .dictionary(["version": .int(2)]),
       ])
     )
   }
@@ -2039,14 +2039,14 @@ extension SourceKitLSPServer {
 
   private func indexToLSPCallHierarchyItem(
     symbol: Symbol,
-    moduleName: String?,
+    containerName: String?,
     location: Location
   ) -> CallHierarchyItem {
     CallHierarchyItem(
       name: symbol.name,
       kind: symbol.kind.asLspSymbolKind(),
       tags: nil,
-      detail: moduleName,
+      detail: containerName,
       uri: location.uri,
       range: location.range,
       selectionRange: location.range,
@@ -2077,7 +2077,7 @@ extension SourceKitLSPServer {
 
     // Only return a single call hierarchy item. Returning multiple doesn't make sense because they will all have the
     // same USR (because we query them by USR) and will thus expand to the exact same call hierarchy.
-    var callHierarchyItems = usrs.compactMap { (usr) -> CallHierarchyItem? in
+    let callHierarchyItems = usrs.compactMap { (usr) -> CallHierarchyItem? in
       guard let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: usr) else {
         return nil
       }
@@ -2086,7 +2086,7 @@ extension SourceKitLSPServer {
       }
       return self.indexToLSPCallHierarchyItem(
         symbol: definition.symbol,
-        moduleName: definition.location.moduleName,
+        containerName: definition.containerName,
         location: location
       )
     }.sorted(by: { Location(uri: $0.uri, range: $0.range) < Location(uri: $1.uri, range: $1.range) })
@@ -2126,27 +2126,44 @@ extension SourceKitLSPServer {
     callableUsrs += index.occurrences(ofUSR: data.usr, roles: .overrideOf).flatMap { occurrence in
       occurrence.relations.filter { $0.roles.contains(.overrideOf) }.map(\.symbol.usr)
     }
+    // callOccurrences are all the places that any of the USRs in callableUsrs is called.
+    // We also load the `calledBy` roles to get the method that contains the reference to this call.
     let callOccurrences = callableUsrs.flatMap { index.occurrences(ofUSR: $0, roles: .calledBy) }
-    let calls = callOccurrences.flatMap { occurrence -> [CallHierarchyIncomingCall] in
-      guard let location = indexToLSPLocation(occurrence.location) else {
-        return []
-      }
-      return occurrence.relations.filter { $0.symbol.kind.isCallable }
-        .map { related in
-          // Resolve the caller's definition to find its location
-          let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: related.symbol.usr)
-          let definitionSymbolLocation = definition?.location
-          let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
 
-          return CallHierarchyIncomingCall(
-            from: indexToLSPCallHierarchyItem(
-              symbol: related.symbol,
-              moduleName: definitionSymbolLocation?.moduleName,
-              location: definitionLocation ?? location  // Use occurrence location as fallback
-            ),
-            fromRanges: [location.range]
-          )
-        }
+    // Maps functions that call a USR in `callableUSRs` to all the called occurrences of `callableUSRs` within the
+    // function. If a function `foo` calls `bar` multiple times, `callersToCalls[foo]` will contain two call
+    // `SymbolOccurrence`s.
+    // This way, we can group multiple calls to `bar` within `foo` to a single item with multiple `fromRanges`.
+    var callersToCalls: [Symbol: [SymbolOccurrence]] = [:]
+
+    for call in callOccurrences {
+      // Callers are all `calledBy` relations of a call to a USR in `callableUsrs`, ie. all the functions that contain a
+      // call to a USR in callableUSRs. In practice, this should always be a single item.
+      let callers = call.relations.filter { $0.roles.contains(.calledBy) }.map(\.symbol)
+      for caller in callers {
+        callersToCalls[caller, default: []].append(call)
+      }
+    }
+
+    let calls = callersToCalls.compactMap { (caller: Symbol, calls: [SymbolOccurrence]) -> CallHierarchyIncomingCall? in
+      // Resolve the caller's definition to find its location
+      let definition = index.primaryDefinitionOrDeclarationOccurrence(ofUSR: caller.usr)
+      let definitionSymbolLocation = definition?.location
+      let definitionLocation = definitionSymbolLocation.flatMap(indexToLSPLocation)
+
+      let locations = calls.compactMap { indexToLSPLocation($0.location) }.sorted()
+      guard !locations.isEmpty else {
+        return nil
+      }
+
+      return CallHierarchyIncomingCall(
+        from: indexToLSPCallHierarchyItem(
+          symbol: caller,
+          containerName: definition?.containerName,
+          location: definitionLocation ?? locations.first!
+        ),
+        fromRanges: locations.map(\.range)
+      )
     }
     return calls.sorted(by: { $0.from.name < $1.from.name })
   }
@@ -2172,7 +2189,7 @@ extension SourceKitLSPServer {
       return CallHierarchyOutgoingCall(
         to: indexToLSPCallHierarchyItem(
           symbol: occurrence.symbol,
-          moduleName: definitionSymbolLocation?.moduleName,
+          containerName: definition?.containerName,
           location: definitionLocation ?? location  // Use occurrence location as fallback
         ),
         fromRanges: [location.range]
@@ -2455,27 +2472,25 @@ extension IndexSymbolKind {
       return .null
     }
   }
-
-  var isCallable: Bool {
-    switch self {
-    case .function, .instanceMethod, .classMethod, .staticMethod, .constructor, .destructor, .conversionFunction:
-      return true
-    case .unknown, .module, .namespace, .namespaceAlias, .macro, .enum, .struct, .protocol, .extension, .union,
-      .typealias, .field, .enumConstant, .parameter, .using, .concept, .commentTag, .variable, .instanceProperty,
-      .class, .staticProperty, .classProperty:
-      return false
-    }
-  }
 }
 
 extension SymbolOccurrence {
   /// Get the name of the symbol that is a parent of this symbol, if one exists
-  func getContainerName() -> String? {
+  var containerName: String? {
     let containers = relations.filter { $0.roles.contains(.childOf) }
     if containers.count > 1 {
       logger.fault("Expected an occurrence to a child of at most one symbol, not multiple")
     }
-    return containers.sorted().first?.symbol.name
+    return containers.filter {
+      switch $0.symbol.kind {
+      case .module, .namespace, .enum, .struct, .class, .protocol, .extension, .union:
+        return true
+      case .unknown, .namespaceAlias, .macro, .typealias, .function, .variable, .field, .enumConstant,
+        .instanceMethod, .classMethod, .staticMethod, .instanceProperty, .classProperty, .staticProperty, .constructor,
+        .destructor, .conversionFunction, .parameter, .using, .concept, .commentTag:
+        return false
+      }
+    }.sorted().first?.symbol.name
   }
 }
 
@@ -2543,7 +2558,7 @@ extension WorkspaceSymbolItem {
         kind: symbolOccurrence.symbol.kind.asLspSymbolKind(),
         deprecated: nil,
         location: symbolLocation,
-        containerName: symbolOccurrence.getContainerName()
+        containerName: symbolOccurrence.containerName
       )
     )
   }
