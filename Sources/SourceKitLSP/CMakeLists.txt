@@ -20,6 +20,10 @@ target_sources(SourceKitLSP PRIVATE
   Clang/ClangLanguageService.swift)
 target_sources(SourceKitLSP PRIVATE
   Swift/AdjustPositionToStartOfIdentifier.swift
+  Swift/CodeActions/ConvertIntegerLiteral.swift
+  Swift/CodeActions/SyntaxCodeActionProvider.swift
+  Swift/CodeActions/SyntaxCodeActions.swift
+  Swift/CodeActions/SyntaxRefactoringCodeActionProvider.swift
   Swift/CodeCompletion.swift
   Swift/CodeCompletionSession.swift
   Swift/CommentXML.swift
