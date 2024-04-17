@@ -260,6 +260,7 @@ public enum SkipUnless {
     }
   }
 
+  /// A long test is a test that takes longer than 1-2s to execute.
   public static func longTestsEnabled() throws {
     if let value = ProcessInfo.processInfo.environment["SKIP_LONG_TESTS"], value == "1" || value == "YES" {
       throw XCTSkip("Long tests disabled using the `SKIP_LONG_TESTS` environment variable")

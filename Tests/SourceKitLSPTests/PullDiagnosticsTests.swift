@@ -134,4 +134,115 @@ final class PullDiagnosticsTests: XCTestCase {
     XCTAssertEqual(note.message, "to match this opening '{'")
     XCTAssertEqual(note.location.range, positions["1️⃣"]..<positions["2️⃣"])
   }
+
+  func testDiagnosticUpdatedAfterFilesInSameModuleAreUpdated() async throws {
+    try SkipUnless.longTestsEnabled()
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "FileA.swift": "",
+        "FileB.swift": """
+        func test() {
+          sayHello()
+        }
+        """,
+      ]
+    )
+
+    let (bUri, _) = try project.openDocument("FileB.swift")
+    let beforeChangingFileA = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
+    )
+    guard case .full(let fullReportBeforeChangingFileA) = beforeChangingFileA else {
+      XCTFail("Expected full diagnostics report")
+      return
+    }
+    XCTAssert(fullReportBeforeChangingFileA.items.contains(where: { $0.message == "Cannot find 'sayHello' in scope" }))
+
+    let diagnosticsRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
+    project.testClient.handleNextRequest { (request: DiagnosticsRefreshRequest) in
+      diagnosticsRefreshRequestReceived.fulfill()
+      return VoidResponse()
+    }
+
+    let updatedACode = "func sayHello() {}"
+    let aUri = try project.uri(for: "FileA.swift")
+    try updatedACode.write(to: try XCTUnwrap(aUri.fileURL), atomically: true, encoding: .utf8)
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: aUri, type: .changed)])
+    )
+
+    try await self.fulfillmentOfOrThrow([diagnosticsRefreshRequestReceived])
+
+    let afterChangingFileA = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
+    )
+    XCTAssertEqual(afterChangingFileA, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+  }
+
+  func testDiagnosticUpdatedAfterDependentModuleIsBuilt() async throws {
+    try SkipUnless.longTestsEnabled()
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public func 1️⃣sayHello() {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        func test() {
+          2️⃣sayHello()
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "LibA"),
+            .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """
+    )
+
+    let (bUri, _) = try project.openDocument("LibB.swift")
+    let beforeBuilding = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
+    )
+    guard case .full(let fullReportBeforeBuilding) = beforeBuilding else {
+      XCTFail("Expected full diagnostics report")
+      return
+    }
+    XCTAssert(fullReportBeforeBuilding.items.contains(where: { $0.message == "No such module 'LibA'" }))
+
+    let diagnosticsRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
+    project.testClient.handleNextRequest { (request: DiagnosticsRefreshRequest) in
+      diagnosticsRefreshRequestReceived.fulfill()
+      return VoidResponse()
+    }
+
+    try await SwiftPMTestProject.build(at: project.scratchDirectory)
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(
+        changes:
+          FileManager.default.findFiles(withExtension: "swiftmodule", in: project.scratchDirectory).map {
+            FileEvent(uri: DocumentURI($0), type: .created)
+          }
+      )
+    )
+
+    try await self.fulfillmentOfOrThrow([diagnosticsRefreshRequestReceived])
+
+    let afterChangingFileA = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
+    )
+    XCTAssertEqual(afterChangingFileA, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+  }
 }

@@ -46,7 +46,7 @@ class DefinitionTests: XCTestCase {
         func 1️⃣doThing()
       }
 
-      struct TestImpl: TestProtocol { 
+      struct TestImpl: TestProtocol {
         func 2️⃣doThing() { }
       }
 
@@ -388,6 +388,130 @@ class DefinitionTests: XCTestCase {
     XCTAssertEqual(
       locations,
       [Location(uri: uri, range: Range(positions["1️⃣"]))]
+    )
+  }
+
+  func testFileDependencyUpdatedWithinSameModule() async throws {
+    try SkipUnless.longTestsEnabled()
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "FileA.swift": "",
+        "FileB.swift": """
+        func test() {
+          1️⃣sayHello()
+        }
+        """,
+      ],
+      build: true,
+      allowBuildFailure: true
+    )
+
+    let (bUri, bPositions) = try project.openDocument("FileB.swift")
+    let beforeChangingFileA = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(bUri), position: bPositions["1️⃣"])
+    )
+    XCTAssertNil(beforeChangingFileA)
+
+    let updatedAMarkedCode = "func 2️⃣sayHello() {}"
+    let updatedACode = extractMarkers(updatedAMarkedCode).textWithoutMarkers
+    let updatedAPositions = DocumentPositions(markedText: updatedAMarkedCode)
+
+    let aUri = try project.uri(for: "FileA.swift")
+    try updatedACode.write(to: try XCTUnwrap(aUri.fileURL), atomically: true, encoding: .utf8)
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: aUri, type: .changed)])
+    )
+
+    // Wait until SourceKit-LSP has handled the `DidChangeWatchedFilesNotification` (which it only does after a delay
+    // because it debounces these notifications), indicated by it telling us that we should refresh diagnostics.
+    let diagnosticRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
+    project.testClient.handleNextRequest { (request: DiagnosticsRefreshRequest) in
+      diagnosticRefreshRequestReceived.fulfill()
+      return VoidResponse()
+    }
+    try await fulfillmentOfOrThrow([diagnosticRefreshRequestReceived])
+
+    let afterChangingFileA = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(bUri), position: bPositions["1️⃣"])
+    )
+    XCTAssertEqual(
+      afterChangingFileA,
+      .locations([Location(uri: aUri, range: Range(updatedAPositions["2️⃣"]))])
+    )
+
+    try await SwiftPMTestProject.build(at: project.scratchDirectory)
+    let afterBuilding = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(bUri), position: bPositions["1️⃣"])
+    )
+    XCTAssertEqual(
+      afterBuilding,
+      .locations([Location(uri: aUri, range: Range(updatedAPositions["2️⃣"]))])
+    )
+  }
+
+  func testDependentModuleGotBuilt() async throws {
+    try SkipUnless.longTestsEnabled()
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public func 1️⃣sayHello() {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        func test() {
+          2️⃣sayHello()
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "LibA"),
+            .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """
+    )
+
+    let (bUri, bPositions) = try project.openDocument("LibB.swift")
+    let beforeBuilding = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(bUri), position: bPositions["2️⃣"])
+    )
+    XCTAssertNil(beforeBuilding)
+
+    try await SwiftPMTestProject.build(at: project.scratchDirectory)
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(
+        changes:
+          FileManager.default.findFiles(withExtension: "swiftmodule", in: project.scratchDirectory).map {
+            FileEvent(uri: DocumentURI($0), type: .created)
+          }
+      )
+    )
+
+    // Wait until SourceKit-LSP has handled the `DidChangeWatchedFilesNotification` (which it only does after a delay
+    // because it debounces these notifications), indicated by it telling us that we should refresh diagnostics.
+    let diagnosticRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
+    project.testClient.handleNextRequest { (request: DiagnosticsRefreshRequest) in
+      diagnosticRefreshRequestReceived.fulfill()
+      return VoidResponse()
+    }
+    try await fulfillmentOfOrThrow([diagnosticRefreshRequestReceived])
+
+    let afterBuilding = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(bUri), position: bPositions["2️⃣"])
+    )
+    XCTAssertEqual(
+      afterBuilding,
+      .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibA.swift")])
     )
   }
 }

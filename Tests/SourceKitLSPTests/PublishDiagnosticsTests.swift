@@ -119,4 +119,87 @@ final class PublishDiagnosticsTests: XCTestCase {
       Position(line: 1, utf16index: 2)..<Position(line: 1, utf16index: 9)
     )
   }
+
+  func testDiagnosticUpdatedAfterFilesInSameModuleAreUpdated() async throws {
+    try SkipUnless.longTestsEnabled()
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "FileA.swift": "",
+        "FileB.swift": """
+        func test() {
+          sayHello()
+        }
+        """,
+      ],
+      usePullDiagnostics: false
+    )
+
+    _ = try project.openDocument("FileB.swift")
+    let diagnosticsBeforeChangingFileA = try await project.testClient.nextDiagnosticsNotification()
+    XCTAssert(
+      diagnosticsBeforeChangingFileA.diagnostics.contains(where: { $0.message == "Cannot find 'sayHello' in scope" })
+    )
+
+    let updatedACode = "func sayHello() {}"
+    let aUri = try project.uri(for: "FileA.swift")
+    try updatedACode.write(to: try XCTUnwrap(aUri.fileURL), atomically: true, encoding: .utf8)
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: aUri, type: .changed)])
+    )
+
+    let diagnosticsAfterChangingFileA = try await project.testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diagnosticsAfterChangingFileA.diagnostics, [])
+  }
+
+  func testDiagnosticUpdatedAfterDependentModuleIsBuilt() async throws {
+    try SkipUnless.longTestsEnabled()
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public func 1️⃣sayHello() {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        func test() {
+          2️⃣sayHello()
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "LibA"),
+            .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      usePullDiagnostics: false
+    )
+
+    _ = try project.openDocument("LibB.swift")
+    let diagnosticsBeforeBuilding = try await project.testClient.nextDiagnosticsNotification()
+    XCTAssert(diagnosticsBeforeBuilding.diagnostics.contains(where: { $0.message == "No such module 'LibA'" }))
+
+    try await SwiftPMTestProject.build(at: project.scratchDirectory)
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(
+        changes:
+          FileManager.default.findFiles(withExtension: "swiftmodule", in: project.scratchDirectory).map {
+            FileEvent(uri: DocumentURI($0), type: .created)
+          }
+      )
+    )
+
+    let diagnosticsAfterBuilding = try await project.testClient.nextDiagnosticsNotification()
+    XCTAssertEqual(diagnosticsAfterBuilding.diagnostics, [])
+  }
 }

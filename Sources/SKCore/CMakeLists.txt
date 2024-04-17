@@ -7,6 +7,7 @@ add_library(SKCore STATIC
   BuildSystemManager.swift
   CompilationDatabase.swift
   CompilationDatabaseBuildSystem.swift
+  Debouncer.swift
   FallbackBuildSystem.swift
   FileBuildSettings.swift
   MainFilesProvider.swift
