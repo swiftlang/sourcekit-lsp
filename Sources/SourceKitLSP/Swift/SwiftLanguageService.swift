@@ -699,14 +699,21 @@ extension SwiftLanguageService {
   }
 
   public func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
-    let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
+    let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind?)] = [
+      (retrieveSyntaxCodeActions, nil),
       (retrieveRefactorCodeActions, .refactor),
       (retrieveQuickFixCodeActions, .quickFix),
     ]
     let wantedActionKinds = req.context.only
-    let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
+    let providers: [CodeActionProvider] = providersAndKinds.compactMap {
+      if let wantedActionKinds, let kind = $0.1, !wantedActionKinds.contains(kind) {
+        return nil
+      }
+
+      return $0.provider
+    }
     let codeActionCapabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
-    let codeActions = try await retrieveCodeActions(req, providers: providers.map { $0.provider })
+    let codeActions = try await retrieveCodeActions(req, providers: providers)
     let response = CodeActionRequestResponse(
       codeActions: codeActions,
       clientCapabilities: codeActionCapabilities
@@ -714,7 +721,9 @@ extension SwiftLanguageService {
     return response
   }
 
-  func retrieveCodeActions(_ req: CodeActionRequest, providers: [CodeActionProvider]) async throws -> [CodeAction] {
+  func retrieveCodeActions(_ req: CodeActionRequest, providers: [CodeActionProvider]) async throws
+    -> [CodeAction]
+  {
     guard providers.isEmpty == false else {
       return []
     }
@@ -725,6 +734,17 @@ extension SwiftLanguageService {
         // Ignore any providers that failed to provide refactoring actions.
         return []
       }
+    }.flatMap { $0 }.sorted { $0.title < $1.title }
+  }
+
+  func retrieveSyntaxCodeActions(_ request: CodeActionRequest) async throws -> [CodeAction] {
+    let uri = request.textDocument.uri
+    let snapshot = try documentManager.latestSnapshot(uri)
+
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let scope = try SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request)
+    return await allSyntaxCodeActions.concurrentMap { provider in
+      return provider.codeActions(in: scope)
     }.flatMap { $0 }
   }
 
@@ -1088,6 +1108,18 @@ extension DocumentSnapshot {
   ) -> Range<Position> {
     let lowerBound = self.position(of: range.lowerBound, callerFile: callerFile, callerLine: callerLine)
     let upperBound = self.position(of: range.upperBound, callerFile: callerFile, callerLine: callerLine)
+    return lowerBound..<upperBound
+  }
+
+  /// Extracts the range of the given syntax node in terms of positions within
+  /// this source file.
+  func range(
+    of node: some SyntaxProtocol,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> Range<Position> {
+    let lowerBound = self.position(of: node.position)
+    let upperBound = self.position(of: node.endPosition)
     return lowerBound..<upperBound
   }
 
