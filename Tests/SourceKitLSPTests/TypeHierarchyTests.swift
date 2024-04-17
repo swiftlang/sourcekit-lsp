@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import ISDBTestSupport
+import LSPTestSupport
 import LanguageServerProtocol
 import SKTestSupport
 import TSCBasic
@@ -184,6 +185,28 @@ final class TypeHierarchyTests: XCTestCase {
         TypeHierarchyItem(name: "MyClass", kind: .class, location: "1️⃣", in: project)
       ]
     )
+  }
+
+  func testTypeHierarchyForFileWithoutIndex() async throws {
+    let project = try await SwiftPMTestProject(files: [
+      "Test.swift": """
+      class MyClass {}
+      class 1️⃣MySubclass: MyClass {}
+
+      let x = MySubclass()
+      """
+    ])
+
+    let (uri, positions) = try project.openDocument("Test.swift")
+
+    // We don't have the type hierarchy because the file hasn't been indexed yet. Returning an empty array makes VS Code
+    // fail with the following two errors, so we should return `nil` instead.
+    //  - MISSING provider
+    //  - Cannot read properties of null (reading 'kind')
+    let response = try await project.testClient.send(
+      TypeHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    XCTAssertNil(response)
   }
 }
 
