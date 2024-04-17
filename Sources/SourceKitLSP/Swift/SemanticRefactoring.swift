@@ -48,26 +48,26 @@ struct SemanticRefactoring {
       }
       edits.forEach { _, value in
         // The LSP is zero based, but semantic_refactoring is one based.
-        if let startLine: Int = value[keys.line],
+        guard let startLine: Int = value[keys.line],
           let startColumn: Int = value[keys.column],
-          let startPosition = snapshot.positionOf(
-            zeroBasedLine: startLine - 1,
-            utf8Column: startColumn - 1
-          ),
           let endLine: Int = value[keys.endLine],
           let endColumn: Int = value[keys.endColumn],
-          let endPosition = snapshot.positionOf(
-            zeroBasedLine: endLine - 1,
-            utf8Column: endColumn - 1
-          ),
           let text: String = value[keys.text]
-        {
-          // Snippets are only supported in code completion.
-          // Remove SourceKit placeholders in refactoring actions because they can't be represented in the editor properly.
-          let textWithSnippets = rewriteSourceKitPlaceholders(in: text, clientSupportsSnippets: false)
-          let edit = TextEdit(range: startPosition..<endPosition, newText: textWithSnippets)
-          textEdits.append(edit)
+        else {
+          return true  // continue
         }
+        let startPosition = snapshot.positionOf(
+          zeroBasedLine: startLine - 1,
+          utf8Column: startColumn - 1
+        )
+        let endPosition = snapshot.positionOf(
+          zeroBasedLine: endLine - 1,
+          utf8Column: endColumn - 1
+        )
+        // Snippets are only supported in code completion.
+        // Remove SourceKit placeholders in refactoring actions because they can't be represented in the editor properly.
+        let textWithSnippets = rewriteSourceKitPlaceholders(in: text, clientSupportsSnippets: false)
+        textEdits.append(TextEdit(range: startPosition..<endPosition, newText: textWithSnippets))
         return true
       }
       return true
@@ -84,12 +84,6 @@ struct SemanticRefactoring {
 
 /// An error from a semantic refactoring request.
 enum SemanticRefactoringError: Error {
-  /// The given position range is invalid.
-  case invalidRange(Range<Position>)
-
-  /// The given position failed to convert to UTF-8.
-  case failedToRetrieveOffset(Range<Position>)
-
   /// The underlying sourcekitd request failed with the given error.
   case responseError(ResponseError)
 
@@ -100,10 +94,6 @@ enum SemanticRefactoringError: Error {
 extension SemanticRefactoringError: CustomStringConvertible {
   var description: String {
     switch self {
-    case .invalidRange(let range):
-      return "failed to refactor due to invalid range: \(range)"
-    case .failedToRetrieveOffset(let range):
-      return "Failed to convert range to UTF-8 offset: \(range)"
     case .responseError(let error):
       return "\(error)"
     case .noEditsNeeded(let url):
@@ -128,14 +118,9 @@ extension SwiftLanguageService {
 
     let uri = refactorCommand.textDocument.uri
     let snapshot = try self.documentManager.latestSnapshot(uri)
-    guard let offsetRange = snapshot.utf8OffsetRange(of: refactorCommand.positionRange) else {
-      throw SemanticRefactoringError.failedToRetrieveOffset(refactorCommand.positionRange)
-    }
     let line = refactorCommand.positionRange.lowerBound.line
     let utf16Column = refactorCommand.positionRange.lowerBound.utf16index
-    guard let utf8Column = snapshot.lineTable.utf8ColumnAt(line: line, utf16Column: utf16Column) else {
-      throw SemanticRefactoringError.invalidRange(refactorCommand.positionRange)
-    }
+    let utf8Column = snapshot.lineTable.utf8ColumnAt(line: line, utf16Column: utf16Column)
 
     let skreq = sourcekitd.dictionary([
       keys.request: self.requests.semanticRefactoring,
@@ -146,7 +131,7 @@ extension SwiftLanguageService {
       // LSP is zero based, but this request is 1 based.
       keys.line: line + 1,
       keys.column: utf8Column + 1,
-      keys.length: offsetRange.count,
+      keys.length: snapshot.utf8OffsetRange(of: refactorCommand.positionRange).count,
       keys.actionUID: self.sourcekitd.api.uid_get_from_cstr(refactorCommand.actionString)!,
       keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
     ])

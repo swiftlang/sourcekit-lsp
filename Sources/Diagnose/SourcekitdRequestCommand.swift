@@ -56,10 +56,9 @@ public struct SourceKitdRequestCommand: AsyncParsableCommand {
       let requestInfo = try RequestInfo(request: requestString)
 
       let lineTable = LineTable(requestInfo.fileContents)
-      if let offset = lineTable.utf8OffsetOf(line: line - 1, utf8Column: column - 1) {
-        print("Adjusting request offset to \(offset)")
-        requestString.replace(#/key.offset: [0-9]+/#, with: "key.offset: \(offset)")
-      }
+      let offset = lineTable.utf8OffsetOf(line: line - 1, utf8Column: column - 1)
+      print("Adjusting request offset to \(offset)")
+      requestString.replace(#/key.offset: [0-9]+/#, with: "key.offset: \(offset)")
     }
 
     let request = try requestString.cString(using: .utf8)!.withUnsafeBufferPointer { buffer in

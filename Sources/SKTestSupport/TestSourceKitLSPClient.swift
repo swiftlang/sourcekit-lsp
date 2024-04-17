@@ -357,9 +357,7 @@ public struct DocumentPositions {
 
     let lineTable = LineTable(textWithoutMarkers)
     positions = markers.mapValues { offset in
-      guard let (line, column) = lineTable.lineAndUTF16ColumnOf(utf8Offset: offset) else {
-        preconditionFailure("UTF-8 offset not within source file: \(offset)")
-      }
+      let (line, column) = lineTable.lineAndUTF16ColumnOf(utf8Offset: offset)
       return Position(line: line, utf16index: column)
     }
   }

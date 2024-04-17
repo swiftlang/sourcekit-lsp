@@ -88,7 +88,6 @@ public final class DocumentManager {
   public enum Error: Swift.Error {
     case alreadyOpen(DocumentURI)
     case missingDocument(DocumentURI)
-    case failedToConvertPosition
   }
 
   let queue: DispatchQueue = DispatchQueue(label: "document-manager-queue")
@@ -156,10 +155,7 @@ public final class DocumentManager {
 
       var sourceEdits: [SourceEdit] = []
       for edit in edits {
-        guard let sourceEdit = SourceEdit(edit: edit, lineTableBeforeEdit: document.latestLineTable) else {
-          throw Error.failedToConvertPosition
-        }
-        sourceEdits.append(sourceEdit)
+        sourceEdits.append(SourceEdit(edit: edit, lineTableBeforeEdit: document.latestLineTable))
 
         if let range = edit.range {
           document.latestLineTable.replace(
@@ -234,20 +230,16 @@ fileprivate extension SourceEdit {
   ///
   /// Returns `nil` if the `TextDocumentContentChangeEvent` refers to line:column positions that don't exist in
   /// `LineTable`.
-  init?(edit: TextDocumentContentChangeEvent, lineTableBeforeEdit: LineTable) {
+  init(edit: TextDocumentContentChangeEvent, lineTableBeforeEdit: LineTable) {
     if let range = edit.range {
-      guard
-        let offset = lineTableBeforeEdit.utf8OffsetOf(
-          line: range.lowerBound.line,
-          utf16Column: range.lowerBound.utf16index
-        ),
-        let end = lineTableBeforeEdit.utf8OffsetOf(
-          line: range.upperBound.line,
-          utf16Column: range.upperBound.utf16index
-        )
-      else {
-        return nil
-      }
+      let offset = lineTableBeforeEdit.utf8OffsetOf(
+        line: range.lowerBound.line,
+        utf16Column: range.lowerBound.utf16index
+      )
+      let end = lineTableBeforeEdit.utf8OffsetOf(
+        line: range.upperBound.line,
+        utf16Column: range.upperBound.utf16index
+      )
       self.init(
         range: AbsolutePosition(utf8Offset: offset)..<AbsolutePosition(utf8Offset: end),
         replacement: edit.text

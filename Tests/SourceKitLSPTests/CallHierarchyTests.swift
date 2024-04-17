@@ -90,7 +90,7 @@ final class CallHierarchyTests: XCTestCase {
     func item(
       _ name: String,
       _ kind: SymbolKind,
-      detail: String = "test",
+      detail: String? = nil,
       usr: String,
       at position: Position
     ) -> CallHierarchyItem {
@@ -215,7 +215,7 @@ final class CallHierarchyTests: XCTestCase {
           name: "foo",
           kind: .method,
           tags: nil,
-          detail: "",
+          detail: "FilePathIndex",
           uri: try project.uri(for: "lib.cpp"),
           range: try Range(project.position(of: "2️⃣", in: "lib.cpp")),
           selectionRange: try Range(project.position(of: "2️⃣", in: "lib.cpp")),
@@ -255,7 +255,7 @@ final class CallHierarchyTests: XCTestCase {
             name: "testFunc(x:)",
             kind: .function,
             tags: nil,
-            detail: "test",  // test is the module name because the file is called test.swift
+            detail: nil,
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
@@ -275,9 +275,15 @@ final class CallHierarchyTests: XCTestCase {
       """
       func 1️⃣foo() {}
 
-      var testVar: Int 2️⃣{
-        let myVar = 3️⃣foo()
-        return 2
+      var testVar: Int {
+        2️⃣get {
+          let myVar = 3️⃣foo()
+          return 2
+        }
+      }
+
+      func 4️⃣testFunc() {
+        _ = 5️⃣testVar
       }
       """
     )
@@ -297,7 +303,7 @@ final class CallHierarchyTests: XCTestCase {
             name: "getter:testVar",
             kind: .function,
             tags: nil,
-            detail: "test",  // test is the module name because the file is called test.swift
+            detail: nil,
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
@@ -307,6 +313,31 @@ final class CallHierarchyTests: XCTestCase {
             ])
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
+        )
+      ]
+    )
+
+    let testVarItem = try XCTUnwrap(calls?.first?.from)
+
+    let callsToTestVar = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: testVarItem))
+    XCTAssertEqual(
+      callsToTestVar,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "testFunc()",
+            kind: .function,
+            tags: nil,
+            detail: nil,
+            uri: project.fileURI,
+            range: Range(project.positions["4️⃣"]),
+            selectionRange: Range(project.positions["4️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test0A4FuncyyF"),
+              "uri": .string(project.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(project.positions["5️⃣"])]
         )
       ]
     )
@@ -339,7 +370,7 @@ final class CallHierarchyTests: XCTestCase {
             name: "testFunc()",
             kind: .function,
             tags: nil,
-            detail: "test",  // test is the module name because the file is called test.swift
+            detail: nil,
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
@@ -348,24 +379,8 @@ final class CallHierarchyTests: XCTestCase {
               "uri": .string(project.fileURI.stringValue),
             ])
           ),
-          fromRanges: [Range(project.positions["3️⃣"])]
-        ),
-        CallHierarchyIncomingCall(
-          from: CallHierarchyItem(
-            name: "testFunc()",
-            kind: .function,
-            tags: nil,
-            detail: "test",  // test is the module name because the file is called test.swift
-            uri: project.fileURI,
-            range: Range(project.positions["2️⃣"]),
-            selectionRange: Range(project.positions["2️⃣"]),
-            data: .dictionary([
-              "usr": .string("s:4test0A4FuncyyF"),
-              "uri": .string(project.fileURI.stringValue),
-            ])
-          ),
-          fromRanges: [Range(project.positions["4️⃣"])]
-        ),
+          fromRanges: [Range(project.positions["3️⃣"]), Range(project.positions["4️⃣"])]
+        )
       ]
     )
   }
@@ -396,7 +411,7 @@ final class CallHierarchyTests: XCTestCase {
             name: "getter:foo",
             kind: .function,
             tags: nil,
-            detail: "test",  // test is the module name because the file is called test.swift
+            detail: nil,
             uri: project.fileURI,
             range: Range(project.positions["1️⃣"]),
             selectionRange: Range(project.positions["1️⃣"]),
@@ -436,7 +451,7 @@ final class CallHierarchyTests: XCTestCase {
             name: "testFunc()",
             kind: .function,
             tags: nil,
-            detail: "test",  // test is the module name because the file is called test.swift
+            detail: nil,
             uri: project.fileURI,
             range: Range(project.positions["1️⃣"]),
             selectionRange: Range(project.positions["1️⃣"]),
@@ -485,7 +500,7 @@ final class CallHierarchyTests: XCTestCase {
             name: "test(proto:)",
             kind: .function,
             tags: nil,
-            detail: "test",  // test is the module name because the file is called test.swift
+            detail: nil,
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
@@ -534,7 +549,7 @@ final class CallHierarchyTests: XCTestCase {
             name: "test(base:)",
             kind: .function,
             tags: nil,
-            detail: "test",  // test is the module name because the file is called test.swift
+            detail: nil,
             uri: project.fileURI,
             range: Range(project.positions["2️⃣"]),
             selectionRange: Range(project.positions["2️⃣"]),
@@ -544,6 +559,49 @@ final class CallHierarchyTests: XCTestCase {
             ])
           ),
           fromRanges: [Range(project.positions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testCallHierarchyContainsContainerNameAsDetail() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      class MyClass {
+        func 1️⃣foo() {
+          2️⃣bar()
+        }
+      }
+      func 3️⃣bar() {
+      }
+      """
+    )
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(
+        textDocument: TextDocumentIdentifier(project.fileURI),
+        position: project.positions["3️⃣"]
+      )
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "foo()",
+            kind: .method,
+            tags: nil,
+            detail: "MyClass",
+            uri: project.fileURI,
+            range: Range(project.positions["1️⃣"]),
+            selectionRange: Range(project.positions["1️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:4test7MyClassC3fooyyF"),
+              "uri": .string(project.fileURI.stringValue),
+            ])
+          ),
+          fromRanges: [Range(project.positions["2️⃣"])]
         )
       ]
     )

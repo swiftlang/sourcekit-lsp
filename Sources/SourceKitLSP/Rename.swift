@@ -186,12 +186,8 @@ fileprivate struct SyntacticRenamePiece {
     else {
       return nil
     }
-    guard
-      let start = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: column - 1),
-      let end = snapshot.positionOf(zeroBasedLine: endLine - 1, utf8Column: endColumn - 1)
-    else {
-      return nil
-    }
+    let start = snapshot.positionOf(zeroBasedLine: line - 1, utf8Column: column - 1)
+    let end = snapshot.positionOf(zeroBasedLine: endLine - 1, utf8Column: endColumn - 1)
     guard let kind = SyntacticRenamePieceKind(kind, values: values) else {
       return nil
     }
@@ -270,23 +266,19 @@ private extension LineTable {
   ///
   /// If either the lower or upper bound of `range` do not refer to valid positions with in the snapshot, returns
   /// `nil` and logs a fault containing the file and line of the caller (from `callerFile` and `callerLine`).
-  subscript(range: Range<Position>, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> Substring? {
-    guard
-      let start = self.stringIndexOf(
-        line: range.lowerBound.line,
-        utf16Column: range.lowerBound.utf16index,
-        callerFile: callerFile,
-        callerLine: callerLine
-      ),
-      let end = self.stringIndexOf(
-        line: range.upperBound.line,
-        utf16Column: range.upperBound.utf16index,
-        callerFile: callerFile,
-        callerLine: callerLine
-      )
-    else {
-      return nil
-    }
+  subscript(range: Range<Position>, callerFile: StaticString = #fileID, callerLine: UInt = #line) -> Substring {
+    let start = self.stringIndexOf(
+      line: range.lowerBound.line,
+      utf16Column: range.lowerBound.utf16index,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
+    let end = self.stringIndexOf(
+      line: range.upperBound.line,
+      utf16Column: range.upperBound.utf16index,
+      callerFile: callerFile,
+      callerLine: callerLine
+    )
     return self.content[start..<end]
   }
 }
@@ -327,14 +319,11 @@ private extension IndexSymbolKind {
 
 extension SwiftLanguageService {
   enum NameTranslationError: Error, CustomStringConvertible {
-    case cannotComputeOffset(SymbolLocation)
     case malformedSwiftToClangTranslateNameResponse(SKDResponseDictionary)
     case malformedClangToSwiftTranslateNameResponse(SKDResponseDictionary)
 
     var description: String {
       switch self {
-      case .cannotComputeOffset(let position):
-        return "Failed to determine UTF-8 offset of \(position)"
       case .malformedSwiftToClangTranslateNameResponse(let response):
         return """
           Malformed response for Swift to Clang name translation
@@ -369,18 +358,11 @@ extension SwiftLanguageService {
       throw ResponseError.unknown("Failed to get contents of \(uri.forLogging) to translate Swift name to clang name")
     }
 
-    guard
-      let position = snapshot.position(of: symbolLocation),
-      let offset = snapshot.utf8Offset(of: position)
-    else {
-      throw NameTranslationError.cannotComputeOffset(symbolLocation)
-    }
-
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.nameTranslation,
       keys.sourceFile: snapshot.uri.pseudoPath,
       keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
-      keys.offset: offset,
+      keys.offset: snapshot.utf8Offset(of: snapshot.position(of: symbolLocation)),
       keys.nameKind: sourcekitd.values.nameSwift,
       keys.baseName: name.baseName,
       keys.argNames: sourcekitd.array(name.parameters.map { $0.stringOrWildcard }),
@@ -427,17 +409,11 @@ extension SwiftLanguageService {
     isObjectiveCSelector: Bool,
     name: String
   ) async throws -> String {
-    guard
-      let position = snapshot.position(of: symbolLocation),
-      let offset = snapshot.utf8Offset(of: position)
-    else {
-      throw NameTranslationError.cannotComputeOffset(symbolLocation)
-    }
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.nameTranslation,
       keys.sourceFile: snapshot.uri.pseudoPath,
       keys.compilerArgs: await self.buildSettings(for: snapshot.uri)?.compilerArgs as [SKDRequestValue]?,
-      keys.offset: offset,
+      keys.offset: snapshot.utf8Offset(of: snapshot.position(of: symbolLocation)),
       keys.nameKind: sourcekitd.values.nameObjc,
     ])
 
@@ -947,10 +923,7 @@ extension SwiftLanguageService {
   /// also be a closing ']' for subscripts or the end of a trailing closure.
   private func findFunctionLikeRange(of position: Position, in snapshot: DocumentSnapshot) async -> Range<Position>? {
     let tree = await self.syntaxTreeManager.syntaxTree(for: snapshot)
-    guard let absolutePosition = snapshot.absolutePosition(of: position) else {
-      return nil
-    }
-    guard let token = tree.token(at: absolutePosition) else {
+    guard let token = tree.token(at: snapshot.absolutePosition(of: position)) else {
       return nil
     }
 
@@ -1018,11 +991,10 @@ extension SwiftLanguageService {
       break
     }
 
-    if let startToken, let endToken,
-      let startPosition = snapshot.position(of: startToken.positionAfterSkippingLeadingTrivia),
-      let endPosition = snapshot.position(of: endToken.endPositionBeforeTrailingTrivia)
-    {
-      return startPosition..<endPosition
+    if let startToken, let endToken {
+      return snapshot.range(
+        of: startToken.positionAfterSkippingLeadingTrivia..<endToken.endPositionBeforeTrailingTrivia
+      )
     }
     return nil
   }
@@ -1130,9 +1102,7 @@ extension SwiftLanguageService {
     renameLocation: RenameLocation,
     newName: CrossLanguageName
   ) async -> [TextEdit] {
-    guard let position = snapshot.absolutePosition(of: renameLocation) else {
-      return []
-    }
+    let position = snapshot.absolutePosition(of: renameLocation)
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     let token = syntaxTree.token(at: position)
     let parameterClause: FunctionParameterClauseSyntax?
@@ -1192,11 +1162,8 @@ extension SwiftLanguageService {
         definitionLanguage: .swift
       )
 
-      guard let parameterPosition = snapshot.position(of: parameter.positionAfterSkippingLeadingTrivia) else {
-        continue
-      }
-
       let parameterRenameEdits = await orLog("Renaming parameter") {
+        let parameterPosition = snapshot.position(of: parameter.positionAfterSkippingLeadingTrivia)
         // Once we have lexical scope lookup in swift-syntax, this can be a purely syntactic rename.
         // We know that the parameters are variables and thus there can't be overloads that need to be resolved by the
         // type checker.
@@ -1247,9 +1214,9 @@ extension SwiftLanguageService {
         // E.g. `func foo(a: Int)` becomes `func foo(_ a: Int)`.
         return TextEdit(range: piece.range, newText: " " + oldParameterName)
       }
-      if let original = snapshot.lineTable[piece.range],
-        case .named(let newParameterLabel) = newParameter,
-        newParameterLabel.trimmingCharacters(in: .whitespaces) == original.trimmingCharacters(in: .whitespaces)
+      if case .named(let newParameterLabel) = newParameter,
+        newParameterLabel.trimmingCharacters(in: .whitespaces)
+          == snapshot.lineTable[piece.range].trimmingCharacters(in: .whitespaces)
       {
         // We are changing the external parameter name to be the same one as the internal parameter name. The
         // internal name is thus no longer needed. Drop it.
@@ -1336,17 +1303,18 @@ extension SwiftLanguageService {
       }
       return compoundRenameRange.pieces.compactMap { (piece) -> TextEdit? in
         if piece.kind == .baseName {
-          if let absolutePiecePosition = snapshot.absolutePosition(of: piece.range.lowerBound),
-            let firstNameToken = tree.token(at: absolutePiecePosition),
+          if let firstNameToken = tree.token(at: snapshot.absolutePosition(of: piece.range.lowerBound)),
             firstNameToken.keyPathInParent == \FunctionParameterSyntax.firstName,
             let parameterSyntax = firstNameToken.parent(as: FunctionParameterSyntax.self),
-            parameterSyntax.secondName == nil,  // Should always be true because otherwise decl would be second name
-            let firstNameEndPos = snapshot.position(of: firstNameToken.endPositionBeforeTrailingTrivia)
+            parameterSyntax.secondName == nil  // Should always be true because otherwise decl would be second name
           {
             // We are renaming a function parameter from inside the function body.
             // This should be a local rename and it shouldn't affect all the callers of the function. Introduce the new
             // name as a second name.
-            return TextEdit(range: firstNameEndPos..<firstNameEndPos, newText: " " + newName.baseName)
+            return TextEdit(
+              range: Range(snapshot.position(of: firstNameToken.endPositionBeforeTrailingTrivia)),
+              newText: " " + newName.baseName
+            )
           }
 
           return TextEdit(range: piece.range, newText: newName.baseName)
@@ -1479,13 +1447,10 @@ fileprivate extension SyntaxProtocol {
 
 fileprivate extension RelatedIdentifiersResponse {
   func renameLocations(in snapshot: DocumentSnapshot) -> [RenameLocation] {
-    return self.relatedIdentifiers.compactMap {
-      (relatedIdentifier) -> RenameLocation? in
+    return self.relatedIdentifiers.map {
+      (relatedIdentifier) -> RenameLocation in
       let position = relatedIdentifier.range.lowerBound
-      guard let utf8Column = snapshot.lineTable.utf8ColumnAt(line: position.line, utf16Column: position.utf16index)
-      else {
-        return nil
-      }
+      let utf8Column = snapshot.lineTable.utf8ColumnAt(line: position.line, utf16Column: position.utf16index)
       return RenameLocation(line: position.line + 1, utf8Column: utf8Column + 1, usage: relatedIdentifier.usage)
     }
   }

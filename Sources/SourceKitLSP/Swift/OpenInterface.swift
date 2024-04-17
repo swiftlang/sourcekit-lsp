@@ -101,10 +101,8 @@ extension SwiftLanguageService {
       ])
 
       let dict = try await self.sourcekitd.send(skreq, fileContents: snapshot.text)
-      if let offset: Int = dict[keys.offset],
-        let position = snapshot.positionOf(utf8Offset: offset)
-      {
-        return InterfaceDetails(uri: uri, position: position)
+      if let offset: Int = dict[keys.offset] {
+        return InterfaceDetails(uri: uri, position: snapshot.positionOf(utf8Offset: offset))
       } else {
         return InterfaceDetails(uri: uri, position: nil)
       }
