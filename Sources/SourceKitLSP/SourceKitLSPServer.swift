@@ -1842,11 +1842,23 @@ extension SourceKitLSPServer {
     if symbol.kind == .module, let name = symbol.name {
       let interfaceLocation = try await self.definitionInInterface(
         moduleName: name,
+        groupName: nil,
         symbolUSR: nil,
         originatorUri: uri,
         languageService: languageService
       )
       return [interfaceLocation]
+    }
+
+    if symbol.isSystem ?? false, let systemModule = symbol.systemModule {
+      let location = try await self.definitionInInterface(
+        moduleName: systemModule.moduleName,
+        groupName: systemModule.groupName,
+        symbolUSR: symbol.usr,
+        originatorUri: uri,
+        languageService: languageService
+      )
+      return [location]
     }
 
     guard let index = await self.workspaceForDocument(uri: uri)?.index else {
@@ -1891,19 +1903,7 @@ extension SourceKitLSPServer {
       return [bestLocalDeclaration]
     }
 
-    return try await occurrences.asyncCompactMap { occurrence in
-      if URL(fileURLWithPath: occurrence.location.path).pathExtension == "swiftinterface" {
-        // If the location is in `.swiftinterface` file, use moduleName to return textual interface.
-        return try await self.definitionInInterface(
-          moduleName: occurrence.location.moduleName,
-          symbolUSR: occurrence.symbol.usr,
-          originatorUri: uri,
-          languageService: languageService
-        )
-      }
-      return indexToLSPLocation(occurrence.location)
-    }
-    .sorted()
+    return occurrences.compactMap { indexToLSPLocation($0.location) }.sorted()
   }
 
   /// Returns the result of a `DefinitionRequest` by running a `SymbolInfoRequest`, inspecting
@@ -1968,6 +1968,7 @@ extension SourceKitLSPServer {
   /// compiler arguments to generate the generated interface.
   func definitionInInterface(
     moduleName: String,
+    groupName: String?,
     symbolUSR: String?,
     originatorUri: DocumentURI,
     languageService: LanguageService
@@ -1975,6 +1976,7 @@ extension SourceKitLSPServer {
     let openInterface = OpenInterfaceRequest(
       textDocument: TextDocumentIdentifier(originatorUri),
       name: moduleName,
+      groupName: groupName,
       symbolUSR: symbolUSR
     )
     guard let interfaceDetails = try await languageService.openInterface(openInterface) else {
