@@ -12,6 +12,7 @@
 
 import Dispatch
 import IndexStoreDB
+import LSPLogging
 import SKCore
 import SKSupport
 
@@ -62,6 +63,7 @@ public actor SourceKitIndexDelegate: IndexDelegate {
   }
 
   private func indexChanged() {
+    logger.debug("IndexStoreDB changed")
     for callback in mainFilesChangedCallbacks {
       queue.async {
         await callback()

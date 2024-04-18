@@ -584,7 +584,7 @@ final class RenameTests: XCTestCase {
           name: "MyLibrary",
           targets: [
             .target(
-              name: "MyLibrary", 
+              name: "MyLibrary",
               swiftSettings: [.unsafeFlags(["-Xfrontend", "-disable-objc-attr-requires-foundation-module"])]
             )
           ]
@@ -635,7 +635,7 @@ final class RenameTests: XCTestCase {
           name: "MyLibrary",
           targets: [
             .target(
-              name: "MyLibrary", 
+              name: "MyLibrary",
               swiftSettings: [.unsafeFlags(["-Xfrontend", "-disable-objc-attr-requires-foundation-module"])]
             )
           ]
@@ -1158,6 +1158,7 @@ final class RenameTests: XCTestCase {
     )
 
     try await SwiftPMTestProject.build(at: project.scratchDirectory)
+    _ = try await project.testClient.send(PollIndexRequest())
 
     let resultAfterFileMove = try await project.testClient.send(
       RenameRequest(textDocument: TextDocumentIdentifier(callerUri), position: callerPositions["3️⃣"], newName: "bar")
