@@ -22,56 +22,32 @@ The [Swift for Visual Studio Code extension](https://marketplace.visualstudio.co
 
 ## Sublime Text
 
-Before using SourceKit-LSP with Sublime Text, you will need to install the LSP package from Package Control. To configure SourceKit-LSP, open the LSP package's settings. The following snippet should be enough to get started with Swift.
+Before using SourceKit-LSP with Sublime Text, you will need to install the LSP package from Package Control. And you're ready to go if you have `xcrun` in the `$PATH`.
 
-You will need the path to the `sourcekit-lsp` executable for the "command" section.
+To configure SourceKit-LSP additionally, open the SourceKit-LSP package's settings by typing in command palette `Preferences: LSP-SourceKit Settings`. The following snippet should be enough to get started with Swift and Objective-C/C++ and the custom path to `sourcekit-lsp` executable.
 
 ```json
 {
-  "clients":
-  {
-    "SourceKit-LSP":
-    {
-      "enabled": true,
-      "command": [
+    "command": [
         "<sourcekit-lsp command>"
-      ],
-      "env": {
-        // To override the toolchain, uncomment the following:
-        // "SOURCEKIT_TOOLCHAIN_PATH": "<path to toolchain>",
-      },
-      "languages": [
+    ],
+    "languages": [
         {
-          "scopes": ["source.swift"],
-          "syntaxes": [
-            "Packages/Swift/Syntaxes/Swift.tmLanguage",
-            "Packages/Decent Swift Syntax/Swift.sublime-syntax",
-          ],
-          "languageId": "swift"
+            "languageId": "c"
         },
         {
-          "scopes": ["source.c"],
-          "syntaxes": ["Packages/C++/C.sublime-syntax"],
-          "languageId": "c"
+            "languageId": "c++"
         },
         {
-          "scopes": ["source.c++"],
-          "syntaxes": ["Packages/C++/C++.sublime-syntax"],
-          "languageId": "cpp"
+            "languageId": "objc"
         },
         {
-          "scopes": ["source.objc"],
-          "syntaxes": ["Packages/Objective-C/Objective-C.sublime-syntax"],
-          "languageId": "objective-c"
+            "languageId": "objc++"
         },
         {
-          "scopes": ["source.objc++"],
-          "syntaxes": ["Packages/Objective-C/Objective-C++.sublime-syntax"],
-          "languageId": "objective-cpp"
+            "languageId": "swift"
         },
-      ]
-    }
-  }
+    ]
 }
 ```
 
