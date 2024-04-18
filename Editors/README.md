@@ -29,7 +29,7 @@ To configure SourceKit-LSP additionally, open the SourceKit-LSP package's settin
 ```json
 {
     "command": [
-        "<sourcekit-lsp command>"
+        "sourcekit-lsp"
     ],
     "languages": [
         {
