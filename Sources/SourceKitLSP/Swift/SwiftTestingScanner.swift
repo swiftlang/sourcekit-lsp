@@ -96,8 +96,13 @@ struct TestingAttributeData {
         }
       }.flatMap(\.arguments)
       .compactMap {
-          $0.expression.as(StringLiteralExprSyntax.self)?.representedLiteralValue ??
-          $0.expression.as(MemberAccessExprSyntax.self)?.declName.baseName.text
+          if let stringLiteral = $0.expression.as(StringLiteralExprSyntax.self) {
+              return stringLiteral.representedLiteralValue
+          } else if let memberAccess = $0.expression.as(MemberAccessExprSyntax.self) {
+              let baseName = (memberAccess.baseName.map { "\($0)." } ?? "").replacing(#/Tag\./#, with: "")
+              return "\(baseName)\(memberAccess.declName.baseName.text)"
+          }
+          return nil
       }
 
     self.isDisabled = traitArguments.lazy
