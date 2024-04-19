@@ -595,7 +595,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
       1️⃣@Suite(.tags("Suites"))
       struct MyTests {
-        2️⃣@Test(.tags("one", "two"))
+        2️⃣@Test(.tags("one", "two", .red, .blue))
         func oneIsTwo() {
           #expect(1 == 2)
         }3️⃣
@@ -622,7 +622,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
               children: [],
-              tags: [TestTag(id: "one"), TestTag(id: "two")]
+              tags: [TestTag(id: "one"), TestTag(id: "two"), TestTag(id: "red"), TestTag(id: "blue")]
             )
           ],
           tags: [TestTag(id: "Suites")]

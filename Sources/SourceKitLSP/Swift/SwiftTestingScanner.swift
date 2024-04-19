@@ -95,7 +95,10 @@ struct TestingAttributeData {
           return false
         }
       }.flatMap(\.arguments)
-      .compactMap { $0.expression.as(StringLiteralExprSyntax.self)?.representedLiteralValue }
+      .compactMap {
+          $0.expression.as(StringLiteralExprSyntax.self)?.representedLiteralValue ??
+          $0.expression.as(MemberAccessExprSyntax.self)?.declName.baseName.text
+      }
 
     self.isDisabled = traitArguments.lazy
       .compactMap { $0.as(FunctionCallExprSyntax.self) }
