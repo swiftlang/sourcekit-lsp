@@ -2134,8 +2134,6 @@ extension SourceKitLSPServer {
       return []
     }
     var callableUsrs = [data.usr]
-    // Calls to the accessors of a property count as calls to the property
-    callableUsrs += index.occurrences(relatedToUSR: data.usr, roles: .accessorOf).map(\.symbol.usr)
     // Also show calls to the functions that this method overrides. This includes overridden class methods and
     // satisfied protocol requirements.
     callableUsrs += index.occurrences(ofUSR: data.usr, roles: .overrideOf).flatMap { occurrence in
@@ -2143,7 +2141,7 @@ extension SourceKitLSPServer {
     }
     // callOccurrences are all the places that any of the USRs in callableUsrs is called.
     // We also load the `calledBy` roles to get the method that contains the reference to this call.
-    let callOccurrences = callableUsrs.flatMap { index.occurrences(ofUSR: $0, roles: .calledBy) }
+    let callOccurrences = callableUsrs.flatMap { index.occurrences(ofUSR: $0, roles: .containedBy) }
 
     // Maps functions that call a USR in `callableUSRs` to all the called occurrences of `callableUSRs` within the
     // function. If a function `foo` calls `bar` multiple times, `callersToCalls[foo]` will contain two call
@@ -2154,7 +2152,7 @@ extension SourceKitLSPServer {
     for call in callOccurrences {
       // Callers are all `calledBy` relations of a call to a USR in `callableUsrs`, ie. all the functions that contain a
       // call to a USR in callableUSRs. In practice, this should always be a single item.
-      let callers = call.relations.filter { $0.roles.contains(.calledBy) }.map(\.symbol)
+      let callers = call.relations.filter { $0.roles.contains(.containedBy) }.map(\.symbol)
       for caller in callers {
         callersToCalls[caller, default: []].append(call)
       }
@@ -2190,8 +2188,11 @@ extension SourceKitLSPServer {
       return []
     }
     let callableUsrs = [data.usr] + index.occurrences(relatedToUSR: data.usr, roles: .accessorOf).map(\.symbol.usr)
-    let callOccurrences = callableUsrs.flatMap { index.occurrences(relatedToUSR: $0, roles: .calledBy) }
+    let callOccurrences = callableUsrs.flatMap { index.occurrences(relatedToUSR: $0, roles: .containedBy) }
     let calls = callOccurrences.compactMap { occurrence -> CallHierarchyOutgoingCall? in
+      guard occurrence.symbol.kind.isCallable else {
+        return nil
+      }
       guard let location = indexToLSPLocation(occurrence.location) else {
         return nil
       }
@@ -2492,6 +2493,17 @@ extension IndexSymbolKind {
 
     default:
       return .null
+    }
+  }
+
+  var isCallable: Bool {
+    switch self {
+    case .function, .instanceMethod, .classMethod, .staticMethod, .constructor, .destructor, .conversionFunction:
+      return true
+    case .unknown, .module, .namespace, .namespaceAlias, .macro, .enum, .struct, .protocol, .extension, .union,
+      .typealias, .field, .enumConstant, .parameter, .using, .concept, .commentTag, .variable, .instanceProperty,
+      .class, .staticProperty, .classProperty:
+      return false
     }
   }
 }
