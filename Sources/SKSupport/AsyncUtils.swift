@@ -76,6 +76,21 @@ public extension Task {
   }
 }
 
+public extension Task where Failure == Never {
+  /// Awaits the value of the result.
+  ///
+  /// If the current task is cancelled, this will cancel the subtask as well.
+  var valuePropagatingCancellation: Success {
+    get async {
+      await withTaskCancellationHandler {
+        return await self.value
+      } onCancel: {
+        self.cancel()
+      }
+    }
+  }
+}
+
 /// Allows the execution of a cancellable operation that returns the results
 /// via a completion handler.
 ///
