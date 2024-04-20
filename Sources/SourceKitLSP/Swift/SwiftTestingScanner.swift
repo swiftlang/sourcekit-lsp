@@ -364,8 +364,6 @@ fileprivate extension MemberAccessExprSyntax {
     } else if let baseMemberAccessExpr = base?.as(MemberAccessExprSyntax.self) {
       return baseMemberAccessExpr.components + [declName.baseName.text]
     }
-
-    return [declName.baseName.text]
   }
 }
 

@@ -693,6 +693,61 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
+  func testSwiftTestingTestWithCustomTags() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      extension Tag {
+        @Tag static var foo: Self
+        @Tag static var bar: Self
+
+        struct Nested {
+          @Tag static var foo: Tag
+        }
+      }
+
+      1️⃣@Suite(.tags("Suites"))
+      struct MyTests {
+        2️⃣@Test(.tags(.foo, Nested.foo, Testing.Tag.bar))
+        func oneIsTwo() {
+          #expect(1 == 2)
+        }3️⃣
+      }4️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          disabled: false,
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/oneIsTwo()",
+              label: "oneIsTwo()",
+              disabled: false,
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
+              children: [],
+              tags: [TestTag(id: "foo"), TestTag(id: "Nested.foo"), TestTag(id: "bar")]
+            )
+          ],
+          tags: [TestTag(id: "Suites")]
+        )
+      ]
+    )
+  }
+
   func testSwiftTestingTestsWithExtension() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
