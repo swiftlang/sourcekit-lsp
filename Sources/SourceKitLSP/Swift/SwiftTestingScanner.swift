@@ -97,10 +97,15 @@ struct TestingAttributeData {
       }.flatMap(\.arguments)
       .compactMap {
           if let stringLiteral = $0.expression.as(StringLiteralExprSyntax.self) {
-              return stringLiteral.representedLiteralValue
+            return stringLiteral.representedLiteralValue
           } else if let memberAccess = $0.expression.as(MemberAccessExprSyntax.self) {
-              let baseName = (memberAccess.baseName.map { "\($0)." } ?? "").replacing(#/Tag\./#, with: "")
-              return "\(baseName)\(memberAccess.declName.baseName.text)"
+            var components = memberAccess.components[...]
+            if components.starts(with: ["Testing", "Tag"]) {
+              components = components.dropFirst(2)
+            } else if components.starts(with: ["Tag"]) {
+              components = components.dropFirst(1)
+            }
+            return components.joined(separator: ".")
           }
           return nil
       }
@@ -336,36 +341,34 @@ fileprivate extension AttributeSyntax {
 }
 
 fileprivate extension MemberAccessExprSyntax {
-  /// The base name of this instance, i.e. the string value of `base` joined
-  /// with any preceding base names.
-  ///
-  /// For example, if this instance represents the expression `x.y.z(123)`,
-  /// the value of this property is `"x.y"`. If the value of `base` is `nil`,
-  /// the value of this property is also `nil`.
-  var baseName: String? {
-    if let declReferenceExpr = base?.as(DeclReferenceExprSyntax.self) {
-      return declReferenceExpr.baseName.text
-    } else if let baseMemberAccessExpr = base?.as(MemberAccessExprSyntax.self) {
-      if let baseBaseName = baseMemberAccessExpr.baseName {
-        return "\(baseBaseName).\(baseMemberAccessExpr.declName.baseName.text)"
-      }
-      return baseMemberAccessExpr.declName.baseName.text
-    }
-
-    return nil
-  }
-
   /// The fully-qualified name of this instance (subject to available
   /// information.)
   ///
-  /// The value of this property is this instance's `baseName` property joined
-  /// with its `name` property. For example, if this instance represents the
-  /// expression `x.y.z(123)`, the value of this property is `"x.y.z"`.
+  /// The value of this property are all the components of the based name
+  /// name joined together with `.`.
   var fullyQualifiedName: String {
-    if let baseName {
-      return "\(baseName).\(declName.baseName.text)"
+    components.joined(separator: ".")
+  }
+
+  /// The name components of this instance (subject to available
+  /// information.)
+  ///
+  /// The value of this property is this base name of this instance,
+  /// i.e. the string value of `base` preceeded with any preceding base names
+  /// and followed by its `name` property.
+  ///
+  /// For example, if this instance represents
+  /// the expression `x.y.z(123)`, the value of this property is
+  /// `["x", "y", "z"]`.
+  var components: [String] {
+    if let declReferenceExpr = base?.as(DeclReferenceExprSyntax.self) {
+      return [declReferenceExpr.baseName.text, declName.baseName.text]
+    } else if let baseMemberAccessExpr = base?.as(MemberAccessExprSyntax.self) {
+      let baseBaseNames = baseMemberAccessExpr.components.dropLast()
+      return baseBaseNames + [baseMemberAccessExpr.declName.baseName.text, declName.baseName.text]
     }
-    return declName.baseName.text
+
+    return [declName.baseName.text]
   }
 }
 
