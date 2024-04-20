@@ -993,4 +993,76 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       ]
     )
   }
+
+  func testAddNewMethodToNotQuiteTestCase() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      import XCTest
+
+      class NotQuiteTest: SomeClass {
+        func testMyLibrary() {}
+      2️⃣
+      }
+      """,
+      allowBuildFailure: true
+    )
+
+    let testsBeforeEdit = try await project.testClient.send(
+      DocumentTestsRequest(textDocument: TextDocumentIdentifier(project.fileURI))
+    )
+    XCTAssertEqual(testsBeforeEdit, [])
+    project.testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(project.fileURI, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(range: Range(project.positions["2️⃣"]), text: "func testSomethingElse() {}")
+        ]
+      )
+    )
+    let testsAfterEdit = try await project.testClient.send(
+      DocumentTestsRequest(textDocument: TextDocumentIdentifier(project.fileURI))
+    )
+    XCTAssertEqual(testsAfterEdit, [])
+  }
+
+  func testAddNewClassToNotQuiteTestCase() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      import XCTest
+
+      class NotQuiteTest: SomeClass {
+        func testMyLibrary() {}
+      }
+      2️⃣
+      """,
+      allowBuildFailure: true
+    )
+
+    let testsBeforeEdit = try await project.testClient.send(
+      DocumentTestsRequest(textDocument: TextDocumentIdentifier(project.fileURI))
+    )
+    XCTAssertEqual(testsBeforeEdit, [])
+    project.testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(project.fileURI, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(
+            range: Range(project.positions["2️⃣"]),
+            text: """
+              class OtherNotQuiteTest: SomeClass {
+                func testSomethingElse() {}
+              }
+              """
+          )
+        ]
+      )
+    )
+    let testsAfterEdit = try await project.testClient.send(
+      DocumentTestsRequest(textDocument: TextDocumentIdentifier(project.fileURI))
+    )
+    // We know from the semantic index that NotQuiteTest does not inherit from XCTestCase, so we should not include it.
+    // We don't have any semantic knowledge about `OtherNotQuiteTest`, so we are conservative and should include it.
+    XCTAssertFalse(testsAfterEdit.contains { $0.label == "NotQuiteTest" })
+    XCTAssertTrue(testsAfterEdit.contains { $0.label == "OtherNotQuiteTest" })
+  }
 }
