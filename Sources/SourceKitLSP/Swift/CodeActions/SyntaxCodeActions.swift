@@ -20,5 +20,6 @@ let allSyntaxCodeActions: [SyntaxCodeActionProvider.Type] = [
   FormatRawStringLiteral.self,
   MigrateToNewIfLetSyntax.self,
   OpaqueParameterToGeneric.self,
+  PackageManifestEdits.self,
   RemoveSeparatorsFromIntegerLiteral.self,
 ]
