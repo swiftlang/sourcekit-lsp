@@ -60,7 +60,9 @@ public final class Workspace {
   public let buildSetup: BuildSetup
 
   /// The source code index, if available.
-  public var index: IndexStoreDB? = nil
+  ///
+  /// Usually a checked index (retrieved using `index(checkedFor:)`) should be used instead of the unchecked index.
+  var uncheckedIndex: UncheckedIndex? = nil
 
   /// The index that syntactically scans the workspace for tests.
   let syntacticTestIndex = SyntacticTestIndex()
@@ -78,18 +80,18 @@ public final class Workspace {
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
     underlyingBuildSystem: BuildSystem?,
-    index: IndexStoreDB?,
+    index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?
   ) async {
     self.documentManager = documentManager
     self.buildSetup = buildSetup
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
-    self.index = index
+    self.uncheckedIndex = uncheckedIndex
     self.buildSystemManager = await BuildSystemManager(
       buildSystem: underlyingBuildSystem,
       fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
-      mainFilesProvider: index
+      mainFilesProvider: uncheckedIndex
     )
     await indexDelegate?.addMainFileChangedCallback { [weak self] in
       await self?.buildSystemManager.mainFilesChanged()
@@ -212,9 +214,15 @@ public final class Workspace {
       toolchainRegistry: toolchainRegistry,
       buildSetup: buildSetup,
       underlyingBuildSystem: buildSystem,
-      index: index,
+      index: UncheckedIndex(index),
       indexDelegate: indexDelegate
     )
+  }
+
+  /// Returns a `CheckedIndex` that verifies that all the returned entries are up-to-date with the given
+  /// `IndexCheckLevel`.
+  func index(checkedFor checkLevel: IndexCheckLevel) -> CheckedIndex? {
+    return uncheckedIndex?.checked(for: checkLevel)
   }
 
   public func filesDidChange(_ events: [FileEvent]) async {

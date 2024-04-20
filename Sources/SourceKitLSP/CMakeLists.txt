@@ -1,9 +1,9 @@
 
 add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
+  CheckedIndex.swift
   DocumentManager.swift
   DocumentSnapshot+FromFileContents.swift
-  IndexOutOfDateChecker.swift
   IndexStoreDB+MainFilesProvider.swift
   LanguageService.swift
   Rename.swift

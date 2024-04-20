@@ -494,7 +494,7 @@ extension SourceKitLSPServer {
   /// `usr` from a Swift file. If `usr` is not referenced from Swift, returns `nil`.
   private func getReferenceFromSwift(
     usr: String,
-    index: IndexStoreDB,
+    index: CheckedIndex,
     workspace: Workspace
   ) async -> (swiftLanguageService: SwiftLanguageService, snapshot: DocumentSnapshot, location: SymbolLocation)? {
     var reference: SymbolOccurrence? = nil
@@ -532,7 +532,7 @@ extension SourceKitLSPServer {
     forUsr usr: String,
     overrideName: String? = nil,
     workspace: Workspace,
-    index: IndexStoreDB
+    index: CheckedIndex
   ) async throws -> CrossLanguageName? {
     let definitions = index.occurrences(ofUSR: usr, roles: [.definition])
     if definitions.isEmpty {
@@ -567,7 +567,7 @@ extension SourceKitLSPServer {
     forDefinitionOccurrence definitionOccurrence: SymbolOccurrence,
     overrideName: String? = nil,
     workspace: Workspace,
-    index: IndexStoreDB
+    index: CheckedIndex
   ) async throws -> CrossLanguageName {
     let definitionSymbol = definitionOccurrence.symbol
     let usr = definitionSymbol.usr
@@ -642,7 +642,7 @@ extension SourceKitLSPServer {
   /// class Inherited: Base { override func foo() {} }
   /// class OtherInherited: Base { override func foo() {} }
   /// ```
-  private func overridingAndOverriddenUsrs(of usr: String, index: IndexStoreDB) -> [String] {
+  private func overridingAndOverriddenUsrs(of usr: String, index: CheckedIndex) -> [String] {
     var workList = [usr]
     var usrs: [String] = []
     while let usr = workList.popLast() {
@@ -676,7 +676,12 @@ extension SourceKitLSPServer {
     // Determine the local edits and the USR to rename
     let renameResult = try await primaryFileLanguageService.rename(request)
 
-    guard let usr = renameResult.usr, let index = workspace.index else {
+    // We only check if the files exist. If a source file has been modified on disk, we will still try to perform a
+    // rename. Rename will check if the expected old name exists at the location in the index and, if not, ignore that
+    // location. This way we are still able to rename occurrences in files where eg. only one line has been modified but
+    // all the line:column locations of occurrences are still up-to-date.
+    // This should match the check level in prepareRename.
+    guard let usr = renameResult.usr, let index = workspace.index(checkedFor: .deletedFiles) else {
       // We don't have enough information to perform a cross-file rename.
       return renameResult.edits
     }
@@ -710,10 +715,10 @@ extension SourceKitLSPServer {
     var locationsByFile: [URL: [RenameLocation]] = [:]
 
     actor LanguageServerTypesCache {
-      let index: IndexStoreDB
+      let index: CheckedIndex
       var languageServerTypesCache: [URL: LanguageServerType?] = [:]
 
-      init(index: IndexStoreDB) {
+      init(index: CheckedIndex) {
         self.index = index
       }
 
@@ -834,7 +839,7 @@ extension SourceKitLSPServer {
     var prepareRenameResult = languageServicePrepareRename.prepareRename
 
     guard
-      let index = workspace.index,
+      let index = workspace.index(checkedFor: .deletedFiles),
       let usr = languageServicePrepareRename.usr,
       let oldName = try await self.getCrossLanguageName(forUsr: usr, workspace: workspace, index: index),
       var definitionName = oldName.definitionName
