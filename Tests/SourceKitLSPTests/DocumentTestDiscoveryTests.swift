@@ -642,6 +642,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       extension Tag {
         @Tag static var foo: Self
         @Tag static var bar: Self
+        @Tag static var baz: Self
 
         struct Nested {
           @Tag static var foo: Tag
@@ -650,7 +651,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
       1️⃣@Suite(.tags("Suites"))
       struct MyTests {
-        2️⃣@Test(.tags(.foo, Nested.foo, Testing.Tag.bar))
+        2️⃣@Test(.tags(.foo, Nested.foo, Testing.Tag.bar, Tag.baz))
         func oneIsTwo() {
           #expect(1 == 2)
         }3️⃣
@@ -677,7 +678,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
               children: [],
-              tags: [TestTag(id: "foo"), TestTag(id: "Nested.foo"), TestTag(id: "bar")]
+              tags: [TestTag(id: "foo"), TestTag(id: "Nested.foo"), TestTag(id: "bar"), TestTag(id: "baz")]
             )
           ],
           tags: [TestTag(id: "Suites")]
