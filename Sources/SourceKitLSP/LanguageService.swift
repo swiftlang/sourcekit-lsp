@@ -198,7 +198,9 @@ public protocol LanguageService: AnyObject {
   /// Perform a syntactic scan of the file at the given URI for test cases and test classes.
   ///
   /// This is used as a fallback to show the test cases in a file if the index for a given file is not up-to-date.
-  func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [TestItem]
+  ///
+  /// A return value of `nil` indicates that this language service does not support syntactic test discovery.
+  func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [TestItem]?
 
   /// Crash the language server. Should be used for crash recovery testing only.
   func _crash() async
