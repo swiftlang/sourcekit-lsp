@@ -24,7 +24,7 @@ The [Swift for Visual Studio Code extension](https://marketplace.visualstudio.co
 
 Before using SourceKit-LSP with Sublime Text, you will need to install the LSP and LSP-SourceKit packages from Package Control. And you're ready to go if you have `xcrun` in the `$PATH`.
 
-To configure SourceKit-LSP additionally, open the SourceKit-LSP package's settings by typing in command palette `Preferences: LSP-SourceKit Settings`. The following snippet should be enough to get started with Swift and Objective-C/C++ and the custom path to `sourcekit-lsp` executable.
+To configure LSP-SourceKit additionally, open the LSP-SourceKit package's settings by typing in command palette `Preferences: LSP-SourceKit Settings`. The following snippet should be enough to get started with Swift and Objective-C/C++ and the custom path to `sourcekit-lsp` executable.
 
 To make your journey even more pleasant it's recomended to install [Swift-Next](https://github.com/Swift-Next/Swift-Next) package that provides advanced swift syntax highlighting support.
 
