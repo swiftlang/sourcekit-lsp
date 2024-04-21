@@ -33,23 +33,7 @@ To make your journey even more pleasant it's recomended to install [Swift-Next](
     "command": [
         "sourcekit-lsp"
     ],
-    "languages": [
-        {
-            "languageId": "c"
-        },
-        {
-            "languageId": "c++"
-        },
-        {
-            "languageId": "objc"
-        },
-        {
-            "languageId": "objc++"
-        },
-        {
-            "languageId": "swift"
-        },
-    ]
+    "selector": "source.c | source.c++ | source.objc | source.objc++ | source.swift "
 }
 ```
 
