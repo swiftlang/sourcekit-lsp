@@ -364,8 +364,7 @@ fileprivate extension MemberAccessExprSyntax {
     if let declReferenceExpr = base?.as(DeclReferenceExprSyntax.self) {
       return [declReferenceExpr.baseName.text, declName.baseName.text]
     } else if let baseMemberAccessExpr = base?.as(MemberAccessExprSyntax.self) {
-      let baseBaseNames = baseMemberAccessExpr.components.dropLast()
-      return baseBaseNames + [baseMemberAccessExpr.declName.baseName.text, declName.baseName.text]
+      return baseMemberAccessExpr.components + [declName.baseName.text]
     }
 
     return [declName.baseName.text]
