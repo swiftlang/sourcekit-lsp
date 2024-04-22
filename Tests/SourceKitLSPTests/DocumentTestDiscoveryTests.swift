@@ -585,7 +585,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testSwiftTestingTestWithTags() async throws {
+  func testSwiftTestingTestWithStringTags() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
 
@@ -595,7 +595,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
 
       1️⃣@Suite(.tags("Suites"))
       struct MyTests {
-        2️⃣@Test(.tags("one", "two", .red, .blue))
+        2️⃣@Test(.tags("one", "two"))
         func oneIsTwo() {
           #expect(1 == 2)
         }3️⃣
@@ -622,7 +622,54 @@ final class DocumentTestDiscoveryTests: XCTestCase {
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
               children: [],
-              tags: [TestTag(id: "one"), TestTag(id: "two"), TestTag(id: "red"), TestTag(id: "blue")]
+              tags: [TestTag(id: "one"), TestTag(id: "two")]
+            )
+          ],
+          tags: [TestTag(id: "Suites")]
+        )
+      ]
+    )
+  }
+
+
+  func testSwiftTestingTestWithMemberTags() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣@Suite(.tags("Suites"))
+      struct MyTests {
+        2️⃣@Test(.tags(.red, .blue))
+        func oneIsTwo() {
+          #expect(1 == 2)
+        }3️⃣
+      }4️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          disabled: false,
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/oneIsTwo()",
+              label: "oneIsTwo()",
+              disabled: false,
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
+              children: [],
+              tags: [TestTag(id: "red"), TestTag(id: "blue")]
             )
           ],
           tags: [TestTag(id: "Suites")]
