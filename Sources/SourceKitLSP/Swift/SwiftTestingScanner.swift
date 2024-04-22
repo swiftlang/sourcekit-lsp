@@ -96,16 +96,17 @@ struct TestingAttributeData {
         }
       }.flatMap(\.arguments)
       .compactMap {
-          if let stringLiteral = $0.expression.as(StringLiteralExprSyntax.self) {
-            return stringLiteral.representedLiteralValue
-          } else if let memberAccess = $0.expression.as(MemberAccessExprSyntax.self) {
+          if let memberAccess = $0.expression.as(MemberAccessExprSyntax.self) {
             var components = memberAccess.components[...]
             if components.starts(with: ["Testing", "Tag"]) {
               components = components.dropFirst(2)
             } else if components.starts(with: ["Tag"]) {
               components = components.dropFirst(1)
             }
-            return components.joined(separator: ".")
+
+            // Tags.foo resolves to ".foo", Tags.Nested.foo resolves to "Nested.foo"
+            let prefix = components.count == 1 ? "." : ""
+            return "\(prefix)\(components.joined(separator: "."))"
           }
           return nil
       }

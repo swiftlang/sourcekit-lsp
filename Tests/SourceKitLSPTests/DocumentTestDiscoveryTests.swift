@@ -585,7 +585,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testSwiftTestingTestWithStringTags() async throws {
+  func testSwiftTestingTestWithTags() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
 
@@ -593,54 +593,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       """
       import Testing
 
-      1️⃣@Suite(.tags("Suites"))
-      struct MyTests {
-        2️⃣@Test(.tags("one", "two"))
-        func oneIsTwo() {
-          #expect(1 == 2)
-        }3️⃣
-      }4️⃣
-      """,
-      uri: uri
-    )
-
-    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
-    XCTAssertEqual(
-      tests,
-      [
-        TestItem(
-          id: "MyTests",
-          label: "MyTests",
-          disabled: false,
-          style: TestStyle.swiftTesting,
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
-          children: [
-            TestItem(
-              id: "MyTests/oneIsTwo()",
-              label: "oneIsTwo()",
-              disabled: false,
-              style: TestStyle.swiftTesting,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
-              children: [],
-              tags: [TestTag(id: "one"), TestTag(id: "two")]
-            )
-          ],
-          tags: [TestTag(id: "Suites")]
-        )
-      ]
-    )
-  }
-
-
-  func testSwiftTestingTestWithMemberTags() async throws {
-    let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
-
-    let positions = testClient.openDocument(
-      """
-      import Testing
-
-      1️⃣@Suite(.tags("Suites"))
+      1️⃣@Suite(.tags(.green))
       struct MyTests {
         2️⃣@Test(.tags(.red, .blue))
         func oneIsTwo() {
@@ -669,10 +622,10 @@ final class DocumentTestDiscoveryTests: XCTestCase {
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
               children: [],
-              tags: [TestTag(id: "red"), TestTag(id: "blue")]
+              tags: [TestTag(id: ".red"), TestTag(id: ".blue")]
             )
           ],
-          tags: [TestTag(id: "Suites")]
+          tags: [TestTag(id: ".green")]
         )
       ]
     )
@@ -687,6 +640,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       import Testing
 
       extension Tag {
+        @Tag static var suite: Self
         @Tag static var foo: Self
         @Tag static var bar: Self
         @Tag static var baz: Self
@@ -696,7 +650,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
         }
       }
 
-      1️⃣@Suite(.tags("Suites"))
+      1️⃣@Suite(.tags(.suite))
       struct MyTests {
         2️⃣@Test(.tags(.foo, Nested.foo, Testing.Tag.bar, Tag.baz))
         func oneIsTwo() {
@@ -725,10 +679,15 @@ final class DocumentTestDiscoveryTests: XCTestCase {
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
               children: [],
-              tags: [TestTag(id: "foo"), TestTag(id: "Nested.foo"), TestTag(id: "bar"), TestTag(id: "baz")]
+              tags: [
+                TestTag(id: ".foo"),
+                TestTag(id: "Nested.foo"),
+                TestTag(id: ".bar"),
+                TestTag(id: ".baz")
+              ]
             )
           ],
-          tags: [TestTag(id: "Suites")]
+          tags: [TestTag(id: ".suite")]
         )
       ]
     )
