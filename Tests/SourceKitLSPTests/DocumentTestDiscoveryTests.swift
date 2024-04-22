@@ -585,7 +585,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
-  func testSwiftTestingTestWithTags() async throws {
+  func testSwiftTestingTestWithStringTags() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
 
