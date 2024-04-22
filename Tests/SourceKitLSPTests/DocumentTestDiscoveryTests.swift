@@ -681,7 +681,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
               children: [],
               tags: [
                 TestTag(id: ".foo"),
-                TestTag(id: "Nested.foo"),
+                TestTag(id: ".Nested.foo"),
                 TestTag(id: ".bar"),
                 TestTag(id: ".baz")
               ]

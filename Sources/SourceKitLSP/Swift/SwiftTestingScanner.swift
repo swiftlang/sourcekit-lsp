@@ -104,9 +104,8 @@ struct TestingAttributeData {
               components = components.dropFirst(1)
             }
 
-            // Tags.foo resolves to ".foo", Tags.Nested.foo resolves to "Nested.foo"
-            let prefix = components.count == 1 ? "." : ""
-            return "\(prefix)\(components.joined(separator: "."))"
+            // Tags.foo resolves to ".foo", Tags.Nested.foo resolves to ".Nested.foo"
+            return ".\(components.joined(separator: "."))"
           }
           return nil
       }
