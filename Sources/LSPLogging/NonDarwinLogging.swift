@@ -245,7 +245,8 @@ public struct NonDarwinLogMessage: ExpressibleByStringInterpolation, Expressible
 /// a new `DateFormatter` is rather expensive and its the same for all loggers.
 private let dateFormatter = {
   let dateFormatter = DateFormatter()
-  dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+  dateFormatter.timeZone = NSTimeZone.local
+  dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSSS Z"
   return dateFormatter
 }()
 
