@@ -609,12 +609,12 @@ final class CodeActionTests: XCTestCase {
 
     // Make sure we get the expected package manifest editing actions.
     let addTestAction = codeActions.first { action in
-      return action.title == "Add test target"
+      return action.title == "Add test target (Swift Testing)"
     }
     XCTAssertNotNil(addTestAction)
 
     guard let addTestChanges = addTestAction?.edit?.documentChanges else {
-      XCTFail("Didn't have changes in the 'Add test target' action")
+      XCTFail("Didn't have changes in the 'Add test target (Swift Testing)' action")
       return
     }
 
