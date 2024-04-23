@@ -27,11 +27,11 @@ private var progressBar: PercentProgressAnimation? = nil
 
 /// A component of the diagnostic bundle that's collected in independent stages.
 fileprivate enum BundleComponent: String, CaseIterable, ExpressibleByArgument {
-  case crashReports
-  case logs
-  case swiftVersions
-  case sourcekitdCrashes
-  case swiftFrontendCrashes
+  case crashReports = "crash-reports"
+  case logs = "logs"
+  case swiftVersions = "swift-versions"
+  case sourcekitdCrashes = "sourcekitd-crashes"
+  case swiftFrontendCrashes = "swift-frontend-crashes"
 }
 
 public struct DiagnoseCommand: AsyncParsableCommand {
