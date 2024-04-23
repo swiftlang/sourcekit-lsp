@@ -26,7 +26,7 @@ Before using SourceKit-LSP with Sublime Text, you will need to install the LSP a
 
 To configure LSP-SourceKit additionally, open the LSP-SourceKit package's settings by typing in command palette `Preferences: LSP-SourceKit Settings`. The following snippet should be enough to get started with Swift and Objective-C/C++ and the custom path to `sourcekit-lsp` executable.
 
-To make your journey even more pleasant it's recomended to install [Swift-Next](https://github.com/Swift-Next/Swift-Next) package that provides advanced swift syntax highlighting support.
+Also install [Swift-Next](https://github.com/Swift-Next/Swift-Next) syntax package to use Swift in Sublime Text 4.
 
 ```json
 {
