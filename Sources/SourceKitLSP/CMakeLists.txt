@@ -23,6 +23,7 @@ target_sources(SourceKitLSP PRIVATE
 target_sources(SourceKitLSP PRIVATE
   Swift/AdjustPositionToStartOfIdentifier.swift
   Swift/CodeActions/ConvertIntegerLiteral.swift
+  Swift/CodeActions/PackageManifestEdits.swift
   Swift/CodeActions/SyntaxCodeActionProvider.swift
   Swift/CodeActions/SyntaxCodeActions.swift
   Swift/CodeActions/SyntaxRefactoringCodeActionProvider.swift
