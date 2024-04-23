@@ -19,19 +19,43 @@ import SwiftSyntax
 /// Syntactic code action provider to provide refactoring actions that
 /// edit a package manifest.
 struct PackageManifestEdits: SyntaxCodeActionProvider {
-  static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
-    guard
-      let token = scope.firstToken,
-      let call = token.findEnclosingCall()
-    else {
-      return []
+    static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
+        guard let token = scope.firstToken,
+              let call = token.findEnclosingCall()
+        else {
+            return []
+        }
+
+        var actions = [CodeAction]()
+
+        // Add test target(s)
+        actions.append(
+            contentsOf: maybeAddTestTargetActions(call: call, in: scope)
+        )
+
+        // Add product(s).
+        actions.append(
+            contentsOf: maybeAddProductActions(call: call, in: scope)
+        )
+
+        return actions
     }
 
-    var actions = [CodeAction]()
+    /// Produce code actions to add test target(s) if we are currently on
+    /// a target for which we know how to create a test.
+    static func maybeAddTestTargetActions(
+        call: FunctionCallExprSyntax,
+        in scope: SyntaxCodeActionScope
+    ) -> [CodeAction] {
+        guard let calledMember = call.findMemberAccessCallee(),
+              targetsThatAllowTests.contains(calledMember),
+              let targetName = call.findStringArgument(label: "name")
+        else {
+            return []
+        }
 
-    // If there's a target name, offer to create a test target derived from it.
-    if let targetName = call.findStringArgument(label: "name") {
         do {
+            // Describe the target we are going to create.
             let target = try TargetDescription(
                 name: "\(targetName)Tests",
                 dependencies: [ .byName(name: targetName, condition: nil) ],
@@ -39,20 +63,68 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
             )
 
             let edits = try AddTarget.addTarget(target, to: scope.file)
-            actions.append(
-              CodeAction(
-                title: "Add test target for this target",
-                kind: .refactor,
-                edit: edits.asWorkspaceEdit(snapshot: scope.snapshot)
-              )
-            )
+            return [
+                CodeAction(
+                    title: "Add test target",
+                    kind: .refactor,
+                    edit: edits.asWorkspaceEdit(snapshot: scope.snapshot)
+                )
+            ]
         } catch {
-            // nothing to do
+            return []
         }
     }
 
-    return actions
-  }
+    /// A list of target kinds that allow the creation of tests.
+    static let targetsThatAllowTests: Set<String> = [
+        "executableTarget",
+        "macro",
+        "target",
+    ]
+
+    /// Produce code actions to add a product if we are currently on
+    /// a target for which we can create a product.
+    static func maybeAddProductActions(
+        call: FunctionCallExprSyntax,
+        in scope: SyntaxCodeActionScope
+    ) -> [CodeAction] {
+        guard let calledMember = call.findMemberAccessCallee(),
+              targetsThatAllowProducts.contains(calledMember),
+              let targetName = call.findStringArgument(label: "name")
+        else {
+            return []
+        }
+
+        do {
+            let type: ProductType = calledMember == "executableTarget"
+                ? .executable
+                : .library(.automatic)
+
+            // Describe the target we are going to create.
+            let product = try ProductDescription(
+                name: "\(targetName)",
+                type: type,
+                targets: [ targetName ]
+            )
+
+            let edits = try AddProduct.addProduct(product, to: scope.file)
+            return [
+                CodeAction(
+                    title: "Add product to export this target",
+                    kind: .refactor,
+                    edit: edits.asWorkspaceEdit(snapshot: scope.snapshot)
+                )
+            ]
+        } catch {
+            return []
+        }
+    }
+
+    /// A list of target kinds that allow the creation of tests.
+    static let targetsThatAllowProducts: Set<String> = [
+        "executableTarget",
+        "target",
+    ]
 }
 
 fileprivate extension PackageEditResult {
@@ -162,5 +234,17 @@ fileprivate extension FunctionCallExprSyntax {
         }
 
         return nil
+    }
+
+    /// Find the callee when it is a member access expression referencing
+    /// a declaration when a specific name.
+    func findMemberAccessCallee() -> String? {
+        guard let memberAccess = self.calledExpression
+            .as(MemberAccessExprSyntax.self)
+        else {
+            return nil
+        }
+
+        return memberAccess.declName.baseName.text
     }
 }
