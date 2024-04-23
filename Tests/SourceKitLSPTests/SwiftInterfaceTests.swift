@@ -44,8 +44,7 @@ final class SwiftInterfaceTests: XCTestCase {
       XCTFail("Unexpected response: \(resp)")
       return
     }
-    XCTAssertEqual(locations.count, 1)
-    let location = try XCTUnwrap(locations.first)
+    let location = try XCTUnwrap(locations.only)
     XCTAssertTrue(location.uri.pseudoPath.hasSuffix("/Foundation.swiftinterface"))
     let fileContents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
     // Sanity-check that the generated Swift Interface contains Swift code
@@ -87,6 +86,7 @@ final class SwiftInterfaceTests: XCTestCase {
     let openInterface = OpenInterfaceRequest(
       textDocument: TextDocumentIdentifier(mainUri),
       name: "MyLibrary",
+      groupName: nil,
       symbolUSR: nil
     )
     let interfaceDetails = try unwrap(await project.testClient.send(openInterface))
@@ -108,38 +108,6 @@ final class SwiftInterfaceTests: XCTestCase {
     )
   }
 
-  /// Used by testDefinitionInSystemModuleInterface
-  private func testSystemSwiftInterface(
-    uri: DocumentURI,
-    position: Position,
-    testClient: TestSourceKitLSPClient,
-    swiftInterfaceFile: String,
-    linePrefix: String,
-    line: UInt = #line
-  ) async throws {
-    let definition = try await testClient.send(
-      DefinitionRequest(
-        textDocument: TextDocumentIdentifier(uri),
-        position: position
-      )
-    )
-    guard case .locations(let jump) = definition else {
-      XCTFail("Response is not locations", line: line)
-      return
-    }
-    let location = try XCTUnwrap(jump.first)
-    XCTAssertTrue(
-      location.uri.pseudoPath.hasSuffix(swiftInterfaceFile),
-      "Path was: '\(location.uri.pseudoPath)'",
-      line: line
-    )
-    // load contents of swiftinterface
-    let contents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
-    let lineTable = LineTable(contents)
-    let destinationLine = lineTable[location.range.lowerBound.line]
-    XCTAssert(destinationLine.hasPrefix(linePrefix), "Full line was: '\(destinationLine)'", line: line)
-  }
-
   func testDefinitionInSystemModuleInterface() async throws {
     let project = try await IndexedSingleSwiftFileTestProject(
       """
@@ -158,7 +126,7 @@ final class SwiftInterfaceTests: XCTestCase {
     )
 
     // Test stdlib with one submodule
-    try await testSystemSwiftInterface(
+    try await assertSystemSwiftInterface(
       uri: project.fileURI,
       position: project.positions["1️⃣"],
       testClient: project.testClient,
@@ -166,7 +134,7 @@ final class SwiftInterfaceTests: XCTestCase {
       linePrefix: "@frozen public struct String"
     )
     // Test stdlib with two submodules
-    try await testSystemSwiftInterface(
+    try await assertSystemSwiftInterface(
       uri: project.fileURI,
       position: project.positions["2️⃣"],
       testClient: project.testClient,
@@ -174,7 +142,7 @@ final class SwiftInterfaceTests: XCTestCase {
       linePrefix: "@frozen public struct Int"
     )
     // Test concurrency
-    try await testSystemSwiftInterface(
+    try await assertSystemSwiftInterface(
       uri: project.fileURI,
       position: project.positions["3️⃣"],
       testClient: project.testClient,
@@ -224,8 +192,7 @@ final class SwiftInterfaceTests: XCTestCase {
       XCTFail("Unexpected response: \(resp)")
       return
     }
-    XCTAssertEqual(locations.count, 1)
-    let location = try XCTUnwrap(locations.first)
+    let location = try XCTUnwrap(locations.only)
     XCTAssertTrue(location.uri.pseudoPath.hasSuffix("/MyLibrary.swiftinterface"))
     let fileContents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
     XCTAssertTrue(
@@ -242,4 +209,76 @@ final class SwiftInterfaceTests: XCTestCase {
       "Generated interface did not contain expected text.\n\(fileContents)"
     )
   }
+
+  func testJumpToSynthesizedExtensionMethodInSystemModuleWithoutIndex() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
+    let positions = testClient.openDocument(
+      """
+      func test(x: [String]) {
+        let rows = x.1️⃣filter { !$0.isEmpty }
+      }
+      """,
+      uri: uri
+    )
+
+    try await assertSystemSwiftInterface(
+      uri: uri,
+      position: positions["1️⃣"],
+      testClient: testClient,
+      swiftInterfaceFile: "/Swift.Collection.Array.swiftinterface",
+      linePrefix: "@inlinable public func filter(_ isIncluded: (Element) throws -> Bool) rethrows -> [Element]"
+    )
+  }
+
+  func testJumpToSynthesizedExtensionMethodInSystemModuleWithIndex() async throws {
+    let project = try await IndexedSingleSwiftFileTestProject(
+      """
+      func test(x: [String]) {
+        let rows = x.1️⃣filter { !$0.isEmpty }
+      }
+      """,
+      indexSystemModules: true
+    )
+
+    try await assertSystemSwiftInterface(
+      uri: project.fileURI,
+      position: project.positions["1️⃣"],
+      testClient: project.testClient,
+      swiftInterfaceFile: "/Swift.Collection.Array.swiftinterface",
+      linePrefix: "@inlinable public func filter(_ isIncluded: (Element) throws -> Bool) rethrows -> [Element]"
+    )
+  }
+}
+
+private func assertSystemSwiftInterface(
+  uri: DocumentURI,
+  position: Position,
+  testClient: TestSourceKitLSPClient,
+  swiftInterfaceFile: String,
+  linePrefix: String,
+  line: UInt = #line
+) async throws {
+  let definition = try await testClient.send(
+    DefinitionRequest(
+      textDocument: TextDocumentIdentifier(uri),
+      position: position
+    )
+  )
+  guard case .locations(let jump) = definition else {
+    XCTFail("Response is not locations", line: line)
+    return
+  }
+  let location = try XCTUnwrap(jump.only)
+  XCTAssertTrue(
+    location.uri.pseudoPath.hasSuffix(swiftInterfaceFile),
+    "Path was: '\(location.uri.pseudoPath)'",
+    line: line
+  )
+  // load contents of swiftinterface
+  let contents = try XCTUnwrap(location.uri.fileURL.flatMap({ try String(contentsOf: $0, encoding: .utf8) }))
+  let lineTable = LineTable(contents)
+  let destinationLine = lineTable[location.range.lowerBound.line].trimmingCharacters(in: .whitespaces)
+  XCTAssert(destinationLine.hasPrefix(linePrefix), "Full line was: '\(destinationLine)'", line: line)
 }
