@@ -39,6 +39,12 @@ public struct TestItem: ResponseType, Equatable {
   /// When `nil` the `label` is used.
   public let sortText: String?
 
+  /// Whether the test is disabled.
+  public let disabled: Bool
+
+  /// The type of test, eg. the testing framework that was used to declare the test.
+  public let style: String
+
   /// The location of the test item in the source code.
   public let location: Location
 
@@ -55,6 +61,8 @@ public struct TestItem: ResponseType, Equatable {
     label: String,
     description: String? = nil,
     sortText: String? = nil,
+    disabled: Bool,
+    style: String,
     location: Location,
     children: [TestItem],
     tags: [TestTag]
@@ -63,6 +71,8 @@ public struct TestItem: ResponseType, Equatable {
     self.label = label
     self.description = description
     self.sortText = sortText
+    self.disabled = disabled
+    self.style = style
     self.location = location
     self.children = children
     self.tags = tags

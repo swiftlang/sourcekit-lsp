@@ -232,6 +232,34 @@ public enum SkipUnless {
     }
   }
 
+  /// Checks whether the index contains a fix that prevents it from adding relations to non-indexed locals
+  /// (https://github.com/apple/swift/pull/72930).
+  public static func indexOnlyHasContainedByRelationsToIndexedDecls(
+    file: StaticString = #file,
+    line: UInt = #line
+  ) async throws {
+    return try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+      let project = try await IndexedSingleSwiftFileTestProject(
+        """
+        func foo() {}
+
+        func 1️⃣testFunc(x: String) {
+          let myVar = foo
+        }
+        """
+      )
+      let prepare = try await project.testClient.send(
+        CallHierarchyPrepareRequest(
+          textDocument: TextDocumentIdentifier(project.fileURI),
+          position: project.positions["1️⃣"]
+        )
+      )
+      let initialItem = try XCTUnwrap(prepare?.only)
+      let calls = try await project.testClient.send(CallHierarchyOutgoingCallsRequest(item: initialItem))
+      return calls != []
+    }
+  }
+
   public static func longTestsEnabled() throws {
     if let value = ProcessInfo.processInfo.environment["SKIP_LONG_TESTS"], value == "1" || value == "YES" {
       throw XCTSkip("Long tests disabled using the `SKIP_LONG_TESTS` environment variable")

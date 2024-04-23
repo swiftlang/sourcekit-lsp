@@ -48,6 +48,18 @@ public struct SymbolInfoRequest: TextDocumentRequest, Hashable {
 /// Detailed information about a symbol, such as the response to a `SymbolInfoRequest`
 /// **(LSP Extension)**.
 public struct SymbolDetails: ResponseType, Hashable {
+  public struct ModuleInfo: Codable, Hashable, Sendable {
+    /// The name of the module in which the symbol is defined.
+    public let moduleName: String
+
+    /// If the symbol is defined within a subgroup of a module, the name of the group. Otherwise `nil`.
+    public let groupName: String?
+
+    public init(moduleName: String, groupName: String? = nil) {
+      self.moduleName = moduleName
+      self.groupName = groupName
+    }
+  }
 
   /// The name of the symbol, if any.
   public var name: String?
@@ -87,6 +99,11 @@ public struct SymbolDetails: ResponseType, Hashable {
   /// Optional because `clangd` does not return whether a symbol is dynamic.
   public var isDynamic: Bool?
 
+  /// Whether this symbol is defined in the SDK or standard library.
+  ///
+  /// This property only applies to Swift symbols.
+  public var isSystem: Bool?
+
   /// If the symbol is dynamic, the USRs of the types that might be called.
   ///
   /// This is relevant in the following cases
@@ -112,6 +129,12 @@ public struct SymbolDetails: ResponseType, Hashable {
   /// `B` may be called dynamically.
   public var receiverUsrs: [String]?
 
+  /// If the symbol is defined in a module that doesn't have source information associated with it, the name and group
+  /// and group name that defines this symbol.
+  ///
+  /// This property only applies to Swift symbols.
+  public var systemModule: ModuleInfo?
+
   public init(
     name: String?,
     containerName: String?,
@@ -119,7 +142,9 @@ public struct SymbolDetails: ResponseType, Hashable {
     bestLocalDeclaration: Location?,
     kind: SymbolKind?,
     isDynamic: Bool?,
-    receiverUsrs: [String]?
+    isSystem: Bool?,
+    receiverUsrs: [String]?,
+    systemModule: ModuleInfo?
   ) {
     self.name = name
     self.containerName = containerName
@@ -127,6 +152,8 @@ public struct SymbolDetails: ResponseType, Hashable {
     self.bestLocalDeclaration = bestLocalDeclaration
     self.kind = kind
     self.isDynamic = isDynamic
+    self.isSystem = isSystem
     self.receiverUsrs = receiverUsrs
+    self.systemModule = systemModule
   }
 }

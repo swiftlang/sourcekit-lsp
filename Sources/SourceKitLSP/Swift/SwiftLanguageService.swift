@@ -569,46 +569,55 @@ extension SwiftLanguageService {
     let cursorInfoResults = try await cursorInfo(uri, position..<position).cursorInfo
 
     let symbolDocumentations = cursorInfoResults.compactMap { (cursorInfo) -> String? in
-      guard let name: String = cursorInfo.symbolInfo.name else {
-        // There is a cursor but we don't know how to deal with it.
-        return nil
-      }
-
-      /// Prepend backslash to `*` and `_`, to prevent them
-      /// from being interpreted as markdown.
-      func escapeNameMarkdown(_ str: String) -> String {
-        return String(str.flatMap({ ($0 == "*" || $0 == "_") ? ["\\", $0] : [$0] }))
-      }
-
-      var result = escapeNameMarkdown(name)
       if let documentation = cursorInfo.documentation {
+        var result = ""
         if let annotatedDeclaration = cursorInfo.annotatedDeclaration {
           let markdownDecl =
             orLog("Convert XML declaration to Markdown") {
               try xmlDocumentationToMarkdown(annotatedDeclaration)
             } ?? annotatedDeclaration
-          result += "\n\(markdownDecl)"
+          result += "\(markdownDecl)\n"
         }
         result += documentation
+        return result
       } else if let doc = cursorInfo.documentationXML {
-        result += """
-
+        return """
           \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(doc) } ?? doc)
           """
       } else if let annotated: String = cursorInfo.annotatedDeclaration {
-        result += """
-
+        return """
           \(orLog("Convert XML to Markdown") { try xmlDocumentationToMarkdown(annotated) } ?? annotated)
           """
+      } else {
+        return nil
       }
-      return result
     }
 
     if symbolDocumentations.isEmpty {
       return nil
     }
 
-    let joinedDocumentation = symbolDocumentations.joined(separator: "\n# Alternative result\n")
+    let joinedDocumentation: String
+    if let only = symbolDocumentations.only {
+      joinedDocumentation = only
+    } else {
+      let documentationsWithSpacing = symbolDocumentations.enumerated().map { index, documentation in
+        // Work around a bug in VS Code that displays a code block after a horizontal ruler without any spacing
+        // (the pixels of the code block literally touch the ruler) by adding an empty line into the code block.
+        // Only do this for subsequent results since only those are preceeded by a ruler.
+        let prefix = "```swift\n"
+        if index != 0 && documentation.starts(with: prefix) {
+          return prefix + "\n" + documentation.dropFirst(prefix.count)
+        } else {
+          return documentation
+        }
+      }
+      joinedDocumentation = """
+        ## Multiple results
+
+        \(documentationsWithSpacing.joined(separator: "\n\n---\n\n"))
+        """
+    }
 
     return HoverResponse(
       contents: .markupContent(MarkupContent(kind: .markdown, value: joinedDocumentation)),
@@ -699,14 +708,21 @@ extension SwiftLanguageService {
   }
 
   public func codeAction(_ req: CodeActionRequest) async throws -> CodeActionRequestResponse? {
-    let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind)] = [
+    let providersAndKinds: [(provider: CodeActionProvider, kind: CodeActionKind?)] = [
+      (retrieveSyntaxCodeActions, nil),
       (retrieveRefactorCodeActions, .refactor),
       (retrieveQuickFixCodeActions, .quickFix),
     ]
     let wantedActionKinds = req.context.only
-    let providers = providersAndKinds.filter { wantedActionKinds?.contains($0.1) != false }
+    let providers: [CodeActionProvider] = providersAndKinds.compactMap {
+      if let wantedActionKinds, let kind = $0.1, !wantedActionKinds.contains(kind) {
+        return nil
+      }
+
+      return $0.provider
+    }
     let codeActionCapabilities = capabilityRegistry.clientCapabilities.textDocument?.codeAction
-    let codeActions = try await retrieveCodeActions(req, providers: providers.map { $0.provider })
+    let codeActions = try await retrieveCodeActions(req, providers: providers)
     let response = CodeActionRequestResponse(
       codeActions: codeActions,
       clientCapabilities: codeActionCapabilities
@@ -714,7 +730,9 @@ extension SwiftLanguageService {
     return response
   }
 
-  func retrieveCodeActions(_ req: CodeActionRequest, providers: [CodeActionProvider]) async throws -> [CodeAction] {
+  func retrieveCodeActions(_ req: CodeActionRequest, providers: [CodeActionProvider]) async throws
+    -> [CodeAction]
+  {
     guard providers.isEmpty == false else {
       return []
     }
@@ -725,6 +743,17 @@ extension SwiftLanguageService {
         // Ignore any providers that failed to provide refactoring actions.
         return []
       }
+    }.flatMap { $0 }.sorted { $0.title < $1.title }
+  }
+
+  func retrieveSyntaxCodeActions(_ request: CodeActionRequest) async throws -> [CodeAction] {
+    let uri = request.textDocument.uri
+    let snapshot = try documentManager.latestSnapshot(uri)
+
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    let scope = try SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request)
+    return await allSyntaxCodeActions.concurrentMap { provider in
+      return provider.codeActions(in: scope)
     }.flatMap { $0 }
   }
 
@@ -845,7 +874,7 @@ extension SwiftLanguageService {
       // Instead of returning an error, return empty results.
       logger.error(
         """
-        Loading diagnostic failed with the following error. Returning empty diagnostics. 
+        Loading diagnostic failed with the following error. Returning empty diagnostics.
         \(error.forLogging)
         """
       )
@@ -1088,6 +1117,18 @@ extension DocumentSnapshot {
   ) -> Range<Position> {
     let lowerBound = self.position(of: range.lowerBound, callerFile: callerFile, callerLine: callerLine)
     let upperBound = self.position(of: range.upperBound, callerFile: callerFile, callerLine: callerLine)
+    return lowerBound..<upperBound
+  }
+
+  /// Extracts the range of the given syntax node in terms of positions within
+  /// this source file.
+  func range(
+    of node: some SyntaxProtocol,
+    callerFile: StaticString = #fileID,
+    callerLine: UInt = #line
+  ) -> Range<Position> {
+    let lowerBound = self.position(of: node.position)
+    let upperBound = self.position(of: node.endPosition)
     return lowerBound..<upperBound
   }
 
