@@ -160,6 +160,15 @@ public actor SwiftLanguageService: LanguageService {
 
   private var diagnosticReportManager: DiagnosticReportManager!
 
+  /// Calling `scheduleCall` on `refreshDiagnosticsDebouncer` schedules a `DiagnosticsRefreshRequest` to be sent to
+  /// to the client.
+  ///
+  /// We debounce these calls because the `DiagnosticsRefreshRequest` is a workspace-wide request. If we discover that
+  /// the client should update diagnostics for file A and then discover that it should also update diagnostics for file
+  /// B, we don't want to send two `DiagnosticsRefreshRequest`s. Instead, the two should be unified into a single
+  /// request.
+  private let refreshDiagnosticsDebouncer: Debouncer<Void>
+
   /// Only exists to work around rdar://116221716.
   /// Once that is fixed, remove the property and make `diagnosticReportManager` non-optional.
   private var clientHasDiagnosticsCodeDescriptionSupport: Bool {
@@ -189,6 +198,17 @@ public actor SwiftLanguageService: LanguageService {
     self.generatedInterfacesPath = options.generatedInterfacesPath.asURL
     try FileManager.default.createDirectory(at: generatedInterfacesPath, withIntermediateDirectories: true)
     self.diagnosticReportManager = nil  // Needed to work around rdar://116221716
+
+    // The debounce duration of 500ms was chosen arbitrarily without scientific research.
+    self.refreshDiagnosticsDebouncer = Debouncer(debounceDuration: .milliseconds(500)) { [weak sourceKitLSPServer] in
+      guard let sourceKitLSPServer else {
+        logger.fault("Not sending DiagnosticRefreshRequest to client because sourceKitLSPServer has been deallocated")
+        return
+      }
+      _ = await orLog("Sending DiagnosticRefreshRequest to client after document dependencies updated") {
+        try await sourceKitLSPServer.sendRequestToClient(DiagnosticsRefreshRequest())
+      }
+    }
     self.diagnosticReportManager = DiagnosticReportManager(
       sourcekitd: self.sourcekitd,
       syntaxTreeManager: syntaxTreeManager,
@@ -304,7 +324,7 @@ extension SwiftLanguageService {
 
   private func reopenDocument(_ snapshot: DocumentSnapshot, _ compileCmd: SwiftCompileCommand?) async {
     cancelInFlightPublishDiagnosticsTask(for: snapshot.uri)
-    await diagnosticReportManager.removeItemsFromCache(with: snapshot.id.uri)
+    await diagnosticReportManager.removeItemsFromCache(with: snapshot.uri)
 
     let keys = self.keys
     let path = snapshot.uri.pseudoPath
@@ -324,7 +344,11 @@ extension SwiftLanguageService {
 
     _ = try? await self.sourcekitd.send(openReq, fileContents: snapshot.text)
 
-    await publishDiagnosticsIfNeeded(for: snapshot.uri)
+    if await capabilityRegistry.clientSupportsPullDiagnostics(for: .swift) {
+      await self.refreshDiagnosticsDebouncer.scheduleCall()
+    } else {
+      await publishDiagnosticsIfNeeded(for: snapshot.uri)
+    }
   }
 
   public func documentUpdatedBuildSettings(_ uri: DocumentURI) async {
@@ -339,13 +363,14 @@ extension SwiftLanguageService {
   }
 
   public func documentDependenciesUpdated(_ uri: DocumentURI) async {
-    guard let snapshot = try? self.documentManager.latestSnapshot(uri) else {
-      return
+    await orLog("Sending dependencyUpdated request to sourcekitd") {
+      let req = sourcekitd.dictionary([
+        keys.request: requests.dependencyUpdated
+      ])
+      _ = try await self.sourcekitd.send(req, fileContents: nil)
     }
-
-    // Forcefully reopen the document since the `BuildSystem` has informed us
-    // that the dependencies have changed and the AST needs to be reloaded.
-    await self.reopenDocument(snapshot, self.buildSettings(for: uri))
+    // `documentUpdatedBuildSettings` already handles reopening the document, so we do that here as well.
+    await self.documentUpdatedBuildSettings(uri)
   }
 
   // MARK: - Text synchronization
