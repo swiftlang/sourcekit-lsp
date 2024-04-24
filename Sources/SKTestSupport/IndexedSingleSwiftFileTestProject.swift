@@ -68,6 +68,25 @@ public struct IndexedSingleSwiftFileTestProject {
 
     if let sdk = TibsBuilder.defaultSDKPath {
       compilerArguments += ["-sdk", sdk]
+
+      // The following are needed so we can import XCTest
+      let sdkUrl = URL(fileURLWithPath: sdk)
+      let usrLibDir =
+        sdkUrl
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("usr")
+        .appendingPathComponent("lib")
+      let frameworksDir =
+        sdkUrl
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appendingPathComponent("Library")
+        .appendingPathComponent("Frameworks")
+      compilerArguments += [
+        "-I", usrLibDir.path,
+        "-F", frameworksDir.path,
+      ]
     }
 
     let compilationDatabase = JSONCompilationDatabase(

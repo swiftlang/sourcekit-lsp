@@ -283,16 +283,6 @@ private extension LineTable {
   }
 }
 
-private extension DocumentSnapshot {
-  init?(_ uri: DocumentURI, language: Language) throws {
-    guard let url = uri.fileURL else {
-      return nil
-    }
-    let contents = try String(contentsOf: url)
-    self.init(uri: DocumentURI(url), language: language, version: 0, lineTable: LineTable(contents))
-  }
-}
-
 private extension RenameLocation.Usage {
   init(roles: SymbolRole) {
     if roles.contains(.definition) || roles.contains(.declaration) {
@@ -495,7 +485,7 @@ extension DocumentManager {
   /// Returns the latest open snapshot of `uri` or, if no document with that URI is open, reads the file contents of
   /// that file from disk.
   fileprivate func latestSnapshotOrDisk(_ uri: DocumentURI, language: Language) -> DocumentSnapshot? {
-    return (try? self.latestSnapshot(uri)) ?? (try? DocumentSnapshot.init(uri, language: language))
+    return (try? self.latestSnapshot(uri)) ?? (try? DocumentSnapshot(withContentsFromDisk: uri, language: language))
   }
 }
 
@@ -520,7 +510,7 @@ extension SourceKitLSPServer {
     guard let reference else {
       return nil
     }
-    let uri = DocumentURI(URL(fileURLWithPath: reference.location.path))
+    let uri = reference.location.documentUri
     guard let snapshot = self.documentManager.latestSnapshotOrDisk(uri, language: .swift) else {
       return nil
     }
@@ -588,7 +578,7 @@ extension SourceKitLSPServer {
       case .objc: .objective_c
       case .swift: .swift
       }
-    let definitionDocumentUri = DocumentURI(URL(fileURLWithPath: definitionOccurrence.location.path))
+    let definitionDocumentUri = definitionOccurrence.location.documentUri
 
     guard
       let definitionLanguageService = await self.languageService(

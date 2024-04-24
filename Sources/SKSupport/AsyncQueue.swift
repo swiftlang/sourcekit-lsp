@@ -16,6 +16,8 @@ import Foundation
 /// array.
 private protocol AnyTask: Sendable {
   func waitForCompletion() async
+
+  func cancel()
 }
 
 extension Task: AnyTask {
@@ -88,6 +90,16 @@ public final class AsyncQueue<TaskMetadata: DependencyTracker>: Sendable {
   private let pendingTasks: PendingTasks<TaskMetadata> = PendingTasks()
 
   public init() {}
+
+  public func cancelTasks(where filter: (TaskMetadata) -> Bool) {
+    pendingTasks.withLock { pendingTasks in
+      for task in pendingTasks {
+        if filter(task.metadata) {
+          task.task.cancel()
+        }
+      }
+    }
+  }
 
   /// Schedule a new closure to be executed on the queue.
   ///

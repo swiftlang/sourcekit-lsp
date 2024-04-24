@@ -15,68 +15,7 @@ import SKTestSupport
 import SourceKitLSP
 import XCTest
 
-final class TestDiscoveryTests: XCTestCase {
-  func testWorkspaceTests() async throws {
-    try SkipUnless.longTestsEnabled()
-
-    let project = try await SwiftPMTestProject(
-      files: [
-        "Tests/MyLibraryTests/MyTests.swift": """
-        import XCTest
-
-        class 1️⃣MyTests: XCTestCase {
-          func 2️⃣testMyLibrary() {}
-          func unrelatedFunc() {}
-          var testVariable: Int = 0
-        }
-        """
-      ],
-      manifest: """
-        // swift-tools-version: 5.7
-
-        import PackageDescription
-
-        let package = Package(
-          name: "MyLibrary",
-          targets: [.testTarget(name: "MyLibraryTests")]
-        )
-        """,
-      build: true
-    )
-
-    let tests = try await project.testClient.send(WorkspaceTestsRequest())
-    XCTAssertEqual(
-      tests,
-      [
-        TestItem(
-          id: "MyTests",
-          label: "MyTests",
-          disabled: false,
-          style: TestStyle.xcTest,
-          location: Location(
-            uri: try project.uri(for: "MyTests.swift"),
-            range: Range(try project.position(of: "1️⃣", in: "MyTests.swift"))
-          ),
-          children: [
-            TestItem(
-              id: "MyTests/testMyLibrary()",
-              label: "testMyLibrary()",
-              disabled: false,
-              style: TestStyle.xcTest,
-              location: Location(
-                uri: try project.uri(for: "MyTests.swift"),
-                range: Range(try project.position(of: "2️⃣", in: "MyTests.swift"))
-              ),
-              children: [],
-              tags: []
-            )
-          ],
-          tags: []
-        )
-      ]
-    )
-  }
-
+final class DocumentTestDiscoveryTests: XCTestCase {
   func testIndexBasedDocumentTests() async throws {
     try SkipUnless.longTestsEnabled()
 

@@ -62,6 +62,9 @@ public final class Workspace {
   /// The source code index, if available.
   public var index: IndexStoreDB? = nil
 
+  /// The index that syntactically scans the workspace for tests.
+  let syntacticTestIndex = SyntacticTestIndex()
+
   /// Documents open in the SourceKitLSPServer. This may include open documents from other workspaces.
   private let documentManager: DocumentManager
 
@@ -91,6 +94,14 @@ public final class Workspace {
     await indexDelegate?.addMainFileChangedCallback { [weak self] in
       await self?.buildSystemManager.mainFilesChanged()
     }
+    await underlyingBuildSystem?.addTestFilesDidChangeCallback { [weak self] in
+      guard let self else {
+        return
+      }
+      await self.syntacticTestIndex.listOfTestFilesDidChange(self.buildSystemManager.testFiles())
+    }
+    // Trigger an initial population of `syntacticTestIndex`.
+    await syntacticTestIndex.listOfTestFilesDidChange(buildSystemManager.testFiles())
   }
 
   /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
@@ -204,6 +215,11 @@ public final class Workspace {
       index: index,
       indexDelegate: indexDelegate
     )
+  }
+
+  public func filesDidChange(_ events: [FileEvent]) async {
+    await buildSystemManager.filesDidChange(events)
+    await syntacticTestIndex.filesDidChange(events)
   }
 }
 

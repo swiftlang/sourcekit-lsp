@@ -198,6 +198,14 @@ fileprivate enum TaskMetadata: DependencyTracker {
   /// might be relying on this task to take effect.
   case globalConfigurationChange
 
+  /// A request that depends on the state of all documents.
+  ///
+  /// These requests wait for `documentUpdate` tasks for all documents to finish before being executed.
+  ///
+  /// Requests that only read the semantic index and are not affected by changes to the in-memory file contents should
+  /// `freestanding` requests.
+  case workspaceRequest
+
   /// Changes the contents of the document with the given URI.
   ///
   /// Any other updates or requests to this document must wait for the
@@ -218,16 +226,30 @@ fileprivate enum TaskMetadata: DependencyTracker {
   /// Whether this request needs to finish before `other` can start executing.
   func isDependency(of other: TaskMetadata) -> Bool {
     switch (self, other) {
+    // globalConfigurationChange
     case (.globalConfigurationChange, _): return true
     case (_, .globalConfigurationChange): return true
+
+    // globalDocumentState
+    case (.workspaceRequest, .workspaceRequest): return false
+    case (.documentUpdate, .workspaceRequest): return true
+    case (.workspaceRequest, .documentUpdate): return true
+    case (.workspaceRequest, .documentRequest): return false
+    case (.documentRequest, .workspaceRequest): return false
+
+    // documentUpdate
     case (.documentUpdate(let selfUri), .documentUpdate(let otherUri)):
       return selfUri == otherUri
     case (.documentUpdate(let selfUri), .documentRequest(let otherUri)):
       return selfUri == otherUri
     case (.documentRequest(let selfUri), .documentUpdate(let otherUri)):
       return selfUri == otherUri
+
+    // documentRequest
     case (.documentRequest, .documentRequest):
       return false
+
+    // freestanding
     case (.freestanding, _):
       return false
     case (_, .freestanding):
@@ -248,7 +270,7 @@ fileprivate enum TaskMetadata: DependencyTracker {
     case let notification as DidChangeTextDocumentNotification:
       self = .documentUpdate(notification.textDocument.uri)
     case is DidChangeWatchedFilesNotification:
-      self = .freestanding
+      self = .globalConfigurationChange
     case is DidChangeWorkspaceFoldersNotification:
       self = .globalConfigurationChange
     case let notification as DidCloseNotebookDocumentNotification:
@@ -372,7 +394,7 @@ fileprivate enum TaskMetadata: DependencyTracker {
     case is WorkspaceSymbolsRequest:
       self = .freestanding
     case is WorkspaceTestsRequest:
-      self = .freestanding
+      self = .workspaceRequest
     default:
       logger.error(
         """
@@ -1627,7 +1649,7 @@ extension SourceKitLSPServer {
     // (e.g. Package.swift doesn't have build settings but affects build
     // settings). Inform the build system about all file changes.
     for workspace in workspaces {
-      await workspace.buildSystemManager.filesDidChange(notification.changes)
+      await workspace.filesDidChange(notification.changes)
     }
   }
 
@@ -1829,7 +1851,7 @@ extension SourceKitLSPServer {
   private func indexToLSPLocation(_ location: SymbolLocation) -> Location? {
     guard !location.path.isEmpty else { return nil }
     return Location(
-      uri: DocumentURI(URL(fileURLWithPath: location.path)),
+      uri: location.documentUri,
       range: Range(
         Position(
           // 1-based -> 0-based
@@ -2587,7 +2609,7 @@ extension WorkspaceSymbolItem {
     )
 
     let symbolLocation = Location(
-      uri: DocumentURI(URL(fileURLWithPath: symbolOccurrence.location.path)),
+      uri: symbolOccurrence.location.documentUri,
       range: Range(symbolPosition)
     )
 

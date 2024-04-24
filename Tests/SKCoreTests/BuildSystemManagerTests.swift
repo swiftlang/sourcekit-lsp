@@ -458,6 +458,12 @@ class ManualBuildSystem: BuildSystem {
       return .unhandled
     }
   }
+
+  func testFiles() async -> [DocumentURI] {
+    return []
+  }
+
+  func addTestFilesDidChangeCallback(_ callback: @escaping () async -> Void) {}
 }
 
 /// A `BuildSystemDelegate` setup for testing.

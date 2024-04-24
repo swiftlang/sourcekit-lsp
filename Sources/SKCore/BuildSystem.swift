@@ -87,6 +87,18 @@ public protocol BuildSystem: AnyObject, Sendable {
   func filesDidChange(_ events: [FileEvent]) async
 
   func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability
+
+  /// Returns the list of files that might contain test cases.
+  ///
+  /// The returned file list is an over-approximation. It might contain tests from non-test targets or files that don't
+  /// actually contain any tests. Keeping this list as minimal as possible helps reduce the amount of work that the
+  /// syntactic test indexer needs to perform.
+  func testFiles() async -> [DocumentURI]
+
+  /// Adds a callback that should be called when the value returned by `testFiles()` changes.
+  ///
+  /// The callback might also be called without an actual change to `testFiles`.
+  func addTestFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async
 }
 
 public let buildTargetsNotSupported =
