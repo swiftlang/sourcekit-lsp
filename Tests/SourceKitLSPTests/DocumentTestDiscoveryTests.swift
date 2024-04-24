@@ -622,10 +622,10 @@ final class DocumentTestDiscoveryTests: XCTestCase {
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
               children: [],
-              tags: [TestTag(id: ".red"), TestTag(id: ".blue")]
+              tags: [TestTag(id: "red"), TestTag(id: "blue")]
             )
           ],
-          tags: [TestTag(id: ".green")]
+          tags: [TestTag(id: "green")]
         )
       ]
     )
@@ -680,14 +680,14 @@ final class DocumentTestDiscoveryTests: XCTestCase {
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
               children: [],
               tags: [
-                TestTag(id: ".foo"),
-                TestTag(id: ".Nested.foo"),
-                TestTag(id: ".bar"),
-                TestTag(id: ".baz")
+                TestTag(id: "foo"),
+                TestTag(id: "Nested.foo"),
+                TestTag(id: "bar"),
+                TestTag(id: "baz")
               ]
             )
           ],
-          tags: [TestTag(id: ".suite")]
+          tags: [TestTag(id: "suite")]
         )
       ]
     )
