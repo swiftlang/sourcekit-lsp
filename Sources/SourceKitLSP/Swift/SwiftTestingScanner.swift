@@ -96,16 +96,16 @@ struct TestingAttributeData {
         }
       }.flatMap(\.arguments)
       .compactMap {
-          if let memberAccess = $0.expression.as(MemberAccessExprSyntax.self) {
-            var components = memberAccess.components[...]
-            if components.starts(with: ["Testing", "Tag"]) {
-              components = components.dropFirst(2)
-            } else if components.starts(with: ["Tag"]) {
-              components = components.dropFirst(1)
-            }
-            return components.joined(separator: ".")
+        if let memberAccess = $0.expression.as(MemberAccessExprSyntax.self) {
+          var components = memberAccess.components[...]
+          if components.starts(with: ["Testing", "Tag"]) {
+            components = components.dropFirst(2)
+          } else if components.starts(with: ["Tag"]) {
+            components = components.dropFirst(1)
           }
-          return nil
+          return components.joined(separator: ".")
+        }
+        return nil
       }
 
     self.isDisabled = traitArguments.lazy
