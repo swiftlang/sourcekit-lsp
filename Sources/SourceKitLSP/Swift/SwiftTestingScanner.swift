@@ -103,9 +103,7 @@ struct TestingAttributeData {
             } else if components.starts(with: ["Tag"]) {
               components = components.dropFirst(1)
             }
-
-            // Tags.foo resolves to ".foo", Tags.Nested.foo resolves to ".Nested.foo"
-            return ".\(components.joined(separator: "."))"
+            return components.joined(separator: ".")
           }
           return nil
       }
