@@ -75,5 +75,6 @@ target_link_libraries(SourceKitLSP PUBLIC
   SwiftSyntax::SwiftRefactor
   SwiftSyntax::SwiftSyntax)
 target_link_libraries(SourceKitLSP PRIVATE
+  PackageModelSyntax
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 
