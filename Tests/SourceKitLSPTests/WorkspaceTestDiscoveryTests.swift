@@ -748,4 +748,63 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
       ]
     )
   }
+
+  func testDeleteFileAndAddItAgain() async throws {
+    let markedFileContents = """
+      import XCTest
+
+      1️⃣class MyTests: XCTestCase {
+        2️⃣func testMyLibrary() {}3️⃣
+        func unrelatedFunc() {}
+        var testVariable: Int = 0
+      }4️⃣
+      """
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/MyTests.swift": markedFileContents
+      ],
+      manifest: packageManifestWithTestTarget
+    )
+
+    let expectedTests = [
+      TestItem(
+        id: "MyTests",
+        label: "MyTests",
+        disabled: false,
+        style: TestStyle.xcTest,
+        location: try project.location(from: "1️⃣", to: "4️⃣", in: "MyTests.swift"),
+        children: [
+          TestItem(
+            id: "MyTests/testMyLibrary()",
+            label: "testMyLibrary()",
+            disabled: false,
+            style: TestStyle.xcTest,
+            location: try project.location(from: "2️⃣", to: "3️⃣", in: "MyTests.swift"),
+            children: [],
+            tags: []
+          )
+        ],
+        tags: []
+      )
+    ]
+
+    let testsBeforeFileRemove = try await project.testClient.send(WorkspaceTestsRequest())
+    XCTAssertEqual(testsBeforeFileRemove, expectedTests)
+
+    let myTestsUri = try project.uri(for: "MyTests.swift")
+    let myTestsUrl = try XCTUnwrap(myTestsUri.fileURL)
+
+    try FileManager.default.removeItem(at: myTestsUrl)
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: myTestsUri, type: .deleted)]))
+
+    let testsAfterFileRemove = try await project.testClient.send(WorkspaceTestsRequest())
+    XCTAssertEqual(testsAfterFileRemove, [])
+
+    try extractMarkers(markedFileContents).textWithoutMarkers.write(to: myTestsUrl, atomically: true, encoding: .utf8)
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: myTestsUri, type: .created)]))
+
+    let testsAfterFileReAdded = try await project.testClient.send(WorkspaceTestsRequest())
+    XCTAssertEqual(testsAfterFileReAdded, expectedTests)
+  }
 }

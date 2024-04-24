@@ -39,10 +39,10 @@ fileprivate enum TaskMetadata: DependencyTracker, Equatable {
       // Adding the dependency also elevates the index task's priorities.
       return true
     case (.index(let lhsUris), .index(let rhsUris)):
-      // Technically, we should be able to allow simultaneous indexing of the same file. When a file gets re-scheduled
-      // for indexing, all previous index invocations should get cancelled. But conceptually the code becomes simpler
-      // if we don't need to think racing indexing tasks for the same file and it shouldn't make a performance impact
-      // in practice because of the cancellation described before.
+      // Technically, we should be able to allow simultaneous indexing of the same file. But conceptually the code
+      // becomes simpler if we don't need to think racing indexing tasks for the same file and it shouldn't make a
+      // performance impact in practice because if a first task indexes a file, a subsequent index task for the same
+      // file will realize that the index is already up-to-date based on the file's mtime and early exit.
       return !lhsUris.intersection(rhsUris).isEmpty
     }
   }
@@ -82,6 +82,10 @@ fileprivate func testItems(in url: URL) async -> [TestItem] {
   return await swiftTestingTests + xcTests
 }
 
+/// An in-memory syntactic index of test items within a workspace.
+///
+/// The index does not get persisted to disk but instead gets rebuilt every time a workspace is opened (ie. usually when
+/// sourcekit-lsp is launched). Building it takes only a few seconds, even for large projects.
 actor SyntacticTestIndex {
   /// The tests discovered by the index.
   private var indexedTests: [DocumentURI: IndexedTests] = [:]
@@ -89,7 +93,7 @@ actor SyntacticTestIndex {
   /// Files that have been removed using `removeFileForIndex`.
   ///
   /// We need to keep track of these files because when the files get removed, there might be an in-progress indexing
-  /// operation running for that file. We need to ensure that this indexing operation doesn't write add the removed file
+  /// operation running for that file. We need to ensure that this indexing operation doesn't add the removed file
   /// back to `indexTests`.
   private var removedFiles: Set<DocumentURI> = []
 
@@ -138,6 +142,10 @@ actor SyntacticTestIndex {
 
   /// Called when a list of files was updated. Re-scans those files
   private func rescanFiles(_ uris: [DocumentURI]) {
+    // If we scan a file again, it might have been added after being removed before. Remove it from the list of removed
+    // files.
+    removedFiles.subtract(uris)
+
     // Divide the files into multiple batches. This is more efficient than spawning a new task for every file, mostly
     // because it keeps the number of pending items in `indexingQueue` low and adding a new task to `indexingQueue` is
     // in O(number of pending tasks), since we need to scan for dependency edges to add, which would make scanning files
