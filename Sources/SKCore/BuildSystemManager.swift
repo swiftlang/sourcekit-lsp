@@ -45,10 +45,10 @@ public actor BuildSystemManager {
   let fallbackBuildSystem: FallbackBuildSystem?
 
   /// Provider of file to main file mappings.
-  var _mainFilesProvider: MainFilesProvider?
+  var mainFilesProvider: MainFilesProvider?
 
   /// Build system delegate that will receive notifications about setting changes, etc.
-  var _delegate: BuildSystemDelegate?
+  var delegate: BuildSystemDelegate?
 
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
@@ -71,7 +71,7 @@ public actor BuildSystemManager {
     precondition(!buildSystemHasDelegate)
     self.buildSystem = buildSystem
     self.fallbackBuildSystem = fallbackBuildSystem
-    self._mainFilesProvider = mainFilesProvider
+    self.mainFilesProvider = mainFilesProvider
     self.fallbackSettingsTimeout = fallbackSettingsTimeout
     await self.buildSystem?.setDelegate(self)
   }
@@ -82,19 +82,9 @@ public actor BuildSystemManager {
 }
 
 extension BuildSystemManager {
-  public var delegate: BuildSystemDelegate? {
-    get { _delegate }
-    set { _delegate = newValue }
-  }
-
   /// - Note: Needed so we can set the delegate from a different isolation context.
   public func setDelegate(_ delegate: BuildSystemDelegate?) {
     self.delegate = delegate
-  }
-
-  public var mainFilesProvider: MainFilesProvider? {
-    get { _mainFilesProvider }
-    set { _mainFilesProvider = newValue }
   }
 
   /// - Note: Needed so we can set the delegate from a different isolation context.
@@ -186,6 +176,10 @@ extension BuildSystemManager {
       fallbackBuildSystem != nil ? .fallback : .unhandled
     )
   }
+
+  public func testFiles() async -> [DocumentURI] {
+    return await buildSystem?.testFiles() ?? []
+  }
 }
 
 extension BuildSystemManager: BuildSystemDelegate {
@@ -204,7 +198,7 @@ extension BuildSystemManager: BuildSystemDelegate {
   public func fileBuildSettingsChanged(_ changedFiles: Set<DocumentURI>) async {
     let changedWatchedFiles = watchedFilesReferencing(mainFiles: changedFiles)
 
-    if !changedWatchedFiles.isEmpty, let delegate = self._delegate {
+    if !changedWatchedFiles.isEmpty, let delegate = self.delegate {
       await delegate.fileBuildSettingsChanged(changedWatchedFiles)
     }
   }
@@ -212,7 +206,7 @@ extension BuildSystemManager: BuildSystemDelegate {
   public func filesDependenciesUpdated(_ changedFiles: Set<DocumentURI>) async {
     // Empty changes --> assume everything has changed.
     guard !changedFiles.isEmpty else {
-      if let delegate = self._delegate {
+      if let delegate = self.delegate {
         await delegate.filesDependenciesUpdated(changedFiles)
       }
       return
@@ -226,13 +220,13 @@ extension BuildSystemManager: BuildSystemDelegate {
   }
 
   public func buildTargetsChanged(_ changes: [BuildTargetEvent]) async {
-    if let delegate = self._delegate {
+    if let delegate = self.delegate {
       await delegate.buildTargetsChanged(changes)
     }
   }
 
   public func fileHandlingCapabilityChanged() async {
-    if let delegate = self._delegate {
+    if let delegate = self.delegate {
       await delegate.fileHandlingCapabilityChanged()
     }
   }

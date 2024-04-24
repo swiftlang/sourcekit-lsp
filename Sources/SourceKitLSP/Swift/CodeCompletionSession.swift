@@ -280,17 +280,9 @@ class CodeCompletionSession {
 
   // MARK: - Helpers
 
-  private func expandClosurePlaceholders(
-    insertText: String,
-    utf8CodeUnitsToErase: Int,
-    requestPosition: Position
-  ) -> String? {
+  private func expandClosurePlaceholders(insertText: String) -> String? {
     guard insertText.contains("<#") && insertText.contains("->") else {
       // Fast path: There is no closure placeholder to expand
-      return nil
-    }
-    guard requestPosition.line < snapshot.lineTable.count else {
-      logger.error("Request position is past the last line")
       return nil
     }
 
@@ -336,79 +328,63 @@ class CodeCompletionSession {
     requestPosition: Position,
     isIncomplete: Bool
   ) -> CompletionList {
-    var result = CompletionList(isIncomplete: isIncomplete, items: [])
-
-    completions.forEach { (i: Int, value: SKDResponseDictionary) -> Bool in
-      guard let name: String = value[keys.description] else {
-        return true  // continue
+    let completionItems = completions.compactMap { (value: SKDResponseDictionary) -> CompletionItem? in
+      guard let name: String = value[keys.description],
+        var insertText: String = value[keys.sourceText]
+      else {
+        return nil
       }
 
       var filterName: String? = value[keys.name]
-      var insertText: String? = value[keys.sourceText]
       let typeName: String? = value[sourcekitd.keys.typeName]
       let docBrief: String? = value[sourcekitd.keys.docBrief]
       let utf8CodeUnitsToErase: Int = value[sourcekitd.keys.numBytesToErase] ?? 0
 
-      if let insertTextUnwrapped = insertText {
-        insertText =
-          expandClosurePlaceholders(
-            insertText: insertTextUnwrapped,
-            utf8CodeUnitsToErase: utf8CodeUnitsToErase,
-            requestPosition: requestPosition
-          ) ?? insertText
+      if let closureExpanded = expandClosurePlaceholders(insertText: insertText) {
+        insertText = closureExpanded
       }
 
-      let text = insertText.map {
-        rewriteSourceKitPlaceholders(in: $0, clientSupportsSnippets: clientSupportsSnippets)
-      }
+      let text = rewriteSourceKitPlaceholders(in: insertText, clientSupportsSnippets: clientSupportsSnippets)
       let isInsertTextSnippet = clientSupportsSnippets && text != insertText
 
       let textEdit: TextEdit?
-      if let text = text {
-        let edit = self.computeCompletionTextEdit(
-          completionPos: completionPos,
-          requestPosition: requestPosition,
-          utf8CodeUnitsToErase: utf8CodeUnitsToErase,
-          newText: text,
-          snapshot: snapshot
-        )
-        textEdit = edit
+      let edit = self.computeCompletionTextEdit(
+        completionPos: completionPos,
+        requestPosition: requestPosition,
+        utf8CodeUnitsToErase: utf8CodeUnitsToErase,
+        newText: text,
+        snapshot: snapshot
+      )
+      textEdit = edit
 
-        if utf8CodeUnitsToErase != 0, filterName != nil, let textEdit = textEdit {
-          // To support the case where the client is doing prefix matching on the TextEdit range,
-          // we need to prepend the deleted text to filterText.
-          // This also works around a behaviour in VS Code that causes completions to not show up
-          // if a '.' is being replaced for Optional completion.
-          let filterPrefix = snapshot.text[snapshot.indexRange(of: textEdit.range.lowerBound..<completionPos)]
-          filterName = filterPrefix + filterName!
-        }
-      } else {
-        textEdit = nil
+      if utf8CodeUnitsToErase != 0, filterName != nil, let textEdit = textEdit {
+        // To support the case where the client is doing prefix matching on the TextEdit range,
+        // we need to prepend the deleted text to filterText.
+        // This also works around a behaviour in VS Code that causes completions to not show up
+        // if a '.' is being replaced for Optional completion.
+        let filterPrefix = snapshot.text[snapshot.indexRange(of: textEdit.range.lowerBound..<completionPos)]
+        filterName = filterPrefix + filterName!
       }
 
       // Map SourceKit's not_recommended field to LSP's deprecated
-      let notRecommended = (value[sourcekitd.keys.notRecommended] as Int?).map({ $0 != 0 })
+      let notRecommended = (value[sourcekitd.keys.notRecommended] ?? 0) != 0
 
       let kind: sourcekitd_api_uid_t? = value[sourcekitd.keys.kind]
-      result.items.append(
-        CompletionItem(
-          label: name,
-          kind: kind?.asCompletionItemKind(sourcekitd.values) ?? .value,
-          detail: typeName,
-          documentation: docBrief != nil ? .markupContent(MarkupContent(kind: .markdown, value: docBrief!)) : nil,
-          deprecated: notRecommended ?? false,
-          sortText: nil,
-          filterText: filterName,
-          insertText: text,
-          insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
-          textEdit: textEdit.map(CompletionItemEdit.textEdit)
-        )
+      return CompletionItem(
+        label: name,
+        kind: kind?.asCompletionItemKind(sourcekitd.values) ?? .value,
+        detail: typeName,
+        documentation: docBrief != nil ? .markupContent(MarkupContent(kind: .markdown, value: docBrief!)) : nil,
+        deprecated: notRecommended,
+        sortText: nil,
+        filterText: filterName,
+        insertText: text,
+        insertTextFormat: isInsertTextSnippet ? .snippet : .plain,
+        textEdit: textEdit.map(CompletionItemEdit.textEdit)
       )
-
-      return true
     }
 
-    return result
+    return CompletionList(isIncomplete: isIncomplete, items: completionItems)
   }
 
   private func computeCompletionTextEdit(

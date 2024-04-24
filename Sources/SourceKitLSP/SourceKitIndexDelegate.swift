@@ -12,6 +12,7 @@
 
 import Dispatch
 import IndexStoreDB
+import LSPLogging
 import SKCore
 import SKSupport
 
@@ -51,17 +52,18 @@ public actor SourceKitIndexDelegate: IndexDelegate {
   private func processCompleted(_ count: Int) {
     pendingUnitCount -= count
     if pendingUnitCount == 0 {
-      _indexChanged()
+      indexChanged()
     }
 
     if pendingUnitCount < 0 {
       assertionFailure("pendingUnitCount = \(pendingUnitCount) < 0")
       pendingUnitCount = 0
-      _indexChanged()
+      indexChanged()
     }
   }
 
-  func _indexChanged() {
+  private func indexChanged() {
+    logger.debug("IndexStoreDB changed")
     for callback in mainFilesChangedCallbacks {
       queue.async {
         await callback()

@@ -26,12 +26,10 @@ final class HoverTests: XCTestCase {
       struct 1️⃣S {}
       """,
       expectedContent: """
-        S
         ```swift
         struct S
         ```
 
-        ---
         This is a doc comment for S.
 
         Details.
@@ -70,56 +68,85 @@ final class HoverTests: XCTestCase {
       _ = 1️⃣Foo()
       """,
       expectedContent: """
-        Foo
+        ## Multiple results
+
         ```swift
         struct Foo
         ```
 
+
         ---
 
-        # Alternative result
-        init()
         ```swift
+
         init()
         ```
-
-        ---
 
         """
     )
   }
 
+  func testMultiCursorInfoResultsHoverWithDocumentation() async throws {
+    try await SkipUnless.sourcekitdReturnsRawDocumentationResponse()
+    try await assertHover(
+      """
+      /// A struct
+      struct Foo {
+        /// The initializer
+        init() {}
+      }
+      _ = 1️⃣Foo()
+      """,
+      expectedContent: """
+        ## Multiple results
+
+        ```swift
+        struct Foo
+        ```
+
+        A struct
+
+        ---
+
+        ```swift
+
+        init()
+        ```
+
+        The initializer
+        """
+    )
+  }
+
   func testHoverNameEscapingOnFunction() async throws {
+    try await SkipUnless.sourcekitdReturnsRawDocumentationResponse()
     try await assertHover(
       """
       /// this is **bold** documentation
       func 1️⃣test(_ a: Int, _ b: Int) { }
       """,
       expectedContent: ##"""
-        test(\_:\_:)
         ```swift
         func test(_ a: Int, _ b: Int)
         ```
 
-        ---
         this is **bold** documentation
         """##
     )
   }
 
   func testHoverNameEscapingOnOperator() async throws {
+    try await SkipUnless.sourcekitdReturnsRawDocumentationResponse()
     try await assertHover(
       """
       /// this is *italic* documentation
       func 1️⃣*%*(lhs: String, rhs: String) { }
       """,
       expectedContent: ##"""
-        \*%\*(\_:\_:)
         ```swift
         func *%* (lhs: String, rhs: String)
         ```
 
-        ---
         this is *italic* documentation
         """##
     )
@@ -135,12 +162,10 @@ final class HoverTests: XCTestCase {
       func 1️⃣eatApple() {}
       """,
       expectedContent: """
-        eatApple()
         ```swift
         func eatApple()
         ```
 
-        ---
         Eat an apple
 
         - Precondition: Must have an apple

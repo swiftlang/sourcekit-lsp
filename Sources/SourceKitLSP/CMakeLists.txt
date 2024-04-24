@@ -2,6 +2,7 @@
 add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
   DocumentManager.swift
+  DocumentSnapshot+FromFileContents.swift
   IndexOutOfDateChecker.swift
   IndexStoreDB+MainFilesProvider.swift
   LanguageService.swift
@@ -12,6 +13,7 @@ add_library(SourceKitLSP STATIC
   SourceKitLSPCommandMetadata.swift
   SourceKitLSPServer.swift
   SourceKitLSPServer+Options.swift
+  SymbolLocation+DocumentURI.swift
   TestDiscovery.swift
   WorkDoneProgressManager.swift
   Workspace.swift
@@ -20,6 +22,10 @@ target_sources(SourceKitLSP PRIVATE
   Clang/ClangLanguageService.swift)
 target_sources(SourceKitLSP PRIVATE
   Swift/AdjustPositionToStartOfIdentifier.swift
+  Swift/CodeActions/ConvertIntegerLiteral.swift
+  Swift/CodeActions/SyntaxCodeActionProvider.swift
+  Swift/CodeActions/SyntaxCodeActions.swift
+  Swift/CodeActions/SyntaxRefactoringCodeActionProvider.swift
   Swift/CodeCompletion.swift
   Swift/CodeCompletionSession.swift
   Swift/CommentXML.swift
@@ -38,10 +44,12 @@ target_sources(SourceKitLSP PRIVATE
   Swift/SourceKitD+ResponseError.swift
   Swift/SwiftCommand.swift
   Swift/SwiftLanguageService.swift
+  Swift/SwiftTestingScanner.swift
   Swift/SymbolInfo.swift
+  Swift/SyntacticTestIndex.swift
   Swift/SyntaxHighlightingToken.swift
-  Swift/SyntaxHighlightingTokens.swift
   Swift/SyntaxHighlightingTokenParser.swift
+  Swift/SyntaxHighlightingTokens.swift
   Swift/SyntaxTreeManager.swift
   Swift/VariableTypeInfo.swift
 )

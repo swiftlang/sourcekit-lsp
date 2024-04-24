@@ -755,8 +755,6 @@ final class LocalSwiftTests: XCTestCase {
       func foo(_ bar: Baz)
       ```
 
-      ---
-
       """
     )
     XCTAssertEqual(
@@ -769,8 +767,6 @@ final class LocalSwiftTests: XCTestCase {
       ```swift
       func foo() -> Bar
       ```
-
-      ---
 
       """
     )
@@ -805,8 +801,6 @@ final class LocalSwiftTests: XCTestCase {
       func replacingOccurrences<Target, Replacement>(of target: Target, with replacement: Replacement, options: String.CompareOptions = default, range searchRange: Range<String.Index>? = default) -> String where Target : StringProtocol, Replacement : StringProtocol
       ```
 
-      ---
-
       """
     )
   }
@@ -823,8 +817,6 @@ final class LocalSwiftTests: XCTestCase {
       var foo
       ```
 
-      ---
-
       """
     )
 
@@ -839,8 +831,6 @@ final class LocalSwiftTests: XCTestCase {
       var foo
       ```
 
-      ---
-
       """
     )
     XCTAssertEqual(
@@ -853,8 +843,6 @@ final class LocalSwiftTests: XCTestCase {
       ```swift
       var foo
       ```
-
-      ---
 
       """
     )
@@ -881,8 +869,6 @@ final class LocalSwiftTests: XCTestCase {
       ```swift
       var foo
       ```
-
-      ---
 
       """
     )
@@ -1064,8 +1050,6 @@ final class LocalSwiftTests: XCTestCase {
       ```swift
       struct String
       ```
-
-      ---
       A Unicode s
 
       ### Discussion
@@ -1147,8 +1131,6 @@ final class LocalSwiftTests: XCTestCase {
       ```swift
       struct S
       ```
-
-      ---
       ### Discussion
 
       ```swift

@@ -316,6 +316,17 @@ extension BuildServerBuildSystem: BuildSystem {
 
     return .unhandled
   }
+
+  public func testFiles() async -> [DocumentURI] {
+    // BuildServerBuildSystem does not support syntactic test discovery
+    // (https://github.com/apple/sourcekit-lsp/issues/1173).
+    return []
+  }
+
+  public func addTestFilesDidChangeCallback(_ callback: @escaping () async -> Void) {
+    // BuildServerBuildSystem does not support syntactic test discovery
+    // (https://github.com/apple/sourcekit-lsp/issues/1173).
+  }
 }
 
 private func loadBuildServerConfig(path: AbsolutePath, fileSystem: FileSystem) throws -> BuildServerConfig {

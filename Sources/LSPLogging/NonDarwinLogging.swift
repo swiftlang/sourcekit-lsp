@@ -245,7 +245,8 @@ public struct NonDarwinLogMessage: ExpressibleByStringInterpolation, Expressible
 /// a new `DateFormatter` is rather expensive and its the same for all loggers.
 private let dateFormatter = {
   let dateFormatter = DateFormatter()
-  dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSS"
+  dateFormatter.timeZone = NSTimeZone.local
+  dateFormatter.dateFormat = "yyyy-MM-dd HH:mm:ss.SSSS Z"
   return dateFormatter
 }()
 
@@ -299,11 +300,20 @@ public struct NonDarwinLogger: Sendable {
     guard level >= self.logLevel else { return }
     let date = Date()
     loggingQueue.async {
+      // Truncate log message after 10.000 characters to avoid flooding the log with huge log messages (eg. from a
+      // sourcekitd response). 10.000 characters was chosen because it seems to fit the result of most sourcekitd
+      // responses that are not generated interface or global completion results (which are a lot bigger).
+      var message = message().value.string(for: self.privacyLevel)
+      if message.utf8.count > 10_000 {
+        // Check for UTF-8 byte length first because that's faster since it doesn't need to count UTF-8 characters.
+        // Truncate using `.prefix` to avoid cutting of in the middle of a UTF-8 multi-byte character.
+        message = message.prefix(10_000) + "..."
+      }
       // Start each log message with `[org.swift.sourcekit-lsp` so that it’s easy to split the log to the different messages
       logHandler(
         """
         [\(subsystem):\(category)] \(level) \(dateFormatter.string(from: date))
-        \(message().value.string(for: self.privacyLevel))
+        \(message)
         ---
         """
       )

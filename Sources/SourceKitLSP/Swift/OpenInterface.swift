@@ -73,7 +73,7 @@ extension SwiftLanguageService {
     let skreq = sourcekitd.dictionary([
       keys.request: requests.editorOpenInterface,
       keys.moduleName: name,
-      keys.groupName: request.groupNames.isEmpty ? nil : request.groupNames as [SKDRequestValue],
+      keys.groupName: request.groupName,
       keys.name: interfaceURI.pseudoPath,
       keys.synthesizedExtension: 1,
       keys.compilerArgs: await self.buildSettings(for: uri)?.compilerArgs as [SKDRequestValue]?,

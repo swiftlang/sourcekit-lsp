@@ -65,7 +65,7 @@ struct CursorInfo {
       return nil
     }
 
-    var location: Location? = nil
+    let location: Location?
     if let filepath: String = dict[keys.filePath],
       let line: Int = dict[keys.line],
       let column: Int = dict[keys.column]
@@ -76,6 +76,16 @@ struct CursorInfo {
         utf16index: column - 1
       )
       location = Location(uri: DocumentURI(URL(fileURLWithPath: filepath)), range: Range(position))
+    } else {
+      location = nil
+    }
+
+    let module: SymbolDetails.ModuleInfo?
+    if let moduleName: String = dict[keys.moduleName] {
+      let groupName: String? = dict[keys.groupName]
+      module = SymbolDetails.ModuleInfo(moduleName: moduleName, groupName: groupName)
+    } else {
+      module = nil
     }
 
     self.init(
@@ -86,7 +96,9 @@ struct CursorInfo {
         bestLocalDeclaration: location,
         kind: kind.asSymbolKind(sourcekitd.values),
         isDynamic: dict[keys.isDynamic] ?? false,
-        receiverUsrs: dict[keys.receivers]?.compactMap { $0[keys.usr] as String? } ?? []
+        isSystem: dict[keys.isSystem] ?? false,
+        receiverUsrs: dict[keys.receivers]?.compactMap { $0[keys.usr] as String? } ?? [],
+        systemModule: module
       ),
       annotatedDeclaration: dict[keys.annotatedDecl],
       documentationXML: dict[keys.docFullAsXML],

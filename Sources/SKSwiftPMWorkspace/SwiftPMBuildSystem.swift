@@ -81,6 +81,9 @@ public actor SwiftPMBuildSystem {
     self.delegate = delegate
   }
 
+  /// Callbacks that should be called if the list of possible test files has changed.
+  public var testFilesDidChangeCallbacks: [() async -> Void] = []
+
   let workspacePath: TSCAbsolutePath
   /// The directory containing `Package.swift`.
   public var projectRoot: TSCAbsolutePath
@@ -98,6 +101,16 @@ public actor SwiftPMBuildSystem {
 
   /// This callback is informed when `reloadPackage` starts and ends executing.
   var reloadPackageStatusCallback: (ReloadPackageStatus) async -> Void
+
+  /// Debounces calls to `delegate.filesDependenciesUpdated`.
+  ///
+  /// This is to ensure we don't call `filesDependenciesUpdated` for the same file multiple time if the client does not
+  /// debounce `workspace/didChangeWatchedFiles` and sends a separate notification eg. for every file within a target as
+  /// it's being updated by a git checkout, which would cause other files within that target to receive a
+  /// `fileDependenciesUpdated` call once for every updated file within the target.
+  ///
+  /// Force-unwrapped optional because initializing it requires access to `self`.
+  var fileDependenciesUpdatedDebouncer: Debouncer<Set<DocumentURI>>! = nil
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
@@ -165,6 +178,19 @@ public actor SwiftPMBuildSystem {
 
     self.modulesGraph = try ModulesGraph(rootPackages: [], dependencies: [], binaryArtifacts: [:])
     self.reloadPackageStatusCallback = reloadPackageStatusCallback
+
+    // The debounce duration of 500ms was chosen arbitrarily without scientific research.
+    self.fileDependenciesUpdatedDebouncer = Debouncer(
+      debounceDuration: .milliseconds(500),
+      combineResults: { $0.union($1) }
+    ) {
+      [weak self] (filesWithUpdatedDependencies) in
+      guard let delegate = await self?.delegate else {
+        logger.fault("Not calling filesDependenciesUpdated because no delegate exists in SwiftPMBuildSystem")
+        return
+      }
+      await delegate.filesDependenciesUpdated(filesWithUpdatedDependencies)
+    }
 
     try await reloadPackage()
   }
@@ -267,6 +293,9 @@ extension SwiftPMBuildSystem {
     }
     await delegate.fileBuildSettingsChanged(self.watchedFiles)
     await delegate.fileHandlingCapabilityChanged()
+    for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
+      await testFilesDidChangeCallback()
+    }
   }
 }
 
@@ -368,6 +397,34 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
         try await self.reloadPackage()
       }
     }
+
+    var filesWithUpdatedDependencies: Set<DocumentURI> = []
+    // If a Swift file within a target is updated, reload all the other files within the target since they might be
+    // referring to a function in the updated file.
+    for event in events {
+      guard let url = event.uri.fileURL,
+        url.pathExtension == "swift",
+        let absolutePath = try? AbsolutePath(validating: url.path),
+        let target = fileToTarget[absolutePath]
+      else {
+        continue
+      }
+      filesWithUpdatedDependencies.formUnion(target.sources.map { DocumentURI($0) })
+    }
+
+    // If a `.swiftmodule` file is updated, this means that we have performed a build / are
+    // performing a build and files that depend on this module have updated dependencies.
+    // We don't have access to the build graph from the SwiftPM API offered to SourceKit-LSP to figure out which files
+    // depend on the updated module, so assume that all files have updated dependencies.
+    // The file watching here is somewhat fragile as well because it assumes that the `.swiftmodule` files are being
+    // written to a directory within the workspace root. This is not necessarily true if the user specifies a build
+    // directory outside the source tree.
+    // All of this shouldn't be necessary once we have background preparation, in which case we know when preparation of
+    // a target has finished.
+    if events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" }) {
+      filesWithUpdatedDependencies.formUnion(self.fileToTarget.keys.map { DocumentURI($0.asURL) })
+    }
+    await self.fileDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }
 
   public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
@@ -379,6 +436,15 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     } else {
       return .unhandled
     }
+  }
+
+  public func testFiles() -> [DocumentURI] {
+    // We should only include source files from test targets (https://github.com/apple/sourcekit-lsp/issues/1174).
+    return fileToTarget.map { DocumentURI($0.key.asURL) }
+  }
+
+  public func addTestFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async {
+    testFilesDidChangeCallbacks.append(callback)
   }
 }
 
