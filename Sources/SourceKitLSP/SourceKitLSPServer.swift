@@ -821,7 +821,7 @@ public actor SourceKitLSPServer {
       return nil
     }
 
-    logger.info("Using toolchain \(toolchain.displayName) (\(toolchain.identifier)) for \(uri.forLogging)")
+    logger.log("Using toolchain \(toolchain.displayName) (\(toolchain.identifier)) for \(uri.forLogging)")
 
     if let concurrentlySetService = workspace.documentService[uri] {
       // Since we await the construction of `service`, another call to this
