@@ -41,7 +41,7 @@ func makeReproducerBundle(for requestInfo: RequestInfo, toolchain: Toolchain, bu
   } else {
     let request = try requestInfo.request(for: URL(fileURLWithPath: "/input.swift"))
     try request.write(
-      to: bundlePath.appendingPathComponent("request.json"),
+      to: bundlePath.appendingPathComponent("request.yml"),
       atomically: true,
       encoding: .utf8
     )
