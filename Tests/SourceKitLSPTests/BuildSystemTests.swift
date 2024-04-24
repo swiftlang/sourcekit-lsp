@@ -60,6 +60,12 @@ final class TestBuildSystem: BuildSystem {
       return .unhandled
     }
   }
+
+  func testFiles() async -> [DocumentURI] {
+    return []
+  }
+
+  func addTestFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {}
 }
 
 final class BuildSystemTests: XCTestCase {

@@ -39,6 +39,9 @@ public actor CompilationDatabaseBuildSystem {
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate? = nil
 
+  /// Callbacks that should be called if the list of possible test files has changed.
+  public var testFilesDidChangeCallbacks: [() async -> Void] = []
+
   public func setDelegate(_ delegate: BuildSystemDelegate?) async {
     self.delegate = delegate
   }
@@ -167,6 +170,9 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     if let delegate = self.delegate {
       await delegate.fileBuildSettingsChanged(self.watchedFiles)
     }
+    for testFilesDidChangeCallback in testFilesDidChangeCallbacks {
+      await testFilesDidChangeCallback()
+    }
   }
 
   public func filesDidChange(_ events: [FileEvent]) async {
@@ -184,5 +190,13 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     } else {
       return .unhandled
     }
+  }
+
+  public func testFiles() async -> [DocumentURI] {
+    return compdb?.allCommands.map { DocumentURI($0.url) } ?? []
+  }
+
+  public func addTestFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {
+    testFilesDidChangeCallbacks.append(callback)
   }
 }

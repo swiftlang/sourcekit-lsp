@@ -142,4 +142,13 @@ public class MultiFileTestProject {
     }
     return DocumentPositions(markedText: fileData.markedText)[marker]
   }
+
+  public func range(from fromMarker: String, to toMarker: String, in fileName: String) throws -> Range<Position> {
+    return try position(of: fromMarker, in: fileName)..<position(of: toMarker, in: fileName)
+  }
+
+  public func location(from fromMarker: String, to toMarker: String, in fileName: String) throws -> Location {
+    let range = try self.range(from: fromMarker, to: toMarker, in: fileName)
+    return Location(uri: try self.uri(for: fileName), range: range)
+  }
 }

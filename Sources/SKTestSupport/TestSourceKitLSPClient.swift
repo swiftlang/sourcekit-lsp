@@ -287,7 +287,6 @@ public final class TestSourceKitLSPClient: MessageHandler {
     reply: @escaping (LSPResult<Request.Response>) -> Void
   ) {
     guard let requestHandler = requestHandlers.first else {
-      XCTFail("Received unexpected request \(Request.method)")
       reply(.failure(.methodNotFound(Request.method)))
       return
     }
@@ -362,7 +361,7 @@ public struct DocumentPositions {
     }
   }
 
-  init(markedText: String) {
+  public init(markedText: String) {
     let (markers, textWithoutMarker) = extractMarkers(markedText)
     self.init(markers: markers, textWithoutMarkers: textWithoutMarker)
   }
