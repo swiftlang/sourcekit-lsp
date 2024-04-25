@@ -16,7 +16,7 @@ import SwiftSyntax
 
 /// Protocol that adapts a SyntaxRefactoringProvider (that comes from
 /// swift-syntax) into a SyntaxCodeActionProvider.
-protocol SyntaxRefactoringCodeActionProvider: SyntaxCodeActionProvider, SyntaxRefactoringProvider {
+protocol SyntaxRefactoringCodeActionProvider: SyntaxCodeActionProvider, EditRefactoringProvider {
   static var title: String { get }
 }
 
@@ -31,20 +31,23 @@ extension SyntaxRefactoringCodeActionProvider where Self.Context == Void {
       return []
     }
 
-    guard let refactored = Self.refactor(syntax: node) else {
+    let sourceEdits = Self.textRefactor(syntax: node)
+    if sourceEdits.isEmpty {
       return []
     }
 
-    let edit = TextEdit(
-      range: scope.snapshot.range(of: node),
-      newText: refactored.description
-    )
+    let textEdits = sourceEdits.map { edit in
+      TextEdit(
+        range: scope.snapshot.range(of: edit.range),
+        newText: edit.replacement
+      )
+    }
 
     return [
       CodeAction(
         title: Self.title,
         kind: .refactorInline,
-        edit: WorkspaceEdit(changes: [scope.snapshot.uri: [edit]])
+        edit: WorkspaceEdit(changes: [scope.snapshot.uri: textEdits])
       )
     ]
   }
