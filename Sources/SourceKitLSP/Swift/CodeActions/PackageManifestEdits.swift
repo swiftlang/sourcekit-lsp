@@ -26,24 +26,12 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
       return []
     }
 
-    var actions = [CodeAction]()
-
-    // Add test target(s)
-    actions.append(
-      contentsOf: maybeAddTestTargetActions(call: call, in: scope)
-    )
-
-    // Add product(s).
-    actions.append(
-      contentsOf: maybeAddProductActions(call: call, in: scope)
-    )
-
-    return actions
+    return addTestTargetActions(call: call, in: scope) + addProductActions(call: call, in: scope)
   }
 
   /// Produce code actions to add test target(s) if we are currently on
   /// a target for which we know how to create a test.
-  static func maybeAddTestTargetActions(
+  static func addTestTargetActions(
     call: FunctionCallExprSyntax,
     in scope: SyntaxCodeActionScope
   ) -> [CodeAction] {
@@ -84,7 +72,7 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
 
   /// Produce code actions to add a product if we are currently on
   /// a target for which we can create a product.
-  static func maybeAddProductActions(
+  static func addProductActions(
     call: FunctionCallExprSyntax,
     in scope: SyntaxCodeActionScope
   ) -> [CodeAction] {
@@ -103,7 +91,7 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
 
       // Describe the target we are going to create.
       let product = try ProductDescription(
-        name: "\(targetName)",
+        name: targetName,
         type: type,
         targets: [targetName]
       )
@@ -132,6 +120,7 @@ fileprivate extension PackageEditResult {
   /// Translate package manifest edits into a workspace edit. This can
   /// involve both modifications to the manifest file as well as the creation
   /// of new files.
+  /// `snapshot` is the latest snapshot of the `Package.swift` file.
   func asWorkspaceEdit(snapshot: DocumentSnapshot) -> WorkspaceEdit {
     // The edits to perform on the manifest itself.
     let manifestTextEdits = manifestEdits.map { edit in
@@ -144,9 +133,9 @@ fileprivate extension PackageEditResult {
     // If we couldn't figure out the manifest directory, or there are no
     // files to add, the only changes are the manifest edits. We're done
     // here.
-    let manifestDirectoryURI = snapshot.uri.fileURL?
+    let manifestDirectoryURL = snapshot.uri.fileURL?
       .deletingLastPathComponent()
-    guard let manifestDirectoryURI, !auxiliaryFiles.isEmpty else {
+    guard let manifestDirectoryURL, !auxiliaryFiles.isEmpty else {
       return WorkspaceEdit(
         changes: [snapshot.uri: manifestTextEdits]
       )
@@ -159,8 +148,8 @@ fileprivate extension PackageEditResult {
     // Put the manifest changes into the array.
     documentChanges.append(
       .textDocumentEdit(
-        .init(
-          textDocument: .init(snapshot.uri, version: nil),
+        TextDocumentEdit(
+          textDocument: .init(snapshot.uri, version: snapshot.version),
           edits: manifestTextEdits.map { .textEdit($0) }
         )
       )
@@ -169,15 +158,15 @@ fileprivate extension PackageEditResult {
     // Create an populate all of the auxiliary files.
     for (relativePath, contents) in auxiliaryFiles {
       guard
-        let uri = URL(
+        let url = URL(
           string: relativePath.pathString,
-          relativeTo: manifestDirectoryURI
+          relativeTo: manifestDirectoryURL
         )
       else {
         continue
       }
 
-      let documentURI = DocumentURI(uri)
+      let documentURI = DocumentURI(url)
       let createFile = CreateFile(
         uri: documentURI
       )
@@ -191,8 +180,8 @@ fileprivate extension PackageEditResult {
       documentChanges.append(.createFile(createFile))
       documentChanges.append(
         .textDocumentEdit(
-          .init(
-            textDocument: .init(documentURI, version: nil),
+          TextDocumentEdit(
+            textDocument: .init(documentURI, version: snapshot.version),
             edits: [.textEdit(edit)]
           )
         )
