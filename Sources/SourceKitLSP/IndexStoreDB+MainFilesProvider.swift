@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import IndexStoreDB
 import LSPLogging
 import LanguageServerProtocol
 import SKCore

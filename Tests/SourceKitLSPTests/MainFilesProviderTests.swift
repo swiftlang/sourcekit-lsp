@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-import IndexStoreDB
 import LSPTestSupport
 import LanguageServerProtocol
 import SKCore
@@ -40,7 +39,7 @@ final class MainFilesProviderTests: XCTestCase {
           name: "MyLibrary",
           targets: [
             .target(
-              name: "MyLibrary", 
+              name: "MyLibrary",
               cSettings: [.define("VARIABLE_NAME", to: "fromMyLibrary"), .unsafeFlags(["-Wunused-variable"])]
             )
           ]
