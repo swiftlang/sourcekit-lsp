@@ -683,7 +683,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
                 TestTag(id: "foo"),
                 TestTag(id: "Nested.foo"),
                 TestTag(id: "bar"),
-                TestTag(id: "baz")
+                TestTag(id: "baz"),
               ]
             )
           ],
