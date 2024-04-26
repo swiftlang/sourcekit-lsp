@@ -242,7 +242,6 @@ extension SwiftPMBuildSystem {
     let modulesGraph = try self.workspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
       forceResolvedVersions: true,
-      availableLibraries: self.buildParameters.toolchain.providedLibraries,
       observabilityScope: observabilitySystem.topScope
     )
 
