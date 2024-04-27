@@ -309,6 +309,7 @@ let package = Package(
         .product(name: "SwiftRefactor", package: "swift-syntax"),
         .product(name: "SwiftSyntax", package: "swift-syntax"),
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+        .product(name: "SwiftPM-auto", package: "swift-package-manager"),
       ],
       exclude: ["CMakeLists.txt"]
     ),
