@@ -101,7 +101,7 @@ final class BuildSystemTests: XCTestCase {
       rootUri: nil,
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
       toolchainRegistry: ToolchainRegistry.forTesting,
-      buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+      options: SourceKitLSPServer.Options.testDefault,
       underlyingBuildSystem: buildSystem,
       index: nil,
       indexDelegate: nil

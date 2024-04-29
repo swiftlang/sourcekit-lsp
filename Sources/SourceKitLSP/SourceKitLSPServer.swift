@@ -1177,13 +1177,14 @@ extension SourceKitLSPServer {
       logger.log("Cannot open workspace before server is initialized")
       return nil
     }
-    let workspaceBuildSetup = self.buildSetup(for: workspaceFolder)
+    var options = self.options
+    options.buildSetup = self.options.buildSetup.merging(buildSetup(for: workspaceFolder))
     return try? await Workspace(
       documentManager: self.documentManager,
       rootUri: workspaceFolder.uri,
       capabilityRegistry: capabilityRegistry,
       toolchainRegistry: self.toolchainRegistry,
-      buildSetup: self.options.buildSetup.merging(workspaceBuildSetup),
+      options: options,
       compilationDatabaseSearchPaths: self.options.compilationDatabaseSearchPaths,
       indexOptions: self.options.indexOptions,
       reloadPackageStatusCallback: { [weak self] status in
@@ -1251,7 +1252,7 @@ extension SourceKitLSPServer {
           rootUri: req.rootURI,
           capabilityRegistry: self.capabilityRegistry!,
           toolchainRegistry: self.toolchainRegistry,
-          buildSetup: self.options.buildSetup,
+          options: self.options,
           underlyingBuildSystem: nil,
           index: nil,
           indexDelegate: nil

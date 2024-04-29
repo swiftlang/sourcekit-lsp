@@ -78,13 +78,13 @@ public final class Workspace {
     rootUri: DocumentURI?,
     capabilityRegistry: CapabilityRegistry,
     toolchainRegistry: ToolchainRegistry,
-    buildSetup: BuildSetup,
+    options: SourceKitLSPServer.Options,
     underlyingBuildSystem: BuildSystem?,
     index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?
   ) async {
     self.documentManager = documentManager
-    self.buildSetup = buildSetup
+    self.buildSetup = options.buildSetup
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
     self.uncheckedIndex = uncheckedIndex
@@ -117,36 +117,36 @@ public final class Workspace {
     rootUri: DocumentURI,
     capabilityRegistry: CapabilityRegistry,
     toolchainRegistry: ToolchainRegistry,
-    buildSetup: BuildSetup,
+    options: SourceKitLSPServer.Options,
     compilationDatabaseSearchPaths: [RelativePath],
     indexOptions: IndexOptions = IndexOptions(),
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
   ) async throws {
     var buildSystem: BuildSystem? = nil
 
-    func createSwiftPMBuildSystem(rootUrl: URL) async -> SwiftPMBuildSystem? {
-      return await SwiftPMBuildSystem(
-        url: rootUrl,
-        toolchainRegistry: toolchainRegistry,
-        buildSetup: buildSetup,
-        reloadPackageStatusCallback: reloadPackageStatusCallback
-      )
-    }
-
-    func createCompilationDatabaseBuildSystem(rootPath: AbsolutePath) -> CompilationDatabaseBuildSystem? {
-      return CompilationDatabaseBuildSystem(
-        projectRoot: rootPath,
-        searchPaths: compilationDatabaseSearchPaths
-      )
-    }
-
-    func createBuildServerBuildSystem(rootPath: AbsolutePath) async -> BuildServerBuildSystem? {
-      return await BuildServerBuildSystem(projectRoot: rootPath, buildSetup: buildSetup)
-    }
-
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
+      func createSwiftPMBuildSystem(rootUrl: URL) async -> SwiftPMBuildSystem? {
+        return await SwiftPMBuildSystem(
+          url: rootUrl,
+          toolchainRegistry: toolchainRegistry,
+          buildSetup: options.buildSetup,
+          reloadPackageStatusCallback: reloadPackageStatusCallback
+        )
+      }
+
+      func createCompilationDatabaseBuildSystem(rootPath: AbsolutePath) -> CompilationDatabaseBuildSystem? {
+        return CompilationDatabaseBuildSystem(
+          projectRoot: rootPath,
+          searchPaths: compilationDatabaseSearchPaths
+        )
+      }
+
+      func createBuildServerBuildSystem(rootPath: AbsolutePath) async -> BuildServerBuildSystem? {
+        return await BuildServerBuildSystem(projectRoot: rootPath, buildSetup: options.buildSetup)
+      }
+
       let defaultBuildSystem: BuildSystem? =
-        switch buildSetup.defaultWorkspaceType {
+        switch options.buildSetup.defaultWorkspaceType {
         case .buildServer: await createBuildServerBuildSystem(rootPath: rootPath)
         case .compilationDatabase: createCompilationDatabaseBuildSystem(rootPath: rootPath)
         case .swiftPM: await createSwiftPMBuildSystem(rootUrl: rootUrl)
@@ -184,6 +184,7 @@ public final class Workspace {
     var index: IndexStoreDB? = nil
     var indexDelegate: SourceKitIndexDelegate? = nil
 
+    let indexOptions = options.indexOptions
     if let storePath = await firstNonNil(indexOptions.indexStorePath, await buildSystem?.indexStorePath),
       let dbPath = await firstNonNil(indexOptions.indexDatabasePath, await buildSystem?.indexDatabasePath),
       let libPath = await toolchainRegistry.default?.libIndexStore
@@ -212,7 +213,7 @@ public final class Workspace {
       rootUri: rootUri,
       capabilityRegistry: capabilityRegistry,
       toolchainRegistry: toolchainRegistry,
-      buildSetup: buildSetup,
+      options: options,
       underlyingBuildSystem: buildSystem,
       index: UncheckedIndex(index),
       indexDelegate: indexDelegate
