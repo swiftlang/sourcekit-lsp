@@ -263,7 +263,7 @@ extension BuildServerBuildSystem: BuildSystem {
   ///
   /// Returns `nil` if no build settings have been received from the build
   /// server yet or if no build settings are available for this file.
-  public func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
+  public func buildSettings(for document: DocumentURI, language: Language) async -> FileBuildSettings? {
     return buildSettings[document]
   }
 
