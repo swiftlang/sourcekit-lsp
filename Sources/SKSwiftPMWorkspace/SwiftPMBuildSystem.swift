@@ -437,17 +437,22 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
   }
 
-  public func testFiles() -> [DocumentURI] {
-    return fileToTarget.compactMap { (path, target) -> DocumentURI? in
+  public func sourceFiles() -> [SourceFileInfo] {
+    return fileToTarget.compactMap { (path, target) -> SourceFileInfo? in
       guard target.isPartOfRootPackage else {
         // Don't consider files from package dependencies as possible test files.
         return nil
       }
-      return DocumentURI(path.asURL)
+      // We should only set mayContainTests to `true` for files from test targets
+      // (https://github.com/apple/sourcekit-lsp/issues/1174).
+      return SourceFileInfo(
+        uri: DocumentURI(path.asURL),
+        mayContainTests: true
+      )
     }
   }
 
-  public func addTestFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async {
+  public func addSourceFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async {
     testFilesDidChangeCallbacks.append(callback)
   }
 }

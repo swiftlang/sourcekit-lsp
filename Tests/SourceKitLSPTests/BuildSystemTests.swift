@@ -61,11 +61,11 @@ final class TestBuildSystem: BuildSystem {
     }
   }
 
-  func testFiles() async -> [DocumentURI] {
+  func sourceFiles() async -> [SourceFileInfo] {
     return []
   }
 
-  func addTestFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {}
+  func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {}
 }
 
 final class BuildSystemTests: XCTestCase {

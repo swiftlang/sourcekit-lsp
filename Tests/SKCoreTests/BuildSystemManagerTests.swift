@@ -469,11 +469,11 @@ class ManualBuildSystem: BuildSystem {
     }
   }
 
-  func testFiles() async -> [DocumentURI] {
+  func sourceFiles() async -> [SourceFileInfo] {
     return []
   }
 
-  func addTestFilesDidChangeCallback(_ callback: @escaping () async -> Void) {}
+  func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {}
 }
 
 /// A `BuildSystemDelegate` setup for testing.

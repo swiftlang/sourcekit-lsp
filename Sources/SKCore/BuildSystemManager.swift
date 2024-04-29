@@ -191,8 +191,17 @@ extension BuildSystemManager {
     )
   }
 
+  public func sourceFiles() async -> [SourceFileInfo] {
+    return await buildSystem?.sourceFiles() ?? []
+  }
+
   public func testFiles() async -> [DocumentURI] {
-    return await buildSystem?.testFiles() ?? []
+    return await sourceFiles().compactMap { (info: SourceFileInfo) -> DocumentURI? in
+      guard info.mayContainTests else {
+        return nil
+      }
+      return info.uri
+    }
   }
 }
 

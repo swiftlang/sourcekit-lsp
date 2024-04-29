@@ -97,7 +97,7 @@ public final class Workspace {
     await indexDelegate?.addMainFileChangedCallback { [weak self] in
       await self?.buildSystemManager.mainFilesChanged()
     }
-    await underlyingBuildSystem?.addTestFilesDidChangeCallback { [weak self] in
+    await underlyingBuildSystem?.addSourceFilesDidChangeCallback { [weak self] in
       guard let self else {
         return
       }

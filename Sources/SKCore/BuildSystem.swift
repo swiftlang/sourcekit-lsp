@@ -27,6 +27,22 @@ public enum FileHandlingCapability: Comparable, Sendable {
   case handled
 }
 
+public struct SourceFileInfo: Sendable {
+  /// The URI of the source file.
+  public let uri: DocumentURI
+
+  /// Whether the file might contain test cases. This property is an over-approximation. It might be true for files
+  /// from non-test targets or files that don't actually contain any tests. Keeping this list of files with
+  /// `mayContainTets` minimal as possible helps reduce the amount of work that the syntactic test indexer needs to
+  /// perform.
+  public let mayContainTests: Bool
+
+  public init(uri: DocumentURI, mayContainTests: Bool) {
+    self.uri = uri
+    self.mayContainTests = mayContainTests
+  }
+}
+
 /// Provider of FileBuildSettings and other build-related information.
 ///
 /// The primary role of the build system is to answer queries for
@@ -88,17 +104,13 @@ public protocol BuildSystem: AnyObject, Sendable {
 
   func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability
 
-  /// Returns the list of files that might contain test cases.
-  ///
-  /// The returned file list is an over-approximation. It might contain tests from non-test targets or files that don't
-  /// actually contain any tests. Keeping this list as minimal as possible helps reduce the amount of work that the
-  /// syntactic test indexer needs to perform.
-  func testFiles() async -> [DocumentURI]
+  /// Returns the list of source files in the project.
+  func sourceFiles() async -> [SourceFileInfo]
 
-  /// Adds a callback that should be called when the value returned by `testFiles()` changes.
+  /// Adds a callback that should be called when the value returned by `sourceFiles()` changes.
   ///
-  /// The callback might also be called without an actual change to `testFiles`.
-  func addTestFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async
+  /// The callback might also be called without an actual change to `sourceFiles`.
+  func addSourceFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async
 }
 
 public let buildTargetsNotSupported =

@@ -192,11 +192,16 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     }
   }
 
-  public func testFiles() async -> [DocumentURI] {
-    return compdb?.allCommands.map { DocumentURI($0.url) } ?? []
+  public func sourceFiles() async -> [SourceFileInfo] {
+    guard let compdb else {
+      return []
+    }
+    return compdb.allCommands.map {
+      SourceFileInfo(uri: DocumentURI($0.url), mayContainTests: true)
+    }
   }
 
-  public func addTestFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {
+  public func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {
     testFilesDidChangeCallbacks.append(callback)
   }
 }
