@@ -386,6 +386,96 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
+  func testParameterizedSwiftTestingTestWithAnonymousArgument() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣struct MyTests {
+        2️⃣@Test(arguments: [0, 1, 2])
+        func numbersAreOne(_ x: Int) {
+          #expect(x == 1)
+        }3️⃣
+      }4️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          disabled: false,
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/numbersAreOne(_:)",
+              label: "numbersAreOne(_:)",
+              disabled: false,
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
+              children: [],
+              tags: []
+            )
+          ],
+          tags: []
+        )
+      ]
+    )
+  }
+
+  func testParameterizedSwiftTestingTestWithCommentInSignature() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣struct MyTests {
+        2️⃣@Test(arguments: [0, 1, 2])
+        func numbersAreOne(x /* hello */: Int) {
+          #expect(x == 1)
+        }3️⃣
+      }4️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          disabled: false,
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/numbersAreOne(x:)",
+              label: "numbersAreOne(x:)",
+              disabled: false,
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
+              children: [],
+              tags: []
+            )
+          ],
+          tags: []
+        )
+      ]
+    )
+  }
+
   func testSwiftTestingSuiteWithNoTests() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)

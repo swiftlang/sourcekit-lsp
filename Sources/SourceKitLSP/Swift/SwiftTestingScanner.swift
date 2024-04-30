@@ -292,7 +292,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     }
 
     let name =
-      node.name.text + "(" + node.signature.parameterClause.parameters.map { "\($0.firstName):" }.joined() + ")"
+      node.name.text + "(" + node.signature.parameterClause.parameters.map { "\($0.firstName.trimmed):" }.joined() + ")"
 
     let range = snapshot.range(of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia)
     let testItem = TestItem(
