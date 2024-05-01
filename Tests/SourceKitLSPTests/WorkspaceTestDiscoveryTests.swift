@@ -807,4 +807,45 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     let testsAfterFileReAdded = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(testsAfterFileReAdded, expectedTests)
   }
+
+  func testDontIncludeTestsFromDependentPackageInSyntacticIndex() async throws {
+    let dependencyProject = try await SwiftPMDependencyProject(files: [
+      "Sources/MyDependency/MyDependency.swift": """
+      class MySuperclass {}
+      class LooksALittleLikeTests: MySuperclass {
+        func testSomething() {}
+      }
+      """
+    ])
+    defer { dependencyProject.keepAlive() }
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": ""
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          dependencies: [.package(url: "\(dependencyProject.packageDirectory)", from: "1.0.0")],
+          targets: [
+            .target(
+              name: "MyLibrary",
+              dependencies: [.product(name: "MyDependency", package: "MyDependency")]
+            )
+          ]
+        )
+        """,
+      workspaces: { scratchDirectory in
+        try await SwiftPMTestProject.resolvePackageDependencies(at: scratchDirectory)
+        return [WorkspaceFolder(uri: DocumentURI(scratchDirectory))]
+      }
+    )
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+    XCTAssertEqual(tests, [])
+  }
 }
