@@ -68,7 +68,7 @@ public struct TestItem: ResponseType, Equatable {
     tags: [TestTag]
   ) {
     self.id = id
-    self.label = label
+    self.label = id == label ? self.id : label
     self.description = description
     self.sortText = sortText
     self.disabled = disabled
