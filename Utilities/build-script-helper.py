@@ -109,7 +109,14 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace, suppress_verb
 
     build_target = get_build_target(swift_exec, args, cross_compile=(True if args.cross_compile_config else False))
     build_os = build_target.split('-')[2]
-    if not build_os.startswith('macosx'):
+    if build_os.startswith('macosx'):
+        swiftpm_args += [
+            # Prefer just-built plugins to SDK plugins.
+            # This is a workaround for building fat binaries with Xcode build system being old.
+            '-Xswiftc', '-plugin-path',
+            '-Xswiftc', os.path.join(args.toolchain, 'lib', 'swift', 'host', 'plugins'),
+        ]
+    else:
         swiftpm_args += [
             # Dispatch headers
             '-Xcxx', '-I', '-Xcxx',
