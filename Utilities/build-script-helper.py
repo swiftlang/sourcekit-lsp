@@ -117,6 +117,9 @@ def get_swiftpm_options(swift_exec: str, args: argparse.Namespace, suppress_verb
             # For <Block.h>
             '-Xcxx', '-I', '-Xcxx',
             os.path.join(args.toolchain, 'lib', 'swift', 'Block'),
+            # Prefer just-built plugins to SDK plugins.
+            '-Xswiftc', '-plugin-path',
+            '-Xswiftc', os.path.join(args.toolchain, 'lib', 'swift', 'host', 'plugins'),
         ]
         if args.action == 'install':
             swiftpm_args += ['--disable-local-rpath']
