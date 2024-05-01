@@ -386,6 +386,96 @@ final class DocumentTestDiscoveryTests: XCTestCase {
     )
   }
 
+  func testParameterizedSwiftTestingTestWithAnonymousArgument() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣struct MyTests {
+        2️⃣@Test(arguments: [0, 1, 2])
+        func numbersAreOne(_ x: Int) {
+          #expect(x == 1)
+        }3️⃣
+      }4️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          disabled: false,
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/numbersAreOne(_:)",
+              label: "numbersAreOne(_:)",
+              disabled: false,
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
+              children: [],
+              tags: []
+            )
+          ],
+          tags: []
+        )
+      ]
+    )
+  }
+
+  func testParameterizedSwiftTestingTestWithCommentInSignature() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      1️⃣struct MyTests {
+        2️⃣@Test(arguments: [0, 1, 2])
+        func numbersAreOne(x /* hello */: Int) {
+          #expect(x == 1)
+        }3️⃣
+      }4️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          disabled: false,
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/numbersAreOne(x:)",
+              label: "numbersAreOne(x:)",
+              disabled: false,
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
+              children: [],
+              tags: []
+            )
+          ],
+          tags: []
+        )
+      ]
+    )
+  }
+
   func testSwiftTestingSuiteWithNoTests() async throws {
     let testClient = try await TestSourceKitLSPClient()
     let uri = DocumentURI.for(.swift)
@@ -593,9 +683,9 @@ final class DocumentTestDiscoveryTests: XCTestCase {
       """
       import Testing
 
-      1️⃣@Suite(.tags("Suites"))
+      1️⃣@Suite(.tags(.green))
       struct MyTests {
-        2️⃣@Test(.tags("one", "two"))
+        2️⃣@Test(.tags(.red, .blue))
         func oneIsTwo() {
           #expect(1 == 2)
         }3️⃣
@@ -622,10 +712,72 @@ final class DocumentTestDiscoveryTests: XCTestCase {
               style: TestStyle.swiftTesting,
               location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
               children: [],
-              tags: [TestTag(id: "one"), TestTag(id: "two")]
+              tags: [TestTag(id: "red"), TestTag(id: "blue")]
             )
           ],
-          tags: [TestTag(id: "Suites")]
+          tags: [TestTag(id: "green")]
+        )
+      ]
+    )
+  }
+
+  func testSwiftTestingTestWithCustomTags() async throws {
+    let testClient = try await TestSourceKitLSPClient()
+    let uri = DocumentURI.for(.swift)
+
+    let positions = testClient.openDocument(
+      """
+      import Testing
+
+      extension Tag {
+        @Tag static var suite: Self
+        @Tag static var foo: Self
+        @Tag static var bar: Self
+        @Tag static var baz: Self
+
+        struct Nested {
+          @Tag static var foo: Tag
+        }
+      }
+
+      1️⃣@Suite(.tags(.suite))
+      struct MyTests {
+        2️⃣@Test(.tags(.foo, Nested.foo, Testing.Tag.bar, Tag.baz))
+        func oneIsTwo() {
+          #expect(1 == 2)
+        }3️⃣
+      }4️⃣
+      """,
+      uri: uri
+    )
+
+    let tests = try await testClient.send(DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)))
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          disabled: false,
+          style: TestStyle.swiftTesting,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/oneIsTwo()",
+              label: "oneIsTwo()",
+              disabled: false,
+              style: TestStyle.swiftTesting,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
+              children: [],
+              tags: [
+                TestTag(id: "foo"),
+                TestTag(id: "Nested.foo"),
+                TestTag(id: "bar"),
+                TestTag(id: "baz"),
+              ]
+            )
+          ],
+          tags: [TestTag(id: "suite")]
         )
       ]
     )

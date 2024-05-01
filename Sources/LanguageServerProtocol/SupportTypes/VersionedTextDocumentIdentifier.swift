@@ -53,4 +53,18 @@ public struct OptionalVersionedTextDocumentIdentifier: Hashable, Codable, Sendab
     self.uri = uri
     self.version = version
   }
+
+  enum CodingKeys: CodingKey {
+    case uri
+    case version
+  }
+
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(self.uri, forKey: .uri)
+
+    // Note: we use encode(_:forKey:) here instead of encodeIf(_:forKey:)
+    // because VSCode will drop requests without the explicit 'null'.
+    try container.encode(self.version, forKey: .version)
+  }
 }

@@ -38,7 +38,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
   public init(
     files: [RelativeFileLocation: String],
     manifest: String = SwiftPMTestProject.defaultPackageManifest,
-    workspaces: (URL) -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
+    workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
     build: Bool = false,
     allowBuildFailure: Bool = false,
     usePullDiagnostics: Bool = true,
@@ -59,6 +59,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
       filesByPath[RelativeFileLocation(directories: directories, fileLocation.fileName)] = contents
     }
     filesByPath["Package.swift"] = manifest
+
     try await super.init(
       files: filesByPath,
       workspaces: workspaces,
@@ -95,5 +96,19 @@ public class SwiftPMTestProject: MultiFileTestProject {
     // Force-enable index-while-building with the environment variable.
     environment["SWIFTPM_ENABLE_CLANG_INDEX_STORE"] = "1"
     try await Process.checkNonZeroExit(arguments: arguments, environmentBlock: environment)
+  }
+
+  /// Resolve package dependencies for the package at `path`.
+  public static func resolvePackageDependencies(at path: URL) async throws {
+    guard let swift = await ToolchainRegistry.forTesting.default?.swift?.asURL else {
+      throw Error.swiftNotFound
+    }
+    let arguments = [
+      swift.path,
+      "package",
+      "resolve",
+      "--package-path", path.path,
+    ]
+    try await Process.checkNonZeroExit(arguments: arguments)
   }
 }

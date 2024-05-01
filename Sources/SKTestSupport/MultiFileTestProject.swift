@@ -31,6 +31,15 @@ public struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {
     let components = value.components(separatedBy: "/")
     self.init(directories: components.dropLast(), components.last!)
   }
+
+  public func url(relativeTo: URL) -> URL {
+    var url = relativeTo
+    for directory in directories {
+      url = url.appendingPathComponent(directory)
+    }
+    url = url.appendingPathComponent(fileName)
+    return url
+  }
 }
 
 /// A test project that writes multiple files to disk and opens a `TestSourceKitLSPClient` client with a workspace
@@ -69,7 +78,7 @@ public class MultiFileTestProject {
   /// File contents can also contain `$TEST_DIR`, which gets replaced by the temporary directory.
   public init(
     files: [RelativeFileLocation: String],
-    workspaces: (URL) -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
+    workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
     usePullDiagnostics: Bool = true,
     testName: String = #function
   ) async throws {
@@ -79,11 +88,7 @@ public class MultiFileTestProject {
     var fileData: [String: FileData] = [:]
     for (fileLocation, markedText) in files {
       let markedText = markedText.replacingOccurrences(of: "$TEST_DIR", with: scratchDirectory.path)
-      var fileURL = scratchDirectory
-      for directory in fileLocation.directories {
-        fileURL = fileURL.appendingPathComponent(directory)
-      }
-      fileURL = fileURL.appendingPathComponent(fileLocation.fileName)
+      let fileURL = fileLocation.url(relativeTo: scratchDirectory)
       try FileManager.default.createDirectory(
         at: fileURL.deletingLastPathComponent(),
         withIntermediateDirectories: true
