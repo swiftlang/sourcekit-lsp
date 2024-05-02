@@ -312,6 +312,7 @@ let package = Package(
       name: "SourceKitLSP",
       dependencies: [
         "BuildServerProtocol",
+        "CAtomics",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "LSPLogging",

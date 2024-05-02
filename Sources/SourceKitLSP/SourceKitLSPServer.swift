@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
+import CAtomics
 import Dispatch
 import Foundation
 import IndexStoreDB
@@ -812,19 +813,7 @@ public actor SourceKitLSPServer {
 
 // MARK: - MessageHandler
 
-private let notificationIDForLoggingLock = NSLock()
-private var notificationIDForLogging: Int = 0
-
-/// On every call, returns a new unique number that can be used to identify a notification.
-///
-/// This is needed so we can consistently refer to a notification using the `category` of the logger.
-/// Requests don't need this since they already have a unique ID in the LSP protocol.
-private func getNextNotificationIDForLogging() -> Int {
-  return notificationIDForLoggingLock.withLock {
-    notificationIDForLogging += 1
-    return notificationIDForLogging
-  }
-}
+private var notificationIDForLogging = AtomicUInt32(initialValue: 1)
 
 extension SourceKitLSPServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType) {
@@ -835,7 +824,7 @@ extension SourceKitLSPServer: MessageHandler {
       self.cancelRequest(params)
     }
 
-    let notificationID = getNextNotificationIDForLogging()
+    let notificationID = notificationIDForLogging.fetchAndIncrement()
 
     let signposter = Logger(subsystem: subsystem, category: "notification-\(notificationID)").makeSignposter()
     let signpostID = signposter.makeSignpostID()
