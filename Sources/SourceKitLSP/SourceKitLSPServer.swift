@@ -20,6 +20,7 @@ import PackageLoading
 import SKCore
 import SKSupport
 import SKSwiftPMWorkspace
+import SemanticIndex
 import SourceKitD
 
 import struct PackageModel.BuildFlags

@@ -14,6 +14,7 @@ import Dispatch
 import LSPLogging
 import LanguageServerProtocol
 import SKSupport
+import SemanticIndex
 import SwiftSyntax
 
 /// An immutable snapshot of a document at a given time.
@@ -83,7 +84,7 @@ public final class Document {
   }
 }
 
-public final class DocumentManager {
+public final class DocumentManager: InMemoryDocumentManager {
 
   public enum Error: Swift.Error {
     case alreadyOpen(DocumentURI)
@@ -186,6 +187,18 @@ public final class DocumentManager {
       }
       return document.latestSnapshot
     }
+  }
+
+  public func fileHasInMemoryModifications(_ url: URL) -> Bool {
+    guard let document = try? latestSnapshot(DocumentURI(url)) else {
+      return false
+    }
+
+    guard let onDiskFileContents = try? String(contentsOf: url, encoding: .utf8) else {
+      // If we can't read the file on disk, it can't match any on-disk state, so it's in-memory state
+      return true
+    }
+    return onDiskFileContents != document.lineTable.content
   }
 }
 

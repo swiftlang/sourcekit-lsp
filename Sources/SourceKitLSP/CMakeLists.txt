@@ -1,7 +1,6 @@
 
 add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
-  CheckedIndex.swift
   DocumentManager.swift
   DocumentSnapshot+FromFileContents.swift
   IndexStoreDB+MainFilesProvider.swift
@@ -62,6 +61,7 @@ target_link_libraries(SourceKitLSP PUBLIC
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
   LSPLogging
+  SemanticIndex
   SKCore
   SKSupport
   SKSwiftPMWorkspace

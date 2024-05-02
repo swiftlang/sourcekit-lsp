@@ -168,6 +168,18 @@ let package = Package(
       ]
     ),
 
+    // MARK: SemanticIndex
+
+    .target(
+      name: "SemanticIndex",
+      dependencies: [
+        "LSPLogging",
+        "SKCore",
+        .product(name: "IndexStoreDB", package: "indexstore-db"),
+      ],
+      exclude: ["CMakeLists.txt"]
+    ),
+
     // MARK: SKCore
     // Data structures and algorithms useful across the project, but not necessarily
     // suitable for use in other packages.
@@ -303,6 +315,7 @@ let package = Package(
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "LSPLogging",
+        "SemanticIndex",
         "SKCore",
         "SKSupport",
         "SKSwiftPMWorkspace",

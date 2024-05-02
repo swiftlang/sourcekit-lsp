@@ -15,6 +15,15 @@ import IndexStoreDB
 import LSPLogging
 import LanguageServerProtocol
 
+/// Essentially a `DocumentManager` from the `SourceKitLSP` module.
+///
+/// Protocol is needed because the `SemanticIndex` module is lower-level than the `SourceKitLSP` module.
+public protocol InMemoryDocumentManager {
+  /// Returns true if the file at the given URL has a different content in the document manager than on-disk. This is
+  /// the case if the user made edits to the file but didn't save them yet.
+  func fileHasInMemoryModifications(_ url: URL) -> Bool
+}
+
 public enum IndexCheckLevel {
   /// Consider the index out-of-date only if the source file has been deleted on disk.
   ///
@@ -31,7 +40,7 @@ public enum IndexCheckLevel {
 
   /// Consider the index out-of-date if the source file has been deleted or modified on disk or if there are
   /// in-memory modifications in the given `DocumentManager`.
-  case inMemoryModifiedFiles(DocumentManager)
+  case inMemoryModifiedFiles(InMemoryDocumentManager)
 }
 
 /// A wrapper around `IndexStoreDB` that checks if returned symbol occurrences are up-to-date with regard to a
@@ -257,7 +266,7 @@ private struct IndexOutOfDateChecker {
   /// `documentManager` must always be the same between calls to `hasFileInMemoryModifications` since it is not part of
   /// the cache key. This is fine because we always assume the `documentManager` to come from the associated value of
   /// `CheckLevel.imMemoryModifiedFiles`, which is constant.
-  private mutating func fileHasInMemoryModifications(_ url: URL, documentManager: DocumentManager) -> Bool {
+  private mutating func fileHasInMemoryModifications(_ url: URL, documentManager: InMemoryDocumentManager) -> Bool {
     if let cached = fileHasInMemoryModificationsCache[url] {
       return cached
     }
@@ -310,21 +319,5 @@ private struct IndexOutOfDateChecker {
     let fileExists = FileManager.default.fileExists(atPath: url.path)
     fileExistsCache[url] = fileExists
     return fileExists
-  }
-}
-
-extension DocumentManager {
-  /// Returns true if the file at the given URL has a different content in the document manager than on-disk. This is
-  /// the case if the user made edits to the file but didn't save them yet.
-  func fileHasInMemoryModifications(_ url: URL) -> Bool {
-    guard let document = try? latestSnapshot(DocumentURI(url)) else {
-      return false
-    }
-
-    guard let onDiskFileContents = try? String(contentsOf: url, encoding: .utf8) else {
-      // If we can't read the file on disk, it can't match any on-disk state, so it's in-memory state
-      return true
-    }
-    return onDiskFileContents != document.lineTable.content
   }
 }
