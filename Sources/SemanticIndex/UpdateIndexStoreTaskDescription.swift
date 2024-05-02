@@ -296,7 +296,10 @@ private func adjustSwiftCompilerArgumentsForIndexStoreUpdate(
   result += [
     "-index-file",
     "-index-file-path", fileToIndex.pseudoPath,
-    "-disable-batch-mode",  // batch mode is not compatible with -index-file
+    // batch mode is not compatible with -index-file
+    "-disable-batch-mode",
+    // Fake an output path so that we get a different unit file for every Swift file we background index
+    "-o", fileToIndex.pseudoPath + ".o",
   ]
   return result
 }
