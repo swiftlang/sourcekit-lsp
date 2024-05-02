@@ -49,6 +49,12 @@ let package = Package(
       swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
     ),
 
+    // MARK: CAtomics
+    .target(
+      name: "CAtomics",
+      dependencies: []
+    ),
+
     // MARK: CSKTestSupport
     .target(
       name: "CSKTestSupport",
@@ -170,6 +176,7 @@ let package = Package(
       name: "SKCore",
       dependencies: [
         "BuildServerProtocol",
+        "CAtomics",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "LSPLogging",
