@@ -503,4 +503,63 @@ class DefinitionTests: XCTestCase {
       .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "LibA.swift")])
     )
   }
+
+  func testIndexBasedDefinitionAfterFileMove() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "definition.swift": """
+        class MyClass {
+          func 1️⃣foo() {}
+        }
+        """,
+        "caller.swift": """
+        func test(myClass: MyClass) {
+          myClass.2️⃣foo()
+        }
+        """,
+      ],
+      build: true
+    )
+
+    let definitionUri = try project.uri(for: "definition.swift")
+    let (callerUri, callerPositions) = try project.openDocument("caller.swift")
+
+    // Validate that we get correct rename results before moving the definition file.
+    let resultBeforeFileMove = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(callerUri), position: callerPositions["2️⃣"])
+    )
+    XCTAssertEqual(
+      resultBeforeFileMove,
+      .locations([
+        Location(uri: definitionUri, range: Range(try project.position(of: "1️⃣", in: "definition.swift")))
+      ])
+    )
+
+    let movedDefinitionUri =
+      DocumentURI(
+        definitionUri.fileURL!
+          .deletingLastPathComponent()
+          .appendingPathComponent("movedDefinition.swift")
+      )
+
+    try FileManager.default.moveItem(at: XCTUnwrap(definitionUri.fileURL), to: XCTUnwrap(movedDefinitionUri.fileURL))
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [
+        FileEvent(uri: definitionUri, type: .deleted), FileEvent(uri: movedDefinitionUri, type: .created),
+      ])
+    )
+
+    try await SwiftPMTestProject.build(at: project.scratchDirectory)
+
+    let resultAfterFileMove = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(callerUri), position: callerPositions["2️⃣"])
+    )
+    XCTAssertEqual(
+      resultAfterFileMove,
+      .locations([
+        Location(uri: movedDefinitionUri, range: Range(try project.position(of: "1️⃣", in: "definition.swift")))
+      ])
+    )
+  }
 }
