@@ -449,6 +449,12 @@ public actor SourceKitLSPServer {
 
   let documentManager = DocumentManager()
 
+  /// The `TaskScheduler` that schedules all background indexing tasks.
+  ///
+  /// Shared process-wide to ensure the scheduled index operations across multiple workspaces don't exceed the maximum
+  /// number of processor cores that the user allocated to background indexing.
+  private let indexTaskScheduler: TaskScheduler<UpdateIndexStoreTaskDescription>
+
   private var packageLoadingWorkDoneProgress = WorkDoneProgressState(
     "SourceKitLSP.SourceKitLSPServer.reloadPackage",
     title: "SourceKit-LSP: Reloading Package"
@@ -519,6 +525,12 @@ public actor SourceKitLSPServer {
     self.onExit = onExit
 
     self.client = client
+    let processorCount = ProcessInfo.processInfo.processorCount
+    let lowPriorityCores = options.indexOptions.maxCoresPercentageToUseForBackgroundIndexing * Double(processorCount)
+    self.indexTaskScheduler = TaskScheduler(maxConcurrentTasksByPriority: [
+      (TaskPriority.medium, processorCount),
+      (TaskPriority.low, max(Int(lowPriorityCores), 1)),
+    ])
   }
 
   /// Search through all the parent directories of `uri` and check if any of these directories contain a workspace
@@ -1152,6 +1164,7 @@ extension SourceKitLSPServer {
       options: options,
       compilationDatabaseSearchPaths: self.options.compilationDatabaseSearchPaths,
       indexOptions: self.options.indexOptions,
+      indexTaskScheduler: indexTaskScheduler,
       reloadPackageStatusCallback: { [weak self] status in
         guard let self else { return }
         guard capabilityRegistry.clientCapabilities.window?.workDoneProgress ?? false else {
@@ -1220,7 +1233,8 @@ extension SourceKitLSPServer {
           options: self.options,
           underlyingBuildSystem: nil,
           index: nil,
-          indexDelegate: nil
+          indexDelegate: nil,
+          indexTaskScheduler: self.indexTaskScheduler
         )
 
         self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
@@ -2414,7 +2428,8 @@ extension SourceKitLSPServer {
 
   func pollIndex(_ req: PollIndexRequest) async throws -> VoidResponse {
     for workspace in workspaces {
-      workspace.uncheckedIndex?.underlyingIndexStoreDB.pollForUnitChangesAndWait()
+      await workspace.semanticIndexManager?.waitForUpToDateIndex()
+      workspace.index(checkedFor: .deletedFiles)?.pollForUnitChangesAndWait()
     }
     return VoidResponse()
   }

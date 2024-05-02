@@ -108,7 +108,8 @@ final class BuildSystemTests: XCTestCase {
       options: SourceKitLSPServer.Options.testDefault,
       underlyingBuildSystem: buildSystem,
       index: nil,
-      indexDelegate: nil
+      indexDelegate: nil,
+      indexTaskScheduler: .forTesting
     )
 
     await server.setWorkspaces([(workspace: workspace, isImplicit: false)])

@@ -159,7 +159,8 @@ extension BuildSystemManager {
   /// references to that C file in the build settings by the header file.
   public func buildSettingsInferredFromMainFile(
     for document: DocumentURI,
-    language: Language
+    language: Language,
+    logBuildSettings: Bool = true
   ) async -> FileBuildSettings? {
     let mainFile = await mainFile(for: document, language: language)
     guard var settings = await buildSettings(for: mainFile, language: language) else {
@@ -170,7 +171,9 @@ extension BuildSystemManager {
       // to reference `document` instead of `mainFile`.
       settings = settings.patching(newFile: document.pseudoPath, originalFile: mainFile.pseudoPath)
     }
-    await BuildSettingsLogger.shared.log(settings: settings, for: document)
+    if logBuildSettings {
+      await BuildSettingsLogger.shared.log(settings: settings, for: document)
+    }
     return settings
   }
 
@@ -349,16 +352,24 @@ extension BuildSystemManager {
 // MARK: - Build settings logger
 
 /// Shared logger that only logs build settings for a file once unless they change
-fileprivate actor BuildSettingsLogger {
-  static let shared = BuildSettingsLogger()
+public actor BuildSettingsLogger {
+  public static let shared = BuildSettingsLogger()
 
   private var loggedSettings: [DocumentURI: FileBuildSettings] = [:]
 
-  func log(settings: FileBuildSettings, for uri: DocumentURI) {
+  public func log(level: LogLevel = .default, settings: FileBuildSettings, for uri: DocumentURI) {
     guard loggedSettings[uri] != settings else {
       return
     }
     loggedSettings[uri] = settings
+    Self.log(level: level, settings: settings, for: uri)
+  }
+
+  /// Log the given build settings.
+  ///
+  /// In contrast to the instance method `log`, this will always log the build settings. The instance method only logs
+  /// the build settings if they have changed.
+  public static func log(level: LogLevel = .default, settings: FileBuildSettings, for uri: DocumentURI) {
     let log = """
       Compiler Arguments:
       \(settings.compilerArguments.joined(separator: "\n"))
@@ -370,6 +381,7 @@ fileprivate actor BuildSettingsLogger {
     let chunks = splitLongMultilineMessage(message: log)
     for (index, chunk) in chunks.enumerated() {
       logger.log(
+        level: level,
         """
         Build settings for \(uri.forLogging) (\(index + 1)/\(chunks.count))
         \(chunk)

@@ -330,7 +330,7 @@ public struct NonDarwinLogger: Sendable {
     log(level: .info, message)
   }
 
-  /// Log a message at the `log` level.
+  /// Log a message at the `default` level.
   public func log(_ message: NonDarwinLogMessage) {
     log(level: .default, message)
   }

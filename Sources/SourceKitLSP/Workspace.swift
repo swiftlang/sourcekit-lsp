@@ -74,6 +74,12 @@ public final class Workspace {
   /// Language service for an open document, if available.
   var documentService: [DocumentURI: LanguageService] = [:]
 
+  /// The `SemanticIndexManager` that keeps track of whose file's index is up-to-date in the workspace and schedules
+  /// indexing and preparation tasks for files with out-of-date index.
+  ///
+  /// `nil` if background indexing is not enabled.
+  let semanticIndexManager: SemanticIndexManager?
+
   public init(
     documentManager: DocumentManager,
     rootUri: DocumentURI?,
@@ -82,7 +88,8 @@ public final class Workspace {
     options: SourceKitLSPServer.Options,
     underlyingBuildSystem: BuildSystem?,
     index uncheckedIndex: UncheckedIndex?,
-    indexDelegate: SourceKitIndexDelegate?
+    indexDelegate: SourceKitIndexDelegate?,
+    indexTaskScheduler: TaskScheduler<UpdateIndexStoreTaskDescription>
   ) async {
     self.documentManager = documentManager
     self.buildSetup = options.buildSetup
@@ -95,6 +102,16 @@ public final class Workspace {
       mainFilesProvider: uncheckedIndex,
       toolchainRegistry: toolchainRegistry
     )
+    if let uncheckedIndex, options.indexOptions.enableBackgroundIndexing {
+      self.semanticIndexManager = SemanticIndexManager(
+        index: uncheckedIndex,
+        buildSystemManager: buildSystemManager,
+        indexTaskScheduler: indexTaskScheduler,
+        indexTaskDidFinish: options.indexOptions.indexTaskDidFinish
+      )
+    } else {
+      self.semanticIndexManager = nil
+    }
     await indexDelegate?.addMainFileChangedCallback { [weak self] in
       await self?.buildSystemManager.mainFilesChanged()
     }
@@ -106,6 +123,9 @@ public final class Workspace {
     }
     // Trigger an initial population of `syntacticTestIndex`.
     await syntacticTestIndex.listOfTestFilesDidChange(buildSystemManager.testFiles())
+    if let semanticIndexManager, let underlyingBuildSystem {
+      await semanticIndexManager.scheduleBackgroundIndex(files: await underlyingBuildSystem.sourceFiles().map(\.uri))
+    }
   }
 
   /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
@@ -122,11 +142,16 @@ public final class Workspace {
     options: SourceKitLSPServer.Options,
     compilationDatabaseSearchPaths: [RelativePath],
     indexOptions: IndexOptions = IndexOptions(),
+    indexTaskScheduler: TaskScheduler<UpdateIndexStoreTaskDescription>,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
   ) async throws {
     var buildSystem: BuildSystem? = nil
 
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
+      var options = options
+      if options.indexOptions.enableBackgroundIndexing, options.buildSetup.path == nil {
+        options.buildSetup.path = rootPath.appending(component: ".index-build")
+      }
       func createSwiftPMBuildSystem(rootUrl: URL) async -> SwiftPMBuildSystem? {
         return await SwiftPMBuildSystem(
           url: rootUrl,
@@ -218,7 +243,8 @@ public final class Workspace {
       options: options,
       underlyingBuildSystem: buildSystem,
       index: UncheckedIndex(index),
-      indexDelegate: indexDelegate
+      indexDelegate: indexDelegate,
+      indexTaskScheduler: indexTaskScheduler
     )
   }
 
@@ -258,15 +284,34 @@ public struct IndexOptions {
   /// explicit calls to pollForUnitChangesAndWait().
   public var listenToUnitEvents: Bool
 
+  /// Whether background indexing should be enabled.
+  public var enableBackgroundIndexing: Bool
+
+  /// The percentage of the machine's cores that should at most be used for background indexing.
+  ///
+  /// Setting this to a value < 1 ensures that background indexing doesn't use all CPU resources.
+  public var maxCoresPercentageToUseForBackgroundIndexing: Double
+
+  /// A callback that is called when an index task finishes.
+  ///
+  /// Intended for testing purposes.
+  public var indexTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) -> Void)?
+
   public init(
     indexStorePath: AbsolutePath? = nil,
     indexDatabasePath: AbsolutePath? = nil,
     indexPrefixMappings: [PathPrefixMapping]? = nil,
-    listenToUnitEvents: Bool = true
+    listenToUnitEvents: Bool = true,
+    enableBackgroundIndexing: Bool = false,
+    maxCoresPercentageToUseForBackgroundIndexing: Double = 1,
+    indexTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) -> Void)? = nil
   ) {
     self.indexStorePath = indexStorePath
     self.indexDatabasePath = indexDatabasePath
     self.indexPrefixMappings = indexPrefixMappings
     self.listenToUnitEvents = listenToUnitEvents
+    self.enableBackgroundIndexing = enableBackgroundIndexing
+    self.maxCoresPercentageToUseForBackgroundIndexing = maxCoresPercentageToUseForBackgroundIndexing
+    self.indexTaskDidFinish = indexTaskDidFinish
   }
 }

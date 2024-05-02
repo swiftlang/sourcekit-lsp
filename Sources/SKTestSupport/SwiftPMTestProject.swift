@@ -43,6 +43,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
     build: Bool = false,
     allowBuildFailure: Bool = false,
     serverOptions: SourceKitLSPServer.Options = .testDefault,
+    pollIndex: Bool = true,
     usePullDiagnostics: Bool = true,
     testName: String = #function
   ) async throws {
@@ -77,8 +78,10 @@ public class SwiftPMTestProject: MultiFileTestProject {
         try await Self.build(at: self.scratchDirectory)
       }
     }
-    // Wait for the indexstore-db to finish indexing
-    _ = try await testClient.send(PollIndexRequest())
+    if pollIndex {
+      // Wait for the indexstore-db to finish indexing
+      _ = try await testClient.send(PollIndexRequest())
+    }
   }
 
   /// Build a SwiftPM package package manifest is located in the directory at `path`.

@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import SKCore
+import SKTestSupport
 import XCTest
 
 final class TaskSchedulerTests: XCTestCase {
@@ -285,24 +286,6 @@ fileprivate actor TaskExecutionRecorder {
   }
 }
 
-/// Wrapper around `DispatchSemaphore` so that Swift Concurrency doesn't complain about the usage of semaphores in the
-/// tests.
-fileprivate struct UnsafeSemaphore {
-  let semaphore = DispatchSemaphore(value: 0)
-
-  func signal(value: Int = 1) {
-    for _ in 0..<value {
-      semaphore.signal()
-    }
-  }
-
-  func wait(value: Int = 1) {
-    for _ in 0..<value {
-      semaphore.wait()
-    }
-  }
-}
-
 fileprivate func runTaskScheduler(
   highPriorityTasks: Int = 4,
   lowPriorityTasks: Int = 2,
@@ -315,7 +298,7 @@ fileprivate func runTaskScheduler(
   )
   let taskExecutionRecorder = TaskExecutionRecorder()
 
-  let allTasksScheduled = UnsafeSemaphore()
+  let allTasksScheduled = WrappedSemaphore()
 
   // Keep scheduler busy so we can schedule all the remaining tasks that we actually want to test.
   // Using a semaphore here is an anti-pattern that should not be used in production since it can lead to priority
@@ -333,7 +316,7 @@ fileprivate func runTaskScheduler(
   // Use a semaphore to wait for the scheduler to reach these very low-priority tasks.
   // Using utility for the priority ensures that these tasks get executed last and using a semaphore ensures that we
   // don't elevate the task's priority by awaiting it.
-  let reachedEnd = UnsafeSemaphore()
+  let reachedEnd = WrappedSemaphore()
   await scheduler.schedule(
     priority: TaskPriority.low,
     id: nil,
