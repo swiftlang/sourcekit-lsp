@@ -47,7 +47,7 @@ public enum IndexCheckLevel {
 /// `IndexCheckLevel`.
 ///
 /// - SeeAlso: Comment on `IndexOutOfDateChecker`
-public class CheckedIndex {
+public final class CheckedIndex: Sendable {
   private var checker: IndexOutOfDateChecker
   private let index: IndexStoreDB
 
@@ -134,6 +134,11 @@ public class CheckedIndex {
   /// - Important: This must only be called on a `CheckedIndex` with a `checkLevel` of `inMemoryModifiedFiles`
   public func fileHasInMemoryModifications(_ url: URL) -> Bool {
     return checker.fileHasInMemoryModifications(url)
+  }
+
+  /// Wait for IndexStoreDB to be updated based on new unit files written to disk.
+  public func pollForUnitChangesAndWait() {
+    self.index.pollForUnitChangesAndWait()
   }
 }
 
