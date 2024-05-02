@@ -91,7 +91,8 @@ public final class Workspace {
     self.buildSystemManager = await BuildSystemManager(
       buildSystem: underlyingBuildSystem,
       fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
-      mainFilesProvider: uncheckedIndex
+      mainFilesProvider: uncheckedIndex,
+      toolchainRegistry: toolchainRegistry
     )
     await indexDelegate?.addMainFileChangedCallback { [weak self] in
       await self?.buildSystemManager.mainFilesChanged()

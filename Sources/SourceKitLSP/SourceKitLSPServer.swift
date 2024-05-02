@@ -653,32 +653,6 @@ public actor SourceKitLSPServer {
     return try await client.send(request)
   }
 
-  func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    let supportsLang = { (toolchain: Toolchain) -> Bool in
-      // FIXME: the fact that we're looking at clangd/sourcekitd instead of the compiler indicates this method needs a parameter stating what kind of tool we're looking for.
-      switch language {
-      case .swift:
-        return toolchain.sourcekitd != nil
-      case .c, .cpp, .objective_c, .objective_cpp:
-        return toolchain.clangd != nil
-      default:
-        return false
-      }
-    }
-
-    if let toolchain = await toolchainRegistry.default, supportsLang(toolchain) {
-      return toolchain
-    }
-
-    for toolchain in await toolchainRegistry.toolchains {
-      if supportsLang(toolchain) {
-        return toolchain
-      }
-    }
-
-    return nil
-  }
-
   /// After the language service has crashed, send `DidOpenTextDocumentNotification`s to a newly instantiated language service for previously open documents.
   func reopenDocuments(for languageService: LanguageService) async {
     for documentUri in self.documentManager.openDocuments {
@@ -815,7 +789,7 @@ public actor SourceKitLSPServer {
       return service
     }
 
-    guard let toolchain = await toolchain(for: uri, language),
+    guard let toolchain = await workspace.buildSystemManager.toolchain(for: uri, language),
       let service = await languageService(for: toolchain, language, in: workspace)
     else {
       return nil

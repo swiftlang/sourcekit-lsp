@@ -50,6 +50,11 @@ public actor BuildSystemManager {
   /// Build system delegate that will receive notifications about setting changes, etc.
   var delegate: BuildSystemDelegate?
 
+  /// The list of toolchains that are available.
+  ///
+  /// Used to determine which toolchain to use for a given document.
+  private let toolchainRegistry: ToolchainRegistry
+
   /// The root of the project that this build system manages. For example, for SwiftPM packages, this is the folder
   /// containing Package.swift. For compilation databases it is the root folder based on which the compilation database
   /// was found.
@@ -65,6 +70,7 @@ public actor BuildSystemManager {
     buildSystem: BuildSystem?,
     fallbackBuildSystem: FallbackBuildSystem?,
     mainFilesProvider: MainFilesProvider?,
+    toolchainRegistry: ToolchainRegistry,
     fallbackSettingsTimeout: DispatchTimeInterval = .seconds(3)
   ) async {
     let buildSystemHasDelegate = await buildSystem?.delegate != nil
@@ -72,6 +78,7 @@ public actor BuildSystemManager {
     self.buildSystem = buildSystem
     self.fallbackBuildSystem = fallbackBuildSystem
     self.mainFilesProvider = mainFilesProvider
+    self.toolchainRegistry = toolchainRegistry
     self.fallbackSettingsTimeout = fallbackSettingsTimeout
     await self.buildSystem?.setDelegate(self)
   }
@@ -85,6 +92,13 @@ extension BuildSystemManager {
   /// - Note: Needed so we can set the delegate from a different isolation context.
   public func setDelegate(_ delegate: BuildSystemDelegate?) {
     self.delegate = delegate
+  }
+
+  /// Returns the toolchain that should be used to process the given document.
+  public func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
+    // To support multiple toolchains within a single workspace, we need to ask the build system which toolchain to use
+    // for this document.
+    return await toolchainRegistry.defaultToolchain(for: language)
   }
 
   /// - Note: Needed so we can set the delegate from a different isolation context.
