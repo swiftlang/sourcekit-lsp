@@ -114,6 +114,10 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     )
   }
 
+  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+    return nil
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI) async {
     self.watchedFiles.insert(uri)
   }

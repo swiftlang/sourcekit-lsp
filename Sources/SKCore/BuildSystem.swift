@@ -87,6 +87,13 @@ public protocol BuildSystem: AnyObject, Sendable {
   /// file or if it hasn't computed build settings for the file yet.
   func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings?
 
+  /// If the build system has knowledge about the language that this document should be compiled in, return it.
+  ///
+  /// This is used to determine the language in which a source file should be background indexed.
+  ///
+  /// If `nil` is returned, the language based on the file's extension.
+  func defaultLanguage(for document: DocumentURI) async -> Language?
+
   /// Register the given file for build-system level change notifications, such
   /// as command line flag changes, dependency changes, etc.
   ///
@@ -113,5 +120,4 @@ public protocol BuildSystem: AnyObject, Sendable {
   func addSourceFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async
 }
 
-public let buildTargetsNotSupported =
-  ResponseError.methodNotFound(BuildTargets.method)
+public let buildTargetsNotSupported = ResponseError.methodNotFound(BuildTargets.method)

@@ -267,6 +267,10 @@ extension BuildServerBuildSystem: BuildSystem {
     return buildSettings[document]
   }
 
+  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+    return nil
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI) {
     let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request) { result in

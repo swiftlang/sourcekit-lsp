@@ -449,6 +449,10 @@ class ManualBuildSystem: BuildSystem {
     return map[uri]
   }
 
+  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+    return nil
+  }
+
   func registerForChangeNotifications(for uri: DocumentURI) async {
   }
 

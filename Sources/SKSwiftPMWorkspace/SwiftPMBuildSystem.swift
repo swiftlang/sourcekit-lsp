@@ -341,6 +341,11 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     return nil
   }
 
+  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+    // TODO (indexing): Query The SwiftPM build system for the document's language
+    return nil
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI) async {
     self.watchedFiles.insert(uri)
   }

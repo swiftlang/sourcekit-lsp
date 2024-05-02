@@ -106,6 +106,22 @@ extension BuildSystemManager {
     self.mainFilesProvider = mainFilesProvider
   }
 
+  /// Returns the language that a document should be interpreted in for background tasks where the editor doesn't
+  /// specify the document's language.
+  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+    if let defaultLanguage = await buildSystem?.defaultLanguage(for: document) {
+      return defaultLanguage
+    }
+    switch document.fileURL?.pathExtension {
+    case "c": return .c
+    case "cpp", "cc", "cxx": return .cpp
+    case "m": return .objective_c
+    case "mm", "h": return .objective_cpp
+    case "swift": return .swift
+    default: return nil
+    }
+  }
+
   private func buildSettings(
     for document: DocumentURI,
     language: Language
