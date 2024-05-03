@@ -1,4 +1,5 @@
 add_subdirectory(BuildServerProtocol)
+add_subdirectory(CAtomics)
 add_subdirectory(Csourcekitd)
 add_subdirectory(Diagnose)
 add_subdirectory(LanguageServerProtocol)

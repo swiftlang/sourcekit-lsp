@@ -142,6 +142,8 @@ actor SyntacticTestIndex {
 
   /// Called when a list of files was updated. Re-scans those files
   private func rescanFiles(_ uris: [DocumentURI]) {
+    logger.info("Syntactically scanning files for tests: \(uris)")
+
     // If we scan a file again, it might have been added after being removed before. Remove it from the list of removed
     // files.
     removedFiles.subtract(uris)

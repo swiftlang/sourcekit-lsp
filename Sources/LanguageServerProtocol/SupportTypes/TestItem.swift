@@ -12,7 +12,7 @@
 
 public struct TestTag: Codable, Equatable, Sendable {
   /// ID of the test tag. `TestTag` instances with the same ID are considered to be identical.
-  public let id: String
+  public var id: String
 
   public init(id: String) {
     self.id = id
@@ -26,35 +26,35 @@ public struct TestItem: ResponseType, Equatable {
   /// Identifier for the `TestItem`.
   ///
   /// This identifier uniquely identifies the test case or test suite. It can be used to run an individual test (suite).
-  public let id: String
+  public var id: String
 
   /// Display name describing the test.
-  public let label: String
+  public var label: String
 
   /// Optional description that appears next to the label.
-  public let description: String?
+  public var description: String?
 
   /// A string that should be used when comparing this item with other items.
   ///
   /// When `nil` the `label` is used.
-  public let sortText: String?
+  public var sortText: String?
 
   /// Whether the test is disabled.
-  public let disabled: Bool
+  public var disabled: Bool
 
   /// The type of test, eg. the testing framework that was used to declare the test.
-  public let style: String
+  public var style: String
 
   /// The location of the test item in the source code.
-  public let location: Location
+  public var location: Location
 
   /// The children of this test item.
   ///
   /// For a test suite, this may contain the individual test cases or nested suites.
-  public let children: [TestItem]
+  public var children: [TestItem]
 
   /// Tags associated with this test item.
-  public let tags: [TestTag]
+  public var tags: [TestTag]
 
   public init(
     id: String,
