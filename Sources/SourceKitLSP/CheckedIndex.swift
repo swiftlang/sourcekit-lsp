@@ -95,6 +95,13 @@ public class CheckedIndex {
     return index.symbolProvider(for: sourceFilePath)
   }
 
+  public func symbols(inFilePath path: String) -> [Symbol] {
+    guard self.hasUpToDateUnit(for: URL(fileURLWithPath: path, isDirectory: false)) else {
+      return []
+    }
+    return index.symbols(inFilePath: path)
+  }
+
   /// Returns all unit test symbol in unit files that reference one of the main files in `mainFilePaths`.
   public func unitTests(referencedByMainFiles mainFilePaths: [String]) -> [SymbolOccurrence] {
     return index.unitTests(referencedByMainFiles: mainFilePaths).filter { checker.isUpToDate($0.location) }

@@ -194,30 +194,39 @@ extension SourceKitLSPServer {
     )
     let filesWithTestsFromSemanticIndex = Set(testsFromSemanticIndex.map(\.location.uri))
 
+    let indexOnlyDiscardingDeletedFiles = workspace.index(checkedFor: .deletedFiles)
+
     let syntacticTestsToInclude =
       testsFromSyntacticIndex
-      .filter { testItem in
+      .compactMap { (testItem) -> TestItem? in
         if testItem.style == TestStyle.swiftTesting {
           // Swift-testing tests aren't part of the semantic index. Always include them.
-          return true
+          return testItem
         }
         if filesWithTestsFromSemanticIndex.contains(testItem.location.uri) {
           // If we have an semantic tests from this file, then the semantic index is up-to-date for this file. We thus
           // don't need to include results from the syntactic index.
-          return false
+          return nil
         }
         if filesWithInMemoryState.contains(testItem.location.uri) {
           // If the file has been modified in the editor, the syntactic index (which indexes on-disk files) is no longer
           // up-to-date. Include the tests from `testsFromFilesWithInMemoryState`.
-          return false
+          return nil
         }
         if let fileUrl = testItem.location.uri.fileURL, index?.hasUpToDateUnit(for: fileUrl) ?? false {
           // We don't have a test for this file in the semantic index but an up-to-date unit file. This means that the
           // index is up-to-date and has more knowledge that identifies a `TestItem` as not actually being a test, eg.
           // because it starts with `test` but doesn't appear in a class inheriting from `XCTestCase`.
-          return false
+          return nil
         }
-        return true
+        // Filter out any test items that we know aren't actually tests based on the semantic index.
+        // This might call `symbols(inFilePath:)` multiple times if there are multiple top-level test items (ie.
+        // XCTestCase subclasses, swift-testing handled above) for the same file. In practice test files usually contain
+        // a single XCTestCase subclass, so caching doesn't make sense here.
+        // Also, this is only called for files containing test cases but for which the semantic index is out-of-date.
+        return testItem.filterUsing(
+          semanticSymbols: indexOnlyDiscardingDeletedFiles?.symbols(inFilePath: testItem.location.uri.pseudoPath)
+        )
       }
 
     // We don't need to sort the tests here because they will get
@@ -252,7 +261,7 @@ extension SourceKitLSPServer {
       language: snapshot.language
     )
 
-    let syntacticTests = try await languageService.syntacticDocumentTests(for: req.textDocument.uri)
+    let syntacticTests = try await languageService.syntacticDocumentTests(for: req.textDocument.uri, in: workspace)
 
     if let index = workspace.index(checkedFor: .inMemoryModifiedFiles(documentManager)) {
       var syntacticSwiftTestingTests: [TestItem] {
@@ -398,13 +407,43 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
   }
 }
 
+extension TestItem {
+  /// Use out-of-date semantic information to filter syntactic symbols.
+  ///
+  /// If the syntactic index found a test item, check if the semantic index knows about a symbol with that name. If it
+  /// does and that item is not marked as a test symbol, we can reasonably assume that this item still looks like a test
+  /// but is semantically known to not be a test. It will thus get filtered out.
+  ///
+  /// `semanticSymbols` should be all the symbols in the source file that this `TestItem` occurs in, retrieved using
+  /// `symbols(inFilePath:)` from the index.
+  fileprivate func filterUsing(semanticSymbols: [Symbol]?) -> TestItem? {
+    guard let semanticSymbols else {
+      return self
+    }
+    // We only check if we know of any symbol with the test item's name in this file. We could try to incorporate
+    // structure here (ie. look for a method within a class) but that makes the index lookup more difficult and in
+    // practice it is very unlikely that a test file will have two symbols with the same name, one of which is marked
+    // as a unit test while the other one is not.
+    let semanticSymbolsWithName = semanticSymbols.filter { $0.name == self.label }
+    if !semanticSymbolsWithName.isEmpty,
+      semanticSymbolsWithName.allSatisfy({ !$0.properties.contains(.unitTest) })
+    {
+      return nil
+    }
+    var test = self
+    test.children = test.children.compactMap { $0.filterUsing(semanticSymbols: semanticSymbols) }
+    return test
+  }
+}
+
 extension SwiftLanguageService {
-  public func syntacticDocumentTests(for uri: DocumentURI) async throws -> [TestItem] {
+  public func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [TestItem] {
     let snapshot = try documentManager.latestSnapshot(uri)
+    let semanticSymbols = workspace.index(checkedFor: .deletedFiles)?.symbols(inFilePath: snapshot.uri.pseudoPath)
     let xctestSymbols = await SyntacticSwiftXCTestScanner.findTestSymbols(
       in: snapshot,
       syntaxTreeManager: syntaxTreeManager
-    )
+    ).compactMap { $0.filterUsing(semanticSymbols: semanticSymbols) }
     let swiftTestingSymbols = await SyntacticSwiftTestingTestScanner.findTestSymbols(
       in: snapshot,
       syntaxTreeManager: syntaxTreeManager
@@ -414,7 +453,7 @@ extension SwiftLanguageService {
 }
 
 extension ClangLanguageService {
-  public func syntacticDocumentTests(for uri: DocumentURI) async -> [TestItem] {
+  public func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async -> [TestItem] {
     return []
   }
 }

@@ -362,14 +362,12 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
         "Tests/MyLibraryTests/MyTests.swift": """
         import XCTest
 
-        class MayInheritFromXCTestCase {}
-
-        1️⃣class MyTests: MayInheritFromXCTestCase {
-          2️⃣func testMyLibrary0️⃣() {
-          }3️⃣
+        1️⃣class 2️⃣MyTests: XCTestCase {
+          3️⃣func 4️⃣testMyLibrary0️⃣() {
+          }5️⃣
           func unrelatedFunc() {}
           var testVariable: Int = 0
-        }4️⃣
+        }6️⃣
         """
       ],
       manifest: packageManifestWithTestTarget,
@@ -381,7 +379,30 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     // If the document has been opened but not modified in-memory, we can still use the semantic index and detect that
     // `MyTests` does not inherit from `XCTestCase`.
     let testsAfterDocumentOpen = try await project.testClient.send(WorkspaceTestsRequest())
-    XCTAssertEqual(testsAfterDocumentOpen, [])
+    XCTAssertEqual(
+      testsAfterDocumentOpen,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          disabled: false,
+          style: TestStyle.xcTest,
+          location: Location(uri: uri, range: positions["2️⃣"]..<positions["2️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/testMyLibrary()",
+              label: "testMyLibrary()",
+              disabled: false,
+              style: TestStyle.xcTest,
+              location: Location(uri: uri, range: positions["4️⃣"]..<positions["4️⃣"]),
+              children: [],
+              tags: []
+            )
+          ],
+          tags: []
+        )
+      ]
+    )
 
     // After we have an in-memory change to the file, we can't use the semantic index to discover the tests anymore.
     // Use the syntactic index instead.
@@ -403,14 +424,14 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
           label: "MyTests",
           disabled: false,
           style: TestStyle.xcTest,
-          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["6️⃣"]),
           children: [
             TestItem(
               id: "MyTests/testMyLibraryUpdated()",
               label: "testMyLibraryUpdated()",
               disabled: false,
               style: TestStyle.xcTest,
-              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
+              location: Location(uri: uri, range: positions["3️⃣"]..<positions["5️⃣"]),
               children: [],
               tags: []
             )
@@ -847,5 +868,44 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
 
     let tests = try await project.testClient.send(WorkspaceTestsRequest())
     XCTAssertEqual(tests, [])
+  }
+
+  func testAddNewClassToNotQuiteTestCase() async throws {
+    let originalContents = """
+      import XCTest
+
+      class NotQuiteTest: SomeClass {
+        func testMyLibrary() {}
+      }
+
+      """
+
+    let project = try await IndexedSingleSwiftFileTestProject(originalContents, allowBuildFailure: true)
+    // Close the file so we don't have an in-memory version of it.
+    project.testClient.send(DidCloseTextDocumentNotification(textDocument: TextDocumentIdentifier(project.fileURI)))
+
+    let testsBeforeEdit = try await project.testClient.send(WorkspaceTestsRequest())
+    XCTAssertEqual(testsBeforeEdit, [])
+
+    let addedTest = """
+      class OtherNotQuiteTest: SomeClass {
+        func testSomethingElse() {}
+      }
+      """
+
+    let uri = try XCTUnwrap(project.fileURI.fileURL)
+
+    try (originalContents + addedTest).write(to: uri, atomically: true, encoding: .utf8)
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: project.fileURI, type: .changed)])
+    )
+
+    let testsAfterEdit = try await project.testClient.send(WorkspaceTestsRequest())
+    print(testsAfterEdit)
+    // We know from the semantic index that NotQuiteTest does not inherit from XCTestCase, so we should not include it.
+    // We don't have any semantic knowledge about `OtherNotQuiteTest`, so we are conservative and should include it.
+    XCTAssertFalse(testsAfterEdit.contains { $0.label == "NotQuiteTest" })
+    XCTAssertTrue(testsAfterEdit.contains { $0.label == "OtherNotQuiteTest" })
   }
 }
