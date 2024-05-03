@@ -1451,7 +1451,7 @@ extension SourceKitLSPServer {
     for workspace in self.workspaces {
       await workspace.buildSystemManager.setMainFilesProvider(nil)
       // Close the index, which will flush to disk.
-      workspace.index = nil
+      workspace.uncheckedIndex = nil
 
       // Break retain cycle with the BSM.
       await workspace.buildSystemManager.setDelegate(nil)
@@ -1691,7 +1691,7 @@ extension SourceKitLSPServer {
     }
     var symbolOccurrenceResults: [SymbolOccurrence] = []
     for workspace in workspaces {
-      workspace.index?.forEachCanonicalSymbolOccurrence(
+      workspace.index(checkedFor: .deletedFiles)?.forEachCanonicalSymbolOccurrence(
         containing: matching,
         anchorStart: false,
         anchorEnd: false,
@@ -1901,7 +1901,7 @@ extension SourceKitLSPServer {
       return [location]
     }
 
-    guard let index = await self.workspaceForDocument(uri: uri)?.index else {
+    guard let index = await self.workspaceForDocument(uri: uri)?.index(checkedFor: .deletedFiles) else {
       if let bestLocalDeclaration = symbol.bestLocalDeclaration {
         return [bestLocalDeclaration]
       } else {
@@ -2038,7 +2038,7 @@ extension SourceKitLSPServer {
         position: req.position
       )
     )
-    guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
+    guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
       return nil
     }
     let locations = symbols.flatMap { (symbol) -> [Location] in
@@ -2064,7 +2064,7 @@ extension SourceKitLSPServer {
         position: req.position
       )
     )
-    guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
+    guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
       return []
     }
     let locations = symbols.flatMap { (symbol) -> [Location] in
@@ -2111,7 +2111,7 @@ extension SourceKitLSPServer {
         position: req.position
       )
     )
-    guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
+    guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
       return nil
     }
     // For call hierarchy preparation we only locate the definition
@@ -2156,7 +2156,7 @@ extension SourceKitLSPServer {
 
   func incomingCalls(_ req: CallHierarchyIncomingCallsRequest) async throws -> [CallHierarchyIncomingCall]? {
     guard let data = extractCallHierarchyItemData(req.item.data),
-      let index = await self.workspaceForDocument(uri: data.uri)?.index
+      let index = await self.workspaceForDocument(uri: data.uri)?.index(checkedFor: .deletedFiles)
     else {
       return []
     }
@@ -2210,7 +2210,7 @@ extension SourceKitLSPServer {
 
   func outgoingCalls(_ req: CallHierarchyOutgoingCallsRequest) async throws -> [CallHierarchyOutgoingCall]? {
     guard let data = extractCallHierarchyItemData(req.item.data),
-      let index = await self.workspaceForDocument(uri: data.uri)?.index
+      let index = await self.workspaceForDocument(uri: data.uri)?.index(checkedFor: .deletedFiles)
     else {
       return []
     }
@@ -2245,7 +2245,7 @@ extension SourceKitLSPServer {
     symbol: Symbol,
     moduleName: String?,
     location: Location,
-    index: IndexStoreDB
+    index: CheckedIndex
   ) -> TypeHierarchyItem {
     let name: String
     let detail: String?
@@ -2304,7 +2304,7 @@ extension SourceKitLSPServer {
     guard !symbols.isEmpty else {
       return nil
     }
-    guard let index = await self.workspaceForDocument(uri: req.textDocument.uri)?.index else {
+    guard let index = await workspaceForDocument(uri: req.textDocument.uri)?.index(checkedFor: .deletedFiles) else {
       return nil
     }
     let usrs =
@@ -2364,7 +2364,7 @@ extension SourceKitLSPServer {
 
   func supertypes(_ req: TypeHierarchySupertypesRequest) async throws -> [TypeHierarchyItem]? {
     guard let data = extractTypeHierarchyItemData(req.item.data),
-      let index = await self.workspaceForDocument(uri: data.uri)?.index
+      let index = await self.workspaceForDocument(uri: data.uri)?.index(checkedFor: .deletedFiles)
     else {
       return []
     }
@@ -2410,7 +2410,7 @@ extension SourceKitLSPServer {
 
   func subtypes(_ req: TypeHierarchySubtypesRequest) async throws -> [TypeHierarchyItem]? {
     guard let data = extractTypeHierarchyItemData(req.item.data),
-      let index = await self.workspaceForDocument(uri: data.uri)?.index
+      let index = await self.workspaceForDocument(uri: data.uri)?.index(checkedFor: .deletedFiles)
     else {
       return []
     }
@@ -2448,7 +2448,7 @@ extension SourceKitLSPServer {
 
   func pollIndex(_ req: PollIndexRequest) async throws -> VoidResponse {
     for workspace in workspaces {
-      workspace.index?.pollForUnitChangesAndWait()
+      workspace.uncheckedIndex?.underlyingIndexStoreDB.pollForUnitChangesAndWait()
     }
     return VoidResponse()
   }
@@ -2474,7 +2474,7 @@ private let maxWorkspaceSymbolResults = 4096
 
 public typealias Diagnostic = LanguageServerProtocol.Diagnostic
 
-fileprivate extension IndexStoreDB {
+fileprivate extension CheckedIndex {
   /// If there are any definition occurrences of the given USR, return these.
   /// Otherwise return declaration occurrences.
   func definitionOrDeclarationOccurrences(ofUSR usr: String) -> [SymbolOccurrence] {
@@ -2587,7 +2587,7 @@ fileprivate struct DocumentNotificationRequestQueue {
 }
 
 /// Returns the USRs of the subtypes of `usrs` as well as their subtypes, transitively.
-fileprivate func transitiveSubtypeClosure(ofUsrs usrs: [String], index: IndexStoreDB) -> [String] {
+fileprivate func transitiveSubtypeClosure(ofUsrs usrs: [String], index: CheckedIndex) -> [String] {
   var result: [String] = []
   for usr in usrs {
     result.append(usr)

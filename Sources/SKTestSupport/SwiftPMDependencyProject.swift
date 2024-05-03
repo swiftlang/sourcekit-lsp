@@ -25,22 +25,22 @@ public class SwiftPMDependencyProject {
   /// The directory in which the repository lives.
   public let packageDirectory: URL
 
-  private func runCommand(_ toolName: String, _ arguments: [String], workingDirectory: URL) async throws {
+  private func runGitCommand(_ arguments: [String], workingDirectory: URL) async throws {
     enum Error: Swift.Error {
-      case cannotFindTool(toolName: String)
+      case cannotFindGit
       case processedTerminatedWithNonZeroExitCode(ProcessResult)
     }
-    guard let toolUrl = findTool(name: toolName) else {
+    guard let toolUrl = findTool(name: "git") else {
       if ProcessEnv.block["SWIFTCI_USE_LOCAL_DEPS"] == nil {
         // Never skip the test in CI, similar to what SkipUnless does.
-        throw XCTSkip("\(toolName) cannot be found")
+        throw XCTSkip("git cannot be found")
       }
-      throw Error.cannotFindTool(toolName: toolName)
+      throw Error.cannotFindGit
     }
-    print([toolUrl.path] + arguments)
+    // We can't use `workingDirectory` because Amazon Linux doesn't support working directories (or at least
+    // TSCBasic.Process doesn't support working directories on Amazon Linux)
     let process = TSCBasic.Process(
-      arguments: [toolUrl.path] + arguments,
-      workingDirectory: try AbsolutePath(validating: workingDirectory.path)
+      arguments: [toolUrl.path, "-C", workingDirectory.path] + arguments
     )
     try process.launch()
     let processResult = try await process.waitUntilExit()
@@ -80,18 +80,16 @@ public class SwiftPMDependencyProject {
       try contents.write(to: fileURL, atomically: true, encoding: .utf8)
     }
 
-    try await runCommand("git", ["init"], workingDirectory: packageDirectory)
-    try await runCommand(
-      "git",
+    try await runGitCommand(["init"], workingDirectory: packageDirectory)
+    try await runGitCommand(
       ["add"] + files.keys.map { $0.url(relativeTo: packageDirectory).path },
       workingDirectory: packageDirectory
     )
-    try await runCommand(
-      "git",
+    try await runGitCommand(
       ["-c", "user.name=Dummy", "-c", "user.email=noreply@swift.org", "commit", "-m", "Initial commit"],
       workingDirectory: packageDirectory
     )
-    try await runCommand("git", ["tag", "1.0.0"], workingDirectory: packageDirectory)
+    try await runGitCommand(["tag", "1.0.0"], workingDirectory: packageDirectory)
   }
 
   deinit {
