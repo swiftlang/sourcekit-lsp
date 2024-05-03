@@ -23,6 +23,7 @@ target_sources(SourceKitLSP PRIVATE
 target_sources(SourceKitLSP PRIVATE
   Swift/AdjustPositionToStartOfIdentifier.swift
   Swift/CodeActions/ConvertIntegerLiteral.swift
+  Swift/CodeActions/PackageManifestEdits.swift
   Swift/CodeActions/SyntaxCodeActionProvider.swift
   Swift/CodeActions/SyntaxCodeActions.swift
   Swift/CodeActions/SyntaxRefactoringCodeActionProvider.swift
@@ -74,5 +75,6 @@ target_link_libraries(SourceKitLSP PUBLIC
   SwiftSyntax::SwiftRefactor
   SwiftSyntax::SwiftSyntax)
 target_link_libraries(SourceKitLSP PRIVATE
+  PackageModelSyntax
   $<$<NOT:$<PLATFORM_ID:Darwin>>:FoundationXML>)
 

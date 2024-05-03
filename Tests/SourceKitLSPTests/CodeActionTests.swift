@@ -290,6 +290,13 @@ final class CodeActionTests: XCTestCase {
     }
 
     XCTAssertTrue(codeActions.contains(expectedCodeAction))
+
+    // Make sure we get one of the swift-syntax refactoring actions.
+    XCTAssertTrue(
+      codeActions.contains { action in
+        return action.title == "Convert string literal to minimal number of \'#\'s"
+      }
+    )
   }
 
   func testSemanticRefactorRangeCodeActionResult() async throws {
@@ -481,5 +488,116 @@ final class CodeActionTests: XCTestCase {
       ),
     ]
     XCTAssertEqual(expectedCodeActions, codeActions)
+  }
+
+  func testPackageManifestEditingCodeActionResult() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      // swift-tools-version: 5.5
+      let package = Package(
+          name: "packages",
+          targets: [
+              .tar1️⃣get(name: "MyLib"),
+          ]
+      )
+      """,
+      uri: uri
+    )
+
+    let testPosition = positions["1️⃣"]
+    let request = CodeActionRequest(
+      range: Range(testPosition),
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions")
+      return
+    }
+
+    // Make sure we get the expected package manifest editing actions.
+    let addTestAction = codeActions.first { action in
+      return action.title == "Add test target"
+    }
+    XCTAssertNotNil(addTestAction)
+
+    guard let addTestChanges = addTestAction?.edit?.documentChanges else {
+      XCTFail("Didn't have changes in the 'Add test target' action")
+      return
+    }
+
+    guard
+      let addTestEdit = addTestChanges.lazy.compactMap({ change in
+        switch change {
+        case .textDocumentEdit(let edit): edit
+        default: nil
+        }
+      }).first
+    else {
+      XCTFail("Didn't have edits")
+      return
+    }
+
+    XCTAssertTrue(
+      addTestEdit.edits.contains { edit in
+        switch edit {
+        case .textEdit(let edit): edit.newText.contains("testTarget")
+        case .annotatedTextEdit(let edit): edit.newText.contains("testTarget")
+        }
+      }
+    )
+
+    XCTAssertTrue(
+      codeActions.contains { action in
+        return action.title == "Add product to export this target"
+      }
+    )
+  }
+
+  func testPackageManifestEditingCodeActionNoTestResult() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      // swift-tools-version: 5.5
+      let package = Package(
+          name: "packages",
+          targets: [
+              .testTar1️⃣get(name: "MyLib"),
+          ]
+      )
+      """,
+      uri: uri
+    )
+
+    let testPosition = positions["1️⃣"]
+    let request = CodeActionRequest(
+      range: Range(testPosition),
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions")
+      return
+    }
+
+    // Make sure we get the expected package manifest editing actions.
+    XCTAssertTrue(
+      !codeActions.contains { action in
+        return action.title == "Add test target"
+      }
+    )
+
+    XCTAssertTrue(
+      !codeActions.contains { action in
+        return action.title == "Add product to export this target"
+      }
+    )
   }
 }

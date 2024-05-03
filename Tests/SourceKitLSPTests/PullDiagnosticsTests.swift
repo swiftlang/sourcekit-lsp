@@ -182,6 +182,7 @@ final class PullDiagnosticsTests: XCTestCase {
 
   func testDiagnosticUpdatedAfterDependentModuleIsBuilt() async throws {
     try SkipUnless.longTestsEnabled()
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
 
     let project = try await SwiftPMTestProject(
       files: [

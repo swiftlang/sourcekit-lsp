@@ -263,7 +263,7 @@ extension SwiftPMBuildSystem {
     self.fileToTarget = [AbsolutePath: SwiftBuildTarget](
       modulesGraph.allTargets.flatMap { target in
         return target.sources.paths.compactMap {
-          guard let buildTarget = buildDescription.getBuildTarget(for: target) else {
+          guard let buildTarget = buildDescription.getBuildTarget(for: target, in: modulesGraph) else {
             return nil
           }
           return (key: $0, value: buildTarget)
@@ -277,7 +277,7 @@ extension SwiftPMBuildSystem {
 
     self.sourceDirToTarget = [AbsolutePath: SwiftBuildTarget](
       modulesGraph.allTargets.compactMap { (target) -> (AbsolutePath, SwiftBuildTarget)? in
-        guard let buildTarget = buildDescription.getBuildTarget(for: target) else {
+        guard let buildTarget = buildDescription.getBuildTarget(for: target, in: modulesGraph) else {
           return nil
         }
         return (key: target.sources.root, value: buildTarget)
@@ -439,8 +439,13 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
   }
 
   public func testFiles() -> [DocumentURI] {
-    // We should only include source files from test targets (https://github.com/apple/sourcekit-lsp/issues/1174).
-    return fileToTarget.map { DocumentURI($0.key.asURL) }
+    return fileToTarget.compactMap { (path, target) -> DocumentURI? in
+      guard target.isPartOfRootPackage else {
+        // Don't consider files from package dependencies as possible test files.
+        return nil
+      }
+      return DocumentURI(path.asURL)
+    }
   }
 
   public func addTestFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async {
