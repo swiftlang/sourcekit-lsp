@@ -2471,7 +2471,11 @@ fileprivate extension CheckedIndex {
   /// If the USR has an ambiguous definition, the most important role of this function is to deterministically return
   /// the same result every time.
   func primaryDefinitionOrDeclarationOccurrence(ofUSR usr: String) -> SymbolOccurrence? {
-    return definitionOrDeclarationOccurrences(ofUSR: usr).sorted().first
+    let result = definitionOrDeclarationOccurrences(ofUSR: usr).sorted().first
+    if result == nil {
+      logger.error("Failed to find definition of \(usr) in index")
+    }
+    return result
   }
 }
 
