@@ -15,6 +15,7 @@ import Foundation
 import LSPLogging
 import LanguageServerProtocol
 import SKCore
+import SKSupport
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
@@ -198,7 +199,7 @@ public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
       }
     try process.launch()
     let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
-    switch result.exitStatus {
+    switch result.exitStatus.exhaustivelySwitchable {
     case .terminated(code: 0):
       break
     case .terminated(code: let code):
@@ -222,6 +223,11 @@ public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
         // Ignore signal exit codes if this task has been cancelled because the compiler exits with SIGINT if it gets
         // interrupted.
         logger.error("Updating index store for Swift file \(uri.forLogging) signaled \(signal)")
+        BuildSettingsLogger.log(level: .error, settings: buildSettings, for: uri)
+      }
+    case .abnormal(exception: let exception):
+      if !Task.isCancelled {
+        logger.error("Updating index store for Swift file \(uri.forLogging) exited abnormally \(exception)")
         BuildSettingsLogger.log(level: .error, settings: buildSettings, for: uri)
       }
     }
