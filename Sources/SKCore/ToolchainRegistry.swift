@@ -12,6 +12,7 @@
 
 import Dispatch
 import Foundation
+import LanguageServerProtocol
 import SKSupport
 
 import struct TSCBasic.AbsolutePath
@@ -243,6 +244,33 @@ public final actor ToolchainRegistry {
   @_spi(Testing)
   public var darwinToolchainIdentifier: String {
     return darwinToolchainOverride ?? ToolchainRegistry.darwinDefaultToolchainIdentifier
+  }
+
+  /// The toolchain to use for a document in the given language if the build system doesn't override it.
+  func defaultToolchain(for language: Language) -> Toolchain? {
+    let supportsLang = { (toolchain: Toolchain) -> Bool in
+      // FIXME: the fact that we're looking at clangd/sourcekitd instead of the compiler indicates this method needs a parameter stating what kind of tool we're looking for.
+      switch language {
+      case .swift:
+        return toolchain.sourcekitd != nil
+      case .c, .cpp, .objective_c, .objective_cpp:
+        return toolchain.clangd != nil
+      default:
+        return false
+      }
+    }
+
+    if let toolchain = self.default, supportsLang(toolchain) {
+      return toolchain
+    }
+
+    for toolchain in toolchains {
+      if supportsLang(toolchain) {
+        return toolchain
+      }
+    }
+
+    return nil
   }
 }
 

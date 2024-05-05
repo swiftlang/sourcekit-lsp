@@ -11,10 +11,10 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import IndexStoreDB
 import LSPLogging
 import LanguageServerProtocol
 import SKCore
+import SemanticIndex
 
 extension UncheckedIndex {
   public func mainFilesContainingFile(_ uri: DocumentURI) -> Set<DocumentURI> {

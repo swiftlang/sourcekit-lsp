@@ -13,6 +13,7 @@
 import Foundation
 import LanguageServerProtocol
 @_spi(Testing) import SKCore
+import SourceKitLSP
 import TSCBasic
 
 public class SwiftPMTestProject: MultiFileTestProject {
@@ -41,6 +42,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
     workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
     build: Bool = false,
     allowBuildFailure: Bool = false,
+    serverOptions: SourceKitLSPServer.Options = .testDefault,
     usePullDiagnostics: Bool = true,
     testName: String = #function
   ) async throws {
@@ -63,6 +65,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
     try await super.init(
       files: filesByPath,
       workspaces: workspaces,
+      serverOptions: serverOptions,
       usePullDiagnostics: usePullDiagnostics,
       testName: testName
     )

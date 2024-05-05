@@ -13,7 +13,7 @@
 import BuildServerProtocol
 import LSPTestSupport
 import LanguageServerProtocol
-import SKCore
+@_spi(Testing) import SKCore
 import TSCBasic
 import XCTest
 
@@ -37,7 +37,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: nil,
       fallbackBuildSystem: FallbackBuildSystem(buildSetup: .default),
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
 
@@ -88,13 +89,14 @@ final class BuildSystemManagerTests: XCTestCase {
   }
 
   func testSettingsMainFile() async throws {
-    let a = try try DocumentURI(string: "bsm:a.swift")
+    let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
     let bs = ManualBuildSystem()
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -117,7 +119,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -139,7 +142,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: fallback,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -168,7 +172,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -208,7 +213,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -246,7 +252,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -300,7 +307,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -341,7 +349,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -383,7 +392,8 @@ final class BuildSystemManagerTests: XCTestCase {
     let bsm = await BuildSystemManager(
       buildSystem: bs,
       fallbackBuildSystem: nil,
-      mainFilesProvider: mainFiles
+      mainFilesProvider: mainFiles,
+      toolchainRegistry: ToolchainRegistry.forTesting
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
@@ -439,6 +449,10 @@ class ManualBuildSystem: BuildSystem {
     return map[uri]
   }
 
+  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+    return nil
+  }
+
   func registerForChangeNotifications(for uri: DocumentURI) async {
   }
 
@@ -459,11 +473,11 @@ class ManualBuildSystem: BuildSystem {
     }
   }
 
-  func testFiles() async -> [DocumentURI] {
+  func sourceFiles() async -> [SourceFileInfo] {
     return []
   }
 
-  func addTestFilesDidChangeCallback(_ callback: @escaping () async -> Void) {}
+  func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {}
 }
 
 /// A `BuildSystemDelegate` setup for testing.

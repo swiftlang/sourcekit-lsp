@@ -21,9 +21,6 @@
 
 import Foundation
 
-/// The subsystem that should be used for any logging by default.
-public let subsystem = "org.swift.sourcekit-lsp"
-
 #if canImport(os) && !SOURCEKITLSP_FORCE_NON_DARWIN_LOGGER
 import os  // os_log
 
@@ -44,5 +41,5 @@ public typealias Signposter = NonDarwinSignposter
 
 /// The logger that is used to log any messages.
 public var logger: Logger {
-  Logger(subsystem: subsystem, category: LoggingScope.scope)
+  Logger(subsystem: LoggingScope.subsystem, category: LoggingScope.scope)
 }

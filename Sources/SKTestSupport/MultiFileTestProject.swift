@@ -13,6 +13,7 @@
 import Foundation
 import LanguageServerProtocol
 import SKCore
+import SourceKitLSP
 
 /// The location of a test file within test workspace.
 public struct RelativeFileLocation: Hashable, ExpressibleByStringLiteral {
@@ -79,6 +80,7 @@ public class MultiFileTestProject {
   public init(
     files: [RelativeFileLocation: String],
     workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
+    serverOptions: SourceKitLSPServer.Options = .testDefault,
     usePullDiagnostics: Bool = true,
     testName: String = #function
   ) async throws {
@@ -109,6 +111,7 @@ public class MultiFileTestProject {
     self.fileData = fileData
 
     self.testClient = try await TestSourceKitLSPClient(
+      serverOptions: serverOptions,
       usePullDiagnostics: usePullDiagnostics,
       workspaceFolders: workspaces(scratchDirectory),
       cleanUp: { [scratchDirectory] in

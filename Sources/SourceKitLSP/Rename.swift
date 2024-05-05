@@ -14,6 +14,7 @@ import IndexStoreDB
 import LSPLogging
 import LanguageServerProtocol
 import SKSupport
+import SemanticIndex
 import SourceKitD
 import SwiftSyntax
 

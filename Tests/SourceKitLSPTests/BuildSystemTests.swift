@@ -43,6 +43,10 @@ final class TestBuildSystem: BuildSystem {
     return buildSettingsByFile[document]
   }
 
+  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+    return nil
+  }
+
   func registerForChangeNotifications(for uri: DocumentURI) async {
     watchedFiles.insert(uri)
   }
@@ -61,11 +65,11 @@ final class TestBuildSystem: BuildSystem {
     }
   }
 
-  func testFiles() async -> [DocumentURI] {
+  func sourceFiles() async -> [SourceFileInfo] {
     return []
   }
 
-  func addTestFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {}
+  func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) async {}
 }
 
 final class BuildSystemTests: XCTestCase {
@@ -101,7 +105,7 @@ final class BuildSystemTests: XCTestCase {
       rootUri: nil,
       capabilityRegistry: CapabilityRegistry(clientCapabilities: ClientCapabilities()),
       toolchainRegistry: ToolchainRegistry.forTesting,
-      buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+      options: SourceKitLSPServer.Options.testDefault,
       underlyingBuildSystem: buildSystem,
       index: nil,
       indexDelegate: nil
