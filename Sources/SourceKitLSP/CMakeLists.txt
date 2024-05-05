@@ -22,6 +22,7 @@ target_sources(SourceKitLSP PRIVATE
   Clang/ClangLanguageService.swift)
 target_sources(SourceKitLSP PRIVATE
   Swift/AdjustPositionToStartOfIdentifier.swift
+  Swift/CodeActions/AddDocumentation.swift
   Swift/CodeActions/ConvertIntegerLiteral.swift
   Swift/CodeActions/PackageManifestEdits.swift
   Swift/CodeActions/SyntaxCodeActionProvider.swift
