@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SwiftBasicFormat
 import SwiftParser
 import SwiftRefactor
 import SwiftSyntax
@@ -49,38 +50,36 @@ public struct AddDocumentation: EditRefactoringProvider {
       return []
     }
 
-    let indentation = [.newlines(1)] + syntax.leadingTrivia.lastLineIndentation()
+    let newlineAndIndentation = [.newlines(1)] + (syntax.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? [])
     var content: [TriviaPiece] = []
-    content.append(contentsOf: indentation)
+    content += newlineAndIndentation
     content.append(.docLineComment("/// A description"))
 
     if let parameters = syntax.parameters?.parameters {
       if let onlyParam = parameters.only {
         let paramToken = onlyParam.secondName?.text ?? onlyParam.firstName.text
-        content.append(contentsOf: indentation)
+        content += newlineAndIndentation
         content.append(.docLineComment("/// - Parameter \(paramToken):"))
       } else {
-        content.append(contentsOf: indentation)
+        content += newlineAndIndentation
         content.append(.docLineComment("/// - Parameters:"))
-        content.append(
-          contentsOf: parameters.flatMap({ param in
-            indentation + [
-              .docLineComment("///   - \(param.secondName?.text ?? param.firstName.text):")
-            ]
-          })
-        )
-        content.append(contentsOf: indentation)
+        content += parameters.flatMap({ param in
+          newlineAndIndentation + [
+            .docLineComment("///   - \(param.secondName?.text ?? param.firstName.text):")
+          ]
+        })
+        content += newlineAndIndentation
         content.append(.docLineComment("///"))
       }
     }
 
     if syntax.throwsKeyword != nil {
-      content.append(contentsOf: indentation)
+      content += newlineAndIndentation
       content.append(.docLineComment("/// - Throws:"))
     }
 
     if syntax.returnType != nil {
-      content.append(contentsOf: indentation)
+      content += newlineAndIndentation
       content.append(.docLineComment("/// - Returns:"))
     }
 
@@ -140,17 +139,5 @@ extension DeclSyntax {
     default:
       return nil
     }
-  }
-}
-
-extension Trivia {
-  /// Produce trivia from the last newline to the end, dropping anything
-  /// prior to that.
-  fileprivate func lastLineIndentation() -> Trivia {
-    guard let lastNewline = pieces.lastIndex(where: { $0.isNewline }) else {
-      return self
-    }
-
-    return Trivia(pieces: pieces[(lastNewline + 1)...])
   }
 }
