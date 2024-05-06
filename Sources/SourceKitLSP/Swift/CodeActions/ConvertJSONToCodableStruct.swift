@@ -78,6 +78,9 @@ public struct ConvertJSONToCodableStruct: EditRefactoringProvider {
       /// We're only going to look at the text of the closure to see if we
       /// have JSON in there.
       text = closure.trimmedDescription
+    case let .endingClosure(closure, unexpected):
+      text = closure.trimmedDescription + unexpected.description
+
     case .stringLiteral(_, let literalText):
       /// A string literal that could contain JSON within it.
       text = literalText
@@ -108,6 +111,15 @@ public struct ConvertJSONToCodableStruct: EditRefactoringProvider {
       return [
         SourceEdit(range: closure.trimmedRange, replacement: decls.description)
       ]
+    case .endingClosure(let closure, let unexpected):
+      // Closures are replaced entirely, since they were invalid code to
+      // start with.
+      return [
+        SourceEdit(
+          range: closure.positionAfterSkippingLeadingTrivia..<unexpected.endPosition,
+          replacement: decls.description
+        )
+      ]
     case .stringLiteral(let literal, _):
       /// Leave the string literal in place (it might be there for testing
       /// purposes), and put the newly-created structs afterward.
@@ -129,6 +141,10 @@ extension ConvertJSONToCodableStruct {
     /// into Swift.
     case closure(ClosureExprSyntax)
 
+    /// A closure with a bunch of unexpected nodes following it, which is what
+    /// a big JSON dictionary looks like when pasted into Swift.
+    case endingClosure(ClosureExprSyntax, UnexpectedNodesSyntax)
+
     /// A string literal that may contain JSON.
     case stringLiteral(StringLiteralExprSyntax, String)
   }
@@ -141,6 +157,11 @@ extension ConvertJSONToCodableStruct {
     // closure due to the curly braces. The internals might be a syntactic
     // disaster, but we don't actually care.
     if let closure = syntax.as(ClosureExprSyntax.self) {
+      if let file = closure.parent?.parent?.parent?.as(SourceFileSyntax.self),
+        let unexpected = file.unexpectedBetweenStatementsAndEndOfFileToken
+      {
+        return .endingClosure(closure, unexpected)
+      }
       return .closure(closure)
     }
 
