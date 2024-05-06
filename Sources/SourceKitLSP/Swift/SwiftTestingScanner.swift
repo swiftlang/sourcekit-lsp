@@ -201,7 +201,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     let visitor = SyntacticSwiftTestingTestScanner(snapshot: snapshot, allTestsDisabled: false, parentTypeNames: [])
     visitor.walk(syntaxTree)
-    return visitor.result
+    return visitor.result.mergeTestsInExtensions()
   }
 
   /// Visit a class/struct/... or extension declaration.

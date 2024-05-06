@@ -357,7 +357,7 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     let visitor = SyntacticSwiftXCTestScanner(snapshot: snapshot)
     visitor.walk(syntaxTree)
-    return visitor.result
+    return visitor.result.mergeTestsInExtensions()
   }
 
   private func findTestMethods(in members: MemberBlockItemListSyntax, containerName: String) -> [TestItem] {
@@ -459,6 +459,45 @@ extension TestItem {
     var test = self
     test.children = test.children.compactMap { $0.filterUsing(semanticSymbols: semanticSymbols) }
     return test
+  }
+}
+
+extension Collection where Element == TestItem {
+  /// Walks the TestItem tree of each item in the collection and merges orphaned leaf nodes
+  /// into their parent, if a parent exists.
+  ///
+  /// A node's parent is identified by the node's ID with the last component dropped.
+  func mergeTestsInExtensions() -> [TestItem] {
+    var itemDict: [String: TestItem] = [:]
+    for item in self {
+      if var existingItem = itemDict[item.id] {
+        existingItem.children = (existingItem.children + item.children)
+        itemDict[item.id] = existingItem
+      } else {
+        itemDict[item.id] = item
+      }
+    }
+
+    for item in self {
+      let parentID = item.id.components(separatedBy: "/").dropLast().joined(separator: "/")
+      // If the parent exists, add the current item to its children and remove it from the root
+      if var parent = itemDict[parentID] {
+        parent.children.append(item)
+        itemDict[parent.id] = parent
+        itemDict[item.id] = nil
+      }
+    }
+
+    // Filter out the items that have been merged into their parents, sorting the tests by location
+    var reorganizedItems = itemDict.values.compactMap { $0 }.sorted { $0.location < $1.location }
+
+    reorganizedItems = reorganizedItems.map({
+      var newItem = $0
+      newItem.children = $0.children.mergeTestsInExtensions()
+      return newItem
+    })
+
+    return reorganizedItems
   }
 }
 
