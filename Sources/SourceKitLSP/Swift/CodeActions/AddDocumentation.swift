@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SwiftBasicFormat
 import SwiftParser
 import SwiftRefactor
 import SwiftSyntax
@@ -49,38 +50,36 @@ public struct AddDocumentation: EditRefactoringProvider {
       return []
     }
 
-    let indentation = [.newlines(1)] + syntax.leadingTrivia.lastLineIndentation()
+    let newlineAndIndentation = [.newlines(1)] + (syntax.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? [])
     var content: [TriviaPiece] = []
-    content.append(contentsOf: indentation)
+    content += newlineAndIndentation
     content.append(.docLineComment("/// A description"))
 
     if let parameters = syntax.parameters?.parameters {
       if let onlyParam = parameters.only {
         let paramToken = onlyParam.secondName?.text ?? onlyParam.firstName.text
-        content.append(contentsOf: indentation)
+        content += newlineAndIndentation
         content.append(.docLineComment("/// - Parameter \(paramToken):"))
       } else {
-        content.append(contentsOf: indentation)
+        content += newlineAndIndentation
         content.append(.docLineComment("/// - Parameters:"))
-        content.append(
-          contentsOf: parameters.flatMap({ param in
-            indentation + [
-              .docLineComment("///   - \(param.secondName?.text ?? param.firstName.text):")
-            ]
-          })
-        )
-        content.append(contentsOf: indentation)
+        content += parameters.flatMap({ param in
+          newlineAndIndentation + [
+            .docLineComment("///   - \(param.secondName?.text ?? param.firstName.text):")
+          ]
+        })
+        content += newlineAndIndentation
         content.append(.docLineComment("///"))
       }
     }
 
     if syntax.throwsKeyword != nil {
-      content.append(contentsOf: indentation)
+      content += newlineAndIndentation
       content.append(.docLineComment("/// - Throws:"))
     }
 
     if syntax.returnType != nil {
-      content.append(contentsOf: indentation)
+      content += newlineAndIndentation
       content.append(.docLineComment("/// - Returns:"))
     }
 
@@ -100,57 +99,43 @@ extension AddDocumentation: SyntaxRefactoringCodeActionProvider {
 
 extension DeclSyntax {
   fileprivate var parameters: FunctionParameterClauseSyntax? {
-    switch self.syntaxNodeType {
-    case is FunctionDeclSyntax.Type:
-      return self.as(FunctionDeclSyntax.self)!.signature.parameterClause
-    case is SubscriptDeclSyntax.Type:
-      return self.as(SubscriptDeclSyntax.self)!.parameterClause
-    case is InitializerDeclSyntax.Type:
-      return self.as(InitializerDeclSyntax.self)!.signature.parameterClause
-    case is MacroDeclSyntax.Type:
-      return self.as(MacroDeclSyntax.self)!.signature.parameterClause
+    switch self.as(DeclSyntaxEnum.self) {
+    case .functionDecl(let functionDecl):
+      return functionDecl.signature.parameterClause
+    case .subscriptDecl(let subscriptDecl):
+      return subscriptDecl.parameterClause
+    case .initializerDecl(let initializer):
+      return initializer.signature.parameterClause
+    case .macroDecl(let macro):
+      return macro.signature.parameterClause
     default:
       return nil
     }
   }
 
   fileprivate var throwsKeyword: TokenSyntax? {
-    switch self.syntaxNodeType {
-    case is FunctionDeclSyntax.Type:
-      return self.as(FunctionDeclSyntax.self)!.signature.effectSpecifiers?
-        .throwsClause?.throwsSpecifier
-    case is InitializerDeclSyntax.Type:
-      return self.as(InitializerDeclSyntax.self)!.signature.effectSpecifiers?
-        .throwsClause?.throwsSpecifier
+    switch self.as(DeclSyntaxEnum.self) {
+    case .functionDecl(let functionDecl):
+      return functionDecl.signature.effectSpecifiers?.throwsClause?.throwsSpecifier
+    case .initializerDecl(let initializer):
+      return initializer.signature.effectSpecifiers?.throwsClause?.throwsSpecifier
     default:
       return nil
     }
   }
 
   fileprivate var returnType: TypeSyntax? {
-    switch self.syntaxNodeType {
-    case is FunctionDeclSyntax.Type:
-      return self.as(FunctionDeclSyntax.self)!.signature.returnClause?.type
-    case is SubscriptDeclSyntax.Type:
-      return self.as(SubscriptDeclSyntax.self)!.returnClause.type
-    case is InitializerDeclSyntax.Type:
-      return self.as(InitializerDeclSyntax.self)!.signature.returnClause?.type
-    case is MacroDeclSyntax.Type:
-      return self.as(MacroDeclSyntax.self)!.signature.returnClause?.type
+    switch self.as(DeclSyntaxEnum.self) {
+    case .functionDecl(let functionDecl):
+      return functionDecl.signature.returnClause?.type
+    case .subscriptDecl(let subscriptDecl):
+      return subscriptDecl.returnClause.type
+    case .initializerDecl(let initializer):
+      return initializer.signature.returnClause?.type
+    case .macroDecl(let macro):
+      return macro.signature.returnClause?.type
     default:
       return nil
     }
-  }
-}
-
-extension Trivia {
-  /// Produce trivia from the last newline to the end, dropping anything
-  /// prior to that.
-  fileprivate func lastLineIndentation() -> Trivia {
-    guard let lastNewline = pieces.lastIndex(where: { $0.isNewline }) else {
-      return self
-    }
-
-    return Trivia(pieces: pieces[(lastNewline + 1)...])
   }
 }
