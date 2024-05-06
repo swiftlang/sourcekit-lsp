@@ -99,43 +99,41 @@ extension AddDocumentation: SyntaxRefactoringCodeActionProvider {
 
 extension DeclSyntax {
   fileprivate var parameters: FunctionParameterClauseSyntax? {
-    switch self.syntaxNodeType {
-    case is FunctionDeclSyntax.Type:
-      return self.as(FunctionDeclSyntax.self)!.signature.parameterClause
-    case is SubscriptDeclSyntax.Type:
-      return self.as(SubscriptDeclSyntax.self)!.parameterClause
-    case is InitializerDeclSyntax.Type:
-      return self.as(InitializerDeclSyntax.self)!.signature.parameterClause
-    case is MacroDeclSyntax.Type:
-      return self.as(MacroDeclSyntax.self)!.signature.parameterClause
+    switch self.as(DeclSyntaxEnum.self) {
+    case .functionDecl(let functionDecl):
+      return functionDecl.signature.parameterClause
+    case .subscriptDecl(let subscriptDecl):
+      return subscriptDecl.parameterClause
+    case .initializerDecl(let initializer):
+      return initializer.signature.parameterClause
+    case .macroDecl(let macro):
+      return macro.signature.parameterClause
     default:
       return nil
     }
   }
 
   fileprivate var throwsKeyword: TokenSyntax? {
-    switch self.syntaxNodeType {
-    case is FunctionDeclSyntax.Type:
-      return self.as(FunctionDeclSyntax.self)!.signature.effectSpecifiers?
-        .throwsClause?.throwsSpecifier
-    case is InitializerDeclSyntax.Type:
-      return self.as(InitializerDeclSyntax.self)!.signature.effectSpecifiers?
-        .throwsClause?.throwsSpecifier
+    switch self.as(DeclSyntaxEnum.self) {
+    case .functionDecl(let functionDecl):
+      return functionDecl.signature.effectSpecifiers?.throwsClause?.throwsSpecifier
+    case .initializerDecl(let initializer):
+      return initializer.signature.effectSpecifiers?.throwsClause?.throwsSpecifier
     default:
       return nil
     }
   }
 
   fileprivate var returnType: TypeSyntax? {
-    switch self.syntaxNodeType {
-    case is FunctionDeclSyntax.Type:
-      return self.as(FunctionDeclSyntax.self)!.signature.returnClause?.type
-    case is SubscriptDeclSyntax.Type:
-      return self.as(SubscriptDeclSyntax.self)!.returnClause.type
-    case is InitializerDeclSyntax.Type:
-      return self.as(InitializerDeclSyntax.self)!.signature.returnClause?.type
-    case is MacroDeclSyntax.Type:
-      return self.as(MacroDeclSyntax.self)!.signature.returnClause?.type
+    switch self.as(DeclSyntaxEnum.self) {
+    case .functionDecl(let functionDecl):
+      return functionDecl.signature.returnClause?.type
+    case .subscriptDecl(let subscriptDecl):
+      return subscriptDecl.returnClause.type
+    case .initializerDecl(let initializer):
+      return initializer.signature.returnClause?.type
+    case .macroDecl(let macro):
+      return macro.signature.returnClause?.type
     default:
       return nil
     }
