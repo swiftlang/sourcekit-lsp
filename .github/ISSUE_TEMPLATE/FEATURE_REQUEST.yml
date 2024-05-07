@@ -1,0 +1,13 @@
+name: Feature Request
+description: A suggestion for a new feature
+labels: [enhancement]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: |
+        A description of your proposed feature.
+        Examples that show what's missing, or what new capabilities will be possible, are very helpful!
+        If this feature unlocks new use-cases please describe them.
+        Provide links to existing issues or external references/discussions, if appropriate.
