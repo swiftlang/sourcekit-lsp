@@ -211,6 +211,7 @@ public actor SwiftPMBuildSystem {
 
     self.modulesGraph = try ModulesGraph(
       rootPackages: [],
+      packages: IdentifiableSet(),
       dependencies: [],
       binaryArtifacts: [:]
     )
