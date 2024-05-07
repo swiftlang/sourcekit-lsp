@@ -463,8 +463,19 @@ extension TestItem {
 }
 
 extension Collection where Element == TestItem {
-  /// Walks the TestItem tree of each item in the collection and merges orphaned leaf nodes
-  /// into their parent, if a parent exists.
+  /// When the test scanners discover tests in extensions they are captured in their own parent `TestItem`, not the
+  /// `TestItem` generated from the class/struct's definition. This is largely because of the syntatic nature of the
+  /// test scanners as they are today, which only know about tests within the context of the current file. Extensions
+  /// defined in separate files must be organized in their own `TestItem` since at the time of their creation there
+  /// isn't enough information to connect them back to the tests defined in the main type definition.
+  ///
+  /// This is a more syntatic than semantic view of the `TestItem` hierarchy than the end user likely wants.
+  /// If we think of the enclosing class or struct as the test suite, then extensions on that class or struct should be
+  /// additions to that suite, just like extensions on types are, from the user's perspective, transparently added to
+  /// their type.
+  ///
+  /// This method walks the `TestItem` tree produced by the test scanners and merges in the tests defined in extensions
+  /// into the `TestItem` that represents the type definition.
   ///
   /// A node's parent is identified by the node's ID with the last component dropped.
   func mergeTestsInExtensions() -> [TestItem] {
