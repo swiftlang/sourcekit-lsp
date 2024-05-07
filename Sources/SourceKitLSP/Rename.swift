@@ -817,6 +817,7 @@ extension SourceKitLSPServer {
             newName: newName
           )
         }
+        edits = edits.filter { !$0.isNoOp(in: snapshot) }
         return (uri, edits)
       }.compactMap { $0 }
     for (uri, editsForUri) in urisAndEdits {
@@ -1116,7 +1117,11 @@ extension SwiftLanguageService {
         )
       }
     }
+    edits = edits.filter { !$0.isNoOp(in: snapshot) }
 
+    if edits.isEmpty {
+      return (edits: WorkspaceEdit(changes: [:]), usr: usr)
+    }
     return (edits: WorkspaceEdit(changes: [snapshot.uri: edits]), usr: usr)
   }
 
@@ -1483,5 +1488,15 @@ fileprivate extension RelatedIdentifiersResponse {
       let utf8Column = snapshot.lineTable.utf8ColumnAt(line: position.line, utf16Column: position.utf16index)
       return RenameLocation(line: position.line + 1, utf8Column: utf8Column + 1, usage: relatedIdentifier.usage)
     }
+  }
+}
+
+fileprivate extension TextEdit {
+  /// Returns `true` the replaced text is the same as the new text
+  func isNoOp(in snapshot: DocumentSnapshot) -> Bool {
+    if snapshot.text[snapshot.indexRange(of: range)] == newText {
+      return true
+    }
+    return false
   }
 }

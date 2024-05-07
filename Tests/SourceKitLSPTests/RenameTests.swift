@@ -1236,4 +1236,26 @@ final class RenameTests: XCTestCase {
         """
     )
   }
+
+  func testRenameDoesNotReportEditsIfNoActualChangeIsMade() async throws {
+    try await SkipUnless.sourcekitdSupportsRename()
+    let project = try await SwiftPMTestProject(
+      files: [
+        "FileA.swift": """
+        func 1️⃣foo(x: Int) {}
+        """,
+        "FileB.swift": """
+        func test() {
+          foo(x: 1)
+        }
+        """,
+      ],
+      build: true
+    )
+    let (uri, positions) = try project.openDocument("FileA.swift")
+    let result = try await project.testClient.send(
+      RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"], newName: "foo(x:)")
+    )
+    XCTAssertEqual(result?.changes, [:])
+  }
 }
