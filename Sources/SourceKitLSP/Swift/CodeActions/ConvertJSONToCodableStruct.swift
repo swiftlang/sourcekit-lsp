@@ -110,7 +110,10 @@ public struct ConvertJSONToCodableStruct: EditRefactoringProvider {
       // Closures are replaced entirely, since they were invalid code to
       // start with.
       return [
-        SourceEdit(range: closure.trimmedRange, replacement: decls.description)
+        SourceEdit(
+          range: closure.positionAfterSkippingLeadingTrivia..<closure.endPositionBeforeTrailingTrivia,
+          replacement: decls.description
+        )
       ]
     case .endingClosure(let closure, let unexpected):
       // Closures are replaced entirely, since they were invalid code to
