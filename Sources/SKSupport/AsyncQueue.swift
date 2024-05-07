@@ -144,7 +144,7 @@ public final class AsyncQueue<TaskMetadata: DependencyTracker>: Sendable {
       let dependencies: [PendingTask] = tasks.filter { $0.metadata.isDependency(of: metadata) }
 
       // Schedule the task.
-      let task = Task { [pendingTasks] in
+      let task = Task(priority: priority) { [pendingTasks] in
         // IMPORTANT: The only throwing call in here must be the call to
         // operation. Otherwise the assumption that the task will never throw
         // if `operation` does not throw, which we are making in `async` does

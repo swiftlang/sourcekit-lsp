@@ -11,6 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import BuildServerProtocol
+import CAtomics
 import Dispatch
 import Foundation
 import IndexStoreDB
@@ -20,6 +21,7 @@ import PackageLoading
 import SKCore
 import SKSupport
 import SKSwiftPMWorkspace
+import SemanticIndex
 import SourceKitD
 
 import struct PackageModel.BuildFlags
@@ -653,32 +655,6 @@ public actor SourceKitLSPServer {
     return try await client.send(request)
   }
 
-  func toolchain(for uri: DocumentURI, _ language: Language) async -> Toolchain? {
-    let supportsLang = { (toolchain: Toolchain) -> Bool in
-      // FIXME: the fact that we're looking at clangd/sourcekitd instead of the compiler indicates this method needs a parameter stating what kind of tool we're looking for.
-      switch language {
-      case .swift:
-        return toolchain.sourcekitd != nil
-      case .c, .cpp, .objective_c, .objective_cpp:
-        return toolchain.clangd != nil
-      default:
-        return false
-      }
-    }
-
-    if let toolchain = await toolchainRegistry.default, supportsLang(toolchain) {
-      return toolchain
-    }
-
-    for toolchain in await toolchainRegistry.toolchains {
-      if supportsLang(toolchain) {
-        return toolchain
-      }
-    }
-
-    return nil
-  }
-
   /// After the language service has crashed, send `DidOpenTextDocumentNotification`s to a newly instantiated language service for previously open documents.
   func reopenDocuments(for languageService: LanguageService) async {
     for documentUri in self.documentManager.openDocuments {
@@ -815,7 +791,7 @@ public actor SourceKitLSPServer {
       return service
     }
 
-    guard let toolchain = await toolchain(for: uri, language),
+    guard let toolchain = await workspace.buildSystemManager.toolchain(for: uri, language),
       let service = await languageService(for: toolchain, language, in: workspace)
     else {
       return nil
@@ -837,19 +813,7 @@ public actor SourceKitLSPServer {
 
 // MARK: - MessageHandler
 
-private let notificationIDForLoggingLock = NSLock()
-private var notificationIDForLogging: Int = 0
-
-/// On every call, returns a new unique number that can be used to identify a notification.
-///
-/// This is needed so we can consistently refer to a notification using the `category` of the logger.
-/// Requests don't need this since they already have a unique ID in the LSP protocol.
-private func getNextNotificationIDForLogging() -> Int {
-  return notificationIDForLoggingLock.withLock {
-    notificationIDForLogging += 1
-    return notificationIDForLogging
-  }
-}
+private var notificationIDForLogging = AtomicUInt32(initialValue: 1)
 
 extension SourceKitLSPServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType) {
@@ -860,9 +824,10 @@ extension SourceKitLSPServer: MessageHandler {
       self.cancelRequest(params)
     }
 
-    let notificationID = getNextNotificationIDForLogging()
+    let notificationID = notificationIDForLogging.fetchAndIncrement()
 
-    let signposter = Logger(subsystem: subsystem, category: "notification-\(notificationID)").makeSignposter()
+    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "notification-\(notificationID)")
+      .makeSignposter()
     let signpostID = signposter.makeSignpostID()
     let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: params))")
     messageHandlingQueue.async(metadata: TaskMetadata(params)) {
@@ -911,7 +876,7 @@ extension SourceKitLSPServer: MessageHandler {
     id: RequestID,
     reply: @escaping (LSPResult<R.Response>) -> Void
   ) {
-    let signposter = Logger(subsystem: subsystem, category: "request-\(id)").makeSignposter()
+    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "request-\(id)").makeSignposter()
     let signpostID = signposter.makeSignpostID()
     let state = signposter.beginInterval("Request", id: signpostID, "\(R.self)")
 
@@ -970,7 +935,7 @@ extension SourceKitLSPServer: MessageHandler {
       }
     }
 
-    logger.log("Received request: \(params.forLogging)")
+    logger.log("Received request \(id): \(params.forLogging)")
 
     switch request {
     case let request as RequestAndReply<InitializeRequest>:
@@ -1177,13 +1142,14 @@ extension SourceKitLSPServer {
       logger.log("Cannot open workspace before server is initialized")
       return nil
     }
-    let workspaceBuildSetup = self.buildSetup(for: workspaceFolder)
+    var options = self.options
+    options.buildSetup = self.options.buildSetup.merging(buildSetup(for: workspaceFolder))
     return try? await Workspace(
       documentManager: self.documentManager,
       rootUri: workspaceFolder.uri,
       capabilityRegistry: capabilityRegistry,
       toolchainRegistry: self.toolchainRegistry,
-      buildSetup: self.options.buildSetup.merging(workspaceBuildSetup),
+      options: options,
       compilationDatabaseSearchPaths: self.options.compilationDatabaseSearchPaths,
       indexOptions: self.options.indexOptions,
       reloadPackageStatusCallback: { [weak self] status in
@@ -1251,7 +1217,7 @@ extension SourceKitLSPServer {
           rootUri: req.rootURI,
           capabilityRegistry: self.capabilityRegistry!,
           toolchainRegistry: self.toolchainRegistry,
-          buildSetup: self.options.buildSetup,
+          options: self.options,
           underlyingBuildSystem: nil,
           index: nil,
           indexDelegate: nil

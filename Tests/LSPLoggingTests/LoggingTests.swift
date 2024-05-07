@@ -25,7 +25,7 @@ fileprivate func assertLogging(
   // nonisolated(unsafe) because calls of `assertLogging` do not log to `logHandler` concurrently.
   nonisolated(unsafe) var messages: [String] = []
   let logger = NonDarwinLogger(
-    subsystem: subsystem,
+    subsystem: LoggingScope.subsystem,
     category: "test",
     logLevel: logLevel,
     privacyLevel: privacyLevel,
@@ -75,7 +75,7 @@ final class LoggingTests: XCTestCase {
     // nonisolated(unsafe) because we only have a single call to `logger.log` and that cannot race.
     nonisolated(unsafe) var message: String = ""
     let logger = NonDarwinLogger(
-      subsystem: subsystem,
+      subsystem: LoggingScope.subsystem,
       category: "test",
       logHandler: {
         message = $0

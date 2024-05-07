@@ -1,0 +1,12 @@
+# This source file is part of the Swift.org open source project
+ #
+ # Copyright (c) 2024 Apple Inc. and the Swift project authors
+ # Licensed under Apache License v2.0 with Runtime Library Exception
+ #
+ # See https://swift.org/LICENSE.txt for license information
+ # See https://swift.org/CONTRIBUTORS.txt for Swift project authors
+
+ contact_links:
+   - name: Discussion Forum
+     url: https://forums.swift.org/c/development/sourcekit-lsp
+     about: Ask and answer questions about SourceKit-LSP
