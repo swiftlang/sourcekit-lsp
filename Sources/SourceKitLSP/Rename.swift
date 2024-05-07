@@ -995,6 +995,24 @@ extension SwiftLanguageService {
     return nil
   }
 
+  /// Returns `true` if the given position is inside an `EnumCaseDeclSyntax`.
+  fileprivate func isInsideEnumCaseDecl(position: Position, snapshot: DocumentSnapshot) async -> Bool {
+    let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
+    var node = Syntax(syntaxTree.token(at: snapshot.absolutePosition(of: position)))
+
+    while let parent = node?.parent {
+      if parent.is(EnumCaseDeclSyntax.self) {
+        return true
+      }
+      if parent.is(MemberBlockItemSyntax.self) || parent.is(CodeBlockItemSyntax.self) {
+        // `MemberBlockItemSyntax` and `CodeBlockItemSyntax` can't be nested inside an EnumCaseDeclSyntax. Early exit.
+        return false
+      }
+      node = parent
+    }
+    return false
+  }
+
   /// When the user requested a rename at `position` in `snapshot`, determine the position at which the rename should be
   /// performed internally, the USR of the symbol to rename and the range to rename that should be returned to the
   /// editor.
@@ -1013,9 +1031,9 @@ extension SwiftLanguageService {
   /// For example, `position` could point to the definition of a function within the file when rename was initiated on
   /// a call.
   ///
-  /// If a `range` is returned, this is an expanded range that contains both the symbol to rename as well as the
-  /// position at which the rename was requested. For example, when rename was initiated from the argument label of a
-  /// function call, the `range` will contain the entire function call from the base name to the closing `)`.
+  /// If a `functionLikeRange` is returned, this is an expanded range that contains both the symbol to rename as well
+  /// as the position at which the rename was requested. For example, when rename was initiated from the argument label
+  /// of a function call, the `range` will contain the entire function call from the base name to the closing `)`.
   func symbolToRename(
     at position: Position,
     in snapshot: DocumentSnapshot
@@ -1069,8 +1087,17 @@ extension SwiftLanguageService {
 
     try Task.checkCancellation()
 
+    var requestedNewName = request.newName
+    if let openParenIndex = requestedNewName.firstIndex(of: "("),
+      await isInsideEnumCaseDecl(position: renamePosition, snapshot: snapshot)
+    {
+      // We don't support renaming enum parameter labels at the moment
+      // (https://github.com/apple/sourcekit-lsp/issues/1228)
+      requestedNewName = String(requestedNewName[..<openParenIndex])
+    }
+
     let oldName = CrossLanguageName(clangName: nil, swiftName: oldNameString, definitionLanguage: .swift)
-    let newName = CrossLanguageName(clangName: nil, swiftName: request.newName, definitionLanguage: .swift)
+    let newName = CrossLanguageName(clangName: nil, swiftName: requestedNewName, definitionLanguage: .swift)
     var edits = try await editsToRename(
       locations: renameLocations,
       in: snapshot,
@@ -1358,6 +1385,13 @@ extension SwiftLanguageService {
     }
     if name.hasSuffix("()") {
       name = String(name.dropLast(2))
+    }
+    if let openParenIndex = name.firstIndex(of: "("),
+      await isInsideEnumCaseDecl(position: renamePosition, snapshot: snapshot)
+    {
+      // We don't support renaming enum parameter labels at the moment
+      // (https://github.com/apple/sourcekit-lsp/issues/1228)
+      name = String(name[..<openParenIndex])
     }
     guard let relatedIdentRange = response.relatedIdentifiers.first(where: { $0.range.contains(renamePosition) })?.range
     else {
