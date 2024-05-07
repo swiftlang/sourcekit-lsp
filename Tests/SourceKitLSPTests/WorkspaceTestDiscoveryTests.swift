@@ -908,4 +908,136 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     XCTAssertFalse(testsAfterEdit.contains { $0.label == "NotQuiteTest" })
     XCTAssertTrue(testsAfterEdit.contains { $0.label == "OtherNotQuiteTest" })
   }
+
+  func testObjectiveCTestFromSemanticIndex() async throws {
+    try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/Test.m": """
+        #import <XCTest/XCTest.h>
+
+        @interface MyTests : XCTestCase
+        @end
+
+        @implementation 1️⃣MyTests
+        - (void)2️⃣testSomething {
+        }
+        @end
+        """
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [.testTarget(name: "MyLibraryTests")]
+        )
+        """,
+      build: true
+    )
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          disabled: false,
+          style: TestStyle.xcTest,
+          location: try project.location(from: "1️⃣", to: "1️⃣", in: "Test.m"),
+          children: [
+            TestItem(
+              id: "MyTests/testSomething",
+              label: "testSomething",
+              disabled: false,
+              style: TestStyle.xcTest,
+              location: try project.location(from: "2️⃣", to: "2️⃣", in: "Test.m"),
+              children: [],
+              tags: []
+            )
+          ],
+          tags: []
+        )
+      ]
+    )
+  }
+
+  func testObjectiveCTestsAfterInMemoryEdit() async throws {
+    try SkipUnless.platformIsDarwin("Non-Darwin platforms don't support Objective-C")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Tests/MyLibraryTests/Test.m": """
+        #import <XCTest/XCTest.h>
+
+        @interface MyTests : XCTestCase
+        @end
+
+        1️⃣@implementation MyTests
+        2️⃣- (void)testSomething {}3️⃣
+        0️⃣
+        @4️⃣end
+        """
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [.testTarget(name: "MyLibraryTests")]
+        )
+        """,
+      build: true
+    )
+
+    let (uri, positions) = try project.openDocument("Test.m")
+
+    project.testClient.send(
+      DidChangeTextDocumentNotification(
+        textDocument: VersionedTextDocumentIdentifier(uri, version: 2),
+        contentChanges: [
+          TextDocumentContentChangeEvent(
+            range: Range(positions["0️⃣"]),
+            text: """
+              - (void)testSomethingElse {}
+              """
+          )
+        ]
+      )
+    )
+
+    let tests = try await project.testClient.send(WorkspaceTestsRequest())
+    // Since we don't have syntactic test discovery for clang-languages, we don't discover `testSomethingElse` as a
+    // test method until we perform a build
+    XCTAssertEqual(
+      tests,
+      [
+        TestItem(
+          id: "MyTests",
+          label: "MyTests",
+          disabled: false,
+          style: TestStyle.xcTest,
+          location: Location(uri: uri, range: positions["1️⃣"]..<positions["4️⃣"]),
+          children: [
+            TestItem(
+              id: "MyTests/testSomething",
+              label: "testSomething",
+              disabled: false,
+              style: TestStyle.xcTest,
+              location: Location(uri: uri, range: positions["2️⃣"]..<positions["3️⃣"]),
+              children: [],
+              tags: []
+            )
+          ],
+          tags: []
+        )
+      ]
+    )
+  }
 }
