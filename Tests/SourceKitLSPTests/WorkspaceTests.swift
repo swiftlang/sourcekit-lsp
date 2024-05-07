@@ -161,6 +161,39 @@ final class WorkspaceTests: XCTestCase {
     )
   }
 
+  func testOpenPackageManifestInMultiSwiftPMWorkspaceSetup() async throws {
+    let project = try await MultiFileTestProject(
+      files: [
+        // PackageA
+        "PackageA/Sources/MyLibrary/libA.swift": "",
+        "PackageA/Package.swift": SwiftPMTestProject.defaultPackageManifest,
+
+        // PackageB
+        "PackageB/Sources/MyLibrary/libB.swift": "",
+        "PackageB/Package.swift": SwiftPMTestProject.defaultPackageManifest,
+      ],
+      workspaces: { scratchDir in
+        return [
+          WorkspaceFolder(uri: DocumentURI(scratchDir)),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageA"))),
+          WorkspaceFolder(uri: DocumentURI(scratchDir.appendingPathComponent("PackageB"))),
+        ]
+      }
+    )
+
+    let bPackageManifestUri = DocumentURI(
+      project.scratchDirectory.appendingPathComponent("PackageB").appendingPathComponent("Package.swift")
+    )
+
+    project.testClient.openDocument(SwiftPMTestProject.defaultPackageManifest, uri: bPackageManifestUri)
+
+    // Ensure that we get proper build settings for Package.swift and no error about `No such module: PackageDescription`
+    let diags = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bPackageManifestUri))
+    )
+    XCTAssertEqual(diags, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+  }
+
   func testSwiftPMPackageInSubfolder() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
 

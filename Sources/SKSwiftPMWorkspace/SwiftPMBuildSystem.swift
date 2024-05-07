@@ -315,6 +315,11 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
   public func buildSettings(for uri: DocumentURI, language: Language) throws -> FileBuildSettings? {
+    // SwiftPMBuildSystem doesn't respect the langue specified by the editor.
+    return try buildSettings(for: uri)
+  }
+
+  private func buildSettings(for uri: DocumentURI) throws -> FileBuildSettings? {
     guard let url = uri.fileURL else {
       // We can't determine build settings for non-file URIs.
       return nil
@@ -335,7 +340,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
 
     if path.extension == "h" {
-      return try settings(forHeader: path, language)
+      return try settings(forHeader: path)
     }
 
     return nil
@@ -432,14 +437,10 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
   }
 
   public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    guard let fileUrl = uri.fileURL else {
-      return .unhandled
-    }
-    if (try? buildTarget(for: AbsolutePath(validating: fileUrl.path))) != nil {
+    if (try? buildSettings(for: uri)) != nil {
       return .handled
-    } else {
-      return .unhandled
     }
+    return .unhandled
   }
 
   public func sourceFiles() -> [SourceFileInfo] {
@@ -491,7 +492,7 @@ extension SwiftPMBuildSystem {
   /// file.
   /// This is safe because all files within one target have the same build settings except for reference to the file
   /// itself, which we are replacing.
-  private func settings(forHeader path: AbsolutePath, _ language: Language) throws -> FileBuildSettings? {
+  private func settings(forHeader path: AbsolutePath) throws -> FileBuildSettings? {
     func impl(_ path: AbsolutePath) throws -> FileBuildSettings? {
       var dir = path.parentDirectory
       while !dir.isRoot {
