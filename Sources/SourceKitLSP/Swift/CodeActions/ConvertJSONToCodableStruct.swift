@@ -88,7 +88,8 @@ public struct ConvertJSONToCodableStruct: EditRefactoringProvider {
 
     // Try to process this as JSON.
     guard
-      let object = try? JSONSerialization.jsonObject(with: text.data(using: .utf8)!),
+      let data = text.data(using: .utf8),
+      let object = try? JSONSerialization.jsonObject(with: data),
       let dictionary = object as? [String: Any]
     else {
       return []
@@ -131,12 +132,10 @@ public struct ConvertJSONToCodableStruct: EditRefactoringProvider {
       ]
     }
   }
-}
 
-extension ConvertJSONToCodableStruct {
   /// The result of preflighting a syntax node to try to find potential JSON
   /// in it.
-  enum Preflight {
+  private enum Preflight {
     /// A closure, which is what a JSON dictionary looks like when pasted
     /// into Swift.
     case closure(ClosureExprSyntax)
@@ -150,7 +149,7 @@ extension ConvertJSONToCodableStruct {
   }
 
   /// Look for either a closure or a string literal that might have JSON in it.
-  static func preflightRefactoring(_ syntax: Syntax) -> Preflight? {
+  private static func preflightRefactoring(_ syntax: Syntax) -> Preflight? {
     // Preflight a closure.
     //
     // A blob of JSON dropped into a Swift source file will look like a
@@ -166,7 +165,7 @@ extension ConvertJSONToCodableStruct {
     }
 
     // We found a string literal; its contents might be JSON.
-    if let stringLit = syntax.as(StringLiteralExprSyntax.self) {
+    if let stringLiteral = syntax.as(StringLiteralExprSyntax.self) {
       // Look for an enclosing context and prefer that, because we might have
       // a string literal that's inside a closure where the closure itself
       // is the JSON.
@@ -176,11 +175,11 @@ extension ConvertJSONToCodableStruct {
         return enclosingPreflight
       }
 
-      guard let text = stringLit.representedLiteralValue else {
+      guard let text = stringLiteral.representedLiteralValue else {
         return nil
       }
 
-      return .stringLiteral(stringLit, text)
+      return .stringLiteral(stringLiteral, text)
     }
 
     // Look further up the syntax tree.
@@ -216,9 +215,7 @@ fileprivate struct JSONObject {
   /// a JSON object
   func merging(with other: JSONObject) -> JSONObject {
     // Collect the set of all keys from both JSON objects.
-    var allKeys: Set<String> = []
-    allKeys.formUnion(fields.keys)
-    allKeys.formUnion(other.fields.keys)
+    let allKeys = Set(fields.keys).union(other.fields.keys)
 
     // Form a new JSON object containing the union of the fields
     let newFields = allKeys.map { key in
@@ -235,7 +232,7 @@ fileprivate struct JSONObject {
     let sortedFields = fields.sorted(by: { $0.key < $1.key })
 
     // Collect the nested types
-    let nestedTypes: [(String, JSONObject)] = sortedFields.compactMap { (name, type) in
+    let nestedTypes: [(name: String, type: JSONObject)] = sortedFields.compactMap { (name, type) in
       guard let object = type.innerObject else {
         return nil
       }
@@ -255,7 +252,7 @@ fileprivate struct JSONObject {
       // Print any nested types.
       for (typeName, object) in nestedTypes {
         MemberBlockItemSyntax(
-          leadingTrivia: (typeName == nestedTypes.first?.0) ? .newlines(2) : .newline,
+          leadingTrivia: (typeName == nestedTypes.first?.name) ? .newlines(2) : .newline,
           decl: object.asDeclSyntax(name: typeName)
         )
       }
@@ -298,16 +295,13 @@ fileprivate enum JSONType {
   init(value: Any) {
     switch value {
     case let string as String:
-      if string == "true" || string == "false" {
-        self = .boolean
-      } else {
-        self = .string
+      switch string {
+      case "true", "false": self = .boolean
+      default: self = .string
       }
     case is NSNumber:
       self = .number
-    case is NSArray:
-      let array = value as! [Any]
-
+    case let array as [Any]:
       // Use null as a fallback for an empty array.
       guard let firstValue = array.first else {
         self = .array(.null)
@@ -324,8 +318,8 @@ fileprivate enum JSONType {
 
     case is NSNull:
       self = .null
-    case is NSDictionary:
-      self = .object(JSONObject(dictionary: value as! [String: Any]))
+    case let dictionary as [String: Any]:
+      self = .object(JSONObject(dictionary: dictionary))
     default:
       self = .string
     }
