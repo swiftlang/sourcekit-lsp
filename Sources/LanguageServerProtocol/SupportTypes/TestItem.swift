@@ -56,12 +56,16 @@ public struct TestItem: ResponseType, Equatable {
   /// Tags associated with this test item.
   public var tags: [TestTag]
 
+  /// Whether the `TestItem` is declared in an extension.
+  public var isExtension: Bool
+
   public init(
     id: String,
     label: String,
     description: String? = nil,
     sortText: String? = nil,
     disabled: Bool,
+    isExtension: Bool,
     style: String,
     location: Location,
     children: [TestItem],
@@ -72,6 +76,7 @@ public struct TestItem: ResponseType, Equatable {
     self.description = description
     self.sortText = sortText
     self.disabled = disabled
+    self.isExtension = isExtension
     self.style = style
     self.location = location
     self.children = children

@@ -154,6 +154,7 @@ extension SourceKitLSPServer {
         id: id,
         label: testSymbolOccurrence.symbol.name,
         disabled: false,
+        isExtension: false,
         style: TestStyle.xcTest,
         location: location,
         children: children,
@@ -197,7 +198,7 @@ extension SourceKitLSPServer {
         return []
       }
       return await orLog("Getting document tests for \(uri)") {
-        try await self.documentTests(
+        try await self.getDocumentTests(
           DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)),
           workspace: workspace,
           languageService: languageService
@@ -258,6 +259,7 @@ extension SourceKitLSPServer {
       .concurrentMap { await self.tests(in: $0) }
       .flatMap { $0 }
       .sorted { $0.location < $1.location }
+      .mergingTestsInExtensions()
   }
 
   /// Extracts a flat dictionary mapping test IDs to their locations from the given `testItems`.
@@ -271,6 +273,15 @@ extension SourceKitLSPServer {
   }
 
   func documentTests(
+    _ req: DocumentTestsRequest,
+    workspace: Workspace,
+    languageService: LanguageService
+  ) async throws -> [TestItem] {
+    return try await getDocumentTests(req, workspace: workspace, languageService: languageService)
+      .mergingTestsInExtensions()
+  }
+
+  private func getDocumentTests(
     _ req: DocumentTestsRequest,
     workspace: Workspace,
     languageService: LanguageService
@@ -357,7 +368,7 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
     let visitor = SyntacticSwiftXCTestScanner(snapshot: snapshot)
     visitor.walk(syntaxTree)
-    return visitor.result.mergeTestsInExtensions()
+    return visitor.result
   }
 
   private func findTestMethods(in members: MemberBlockItemListSyntax, containerName: String) -> [TestItem] {
@@ -387,6 +398,7 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
         id: "\(containerName)/\(function.name.text)()",
         label: "\(function.name.text)()",
         disabled: false,
+        isExtension: false,
         style: TestStyle.xcTest,
         location: Location(uri: snapshot.uri, range: range),
         children: [],
@@ -418,6 +430,7 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
       id: node.name.text,
       label: node.name.text,
       disabled: false,
+      isExtension: false,
       style: TestStyle.xcTest,
       location: Location(uri: snapshot.uri, range: range),
       children: testMethods,
@@ -462,7 +475,7 @@ extension TestItem {
   }
 }
 
-extension Collection where Element == TestItem {
+extension Array<TestItem> {
   /// When the test scanners discover tests in extensions they are captured in their own parent `TestItem`, not the
   /// `TestItem` generated from the class/struct's definition. This is largely because of the syntatic nature of the
   /// test scanners as they are today, which only know about tests within the context of the current file. Extensions
@@ -477,16 +490,59 @@ extension Collection where Element == TestItem {
   /// This method walks the `TestItem` tree produced by the test scanners and merges in the tests defined in extensions
   /// into the `TestItem` that represents the type definition.
   ///
+  /// This causes extensions to be merged into their type's definition if the type's definition exists in the list of
+  /// test items. If the type's definition is not a test item in this collection, the first extension of that type will
+  /// be used as the primary test location.
+  ///
+  /// For example if there are two files
+  ///
+  /// FileA.swift
+  /// ```swift
+  /// @Suite struct MyTests {
+  ///   @Test func oneIsTwo {}
+  /// }
+  /// ```
+  ///
+  /// FileB.swift
+  /// ```swift
+  /// extension MyTests {
+  ///   @Test func twoIsThree() {}
+  /// }
+  /// ```
+  ///
+  /// Then `workspace/tests` will return
+  /// - `MyTests` (FileA.swift:1)
+  ///   - `oneIsTwo`
+  ///   - `twoIsThree`
+  ///
+  /// And `textDocument/tests` for FileB.swift will return
+  /// - `MyTests` (FileB.swift:1)
+  ///   - `twoIsThree`
+  ///
   /// A node's parent is identified by the node's ID with the last component dropped.
-  func mergeTestsInExtensions() -> [TestItem] {
+  func mergingTestsInExtensions() -> [TestItem] {
     var itemDict: [String: TestItem] = [:]
     for item in self {
-      if var existingItem = itemDict[item.id] {
-        existingItem.children = (existingItem.children + item.children)
-        itemDict[item.id] = existingItem
+      if var rootItem = itemDict[item.id] {
+        // If we've encountered an extension first, and this is the
+        // type declaration, then use the type declaration TestItem
+        // as the root item.
+        if rootItem.isExtension && !item.isExtension {
+          var newItem = item
+          newItem.children += rootItem.children
+          rootItem = newItem
+        } else {
+          rootItem.children += item.children
+        }
+
+        itemDict[item.id] = rootItem
       } else {
         itemDict[item.id] = item
       }
+    }
+
+    if itemDict.isEmpty {
+      return []
     }
 
     for item in self {
@@ -499,16 +555,22 @@ extension Collection where Element == TestItem {
       }
     }
 
-    // Filter out the items that have been merged into their parents, sorting the tests by location
-    var reorganizedItems = itemDict.values.compactMap { $0 }.sorted { $0.location < $1.location }
+    // Filter out the items that have been merged into their parents, sorting the tests by location.
+    // TestItems not in extensions should be priotitized first.
+    var sortedItems = itemDict.values.compactMap { $0 }.sorted {
+      ($0.location.uri != $1.location.uri && $0.isExtension != $1.isExtension) ? !$0.isExtension : ($0.location < $1.location)
+    }
 
-    reorganizedItems = reorganizedItems.map({
+    sortedItems = sortedItems.map {
+      guard !$0.children.isEmpty else {
+        return $0
+      }
       var newItem = $0
-      newItem.children = $0.children.mergeTestsInExtensions()
+      newItem.children = $0.children.mergingTestsInExtensions()
       return newItem
-    })
+    }
 
-    return reorganizedItems
+    return sortedItems
   }
 }
 

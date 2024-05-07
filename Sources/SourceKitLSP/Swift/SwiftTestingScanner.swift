@@ -163,6 +163,9 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
   /// This is the case when the scanner is looking for tests inside a disabled suite.
   private let allTestsDisabled: Bool
 
+  /// Whether the tests discovered by the scanner should be marked as being delcared in an extension.
+  private let isScanningExtension: Bool
+
   /// The names of the types that this scanner is scanning members for.
   ///
   /// For example, when scanning for tests inside `Bar` in the following, this is `["Foo", "Bar"]`
@@ -179,10 +182,16 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
   /// The discovered test items.
   private var result: [TestItem] = []
 
-  private init(snapshot: DocumentSnapshot, allTestsDisabled: Bool, parentTypeNames: [String]) {
+  private init(
+    snapshot: DocumentSnapshot,
+    allTestsDisabled: Bool,
+    isScanningExtension: Bool,
+    parentTypeNames: [String]
+  ) {
     self.snapshot = snapshot
     self.allTestsDisabled = allTestsDisabled
     self.parentTypeNames = parentTypeNames
+    self.isScanningExtension = isScanningExtension
     super.init(viewMode: .fixedUp)
   }
 
@@ -199,9 +208,14 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
       return []
     }
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    let visitor = SyntacticSwiftTestingTestScanner(snapshot: snapshot, allTestsDisabled: false, parentTypeNames: [])
+    let visitor = SyntacticSwiftTestingTestScanner(
+      snapshot: snapshot,
+      allTestsDisabled: false,
+      isScanningExtension: false,
+      parentTypeNames: []
+    )
     visitor.walk(syntaxTree)
-    return visitor.result.mergeTestsInExtensions()
+    return visitor.result
   }
 
   /// Visit a class/struct/... or extension declaration.
@@ -231,6 +245,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     let memberScanner = SyntacticSwiftTestingTestScanner(
       snapshot: snapshot,
       allTestsDisabled: attributeData?.isDisabled ?? false,
+      isScanningExtension: node is ExtensionDeclSyntax,
       parentTypeNames: parentTypeNames + typeNames
     )
     memberScanner.walk(node.memberBlock)
@@ -245,6 +260,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
       id: (parentTypeNames + typeNames).joined(separator: "/"),
       label: attributeData?.displayName ?? typeNames.last!,
       disabled: (attributeData?.isDisabled ?? false) || allTestsDisabled,
+      isExtension: node is ExtensionDeclSyntax,
       style: TestStyle.swiftTesting,
       location: Location(uri: snapshot.uri, range: range),
       children: memberScanner.result,
@@ -299,6 +315,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
       id: (parentTypeNames + [name]).joined(separator: "/"),
       label: attributeData.displayName ?? name,
       disabled: attributeData.isDisabled || allTestsDisabled,
+      isExtension: isScanningExtension,
       style: TestStyle.swiftTesting,
       location: Location(uri: snapshot.uri, range: range),
       children: [],
