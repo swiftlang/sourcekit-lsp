@@ -26,6 +26,7 @@ import SourceKitLSPAPI
 import Workspace
 
 import struct Basics.AbsolutePath
+import struct Basics.IdentifiableSet
 import struct Basics.TSCAbsolutePath
 import struct Foundation.URL
 import protocol TSCBasic.FileSystem
@@ -176,7 +177,12 @@ public actor SwiftPMBuildSystem {
       flags: buildSetup.flags
     )
 
-    self.modulesGraph = try ModulesGraph(rootPackages: [], dependencies: [], binaryArtifacts: [:])
+    self.modulesGraph = try ModulesGraph(
+      rootPackages: [],
+      packages: IdentifiableSet(),
+      dependencies: [],
+      binaryArtifacts: [:]
+    )
     self.reloadPackageStatusCallback = reloadPackageStatusCallback
 
     // The debounce duration of 500ms was chosen arbitrarily without scientific research.
