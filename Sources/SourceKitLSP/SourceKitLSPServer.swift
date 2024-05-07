@@ -935,7 +935,7 @@ extension SourceKitLSPServer: MessageHandler {
       }
     }
 
-    logger.log("Received request: \(params.forLogging)")
+    logger.log("Received request \(id): \(params.forLogging)")
 
     switch request {
     case let request as RequestAndReply<InitializeRequest>:
