@@ -299,6 +299,48 @@ final class CodeActionTests: XCTestCase {
     )
   }
 
+  func testJSONCodableCodeActionResult() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+         1️⃣{
+         "name": "Produce",
+         "shelves": [
+             {
+                 "name": "Discount Produce",
+                 "product": {
+                     "name": "Banana",
+                     "points": 200,
+                     "description": "A banana that's perfectly ripe."
+                 }
+             }
+         ]
+      }
+      """,
+      uri: uri
+    )
+
+    let testPosition = positions["1️⃣"]
+    let request = CodeActionRequest(
+      range: Range(testPosition),
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions")
+      return
+    }
+
+    // Make sure we get a JSON conversion action.
+    let codableAction = codeActions.first { action in
+      return action.title == "Create Codable structs from JSON"
+    }
+    XCTAssertNotNil(codableAction)
+  }
+
   func testSemanticRefactorRangeCodeActionResult() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
     let uri = DocumentURI.for(.swift)

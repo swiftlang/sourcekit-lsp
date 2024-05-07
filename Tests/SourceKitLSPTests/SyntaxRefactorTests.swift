@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import SKTestSupport
 @_spi(Testing) import SourceKitLSP
 import SwiftParser
 import SwiftRefactor
@@ -20,7 +21,7 @@ final class SyntaxRefactorTests: XCTestCase {
   func testAddDocumentationRefactor() throws {
     try assertRefactor(
       """
-        func refactor(syntax: DeclSyntax, in context: Void) -> DeclSyntax? { }
+        1️⃣func 2️⃣refactor(syntax: DeclSyntax, in context: Void) -> DeclSyntax? { }
       """,
       context: (),
       provider: AddDocumentation.self,
@@ -40,26 +41,209 @@ final class SyntaxRefactorTests: XCTestCase {
       ]
     )
   }
+
+  func testConvertJSONToCodableStructClosure() throws {
+    try assertRefactor(
+      """
+      4️⃣{1️⃣
+         2️⃣"name": "Produce",
+         "shelves": [
+             {
+                 "name": "Discount Produce",
+                 "product": {
+                     "name": "Banana",
+                     "points": 200,
+                     "description": "A banana that's perfectly ripe."
+                 }
+             }
+         ]
+      }
+      """,
+      context: (),
+      provider: ConvertJSONToCodableStruct.self,
+      expected: [
+        SourceEdit(
+          range: AbsolutePosition(utf8Offset: 0)..<AbsolutePosition(utf8Offset: 267),
+          replacement: """
+            struct JSONValue: Codable {
+              var name: String
+              var shelves: [Shelves]
+
+              struct Shelves: Codable {
+                var name: String
+                var product: Product
+
+                struct Product: Codable {
+                  var description: String
+                  var name: String
+                  var points: Double
+                }
+              }
+            }
+            """
+        )
+      ]
+    )
+  }
+
+  func testConvertJSONToCodableStructLiteral() throws {
+    try assertRefactor(
+      #"""
+      """
+        {
+           "name": "Produce",
+           "shelves": [
+               {
+                   "name": "Discount Produce",
+                   "product": {
+                       "name": "Banana",
+                       "points": 200,
+                       "description": "A banana that's perfectly ripe."
+                   }
+               }
+           ]
+        }
+        """
+      """#,
+      context: (),
+      provider: ConvertJSONToCodableStruct.self,
+      expected: [
+        SourceEdit(
+          range: AbsolutePosition(utf8Offset: 303)..<AbsolutePosition(utf8Offset: 303),
+          replacement: """
+
+            struct JSONValue: Codable {
+              var name: String
+              var shelves: [Shelves]
+
+              struct Shelves: Codable {
+                var name: String
+                var product: Product
+
+                struct Product: Codable {
+                  var description: String
+                  var name: String
+                  var points: Double
+                }
+              }
+            }
+            """
+        )
+      ]
+    )
+  }
+
+  func testConvertJSONToCodableStructClosureMerging() throws {
+    try assertRefactor(
+      """
+      {
+         "name": "Store",
+         "shelves": [
+             {
+                 "name": "Discount Produce",
+                 "product": {
+                     "name": "Banana",
+                     "points": 200,
+                     "description": "A banana that's perfectly ripe.",
+                     "healthy": "true",
+                     "delicious": "true",
+                     "categories": [ "fruit", "yellow" ]
+                 }
+             },
+             {
+                 "name": "Meat",
+                 "product": {
+                     "name": "steak",
+                     "points": 200,
+                     "healthy": "false",
+                     "delicious": "true",
+                     "categories": [ ]
+                 }
+             },
+             {
+                 "name": "Cereal aisle",
+                 "product": {
+                     "name": "Sugarydoos",
+                     "points": 0.5,
+                     "healthy": "false",
+                     "delicious": "maybe",
+                     "description": "More sugar than you can imagine."
+                 }
+             }
+         ]
+      }
+      """,
+      context: (),
+      provider: ConvertJSONToCodableStruct.self,
+      expected: [
+        SourceEdit(
+          range: AbsolutePosition(utf8Offset: 0)..<AbsolutePosition(utf8Offset: 931),
+          replacement: """
+            struct JSONValue: Codable {
+              var name: String
+              var shelves: [Shelves]
+
+              struct Shelves: Codable {
+                var name: String
+                var product: Product
+
+                struct Product: Codable {
+                  var categories: [String]
+                  var delicious: String
+                  var description: String?
+                  var healthy: Bool
+                  var name: String
+                  var points: Double
+                }
+              }
+            }
+            """
+        )
+      ]
+    )
+  }
+
 }
 
 func assertRefactor<R: EditRefactoringProvider>(
-  malformedInput input: String,
+  _ input: String,
   context: R.Context,
   provider: R.Type,
   expected: [SourceEdit],
   file: StaticString = #filePath,
   line: UInt = #line
-) throws where R.Input == Syntax {
-  var parser = Parser(input)
-  let syntax = ExprSyntax.parse(from: &parser)
-  try assertRefactor(
-    Syntax(syntax),
-    context: context,
-    provider: provider,
-    expected: expected,
-    file: file,
-    line: line
-  )
+) throws {
+  let (markers, textWithoutMarkers) = extractMarkers(input)
+
+  var parser = Parser(textWithoutMarkers)
+  let sourceFile = SourceFileSyntax.parse(from: &parser)
+
+  let markersToCheck = markers.isEmpty ? [("1️⃣", 0)] : markers.sorted { $0.key < $1.key }
+
+  for (marker, location) in markersToCheck {
+    guard let token = sourceFile.token(at: AbsolutePosition(utf8Offset: location)) else {
+      XCTFail("Could not find token at location \(marker)")
+      continue
+    }
+
+    let input: R.Input
+    if let parentMatch = token.parent?.as(R.Input.self) {
+      input = parentMatch
+    } else {
+      XCTFail("token at \(marker) did not match expected input: \(token)")
+      continue
+    }
+
+    try assertRefactor(
+      input,
+      context: context,
+      provider: provider,
+      expected: expected,
+      at: marker,
+      file: file,
+      line: line
+    )
+  }
 }
 
 // Borrowed from the swift-syntax library's SwiftRefactor tests.
@@ -69,6 +253,7 @@ func assertRefactor<R: EditRefactoringProvider>(
   context: R.Context,
   provider: R.Type,
   expected: [SourceEdit],
+  at marker: String,
   file: StaticString = #filePath,
   line: UInt = #line
 ) throws {
@@ -77,7 +262,7 @@ func assertRefactor<R: EditRefactoringProvider>(
     if !expected.isEmpty {
       XCTFail(
         """
-        Refactoring produced empty result, expected:
+        Refactoring at \(marker) produced empty result, expected:
         \(expected)
         """,
         file: file,
@@ -90,7 +275,7 @@ func assertRefactor<R: EditRefactoringProvider>(
   if edits.count != expected.count {
     XCTFail(
       """
-      Refactoring produced incorrect number of edits, expected \(expected.count) not \(edits.count).
+      Refactoring at \(marker) produced incorrect number of edits, expected \(expected.count) not \(edits.count).
 
       Actual:
       \(edits.map({ $0.debugDescription }).joined(separator: "\n"))
