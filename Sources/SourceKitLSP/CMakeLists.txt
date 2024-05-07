@@ -14,6 +14,7 @@ add_library(SourceKitLSP STATIC
   SourceKitLSPServer+Options.swift
   SymbolLocation+DocumentURI.swift
   TestDiscovery.swift
+  TextEdit+IsNoop.swift
   WorkDoneProgressManager.swift
   Workspace.swift
 )

@@ -755,9 +755,10 @@ extension SwiftLanguageService {
     return response
   }
 
-  func retrieveCodeActions(_ req: CodeActionRequest, providers: [CodeActionProvider]) async throws
-    -> [CodeAction]
-  {
+  func retrieveCodeActions(
+    _ req: CodeActionRequest,
+    providers: [CodeActionProvider]
+  ) async throws -> [CodeAction] {
     guard providers.isEmpty == false else {
       return []
     }
@@ -776,7 +777,9 @@ extension SwiftLanguageService {
     let snapshot = try documentManager.latestSnapshot(uri)
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    let scope = try SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request)
+    guard let scope = SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request) else {
+      return []
+    }
     return await allSyntaxCodeActions.concurrentMap { provider in
       return provider.codeActions(in: scope)
     }.flatMap { $0 }
@@ -1152,8 +1155,8 @@ extension DocumentSnapshot {
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
   ) -> Range<Position> {
-    let lowerBound = self.position(of: node.position)
-    let upperBound = self.position(of: node.endPosition)
+    let lowerBound = self.position(of: node.position, callerFile: callerFile, callerLine: callerLine)
+    let upperBound = self.position(of: node.endPosition, callerFile: callerFile, callerLine: callerLine)
     return lowerBound..<upperBound
   }
 

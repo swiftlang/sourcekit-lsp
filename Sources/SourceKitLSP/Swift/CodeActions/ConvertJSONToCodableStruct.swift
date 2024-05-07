@@ -192,6 +192,17 @@ public struct ConvertJSONToCodableStruct: EditRefactoringProvider {
 }
 
 extension ConvertJSONToCodableStruct: SyntaxRefactoringCodeActionProvider {
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Syntax? {
+    var node: Syntax? = scope.innermostNodeContainingRange
+    while let unwrappedNode = node, ![.codeBlockItem, .memberBlockItem].contains(unwrappedNode.kind) {
+      if preflightRefactoring(unwrappedNode) != nil {
+        return unwrappedNode
+      }
+      node = unwrappedNode.parent
+    }
+    return nil
+  }
+
   static var title = "Create Codable structs from JSON"
 }
 

@@ -42,6 +42,26 @@ final class SyntaxRefactorTests: XCTestCase {
     )
   }
 
+  func testAddDocumentationRefactorSingleParameter() throws {
+    try assertRefactor(
+      """
+        1️⃣func 2️⃣refactor(syntax: DeclSyntax) { }
+      """,
+      context: (),
+      provider: AddDocumentation.self,
+      expected: [
+        SourceEdit(
+          range: AbsolutePosition(utf8Offset: 0)..<AbsolutePosition(utf8Offset: 0),
+          replacement: """
+
+              /// A description
+              /// - Parameter syntax:
+            """
+        )
+      ]
+    )
+  }
+
   func testConvertJSONToCodableStructClosure() throws {
     try assertRefactor(
       """
