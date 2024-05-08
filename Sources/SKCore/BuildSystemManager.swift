@@ -122,22 +122,53 @@ extension BuildSystemManager {
     }
   }
 
+  /// Returns the `ConfiguredTarget` that should be used for semantic functionality of the given document.
+  public func canonicalConfiguredTarget(for document: DocumentURI) async -> ConfiguredTarget? {
+    // Sort the configured targets to deterministically pick the same `ConfiguredTarget` every time.
+    // We could allow the user to specify a preference of one target over another. For now this is not necessary because
+    // no build system currently returns multiple targets for a source file.
+    return await buildSystem?.configuredTargets(for: document)
+      .sorted { ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID) }
+      .first
+  }
+
+  /// Returns the build settings for `document` from `buildSystem`.
+  ///
+  /// Implementation detail of `buildSettings(for:language:)`.
+  private func buildSettingsFromPrimaryBuildSystem(
+    for document: DocumentURI,
+    language: Language
+  ) async throws -> FileBuildSettings? {
+    guard let buildSystem else {
+      return nil
+    }
+    guard let target = await canonicalConfiguredTarget(for: document) else {
+      logger.error("Failed to get target for \(document.forLogging)")
+      return nil
+    }
+    // FIXME: (async) We should only wait `fallbackSettingsTimeout` for build
+    // settings and return fallback afterwards. I am not sure yet, how best to
+    // implement that with Swift concurrency.
+    // For now, this should be fine because all build systems return
+    // very quickly from `settings(for:language:)`.
+    guard let settings = try await buildSystem.buildSettings(for: document, in: target, language: language) else {
+      return nil
+    }
+    return settings
+  }
+
   private func buildSettings(
     for document: DocumentURI,
     language: Language
   ) async -> FileBuildSettings? {
     do {
-      // FIXME: (async) We should only wait `fallbackSettingsTimeout` for build
-      // settings and return fallback afterwards. I am not sure yet, how best to
-      // implement that with Swift concurrency.
-      // For now, this should be fine because all build systems return
-      // very quickly from `settings(for:language:)`.
-      if let settings = try await buildSystem?.buildSettings(for: document, language: language) {
-        return settings
+      if let buildSettings = try await buildSettingsFromPrimaryBuildSystem(for: document, language: language) {
+        return buildSettings
       }
     } catch {
       logger.error("Getting build settings failed: \(error.forLogging)")
     }
+
     guard var settings = fallbackBuildSystem?.buildSettings(for: document, language: language) else {
       return nil
     }

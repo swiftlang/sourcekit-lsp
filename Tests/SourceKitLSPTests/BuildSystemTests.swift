@@ -39,12 +39,20 @@ final class TestBuildSystem: BuildSystem {
   /// Files currently being watched by our delegate.
   var watchedFiles: Set<DocumentURI> = []
 
-  func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
+  func buildSettings(
+    for document: DocumentURI,
+    in buildTarget: ConfiguredTarget,
+    language: Language
+  ) async throws -> FileBuildSettings? {
     return buildSettingsByFile[document]
   }
 
   public func defaultLanguage(for document: DocumentURI) async -> Language? {
     return nil
+  }
+
+  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
   func registerForChangeNotifications(for uri: DocumentURI) async {
