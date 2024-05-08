@@ -52,7 +52,6 @@ public struct AddDocumentation: EditRefactoringProvider {
 
     let newlineAndIndentation = [.newlines(1)] + (syntax.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? [])
     var content: [TriviaPiece] = []
-    content += newlineAndIndentation
     content.append(.docLineComment("/// A description"))
 
     if let parameters = syntax.parameters?.parameters {
@@ -82,8 +81,9 @@ public struct AddDocumentation: EditRefactoringProvider {
       content += newlineAndIndentation
       content.append(.docLineComment("/// - Returns:"))
     }
+    content += newlineAndIndentation
 
-    let insertPos = syntax.position
+    let insertPos = syntax.positionAfterSkippingLeadingTrivia
     return [
       SourceEdit(
         range: insertPos..<insertPos,

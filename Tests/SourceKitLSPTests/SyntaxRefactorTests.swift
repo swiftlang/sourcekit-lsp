@@ -27,15 +27,15 @@ final class SyntaxRefactorTests: XCTestCase {
       provider: AddDocumentation.self,
       expected: [
         SourceEdit(
-          range: AbsolutePosition(utf8Offset: 0)..<AbsolutePosition(utf8Offset: 0),
+          range: AbsolutePosition(utf8Offset: 2)..<AbsolutePosition(utf8Offset: 2),
           replacement: """
-
-              /// A description
+            /// A description
               /// - Parameters:
               ///   - syntax:
               ///   - context:
               ///
               /// - Returns:
+              \("")
             """
         )
       ]
@@ -51,11 +51,11 @@ final class SyntaxRefactorTests: XCTestCase {
       provider: AddDocumentation.self,
       expected: [
         SourceEdit(
-          range: AbsolutePosition(utf8Offset: 0)..<AbsolutePosition(utf8Offset: 0),
+          range: AbsolutePosition(utf8Offset: 2)..<AbsolutePosition(utf8Offset: 2),
           replacement: """
-
-              /// A description
+            /// A description
               /// - Parameter syntax:
+              \("")
             """
         )
       ]
