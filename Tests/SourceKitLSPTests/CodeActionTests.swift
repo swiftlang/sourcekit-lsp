@@ -613,6 +613,12 @@ final class CodeActionTests: XCTestCase {
     }
     XCTAssertNotNil(addTestAction)
 
+    XCTAssertTrue(
+      codeActions.contains { action in
+        action.title == "Add library target"
+      }
+    )
+
     guard let addTestChanges = addTestAction?.edit?.documentChanges else {
       XCTFail("Didn't have changes in the 'Add test target (Swift Testing)' action")
       return
