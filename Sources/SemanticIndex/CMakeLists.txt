@@ -1,6 +1,8 @@
 
 add_library(SemanticIndex STATIC
   CheckedIndex.swift
+  SemanticIndexManager.swift
+  UpdateIndexStoreTaskDescription.swift
 )
 set_target_properties(SemanticIndex PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})

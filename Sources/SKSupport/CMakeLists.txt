@@ -14,6 +14,7 @@ add_library(SKSupport STATIC
   Process+WaitUntilExitWithCancellation.swift
   Random.swift
   Result.swift
+  SwitchableProcessResultExitStatus.swift
   ThreadSafeBox.swift
   WorkspaceType.swift
 )

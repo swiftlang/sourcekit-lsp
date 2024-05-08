@@ -13,7 +13,7 @@
 /// Which log level to use (from https://developer.apple.com/wwdc20/10168?time=604)
 ///  - Debug: Useful only during debugging (only logged during debugging)
 ///  - Info: Helpful but not essential for troubleshooting (not persisted, logged to memory)
-///  - Notice/log (Default): Essential for troubleshooting
+///  - Notice/log/default: Essential for troubleshooting
 ///  - Error: Error seen during execution
 ///    - Used eg. if the user sends an erroneous request or if a request fails
 ///  - Fault: Bug in program
