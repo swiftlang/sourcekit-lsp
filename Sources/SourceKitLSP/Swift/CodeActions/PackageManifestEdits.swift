@@ -43,21 +43,36 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
     }
 
     do {
-      // Describe the target we are going to create.
-      let target = try TargetDescription(
-        name: "\(targetName)Tests",
-        dependencies: [.byName(name: targetName, condition: nil)],
-        type: .test
-      )
+      var actions: [CodeAction] = []
 
-      let edits = try AddTarget.addTarget(target, to: scope.file)
-      return [
-        CodeAction(
-          title: "Add test target",
-          kind: .refactor,
-          edit: edits.asWorkspaceEdit(snapshot: scope.snapshot)
-        )
+      let variants: [(AddTarget.TestHarness, String)] = [
+        (.swiftTesting, "Swift Testing"),
+        (.xctest, "XCTest"),
       ]
+      for (testingLibrary, libraryName) in variants {
+        // Describe the target we are going to create.
+        let target = try TargetDescription(
+          name: "\(targetName)Tests",
+          dependencies: [.byName(name: targetName, condition: nil)],
+          type: .test
+        )
+
+        let edits = try AddTarget.addTarget(
+          target,
+          to: scope.file,
+          configuration: .init(testHarness: testingLibrary)
+        )
+
+        actions.append(
+          CodeAction(
+            title: "Add test target (\(libraryName))",
+            kind: .refactor,
+            edit: edits.asWorkspaceEdit(snapshot: scope.snapshot)
+          )
+        )
+      }
+
+      return actions
     } catch {
       return []
     }
