@@ -21,6 +21,22 @@ public enum TestStyle {
   public static let swiftTesting = "swift-testing"
 }
 
+public struct AnnotatedTestItem {
+  /// The test item to be annotated
+  public var testItem: TestItem
+
+  /// Whether the `TestItem` is declared in an extension.
+  public var isExtension: Bool
+
+  public init(
+    testItem: TestItem,
+    isExtension: Bool
+  ) {
+    self.testItem = testItem
+    self.isExtension = isExtension
+  }
+}
+
 fileprivate extension SymbolOccurrence {
   /// Assuming that this is a symbol occurrence returned by the index, return whether it can constitute the definition
   /// of a test case.
@@ -95,7 +111,7 @@ extension SourceKitLSPServer {
   private func testItems(
     for testSymbolOccurrences: [SymbolOccurrence],
     resolveLocation: (DocumentURI, Position) -> Location
-  ) -> [TestItem] {
+  ) -> [AnnotatedTestItem] {
     // Arrange tests by the USR they are contained in. This allows us to emit test methods as children of test classes.
     // `occurrencesByParent[nil]` are the root test symbols that aren't a child of another test symbol.
     var occurrencesByParent: [String?: [SymbolOccurrence]] = [:]
@@ -126,7 +142,7 @@ extension SourceKitLSPServer {
       for testSymbolOccurrence: SymbolOccurrence,
       documentManager: DocumentManager,
       context: [String]
-    ) -> TestItem {
+    ) -> AnnotatedTestItem {
       let symbolPosition: Position
       if let snapshot = try? documentManager.latestSnapshot(
         testSymbolOccurrence.location.documentUri
@@ -150,15 +166,17 @@ extension SourceKitLSPServer {
         .map {
           testItem(for: $0, documentManager: documentManager, context: context + [testSymbolOccurrence.symbol.name])
         }
-      return TestItem(
-        id: id,
-        label: testSymbolOccurrence.symbol.name,
-        disabled: false,
-        isExtension: false,
-        style: TestStyle.xcTest,
-        location: location,
-        children: children,
-        tags: []
+      return AnnotatedTestItem(
+        testItem: TestItem(
+          id: id,
+          label: testSymbolOccurrence.symbol.name,
+          disabled: false,
+          style: TestStyle.xcTest,
+          location: location,
+          children: children.map(\.testItem),
+          tags: []
+        ),
+        isExtension: false
       )
     }
 
@@ -172,7 +190,7 @@ extension SourceKitLSPServer {
   /// This merges tests from the semantic index, the syntactic index and in-memory file states.
   ///
   /// The returned list of tests is not sorted. It should be sorted before being returned to the editor.
-  private func tests(in workspace: Workspace) async -> [TestItem] {
+  private func tests(in workspace: Workspace) async -> [AnnotatedTestItem] {
     // Gather all tests classes and test methods. We include test from different sources:
     //  - For all files that have been not been modified since they were last indexed in the semantic index, include
     //    XCTests from the semantic index.
@@ -193,12 +211,12 @@ extension SourceKitLSPServer {
       return index?.fileHasInMemoryModifications(url) ?? documentManager.fileHasInMemoryModifications(url)
     }
 
-    let testsFromFilesWithInMemoryState = await filesWithInMemoryState.concurrentMap { (uri) -> [TestItem] in
+    let testsFromFilesWithInMemoryState = await filesWithInMemoryState.concurrentMap { (uri) -> [AnnotatedTestItem] in
       guard let languageService = workspace.documentService[uri] else {
         return []
       }
       return await orLog("Getting document tests for \(uri)") {
-        try await self.getDocumentTests(
+        try await self.documentTestsWithoutMergingExtensions(
           DocumentTestsRequest(textDocument: TextDocumentIdentifier(uri)),
           workspace: workspace,
           languageService: languageService
@@ -213,16 +231,17 @@ extension SourceKitLSPServer {
       for: semanticTestSymbolOccurrences,
       resolveLocation: { uri, position in Location(uri: uri, range: Range(position)) }
     )
-    let filesWithTestsFromSemanticIndex = Set(testsFromSemanticIndex.map(\.location.uri))
+    let filesWithTestsFromSemanticIndex = Set(testsFromSemanticIndex.map(\.testItem.location.uri))
 
     let indexOnlyDiscardingDeletedFiles = workspace.index(checkedFor: .deletedFiles)
 
     let syntacticTestsToInclude =
       testsFromSyntacticIndex
-      .compactMap { (testItem) -> TestItem? in
+      .compactMap { (item) -> AnnotatedTestItem? in
+        let testItem = item.testItem
         if testItem.style == TestStyle.swiftTesting {
           // Swift-testing tests aren't part of the semantic index. Always include them.
-          return testItem
+          return item
         }
         if filesWithTestsFromSemanticIndex.contains(testItem.location.uri) {
           // If we have an semantic tests from this file, then the semantic index is up-to-date for this file. We thus
@@ -245,9 +264,12 @@ extension SourceKitLSPServer {
         // XCTestCase subclasses, swift-testing handled above) for the same file. In practice test files usually contain
         // a single XCTestCase subclass, so caching doesn't make sense here.
         // Also, this is only called for files containing test cases but for which the semantic index is out-of-date.
-        return testItem.filterUsing(
+        if let filtered = testItem.filterUsing(
           semanticSymbols: indexOnlyDiscardingDeletedFiles?.symbols(inFilePath: testItem.location.uri.pseudoPath)
-        )
+        ) {
+          return AnnotatedTestItem(testItem: filtered, isExtension: item.isExtension)
+        }
+        return nil
       }
 
     // We don't need to sort the tests here because they will get
@@ -258,18 +280,8 @@ extension SourceKitLSPServer {
     return await self.workspaces
       .concurrentMap { await self.tests(in: $0) }
       .flatMap { $0 }
-      .sorted { $0.location < $1.location }
+      .sorted { $0.testItem.location < $1.testItem.location }
       .mergingTestsInExtensions()
-  }
-
-  /// Extracts a flat dictionary mapping test IDs to their locations from the given `testItems`.
-  private func testLocations(from testItems: [TestItem]) -> [String: Location] {
-    var result: [String: Location] = [:]
-    for testItem in testItems {
-      result[testItem.id] = testItem.location
-      result.merge(testLocations(from: testItem.children)) { old, new in new }
-    }
-    return result
   }
 
   func documentTests(
@@ -277,15 +289,15 @@ extension SourceKitLSPServer {
     workspace: Workspace,
     languageService: LanguageService
   ) async throws -> [TestItem] {
-    return try await getDocumentTests(req, workspace: workspace, languageService: languageService)
+    return try await documentTestsWithoutMergingExtensions(req, workspace: workspace, languageService: languageService)
       .mergingTestsInExtensions()
   }
 
-  private func getDocumentTests(
+  private func documentTestsWithoutMergingExtensions(
     _ req: DocumentTestsRequest,
     workspace: Workspace,
     languageService: LanguageService
-  ) async throws -> [TestItem] {
+  ) async throws -> [AnnotatedTestItem] {
     let snapshot = try self.documentManager.latestSnapshot(req.textDocument.uri)
     let mainFileUri = await workspace.buildSystemManager.mainFile(
       for: req.textDocument.uri,
@@ -301,8 +313,8 @@ extension SourceKitLSPServer {
       syntacticTests == nil ? .deletedFiles : .inMemoryModifiedFiles(documentManager)
 
     if let index = workspace.index(checkedFor: indexCheckLevel) {
-      var syntacticSwiftTestingTests: [TestItem] {
-        syntacticTests?.filter { $0.style == TestStyle.swiftTesting } ?? []
+      var syntacticSwiftTestingTests: [AnnotatedTestItem] {
+        syntacticTests?.filter { $0.testItem.style == TestStyle.swiftTesting } ?? []
       }
 
       let testSymbols =
@@ -398,7 +410,6 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
         id: "\(containerName)/\(function.name.text)()",
         label: "\(function.name.text)()",
         disabled: false,
-        isExtension: false,
         style: TestStyle.xcTest,
         location: Location(uri: snapshot.uri, range: range),
         children: [],
@@ -430,7 +441,6 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
       id: node.name.text,
       label: node.name.text,
       disabled: false,
-      isExtension: false,
       style: TestStyle.xcTest,
       location: Location(uri: snapshot.uri, range: range),
       children: testMethods,
@@ -475,7 +485,7 @@ extension TestItem {
   }
 }
 
-extension Array<TestItem> {
+extension Array<AnnotatedTestItem> {
   /// When the test scanners discover tests in extensions they are captured in their own parent `TestItem`, not the
   /// `TestItem` generated from the class/struct's definition. This is largely because of the syntatic nature of the
   /// test scanners as they are today, which only know about tests within the context of the current file. Extensions
@@ -487,8 +497,8 @@ extension Array<TestItem> {
   /// additions to that suite, just like extensions on types are, from the user's perspective, transparently added to
   /// their type.
   ///
-  /// This method walks the `TestItem` tree produced by the test scanners and merges in the tests defined in extensions
-  /// into the `TestItem` that represents the type definition.
+  /// This method walks the `AnnotatedTestItem` tree produced by the test scanners and merges in the tests defined in
+  /// extensions into the final `TestItem`s that represent the type definition.
   ///
   /// This causes extensions to be merged into their type's definition if the type's definition exists in the list of
   /// test items. If the type's definition is not a test item in this collection, the first extension of that type will
@@ -521,23 +531,24 @@ extension Array<TestItem> {
   ///
   /// A node's parent is identified by the node's ID with the last component dropped.
   func mergingTestsInExtensions() -> [TestItem] {
-    var itemDict: [String: TestItem] = [:]
+    var itemDict: [String: AnnotatedTestItem] = [:]
     for item in self {
-      if var rootItem = itemDict[item.id] {
+      let id = item.testItem.id
+      if var rootItem = itemDict[id] {
         // If we've encountered an extension first, and this is the
         // type declaration, then use the type declaration TestItem
         // as the root item.
         if rootItem.isExtension && !item.isExtension {
           var newItem = item
-          newItem.children += rootItem.children
+          newItem.testItem.children += rootItem.testItem.children
           rootItem = newItem
         } else {
-          rootItem.children += item.children
+          rootItem.testItem.children += item.testItem.children
         }
 
-        itemDict[item.id] = rootItem
+        itemDict[id] = rootItem
       } else {
-        itemDict[item.id] = item
+        itemDict[id] = item
       }
     }
 
@@ -545,53 +556,60 @@ extension Array<TestItem> {
       return []
     }
 
+    var mergedIds = Set<String>()
     for item in self {
-      let parentID = item.id.components(separatedBy: "/").dropLast().joined(separator: "/")
+      let id = item.testItem.id
+      let parentID = id.components(separatedBy: "/").dropLast().joined(separator: "/")
       // If the parent exists, add the current item to its children and remove it from the root
       if var parent = itemDict[parentID] {
-        parent.children.append(item)
-        itemDict[parent.id] = parent
-        itemDict[item.id] = nil
+        parent.testItem.children.append(item.testItem)
+        mergedIds.insert(parent.testItem.id)
+        itemDict[parent.testItem.id] = parent
+        itemDict[id] = nil
       }
     }
 
     // Filter out the items that have been merged into their parents, sorting the tests by location.
     // TestItems not in extensions should be priotitized first.
-    var sortedItems = itemDict.values.compactMap { $0 }.sorted {
-      ($0.location.uri != $1.location.uri && $0.isExtension != $1.isExtension) ? !$0.isExtension : ($0.location < $1.location)
-    }
+    let sortedItems = itemDict.values
+      .compactMap { $0 }
+      .sorted { ($0.isExtension != $1.isExtension) ? !$0.isExtension : ($0.testItem.location < $1.testItem.location) }
 
-    sortedItems = sortedItems.map {
-      guard !$0.children.isEmpty else {
-        return $0
+    return sortedItems.map {
+      guard !$0.testItem.children.isEmpty, mergedIds.contains($0.testItem.id) else {
+        return $0.testItem
       }
-      var newItem = $0
-      newItem.children = $0.children.mergingTestsInExtensions()
+      var newItem = $0.testItem
+      newItem.children = newItem.children
+        .map { AnnotatedTestItem(testItem: $0, isExtension: false) }
+        .mergingTestsInExtensions()
       return newItem
     }
-
-    return sortedItems
   }
 }
 
 extension SwiftLanguageService {
-  public func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [TestItem]? {
+  public func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]?
+  {
     let snapshot = try documentManager.latestSnapshot(uri)
     let semanticSymbols = workspace.index(checkedFor: .deletedFiles)?.symbols(inFilePath: snapshot.uri.pseudoPath)
     let xctestSymbols = await SyntacticSwiftXCTestScanner.findTestSymbols(
       in: snapshot,
       syntaxTreeManager: syntaxTreeManager
-    ).compactMap { $0.filterUsing(semanticSymbols: semanticSymbols) }
+    )
+    .compactMap { $0.filterUsing(semanticSymbols: semanticSymbols) }
+    .map { AnnotatedTestItem(testItem: $0, isExtension: false) }
+
     let swiftTestingSymbols = await SyntacticSwiftTestingTestScanner.findTestSymbols(
       in: snapshot,
       syntaxTreeManager: syntaxTreeManager
     )
-    return (xctestSymbols + swiftTestingSymbols).sorted { $0.location < $1.location }
+    return (xctestSymbols + swiftTestingSymbols).sorted { $0.testItem.location < $1.testItem.location }
   }
 }
 
 extension ClangLanguageService {
-  public func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async -> [TestItem]? {
+  public func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async -> [AnnotatedTestItem]? {
     return nil
   }
 }

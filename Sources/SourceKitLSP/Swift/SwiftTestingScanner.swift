@@ -163,9 +163,6 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
   /// This is the case when the scanner is looking for tests inside a disabled suite.
   private let allTestsDisabled: Bool
 
-  /// Whether the tests discovered by the scanner should be marked as being delcared in an extension.
-  private let isScanningExtension: Bool
-
   /// The names of the types that this scanner is scanning members for.
   ///
   /// For example, when scanning for tests inside `Bar` in the following, this is `["Foo", "Bar"]`
@@ -180,18 +177,16 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
   private let parentTypeNames: [String]
 
   /// The discovered test items.
-  private var result: [TestItem] = []
+  private var result: [AnnotatedTestItem] = []
 
   private init(
     snapshot: DocumentSnapshot,
     allTestsDisabled: Bool,
-    isScanningExtension: Bool,
     parentTypeNames: [String]
   ) {
     self.snapshot = snapshot
     self.allTestsDisabled = allTestsDisabled
     self.parentTypeNames = parentTypeNames
-    self.isScanningExtension = isScanningExtension
     super.init(viewMode: .fixedUp)
   }
 
@@ -199,7 +194,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
   public static func findTestSymbols(
     in snapshot: DocumentSnapshot,
     syntaxTreeManager: SyntaxTreeManager
-  ) async -> [TestItem] {
+  ) async -> [AnnotatedTestItem] {
     guard snapshot.text.contains("Suite") || snapshot.text.contains("Test") else {
       // If the file contains swift-testing tests, it must contain a `@Suite` or `@Test` attribute.
       // Only check for the attribute name because the attribute may be module qualified and contain an arbitrary amount
@@ -211,7 +206,6 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     let visitor = SyntacticSwiftTestingTestScanner(
       snapshot: snapshot,
       allTestsDisabled: false,
-      isScanningExtension: false,
       parentTypeNames: []
     )
     visitor.walk(syntaxTree)
@@ -245,7 +239,6 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     let memberScanner = SyntacticSwiftTestingTestScanner(
       snapshot: snapshot,
       allTestsDisabled: attributeData?.isDisabled ?? false,
-      isScanningExtension: node is ExtensionDeclSyntax,
       parentTypeNames: parentTypeNames + typeNames
     )
     memberScanner.walk(node.memberBlock)
@@ -256,15 +249,18 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     }
 
     let range = snapshot.range(of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia)
-    let testItem = TestItem(
-      id: (parentTypeNames + typeNames).joined(separator: "/"),
-      label: attributeData?.displayName ?? typeNames.last!,
-      disabled: (attributeData?.isDisabled ?? false) || allTestsDisabled,
-      isExtension: node is ExtensionDeclSyntax,
-      style: TestStyle.swiftTesting,
-      location: Location(uri: snapshot.uri, range: range),
-      children: memberScanner.result,
-      tags: attributeData?.tags.map(TestTag.init(id:)) ?? []
+    // Members wont be extensions since extensions will only be at the top level.
+    let testItem = AnnotatedTestItem(
+      testItem: TestItem(
+        id: (parentTypeNames + typeNames).joined(separator: "/"),
+        label: attributeData?.displayName ?? typeNames.last!,
+        disabled: (attributeData?.isDisabled ?? false) || allTestsDisabled,
+        style: TestStyle.swiftTesting,
+        location: Location(uri: snapshot.uri, range: range),
+        children: memberScanner.result.map(\.testItem),
+        tags: attributeData?.tags.map(TestTag.init(id:)) ?? []
+      ),
+      isExtension: node.is(ExtensionDeclSyntax.self)
     )
     result.append(testItem)
     return .skipChildren
@@ -311,15 +307,17 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
       node.name.text + "(" + node.signature.parameterClause.parameters.map { "\($0.firstName.text):" }.joined() + ")"
 
     let range = snapshot.range(of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia)
-    let testItem = TestItem(
-      id: (parentTypeNames + [name]).joined(separator: "/"),
-      label: attributeData.displayName ?? name,
-      disabled: attributeData.isDisabled || allTestsDisabled,
-      isExtension: isScanningExtension,
-      style: TestStyle.swiftTesting,
-      location: Location(uri: snapshot.uri, range: range),
-      children: [],
-      tags: attributeData.tags.map(TestTag.init(id:))
+    let testItem = AnnotatedTestItem(
+      testItem: TestItem(
+        id: (parentTypeNames + [name]).joined(separator: "/"),
+        label: attributeData.displayName ?? name,
+        disabled: attributeData.isDisabled || allTestsDisabled,
+        style: TestStyle.swiftTesting,
+        location: Location(uri: snapshot.uri, range: range),
+        children: [],
+        tags: attributeData.tags.map(TestTag.init(id:))
+      ),
+      isExtension: false
     )
     result.append(testItem)
     return .visitChildren
