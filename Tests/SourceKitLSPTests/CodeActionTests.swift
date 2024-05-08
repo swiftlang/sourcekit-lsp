@@ -909,10 +909,12 @@ final class CodeActionTests: XCTestCase {
     }
   }
 
-  func testAddDocumentationRefactorSingleParameter() async throws {
+  func testAddDocumentationRefactorNotAtStartOfFile() async throws {
     try await assertCodeActions(
       """
+      struct Foo {
         1️⃣func 2️⃣refactor(3️⃣syntax: 4️⃣Decl5️⃣Syntax)6️⃣ { }7️⃣
+      }
       """,
       ranges: [("1️⃣", "2️⃣"), ("1️⃣", "6️⃣"), ("1️⃣", "7️⃣")],
       exhaustive: false
@@ -939,6 +941,49 @@ final class CodeActionTests: XCTestCase {
           command: nil
         )
       ]
+    }
+  }
+
+  func testAddDocumentationRefactorAtStartOfFile() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣func 2️⃣refactor(3️⃣syntax: 4️⃣Decl5️⃣Syntax)6️⃣ { }7️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "6️⃣"), ("1️⃣", "7️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add documentation",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: Range(positions["1️⃣"]),
+                  newText: """
+                    /// A description
+                    /// - Parameter syntax:
+                    \("")
+                    """
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
+  func testAddDocumentationDoesNotShowUpIfItIsNotOnItsOwnLine() async throws {
+    try await assertCodeActions(
+      """
+      var x = 1; var 1️⃣y = 2
+      """
+    ) { uri, positions in
+      []
     }
   }
 

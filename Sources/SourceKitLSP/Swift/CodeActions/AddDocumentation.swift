@@ -37,16 +37,20 @@ import SwiftSyntax
 public struct AddDocumentation: EditRefactoringProvider {
   @_spi(Testing)
   public static func textRefactor(syntax: DeclSyntax, in context: Void) -> [SourceEdit] {
-    let hasDocumentation = syntax.leadingTrivia.contains(where: { trivia in
+    let hasDocumentation = syntax.leadingTrivia.contains { trivia in
       switch trivia {
-      case .blockComment(_), .docBlockComment(_), .lineComment(_), .docLineComment(_):
+      case .blockComment, .docBlockComment, .lineComment, .docLineComment:
         return true
       default:
         return false
       }
-    })
+    }
 
-    guard !hasDocumentation else {
+    // We consider nodes at the start of the source file at being on a new line
+    let isOnNewLine =
+      syntax.leadingTrivia.contains(where: \.isNewline) || syntax.previousToken(viewMode: .sourceAccurate) == nil
+
+    guard !hasDocumentation && isOnNewLine else {
       return []
     }
 
