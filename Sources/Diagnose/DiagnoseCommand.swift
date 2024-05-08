@@ -309,7 +309,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     dateFormatter.timeZone = NSTimeZone.local
     let date = dateFormatter.string(from: Date()).replacingOccurrences(of: ":", with: "-")
     let bundlePath = FileManager.default.temporaryDirectory
-      .appendingPathComponent("sourcekitd-reproducer-\(date)")
+      .appendingPathComponent("sourcekit-lsp-diagnose-\(date)")
     try FileManager.default.createDirectory(at: bundlePath, withIntermediateDirectories: true)
 
     if components.isEmpty || components.contains(.crashReports) {

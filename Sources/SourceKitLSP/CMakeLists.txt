@@ -1,7 +1,6 @@
 
 add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
-  CheckedIndex.swift
   DocumentManager.swift
   DocumentSnapshot+FromFileContents.swift
   IndexStoreDB+MainFilesProvider.swift
@@ -22,7 +21,9 @@ target_sources(SourceKitLSP PRIVATE
   Clang/ClangLanguageService.swift)
 target_sources(SourceKitLSP PRIVATE
   Swift/AdjustPositionToStartOfIdentifier.swift
+  Swift/CodeActions/AddDocumentation.swift
   Swift/CodeActions/ConvertIntegerLiteral.swift
+  Swift/CodeActions/ConvertJSONToCodableStruct.swift
   Swift/CodeActions/PackageManifestEdits.swift
   Swift/CodeActions/SyntaxCodeActionProvider.swift
   Swift/CodeActions/SyntaxCodeActions.swift
@@ -62,6 +63,7 @@ target_link_libraries(SourceKitLSP PUBLIC
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
   LSPLogging
+  SemanticIndex
   SKCore
   SKSupport
   SKSwiftPMWorkspace

@@ -1181,4 +1181,81 @@ final class RenameTests: XCTestCase {
       )
     )
   }
+
+  func testRenameEnumCaseWithUnlabeledAssociatedValue() async throws {
+    try await assertSingleFileRename(
+      """
+      enum MyEnum {
+        case 1️⃣myCase(String)
+      }
+      """,
+      newName: "newName",
+      expectedPrepareRenamePlaceholder: "myCase",
+      expected: """
+        enum MyEnum {
+          case newName(String)
+        }
+        """
+    )
+  }
+
+  func testAddLabelToEnumCase() async throws {
+    // We don't support renaming enum parameter labels at the moment
+    // (https://github.com/apple/sourcekit-lsp/issues/1228)
+    try await assertSingleFileRename(
+      """
+      enum MyEnum {
+        case 1️⃣myCase(String)
+      }
+      """,
+      newName: "newName(newLabel:)",
+      expectedPrepareRenamePlaceholder: "myCase",
+      expected: """
+        enum MyEnum {
+          case newName(String)
+        }
+        """
+    )
+  }
+
+  func testRemoveLabelToEnumCase() async throws {
+    // We don't support renaming enum parameter labels at the moment
+    // (https://github.com/apple/sourcekit-lsp/issues/1228)
+    try await assertSingleFileRename(
+      """
+      enum MyEnum {
+        case 1️⃣myCase(label: String)
+      }
+      """,
+      newName: "newName(_:)",
+      expectedPrepareRenamePlaceholder: "myCase",
+      expected: """
+        enum MyEnum {
+          case newName(label: String)
+        }
+        """
+    )
+  }
+
+  func testRenameDoesNotReportEditsIfNoActualChangeIsMade() async throws {
+    try await SkipUnless.sourcekitdSupportsRename()
+    let project = try await SwiftPMTestProject(
+      files: [
+        "FileA.swift": """
+        func 1️⃣foo(x: Int) {}
+        """,
+        "FileB.swift": """
+        func test() {
+          foo(x: 1)
+        }
+        """,
+      ],
+      build: true
+    )
+    let (uri, positions) = try project.openDocument("FileA.swift")
+    let result = try await project.testClient.send(
+      RenameRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"], newName: "foo(x:)")
+    )
+    XCTAssertEqual(result?.changes, [:])
+  }
 }

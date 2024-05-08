@@ -13,6 +13,7 @@
 import IndexStoreDB
 import LSPLogging
 import LanguageServerProtocol
+import SemanticIndex
 import SwiftSyntax
 
 public enum TestStyle {
@@ -41,22 +42,26 @@ fileprivate extension SymbolOccurrence {
 /// Find the innermost range of a document symbol that contains the given position.
 private func findInnermostSymbolRange(
   containing position: Position,
-  documentSymbols documentSymbolsResponse: DocumentSymbolResponse
+  documentSymbolsResponse: DocumentSymbolResponse
 ) -> Range<Position>? {
-  guard case .documentSymbols(let documentSymbols) = documentSymbolsResponse else {
-    // Both `ClangLanguageService` and `SwiftLanguageService` return `documentSymbols` so we don't need to handle the
-    // .symbolInformation case.
-    logger.fault(
-      """
-      Expected documentSymbols response from language service to resolve test ranges but got \
-      \(documentSymbolsResponse.forLogging)
-      """
-    )
-    return nil
+  switch documentSymbolsResponse {
+  case .documentSymbols(let documentSymbols):
+    return findInnermostSymbolRange(containing: position, documentSymbols: documentSymbols)
+  case .symbolInformation(let symbolInformation):
+    return findInnermostSymbolRange(containing: position, symbolInformation: symbolInformation)
   }
+}
+
+private func findInnermostSymbolRange(
+  containing position: Position,
+  documentSymbols: [DocumentSymbol]
+) -> Range<Position>? {
   for documentSymbol in documentSymbols where documentSymbol.range.contains(position) {
     if let children = documentSymbol.children,
-      let rangeOfChild = findInnermostSymbolRange(containing: position, documentSymbols: .documentSymbols(children))
+      let rangeOfChild = findInnermostSymbolRange(
+        containing: position,
+        documentSymbolsResponse: .documentSymbols(children)
+      )
     {
       // If a child contains the position, prefer that because it's more specific.
       return rangeOfChild
@@ -64,6 +69,21 @@ private func findInnermostSymbolRange(
     return documentSymbol.range
   }
   return nil
+}
+
+/// Return the smallest range in `symbolInformation` containing `position`.
+private func findInnermostSymbolRange(
+  containing position: Position,
+  symbolInformation symbolInformationArray: [SymbolInformation]
+) -> Range<Position>? {
+  var bestRange: Range<Position>? = nil
+  for symbolInformation in symbolInformationArray where symbolInformation.location.range.contains(position) {
+    let range = symbolInformation.location.range
+    if bestRange == nil || (bestRange!.lowerBound < range.lowerBound && range.upperBound < bestRange!.upperBound) {
+      bestRange = range
+    }
+  }
+  return bestRange
 }
 
 extension SourceKitLSPServer {
@@ -263,9 +283,15 @@ extension SourceKitLSPServer {
 
     let syntacticTests = try await languageService.syntacticDocumentTests(for: req.textDocument.uri, in: workspace)
 
-    if let index = workspace.index(checkedFor: .inMemoryModifiedFiles(documentManager)) {
+    // We `syntacticDocumentTests` returns `nil`, it indicates that it doesn't support syntactic test discovery.
+    // In that case, the semantic index is the only source of tests we have and we thus want to show tests from the
+    // semantic index, even if they are out-of-date. The alternative would be showing now tests after an edit to a file.
+    let indexCheckLevel: IndexCheckLevel =
+      syntacticTests == nil ? .deletedFiles : .inMemoryModifiedFiles(documentManager)
+
+    if let index = workspace.index(checkedFor: indexCheckLevel) {
       var syntacticSwiftTestingTests: [TestItem] {
-        syntacticTests.filter { $0.style == TestStyle.swiftTesting }
+        syntacticTests?.filter { $0.style == TestStyle.swiftTesting } ?? []
       }
 
       let testSymbols =
@@ -283,7 +309,7 @@ extension SourceKitLSPServer {
           for: testSymbols,
           resolveLocation: { uri, position in
             if uri == snapshot.uri, let documentSymbols,
-              let range = findInnermostSymbolRange(containing: position, documentSymbols: documentSymbols)
+              let range = findInnermostSymbolRange(containing: position, documentSymbolsResponse: documentSymbols)
             {
               return Location(uri: uri, range: range)
             }
@@ -298,7 +324,7 @@ extension SourceKitLSPServer {
       }
     }
     // We don't have any up-to-date semantic index entries for this file. Syntactically look for tests.
-    return syntacticTests
+    return syntacticTests ?? []
   }
 }
 
@@ -437,7 +463,7 @@ extension TestItem {
 }
 
 extension SwiftLanguageService {
-  public func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [TestItem] {
+  public func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [TestItem]? {
     let snapshot = try documentManager.latestSnapshot(uri)
     let semanticSymbols = workspace.index(checkedFor: .deletedFiles)?.symbols(inFilePath: snapshot.uri.pseudoPath)
     let xctestSymbols = await SyntacticSwiftXCTestScanner.findTestSymbols(
@@ -453,7 +479,7 @@ extension SwiftLanguageService {
 }
 
 extension ClangLanguageService {
-  public func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async -> [TestItem] {
-    return []
+  public func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async -> [TestItem]? {
+    return nil
   }
 }

@@ -5,11 +5,13 @@ add_library(SKSupport STATIC
   BuildConfiguration.swift
   ByteString.swift
   Collection+Only.swift
+  Collection+PartitionIntoBatches.swift
   Connection+Send.swift
   dlopen.swift
   DocumentURI+CustomLogStringConvertible.swift
   FileSystem.swift
   LineTable.swift
+  Process+WaitUntilExitWithCancellation.swift
   Random.swift
   Result.swift
   ThreadSafeBox.swift

@@ -15,8 +15,10 @@ import SwiftRefactor
 /// List of all of the syntactic code action providers, which can be used
 /// to produce code actions using only the swift-syntax tree of a file.
 let allSyntaxCodeActions: [SyntaxCodeActionProvider.Type] = [
+  AddDocumentation.self,
   AddSeparatorsToIntegerLiteral.self,
   ConvertIntegerLiteral.self,
+  ConvertJSONToCodableStruct.self,
   FormatRawStringLiteral.self,
   MigrateToNewIfLetSyntax.self,
   OpaqueParameterToGeneric.self,

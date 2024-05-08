@@ -299,6 +299,48 @@ final class CodeActionTests: XCTestCase {
     )
   }
 
+  func testJSONCodableCodeActionResult() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+         1️⃣{
+         "name": "Produce",
+         "shelves": [
+             {
+                 "name": "Discount Produce",
+                 "product": {
+                     "name": "Banana",
+                     "points": 200,
+                     "description": "A banana that's perfectly ripe."
+                 }
+             }
+         ]
+      }
+      """,
+      uri: uri
+    )
+
+    let testPosition = positions["1️⃣"]
+    let request = CodeActionRequest(
+      range: Range(testPosition),
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions")
+      return
+    }
+
+    // Make sure we get a JSON conversion action.
+    let codableAction = codeActions.first { action in
+      return action.title == "Create Codable structs from JSON"
+    }
+    XCTAssertNotNil(codableAction)
+  }
+
   func testSemanticRefactorRangeCodeActionResult() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
     let uri = DocumentURI.for(.swift)
@@ -348,7 +390,23 @@ final class CodeActionTests: XCTestCase {
       command: expectedCommand
     )
 
-    XCTAssertEqual(result, .codeActions([expectedCodeAction]))
+    guard case .codeActions(var resultActions) = result else {
+      XCTFail("Result doesn't have code actions: \(String(describing: result))")
+      return
+    }
+
+    // Filter out "Add documentation"; we test it elsewhere
+    if let addDocIndex = resultActions.firstIndex(where: {
+      $0.title == "Add documentation"
+    }
+    ) {
+      resultActions.remove(at: addDocIndex)
+    } else {
+      XCTFail("Missing 'Add documentation'.")
+      return
+    }
+
+    XCTAssertEqual(resultActions, [expectedCodeAction])
   }
 
   func testCodeActionsRemovePlaceholders() async throws {
@@ -439,6 +497,36 @@ final class CodeActionTests: XCTestCase {
     _ = try await testClient.send(ExecuteCommandRequest(command: command.command, arguments: command.arguments))
 
     try await fulfillmentOfOrThrow([editReceived])
+  }
+
+  func testAddDocumentationCodeActionResult() async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(
+      """
+      2️⃣func refacto1️⃣r(syntax: DeclSyntax, in context: Void) -> DeclSyntax? { }3️⃣
+      """,
+      uri: uri
+    )
+
+    let testPosition = positions["1️⃣"]
+    let request = CodeActionRequest(
+      range: Range(testPosition),
+      context: .init(),
+      textDocument: TextDocumentIdentifier(uri)
+    )
+    let result = try await testClient.send(request)
+
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions")
+      return
+    }
+
+    // Make sure we get an add-documentation action.
+    let addDocAction = codeActions.first { action in
+      return action.title == "Add documentation"
+    }
+    XCTAssertNotNil(addDocAction)
   }
 
   func testCodeActionForFixItsProducedBySwiftSyntax() async throws {

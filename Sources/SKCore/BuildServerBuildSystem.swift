@@ -263,8 +263,12 @@ extension BuildServerBuildSystem: BuildSystem {
   ///
   /// Returns `nil` if no build settings have been received from the build
   /// server yet or if no build settings are available for this file.
-  public func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
+  public func buildSettings(for document: DocumentURI, language: Language) async -> FileBuildSettings? {
     return buildSettings[document]
+  }
+
+  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+    return nil
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI) {
@@ -317,14 +321,14 @@ extension BuildServerBuildSystem: BuildSystem {
     return .unhandled
   }
 
-  public func testFiles() async -> [DocumentURI] {
-    // BuildServerBuildSystem does not support syntactic test discovery
+  public func sourceFiles() async -> [SourceFileInfo] {
+    // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
     // (https://github.com/apple/sourcekit-lsp/issues/1173).
     return []
   }
 
-  public func addTestFilesDidChangeCallback(_ callback: @escaping () async -> Void) {
-    // BuildServerBuildSystem does not support syntactic test discovery
+  public func addSourceFilesDidChangeCallback(_ callback: @escaping () async -> Void) {
+    // BuildServerBuildSystem does not support syntactic test discovery or background indexing.
     // (https://github.com/apple/sourcekit-lsp/issues/1173).
   }
 }
