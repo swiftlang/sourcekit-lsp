@@ -689,7 +689,8 @@ final class CodeActionTests: XCTestCase {
     try await assertCodeActions(
       """
       let x = 1️⃣12️⃣63️⃣
-      """
+      """,
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "3️⃣")]
     ) { uri, positions in
       [
         CodeAction(
@@ -728,6 +729,7 @@ final class CodeActionTests: XCTestCase {
       """
       let x = 1️⃣#"Hello 2️⃣world"#3️⃣
       """,
+      ranges: [("1️⃣", "3️⃣")],
       exhaustive: false
     ) { uri, positions in
       [
@@ -749,6 +751,7 @@ final class CodeActionTests: XCTestCase {
       ##"""
       let x = 1️⃣#"Hello 2️⃣\#(name)"#3️⃣
       """##,
+      ranges: [("1️⃣", "3️⃣")],
       exhaustive: false
     ) { uri, positions in
       [
@@ -787,9 +790,10 @@ final class CodeActionTests: XCTestCase {
   func testMigrateIfLetSyntax() async throws {
     try await assertCodeActions(
       ##"""
-      1️⃣if 2️⃣let 3️⃣foo = 4️⃣foo {}9️⃣
+      1️⃣if 2️⃣let 3️⃣foo = 4️⃣foo {}5️⃣
       """##,
-      markers: ["1️⃣", "2️⃣", "3️⃣", "4️⃣"]
+      markers: ["1️⃣", "2️⃣", "3️⃣", "4️⃣"],
+      ranges: [("1️⃣", "4️⃣"), ("1️⃣", "5️⃣")]
     ) { uri, positions in
       [
         CodeAction(
@@ -800,7 +804,7 @@ final class CodeActionTests: XCTestCase {
             changes: [
               uri: [
                 TextEdit(
-                  range: positions["1️⃣"]..<positions["9️⃣"],
+                  range: positions["1️⃣"]..<positions["5️⃣"],
                   newText: "if let foo {}"
                 )
               ]
@@ -827,9 +831,10 @@ final class CodeActionTests: XCTestCase {
   func testOpaqueParameterToGeneric() async throws {
     try await assertCodeActions(
       ##"""
-      1️⃣func 2️⃣someFunction(_ 3️⃣input: some4️⃣ Value) {}9️⃣
+      1️⃣func 2️⃣someFunction(_ 3️⃣input: some4️⃣ Value) {}5️⃣
       """##,
       markers: ["1️⃣", "2️⃣", "3️⃣", "4️⃣"],
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "5️⃣")],
       exhaustive: false
     ) { uri, positions in
       [
@@ -841,7 +846,7 @@ final class CodeActionTests: XCTestCase {
             changes: [
               uri: [
                 TextEdit(
-                  range: positions["1️⃣"]..<positions["9️⃣"],
+                  range: positions["1️⃣"]..<positions["5️⃣"],
                   newText: "func someFunction<T1: Value>(_ input: T1) {}"
                 )
               ]
@@ -875,6 +880,7 @@ final class CodeActionTests: XCTestCase {
       }5️⃣
 
       """##,
+      ranges: [("1️⃣", "5️⃣")],
       exhaustive: false
     ) { uri, positions in
       [
@@ -903,9 +909,54 @@ final class CodeActionTests: XCTestCase {
     }
   }
 
+  func testAddDocumentationRefactorSingleParameter() async throws {
+    try await assertCodeActions(
+      """
+        1️⃣func 2️⃣refactor(3️⃣syntax: 4️⃣Decl5️⃣Syntax)6️⃣ { }7️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "6️⃣"), ("1️⃣", "7️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add documentation",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: Range(positions["1️⃣"]),
+                  newText: """
+                    /// A description
+                      /// - Parameter syntax:
+                      \("")
+                    """
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
+  /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
+  ///
+  /// - Parameters:
+  ///   - markedText: The source file input to get the code actions for.
+  ///   - markers: The list of markers to retrieve code actions at. If `nil` code actions will be retrieved for all
+  ///     markers in `markedText`
+  ///   - ranges: If specified, code actions are also requested for selection ranges between these markers.
+  ///   - exhaustive: Whether `expected` is expected to be a subset of the returned code actions or whether it is
+  ///     expected to exhaustively match all code actions.
+  ///   - expected: A closure that returns the list of expected code actions, given the URI of the test document and the
+  ///     marker positions within.
   private func assertCodeActions(
     _ markedText: String,
     markers: [String]? = nil,
+    ranges: [(String, String)] = [],
     exhaustive: Bool = true,
     expected: (_ uri: DocumentURI, _ positions: DocumentPositions) -> [CodeAction],
     file: StaticString = #filePath,
@@ -915,23 +966,30 @@ final class CodeActionTests: XCTestCase {
     let uri = DocumentURI.for(.swift)
     let positions = testClient.openDocument(markedText, uri: uri)
 
-    for marker in markers ?? extractMarkers(markedText).markers.map(\.key) {
+    var ranges = ranges
+    if let markers {
+      ranges += markers.map { ($0, $0) }
+    } else {
+      ranges += extractMarkers(markedText).markers.map(\.key).map { ($0, $0) }
+    }
+
+    for (startMarker, endMarker) in ranges {
       let result = try await testClient.send(
         CodeActionRequest(
-          range: Range(positions[marker]),
+          range: positions[startMarker]..<positions[endMarker],
           context: .init(),
           textDocument: TextDocumentIdentifier(uri)
         )
       )
       guard case .codeActions(let codeActions) = result else {
-        XCTFail("Expected code actions at marker \(marker)", file: file, line: line)
+        XCTFail("Expected code actions at range \(startMarker)-\(endMarker)", file: file, line: line)
         return
       }
       if exhaustive {
         XCTAssertEqual(
           codeActions,
           expected(uri, positions),
-          "Found unexpected code actions at \(marker)",
+          "Found unexpected code actions at range \(startMarker)-\(endMarker)",
           file: file,
           line: line
         )
@@ -939,7 +997,7 @@ final class CodeActionTests: XCTestCase {
         XCTAssert(
           codeActions.contains(expected(uri, positions)),
           """
-          Code actions did not contain expected at \(marker):
+          Code actions did not contain expected at range \(startMarker)-\(endMarker):
           \(codeActions)
           """,
           file: file,
