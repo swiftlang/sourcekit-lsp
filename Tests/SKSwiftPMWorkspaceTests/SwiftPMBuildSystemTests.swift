@@ -27,8 +27,16 @@ import struct PackageModel.BuildFlags
 import SPMBuildCore
 #endif
 
-final class SwiftPMWorkspaceTests: XCTestCase {
+fileprivate extension SwiftPMBuildSystem {
+  func buildSettings(for uri: DocumentURI, language: Language) throws -> FileBuildSettings? {
+    guard let target = self.configuredTargets(for: uri).only else {
+      return nil
+    }
+    return try buildSettings(for: uri, in: target, language: language)
+  }
+}
 
+final class SwiftPMBuildSystemTests: XCTestCase {
   func testNoPackage() async throws {
     let fs = InMemoryFileSystem()
     try await withTestScratchDir { tempDir in

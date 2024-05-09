@@ -445,12 +445,16 @@ class ManualBuildSystem: BuildSystem {
     self.delegate = delegate
   }
 
-  func buildSettings(for uri: DocumentURI, language: Language) -> FileBuildSettings? {
+  func buildSettings(for uri: DocumentURI, in buildTarget: ConfiguredTarget, language: Language) -> FileBuildSettings? {
     return map[uri]
   }
 
   public func defaultLanguage(for document: DocumentURI) async -> Language? {
     return nil
+  }
+
+  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
   func registerForChangeNotifications(for uri: DocumentURI) async {

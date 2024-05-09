@@ -29,9 +29,13 @@ import struct Basics.AbsolutePath
 import struct Basics.IdentifiableSet
 import struct Basics.TSCAbsolutePath
 import struct Foundation.URL
+import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
+import class TSCBasic.Process
 import var TSCBasic.localFileSystem
 import func TSCBasic.resolveSymlinks
+
+typealias AbsolutePath = Basics.AbsolutePath
 
 #if canImport(SPMBuildCore)
 import SPMBuildCore
@@ -92,9 +96,11 @@ public actor SwiftPMBuildSystem {
   let workspace: Workspace
   public let buildParameters: BuildParameters
   let fileSystem: FileSystem
+  private let toolchainRegistry: ToolchainRegistry
 
   var fileToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
   var sourceDirToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
+  var targets: [SwiftBuildTarget] = []
 
   /// The URIs for which the delegate has registered for change notifications,
   /// mapped to the language the delegate specified when registering for change notifications.
@@ -130,6 +136,7 @@ public actor SwiftPMBuildSystem {
   ) async throws {
     self.workspacePath = workspacePath
     self.fileSystem = fileSystem
+    self.toolchainRegistry = toolchainRegistry
 
     guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem) else {
       throw Error.noManifest(workspacePath: workspacePath)
@@ -265,6 +272,8 @@ extension SwiftPMBuildSystem {
     /// with only some properties modified.
     self.modulesGraph = modulesGraph
 
+    self.targets = try buildDescription.allTargetsInTopologicalOrder(in: modulesGraph)
+
     self.fileToTarget = [AbsolutePath: SwiftBuildTarget](
       modulesGraph.allTargets.flatMap { target in
         return target.sources.paths.compactMap {
@@ -320,41 +329,70 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
-  public func buildSettings(for uri: DocumentURI, language: Language) throws -> FileBuildSettings? {
-    // SwiftPMBuildSystem doesn't respect the langue specified by the editor.
-    return try buildSettings(for: uri)
-  }
-
-  private func buildSettings(for uri: DocumentURI) throws -> FileBuildSettings? {
-    guard let url = uri.fileURL else {
+  public func buildSettings(
+    for uri: DocumentURI,
+    in configuredTarget: ConfiguredTarget,
+    language: Language
+  ) throws -> FileBuildSettings? {
+    guard let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
       // We can't determine build settings for non-file URIs.
       return nil
     }
-    guard let path = try? AbsolutePath(validating: url.path) else {
-      return nil
-    }
 
-    if let buildTarget = try buildTarget(for: path) {
-      return FileBuildSettings(
-        compilerArguments: try buildTarget.compileArguments(for: path.asURL),
-        workingDirectory: workspacePath.pathString
-      )
-    }
-
-    if path.basename == "Package.swift" {
+    if configuredTarget.targetID == "" {
       return try settings(forPackageManifest: path)
     }
 
-    if path.extension == "h" {
-      return try settings(forHeader: path)
+    let buildTargets = self.targets.filter({ $0.name == configuredTarget.targetID })
+    if buildTargets.count > 1 {
+      logger.error("Found multiple targets with name \(configuredTarget.targetID). Picking the first one")
+    }
+    guard let buildTarget = buildTargets.first else {
+      if buildTargets.isEmpty {
+        logger.error("Did not find target with name \(configuredTarget.targetID)")
+      }
+      return nil
     }
 
-    return nil
+    if url.pathExtension == "h", let substituteFile = buildTarget.sources.first {
+      return FileBuildSettings(
+        compilerArguments: try buildTarget.compileArguments(for: substituteFile),
+        workingDirectory: workspacePath.pathString
+      ).patching(newFile: try resolveSymlinks(path).pathString, originalFile: substituteFile.absoluteString)
+    }
+
+    return FileBuildSettings(
+      compilerArguments: try buildTarget.compileArguments(for: url),
+      workingDirectory: workspacePath.pathString
+    )
   }
 
   public func defaultLanguage(for document: DocumentURI) async -> Language? {
     // TODO (indexing): Query The SwiftPM build system for the document's language
     return nil
+  }
+
+  public func configuredTargets(for uri: DocumentURI) -> [ConfiguredTarget] {
+    guard let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
+      // We can't determine targets for non-file URIs.
+      return []
+    }
+
+    if let target = try? buildTarget(for: path) {
+      return [ConfiguredTarget(targetID: target.name, runDestinationID: "dummy")]
+    }
+
+    if path.basename == "Package.swift" {
+      // We use an empty target name to represent the package manifest since an empty target name is not valid for any
+      // user-defined target.
+      return [ConfiguredTarget(targetID: "", runDestinationID: "dummy")]
+    }
+
+    if url.pathExtension == "h", let target = try? target(forHeader: path) {
+      return [target]
+    }
+
+    return []
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI) async {
@@ -443,10 +481,10 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
   }
 
   public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    if (try? buildSettings(for: uri)) != nil {
-      return .handled
+    if configuredTargets(for: uri).isEmpty {
+      return .unhandled
     }
-    return .unhandled
+    return .handled
   }
 
   public func sourceFiles() -> [SourceFileInfo] {
@@ -491,25 +529,13 @@ extension SwiftPMBuildSystem {
     return canonicalPath == path ? nil : impl(canonicalPath)
   }
 
-  /// Retrieve settings for a given header file.
-  ///
-  /// This finds the target the header belongs to based on its location in the file system, retrieves the build settings
-  /// for any file within that target and generates compiler arguments by replacing that picked file with the header
-  /// file.
-  /// This is safe because all files within one target have the same build settings except for reference to the file
-  /// itself, which we are replacing.
-  private func settings(forHeader path: AbsolutePath) throws -> FileBuildSettings? {
-    func impl(_ path: AbsolutePath) throws -> FileBuildSettings? {
+  /// This finds the target the header belongs to based on its location in the file system.
+  private func target(forHeader path: AbsolutePath) throws -> ConfiguredTarget? {
+    func impl(_ path: AbsolutePath) throws -> ConfiguredTarget? {
       var dir = path.parentDirectory
       while !dir.isRoot {
         if let buildTarget = sourceDirToTarget[dir] {
-          if let sourceFile = buildTarget.sources.first {
-            return FileBuildSettings(
-              compilerArguments: try buildTarget.compileArguments(for: sourceFile),
-              workingDirectory: workspacePath.pathString
-            ).patching(newFile: path.pathString, originalFile: sourceFile.absoluteString)
-          }
-          return nil
+          return ConfiguredTarget(targetID: buildTarget.name, runDestinationID: "dummy")
         }
         dir = dir.parentDirectory
       }
