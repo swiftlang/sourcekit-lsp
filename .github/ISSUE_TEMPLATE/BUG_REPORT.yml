@@ -18,8 +18,8 @@ body:
     id: editor
     attributes:
       label: Editor
-      description: Which text editor are you using?
-      placeholder: Eg. Visual Studio Code with Swift plugin 1.9.0, neovim
+      description: Which text editor are you using (and LSP extension/plugin if applicable)?
+      placeholder: Eg. Visual Studio Code with Swift extension 1.9.0, Neovim
   - type: dropdown
     id: reproduces-with-swift-6
     attributes:
@@ -50,4 +50,4 @@ body:
       label: Logging
       description: |
         If you are using SourceKit-LSP from Swift 6, running `sourcekit-lsp diagnose` in terminal and attaching the generated bundle helps us diagnose the issue.
-        The generated bundle might contain portions of your source code, so please only attach it if you feel comfortable sharing it.
+        The generated bundle may contain paths to files on disk as well as portions of your source code. This greatly helps in reproducing issues, but you should only attach it if you feel comfortable doing so.
