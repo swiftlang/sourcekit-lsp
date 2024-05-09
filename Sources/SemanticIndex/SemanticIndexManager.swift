@@ -44,20 +44,20 @@ public final actor SemanticIndexManager {
   /// The `TaskScheduler` that manages the scheduling of index tasks. This is shared among all `SemanticIndexManager`s
   /// in the process, to ensure that we don't schedule more index operations than processor cores from multiple
   /// workspaces.
-  private let indexTaskScheduler: TaskScheduler<IndexTaskDescription>
+  private let indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
 
   /// Callback that is called when an index task has finished.
   ///
   /// Currently only used for testing.
-  private let indexTaskDidFinish: (@Sendable (IndexTaskDescription) -> Void)?
+  private let indexTaskDidFinish: (@Sendable (AnyIndexTaskDescription) -> Void)?
 
   // MARK: - Public API
 
   public init(
     index: UncheckedIndex,
     buildSystemManager: BuildSystemManager,
-    indexTaskScheduler: TaskScheduler<IndexTaskDescription>,
-    indexTaskDidFinish: (@Sendable (IndexTaskDescription) -> Void)?
+    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
+    indexTaskDidFinish: (@Sendable (AnyIndexTaskDescription) -> Void)?
   ) {
     self.index = index.checked(for: .modifiedFiles)
     self.buildSystemManager = buildSystemManager
@@ -133,12 +133,12 @@ public final actor SemanticIndexManager {
   private func prepare(targets: [ConfiguredTarget], priority: TaskPriority?) async {
     await self.indexTaskScheduler.schedule(
       priority: priority,
-      .preparation(
+      AnyIndexTaskDescription(
         PreparationTaskDescription(
           targetsToPrepare: targets,
           buildSystemManager: self.buildSystemManager,
           didFinishCallback: { [weak self] taskDescription in
-            self?.indexTaskDidFinish?(.preparation(taskDescription))
+            self?.indexTaskDidFinish?(AnyIndexTaskDescription(taskDescription))
           }
         )
       )
@@ -149,13 +149,13 @@ public final actor SemanticIndexManager {
   private func updateIndexStore(for files: [DocumentURI], priority: TaskPriority?) async {
     await self.indexTaskScheduler.schedule(
       priority: priority,
-      .updateIndexStore(
+      AnyIndexTaskDescription(
         UpdateIndexStoreTaskDescription(
           filesToIndex: Set(files),
           buildSystemManager: self.buildSystemManager,
           index: self.index.unchecked,
           didFinishCallback: { [weak self] taskDescription in
-            self?.indexTaskDidFinish?(.updateIndexStore(taskDescription))
+            self?.indexTaskDidFinish?(AnyIndexTaskDescription(taskDescription))
           }
         )
       )

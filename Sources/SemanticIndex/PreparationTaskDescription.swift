@@ -24,7 +24,9 @@ private var preparationIDForLogging = AtomicUInt32(initialValue: 1)
 /// Describes a task to prepare a set of targets.
 ///
 /// This task description can be scheduled in a `TaskScheduler`.
-public struct PreparationTaskDescription: TaskDescriptionProtocol {
+public struct PreparationTaskDescription: IndexTaskDescription {
+  public static let idPrefix = "prepare"
+
   public let id = preparationIDForLogging.fetchAndIncrement()
 
   /// The targets that should be prepared.

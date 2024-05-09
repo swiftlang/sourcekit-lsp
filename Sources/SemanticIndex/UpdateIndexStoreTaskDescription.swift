@@ -25,7 +25,8 @@ private nonisolated(unsafe) var updateIndexStoreIDForLogging = AtomicUInt32(init
 /// Describes a task to index a set of source files.
 ///
 /// This task description can be scheduled in a `TaskScheduler`.
-public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
+public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
+  public static let idPrefix = "update-indexstore"
   public let id = updateIndexStoreIDForLogging.fetchAndIncrement()
 
   /// The files that should be indexed.
