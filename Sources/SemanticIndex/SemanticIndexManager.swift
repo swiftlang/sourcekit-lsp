@@ -97,16 +97,10 @@ public final actor SemanticIndexManager {
     logger.info(
       "Waiting for up-to-date index for \(uris.map { $0.fileURL?.lastPathComponent ?? $0.stringValue }.joined(separator: ", "))"
     )
-    let filesWithOutOfDateIndex = uris.filter { uri in
-      switch indexStatus[uri] {
-      case .inProgress, nil: return true
-      case .upToDate: return false
-      }
-    }
     // Create a new index task for the files that aren't up-to-date. The newly scheduled index tasks will
     // - Wait for the existing index operations to finish if they have the same number of files.
     // - Reschedule the background index task in favor of an index task with fewer source files.
-    await self.index(files: filesWithOutOfDateIndex, priority: nil).value
+    await self.index(files: uris, priority: nil).value
     index.pollForUnitChangesAndWait()
     logger.debug("Done waiting for up-to-date index")
   }
