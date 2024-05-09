@@ -249,7 +249,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     }
 
     let range = snapshot.range(of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia)
-    // Members wont be extensions since extensions will only be at the top level.
+    // Members won't be extensions since extensions will only be at the top level.
     let testItem = AnnotatedTestItem(
       testItem: TestItem(
         id: (parentTypeNames + typeNames).joined(separator: "/"),

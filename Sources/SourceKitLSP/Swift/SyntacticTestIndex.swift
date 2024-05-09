@@ -79,7 +79,6 @@ fileprivate func testItems(in url: URL) async -> [AnnotatedTestItem] {
     syntaxTreeManager: syntaxTreeManager
   )
   async let xcTests = SyntacticSwiftXCTestScanner.findTestSymbols(in: snapshot, syntaxTreeManager: syntaxTreeManager)
-    .map { AnnotatedTestItem(testItem: $0, isExtension: false) }
 
   return await swiftTestingTests + xcTests
 }

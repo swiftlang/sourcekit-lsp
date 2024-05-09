@@ -25,7 +25,7 @@ public struct AnnotatedTestItem {
   /// The test item to be annotated
   public var testItem: TestItem
 
-  /// Whether the `TestItem` is declared in an extension.
+  /// Whether the `TestItem` is an extension.
   public var isExtension: Bool
 
   public init(
@@ -360,7 +360,7 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
   private var snapshot: DocumentSnapshot
 
   /// The workspace symbols representing the found `XCTestCase` subclasses and test methods.
-  private var result: [TestItem] = []
+  private var result: [AnnotatedTestItem] = []
 
   private init(snapshot: DocumentSnapshot) {
     self.snapshot = snapshot
@@ -370,7 +370,7 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
   public static func findTestSymbols(
     in snapshot: DocumentSnapshot,
     syntaxTreeManager: SyntaxTreeManager
-  ) async -> [TestItem] {
+  ) async -> [AnnotatedTestItem] {
     guard snapshot.text.contains("XCTestCase") || snapshot.text.contains("test") else {
       // If the file contains tests that can be discovered syntactically, it needs to have a class inheriting from
       // `XCTestCase` or a function starting with `test`.
@@ -437,14 +437,17 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
       return .visitChildren
     }
     let range = snapshot.range(of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia)
-    let testItem = TestItem(
-      id: node.name.text,
-      label: node.name.text,
-      disabled: false,
-      style: TestStyle.xcTest,
-      location: Location(uri: snapshot.uri, range: range),
-      children: testMethods,
-      tags: []
+    let testItem = AnnotatedTestItem(
+      testItem: TestItem(
+        id: node.name.text,
+        label: node.name.text,
+        disabled: false,
+        style: TestStyle.xcTest,
+        location: Location(uri: snapshot.uri, range: range),
+        children: testMethods,
+        tags: []
+      ),
+      isExtension: false
     )
     result.append(testItem)
     return .visitChildren
@@ -452,6 +455,7 @@ final class SyntacticSwiftXCTestScanner: SyntaxVisitor {
 
   override func visit(_ node: ExtensionDeclSyntax) -> SyntaxVisitorContinueKind {
     result += findTestMethods(in: node.memberBlock.members, containerName: node.extendedType.trimmedDescription)
+      .map { AnnotatedTestItem(testItem: $0, isExtension: true) }
     return .visitChildren
   }
 }
@@ -481,6 +485,20 @@ extension TestItem {
     }
     var test = self
     test.children = test.children.compactMap { $0.filterUsing(semanticSymbols: semanticSymbols) }
+    return test
+  }
+}
+
+extension AnnotatedTestItem {
+  /// Use out-of-date semantic information to filter syntactic symbols.
+  ///
+  /// Delegates to the `TestItem`'s `filterUsing(semanticSymbols:)` method to perform the filtering.
+  fileprivate func filterUsing(semanticSymbols: [Symbol]?) -> AnnotatedTestItem? {
+    guard let testItem = self.testItem.filterUsing(semanticSymbols: semanticSymbols) else {
+      return nil
+    }
+    var test = self
+    test.testItem = testItem
     return test
   }
 }
@@ -569,13 +587,11 @@ extension Array<AnnotatedTestItem> {
       }
     }
 
-    // Filter out the items that have been merged into their parents, sorting the tests by location.
-    // TestItems not in extensions should be priotitized first.
+    // Sort the tests by location, prioritizing TestItems not in extensions.
     let sortedItems = itemDict.values
-      .compactMap { $0 }
       .sorted { ($0.isExtension != $1.isExtension) ? !$0.isExtension : ($0.testItem.location < $1.testItem.location) }
 
-    return sortedItems.map {
+    let result = sortedItems.map {
       guard !$0.testItem.children.isEmpty, mergedIds.contains($0.testItem.id) else {
         return $0.testItem
       }
@@ -585,12 +601,15 @@ extension Array<AnnotatedTestItem> {
         .mergingTestsInExtensions()
       return newItem
     }
+    return result
   }
 }
 
 extension SwiftLanguageService {
-  public func syntacticDocumentTests(for uri: DocumentURI, in workspace: Workspace) async throws -> [AnnotatedTestItem]?
-  {
+  public func syntacticDocumentTests(
+    for uri: DocumentURI,
+    in workspace: Workspace
+  ) async throws -> [AnnotatedTestItem]? {
     let snapshot = try documentManager.latestSnapshot(uri)
     let semanticSymbols = workspace.index(checkedFor: .deletedFiles)?.symbols(inFilePath: snapshot.uri.pseudoPath)
     let xctestSymbols = await SyntacticSwiftXCTestScanner.findTestSymbols(
@@ -598,7 +617,6 @@ extension SwiftLanguageService {
       syntaxTreeManager: syntaxTreeManager
     )
     .compactMap { $0.filterUsing(semanticSymbols: semanticSymbols) }
-    .map { AnnotatedTestItem(testItem: $0, isExtension: false) }
 
     let swiftTestingSymbols = await SyntacticSwiftTestingTestScanner.findTestSymbols(
       in: snapshot,
