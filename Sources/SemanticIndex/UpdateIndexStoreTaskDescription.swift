@@ -87,6 +87,7 @@ public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
       let filesToIndex = filesToIndex.sorted(by: { $0.stringValue < $1.stringValue })
       // TODO (indexing): Once swiftc supports it, we should group files by target and index files within the same
       // target together in one swiftc invocation.
+      // https://github.com/apple/sourcekit-lsp/issues/1268
       for file in filesToIndex {
         await updateIndexStoreForSingleFile(file)
       }
@@ -163,6 +164,7 @@ public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
       }
     case .c, .cpp, .objective_c, .objective_cpp:
       // TODO (indexing): Support indexing of clang files, including headers.
+      // https://github.com/apple/sourcekit-lsp/issues/1253
       break
     default:
       logger.error(

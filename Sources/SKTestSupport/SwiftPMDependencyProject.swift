@@ -71,13 +71,13 @@ public class SwiftPMDependencyProject {
     var files = files
     files["Package.swift"] = manifest
 
-    for (fileLocation, contents) in files {
+    for (fileLocation, markedContents) in files {
       let fileURL = fileLocation.url(relativeTo: packageDirectory)
       try FileManager.default.createDirectory(
         at: fileURL.deletingLastPathComponent(),
         withIntermediateDirectories: true
       )
-      try contents.write(to: fileURL, atomically: true, encoding: .utf8)
+      try extractMarkers(markedContents).textWithoutMarkers.write(to: fileURL, atomically: true, encoding: .utf8)
     }
 
     try await runGitCommand(["init"], workingDirectory: packageDirectory)

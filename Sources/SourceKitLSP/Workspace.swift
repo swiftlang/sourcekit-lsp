@@ -89,7 +89,7 @@ public final class Workspace {
     underlyingBuildSystem: BuildSystem?,
     index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?,
-    indexTaskScheduler: TaskScheduler<UpdateIndexStoreTaskDescription>
+    indexTaskScheduler: TaskScheduler<IndexTaskDescription>
   ) async {
     self.documentManager = documentManager
     self.buildSetup = options.buildSetup
@@ -123,8 +123,8 @@ public final class Workspace {
     }
     // Trigger an initial population of `syntacticTestIndex`.
     await syntacticTestIndex.listOfTestFilesDidChange(buildSystemManager.testFiles())
-    if let semanticIndexManager, let underlyingBuildSystem {
-      await semanticIndexManager.scheduleBackgroundIndex(files: await underlyingBuildSystem.sourceFiles().map(\.uri))
+    if let semanticIndexManager {
+      await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles()
     }
   }
 
@@ -142,7 +142,7 @@ public final class Workspace {
     options: SourceKitLSPServer.Options,
     compilationDatabaseSearchPaths: [RelativePath],
     indexOptions: IndexOptions = IndexOptions(),
-    indexTaskScheduler: TaskScheduler<UpdateIndexStoreTaskDescription>,
+    indexTaskScheduler: TaskScheduler<IndexTaskDescription>,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
   ) async throws {
     var buildSystem: BuildSystem? = nil
@@ -295,7 +295,7 @@ public struct IndexOptions {
   /// A callback that is called when an index task finishes.
   ///
   /// Intended for testing purposes.
-  public var indexTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) -> Void)?
+  public var indexTaskDidFinish: (@Sendable (IndexTaskDescription) -> Void)?
 
   public init(
     indexStorePath: AbsolutePath? = nil,
@@ -304,7 +304,7 @@ public struct IndexOptions {
     listenToUnitEvents: Bool = true,
     enableBackgroundIndexing: Bool = false,
     maxCoresPercentageToUseForBackgroundIndexing: Double = 1,
-    indexTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) -> Void)? = nil
+    indexTaskDidFinish: (@Sendable (IndexTaskDescription) -> Void)? = nil
   ) {
     self.indexStorePath = indexStorePath
     self.indexDatabasePath = indexDatabasePath

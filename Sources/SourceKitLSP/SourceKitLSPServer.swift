@@ -453,7 +453,7 @@ public actor SourceKitLSPServer {
   ///
   /// Shared process-wide to ensure the scheduled index operations across multiple workspaces don't exceed the maximum
   /// number of processor cores that the user allocated to background indexing.
-  private let indexTaskScheduler: TaskScheduler<UpdateIndexStoreTaskDescription>
+  private let indexTaskScheduler: TaskScheduler<IndexTaskDescription>
 
   private var packageLoadingWorkDoneProgress = WorkDoneProgressState(
     "SourceKitLSP.SourceKitLSPServer.reloadPackage",

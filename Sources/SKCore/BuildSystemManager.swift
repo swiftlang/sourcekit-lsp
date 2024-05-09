@@ -208,6 +208,18 @@ extension BuildSystemManager {
     return settings
   }
 
+  public func generateBuildGraph() async throws {
+    try await self.buildSystem?.generateBuildGraph()
+  }
+
+  public func topologicalSort(of targets: [ConfiguredTarget]) async throws -> [ConfiguredTarget] {
+    return await buildSystem?.topologicalSort(of: targets) ?? targets
+  }
+
+  public func prepare(targets: [ConfiguredTarget]) async throws {
+    try await buildSystem?.prepare(targets: targets)
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
     logger.debug("registerForChangeNotifications(\(uri.forLogging))")
     let mainFile = await mainFile(for: uri, language: language)
@@ -247,7 +259,7 @@ extension BuildSystemManager {
 
   public func testFiles() async -> [DocumentURI] {
     return await sourceFiles().compactMap { (info: SourceFileInfo) -> DocumentURI? in
-      guard info.mayContainTests else {
+      guard info.isPartOfRootProject, info.mayContainTests else {
         return nil
       }
       return info.uri

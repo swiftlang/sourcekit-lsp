@@ -279,6 +279,16 @@ extension BuildServerBuildSystem: BuildSystem {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
+  public func generateBuildGraph() {}
+
+  public func topologicalSort(of targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
+    return nil
+  }
+
+  public func prepare(targets: [ConfiguredTarget]) async throws {
+    throw PrepareNotSupportedError()
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI) {
     let request = RegisterForChanges(uri: uri, action: .register)
     _ = self.buildServer?.send(request) { result in

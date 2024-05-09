@@ -55,6 +55,16 @@ final class TestBuildSystem: BuildSystem {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
+  public func prepare(targets: [ConfiguredTarget]) async throws {
+    throw PrepareNotSupportedError()
+  }
+
+  public func generateBuildGraph() {}
+
+  public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+    return nil
+  }
+
   func registerForChangeNotifications(for uri: DocumentURI) async {
     watchedFiles.insert(uri)
   }

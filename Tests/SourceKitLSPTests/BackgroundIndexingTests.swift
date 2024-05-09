@@ -105,6 +105,63 @@ final class BackgroundIndexingTests: XCTestCase {
     )
   }
 
+  func testBackgroundIndexingOfMultiModuleProject() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/MyFile.swift": """
+        public func 1️⃣foo() {}
+        """,
+        "LibB/MyOtherFile.swift": """
+        import LibA
+        func 2️⃣bar() {
+          3️⃣foo()
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      serverOptions: backgroundIndexingOptions
+    )
+
+    let (uri, positions) = try project.openDocument("MyFile.swift")
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let initialItem = try XCTUnwrap(prepare?.only)
+    let calls = try await project.testClient.send(CallHierarchyIncomingCallsRequest(item: initialItem))
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "bar()",
+            kind: .function,
+            tags: nil,
+            uri: try project.uri(for: "MyOtherFile.swift"),
+            range: Range(try project.position(of: "2️⃣", in: "MyOtherFile.swift")),
+            selectionRange: Range(try project.position(of: "2️⃣", in: "MyOtherFile.swift")),
+            data: .dictionary([
+              "usr": .string("s:4LibB3baryyF"),
+              "uri": .string(try project.uri(for: "MyOtherFile.swift").stringValue),
+            ])
+          ),
+          fromRanges: [Range(try project.position(of: "3️⃣", in: "MyOtherFile.swift"))]
+        )
+      ]
+    )
+  }
+
   func testBackgroundIndexingHappensWithLowPriority() async throws {
     var serverOptions = backgroundIndexingOptions
     serverOptions.indexOptions.indexTaskDidFinish = { taskDescription in
@@ -151,5 +208,78 @@ final class BackgroundIndexingTests: XCTestCase {
       semaphore.signal()
     }
     semaphore.wait()
+  }
+
+  func testBackgroundIndexingOfPackageDependency() async throws {
+    let dependencyContents = """
+      public func 1️⃣doSomething() {}
+      """
+
+    let dependencyProject = try await SwiftPMDependencyProject(files: [
+      "Sources/MyDependency/MyDependency.swift": dependencyContents
+    ])
+    defer { dependencyProject.keepAlive() }
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Test.swift": """
+        import MyDependency
+
+        func 2️⃣test() {
+          3️⃣doSomething()
+        }
+        """
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+        import PackageDescription
+        let package = Package(
+          name: "MyLibrary",
+          dependencies: [.package(url: "\(dependencyProject.packageDirectory)", from: "1.0.0")],
+          targets: [
+            .target(
+              name: "MyLibrary",
+              dependencies: [.product(name: "MyDependency", package: "MyDependency")]
+            )
+          ]
+        )
+        """,
+      serverOptions: backgroundIndexingOptions
+    )
+
+    let dependencyUrl = try XCTUnwrap(
+      FileManager.default.findFiles(named: "MyDependency.swift", in: project.scratchDirectory).only
+    )
+    let dependencyUri = DocumentURI(dependencyUrl)
+    let testFileUri = try project.uri(for: "Test.swift")
+    let positions = project.testClient.openDocument(dependencyContents, uri: dependencyUri)
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(dependencyUri), position: positions["1️⃣"])
+    )
+
+    let calls = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "test()",
+            kind: .function,
+            tags: nil,
+            uri: testFileUri,
+            range: try project.range(from: "2️⃣", to: "2️⃣", in: "Test.swift"),
+            selectionRange: try project.range(from: "2️⃣", to: "2️⃣", in: "Test.swift"),
+            data: .dictionary([
+              "usr": .string("s:9MyLibrary4testyyF"),
+              "uri": .string(testFileUri.stringValue),
+            ])
+          ),
+          fromRanges: [try project.range(from: "3️⃣", to: "3️⃣", in: "Test.swift")]
+        )
+      ]
+    )
   }
 }

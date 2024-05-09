@@ -37,23 +37,27 @@ public final actor SemanticIndexManager {
   /// Files that have never been indexed are not in this dictionary.
   private var indexStatus: [DocumentURI: FileIndexStatus] = [:]
 
+  /// The task to generate the build graph (resolving package dependencies, generating the build description,
+  /// ...). `nil` if no build graph is currently being generated.
+  private var generateBuildGraphTask: Task<Void, Never>?
+
   /// The `TaskScheduler` that manages the scheduling of index tasks. This is shared among all `SemanticIndexManager`s
   /// in the process, to ensure that we don't schedule more index operations than processor cores from multiple
   /// workspaces.
-  private let indexTaskScheduler: TaskScheduler<UpdateIndexStoreTaskDescription>
+  private let indexTaskScheduler: TaskScheduler<IndexTaskDescription>
 
   /// Callback that is called when an index task has finished.
   ///
   /// Currently only used for testing.
-  private let indexTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) -> Void)?
+  private let indexTaskDidFinish: (@Sendable (IndexTaskDescription) -> Void)?
 
   // MARK: - Public API
 
   public init(
     index: UncheckedIndex,
     buildSystemManager: BuildSystemManager,
-    indexTaskScheduler: TaskScheduler<UpdateIndexStoreTaskDescription>,
-    indexTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) -> Void)?
+    indexTaskScheduler: TaskScheduler<IndexTaskDescription>,
+    indexTaskDidFinish: (@Sendable (IndexTaskDescription) -> Void)?
   ) {
     self.index = index.checked(for: .modifiedFiles)
     self.buildSystemManager = buildSystemManager
@@ -65,13 +69,27 @@ public final actor SemanticIndexManager {
   /// Returns immediately after scheduling that task.
   ///
   /// Indexing is being performed with a low priority.
-  public func scheduleBackgroundIndex(files: some Collection<DocumentURI>) {
-    self.index(files: files, priority: .low)
+  public func scheduleBackgroundIndex(files: some Collection<DocumentURI>) async {
+    await self.index(files: files, priority: .low)
+  }
+
+  /// Regenerate the build graph (also resolving package dependencies) and then index all the source files known to the
+  /// build system.
+  public func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles() async {
+    generateBuildGraphTask = Task(priority: .low) {
+      await orLog("Generating build graph") { try await self.buildSystemManager.generateBuildGraph() }
+      await scheduleBackgroundIndex(files: await self.buildSystemManager.sourceFiles().map(\.uri))
+      generateBuildGraphTask = nil
+    }
   }
 
   /// Wait for all in-progress index tasks to finish.
   public func waitForUpToDateIndex() async {
     logger.info("Waiting for up-to-date index")
+    // Wait for a build graph update first, if one is in progress. This will add all index tasks to `indexStatus`, so we
+    // can await the index tasks below.
+    await generateBuildGraphTask?.value
+
     await withTaskGroup(of: Void.self) { taskGroup in
       for (_, status) in indexStatus {
         switch status {
@@ -97,6 +115,10 @@ public final actor SemanticIndexManager {
     logger.info(
       "Waiting for up-to-date index for \(uris.map { $0.fileURL?.lastPathComponent ?? $0.stringValue }.joined(separator: ", "))"
     )
+    // If there's a build graph update in progress wait for that to finish so we can discover new files in the build
+    // system.
+    await generateBuildGraphTask?.value
+
     // Create a new index task for the files that aren't up-to-date. The newly scheduled index tasks will
     // - Wait for the existing index operations to finish if they have the same number of files.
     // - Reschedule the background index task in favor of an index task with fewer source files.
@@ -107,41 +129,108 @@ public final actor SemanticIndexManager {
 
   // MARK: - Helper functions
 
+  /// Prepare the given targets for indexing
+  private func prepare(targets: [ConfiguredTarget], priority: TaskPriority?) async {
+    await self.indexTaskScheduler.schedule(
+      priority: priority,
+      .preparation(
+        PreparationTaskDescription(
+          targetsToPrepare: targets,
+          buildSystemManager: self.buildSystemManager,
+          didFinishCallback: { [weak self] taskDescription in
+            self?.indexTaskDidFinish?(.preparation(taskDescription))
+          }
+        )
+      )
+    ).value
+  }
+
+  /// Update the index store for the given files, assuming that their targets have already been prepared.
+  private func updateIndexStore(for files: [DocumentURI], priority: TaskPriority?) async {
+    await self.indexTaskScheduler.schedule(
+      priority: priority,
+      .updateIndexStore(
+        UpdateIndexStoreTaskDescription(
+          filesToIndex: Set(files),
+          buildSystemManager: self.buildSystemManager,
+          index: self.index,
+          didFinishCallback: { [weak self] taskDescription in
+            self?.indexTaskDidFinish?(.updateIndexStore(taskDescription))
+          }
+        )
+      )
+    ).value
+    for file in files {
+      self.indexStatus[file] = .upToDate
+    }
+  }
+
   /// Index the given set of files at the given priority.
   ///
   /// The returned task finishes when all files are indexed.
   @discardableResult
-  private func index(files: some Collection<DocumentURI>, priority: TaskPriority?) -> Task<Void, Never> {
+  private func index(files: some Collection<DocumentURI>, priority: TaskPriority?) async -> Task<Void, Never> {
     let outOfDateFiles = files.filter {
       if case .upToDate = indexStatus[$0] {
         return false
       }
       return true
     }
+    .sorted(by: { $0.stringValue < $1.stringValue })  // sort files to get deterministic indexing order
+
+    // Sort the targets in topological order so that low-level targets get built before high-level targets, allowing us
+    // to index the low-level targets ASAP.
+    var filesByTarget: [ConfiguredTarget: [DocumentURI]] = [:]
+    for file in outOfDateFiles {
+      guard let target = await buildSystemManager.canonicalConfiguredTarget(for: file) else {
+        logger.error("Not indexing \(file.forLogging) because the target could not be determined")
+        continue
+      }
+      filesByTarget[target, default: []].append(file)
+    }
+
+    var sortedTargets: [ConfiguredTarget] =
+      await orLog("Sorting targets") { try await buildSystemManager.topologicalSort(of: Array(filesByTarget.keys)) }
+      ?? Array(filesByTarget.keys).sorted(by: { $0.targetID < $1.targetID })
+
+    if Set(sortedTargets) != Set(filesByTarget.keys) {
+      logger.fault(
+        """
+        Sorting targets topologically changed set of targets:
+        \(sortedTargets.map(\.targetID).joined(separator: ", ")) != \(filesByTarget.keys.map(\.targetID).joined(separator: ", "))
+        """
+      )
+      sortedTargets = Array(filesByTarget.keys).sorted(by: { $0.targetID < $1.targetID })
+    }
 
     var indexTasks: [Task<Void, Never>] = []
 
-    // TODO (indexing): Group index operations by target when we support background preparation.
-    for files in outOfDateFiles.partition(intoNumberOfBatches: ProcessInfo.processInfo.processorCount * 5) {
+    // TODO (indexing): When we can index multiple targets concurrently in SwiftPM, increase the batch size to half the
+    // processor count, so we can get parallelism during preparation.
+    // https://github.com/apple/sourcekit-lsp/issues/1262
+    for targetsBatch in sortedTargets.partition(intoBatchesOfSize: 1) {
       let indexTask = Task(priority: priority) {
-        await self.indexTaskScheduler.schedule(
-          priority: priority,
-          UpdateIndexStoreTaskDescription(
-            filesToIndex: Set(files),
-            buildSystemManager: self.buildSystemManager,
-            index: self.index,
-            didFinishCallback: { [weak self] taskDescription in
-              self?.indexTaskDidFinish?(taskDescription)
+        // First prepare the targets.
+        await prepare(targets: targetsBatch, priority: priority)
+
+        // And after preparation is done, index the files in the targets.
+        await withTaskGroup(of: Void.self) { taskGroup in
+          for target in targetsBatch {
+            // TODO (indexing): Once swiftc supports indexing of multiple files in a single invocation, increase the
+            // batch size to allow it to share AST builds between multiple files within a target.
+            // https://github.com/apple/sourcekit-lsp/issues/1268
+            for fileBatch in filesByTarget[target]!.partition(intoBatchesOfSize: 1) {
+              taskGroup.addTask {
+                await self.updateIndexStore(for: fileBatch, priority: priority)
+              }
             }
-          )
-        ).value
-        for file in files {
-          indexStatus[file] = .upToDate
+          }
+          await taskGroup.waitForAll()
         }
       }
       indexTasks.append(indexTask)
 
-      for file in files {
+      for file in targetsBatch.flatMap({ filesByTarget[$0]! }) {
         indexStatus[file] = .inProgress(indexTask)
       }
     }
@@ -150,7 +239,7 @@ public final actor SemanticIndexManager {
     return Task(priority: priority) {
       await withTaskGroup(of: Void.self) { taskGroup in
         for indexTask in indexTasksImmutable {
-          taskGroup.addTask(priority: priority) {
+          taskGroup.addTask {
             await indexTask.value
           }
         }

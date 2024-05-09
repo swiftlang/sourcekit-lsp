@@ -24,4 +24,16 @@ extension FileManager {
     }
     return result
   }
+
+  /// Returns the URLs of all files with the given file extension in the given directory (recursively).
+  public func findFiles(named name: String, in directory: URL) -> [URL] {
+    var result: [URL] = []
+    let enumerator = self.enumerator(at: directory, includingPropertiesForKeys: nil)
+    while let url = enumerator?.nextObject() as? URL {
+      if url.lastPathComponent == name {
+        result.append(url)
+      }
+    }
+    return result
+  }
 }
