@@ -14,9 +14,6 @@ import LanguageServerProtocol
 import SwiftRefactor
 import SwiftSyntax
 
-// TODO: Make the type IntegerLiteralExprSyntax.Radix conform to CaseEnumerable
-// in swift-syntax.
-
 extension IntegerLiteralExprSyntax.Radix {
   static var allCases: [Self] = [.binary, .octal, .decimal, .hex]
 }
@@ -26,7 +23,7 @@ extension IntegerLiteralExprSyntax.Radix {
 struct ConvertIntegerLiteral: SyntaxCodeActionProvider {
   static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
     guard
-      let token = scope.firstToken,
+      let token = scope.innermostNodeContainingRange,
       let integerExpr = token.parent?.as(IntegerLiteralExprSyntax.self),
       let integerValue = Int(
         integerExpr.split().value.filter { $0 != "_" },

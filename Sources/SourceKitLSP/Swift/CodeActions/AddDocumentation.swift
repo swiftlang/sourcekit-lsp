@@ -37,22 +37,25 @@ import SwiftSyntax
 public struct AddDocumentation: EditRefactoringProvider {
   @_spi(Testing)
   public static func textRefactor(syntax: DeclSyntax, in context: Void) -> [SourceEdit] {
-    let hasDocumentation = syntax.leadingTrivia.contains(where: { trivia in
+    let hasDocumentation = syntax.leadingTrivia.contains { trivia in
       switch trivia {
-      case .blockComment(_), .docBlockComment(_), .lineComment(_), .docLineComment(_):
+      case .blockComment, .docBlockComment, .lineComment, .docLineComment:
         return true
       default:
         return false
       }
-    })
+    }
 
-    guard !hasDocumentation else {
+    // We consider nodes at the start of the source file at being on a new line
+    let isOnNewLine =
+      syntax.leadingTrivia.contains(where: \.isNewline) || syntax.previousToken(viewMode: .sourceAccurate) == nil
+
+    guard !hasDocumentation && isOnNewLine else {
       return []
     }
 
     let newlineAndIndentation = [.newlines(1)] + (syntax.firstToken(viewMode: .sourceAccurate)?.indentationOfLine ?? [])
     var content: [TriviaPiece] = []
-    content += newlineAndIndentation
     content.append(.docLineComment("/// A description"))
 
     if let parameters = syntax.parameters?.parameters {
@@ -82,8 +85,9 @@ public struct AddDocumentation: EditRefactoringProvider {
       content += newlineAndIndentation
       content.append(.docLineComment("/// - Returns:"))
     }
+    content += newlineAndIndentation
 
-    let insertPos = syntax.position
+    let insertPos = syntax.positionAfterSkippingLeadingTrivia
     return [
       SourceEdit(
         range: insertPos..<insertPos,
@@ -94,6 +98,13 @@ public struct AddDocumentation: EditRefactoringProvider {
 }
 
 extension AddDocumentation: SyntaxRefactoringCodeActionProvider {
+  static func nodeToRefactor(in scope: SyntaxCodeActionScope) -> Input? {
+    return scope.innermostNodeContainingRange?.findParentOfSelf(
+      ofType: DeclSyntax.self,
+      stoppingIf: { $0.is(CodeBlockItemSyntax.self) || $0.is(MemberBlockItemSyntax.self) || $0.is(ExprSyntax.self) }
+    )
+  }
+
   static var title: String { "Add documentation" }
 }
 

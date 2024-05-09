@@ -16,23 +16,22 @@ import SKTestSupport
 import SourceKitLSP
 import XCTest
 
+private typealias CodeActionCapabilities = TextDocumentClientCapabilities.CodeAction
+private typealias CodeActionLiteralSupport = CodeActionCapabilities.CodeActionLiteralSupport
+private typealias CodeActionKindCapabilities = CodeActionLiteralSupport.CodeActionKind
+
+private var clientCapabilitiesWithCodeActionSupport: ClientCapabilities = {
+  var documentCapabilities = TextDocumentClientCapabilities()
+  var codeActionCapabilities = CodeActionCapabilities()
+  let codeActionKinds = CodeActionKindCapabilities(valueSet: [.refactor, .quickFix])
+  let codeActionLiteralSupport = CodeActionLiteralSupport(codeActionKind: codeActionKinds)
+  codeActionCapabilities.codeActionLiteralSupport = codeActionLiteralSupport
+  documentCapabilities.codeAction = codeActionCapabilities
+  documentCapabilities.completion = .init(completionItem: .init(snippetSupport: true))
+  return ClientCapabilities(workspace: nil, textDocument: documentCapabilities)
+}()
+
 final class CodeActionTests: XCTestCase {
-
-  typealias CodeActionCapabilities = TextDocumentClientCapabilities.CodeAction
-  typealias CodeActionLiteralSupport = CodeActionCapabilities.CodeActionLiteralSupport
-  typealias CodeActionKindCapabilities = CodeActionLiteralSupport.CodeActionKind
-
-  private func clientCapabilitiesWithCodeActionSupport() -> ClientCapabilities {
-    var documentCapabilities = TextDocumentClientCapabilities()
-    var codeActionCapabilities = CodeActionCapabilities()
-    let codeActionKinds = CodeActionKindCapabilities(valueSet: [.refactor, .quickFix])
-    let codeActionLiteralSupport = CodeActionLiteralSupport(codeActionKind: codeActionKinds)
-    codeActionCapabilities.codeActionLiteralSupport = codeActionLiteralSupport
-    documentCapabilities.codeAction = codeActionCapabilities
-    documentCapabilities.completion = .init(completionItem: .init(snippetSupport: true))
-    return ClientCapabilities(workspace: nil, textDocument: documentCapabilities)
-  }
-
   func testCodeActionResponseLegacySupport() throws {
     let command = Command(title: "Title", command: "Command", arguments: [1, "text", 2.2, nil])
     let codeAction = CodeAction(title: "1")
@@ -191,7 +190,7 @@ final class CodeActionTests: XCTestCase {
   }
 
   func testEmptyCodeActionResult() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI.for(.swift)
     let positions = testClient.openDocument(
       """
@@ -214,7 +213,7 @@ final class CodeActionTests: XCTestCase {
   }
 
   func testSemanticRefactorLocalRenameResult() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI.for(.swift)
     let positions = testClient.openDocument(
       """
@@ -227,16 +226,20 @@ final class CodeActionTests: XCTestCase {
     )
 
     let request = CodeActionRequest(
-      range: positions["1️⃣"]..<positions["1️⃣"],
+      range: Range(positions["1️⃣"]),
       context: .init(),
       textDocument: TextDocumentIdentifier(uri)
     )
     let result = try await testClient.send(request)
-    XCTAssertEqual(result, .codeActions([]))
+    guard case .codeActions(let codeActions) = result else {
+      XCTFail("Expected code actions")
+      return
+    }
+    XCTAssertEqual(codeActions.map(\.title), ["Add documentation"])
   }
 
   func testSemanticRefactorLocationCodeActionResult() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI.for(.swift)
     let positions = testClient.openDocument(
       """
@@ -290,17 +293,10 @@ final class CodeActionTests: XCTestCase {
     }
 
     XCTAssertTrue(codeActions.contains(expectedCodeAction))
-
-    // Make sure we get one of the swift-syntax refactoring actions.
-    XCTAssertTrue(
-      codeActions.contains { action in
-        return action.title == "Convert string literal to minimal number of \'#\'s"
-      }
-    )
   }
 
   func testJSONCodableCodeActionResult() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI.for(.swift)
     let positions = testClient.openDocument(
       """
@@ -342,7 +338,7 @@ final class CodeActionTests: XCTestCase {
   }
 
   func testSemanticRefactorRangeCodeActionResult() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI.for(.swift)
     let positions = testClient.openDocument(
       """
@@ -411,7 +407,7 @@ final class CodeActionTests: XCTestCase {
 
   func testCodeActionsRemovePlaceholders() async throws {
     let testClient = try await TestSourceKitLSPClient(
-      capabilities: clientCapabilitiesWithCodeActionSupport(),
+      capabilities: clientCapabilitiesWithCodeActionSupport,
       usePullDiagnostics: false
     )
     let uri = DocumentURI.for(.swift)
@@ -500,7 +496,7 @@ final class CodeActionTests: XCTestCase {
   }
 
   func testAddDocumentationCodeActionResult() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI.for(.swift)
     let positions = testClient.openDocument(
       """
@@ -579,7 +575,7 @@ final class CodeActionTests: XCTestCase {
   }
 
   func testPackageManifestEditingCodeActionResult() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI.for(.swift)
     let positions = testClient.openDocument(
       """
@@ -647,7 +643,7 @@ final class CodeActionTests: XCTestCase {
   }
 
   func testPackageManifestEditingCodeActionNoTestResult() async throws {
-    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport())
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
     let uri = DocumentURI.for(.swift)
     let positions = testClient.openDocument(
       """
@@ -687,5 +683,372 @@ final class CodeActionTests: XCTestCase {
         return action.title == "Add product to export this target"
       }
     )
+  }
+
+  func testConvertIntegerLiteral() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣12️⃣63️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "3️⃣")]
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert 16 to 0b10000",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "0b10000")]]
+          ),
+          command: nil
+        ),
+        CodeAction(
+          title: "Convert 16 to 0o20",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "0o20")]]
+          ),
+          command: nil
+        ),
+        CodeAction(
+          title: "Convert 16 to 0x10",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: "0x10")]]
+          ),
+          command: nil
+        ),
+      ]
+    }
+  }
+
+  func testFormatRawStringLiteral() async throws {
+    try await assertCodeActions(
+      """
+      let x = 1️⃣#"Hello 2️⃣world"#3️⃣
+      """,
+      ranges: [("1️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert string literal to minimal number of \'#\'s",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [uri: [TextEdit(range: positions["1️⃣"]..<positions["3️⃣"], newText: #""Hello world""#)]]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
+  func testFormatRawStringLiteralFromInterpolation() async throws {
+    try await assertCodeActions(
+      ##"""
+      let x = 1️⃣#"Hello 2️⃣\#(name)"#3️⃣
+      """##,
+      ranges: [("1️⃣", "3️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Convert string literal to minimal number of \'#\'s",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["3️⃣"],
+                  newText: ##"""
+                    ##"Hello \#(name)"##
+                    """##
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
+  func testFormatRawStringLiteralDoesNotShowUpWhenInvokedFromInsideInterpolationSegment() async throws {
+    try await assertCodeActions(
+      ##"""
+      let x = #"Hello \#(n1️⃣ame)"#
+      """##
+    ) { uri, positions in
+      []
+    }
+  }
+
+  func testMigrateIfLetSyntax() async throws {
+    try await assertCodeActions(
+      ##"""
+      1️⃣if 2️⃣let 3️⃣foo = 4️⃣foo {}5️⃣
+      """##,
+      markers: ["1️⃣", "2️⃣", "3️⃣", "4️⃣"],
+      ranges: [("1️⃣", "4️⃣"), ("1️⃣", "5️⃣")]
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Migrate to shorthand 'if let' syntax",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["5️⃣"],
+                  newText: "if let foo {}"
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
+  func testMigrateIfLetSyntaxDoesNotShowUpWhenInvokedFromInsideTheBody() async throws {
+    try await assertCodeActions(
+      ##"""
+      if let foo = foo 1️⃣{
+        2️⃣print(foo)
+      3️⃣}4️⃣
+      """##
+    ) { uri, positions in
+      []
+    }
+  }
+
+  func testOpaqueParameterToGeneric() async throws {
+    try await assertCodeActions(
+      ##"""
+      1️⃣func 2️⃣someFunction(_ 3️⃣input: some4️⃣ Value) {}5️⃣
+      """##,
+      markers: ["1️⃣", "2️⃣", "3️⃣", "4️⃣"],
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "5️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Expand 'some' parameters to generic parameters",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["5️⃣"],
+                  newText: "func someFunction<T1: Value>(_ input: T1) {}"
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
+  func testOpaqueParameterToGenericIsNotShownFromTheBody() async throws {
+    try await assertCodeActions(
+      ##"""
+      func someFunction(_ input: some Value) 1️⃣{
+        2️⃣print("x")
+      }3️⃣
+      """##,
+      exhaustive: false
+    ) { uri, positions in
+      []
+    }
+  }
+
+  func testConvertJSONToCodable() async throws {
+    try await assertCodeActions(
+      ##"""
+      1️⃣{
+        2️⃣"id": 3️⃣1,
+        "values": 4️⃣["foo", "bar"]
+      }5️⃣
+
+      """##,
+      ranges: [("1️⃣", "5️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Create Codable structs from JSON",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: positions["1️⃣"]..<positions["5️⃣"],
+                  newText: """
+                    struct JSONValue: Codable {
+                      var id: Double
+                      var values: [String]
+                    }
+                    """
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
+  func testAddDocumentationRefactorNotAtStartOfFile() async throws {
+    try await assertCodeActions(
+      """
+      struct Foo {
+        1️⃣func 2️⃣refactor(3️⃣syntax: 4️⃣Decl5️⃣Syntax)6️⃣ { }7️⃣
+      }
+      """,
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "6️⃣"), ("1️⃣", "7️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add documentation",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: Range(positions["1️⃣"]),
+                  newText: """
+                    /// A description
+                      /// - Parameter syntax:
+                      \("")
+                    """
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
+  func testAddDocumentationRefactorAtStartOfFile() async throws {
+    try await assertCodeActions(
+      """
+      1️⃣func 2️⃣refactor(3️⃣syntax: 4️⃣Decl5️⃣Syntax)6️⃣ { }7️⃣
+      """,
+      ranges: [("1️⃣", "2️⃣"), ("1️⃣", "6️⃣"), ("1️⃣", "7️⃣")],
+      exhaustive: false
+    ) { uri, positions in
+      [
+        CodeAction(
+          title: "Add documentation",
+          kind: .refactorInline,
+          diagnostics: nil,
+          edit: WorkspaceEdit(
+            changes: [
+              uri: [
+                TextEdit(
+                  range: Range(positions["1️⃣"]),
+                  newText: """
+                    /// A description
+                    /// - Parameter syntax:
+                    \("")
+                    """
+                )
+              ]
+            ]
+          ),
+          command: nil
+        )
+      ]
+    }
+  }
+
+  func testAddDocumentationDoesNotShowUpIfItIsNotOnItsOwnLine() async throws {
+    try await assertCodeActions(
+      """
+      var x = 1; var 1️⃣y = 2
+      """
+    ) { uri, positions in
+      []
+    }
+  }
+
+  /// Retrieves the code action at a set of markers and asserts that it matches a list of expected code actions.
+  ///
+  /// - Parameters:
+  ///   - markedText: The source file input to get the code actions for.
+  ///   - markers: The list of markers to retrieve code actions at. If `nil` code actions will be retrieved for all
+  ///     markers in `markedText`
+  ///   - ranges: If specified, code actions are also requested for selection ranges between these markers.
+  ///   - exhaustive: Whether `expected` is expected to be a subset of the returned code actions or whether it is
+  ///     expected to exhaustively match all code actions.
+  ///   - expected: A closure that returns the list of expected code actions, given the URI of the test document and the
+  ///     marker positions within.
+  private func assertCodeActions(
+    _ markedText: String,
+    markers: [String]? = nil,
+    ranges: [(String, String)] = [],
+    exhaustive: Bool = true,
+    expected: (_ uri: DocumentURI, _ positions: DocumentPositions) -> [CodeAction],
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) async throws {
+    let testClient = try await TestSourceKitLSPClient(capabilities: clientCapabilitiesWithCodeActionSupport)
+    let uri = DocumentURI.for(.swift)
+    let positions = testClient.openDocument(markedText, uri: uri)
+
+    var ranges = ranges
+    if let markers {
+      ranges += markers.map { ($0, $0) }
+    } else {
+      ranges += extractMarkers(markedText).markers.map(\.key).map { ($0, $0) }
+    }
+
+    for (startMarker, endMarker) in ranges {
+      let result = try await testClient.send(
+        CodeActionRequest(
+          range: positions[startMarker]..<positions[endMarker],
+          context: .init(),
+          textDocument: TextDocumentIdentifier(uri)
+        )
+      )
+      guard case .codeActions(let codeActions) = result else {
+        XCTFail("Expected code actions at range \(startMarker)-\(endMarker)", file: file, line: line)
+        return
+      }
+      if exhaustive {
+        XCTAssertEqual(
+          codeActions,
+          expected(uri, positions),
+          "Found unexpected code actions at range \(startMarker)-\(endMarker)",
+          file: file,
+          line: line
+        )
+      } else {
+        XCTAssert(
+          codeActions.contains(expected(uri, positions)),
+          """
+          Code actions did not contain expected at range \(startMarker)-\(endMarker):
+          \(codeActions)
+          """,
+          file: file,
+          line: line
+        )
+      }
+    }
   }
 }

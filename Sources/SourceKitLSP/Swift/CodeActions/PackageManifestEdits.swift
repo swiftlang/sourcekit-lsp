@@ -20,9 +20,7 @@ import SwiftSyntax
 /// edit a package manifest.
 struct PackageManifestEdits: SyntaxCodeActionProvider {
   static func codeActions(in scope: SyntaxCodeActionScope) -> [CodeAction] {
-    guard let token = scope.firstToken,
-      let call = token.findEnclosingCall()
-    else {
+    guard let call = scope.innermostNodeContainingRange?.findEnclosingCall() else {
       return []
     }
 
