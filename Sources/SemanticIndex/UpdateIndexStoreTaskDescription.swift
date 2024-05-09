@@ -188,16 +188,10 @@ public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
       return
     }
 
-    let process =
-      if let workingDirectory = buildSettings.workingDirectory {
-        Process(
-          arguments: [swiftc.pathString] + indexingArguments,
-          workingDirectory: try AbsolutePath(validating: workingDirectory)
-        )
-      } else {
-        Process(arguments: [swiftc.pathString] + indexingArguments)
-      }
-    try process.launch()
+    let process = try Process.launch(
+      arguments: [swiftc.pathString] + indexingArguments,
+      workingDirectory: buildSettings.workingDirectory.map(AbsolutePath.init(validating:))
+    )
     let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
     switch result.exitStatus.exhaustivelySwitchable {
     case .terminated(code: 0):
