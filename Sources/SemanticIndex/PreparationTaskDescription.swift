@@ -35,11 +35,6 @@ public struct PreparationTaskDescription: IndexTaskDescription {
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
 
-  /// A callback that is called when the task finishes.
-  ///
-  /// Intended for testing purposes.
-  private let didFinishCallback: @Sendable (PreparationTaskDescription) -> Void
-
   /// The task is idempotent because preparing the same target twice produces the same result as preparing it once.
   public var isIdempotent: Bool { true }
 
@@ -55,18 +50,13 @@ public struct PreparationTaskDescription: IndexTaskDescription {
 
   init(
     targetsToPrepare: [ConfiguredTarget],
-    buildSystemManager: BuildSystemManager,
-    didFinishCallback: @escaping @Sendable (PreparationTaskDescription) -> Void
+    buildSystemManager: BuildSystemManager
   ) {
     self.targetsToPrepare = targetsToPrepare
     self.buildSystemManager = buildSystemManager
-    self.didFinishCallback = didFinishCallback
   }
 
   public func execute() async {
-    defer {
-      didFinishCallback(self)
-    }
     // Only use the last two digits of the preparation ID for the logging scope to avoid creating too many scopes.
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running preparation operations

@@ -131,38 +131,30 @@ public final actor SemanticIndexManager {
 
   /// Prepare the given targets for indexing
   private func prepare(targets: [ConfiguredTarget], priority: TaskPriority?) async {
-    await self.indexTaskScheduler.schedule(
-      priority: priority,
-      AnyIndexTaskDescription(
-        PreparationTaskDescription(
-          targetsToPrepare: targets,
-          buildSystemManager: self.buildSystemManager,
-          didFinishCallback: { [weak self] taskDescription in
-            self?.indexTaskDidFinish?(AnyIndexTaskDescription(taskDescription))
-          }
-        )
+    let taskDescription = AnyIndexTaskDescription(
+      PreparationTaskDescription(
+        targetsToPrepare: targets,
+        buildSystemManager: self.buildSystemManager
       )
-    ).value
+    )
+    await self.indexTaskScheduler.schedule(priority: priority, taskDescription).value
+    self.indexTaskDidFinish?(taskDescription)
   }
 
   /// Update the index store for the given files, assuming that their targets have already been prepared.
   private func updateIndexStore(for files: [DocumentURI], priority: TaskPriority?) async {
-    await self.indexTaskScheduler.schedule(
-      priority: priority,
-      AnyIndexTaskDescription(
-        UpdateIndexStoreTaskDescription(
-          filesToIndex: Set(files),
-          buildSystemManager: self.buildSystemManager,
-          index: self.index.unchecked,
-          didFinishCallback: { [weak self] taskDescription in
-            self?.indexTaskDidFinish?(AnyIndexTaskDescription(taskDescription))
-          }
-        )
+    let taskDescription = AnyIndexTaskDescription(
+      UpdateIndexStoreTaskDescription(
+        filesToIndex: Set(files),
+        buildSystemManager: self.buildSystemManager,
+        index: self.index.unchecked
       )
-    ).value
+    )
+    await self.indexTaskScheduler.schedule(priority: priority, taskDescription).value
     for file in files {
       self.indexStatus[file] = .upToDate
     }
+    self.indexTaskDidFinish?(taskDescription)
   }
 
   /// Index the given set of files at the given priority.
