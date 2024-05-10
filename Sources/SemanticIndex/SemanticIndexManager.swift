@@ -414,7 +414,6 @@ public final actor SemanticIndexManager {
   ///
   /// If file's target is known to be up-to-date, this returns almost immediately.
   public func prepareFileForEditorFunctionality(_ uri: DocumentURI) async {
-    // Should be kept in sync with `schedulePreparationForEditorFunctionality`.
     guard let target = await buildSystemManager.canonicalConfiguredTarget(for: uri) else {
       return
     }
