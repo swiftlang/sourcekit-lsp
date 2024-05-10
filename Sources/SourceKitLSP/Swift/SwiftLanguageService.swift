@@ -335,13 +335,7 @@ extension SwiftLanguageService {
     ])
     _ = try? await self.sourcekitd.send(closeReq, fileContents: nil)
 
-    let openReq = sourcekitd.dictionary([
-      keys.request: self.requests.editorOpen,
-      keys.name: path,
-      keys.sourceText: snapshot.text,
-      keys.compilerArgs: compileCmd?.compilerArgs as [SKDRequestValue]?,
-    ])
-
+    let openReq = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: compileCmd)
     _ = try? await self.sourcekitd.send(openReq, fileContents: snapshot.text)
 
     if await capabilityRegistry.clientSupportsPullDiagnostics(for: .swift) {
@@ -375,11 +369,25 @@ extension SwiftLanguageService {
 
   // MARK: - Text synchronization
 
+  private func openDocumentSourcekitdRequest(
+    snapshot: DocumentSnapshot,
+    compileCommand: SwiftCompileCommand?
+  ) -> SKDRequestDictionary {
+    return sourcekitd.dictionary([
+      keys.request: self.requests.editorOpen,
+      keys.name: snapshot.uri.pseudoPath,
+      keys.sourceText: snapshot.text,
+      keys.enableSyntaxMap: 0,
+      keys.enableStructure: 0,
+      keys.enableDiagnostics: 0,
+      keys.syntacticOnly: 1,
+      keys.compilerArgs: compileCommand?.compilerArgs as [SKDRequestValue]?,
+    ])
+  }
+
   public func openDocument(_ note: DidOpenTextDocumentNotification) async {
     cancelInFlightPublishDiagnosticsTask(for: note.textDocument.uri)
     await diagnosticReportManager.removeItemsFromCache(with: note.textDocument.uri)
-
-    let keys = self.keys
 
     guard let snapshot = self.documentManager.open(note) else {
       // Already logged failure.
@@ -402,17 +410,7 @@ extension SwiftLanguageService {
       )
     }
 
-    let req = sourcekitd.dictionary([
-      keys.request: self.requests.editorOpen,
-      keys.name: note.textDocument.uri.pseudoPath,
-      keys.sourceText: snapshot.text,
-      keys.enableSyntaxMap: 0,
-      keys.enableStructure: 0,
-      keys.enableDiagnostics: 0,
-      keys.syntacticOnly: 1,
-      keys.compilerArgs: buildSettings?.compilerArgs as [SKDRequestValue]?,
-    ])
-
+    let req = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: buildSettings)
     _ = try? await self.sourcekitd.send(req, fileContents: snapshot.text)
     await publishDiagnosticsIfNeeded(for: note.textDocument.uri)
   }
