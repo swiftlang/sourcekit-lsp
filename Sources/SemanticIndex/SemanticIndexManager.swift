@@ -49,7 +49,7 @@ public final actor SemanticIndexManager {
   /// Callback that is called when an index task has finished.
   ///
   /// Currently only used for testing.
-  private let indexTaskDidFinish: (@Sendable (AnyIndexTaskDescription) -> Void)?
+  private let indexTaskDidFinish: (@Sendable () -> Void)?
 
   // MARK: - Public API
 
@@ -57,7 +57,7 @@ public final actor SemanticIndexManager {
     index: UncheckedIndex,
     buildSystemManager: BuildSystemManager,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
-    indexTaskDidFinish: (@Sendable (AnyIndexTaskDescription) -> Void)?
+    indexTaskDidFinish: (@Sendable () -> Void)?
   ) {
     self.index = index.checked(for: .modifiedFiles)
     self.buildSystemManager = buildSystemManager
@@ -138,7 +138,7 @@ public final actor SemanticIndexManager {
       )
     )
     await self.indexTaskScheduler.schedule(priority: priority, taskDescription).value
-    self.indexTaskDidFinish?(taskDescription)
+    self.indexTaskDidFinish?()
   }
 
   /// Update the index store for the given files, assuming that their targets have already been prepared.
@@ -154,7 +154,7 @@ public final actor SemanticIndexManager {
     for file in files {
       self.indexStatus[file] = .upToDate
     }
-    self.indexTaskDidFinish?(taskDescription)
+    self.indexTaskDidFinish?()
   }
 
   /// Index the given set of files at the given priority.

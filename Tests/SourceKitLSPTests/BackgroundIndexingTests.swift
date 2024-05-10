@@ -165,10 +165,10 @@ final class BackgroundIndexingTests: XCTestCase {
 
   func testBackgroundIndexingHappensWithLowPriority() async throws {
     var serverOptions = backgroundIndexingOptions
-    serverOptions.indexOptions.indexTaskDidFinish = { taskDescription in
+    serverOptions.indexOptions.indexTaskDidFinish = {
       XCTAssert(
         Task.currentPriority == .low,
-        "\(taskDescription.description) ran with priority \(Task.currentPriority)"
+        "An index task ran with priority \(Task.currentPriority)"
       )
     }
     let project = try await SwiftPMTestProject(

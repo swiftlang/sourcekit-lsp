@@ -306,7 +306,7 @@ public struct IndexOptions: Sendable {
   /// A callback that is called when an index task finishes.
   ///
   /// Intended for testing purposes.
-  public var indexTaskDidFinish: (@Sendable (AnyIndexTaskDescription) -> Void)?
+  public var indexTaskDidFinish: (@Sendable () -> Void)?
 
   public init(
     indexStorePath: AbsolutePath? = nil,
@@ -315,7 +315,7 @@ public struct IndexOptions: Sendable {
     listenToUnitEvents: Bool = true,
     enableBackgroundIndexing: Bool = false,
     maxCoresPercentageToUseForBackgroundIndexing: Double = 1,
-    indexTaskDidFinish: (@Sendable (AnyIndexTaskDescription) -> Void)? = nil
+    indexTaskDidFinish: (@Sendable () -> Void)? = nil
   ) {
     self.indexStorePath = indexStorePath
     self.indexDatabasePath = indexDatabasePath
