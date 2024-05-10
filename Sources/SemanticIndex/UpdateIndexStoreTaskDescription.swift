@@ -176,17 +176,17 @@ public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
     buildSettings: FileBuildSettings,
     toolchain: Toolchain
   ) async throws {
-    let indexingArguments = adjustSwiftCompilerArgumentsForIndexStoreUpdate(
-      buildSettings.compilerArguments,
-      fileToIndex: uri
-    )
-
     guard let swiftc = toolchain.swiftc else {
       logger.error(
         "Not updating index store for \(uri.forLogging) because toolchain \(toolchain.identifier) does not contain a Swift compiler"
       )
       return
     }
+
+    let indexingArguments = adjustSwiftCompilerArgumentsForIndexStoreUpdate(
+      buildSettings.compilerArguments,
+      fileToIndex: uri
+    )
 
     let process = try Process.launch(
       arguments: [swiftc.pathString] + indexingArguments,
@@ -289,7 +289,6 @@ private func adjustSwiftCompilerArgumentsForIndexStoreUpdate(
         result += [argument, nextArgument]
         continue
       }
-      result.append(argument)
     }
     result.append(argument)
   }
@@ -299,7 +298,7 @@ private func adjustSwiftCompilerArgumentsForIndexStoreUpdate(
     // batch mode is not compatible with -index-file
     "-disable-batch-mode",
     // Fake an output path so that we get a different unit file for every Swift file we background index
-    "-o", fileToIndex.pseudoPath + ".o",
+    "-index-unit-output-path", fileToIndex.pseudoPath + ".o",
   ]
   return result
 }
