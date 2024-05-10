@@ -49,7 +49,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   public var redactedDescription: String {
-    return "indexing-\(id)"
+    return "update-indexstore-\(id)"
   }
 
   init(

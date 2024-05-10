@@ -290,18 +290,19 @@ public final class TestSourceKitLSPClient: MessageHandler {
     id: LanguageServerProtocol.RequestID,
     reply: @escaping (LSPResult<Request.Response>) -> Void
   ) {
-    guard let requestHandler = requestHandlers.first else {
-      reply(.failure(.methodNotFound(Request.method)))
-      return
-    }
-    guard let requestHandler = requestHandler as? RequestHandler<Request> else {
-      print("\(RequestHandler<Request>.self)")
-      XCTFail("Received request of unexpected type \(Request.method)")
+    let requestHandlerAndIndex = requestHandlers.enumerated().compactMap {
+      (index, handler) -> (RequestHandler<Request>, Int)? in
+      guard let handler = handler as? RequestHandler<Request> else {
+        return nil
+      }
+      return (handler, index)
+    }.first
+    guard let (requestHandler, index) = requestHandlerAndIndex else {
       reply(.failure(.methodNotFound(Request.method)))
       return
     }
     reply(.success(requestHandler(params)))
-    requestHandlers.removeFirst()
+    requestHandlers.remove(at: index)
   }
 
   // MARK: - Convenience functions
