@@ -83,6 +83,8 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///   - capabilities: The test client's capabilities.
   ///   - usePullDiagnostics: Whether to use push diagnostics or use push-based diagnostics
   ///   - workspaceFolders: Workspace folders to open.
+  ///   - preInitialization: A closure that is called after the test client is created but before SourceKit-LSP is
+  ///     initialized. This can be used to eg. register request handlers.
   ///   - cleanUp: A closure that is called when the `TestSourceKitLSPClient` is destructed.
   ///     This allows e.g. a `IndexedSingleSwiftFileTestProject` to delete its temporary files when they are no longer
   ///     needed.
@@ -94,6 +96,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
     capabilities: ClientCapabilities = ClientCapabilities(),
     usePullDiagnostics: Bool = true,
     workspaceFolders: [WorkspaceFolder]? = nil,
+    preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     cleanUp: @escaping () -> Void = {}
   ) async throws {
     if !useGlobalModuleCache {
@@ -135,7 +138,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
       guard capabilities.textDocument!.diagnostic == nil else {
         struct ConflictingDiagnosticsError: Error, CustomStringConvertible {
           var description: String {
-            "usePushDiagnostics = false is not supported if capabilities already contain diagnostic options"
+            "usePullDiagnostics = false is not supported if capabilities already contain diagnostic options"
           }
         }
         throw ConflictingDiagnosticsError()
@@ -145,6 +148,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
         XCTAssertEqual(request.registrations.only?.method, DocumentDiagnosticsRequest.method)
         return VoidResponse()
       }
+      preInitialization?(self)
     }
     if initialize {
       _ = try await self.send(
