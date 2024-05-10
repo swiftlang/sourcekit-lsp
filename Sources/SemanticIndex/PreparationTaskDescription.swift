@@ -21,13 +21,13 @@ import class TSCBasic.Process
 
 private var preparationIDForLogging = AtomicUInt32(initialValue: 1)
 
-/// Describes a task to index a set of source files.
+/// Describes a task to prepare a set of targets.
 ///
 /// This task description can be scheduled in a `TaskScheduler`.
 public struct PreparationTaskDescription: TaskDescriptionProtocol {
   public let id = preparationIDForLogging.fetchAndIncrement()
 
-  /// The files that should be indexed.
+  /// The targets that should be prepared.
   private let targetsToPrepare: [ConfiguredTarget]
 
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
@@ -38,7 +38,7 @@ public struct PreparationTaskDescription: TaskDescriptionProtocol {
   /// Intended for testing purposes.
   private let didFinishCallback: @Sendable (PreparationTaskDescription) -> Void
 
-  /// The task is idempotent because indexing the same file twice produces the same result as indexing it once.
+  /// The task is idempotent because preparing the same target twice produces the same result as preparing it once.
   public var isIdempotent: Bool { true }
 
   public var estimatedCPUCoreCount: Int { 1 }
@@ -73,7 +73,10 @@ public struct PreparationTaskDescription: TaskDescriptionProtocol {
       let targetsToPrepare = targetsToPrepare.sorted(by: {
         ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
       })
-      let targetsToPrepareDescription = targetsToPrepare.map { $0.targetID }.joined(separator: ", ")
+      let targetsToPrepareDescription =
+        targetsToPrepare
+        .map { "\($0.targetID)-\($0.runDestinationID)" }
+        .joined(separator: ", ")
       logger.log(
         "Starting preparation with priority \(Task.currentPriority.rawValue, privacy: .public): \(targetsToPrepareDescription)"
       )

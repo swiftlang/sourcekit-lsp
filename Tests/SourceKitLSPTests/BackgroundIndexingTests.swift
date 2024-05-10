@@ -106,6 +106,7 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testBackgroundIndexingOfMultiModuleProject() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/MyFile.swift": """
@@ -211,6 +212,7 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testBackgroundIndexingOfPackageDependency() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     let dependencyContents = """
       public func 1️⃣doSomething() {}
       """

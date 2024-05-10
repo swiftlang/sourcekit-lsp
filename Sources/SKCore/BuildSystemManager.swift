@@ -212,8 +212,8 @@ extension BuildSystemManager {
     try await self.buildSystem?.generateBuildGraph()
   }
 
-  public func topologicalSort(of targets: [ConfiguredTarget]) async throws -> [ConfiguredTarget] {
-    return await buildSystem?.topologicalSort(of: targets) ?? targets
+  public func topologicalSort(of targets: [ConfiguredTarget]) async throws -> [ConfiguredTarget]? {
+    return await buildSystem?.topologicalSort(of: targets)
   }
 
   public func prepare(targets: [ConfiguredTarget]) async throws {

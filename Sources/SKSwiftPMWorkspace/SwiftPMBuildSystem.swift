@@ -100,7 +100,11 @@ public actor SwiftPMBuildSystem {
 
   var fileToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
   var sourceDirToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
-  var targets: [SwiftBuildTarget] = []
+
+  /// Maps target ids (aka. `ConfiguredTarget.targetID`) to their SwiftPM build target as well as an index in their
+  /// topological sorting. Targets with lower index are more low level, ie. targets with higher indices depend on
+  /// targets with lower indices.
+  var targets: [String: (index: Int, buildTarget: SwiftBuildTarget)] = [:]
 
   /// The URIs for which the delegate has registered for change notifications,
   /// mapped to the language the delegate specified when registering for change notifications.
@@ -118,6 +122,11 @@ public actor SwiftPMBuildSystem {
   ///
   /// Force-unwrapped optional because initializing it requires access to `self`.
   var fileDependenciesUpdatedDebouncer: Debouncer<Set<DocumentURI>>! = nil
+
+  /// A `ObservabilitySystem` from `SwiftPM` that logs.
+  private let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
+    logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
+  })
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
@@ -238,9 +247,6 @@ public actor SwiftPMBuildSystem {
 
 extension SwiftPMBuildSystem {
   public func generateBuildGraph() async throws {
-    let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
-      logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
-    })
     try self.workspace.resolve(
       root: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
       observabilityScope: observabilitySystem.topScope
@@ -257,10 +263,6 @@ extension SwiftPMBuildSystem {
         await reloadPackageStatusCallback(.end)
       }
     }
-
-    let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
-      logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
-    })
 
     let modulesGraph = try self.workspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
@@ -282,7 +284,15 @@ extension SwiftPMBuildSystem {
     /// with only some properties modified.
     self.modulesGraph = modulesGraph
 
-    self.targets = try buildDescription.allTargetsInTopologicalOrder(in: modulesGraph)
+    self.targets = Dictionary(
+      try buildDescription.allTargetsInTopologicalOrder(in: modulesGraph).enumerated().map { (index, target) in
+        return (key: target.name, (index, target))
+      },
+      uniquingKeysWith: { first, second in
+        logger.fault("Found two targets with the same name \(first.buildTarget.name)")
+        return second
+      }
+    )
 
     self.fileToTarget = [AbsolutePath: SwiftBuildTarget](
       modulesGraph.allTargets.flatMap { target in
@@ -353,14 +363,8 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       return try settings(forPackageManifest: path)
     }
 
-    let buildTargets = self.targets.filter({ $0.name == configuredTarget.targetID })
-    if buildTargets.count > 1 {
-      logger.error("Found multiple targets with name \(configuredTarget.targetID). Picking the first one")
-    }
-    guard let buildTarget = buildTargets.first else {
-      if buildTargets.isEmpty {
-        logger.error("Did not find target with name \(configuredTarget.targetID)")
-      }
+    guard let buildTarget = self.targets[configuredTarget.targetID]?.buildTarget else {
+      logger.error("Did not find target with name \(configuredTarget.targetID)")
       return nil
     }
 
@@ -408,8 +412,8 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
   public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return targets.sorted { (lhs: ConfiguredTarget, rhs: ConfiguredTarget) -> Bool in
-      let lhsIndex = self.targets.firstIndex(where: { $0.name == lhs.targetID }) ?? self.targets.count
-      let rhsIndex = self.targets.firstIndex(where: { $0.name == rhs.targetID }) ?? self.targets.count
+      let lhsIndex = self.targets[lhs.targetID]?.index ?? self.targets.count
+      let rhsIndex = self.targets[lhs.targetID]?.index ?? self.targets.count
       return lhsIndex < rhsIndex
     }
   }
@@ -443,7 +447,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     ]
     let process = Process(
       arguments: arguments,
-      workingDirectory: try TSCBasic.AbsolutePath(validating: workspacePath.pathString)
+      workingDirectory: workspacePath
     )
     try process.launch()
     let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
@@ -456,7 +460,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       let stderr = (try? String(bytes: result.stderrOutput.get(), encoding: .utf8)) ?? "<no stderr>"
       logger.debug(
         """
-        Preparation of targets \(target.targetID) terminated with non-zero exit code \(code)
+        Preparation of target \(target.targetID) terminated with non-zero exit code \(code)
         Stderr:
         \(stderr)
         Stdout:
@@ -468,11 +472,11 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
         // The indexing job finished with a signal. Could be because the compiler crashed.
         // Ignore signal exit codes if this task has been cancelled because the compiler exits with SIGINT if it gets
         // interrupted.
-        logger.error("Preparation of targets \(target.targetID) signaled \(signal)")
+        logger.error("Preparation of target \(target.targetID) signaled \(signal)")
       }
     case .abnormal(exception: let exception):
       if !Task.isCancelled {
-        logger.error("Preparation of targets \(target.targetID) exited abnormally \(exception)")
+        logger.error("Preparation of target \(target.targetID) exited abnormally \(exception)")
       }
     }
   }

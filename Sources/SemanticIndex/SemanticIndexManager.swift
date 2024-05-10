@@ -191,7 +191,9 @@ public final actor SemanticIndexManager {
 
     var sortedTargets: [ConfiguredTarget] =
       await orLog("Sorting targets") { try await buildSystemManager.topologicalSort(of: Array(filesByTarget.keys)) }
-      ?? Array(filesByTarget.keys).sorted(by: { $0.targetID < $1.targetID })
+      ?? Array(filesByTarget.keys).sorted(by: {
+        ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
+      })
 
     if Set(sortedTargets) != Set(filesByTarget.keys) {
       logger.fault(
@@ -200,7 +202,9 @@ public final actor SemanticIndexManager {
         \(sortedTargets.map(\.targetID).joined(separator: ", ")) != \(filesByTarget.keys.map(\.targetID).joined(separator: ", "))
         """
       )
-      sortedTargets = Array(filesByTarget.keys).sorted(by: { $0.targetID < $1.targetID })
+      sortedTargets = Array(filesByTarget.keys).sorted(by: {
+        ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
+      })
     }
 
     var indexTasks: [Task<Void, Never>] = []
