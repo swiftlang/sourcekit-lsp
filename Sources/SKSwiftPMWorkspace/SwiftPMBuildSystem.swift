@@ -128,6 +128,13 @@ public actor SwiftPMBuildSystem {
     logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
   })
 
+  /// Whether the SwiftPMBuildSystem may modify `Package.resolved` or not.
+  ///
+  /// This is `false` if the `SwiftPMBuildSystem` is pointed at a `.index-build` directory that's independent of the
+  /// user's build. In this case `SwiftPMBuildSystem` is allowed to clone repositories even if no `Package.resolved`
+  /// exists.
+  private let forceResolvedVersions: Bool
+
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
   /// - Parameters:
@@ -141,11 +148,13 @@ public actor SwiftPMBuildSystem {
     toolchainRegistry: ToolchainRegistry,
     fileSystem: FileSystem = localFileSystem,
     buildSetup: BuildSetup,
+    forceResolvedVersions: Bool,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void = { _ in }
   ) async throws {
     self.workspacePath = workspacePath
     self.fileSystem = fileSystem
     self.toolchainRegistry = toolchainRegistry
+    self.forceResolvedVersions = forceResolvedVersions
 
     guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem) else {
       throw Error.noManifest(workspacePath: workspacePath)
@@ -213,7 +222,6 @@ public actor SwiftPMBuildSystem {
       }
       await delegate.filesDependenciesUpdated(filesWithUpdatedDependencies)
     }
-
     try await reloadPackage()
   }
 
@@ -226,6 +234,7 @@ public actor SwiftPMBuildSystem {
     url: URL,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
+    forceResolvedVersions: Bool,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
   ) async {
     do {
@@ -234,6 +243,7 @@ public actor SwiftPMBuildSystem {
         toolchainRegistry: toolchainRegistry,
         fileSystem: localFileSystem,
         buildSetup: buildSetup,
+        forceResolvedVersions: forceResolvedVersions,
         reloadPackageStatusCallback: reloadPackageStatusCallback
       )
     } catch Error.noManifest {
@@ -247,10 +257,6 @@ public actor SwiftPMBuildSystem {
 
 extension SwiftPMBuildSystem {
   public func generateBuildGraph() async throws {
-    try self.workspace.resolve(
-      root: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
-      observabilityScope: observabilitySystem.topScope
-    )
     try await self.reloadPackage()
   }
 
@@ -266,7 +272,7 @@ extension SwiftPMBuildSystem {
 
     let modulesGraph = try self.workspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
-      forceResolvedVersions: true,
+      forceResolvedVersions: forceResolvedVersions,
       observabilityScope: observabilitySystem.topScope
     )
 
