@@ -65,9 +65,21 @@ private func getDefaultToolchain(_ toolchainRegistry: ToolchainRegistry) async -
   return await toolchainRegistry.default
 }
 
+fileprivate extension BuildTriple {
+  /// A string that can be used to identify the build triple in `ConfiguredTarget.runDestinationID`.
+  var id: String {
+    switch self {
+    case .tools:
+      return "tools"
+    case .destination:
+      return "destination"
+    }
+  }
+}
+
 fileprivate extension ConfiguredTarget {
   init(_ buildTarget: any SwiftBuildTarget) {
-    self.init(targetID: buildTarget.name, runDestinationID: "dummy")
+    self.init(targetID: buildTarget.name, runDestinationID: buildTarget.buildTriple.id)
   }
 
   static let forPackageManifest = ConfiguredTarget(targetID: "", runDestinationID: "")
@@ -117,8 +129,8 @@ public actor SwiftPMBuildSystem {
     initialValue: nil
   )
 
-  private var fileToTarget: [DocumentURI: SwiftBuildTarget] = [:]
-  private var sourceDirToTarget: [DocumentURI: SwiftBuildTarget] = [:]
+  private var fileToTargets: [DocumentURI: [SwiftBuildTarget]] = [:]
+  private var sourceDirToTargets: [DocumentURI: [SwiftBuildTarget]] = [:]
 
   /// Maps configured targets ids to their SwiftPM build target as well as an index in their topological sorting.
   ///
@@ -320,7 +332,7 @@ extension SwiftPMBuildSystem {
 
     self.targets = Dictionary(
       try buildDescription.allTargetsInTopologicalOrder(in: modulesGraph).enumerated().map { (index, target) in
-        return (key: ConfiguredTarget(target), (index, target))
+        return (key: ConfiguredTarget(target), value: (index, target))
       },
       uniquingKeysWith: { first, second in
         logger.fault("Found two targets with the same name \(first.buildTarget.name)")
@@ -328,32 +340,26 @@ extension SwiftPMBuildSystem {
       }
     )
 
-    self.fileToTarget = [DocumentURI: SwiftBuildTarget](
+    self.fileToTargets = [DocumentURI: [SwiftBuildTarget]](
       modulesGraph.allTargets.flatMap { target in
-        return target.sources.paths.compactMap {
+        return target.sources.paths.compactMap { (filePath) -> (key: DocumentURI, value: [SwiftBuildTarget])? in
           guard let buildTarget = buildDescription.getBuildTarget(for: target, in: modulesGraph) else {
             return nil
           }
-          return (key: DocumentURI($0.asURL), value: buildTarget)
+          return (key: DocumentURI(filePath.asURL), value: [buildTarget])
         }
       },
-      uniquingKeysWith: { td, _ in
-        // FIXME: is there  a preferred target?
-        return td
-      }
+      uniquingKeysWith: { $0 + $1 }
     )
 
-    self.sourceDirToTarget = [DocumentURI: SwiftBuildTarget](
-      modulesGraph.allTargets.compactMap { (target) -> (DocumentURI, SwiftBuildTarget)? in
+    self.sourceDirToTargets = [DocumentURI: [SwiftBuildTarget]](
+      modulesGraph.allTargets.compactMap { (target) -> (DocumentURI, [SwiftBuildTarget])? in
         guard let buildTarget = buildDescription.getBuildTarget(for: target, in: modulesGraph) else {
           return nil
         }
-        return (key: DocumentURI(target.sources.root.asURL), value: buildTarget)
+        return (key: DocumentURI(target.sources.root.asURL), value: [buildTarget])
       },
-      uniquingKeysWith: { td, _ in
-        // FIXME: is there  a preferred target?
-        return td
-      }
+      uniquingKeysWith: { $0 + $1 }
     )
 
     guard let delegate = self.delegate else {
@@ -471,8 +477,9 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       return []
     }
 
-    if let target = buildTarget(for: uri) {
-      return [ConfiguredTarget(target)]
+    let targets = buildTargets(for: uri)
+    if !targets.isEmpty {
+      return targets.map(ConfiguredTarget.init)
     }
 
     if path.basename == "Package.swift" {
@@ -481,8 +488,8 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       return [ConfiguredTarget.forPackageManifest]
     }
 
-    if let target = try? inferredTarget(for: path) {
-      return [target]
+    if let targets = try? inferredTargets(for: path) {
+      return targets
     }
 
     return []
@@ -655,21 +662,21 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     self.watchedFiles.remove(uri)
   }
 
-  /// Returns the resolved target description for the given file, if one is known.
-  private func buildTarget(for file: DocumentURI) -> SwiftBuildTarget? {
-    if let td = fileToTarget[file] {
-      return td
+  /// Returns the resolved target descriptions for the given file, if one is known.
+  private func buildTargets(for file: DocumentURI) -> [SwiftBuildTarget] {
+    if let targets = fileToTargets[file] {
+      return targets
     }
 
     if let fileURL = file.fileURL,
       let realpath = try? resolveSymlinks(AbsolutePath(validating: fileURL.path)),
-      let td = fileToTarget[DocumentURI(realpath.asURL)]
+      let targets = fileToTargets[DocumentURI(realpath.asURL)]
     {
-      fileToTarget[file] = td
-      return td
+      fileToTargets[file] = targets
+      return targets
     }
 
-    return nil
+    return []
   }
 
   /// An event is relevant if it modifies a file that matches one of the file rules used by the SwiftPM workspace.
@@ -707,10 +714,10 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     // If a Swift file within a target is updated, reload all the other files within the target since they might be
     // referring to a function in the updated file.
     for event in events {
-      guard event.uri.fileURL?.pathExtension == "swift", let target = fileToTarget[event.uri] else {
+      guard event.uri.fileURL?.pathExtension == "swift", let targets = fileToTargets[event.uri] else {
         continue
       }
-      filesWithUpdatedDependencies.formUnion(target.sources.map { DocumentURI($0) })
+      filesWithUpdatedDependencies.formUnion(targets.flatMap(\.sources).map(DocumentURI.init))
     }
 
     // If a `.swiftmodule` file is updated, this means that we have performed a build / are
@@ -723,7 +730,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     // If we have background indexing enabled, this is not necessary because we call `fileDependenciesUpdated` when
     // preparation of a target finishes.
     if !isForIndexBuild, events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" }) {
-      filesWithUpdatedDependencies.formUnion(self.fileToTarget.keys)
+      filesWithUpdatedDependencies.formUnion(self.fileToTargets.keys)
     }
     await self.fileDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
   }
@@ -736,12 +743,12 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
   }
 
   public func sourceFiles() -> [SourceFileInfo] {
-    return fileToTarget.compactMap { (uri, target) -> SourceFileInfo? in
+    return fileToTargets.compactMap { (uri, targets) -> SourceFileInfo? in
       // We should only set mayContainTests to `true` for files from test targets
       // (https://github.com/apple/sourcekit-lsp/issues/1174).
       return SourceFileInfo(
         uri: uri,
-        isPartOfRootProject: target.isPartOfRootPackage,
+        isPartOfRootProject: targets.contains(where: \.isPartOfRootPackage),
         mayContainTests: true
       )
     }
@@ -777,24 +784,25 @@ extension SwiftPMBuildSystem {
   /// This finds the target a file belongs to based on its location in the file system.
   ///
   /// This is primarily intended to find the target a header belongs to.
-  private func inferredTarget(for path: AbsolutePath) throws -> ConfiguredTarget? {
-    func impl(_ path: AbsolutePath) throws -> ConfiguredTarget? {
+  private func inferredTargets(for path: AbsolutePath) throws -> [ConfiguredTarget] {
+    func impl(_ path: AbsolutePath) throws -> [ConfiguredTarget] {
       var dir = path.parentDirectory
       while !dir.isRoot {
-        if let buildTarget = sourceDirToTarget[DocumentURI(dir.asURL)] {
-          return ConfiguredTarget(buildTarget)
+        if let buildTargets = sourceDirToTargets[DocumentURI(dir.asURL)] {
+          return buildTargets.map(ConfiguredTarget.init)
         }
         dir = dir.parentDirectory
       }
-      return nil
+      return []
     }
 
-    if let result = try impl(path) {
+    let result = try impl(path)
+    if !result.isEmpty {
       return result
     }
 
     let canonicalPath = try resolveSymlinks(path)
-    return try canonicalPath == path ? nil : impl(canonicalPath)
+    return try canonicalPath == path ? [] : impl(canonicalPath)
   }
 }
 

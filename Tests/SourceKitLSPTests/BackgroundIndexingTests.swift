@@ -276,7 +276,7 @@ final class BackgroundIndexingTests: XCTestCase {
   func testIndexCFile() async throws {
     let project = try await SwiftPMTestProject(
       files: [
-        "MyLibrary/include/dummy.h": "",
+        "MyLibrary/include/destination.h": "",
         "MyFile.c": """
         void 1️⃣someFunc() {}
 
@@ -532,11 +532,11 @@ final class BackgroundIndexingTests: XCTestCase {
     var serverOptions = SourceKitLSPServer.Options.testDefault
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       [
-        ExpectedPreparation(targetID: "LibA", runDestinationID: "dummy"),
-        ExpectedPreparation(targetID: "LibB", runDestinationID: "dummy"),
+        ExpectedPreparation(targetID: "LibA", runDestinationID: "destination"),
+        ExpectedPreparation(targetID: "LibB", runDestinationID: "destination"),
       ],
       [
-        ExpectedPreparation(targetID: "LibB", runDestinationID: "dummy")
+        ExpectedPreparation(targetID: "LibB", runDestinationID: "destination")
       ],
     ])
     serverOptions.indexTestHooks = expectedPreparationTracker.testHooks
@@ -639,16 +639,16 @@ final class BackgroundIndexingTests: XCTestCase {
     let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       // Preparation of targets during the initial of the target
       [
-        ExpectedPreparation(targetID: "LibA", runDestinationID: "dummy"),
-        ExpectedPreparation(targetID: "LibB", runDestinationID: "dummy"),
-        ExpectedPreparation(targetID: "LibC", runDestinationID: "dummy"),
-        ExpectedPreparation(targetID: "LibD", runDestinationID: "dummy"),
+        ExpectedPreparation(targetID: "LibA", runDestinationID: "destination"),
+        ExpectedPreparation(targetID: "LibB", runDestinationID: "destination"),
+        ExpectedPreparation(targetID: "LibC", runDestinationID: "destination"),
+        ExpectedPreparation(targetID: "LibD", runDestinationID: "destination"),
       ],
       // LibB's preparation has already started by the time we browse through the other files, so we finish its preparation
       [
         ExpectedPreparation(
           targetID: "LibB",
-          runDestinationID: "dummy",
+          runDestinationID: "destination",
           didStart: { libBStartedPreparation.fulfill() },
           didFinish: { self.wait(for: [allDocumentsOpened], timeout: defaultTimeout) }
         )
@@ -657,7 +657,7 @@ final class BackgroundIndexingTests: XCTestCase {
       [
         ExpectedPreparation(
           targetID: "LibD",
-          runDestinationID: "dummy",
+          runDestinationID: "destination",
           didFinish: { libDPreparedForEditing.fulfill() }
         )
       ],
@@ -998,5 +998,55 @@ final class BackgroundIndexingTests: XCTestCase {
       }),
       "Did not get expected diagnostic: \(diagnostics)"
     )
+  }
+
+  func testLibraryUsedByExecutableTargetAndPackagePlugin() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib/MyFile.swift": """
+        public func 1️⃣foo() {}
+        """,
+        "MyExec/MyExec.swift": """
+        import Lib
+        func bar() {
+          2️⃣foo()
+        }
+        """,
+        "Plugins/MyPlugin/MyPlugin.swift": """
+        import PackagePlugin
+        @main
+        struct MyPlugin: CommandPlugin {
+          func performCommand(context: PluginContext, arguments: [String]) async throws {}
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+        import PackageDescription
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "Lib"),
+           .executableTarget(name: "MyExec", dependencies: ["Lib"]),
+           .plugin(
+             name: "MyPlugin",
+             capability: .command(
+               intent: .sourceCodeFormatting(),
+               permissions: []
+             ),
+             dependencies: ["MyExec"]
+           )
+          ]
+        )
+        """,
+      enableBackgroundIndexing: true
+    )
+
+    let (uri, positions) = try project.openDocument("MyExec.swift")
+    let definition = try await project.testClient.send(
+      DefinitionRequest(textDocument: TextDocumentIdentifier(uri), position: positions["2️⃣"])
+    )
+    XCTAssertEqual(definition, .locations([try project.location(from: "1️⃣", to: "1️⃣", in: "MyFile.swift")]))
   }
 }
