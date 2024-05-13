@@ -153,7 +153,7 @@ public final actor SemanticIndexManager {
         UpdateIndexStoreTaskDescription(
           filesToIndex: Set(files),
           buildSystemManager: self.buildSystemManager,
-          index: self.index,
+          index: self.index.unchecked,
           didFinishCallback: { [weak self] taskDescription in
             self?.indexTaskDidFinish?(.updateIndexStore(taskDescription))
           }

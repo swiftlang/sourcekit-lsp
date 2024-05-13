@@ -20,7 +20,7 @@ import SKSupport
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 
-private var updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
+private nonisolated(unsafe) var updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
 
 /// Describes a task to index a set of source files.
 ///
@@ -36,7 +36,7 @@ public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
 
   /// A reference to the underlying index store. Used to check if the index is already up-to-date for a file, in which
   /// case we don't need to index it again.
-  private let index: CheckedIndex
+  private let index: UncheckedIndex
 
   /// A callback that is called when the index task finishes
   private let didFinishCallback: @Sendable (UpdateIndexStoreTaskDescription) -> Void
@@ -57,7 +57,7 @@ public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
   init(
     filesToIndex: Set<DocumentURI>,
     buildSystemManager: BuildSystemManager,
-    index: CheckedIndex,
+    index: UncheckedIndex,
     didFinishCallback: @escaping @Sendable (UpdateIndexStoreTaskDescription) -> Void
   ) {
     self.filesToIndex = filesToIndex
@@ -122,7 +122,7 @@ public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
       // The URI is not a file, so there's nothing we can index.
       return
     }
-    guard !index.hasUpToDateUnit(for: url) else {
+    guard !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: url) else {
       // We consider a file's index up-to-date if we have any up-to-date unit. Changing build settings does not
       // invalidate the up-to-date status of the index.
       return

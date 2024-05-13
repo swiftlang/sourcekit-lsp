@@ -26,7 +26,6 @@ extension Process {
     arguments: [String],
     environmentBlock: ProcessEnvironmentBlock = ProcessEnv.block,
     workingDirectory: AbsolutePath?,
-    outputRedirection: OutputRedirection = .collect,
     startNewProcessGroup: Bool = true,
     loggingHandler: LoggingHandler? = .none
   ) throws -> Process {
@@ -36,7 +35,6 @@ extension Process {
           arguments: arguments,
           environmentBlock: environmentBlock,
           workingDirectory: workingDirectory,
-          outputRedirection: outputRedirection,
           startNewProcessGroup: startNewProcessGroup,
           loggingHandler: loggingHandler
         )
@@ -44,7 +42,6 @@ extension Process {
         self.init(
           arguments: arguments,
           environmentBlock: environmentBlock,
-          outputRedirection: outputRedirection,
           startNewProcessGroup: startNewProcessGroup,
           loggingHandler: loggingHandler
         )
@@ -60,7 +57,6 @@ extension Process {
         arguments: arguments,
         environmentBlock: environmentBlock,
         workingDirectory: nil,
-        outputRedirection: outputRedirection,
         startNewProcessGroup: startNewProcessGroup,
         loggingHandler: loggingHandler
       )

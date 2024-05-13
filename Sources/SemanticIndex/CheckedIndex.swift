@@ -11,7 +11,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import IndexStoreDB
+@preconcurrency import IndexStoreDB
 import LSPLogging
 import LanguageServerProtocol
 
@@ -47,13 +47,17 @@ public enum IndexCheckLevel {
 /// `IndexCheckLevel`.
 ///
 /// - SeeAlso: Comment on `IndexOutOfDateChecker`
-public final class CheckedIndex: Sendable {
+public final class CheckedIndex {
   private var checker: IndexOutOfDateChecker
   private let index: IndexStoreDB
 
   fileprivate init(index: IndexStoreDB, checkLevel: IndexCheckLevel) {
     self.index = index
     self.checker = IndexOutOfDateChecker(checkLevel: checkLevel)
+  }
+
+  public var unchecked: UncheckedIndex {
+    return UncheckedIndex(index)
   }
 
   @discardableResult
@@ -146,13 +150,17 @@ public final class CheckedIndex: Sendable {
 /// access of the underlying `IndexStoreDB`. This makes sure that accesses to the raw `IndexStoreDB` are explicit (by
 /// calling `underlyingIndexStoreDB`) and we don't accidentally call into the `IndexStoreDB` when we wanted a
 /// `CheckedIndex`.
-public struct UncheckedIndex {
+public struct UncheckedIndex: Sendable {
   public let underlyingIndexStoreDB: IndexStoreDB
 
   public init?(_ index: IndexStoreDB?) {
     guard let index else {
       return nil
     }
+    self.underlyingIndexStoreDB = index
+  }
+
+  public init(_ index: IndexStoreDB) {
     self.underlyingIndexStoreDB = index
   }
 
