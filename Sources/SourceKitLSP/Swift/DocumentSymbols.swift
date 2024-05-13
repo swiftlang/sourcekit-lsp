@@ -74,8 +74,8 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
     if !self.range.overlaps(range) {
       return .skipChildren
     }
-    let positionRange = snapshot.range(of: range)
-    let selectionPositionRange = snapshot.range(of: selection)
+    let positionRange = snapshot.absolutePositionRange(of: range)
+    let selectionPositionRange = snapshot.absolutePositionRange(of: selection)
 
     // Record MARK comments on the node's leading and trailing trivia in `result` not as a child of `node`.
     visit(node.leadingTrivia, position: node.position)
@@ -141,7 +141,9 @@ fileprivate final class DocumentSymbolsFinder: SyntaxAnyVisitor {
         let trimmedComment = commentText.trimmingCharacters(in: CharacterSet(["/", "*"]).union(.whitespaces))
         if trimmedComment.starts(with: markPrefix) {
           let markText = trimmedComment.dropFirst(markPrefix.count)
-          let range = snapshot.range(of: position..<position.advanced(by: piece.sourceLength.utf8Length))
+          let range = snapshot.absolutePositionRange(
+            of: position..<position.advanced(by: piece.sourceLength.utf8Length)
+          )
           result.append(
             DocumentSymbol(
               name: String(markText),

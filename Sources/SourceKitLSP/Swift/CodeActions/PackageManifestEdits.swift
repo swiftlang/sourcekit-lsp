@@ -138,7 +138,7 @@ fileprivate extension PackageEditResult {
     // The edits to perform on the manifest itself.
     let manifestTextEdits = manifestEdits.map { edit in
       TextEdit(
-        range: snapshot.range(of: edit.range),
+        range: snapshot.absolutePositionRange(of: edit.range),
         newText: edit.replacement
       )
     }

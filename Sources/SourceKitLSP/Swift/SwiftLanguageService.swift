@@ -537,7 +537,7 @@ extension SwiftLanguageService {
         keys.enableDiagnostics: 0,
         keys.syntacticOnly: 1,
         keys.offset: edit.range.lowerBound.utf8Offset,
-        keys.length: edit.length.utf8Length,
+        keys.length: edit.range.length.utf8Length,
         keys.sourceText: edit.replacement,
       ])
       do {
@@ -553,13 +553,7 @@ extension SwiftLanguageService {
     }
 
     let concurrentEdits = ConcurrentEdits(
-      fromSequential: edits.map {
-        IncrementalEdit(
-          offset: $0.range.lowerBound.utf8Offset,
-          length: $0.length.utf8Length,
-          replacementLength: $0.replacement.utf8.count
-        )
-      }
+      fromSequential: edits
     )
     await syntaxTreeManager.registerEdit(
       preEditSnapshot: preEditSnapshot,
@@ -690,7 +684,7 @@ extension SwiftLanguageService {
 
         result.append(
           ColorInformation(
-            range: snapshot.range(of: node.position..<node.endPosition),
+            range: snapshot.absolutePositionRange(of: node.position..<node.endPosition),
             color: Color(red: red, green: green, blue: blue, alpha: alpha)
           )
         )
@@ -1138,7 +1132,7 @@ extension DocumentSnapshot {
   /// If the bounds of the range do not refer to a valid positions with in the snapshot, this function adjusts them to
   /// the closest valid positions and logs a fault containing the file and line of the caller (from `callerFile` and
   /// `callerLine`).
-  func range(
+  func absolutePositionRange(
     of range: Range<AbsolutePosition>,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
@@ -1169,9 +1163,12 @@ extension DocumentSnapshot {
     of range: Range<Position>,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> ByteSourceRange {
+  ) -> Range<AbsolutePosition> {
     let utf8OffsetRange = utf8OffsetRange(of: range, callerFile: callerFile, callerLine: callerLine)
-    return ByteSourceRange(offset: utf8OffsetRange.startIndex, length: utf8OffsetRange.count)
+    return Range<AbsolutePosition>(
+      position: AbsolutePosition(utf8Offset: utf8OffsetRange.startIndex),
+      length: SourceLength(utf8Length: utf8OffsetRange.count)
+    )
   }
 
   // MARK: Position <-> RenameLocation

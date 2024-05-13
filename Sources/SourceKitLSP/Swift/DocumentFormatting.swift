@@ -106,10 +106,10 @@ private func edits(from original: DocumentSnapshot, to edited: String) -> [TextE
     switch change {
     case .insert(offset: let offset, element: let element, associatedWith: _):
       let absolutePosition = AbsolutePosition(utf8Offset: offset)
-      return IncrementalEdit(range: absolutePosition..<absolutePosition, replacement: [element])
+      return SourceEdit(range: absolutePosition..<absolutePosition, replacement: [element])
     case .remove(offset: let offset, element: _, associatedWith: _):
       let absolutePosition = AbsolutePosition(utf8Offset: offset)
-      return IncrementalEdit(range: absolutePosition..<absolutePosition.advanced(by: 1), replacement: [])
+      return SourceEdit(range: absolutePosition..<absolutePosition.advanced(by: 1), replacement: [])
     }
   }
 
@@ -117,18 +117,8 @@ private func edits(from original: DocumentSnapshot, to edited: String) -> [TextE
 
   // Map the offset-based edits to line-column based edits to be consumed by LSP
 
-  return concurrentEdits.edits.compactMap { (edit) -> TextEdit? in
-    let (startLine, startColumn) = original.lineTable.lineAndUTF16ColumnOf(utf8Offset: edit.offset)
-    let (endLine, endColumn) = original.lineTable.lineAndUTF16ColumnOf(utf8Offset: edit.endOffset)
-    guard let newText = String(bytes: edit.replacement, encoding: .utf8) else {
-      logger.fault("Failed to get String from UTF-8 bytes \(edit.replacement)")
-      return nil
-    }
-
-    return TextEdit(
-      range: Position(line: startLine, utf16index: startColumn)..<Position(line: endLine, utf16index: endColumn),
-      newText: newText
-    )
+  return concurrentEdits.edits.compactMap {
+    TextEdit(range: original.absolutePositionRange(of: $0.range), newText: $0.replacement)
   }
 }
 
