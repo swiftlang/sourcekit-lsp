@@ -31,14 +31,19 @@ public struct SourceFileInfo: Sendable {
   /// The URI of the source file.
   public let uri: DocumentURI
 
+  /// `true` if this file belongs to the root project that the user is working on. It is false, if the file belongs
+  /// to a dependency of the project.
+  public let isPartOfRootProject: Bool
+
   /// Whether the file might contain test cases. This property is an over-approximation. It might be true for files
   /// from non-test targets or files that don't actually contain any tests. Keeping this list of files with
   /// `mayContainTets` minimal as possible helps reduce the amount of work that the syntactic test indexer needs to
   /// perform.
   public let mayContainTests: Bool
 
-  public init(uri: DocumentURI, mayContainTests: Bool) {
+  public init(uri: DocumentURI, isPartOfRootProject: Bool, mayContainTests: Bool) {
     self.uri = uri
+    self.isPartOfRootProject = isPartOfRootProject
     self.mayContainTests = mayContainTests
   }
 }
@@ -62,6 +67,13 @@ public struct ConfiguredTarget: Hashable, Sendable {
     self.targetID = targetID
     self.runDestinationID = runDestinationID
   }
+}
+
+/// An error build systems can throw from `prepare` if they don't support preparation of targets.
+public struct PrepareNotSupportedError: Error, CustomStringConvertible {
+  public init() {}
+
+  public var description: String { "Preparation not supported" }
 }
 
 /// Provider of FileBuildSettings and other build-related information.
@@ -114,6 +126,22 @@ public protocol BuildSystem: AnyObject, Sendable {
   /// Return the list of targets and run destinations that the given document can be built for.
   func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget]
 
+  /// Re-generate the build graph including all the tasks that are necessary for building the entire build graph, like
+  /// resolving package versions.
+  func generateBuildGraph() async throws
+
+  /// Sort the targets so that low-level targets occur before high-level targets.
+  ///
+  /// This sorting is best effort but allows the indexer to prepare and index low-level targets first, which allows
+  /// index data to be available earlier.
+  ///
+  /// `nil` if the build system doesn't support topological sorting of targets.
+  func topologicalSort(of targets: [ConfiguredTarget]) async -> [ConfiguredTarget]?
+
+  /// Prepare the given targets for indexing and semantic functionality. This should build all swift modules of target
+  /// dependencies.
+  func prepare(targets: [ConfiguredTarget]) async throws
+
   /// If the build system has knowledge about the language that this document should be compiled in, return it.
   ///
   /// This is used to determine the language in which a source file should be background indexed.
@@ -146,5 +174,3 @@ public protocol BuildSystem: AnyObject, Sendable {
   /// The callback might also be called without an actual change to `sourceFiles`.
   func addSourceFilesDidChangeCallback(_ callback: @Sendable @escaping () async -> Void) async
 }
-
-public let buildTargetsNotSupported = ResponseError.methodNotFound(BuildTargets.method)
