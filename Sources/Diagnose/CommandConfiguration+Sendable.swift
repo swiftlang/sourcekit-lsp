@@ -14,4 +14,8 @@ import ArgumentParser
 
 // If `CommandConfiguration` is not sendable, commands can't have static `configuration` properties.
 // Needed until we update Swift CI to swift-argument-parser 1.3.1, which has this conformance (rdar://128042447).
+#if compiler(<5.11)
+extension CommandConfiguration: @unchecked Sendable {}
+#else
 extension CommandConfiguration: @unchecked @retroactive Sendable {}
+#endif
