@@ -284,4 +284,48 @@ final class BackgroundIndexingTests: XCTestCase {
       ]
     )
   }
+
+  func testIndexCFile() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/include/dummy.h": "",
+        "MyFile.c": """
+        void 1️⃣someFunc() {}
+
+        void 2️⃣test() {
+          3️⃣someFunc();
+        }
+        """,
+      ],
+      serverOptions: backgroundIndexingOptions
+    )
+
+    let (uri, positions) = try project.openDocument("MyFile.c")
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+    let calls = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+    XCTAssertEqual(
+      calls,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "test",
+            kind: .function,
+            tags: nil,
+            uri: uri,
+            range: Range(positions["2️⃣"]),
+            selectionRange: Range(positions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("c:@F@test"),
+              "uri": .string(uri.stringValue),
+            ])
+          ),
+          fromRanges: [Range(positions["3️⃣"])]
+        )
+      ]
+    )
+  }
 }
