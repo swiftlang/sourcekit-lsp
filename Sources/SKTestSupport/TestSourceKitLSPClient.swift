@@ -22,7 +22,7 @@ import XCTest
 
 extension SourceKitLSPServer.Options {
   /// The default SourceKitLSPServer options for testing.
-  public static var testDefault = Self(swiftPublishDiagnosticsDebounceDuration: 0)
+  public static let testDefault = Self(swiftPublishDiagnosticsDebounceDuration: 0)
 }
 
 /// A mock SourceKit-LSP client (aka. a mock editor) that behaves like an editor

@@ -24,7 +24,7 @@ import XCTest
 import struct PackageModel.BuildFlags
 
 #if canImport(SPMBuildCore)
-import SPMBuildCore
+@preconcurrency import SPMBuildCore
 #endif
 
 fileprivate extension SwiftPMBuildSystem {
