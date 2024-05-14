@@ -36,7 +36,7 @@ class ConnectionPerfTests: PerfTestCase {
         expectation.fulfill()
       }
 
-      waitForExpectations(timeout: defaultTimeout)
+      wait(for: [expectation], timeout: defaultTimeout)
     }
   }
 
