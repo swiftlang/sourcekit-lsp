@@ -22,7 +22,7 @@ import CRT
 #endif
 
 public final class SKDResponse: Sendable {
-  private nonisolated let response: sourcekitd_api_response_t
+  private nonisolated(unsafe) let response: sourcekitd_api_response_t
   let sourcekitd: SourceKitD
 
   /// Creates a new `SKDResponse` that exclusively manages the raw `sourcekitd_api_response_t`.

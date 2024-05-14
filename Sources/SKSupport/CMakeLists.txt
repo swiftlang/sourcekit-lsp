@@ -11,9 +11,11 @@ add_library(SKSupport STATIC
   DocumentURI+CustomLogStringConvertible.swift
   FileSystem.swift
   LineTable.swift
+  Process+LaunchWithWorkingDirectoryIfPossible.swift
   Process+WaitUntilExitWithCancellation.swift
   Random.swift
   Result.swift
+  SwitchableProcessResultExitStatus.swift
   ThreadSafeBox.swift
   WorkspaceType.swift
 )

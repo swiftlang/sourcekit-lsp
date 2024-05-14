@@ -33,10 +33,13 @@ extension NSLock {
 }
 
 /// Gathers data from clangd's stderr pipe. When it has accumulated a full line, writes the the line to the logger.
-fileprivate class ClangdStderrLogForwarder {
+fileprivate actor ClangdStderrLogForwarder {
+  /// Queue on which all data from `clangd`’s stderr will be forwarded to `stderr`. This allows us to have a
+  /// nonisolated `handle` function but ensure that data gets processed in order.
+  private let queue = AsyncQueue<Serial>()
   private var buffer = Data()
 
-  func handle(_ newData: Data) {
+  private func handleImpl(_ newData: Data) {
     self.buffer += newData
     while let newlineIndex = self.buffer.firstIndex(of: UInt8(ascii: "\n")) {
       // Output a separate log message for every line in clangd's stderr.
@@ -48,6 +51,12 @@ fileprivate class ClangdStderrLogForwarder {
       let logger = Logger(subsystem: LoggingScope.subsystem, category: "clangd-stderr")
       logger.info("\(String(data: self.buffer[...newlineIndex], encoding: .utf8) ?? "<invalid UTF-8>")")
       buffer = buffer[buffer.index(after: newlineIndex)...]
+    }
+  }
+
+  nonisolated func handle(_ newData: Data) {
+    queue.async {
+      await self.handleImpl(newData)
     }
   }
 }
@@ -328,7 +337,7 @@ actor ClangLanguageService: LanguageService, MessageHandler {
   nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
-    reply: @escaping (LSPResult<R.Response>) -> Void
+    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) {
     logger.info(
       """
@@ -442,10 +451,11 @@ extension ClangLanguageService {
   }
 
   public func shutdown() async {
+    let clangd = clangd!
     await withCheckedContinuation { continuation in
       _ = clangd.send(ShutdownRequest()) { _ in
         Task {
-          await self.clangd.send(ExitNotification())
+          clangd.send(ExitNotification())
           continuation.resume()
         }
       }

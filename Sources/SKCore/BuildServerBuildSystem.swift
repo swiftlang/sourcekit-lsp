@@ -263,12 +263,30 @@ extension BuildServerBuildSystem: BuildSystem {
   ///
   /// Returns `nil` if no build settings have been received from the build
   /// server yet or if no build settings are available for this file.
-  public func buildSettings(for document: DocumentURI, language: Language) async -> FileBuildSettings? {
+  public func buildSettings(
+    for document: DocumentURI,
+    in target: ConfiguredTarget,
+    language: Language
+  ) async -> FileBuildSettings? {
     return buildSettings[document]
   }
 
   public func defaultLanguage(for document: DocumentURI) async -> Language? {
     return nil
+  }
+
+  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+  }
+
+  public func generateBuildGraph() {}
+
+  public func topologicalSort(of targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
+    return nil
+  }
+
+  public func prepare(targets: [ConfiguredTarget]) async throws {
+    throw PrepareNotSupportedError()
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI) {

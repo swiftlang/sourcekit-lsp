@@ -21,6 +21,7 @@ import SwiftSyntax
 
 extension RequestInfo {
   @_spi(Testing)
+  @MainActor
   public func reduceInputFile(
     using executor: SourceKitRequestExecutor,
     progressUpdate: (_ progress: Double, _ message: String) -> Void
@@ -61,6 +62,7 @@ fileprivate enum ReductionStepResult {
 }
 
 /// Reduces an input source file while continuing to reproduce the crash
+@MainActor
 fileprivate class SourceReducer {
   /// The executor that is used to run a sourcekitd request and check whether it
   /// still crashes.
@@ -84,6 +86,7 @@ fileprivate class SourceReducer {
   }
 
   /// Reduce the file contents in `initialRequest` to a smaller file that still reproduces a crash.
+  @MainActor
   func run(initialRequestInfo: RequestInfo) async throws -> RequestInfo {
     var requestInfo = initialRequestInfo
     self.initialImportCount = Parser.parse(source: requestInfo.fileContents).numberOfImports
@@ -242,6 +245,7 @@ fileprivate class SourceReducer {
   ///
   /// If the request still crashes after applying the edits computed by `reduce`, return the reduced request info.
   /// Otherwise, return `nil`
+  @MainActor
   private func runReductionStep(
     requestInfo: RequestInfo,
     reportProgress: Bool = true,
@@ -608,6 +612,7 @@ fileprivate class FirstImportFinder: SyntaxAnyVisitor {
 /// the file that imports the module. If `areFallbackArgs` is set, we have synthesized fallback arguments that only
 /// contain a target and SDK. This is useful when reducing a swift-frontend crash because sourcekitd requires driver
 /// arguments but the swift-frontend crash has frontend args.
+@MainActor
 fileprivate func getSwiftInterface(
   _ moduleName: String,
   executor: SourceKitRequestExecutor,
@@ -680,6 +685,7 @@ fileprivate func getSwiftInterface(
   return try JSONDecoder().decode(String.self, from: sanitizedData)
 }
 
+@MainActor
 fileprivate func inlineFirstImport(
   in tree: SourceFileSyntax,
   executor: SourceKitRequestExecutor,

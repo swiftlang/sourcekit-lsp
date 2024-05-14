@@ -147,7 +147,7 @@ final class BuildSystemManagerTests: XCTestCase {
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
-    let fallbackSettings = fallback.buildSettings(for: a, language: .swift)
+    let fallbackSettings = await fallback.buildSettings(for: a, language: .swift)
     await bsm.registerForChangeNotifications(for: a, language: .swift)
     assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), fallbackSettings)
 
@@ -445,11 +445,25 @@ class ManualBuildSystem: BuildSystem {
     self.delegate = delegate
   }
 
-  func buildSettings(for uri: DocumentURI, language: Language) -> FileBuildSettings? {
+  func buildSettings(for uri: DocumentURI, in buildTarget: ConfiguredTarget, language: Language) -> FileBuildSettings? {
     return map[uri]
   }
 
   public func defaultLanguage(for document: DocumentURI) async -> Language? {
+    return nil
+  }
+
+  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+  }
+
+  public func prepare(targets: [ConfiguredTarget]) async throws {
+    throw PrepareNotSupportedError()
+  }
+
+  public func generateBuildGraph() {}
+
+  public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 

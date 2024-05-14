@@ -114,7 +114,7 @@ final class DiagnoseTests: XCTestCase {
         let foo = 1️⃣Foo()
       }
 
-      /* 
+      /*
        Block comment
        With another line
       */
@@ -146,6 +146,7 @@ final class DiagnoseTests: XCTestCase {
     )
   }
 
+  @MainActor
   func testReduceFrontend() async throws {
     try await withTestScratchDir { scratchDir in
       let fileAContents = """
@@ -227,6 +228,7 @@ final class DiagnoseTests: XCTestCase {
 ///     - `$OFFSET`: The UTF-8 offset of the 1️⃣ location marker in `markedFileContents`
 ///   - reproducerPredicate: A predicate that indicates whether a run request reproduces the issue.
 ///   - expectedReducedFileContents: The contents of the file that the reducer is expected to produce.
+@MainActor
 private func assertReduceSourceKitD(
   _ markedFileContents: String,
   request: String,

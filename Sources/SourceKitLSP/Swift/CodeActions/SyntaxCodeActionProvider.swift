@@ -40,26 +40,50 @@ struct SyntaxCodeActionScope {
   /// considered, i.e., where the cursor or selection is.
   var range: Range<AbsolutePosition>
 
-  init(
+  /// The innermost node that contains the entire selected source range
+  var innermostNodeContainingRange: Syntax?
+
+  init?(
     snapshot: DocumentSnapshot,
-    syntaxTree tree: SourceFileSyntax,
+    syntaxTree file: SourceFileSyntax,
     request: CodeActionRequest
-  ) throws {
+  ) {
     self.snapshot = snapshot
     self.request = request
-    self.file = tree
+    self.file = file
 
-    let start = snapshot.absolutePosition(of: request.range.lowerBound)
-    let end = snapshot.absolutePosition(of: request.range.upperBound)
-    let left = file.token(at: start)
-    let right = file.token(at: end)
-    let leftOff = left?.position ?? AbsolutePosition(utf8Offset: 0)
-    let rightOff = right?.endPosition ?? leftOff
-    self.range = leftOff..<rightOff
+    guard let left = tokenForRefactoring(at: request.range.lowerBound, snapshot: snapshot, syntaxTree: file),
+      let right = tokenForRefactoring(at: request.range.upperBound, snapshot: snapshot, syntaxTree: file)
+    else {
+      return nil
+    }
+    self.range = left.position..<right.endPosition
+    self.innermostNodeContainingRange = findCommonAncestorOrSelf(Syntax(left), Syntax(right))
   }
+}
 
-  /// The first token in the
-  var firstToken: TokenSyntax? {
-    file.token(at: range.lowerBound)
+private func tokenForRefactoring(
+  at position: Position,
+  snapshot: DocumentSnapshot,
+  syntaxTree: SourceFileSyntax
+) -> TokenSyntax? {
+  let absolutePosition = snapshot.absolutePosition(of: position)
+  if absolutePosition == syntaxTree.endPosition {
+    // token(at:) will not find the end of file token if the end of file token has length 0. Special case this and
+    // return the last proper token in this case.
+    return syntaxTree.endOfFileToken.previousToken(viewMode: .sourceAccurate)
   }
+  guard let token = syntaxTree.token(at: absolutePosition) else {
+    return nil
+  }
+  // See `adjustPositionToStartOfIdentifier`. We need to be a little more aggressive for the refactorings and also
+  // adjust to the start of punctuation eg. if the end of the selected range is after a `}`, we want the end token for
+  // the refactoring to be the `}`, not the token after `}`.
+  if absolutePosition == token.position,
+    let previousToken = token.previousToken(viewMode: .sourceAccurate),
+    previousToken.endPositionBeforeTrailingTrivia == absolutePosition
+  {
+    return previousToken
+  }
+  return token
 }

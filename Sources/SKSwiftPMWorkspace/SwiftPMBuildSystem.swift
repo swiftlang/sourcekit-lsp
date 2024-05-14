@@ -26,11 +26,16 @@ import SourceKitLSPAPI
 import Workspace
 
 import struct Basics.AbsolutePath
+import struct Basics.IdentifiableSet
 import struct Basics.TSCAbsolutePath
 import struct Foundation.URL
+import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
+import class TSCBasic.Process
 import var TSCBasic.localFileSystem
 import func TSCBasic.resolveSymlinks
+
+typealias AbsolutePath = Basics.AbsolutePath
 
 #if canImport(SPMBuildCore)
 import SPMBuildCore
@@ -91,9 +96,15 @@ public actor SwiftPMBuildSystem {
   let workspace: Workspace
   public let buildParameters: BuildParameters
   let fileSystem: FileSystem
+  private let toolchainRegistry: ToolchainRegistry
 
   var fileToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
   var sourceDirToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
+
+  /// Maps target ids (aka. `ConfiguredTarget.targetID`) to their SwiftPM build target as well as an index in their
+  /// topological sorting. Targets with lower index are more low level, ie. targets with higher indices depend on
+  /// targets with lower indices.
+  var targets: [String: (index: Int, buildTarget: SwiftBuildTarget)] = [:]
 
   /// The URIs for which the delegate has registered for change notifications,
   /// mapped to the language the delegate specified when registering for change notifications.
@@ -112,6 +123,18 @@ public actor SwiftPMBuildSystem {
   /// Force-unwrapped optional because initializing it requires access to `self`.
   var fileDependenciesUpdatedDebouncer: Debouncer<Set<DocumentURI>>! = nil
 
+  /// A `ObservabilitySystem` from `SwiftPM` that logs.
+  private let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
+    logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
+  })
+
+  /// Whether the SwiftPMBuildSystem may modify `Package.resolved` or not.
+  ///
+  /// This is `false` if the `SwiftPMBuildSystem` is pointed at a `.index-build` directory that's independent of the
+  /// user's build. In this case `SwiftPMBuildSystem` is allowed to clone repositories even if no `Package.resolved`
+  /// exists.
+  private let forceResolvedVersions: Bool
+
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
   /// - Parameters:
@@ -125,10 +148,13 @@ public actor SwiftPMBuildSystem {
     toolchainRegistry: ToolchainRegistry,
     fileSystem: FileSystem = localFileSystem,
     buildSetup: BuildSetup,
+    forceResolvedVersions: Bool,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void = { _ in }
   ) async throws {
     self.workspacePath = workspacePath
     self.fileSystem = fileSystem
+    self.toolchainRegistry = toolchainRegistry
+    self.forceResolvedVersions = forceResolvedVersions
 
     guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem) else {
       throw Error.noManifest(workspacePath: workspacePath)
@@ -176,7 +202,12 @@ public actor SwiftPMBuildSystem {
       flags: buildSetup.flags
     )
 
-    self.modulesGraph = try ModulesGraph(rootPackages: [], dependencies: [], binaryArtifacts: [:])
+    self.modulesGraph = try ModulesGraph(
+      rootPackages: [],
+      packages: IdentifiableSet(),
+      dependencies: [],
+      binaryArtifacts: [:]
+    )
     self.reloadPackageStatusCallback = reloadPackageStatusCallback
 
     // The debounce duration of 500ms was chosen arbitrarily without scientific research.
@@ -191,7 +222,6 @@ public actor SwiftPMBuildSystem {
       }
       await delegate.filesDependenciesUpdated(filesWithUpdatedDependencies)
     }
-
     try await reloadPackage()
   }
 
@@ -204,6 +234,7 @@ public actor SwiftPMBuildSystem {
     url: URL,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
+    forceResolvedVersions: Bool,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
   ) async {
     do {
@@ -212,6 +243,7 @@ public actor SwiftPMBuildSystem {
         toolchainRegistry: toolchainRegistry,
         fileSystem: localFileSystem,
         buildSetup: buildSetup,
+        forceResolvedVersions: forceResolvedVersions,
         reloadPackageStatusCallback: reloadPackageStatusCallback
       )
     } catch Error.noManifest {
@@ -224,6 +256,9 @@ public actor SwiftPMBuildSystem {
 }
 
 extension SwiftPMBuildSystem {
+  public func generateBuildGraph() async throws {
+    try await self.reloadPackage()
+  }
 
   /// (Re-)load the package settings by parsing the manifest and resolving all the targets and
   /// dependencies.
@@ -235,13 +270,9 @@ extension SwiftPMBuildSystem {
       }
     }
 
-    let observabilitySystem = ObservabilitySystem({ scope, diagnostic in
-      logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
-    })
-
     let modulesGraph = try self.workspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
-      forceResolvedVersions: true,
+      forceResolvedVersions: forceResolvedVersions,
       availableLibraries: self.buildParameters.toolchain.providedLibraries,
       observabilityScope: observabilitySystem.topScope
     )
@@ -259,6 +290,16 @@ extension SwiftPMBuildSystem {
     /// properties because otherwise we might end up in an inconsistent state
     /// with only some properties modified.
     self.modulesGraph = modulesGraph
+
+    self.targets = Dictionary(
+      try buildDescription.allTargetsInTopologicalOrder(in: modulesGraph).enumerated().map { (index, target) in
+        return (key: target.name, (index, target))
+      },
+      uniquingKeysWith: { first, second in
+        logger.fault("Found two targets with the same name \(first.buildTarget.name)")
+        return second
+      }
+    )
 
     self.fileToTarget = [AbsolutePath: SwiftBuildTarget](
       modulesGraph.allTargets.flatMap { target in
@@ -315,36 +356,133 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
-  public func buildSettings(for uri: DocumentURI, language: Language) throws -> FileBuildSettings? {
-    guard let url = uri.fileURL else {
+  public func buildSettings(
+    for uri: DocumentURI,
+    in configuredTarget: ConfiguredTarget,
+    language: Language
+  ) throws -> FileBuildSettings? {
+    guard let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
       // We can't determine build settings for non-file URIs.
       return nil
     }
-    guard let path = try? AbsolutePath(validating: url.path) else {
-      return nil
-    }
 
-    if let buildTarget = try buildTarget(for: path) {
-      return FileBuildSettings(
-        compilerArguments: try buildTarget.compileArguments(for: path.asURL),
-        workingDirectory: workspacePath.pathString
-      )
-    }
-
-    if path.basename == "Package.swift" {
+    if configuredTarget.targetID == "" {
       return try settings(forPackageManifest: path)
     }
 
-    if path.extension == "h" {
-      return try settings(forHeader: path, language)
+    guard let buildTarget = self.targets[configuredTarget.targetID]?.buildTarget else {
+      logger.error("Did not find target with name \(configuredTarget.targetID)")
+      return nil
     }
 
-    return nil
+    if url.pathExtension == "h", let substituteFile = buildTarget.sources.first {
+      return FileBuildSettings(
+        compilerArguments: try buildTarget.compileArguments(for: substituteFile),
+        workingDirectory: workspacePath.pathString
+      ).patching(newFile: try resolveSymlinks(path).pathString, originalFile: substituteFile.absoluteString)
+    }
+
+    return FileBuildSettings(
+      compilerArguments: try buildTarget.compileArguments(for: url),
+      workingDirectory: workspacePath.pathString
+    )
   }
 
   public func defaultLanguage(for document: DocumentURI) async -> Language? {
-    // TODO (indexing): Query The SwiftPM build system for the document's language
+    // TODO (indexing): Query The SwiftPM build system for the document's language.
+    // https://github.com/apple/sourcekit-lsp/issues/1267
     return nil
+  }
+
+  public func configuredTargets(for uri: DocumentURI) -> [ConfiguredTarget] {
+    guard let url = uri.fileURL, let path = try? AbsolutePath(validating: url.path) else {
+      // We can't determine targets for non-file URIs.
+      return []
+    }
+
+    if let target = try? buildTarget(for: path) {
+      return [ConfiguredTarget(targetID: target.name, runDestinationID: "dummy")]
+    }
+
+    if path.basename == "Package.swift" {
+      // We use an empty target name to represent the package manifest since an empty target name is not valid for any
+      // user-defined target.
+      return [ConfiguredTarget(targetID: "", runDestinationID: "dummy")]
+    }
+
+    if url.pathExtension == "h", let target = try? target(forHeader: path) {
+      return [target]
+    }
+
+    return []
+  }
+
+  public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+    return targets.sorted { (lhs: ConfiguredTarget, rhs: ConfiguredTarget) -> Bool in
+      let lhsIndex = self.targets[lhs.targetID]?.index ?? self.targets.count
+      let rhsIndex = self.targets[lhs.targetID]?.index ?? self.targets.count
+      return lhsIndex < rhsIndex
+    }
+  }
+
+  public func prepare(targets: [ConfiguredTarget]) async throws {
+    // TODO (indexing): Support preparation of multiple targets at once.
+    // https://github.com/apple/sourcekit-lsp/issues/1262
+    for target in targets {
+      try await prepare(singleTarget: target)
+    }
+  }
+
+  private func prepare(singleTarget target: ConfiguredTarget) async throws {
+    // TODO (indexing): Add a proper 'prepare' job in SwiftPM instead of building the target.
+    // https://github.com/apple/sourcekit-lsp/issues/1254
+    guard let toolchain = await toolchainRegistry.default else {
+      logger.error("Not preparing because not toolchain exists")
+      return
+    }
+    guard let swift = toolchain.swift else {
+      logger.error(
+        "Not preparing because toolchain at \(toolchain.identifier) does not contain a Swift compiler"
+      )
+      return
+    }
+    let arguments = [
+      swift.pathString, "build",
+      "--package-path", workspacePath.pathString,
+      "--scratch-path", self.workspace.location.scratchDirectory.pathString,
+      "--disable-index-store",
+      "--target", target.targetID,
+    ]
+    let process = try Process.launch(arguments: arguments, workingDirectory: nil)
+    let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+    switch result.exitStatus.exhaustivelySwitchable {
+    case .terminated(code: 0):
+      break
+    case .terminated(code: let code):
+      // This most likely happens if there are compilation errors in the source file. This is nothing to worry about.
+      let stdout = (try? String(bytes: result.output.get(), encoding: .utf8)) ?? "<no stderr>"
+      let stderr = (try? String(bytes: result.stderrOutput.get(), encoding: .utf8)) ?? "<no stderr>"
+      logger.debug(
+        """
+        Preparation of target \(target.targetID) terminated with non-zero exit code \(code)
+        Stderr:
+        \(stderr)
+        Stdout:
+        \(stdout)
+        """
+      )
+    case .signalled(signal: let signal):
+      if !Task.isCancelled {
+        // The indexing job finished with a signal. Could be because the compiler crashed.
+        // Ignore signal exit codes if this task has been cancelled because the compiler exits with SIGINT if it gets
+        // interrupted.
+        logger.error("Preparation of target \(target.targetID) signaled \(signal)")
+      }
+    case .abnormal(exception: let exception):
+      if !Task.isCancelled {
+        logger.error("Preparation of target \(target.targetID) exited abnormally \(exception)")
+      }
+    }
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI) async {
@@ -433,26 +571,19 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
   }
 
   public func fileHandlingCapability(for uri: DocumentURI) -> FileHandlingCapability {
-    guard let fileUrl = uri.fileURL else {
+    if configuredTargets(for: uri).isEmpty {
       return .unhandled
     }
-    if (try? buildTarget(for: AbsolutePath(validating: fileUrl.path))) != nil {
-      return .handled
-    } else {
-      return .unhandled
-    }
+    return .handled
   }
 
   public func sourceFiles() -> [SourceFileInfo] {
     return fileToTarget.compactMap { (path, target) -> SourceFileInfo? in
-      guard target.isPartOfRootPackage else {
-        // Don't consider files from package dependencies as possible test files.
-        return nil
-      }
       // We should only set mayContainTests to `true` for files from test targets
       // (https://github.com/apple/sourcekit-lsp/issues/1174).
       return SourceFileInfo(
         uri: DocumentURI(path.asURL),
+        isPartOfRootProject: target.isPartOfRootPackage,
         mayContainTests: true
       )
     }
@@ -485,25 +616,13 @@ extension SwiftPMBuildSystem {
     return canonicalPath == path ? nil : impl(canonicalPath)
   }
 
-  /// Retrieve settings for a given header file.
-  ///
-  /// This finds the target the header belongs to based on its location in the file system, retrieves the build settings
-  /// for any file within that target and generates compiler arguments by replacing that picked file with the header
-  /// file.
-  /// This is safe because all files within one target have the same build settings except for reference to the file
-  /// itself, which we are replacing.
-  private func settings(forHeader path: AbsolutePath, _ language: Language) throws -> FileBuildSettings? {
-    func impl(_ path: AbsolutePath) throws -> FileBuildSettings? {
+  /// This finds the target the header belongs to based on its location in the file system.
+  private func target(forHeader path: AbsolutePath) throws -> ConfiguredTarget? {
+    func impl(_ path: AbsolutePath) throws -> ConfiguredTarget? {
       var dir = path.parentDirectory
       while !dir.isRoot {
         if let buildTarget = sourceDirToTarget[dir] {
-          if let sourceFile = buildTarget.sources.first {
-            return FileBuildSettings(
-              compilerArguments: try buildTarget.compileArguments(for: sourceFile),
-              workingDirectory: workspacePath.pathString
-            ).patching(newFile: path.pathString, originalFile: sourceFile.absoluteString)
-          }
-          return nil
+          return ConfiguredTarget(targetID: buildTarget.name, runDestinationID: "dummy")
         }
         dir = dir.parentDirectory
       }

@@ -24,7 +24,7 @@ public actor SourceKitIndexDelegate: IndexDelegate {
   let queue = AsyncQueue<Serial>()
 
   /// Registered `MainFilesDelegate`s to notify when main files change.
-  var mainFilesChangedCallbacks: [() async -> Void] = []
+  var mainFilesChangedCallbacks: [@Sendable () async -> Void] = []
 
   /// The count of pending unit events. Whenever this transitions to 0, it represents a time where
   /// the index finished processing known events. Of course, that may have already changed by the
@@ -72,7 +72,7 @@ public actor SourceKitIndexDelegate: IndexDelegate {
   }
 
   /// Register a delegate to receive notifications when main files change.
-  public func addMainFileChangedCallback(_ callback: @escaping () async -> Void) {
+  public func addMainFileChangedCallback(_ callback: @escaping @Sendable () async -> Void) {
     mainFilesChangedCallbacks.append(callback)
   }
 

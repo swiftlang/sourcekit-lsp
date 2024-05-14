@@ -93,14 +93,17 @@ public actor CompilationDatabaseBuildSystem {
 }
 
 extension CompilationDatabaseBuildSystem: BuildSystem {
-
   public var indexDatabasePath: AbsolutePath? {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }
 
   public var indexPrefixMappings: [PathPrefixMapping] { return [] }
 
-  public func buildSettings(for document: DocumentURI, language: Language) async -> FileBuildSettings? {
+  public func buildSettings(
+    for document: DocumentURI,
+    in buildTarget: ConfiguredTarget,
+    language: Language
+  ) async -> FileBuildSettings? {
     guard let url = document.fileURL else {
       // We can't determine build settings for non-file URIs.
       return nil
@@ -115,6 +118,20 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
   }
 
   public func defaultLanguage(for document: DocumentURI) async -> Language? {
+    return nil
+  }
+
+  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+  }
+
+  public func prepare(targets: [ConfiguredTarget]) async throws {
+    throw PrepareNotSupportedError()
+  }
+
+  public func generateBuildGraph() {}
+
+  public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 
@@ -201,7 +218,7 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
       return []
     }
     return compdb.allCommands.map {
-      SourceFileInfo(uri: DocumentURI($0.url), mayContainTests: true)
+      SourceFileInfo(uri: DocumentURI($0.url), isPartOfRootProject: true, mayContainTests: true)
     }
   }
 

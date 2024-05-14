@@ -68,7 +68,7 @@ fileprivate func diagnosticsEnabled(for document: DocumentURI) -> Bool {
 }
 
 /// A swift compiler command derived from a `FileBuildSettingsChange`.
-public struct SwiftCompileCommand: Equatable {
+public struct SwiftCompileCommand: Sendable, Equatable {
 
   /// The compiler arguments, including working directory. This is required since sourcekitd only
   /// accepts the working directory via the compiler arguments.
@@ -90,7 +90,7 @@ public struct SwiftCompileCommand: Equatable {
   }
 }
 
-public actor SwiftLanguageService: LanguageService {
+public actor SwiftLanguageService: LanguageService, Sendable {
   /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageService`.
   weak var sourceKitLSPServer: SourceKitLSPServer?
 
@@ -218,7 +218,7 @@ public actor SwiftLanguageService: LanguageService {
   }
 
   /// - Important: For testing only
-  public func setReusedNodeCallback(_ callback: ReusedNodeCallback?) async {
+  public func setReusedNodeCallback(_ callback: (@Sendable (_ node: Syntax) -> ())?) async {
     await self.syntaxTreeManager.setReusedNodeCallback(callback)
   }
 
@@ -246,7 +246,7 @@ public actor SwiftLanguageService: LanguageService {
   }
 
   public func addStateChangeHandler(
-    handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
+    handler: @Sendable @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
   ) {
     self.stateChangeHandlers.append(handler)
   }
@@ -537,7 +537,7 @@ extension SwiftLanguageService {
         keys.enableDiagnostics: 0,
         keys.syntacticOnly: 1,
         keys.offset: edit.range.lowerBound.utf8Offset,
-        keys.length: edit.length.utf8Length,
+        keys.length: edit.range.length.utf8Length,
         keys.sourceText: edit.replacement,
       ])
       do {
@@ -553,13 +553,7 @@ extension SwiftLanguageService {
     }
 
     let concurrentEdits = ConcurrentEdits(
-      fromSequential: edits.map {
-        IncrementalEdit(
-          offset: $0.range.lowerBound.utf8Offset,
-          length: $0.length.utf8Length,
-          replacementLength: $0.replacement.utf8.count
-        )
-      }
+      fromSequential: edits
     )
     await syntaxTreeManager.registerEdit(
       preEditSnapshot: preEditSnapshot,
@@ -690,7 +684,7 @@ extension SwiftLanguageService {
 
         result.append(
           ColorInformation(
-            range: snapshot.range(of: node.position..<node.endPosition),
+            range: snapshot.absolutePositionRange(of: node.position..<node.endPosition),
             color: Color(red: red, green: green, blue: blue, alpha: alpha)
           )
         )
@@ -755,9 +749,10 @@ extension SwiftLanguageService {
     return response
   }
 
-  func retrieveCodeActions(_ req: CodeActionRequest, providers: [CodeActionProvider]) async throws
-    -> [CodeAction]
-  {
+  func retrieveCodeActions(
+    _ req: CodeActionRequest,
+    providers: [CodeActionProvider]
+  ) async throws -> [CodeAction] {
     guard providers.isEmpty == false else {
       return []
     }
@@ -776,7 +771,9 @@ extension SwiftLanguageService {
     let snapshot = try documentManager.latestSnapshot(uri)
 
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    let scope = try SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request)
+    guard let scope = SyntaxCodeActionScope(snapshot: snapshot, syntaxTree: syntaxTree, request: request) else {
+      return []
+    }
     return await allSyntaxCodeActions.concurrentMap { provider in
       return provider.codeActions(in: scope)
     }.flatMap { $0 }
@@ -1135,7 +1132,7 @@ extension DocumentSnapshot {
   /// If the bounds of the range do not refer to a valid positions with in the snapshot, this function adjusts them to
   /// the closest valid positions and logs a fault containing the file and line of the caller (from `callerFile` and
   /// `callerLine`).
-  func range(
+  func absolutePositionRange(
     of range: Range<AbsolutePosition>,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
@@ -1152,8 +1149,8 @@ extension DocumentSnapshot {
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
   ) -> Range<Position> {
-    let lowerBound = self.position(of: node.position)
-    let upperBound = self.position(of: node.endPosition)
+    let lowerBound = self.position(of: node.position, callerFile: callerFile, callerLine: callerLine)
+    let upperBound = self.position(of: node.endPosition, callerFile: callerFile, callerLine: callerLine)
     return lowerBound..<upperBound
   }
 
@@ -1166,9 +1163,12 @@ extension DocumentSnapshot {
     of range: Range<Position>,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> ByteSourceRange {
+  ) -> Range<AbsolutePosition> {
     let utf8OffsetRange = utf8OffsetRange(of: range, callerFile: callerFile, callerLine: callerLine)
-    return ByteSourceRange(offset: utf8OffsetRange.startIndex, length: utf8OffsetRange.count)
+    return Range<AbsolutePosition>(
+      position: AbsolutePosition(utf8Offset: utf8OffsetRange.startIndex),
+      length: SourceLength(utf8Length: utf8OffsetRange.count)
+    )
   }
 
   // MARK: Position <-> RenameLocation

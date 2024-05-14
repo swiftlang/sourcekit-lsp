@@ -44,7 +44,7 @@ public protocol MessageHandler: AnyObject, Sendable {
   func handle<Request: RequestType>(
     _ request: Request,
     id: RequestID,
-    reply: @escaping (LSPResult<Request.Response>) -> Void
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
   )
 }
 
@@ -110,7 +110,7 @@ public final class LocalConnection: Connection, @unchecked Sendable {
 
   public func send<Request: RequestType>(
     _ request: Request,
-    reply: @escaping (LSPResult<Request.Response>) -> Void
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
   ) -> RequestID {
     let id = nextRequestID()
 

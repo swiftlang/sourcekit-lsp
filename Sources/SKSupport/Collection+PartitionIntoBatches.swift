@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public extension Collection {
+public extension Collection where Index == Int {
   /// Partition the elements of the collection into `numberOfBatches` roughly equally sized batches.
   ///
   /// Elements are assigned to the batches round-robin. This ensures that elements that are close to each other in the
@@ -31,5 +31,19 @@ public extension Collection {
       batches[index % numberOfBatches].append(element)
     }
     return batches.filter { !$0.isEmpty }
+  }
+
+  /// Partition the collection into batches that have a maximum size of `batchSize`.
+  ///
+  /// The last batch will contain the remainder elements.
+  func partition(intoBatchesOfSize batchSize: Int) -> [[Element]] {
+    var batches: [[Element]] = []
+    batches.reserveCapacity(self.count / batchSize)
+    var lastIndex = self.startIndex
+    for index in stride(from: self.startIndex, to: self.endIndex, by: batchSize).dropFirst() + [self.endIndex] {
+      batches.append(Array(self[lastIndex..<index]))
+      lastIndex = index
+    }
+    return batches
   }
 }

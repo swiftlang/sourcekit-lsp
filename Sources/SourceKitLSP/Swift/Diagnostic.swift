@@ -61,7 +61,7 @@ extension CodeAction {
   init?(_ fixIt: FixIt, in snapshot: DocumentSnapshot) {
     var textEdits = [TextEdit]()
     for edit in fixIt.edits {
-      textEdits.append(TextEdit(range: snapshot.range(of: edit.range), newText: edit.replacement))
+      textEdits.append(TextEdit(range: snapshot.absolutePositionRange(of: edit.range), newText: edit.replacement))
     }
 
     self.init(
@@ -263,7 +263,7 @@ extension Diagnostic {
       severity: severity,
       code: code,
       codeDescription: codeDescription,
-      source: "sourcekitd",
+      source: "SourceKit",
       message: message,
       tags: tags,
       relatedInformation: notes,
@@ -281,7 +281,7 @@ extension Diagnostic {
     var range = Range(snapshot.position(of: diag.position))
     for highlight in diag.highlights {
       let swiftSyntaxRange = highlight.positionAfterSkippingLeadingTrivia..<highlight.endPositionBeforeTrailingTrivia
-      let highlightRange = snapshot.range(of: swiftSyntaxRange)
+      let highlightRange = snapshot.absolutePositionRange(of: swiftSyntaxRange)
       if range.upperBound == highlightRange.lowerBound {
         range = range.lowerBound..<highlightRange.upperBound
       } else {
@@ -297,7 +297,7 @@ extension Diagnostic {
       severity: diag.diagMessage.severity.lspSeverity,
       code: nil,
       codeDescription: nil,
-      source: "SwiftSyntax",
+      source: "SourceKit",
       message: diag.message,
       tags: nil,
       relatedInformation: relatedInformation,
@@ -345,7 +345,7 @@ extension DiagnosticRelatedInformation {
   init(_ note: Note, in snapshot: DocumentSnapshot) {
     let nodeRange = note.node.positionAfterSkippingLeadingTrivia..<note.node.endPositionBeforeTrailingTrivia
     self.init(
-      location: Location(uri: snapshot.uri, range: snapshot.range(of: nodeRange)),
+      location: Location(uri: snapshot.uri, range: snapshot.absolutePositionRange(of: nodeRange)),
       message: note.message
     )
   }

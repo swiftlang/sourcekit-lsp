@@ -17,6 +17,10 @@ import LanguageServerProtocol
 
 import struct TSCBasic.AbsolutePath
 
+#if canImport(os)
+import os
+#endif
+
 /// `BuildSystem` that integrates client-side information such as main-file lookup as well as providing
 ///  common functionality such as caching.
 ///
@@ -122,23 +126,54 @@ extension BuildSystemManager {
     }
   }
 
+  /// Returns the `ConfiguredTarget` that should be used for semantic functionality of the given document.
+  public func canonicalConfiguredTarget(for document: DocumentURI) async -> ConfiguredTarget? {
+    // Sort the configured targets to deterministically pick the same `ConfiguredTarget` every time.
+    // We could allow the user to specify a preference of one target over another. For now this is not necessary because
+    // no build system currently returns multiple targets for a source file.
+    return await buildSystem?.configuredTargets(for: document)
+      .sorted { ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID) }
+      .first
+  }
+
+  /// Returns the build settings for `document` from `buildSystem`.
+  ///
+  /// Implementation detail of `buildSettings(for:language:)`.
+  private func buildSettingsFromPrimaryBuildSystem(
+    for document: DocumentURI,
+    language: Language
+  ) async throws -> FileBuildSettings? {
+    guard let buildSystem else {
+      return nil
+    }
+    guard let target = await canonicalConfiguredTarget(for: document) else {
+      logger.error("Failed to get target for \(document.forLogging)")
+      return nil
+    }
+    // FIXME: (async) We should only wait `fallbackSettingsTimeout` for build
+    // settings and return fallback afterwards. I am not sure yet, how best to
+    // implement that with Swift concurrency.
+    // For now, this should be fine because all build systems return
+    // very quickly from `settings(for:language:)`.
+    guard let settings = try await buildSystem.buildSettings(for: document, in: target, language: language) else {
+      return nil
+    }
+    return settings
+  }
+
   private func buildSettings(
     for document: DocumentURI,
     language: Language
   ) async -> FileBuildSettings? {
     do {
-      // FIXME: (async) We should only wait `fallbackSettingsTimeout` for build
-      // settings and return fallback afterwards. I am not sure yet, how best to
-      // implement that with Swift concurrency.
-      // For now, this should be fine because all build systems return
-      // very quickly from `settings(for:language:)`.
-      if let settings = try await buildSystem?.buildSettings(for: document, language: language) {
-        return settings
+      if let buildSettings = try await buildSettingsFromPrimaryBuildSystem(for: document, language: language) {
+        return buildSettings
       }
     } catch {
       logger.error("Getting build settings failed: \(error.forLogging)")
     }
-    guard var settings = fallbackBuildSystem?.buildSettings(for: document, language: language) else {
+
+    guard var settings = await fallbackBuildSystem?.buildSettings(for: document, language: language) else {
       return nil
     }
     if buildSystem == nil {
@@ -159,7 +194,8 @@ extension BuildSystemManager {
   /// references to that C file in the build settings by the header file.
   public func buildSettingsInferredFromMainFile(
     for document: DocumentURI,
-    language: Language
+    language: Language,
+    logBuildSettings: Bool = true
   ) async -> FileBuildSettings? {
     let mainFile = await mainFile(for: document, language: language)
     guard var settings = await buildSettings(for: mainFile, language: language) else {
@@ -170,8 +206,22 @@ extension BuildSystemManager {
       // to reference `document` instead of `mainFile`.
       settings = settings.patching(newFile: document.pseudoPath, originalFile: mainFile.pseudoPath)
     }
-    await BuildSettingsLogger.shared.log(settings: settings, for: document)
+    if logBuildSettings {
+      await BuildSettingsLogger.shared.log(settings: settings, for: document)
+    }
     return settings
+  }
+
+  public func generateBuildGraph() async throws {
+    try await self.buildSystem?.generateBuildGraph()
+  }
+
+  public func topologicalSort(of targets: [ConfiguredTarget]) async throws -> [ConfiguredTarget]? {
+    return await buildSystem?.topologicalSort(of: targets)
+  }
+
+  public func prepare(targets: [ConfiguredTarget]) async throws {
+    try await buildSystem?.prepare(targets: targets)
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {
@@ -213,7 +263,7 @@ extension BuildSystemManager {
 
   public func testFiles() async -> [DocumentURI] {
     return await sourceFiles().compactMap { (info: SourceFileInfo) -> DocumentURI? in
-      guard info.mayContainTests else {
+      guard info.isPartOfRootProject, info.mayContainTests else {
         return nil
       }
       return info.uri
@@ -349,16 +399,24 @@ extension BuildSystemManager {
 // MARK: - Build settings logger
 
 /// Shared logger that only logs build settings for a file once unless they change
-fileprivate actor BuildSettingsLogger {
-  static let shared = BuildSettingsLogger()
+public actor BuildSettingsLogger {
+  public static let shared = BuildSettingsLogger()
 
   private var loggedSettings: [DocumentURI: FileBuildSettings] = [:]
 
-  func log(settings: FileBuildSettings, for uri: DocumentURI) {
+  public func log(level: LogLevel = .default, settings: FileBuildSettings, for uri: DocumentURI) {
     guard loggedSettings[uri] != settings else {
       return
     }
     loggedSettings[uri] = settings
+    Self.log(level: level, settings: settings, for: uri)
+  }
+
+  /// Log the given build settings.
+  ///
+  /// In contrast to the instance method `log`, this will always log the build settings. The instance method only logs
+  /// the build settings if they have changed.
+  public static func log(level: LogLevel = .default, settings: FileBuildSettings, for uri: DocumentURI) {
     let log = """
       Compiler Arguments:
       \(settings.compilerArguments.joined(separator: "\n"))
@@ -370,6 +428,7 @@ fileprivate actor BuildSettingsLogger {
     let chunks = splitLongMultilineMessage(message: log)
     for (index, chunk) in chunks.enumerated() {
       logger.log(
+        level: level,
         """
         Build settings for \(uri.forLogging) (\(index + 1)/\(chunks.count))
         \(chunk)

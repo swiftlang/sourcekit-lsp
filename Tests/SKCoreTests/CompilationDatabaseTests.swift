@@ -290,6 +290,7 @@ final class CompilationDatabaseTests: XCTestCase {
     ) { buildSystem in
       let settings = await buildSystem.buildSettings(
         for: DocumentURI(URL(fileURLWithPath: "/a/a.swift")),
+        in: ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy"),
         language: .swift
       )
       XCTAssertNotNil(settings)

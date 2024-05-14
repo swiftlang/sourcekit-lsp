@@ -70,26 +70,27 @@ enum LanguageServerType: Hashable {
 }
 
 /// A request and a callback that returns the request's reply
-fileprivate final class RequestAndReply<Params: RequestType> {
+fileprivate final class RequestAndReply<Params: RequestType>: Sendable {
   let params: Params
-  private let replyBlock: (LSPResult<Params.Response>) -> Void
+  private let replyBlock: @Sendable (LSPResult<Params.Response>) -> Void
 
   /// Whether a reply has been made. Every request must reply exactly once.
-  private var replied: Bool = false
+  /// `nonisolated(unsafe)` is fine because `replied` is atomic.
+  private nonisolated(unsafe) var replied: AtomicBool = AtomicBool(initialValue: false)
 
-  public init(_ request: Params, reply: @escaping (LSPResult<Params.Response>) -> Void) {
+  public init(_ request: Params, reply: @escaping @Sendable (LSPResult<Params.Response>) -> Void) {
     self.params = request
     self.replyBlock = reply
   }
 
   deinit {
-    precondition(replied, "request never received a reply")
+    precondition(replied.value, "request never received a reply")
   }
 
   /// Call the `replyBlock` with the result produced by the given closure.
-  func reply(_ body: () async throws -> Params.Response) async {
-    precondition(!replied, "replied to request more than once")
-    replied = true
+  func reply(_ body: @Sendable () async throws -> Params.Response) async {
+    precondition(!replied.value, "replied to request more than once")
+    replied.value = true
     do {
       replyBlock(.success(try await body()))
     } catch {
@@ -114,6 +115,10 @@ final actor WorkDoneProgressState {
     case progressCreationFailed
   }
 
+  /// A queue so we can have synchronous `startProgress` and `endProgress` functions that don't need to wait for the
+  /// work done progress to be started or ended.
+  private let queue = AsyncQueue<Serial>()
+
   /// How many active tasks are running.
   ///
   /// A work done progress should be displayed if activeTasks > 0
@@ -134,13 +139,16 @@ final actor WorkDoneProgressState {
   /// Start a new task, creating a new `WorkDoneProgress` if none is running right now.
   ///
   /// - Parameter server: The server that is used to create the `WorkDoneProgress` on the client
-  func startProgress(server: SourceKitLSPServer) async {
+  nonisolated func startProgress(server: SourceKitLSPServer) {
+    queue.async {
+      await self.startProgressImpl(server: server)
+    }
+  }
+
+  func startProgressImpl(server: SourceKitLSPServer) async {
+    await server.waitUntilInitialized()
     activeTasks += 1
     guard await server.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false else {
-      // If the client doesn't support workDoneProgress, keep track of the active task count but don't update the state.
-      // That way, if we call `startProgress` before initialization finishes, we won't send the
-      // `CreateWorkDoneProgressRequest` but if we call `startProgress` again after initialization finished (and thus
-      // the capability is set), we will create the work done progress.
       return
     }
     if state == .noProgress {
@@ -179,7 +187,13 @@ final actor WorkDoneProgressState {
   /// If this drops the active task count to 0, the work done progress is ended on the client.
   ///
   /// - Parameter server: The server that is used to send and update of the `WorkDoneProgress` to the client
-  func endProgress(server: SourceKitLSPServer) async {
+  nonisolated func endProgress(server: SourceKitLSPServer) {
+    queue.async {
+      await self.endProgressImpl(server: server)
+    }
+  }
+
+  func endProgressImpl(server: SourceKitLSPServer) async {
     assert(activeTasks > 0, "Unbalanced startProgress/endProgress calls")
     activeTasks -= 1
     guard await server.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false else {
@@ -439,15 +453,32 @@ public actor SourceKitLSPServer {
   /// The connection to the editor.
   public let client: Connection
 
+  /// Set to `true` after the `SourceKitLSPServer` has send the reply to the `InitializeRequest`.
+  ///
+  /// Initialization can be awaited using `waitUntilInitialized`.
+  private var initialized: Bool = false
+
   var options: Options
 
   let toolchainRegistry: ToolchainRegistry
 
-  var capabilityRegistry: CapabilityRegistry?
+  public var capabilityRegistry: CapabilityRegistry?
 
   var languageServices: [LanguageServerType: [LanguageService]] = [:]
 
   let documentManager = DocumentManager()
+
+  /// The `TaskScheduler` that schedules all background indexing tasks.
+  ///
+  /// Shared process-wide to ensure the scheduled index operations across multiple workspaces don't exceed the maximum
+  /// number of processor cores that the user allocated to background indexing.
+  private let indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
+
+  /// Implicitly unwrapped optional so we can create an `IndexProgressManager` that has a weak reference to
+  /// `SourceKitLSPServer`.
+  /// `nonisolated(unsafe)` because `indexProgressManager` will not be modified after it is assigned from the
+  /// initializer.
+  private nonisolated(unsafe) var indexProgressManager: IndexProgressManager!
 
   private var packageLoadingWorkDoneProgress = WorkDoneProgressState(
     "SourceKitLSP.SourceKitLSPServer.reloadPackage",
@@ -501,24 +532,44 @@ public actor SourceKitLSPServer {
     self.inProgressRequests[id] = task
   }
 
-  let fs: FileSystem
-
   var onExit: () -> Void
 
   /// Creates a language server for the given client.
   public init(
     client: Connection,
-    fileSystem: FileSystem = localFileSystem,
     toolchainRegistry: ToolchainRegistry,
     options: Options,
     onExit: @escaping () -> Void = {}
   ) {
-    self.fs = fileSystem
     self.toolchainRegistry = toolchainRegistry
     self.options = options
     self.onExit = onExit
 
     self.client = client
+    let processorCount = ProcessInfo.processInfo.processorCount
+    let lowPriorityCores = options.indexOptions.maxCoresPercentageToUseForBackgroundIndexing * Double(processorCount)
+    self.indexTaskScheduler = TaskScheduler(maxConcurrentTasksByPriority: [
+      (TaskPriority.medium, processorCount),
+      (TaskPriority.low, max(Int(lowPriorityCores), 1)),
+    ])
+    self.indexProgressManager = nil
+    self.indexProgressManager = IndexProgressManager(sourceKitLSPServer: self)
+  }
+
+  /// Await until the server has send the reply to the initialize request.
+  func waitUntilInitialized() async {
+    // The polling of `initialized` is not perfect but it should be OK, because
+    //  - In almost all cases the server should already be initialized.
+    //  - If it's not initialized, we expect initialization to finish fairly quickly. Even if initialization takes 5s
+    //    this only results in 50 polls, which is acceptable.
+    // Alternative solutions that signal via an async sequence seem overkill here.
+    while !initialized {
+      do {
+        try await Task.sleep(for: .seconds(0.1))
+      } catch {
+        break
+      }
+    }
   }
 
   /// Search through all the parent directories of `uri` and check if any of these directories contain a workspace
@@ -619,7 +670,7 @@ public actor SourceKitLSPServer {
 
     // This should be created as soon as we receive an open call, even if the document
     // isn't yet ready.
-    guard let languageService = workspace.documentService[doc] else {
+    guard let languageService = workspace.documentService.value[doc] else {
       return
     }
 
@@ -628,7 +679,9 @@ public actor SourceKitLSPServer {
 
   private func handleRequest<RequestType: TextDocumentRequest>(
     for request: RequestAndReply<RequestType>,
-    requestHandler: @escaping (RequestType, Workspace, LanguageService) async throws ->
+    requestHandler: @Sendable @escaping (
+      RequestType, Workspace, LanguageService
+    ) async throws ->
       RequestType.Response
   ) async {
     await request.reply {
@@ -637,7 +690,7 @@ public actor SourceKitLSPServer {
       guard let workspace = await self.workspaceForDocument(uri: request.textDocument.uri) else {
         throw ResponseError.workspaceNotOpen(request.textDocument.uri)
       }
-      guard let languageService = workspace.documentService[doc] else {
+      guard let languageService = workspace.documentService.value[doc] else {
         throw ResponseError.unknown("No language service for '\(request.textDocument.uri)' found")
       }
       return try await requestHandler(request, workspace, languageService)
@@ -661,7 +714,7 @@ public actor SourceKitLSPServer {
       guard let workspace = await self.workspaceForDocument(uri: documentUri) else {
         continue
       }
-      guard workspace.documentService[documentUri] === languageService else {
+      guard workspace.documentService.value[documentUri] === languageService else {
         continue
       }
       guard let snapshot = try? self.documentManager.latestSnapshot(documentUri) else {
@@ -787,7 +840,7 @@ public actor SourceKitLSPServer {
     _ language: Language,
     in workspace: Workspace
   ) async -> LanguageService? {
-    if let service = workspace.documentService[uri] {
+    if let service = workspace.documentService.value[uri] {
       return service
     }
 
@@ -799,21 +852,24 @@ public actor SourceKitLSPServer {
 
     logger.log("Using toolchain \(toolchain.displayName) (\(toolchain.identifier)) for \(uri.forLogging)")
 
-    if let concurrentlySetService = workspace.documentService[uri] {
-      // Since we await the construction of `service`, another call to this
-      // function might have happened and raced us, setting
-      // `workspace.documentServices[uri]`. If this is the case, return the
-      // existing value and discard the service that we just retrieved.
-      return concurrentlySetService
+    return workspace.documentService.withLock { documentService in
+      if let concurrentlySetService = documentService[uri] {
+        // Since we await the construction of `service`, another call to this
+        // function might have happened and raced us, setting
+        // `workspace.documentServices[uri]`. If this is the case, return the
+        // existing value and discard the service that we just retrieved.
+        return concurrentlySetService
+      }
+      documentService[uri] = service
+      return service
     }
-    workspace.documentService[uri] = service
-    return service
   }
 }
 
 // MARK: - MessageHandler
 
-private var notificationIDForLogging = AtomicUInt32(initialValue: 1)
+// nonisolated(unsafe) is fine because `notificationIDForLogging` is atomic.
+private nonisolated(unsafe) var notificationIDForLogging = AtomicUInt32(initialValue: 1)
 
 extension SourceKitLSPServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType) {
@@ -874,7 +930,7 @@ extension SourceKitLSPServer: MessageHandler {
   public nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
-    reply: @escaping (LSPResult<R.Response>) -> Void
+    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) {
     let signposter = Logger(subsystem: LoggingScope.subsystem, category: "request-\(id)").makeSignposter()
     let signpostID = signposter.makeSignpostID()
@@ -906,7 +962,7 @@ extension SourceKitLSPServer: MessageHandler {
   private func handleImpl<R: RequestType>(
     _ params: R,
     id: RequestID,
-    reply: @escaping (LSPResult<R.Response>) -> Void
+    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) async {
     let startDate = Date()
 
@@ -940,6 +996,8 @@ extension SourceKitLSPServer: MessageHandler {
     switch request {
     case let request as RequestAndReply<InitializeRequest>:
       await request.reply { try await initialize(request.params) }
+      // Only set `initialized` to `true` after we have sent the response to the initialize request to the client.
+      initialized = true
     case let request as RequestAndReply<ShutdownRequest>:
       await request.reply { try await shutdown(request.params) }
     case let request as RequestAndReply<WorkspaceSymbolsRequest>:
@@ -1047,7 +1105,7 @@ extension SourceKitLSPServer: BuildSystemDelegate {
         continue
       }
 
-      guard let service = await self.workspaceForDocument(uri: uri)?.documentService[uri] else {
+      guard let service = await self.workspaceForDocument(uri: uri)?.documentService.value[uri] else {
         continue
       }
 
@@ -1071,7 +1129,7 @@ extension SourceKitLSPServer: BuildSystemDelegate {
       }
       for uri in self.affectedOpenDocumentsForChangeSet(changedFilesForWorkspace, self.documentManager) {
         logger.log("Dependencies updated for opened file \(uri.forLogging)")
-        if let service = workspace.documentService[uri] {
+        if let service = workspace.documentService.value[uri] {
           await service.documentDependenciesUpdated(uri)
         }
       }
@@ -1142,6 +1200,7 @@ extension SourceKitLSPServer {
       logger.log("Cannot open workspace before server is initialized")
       return nil
     }
+    let indexTaskDidFinishCallback = options.indexTaskDidFinish
     var options = self.options
     options.buildSetup = self.options.buildSetup.merging(buildSetup(for: workspaceFolder))
     return try? await Workspace(
@@ -1152,18 +1211,22 @@ extension SourceKitLSPServer {
       options: options,
       compilationDatabaseSearchPaths: self.options.compilationDatabaseSearchPaths,
       indexOptions: self.options.indexOptions,
+      indexTaskScheduler: indexTaskScheduler,
       reloadPackageStatusCallback: { [weak self] status in
         guard let self else { return }
-        guard capabilityRegistry.clientCapabilities.window?.workDoneProgress ?? false else {
-          // Client doesn’t support work done progress
-          return
-        }
         switch status {
         case .start:
           await self.packageLoadingWorkDoneProgress.startProgress(server: self)
         case .end:
           await self.packageLoadingWorkDoneProgress.endProgress(server: self)
         }
+      },
+      indexTasksWereScheduled: { [weak self] count in
+        self?.indexProgressManager.indexTaskWasQueued(count: count)
+      },
+      indexTaskDidFinish: { [weak self] in
+        self?.indexProgressManager.indexStatusDidChange()
+        indexTaskDidFinishCallback?()
       }
     )
   }
@@ -1212,6 +1275,7 @@ extension SourceKitLSPServer {
       if self.workspaces.isEmpty {
         logger.error("no workspace found")
 
+        let indexTaskDidFinishCallback = self.options.indexTaskDidFinish
         let workspace = await Workspace(
           documentManager: self.documentManager,
           rootUri: req.rootURI,
@@ -1220,7 +1284,15 @@ extension SourceKitLSPServer {
           options: self.options,
           underlyingBuildSystem: nil,
           index: nil,
-          indexDelegate: nil
+          indexDelegate: nil,
+          indexTaskScheduler: self.indexTaskScheduler,
+          indexTasksWereScheduled: { [weak self] count in
+            self?.indexProgressManager.indexTaskWasQueued(count: count)
+          },
+          indexTaskDidFinish: { [weak self] in
+            self?.indexProgressManager.indexStatusDidChange()
+            indexTaskDidFinishCallback?()
+          }
         )
 
         self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
@@ -1416,8 +1488,7 @@ extension SourceKitLSPServer {
     // the client to open new workspaces.
     for workspace in self.workspaces {
       await workspace.buildSystemManager.setMainFilesProvider(nil)
-      // Close the index, which will flush to disk.
-      workspace.uncheckedIndex = nil
+      workspace.closeIndex()
 
       // Break retain cycle with the BSM.
       await workspace.buildSystemManager.setDelegate(nil)
@@ -1509,7 +1580,7 @@ extension SourceKitLSPServer {
 
     await workspace.buildSystemManager.unregisterForChangeNotifications(for: uri)
 
-    await workspace.documentService[uri]?.closeDocument(note)
+    await workspace.documentService.value[uri]?.closeDocument(note)
   }
 
   func changeDocument(_ notification: DidChangeTextDocumentNotification) async {
@@ -1524,7 +1595,7 @@ extension SourceKitLSPServer {
 
     // If the document is ready, we can handle the change right now.
     documentManager.edit(notification)
-    await workspace.documentService[uri]?.changeDocument(notification)
+    await workspace.documentService.value[uri]?.changeDocument(notification)
   }
 
   func willSaveDocument(
@@ -1774,7 +1845,7 @@ extension SourceKitLSPServer {
     guard let workspace = await workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }
-    guard let languageService = workspace.documentService[uri] else {
+    guard let languageService = workspace.documentService.value[uri] else {
       return nil
     }
 
@@ -2414,7 +2485,8 @@ extension SourceKitLSPServer {
 
   func pollIndex(_ req: PollIndexRequest) async throws -> VoidResponse {
     for workspace in workspaces {
-      workspace.uncheckedIndex?.underlyingIndexStoreDB.pollForUnitChangesAndWait()
+      await workspace.semanticIndexManager?.waitForUpToDateIndex()
+      workspace.index(checkedFor: .deletedFiles)?.pollForUnitChangesAndWait()
     }
     return VoidResponse()
   }
@@ -2456,7 +2528,11 @@ fileprivate extension CheckedIndex {
   /// If the USR has an ambiguous definition, the most important role of this function is to deterministically return
   /// the same result every time.
   func primaryDefinitionOrDeclarationOccurrence(ofUSR usr: String) -> SymbolOccurrence? {
-    return definitionOrDeclarationOccurrences(ofUSR: usr).sorted().first
+    let result = definitionOrDeclarationOccurrences(ofUSR: usr).sorted().first
+    if result == nil {
+      logger.error("Failed to find definition of \(usr) in index")
+    }
+    return result
   }
 }
 

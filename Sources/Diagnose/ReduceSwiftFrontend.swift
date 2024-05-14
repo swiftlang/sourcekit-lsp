@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+@MainActor
 @_spi(Testing)
 public func reduceFrontendIssue(
   frontendArgs: [String],

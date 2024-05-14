@@ -56,7 +56,7 @@ extension SwiftLanguageService {
     let visitor = StartOfIdentifierFinder(position: snapshot.absolutePosition(of: position))
     visitor.walk(tree)
     if let resolvedPosition = visitor.resolvedPosition {
-      return snapshot.position(of: resolvedPosition) ?? position
+      return snapshot.position(of: resolvedPosition)
     }
     return position
   }
