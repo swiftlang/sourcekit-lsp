@@ -200,6 +200,11 @@ struct SourceKitLSP: AsyncParsableCommand {
   )
   var completionMaxResults = 200
 
+  @Flag(
+    help: "Enable background indexing. This feature is still under active development and may be incomplete."
+  )
+  var enableExperimentalBackgroundIndexing = false
+
   func mapOptions() -> SourceKitLSPServer.Options {
     var serverOptions = SourceKitLSPServer.Options()
 
@@ -215,6 +220,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     serverOptions.indexOptions.indexStorePath = indexStorePath
     serverOptions.indexOptions.indexDatabasePath = indexDatabasePath
     serverOptions.indexOptions.indexPrefixMappings = indexPrefixMappings
+    serverOptions.indexOptions.enableBackgroundIndexing = enableExperimentalBackgroundIndexing
     serverOptions.completionOptions.maxResults = completionMaxResults
     serverOptions.generatedInterfacesPath = generatedInterfacesPath
 
