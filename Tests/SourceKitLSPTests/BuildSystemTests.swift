@@ -127,7 +127,9 @@ final class BuildSystemTests: XCTestCase {
       underlyingBuildSystem: buildSystem,
       index: nil,
       indexDelegate: nil,
-      indexTaskScheduler: .forTesting
+      indexTaskScheduler: .forTesting,
+      indexTasksWereScheduled: { _ in },
+      indexTaskDidFinish: {}
     )
 
     await server.setWorkspaces([(workspace: workspace, isImplicit: false)])

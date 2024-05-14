@@ -474,6 +474,12 @@ public actor SourceKitLSPServer {
   /// number of processor cores that the user allocated to background indexing.
   private let indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
 
+  /// Implicitly unwrapped optional so we can create an `IndexProgressManager` that has a weak reference to
+  /// `SourceKitLSPServer`.
+  /// `nonisolated(unsafe)` because `indexProgressManager` will not be modified after it is assigned from the
+  /// initializer.
+  private nonisolated(unsafe) var indexProgressManager: IndexProgressManager!
+
   private var packageLoadingWorkDoneProgress = WorkDoneProgressState(
     "SourceKitLSP.SourceKitLSPServer.reloadPackage",
     title: "SourceKit-LSP: Reloading Package"
@@ -546,6 +552,8 @@ public actor SourceKitLSPServer {
       (TaskPriority.medium, processorCount),
       (TaskPriority.low, max(Int(lowPriorityCores), 1)),
     ])
+    self.indexProgressManager = nil
+    self.indexProgressManager = IndexProgressManager(sourceKitLSPServer: self)
   }
 
   /// Await until the server has send the reply to the initialize request.
@@ -1192,6 +1200,7 @@ extension SourceKitLSPServer {
       logger.log("Cannot open workspace before server is initialized")
       return nil
     }
+    let indexTaskDidFinishCallback = options.indexTaskDidFinish
     var options = self.options
     options.buildSetup = self.options.buildSetup.merging(buildSetup(for: workspaceFolder))
     return try? await Workspace(
@@ -1205,16 +1214,19 @@ extension SourceKitLSPServer {
       indexTaskScheduler: indexTaskScheduler,
       reloadPackageStatusCallback: { [weak self] status in
         guard let self else { return }
-        guard capabilityRegistry.clientCapabilities.window?.workDoneProgress ?? false else {
-          // Client doesn’t support work done progress
-          return
-        }
         switch status {
         case .start:
           await self.packageLoadingWorkDoneProgress.startProgress(server: self)
         case .end:
           await self.packageLoadingWorkDoneProgress.endProgress(server: self)
         }
+      },
+      indexTasksWereScheduled: { [weak self] count in
+        self?.indexProgressManager.indexTaskWasQueued(count: count)
+      },
+      indexTaskDidFinish: { [weak self] in
+        self?.indexProgressManager.indexStatusDidChange()
+        indexTaskDidFinishCallback?()
       }
     )
   }
@@ -1263,6 +1275,7 @@ extension SourceKitLSPServer {
       if self.workspaces.isEmpty {
         logger.error("no workspace found")
 
+        let indexTaskDidFinishCallback = self.options.indexTaskDidFinish
         let workspace = await Workspace(
           documentManager: self.documentManager,
           rootUri: req.rootURI,
@@ -1272,7 +1285,14 @@ extension SourceKitLSPServer {
           underlyingBuildSystem: nil,
           index: nil,
           indexDelegate: nil,
-          indexTaskScheduler: self.indexTaskScheduler
+          indexTaskScheduler: self.indexTaskScheduler,
+          indexTasksWereScheduled: { [weak self] count in
+            self?.indexProgressManager.indexTaskWasQueued(count: count)
+          },
+          indexTaskDidFinish: { [weak self] in
+            self?.indexProgressManager.indexStatusDidChange()
+            indexTaskDidFinishCallback?()
+          }
         )
 
         self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))
