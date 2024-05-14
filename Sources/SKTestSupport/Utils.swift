@@ -70,7 +70,7 @@ public func testScratchDir(testName: String = #function) throws -> URL {
 /// The temporary directory will be deleted at the end of `directory` unless the
 /// `SOURCEKITLSP_KEEP_TEST_SCRATCH_DIR` environment variable is set.
 public func withTestScratchDir<T>(
-  _ body: (AbsolutePath) async throws -> T,
+  _ body: @Sendable (AbsolutePath) async throws -> T,
   testName: String = #function
 ) async throws -> T {
   let scratchDirectory = try testScratchDir(testName: testName)

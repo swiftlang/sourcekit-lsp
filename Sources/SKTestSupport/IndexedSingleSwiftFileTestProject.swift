@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import ISDBTibs
 import LanguageServerProtocol
 @_spi(Testing) import SKCore
 import SourceKitLSP
@@ -66,7 +65,7 @@ public struct IndexedSingleSwiftFileTestProject {
       compilerArguments.append("-index-ignore-system-modules")
     }
 
-    if let sdk = TibsBuilder.defaultSDKPath {
+    if let sdk = defaultSDKPath {
       compilerArguments += ["-sdk", sdk]
 
       // The following are needed so we can import XCTest
