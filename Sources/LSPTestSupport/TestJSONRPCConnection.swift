@@ -17,7 +17,7 @@ import XCTest
 
 import class Foundation.Pipe
 
-public final class TestJSONRPCConnection {
+public final class TestJSONRPCConnection: Sendable {
   public let clientToServer: Pipe = Pipe()
   public let serverToClient: Pipe = Pipe()
 
@@ -151,7 +151,7 @@ public actor TestClient: MessageHandler {
   /// Send a request to the LSP server and (asynchronously) receive a reply.
   public nonisolated func send<Request: RequestType>(
     _ request: Request,
-    reply: @escaping (LSPResult<Request.Response>) -> Void
+    reply: @Sendable @escaping (LSPResult<Request.Response>) -> Void
   ) -> RequestID {
     return connectionToServer.send(request, reply: reply)
   }
