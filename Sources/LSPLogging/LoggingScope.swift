@@ -80,7 +80,7 @@ public func withLoggingScope<Result>(
 /// - SeeAlso: ``withLoggingScope(_:_:)-6qtga``
 public func withLoggingScope<Result>(
   _ scope: String,
-  _ operation: () async throws -> Result
+  @_inheritActorContext _ operation: @Sendable () async throws -> Result
 ) async rethrows -> Result {
   return try await LoggingScope.$_scope.withValue(
     scope,

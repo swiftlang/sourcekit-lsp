@@ -17,6 +17,10 @@ import LanguageServerProtocol
 
 import struct TSCBasic.AbsolutePath
 
+#if canImport(os)
+import os
+#endif
+
 /// `BuildSystem` that integrates client-side information such as main-file lookup as well as providing
 ///  common functionality such as caching.
 ///
@@ -169,7 +173,7 @@ extension BuildSystemManager {
       logger.error("Getting build settings failed: \(error.forLogging)")
     }
 
-    guard var settings = fallbackBuildSystem?.buildSettings(for: document, language: language) else {
+    guard var settings = await fallbackBuildSystem?.buildSettings(for: document, language: language) else {
       return nil
     }
     if buildSystem == nil {

@@ -46,7 +46,7 @@ fileprivate func firstNonNil<T>(
 /// "initialize" request has been made.
 ///
 /// Typically a workspace is contained in a root directory.
-public final class Workspace {
+public final class Workspace: Sendable {
 
   /// The root directory of the workspace.
   public let rootUri: DocumentURI?
@@ -63,7 +63,7 @@ public final class Workspace {
   /// The source code index, if available.
   ///
   /// Usually a checked index (retrieved using `index(checkedFor:)`) should be used instead of the unchecked index.
-  var uncheckedIndex: UncheckedIndex? = nil
+  private let uncheckedIndex: ThreadSafeBox<UncheckedIndex?>
 
   /// The index that syntactically scans the workspace for tests.
   let syntacticTestIndex = SyntacticTestIndex()
@@ -72,7 +72,7 @@ public final class Workspace {
   private let documentManager: DocumentManager
 
   /// Language service for an open document, if available.
-  var documentService: [DocumentURI: LanguageService] = [:]
+  let documentService: ThreadSafeBox<[DocumentURI: LanguageService]> = ThreadSafeBox(initialValue: [:])
 
   /// The `SemanticIndexManager` that keeps track of whose file's index is up-to-date in the workspace and schedules
   /// indexing and preparation tasks for files with out-of-date index.
@@ -95,7 +95,7 @@ public final class Workspace {
     self.buildSetup = options.buildSetup
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
-    self.uncheckedIndex = uncheckedIndex
+    self.uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildSystemManager = await BuildSystemManager(
       buildSystem: underlyingBuildSystem,
       fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
@@ -143,7 +143,7 @@ public final class Workspace {
     compilationDatabaseSearchPaths: [RelativePath],
     indexOptions: IndexOptions = IndexOptions(),
     indexTaskScheduler: TaskScheduler<IndexTaskDescription>,
-    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
+    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
   ) async throws {
     var buildSystem: BuildSystem? = nil
 
@@ -254,7 +254,15 @@ public final class Workspace {
   /// Returns a `CheckedIndex` that verifies that all the returned entries are up-to-date with the given
   /// `IndexCheckLevel`.
   func index(checkedFor checkLevel: IndexCheckLevel) -> CheckedIndex? {
-    return uncheckedIndex?.checked(for: checkLevel)
+    return uncheckedIndex.value?.checked(for: checkLevel)
+  }
+
+  /// Write the index to disk.
+  ///
+  /// After this method is called, the workspace will no longer have an index associated with it. It should only be
+  /// called when SourceKit-LSP shuts down.
+  func closeIndex() {
+    uncheckedIndex.value = nil
   }
 
   public func filesDidChange(_ events: [FileEvent]) async {
@@ -272,7 +280,7 @@ struct WeakWorkspace {
   }
 }
 
-public struct IndexOptions {
+public struct IndexOptions: Sendable {
 
   /// Override the index-store-path provided by the build system.
   public var indexStorePath: AbsolutePath?

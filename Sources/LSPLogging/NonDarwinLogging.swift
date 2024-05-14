@@ -361,14 +361,14 @@ public struct NonDarwinLogger: Sendable {
 
 // MARK: - Signposter
 
-public struct NonDarwinSignpostID {}
+public struct NonDarwinSignpostID: Sendable {}
 
-public struct NonDarwinSignpostIntervalState {}
+public struct NonDarwinSignpostIntervalState: Sendable {}
 
 /// A type that is API-compatible to `OSLogMessage` for all uses within sourcekit-lsp.
 ///
 /// Since non-Darwin platforms don't have signposts, the type just has no-op operations.
-public struct NonDarwinSignposter {
+public struct NonDarwinSignposter: Sendable {
   public func makeSignpostID() -> NonDarwinSignpostID {
     return NonDarwinSignpostID()
   }

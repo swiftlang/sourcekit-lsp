@@ -24,7 +24,7 @@ public enum LanguageServerState {
   case semanticFunctionalityDisabled
 }
 
-public struct RenameLocation {
+public struct RenameLocation: Sendable {
   /// How the identifier at a given location is being used.
   ///
   /// This is primarily used to influence how argument labels should be renamed in Swift and if a location should be
@@ -64,7 +64,7 @@ public struct RenameLocation {
 ///
 /// For example, we may have a language service that provides semantic functionality for c-family using a clangd server,
 /// launched from a specific toolchain or from sourcekitd.
-public protocol LanguageService: AnyObject {
+public protocol LanguageService: AnyObject, Sendable {
 
   // MARK: - Creation
 
@@ -90,7 +90,7 @@ public protocol LanguageService: AnyObject {
 
   /// Add a handler that is called whenever the state of the language server changes.
   func addStateChangeHandler(
-    handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
+    handler: @Sendable @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
   ) async
 
   // MARK: - Text synchronization

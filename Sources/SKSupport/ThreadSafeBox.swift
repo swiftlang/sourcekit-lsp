@@ -47,6 +47,12 @@ public class ThreadSafeBox<T>: @unchecked Sendable {
     _value = initialValue
   }
 
+  public func withLock<Result>(_ body: (inout T) -> Result) -> Result {
+    return lock.withLock {
+      return body(&_value)
+    }
+  }
+
   /// If the value in the box is an optional, return it and reset it to `nil`
   /// in an atomic operation.
   public func takeValue<U>() -> T where U? == T {

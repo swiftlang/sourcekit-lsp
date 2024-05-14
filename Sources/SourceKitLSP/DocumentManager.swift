@@ -23,10 +23,10 @@ import SwiftSyntax
 /// data structure that is stored internally by the ``DocumentManager`` is a
 /// ``Document``. The purpose of a ``DocumentSnapshot`` is to be able to work
 /// with one version of a document without having to think about it changing.
-public struct DocumentSnapshot: Identifiable {
+public struct DocumentSnapshot: Identifiable, Sendable {
   /// An ID that uniquely identifies the version of the document stored in this
   /// snapshot.
-  public struct ID: Hashable, Comparable {
+  public struct ID: Hashable, Comparable, Sendable {
     public let uri: DocumentURI
     public let version: Int
 
@@ -84,16 +84,18 @@ public final class Document {
   }
 }
 
-public final class DocumentManager: InMemoryDocumentManager {
+public final class DocumentManager: InMemoryDocumentManager, Sendable {
 
   public enum Error: Swift.Error {
     case alreadyOpen(DocumentURI)
     case missingDocument(DocumentURI)
   }
 
-  let queue: DispatchQueue = DispatchQueue(label: "document-manager-queue")
+  // FIXME: (async) Migrate this to be an AsyncQueue
+  private let queue: DispatchQueue = DispatchQueue(label: "document-manager-queue")
 
-  var documents: [DocumentURI: Document] = [:]
+  // `nonisolated(unsafe)` is fine because `documents` is guarded by queue.
+  nonisolated(unsafe) var documents: [DocumentURI: Document] = [:]
 
   public init() {}
 
