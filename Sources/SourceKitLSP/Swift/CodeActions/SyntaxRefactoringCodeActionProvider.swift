@@ -36,7 +36,7 @@ extension SyntaxRefactoringCodeActionProvider where Self.Context == Void {
 
     let textEdits = sourceEdits.compactMap { (edit) -> TextEdit? in
       let edit = TextEdit(
-        range: scope.snapshot.absolutePositionRange(of: edit.range),
+        range: scope.snapshot.range(of: edit.range),
         newText: edit.replacement
       )
       if edit.isNoOp(in: scope.snapshot) {

@@ -690,7 +690,7 @@ extension SwiftLanguageService {
 
         result.append(
           ColorInformation(
-            range: snapshot.absolutePositionRange(of: node.position..<node.endPosition),
+            range: snapshot.range(of: node.position..<node.endPosition),
             color: Color(red: red, green: green, blue: blue, alpha: alpha)
           )
         )
@@ -1138,7 +1138,7 @@ extension DocumentSnapshot {
   /// If the bounds of the range do not refer to a valid positions with in the snapshot, this function adjusts them to
   /// the closest valid positions and logs a fault containing the file and line of the caller (from `callerFile` and
   /// `callerLine`).
-  func absolutePositionRange(
+  func range(
     of range: Range<AbsolutePosition>,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
@@ -1169,12 +1169,9 @@ extension DocumentSnapshot {
     of range: Range<Position>,
     callerFile: StaticString = #fileID,
     callerLine: UInt = #line
-  ) -> Range<AbsolutePosition> {
+  ) -> ByteSourceRange {
     let utf8OffsetRange = utf8OffsetRange(of: range, callerFile: callerFile, callerLine: callerLine)
-    return Range<AbsolutePosition>(
-      position: AbsolutePosition(utf8Offset: utf8OffsetRange.startIndex),
-      length: SourceLength(utf8Length: utf8OffsetRange.count)
-    )
+    return ByteSourceRange(offset: utf8OffsetRange.startIndex, length: utf8OffsetRange.count)
   }
 
   // MARK: Position <-> RenameLocation

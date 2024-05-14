@@ -248,9 +248,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
       return .skipChildren
     }
 
-    let range = snapshot.absolutePositionRange(
-      of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia
-    )
+    let range = snapshot.range(of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia)
     // Members won't be extensions since extensions will only be at the top level.
     let testItem = AnnotatedTestItem(
       testItem: TestItem(
@@ -308,9 +306,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     let name =
       node.name.text + "(" + node.signature.parameterClause.parameters.map { "\($0.firstName.text):" }.joined() + ")"
 
-    let range = snapshot.absolutePositionRange(
-      of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia
-    )
+    let range = snapshot.range(of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia)
     let testItem = AnnotatedTestItem(
       testItem: TestItem(
         id: (parentTypeNames + [name]).joined(separator: "/"),
