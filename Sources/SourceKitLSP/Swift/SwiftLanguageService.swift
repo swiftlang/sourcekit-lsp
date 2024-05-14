@@ -537,7 +537,7 @@ extension SwiftLanguageService {
         keys.enableDiagnostics: 0,
         keys.syntacticOnly: 1,
         keys.offset: edit.range.lowerBound.utf8Offset,
-        keys.length: edit.range.length.utf8Length,
+        keys.length: edit.length.utf8Length,
         keys.sourceText: edit.replacement,
       ])
       do {
@@ -553,7 +553,13 @@ extension SwiftLanguageService {
     }
 
     let concurrentEdits = ConcurrentEdits(
-      fromSequential: edits
+      fromSequential: edits.map {
+        IncrementalEdit(
+          offset: $0.range.lowerBound.utf8Offset,
+          length: $0.length.utf8Length,
+          replacementLength: $0.replacement.utf8.count
+        )
+      }
     )
     await syntaxTreeManager.registerEdit(
       preEditSnapshot: preEditSnapshot,
