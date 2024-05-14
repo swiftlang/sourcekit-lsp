@@ -447,15 +447,12 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
     let arguments = [
       swift.pathString, "build",
+      "--package-path", workspacePath.pathString,
       "--scratch-path", self.workspace.location.scratchDirectory.pathString,
       "--disable-index-store",
       "--target", target.targetID,
     ]
-    let process = Process(
-      arguments: arguments,
-      workingDirectory: workspacePath
-    )
-    try process.launch()
+    let process = try Process.launch(arguments: arguments, workingDirectory: nil)
     let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
     switch result.exitStatus.exhaustivelySwitchable {
     case .terminated(code: 0):

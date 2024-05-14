@@ -39,7 +39,7 @@ extension Process {
           loggingHandler: loggingHandler
         )
       } else {
-        self.init(
+        Process(
           arguments: arguments,
           environmentBlock: environmentBlock,
           startNewProcessGroup: startNewProcessGroup,
