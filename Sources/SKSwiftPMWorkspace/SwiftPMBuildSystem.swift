@@ -59,10 +59,12 @@ public typealias BuildServerTarget = BuildServerProtocol.BuildTarget
 
 /// Same as `toolchainRegistry.default`.
 ///
-/// Needed to work around a compiler crash that prevents us from accessing `toolchainRegistry.default` in
+/// Needed to work around a compiler crash that prevents us from accessing `toolchainRegistry.preferredToolchain` in
 /// `SwiftPMWorkspace.init`.
-private func getDefaultToolchain(_ toolchainRegistry: ToolchainRegistry) async -> SKCore.Toolchain? {
-  return await toolchainRegistry.default
+private func preferredToolchain(_ toolchainRegistry: ToolchainRegistry) async -> SKCore.Toolchain? {
+  return await toolchainRegistry.preferredToolchain(containing: [
+    \.clang, \.clangd, \.sourcekitd, \.swift, \.swiftc,
+  ])
 }
 
 fileprivate extension BuildTriple {
@@ -123,7 +125,7 @@ public actor SwiftPMBuildSystem {
   @_spi(Testing) public let toolsBuildParameters: BuildParameters
   @_spi(Testing) public let destinationBuildParameters: BuildParameters
   private let fileSystem: FileSystem
-  private let toolchainRegistry: ToolchainRegistry
+  private let toolchain: SKCore.Toolchain
 
   private let swiftBuildSupportsPrepareForIndexingTask = SwiftExtensions.ThreadSafeBox<Task<Bool, Never>?>(
     initialValue: nil
@@ -184,7 +186,11 @@ public actor SwiftPMBuildSystem {
   ) async throws {
     self.workspacePath = workspacePath
     self.fileSystem = fileSystem
-    self.toolchainRegistry = toolchainRegistry
+    guard let toolchain = await preferredToolchain(toolchainRegistry) else {
+      throw Error.cannotDetermineHostToolchain
+    }
+
+    self.toolchain = toolchain
     self.experimentalFeatures = experimentalFeatures
 
     guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem) else {
@@ -193,12 +199,12 @@ public actor SwiftPMBuildSystem {
 
     self.projectRoot = try resolveSymlinks(packageRoot)
 
-    guard let destinationToolchainBinDir = await getDefaultToolchain(toolchainRegistry)?.swiftc?.parentDirectory else {
+    guard let destinationToolchainBinDir = toolchain.swiftc?.parentDirectory else {
       throw Error.cannotDetermineHostToolchain
     }
 
     let swiftSDK = try SwiftSDK.hostSwiftSDK(AbsolutePath(destinationToolchainBinDir))
-    let toolchain = try UserToolchain(swiftSDK: swiftSDK)
+    let swiftPMToolchain = try UserToolchain(swiftSDK: swiftSDK)
 
     var location = try Workspace.Location(
       forRootPackage: AbsolutePath(packageRoot),
@@ -217,7 +223,7 @@ public actor SwiftPMBuildSystem {
       fileSystem: fileSystem,
       location: location,
       configuration: configuration,
-      customHostToolchain: toolchain
+      customHostToolchain: swiftPMToolchain
     )
 
     let buildConfiguration: PackageModel.BuildConfiguration
@@ -230,17 +236,21 @@ public actor SwiftPMBuildSystem {
 
     self.toolsBuildParameters = try BuildParameters(
       destination: .host,
-      dataPath: location.scratchDirectory.appending(component: toolchain.targetTriple.platformBuildPathComponent),
+      dataPath: location.scratchDirectory.appending(
+        component: swiftPMToolchain.targetTriple.platformBuildPathComponent
+      ),
       configuration: buildConfiguration,
-      toolchain: toolchain,
+      toolchain: swiftPMToolchain,
       flags: buildSetup.flags
     )
 
     self.destinationBuildParameters = try BuildParameters(
       destination: .target,
-      dataPath: location.scratchDirectory.appending(component: toolchain.targetTriple.platformBuildPathComponent),
+      dataPath: location.scratchDirectory.appending(
+        component: swiftPMToolchain.targetTriple.platformBuildPathComponent
+      ),
       configuration: buildConfiguration,
-      toolchain: toolchain,
+      toolchain: swiftPMToolchain,
       flags: buildSetup.flags
     )
 
@@ -411,7 +421,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     #endif
     // Fix up compiler arguments that point to a `/Modules` subdirectory if the Swift version in the toolchain is less
     // than 6.0 because it places the modules one level higher up.
-    let toolchainVersion = await orLog("Getting Swift version") { try await toolchainRegistry.default?.swiftVersion }
+    let toolchainVersion = await orLog("Getting Swift version") { try await toolchain.swiftVersion }
     guard let toolchainVersion, toolchainVersion < SwiftVersion(6, 0) else {
       return compileArguments
     }
@@ -469,6 +479,10 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     // TODO (indexing): Query The SwiftPM build system for the document's language.
     // https://github.com/apple/sourcekit-lsp/issues/1267
     return nil
+  }
+
+  public func toolchain(for uri: DocumentURI, _ language: Language) async -> SKCore.Toolchain? {
+    return toolchain
   }
 
   public func configuredTargets(for uri: DocumentURI) -> [ConfiguredTarget] {
@@ -535,7 +549,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     // TODO (indexing): Support preparation of multiple targets at once.
     // https://github.com/apple/sourcekit-lsp/issues/1262
     for target in targets {
-      try await prepare(singleTarget: target, logMessageToIndexLog: logMessageToIndexLog)
+      await orLog("Preparing") { try await prepare(singleTarget: target, logMessageToIndexLog: logMessageToIndexLog) }
     }
     let filesInPreparedTargets = targets.flatMap { self.targets[$0]?.buildTarget.sources ?? [] }
     await fileDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets.map(DocumentURI.init)))
@@ -552,16 +566,13 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
     // TODO (indexing): Add a proper 'prepare' job in SwiftPM instead of building the target.
     // https://github.com/apple/sourcekit-lsp/issues/1254
-    guard let toolchain = await toolchainRegistry.default else {
-      logger.error("Not preparing because not toolchain exists")
-      return
-    }
     guard let swift = toolchain.swift else {
       logger.error(
-        "Not preparing because toolchain at \(toolchain.identifier) does not contain a Swift compiler"
+        "Not preparing because toolchain at \(self.toolchain.identifier) does not contain a Swift compiler"
       )
       return
     }
+    logger.debug("Preparing '\(target.targetID)' using \(self.toolchain.identifier)")
     var arguments = [
       swift.pathString, "build",
       "--package-path", workspacePath.pathString,
