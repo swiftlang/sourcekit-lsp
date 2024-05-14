@@ -20,7 +20,7 @@ import var TSCBasic.stderrStream
 import class TSCUtility.PercentProgressAnimation
 
 public struct ReduceCommand: AsyncParsableCommand {
-  public static var configuration: CommandConfiguration = CommandConfiguration(
+  public static let configuration: CommandConfiguration = CommandConfiguration(
     commandName: "reduce",
     abstract: "Reduce a single sourcekitd crash",
     shouldDisplay: false
@@ -56,6 +56,7 @@ public struct ReduceCommand: AsyncParsableCommand {
   private var nsPredicate: NSPredicate? { nil }
   #endif
 
+  @MainActor
   var toolchain: Toolchain? {
     get async throws {
       if let toolchainOverride {
@@ -68,6 +69,7 @@ public struct ReduceCommand: AsyncParsableCommand {
 
   public init() {}
 
+  @MainActor
   public func run() async throws {
     guard let sourcekitd = try await toolchain?.sourcekitd else {
       throw ReductionError("Unable to find sourcekitd.framework")

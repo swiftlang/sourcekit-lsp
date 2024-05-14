@@ -12,6 +12,7 @@
 
 extension RequestInfo {
   /// Reduce the input file of this request and the command line arguments.
+  @MainActor
   func reduce(
     using executor: SourceKitRequestExecutor,
     progressUpdate: (_ progress: Double, _ message: String) -> Void

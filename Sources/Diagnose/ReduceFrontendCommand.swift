@@ -20,7 +20,7 @@ import var TSCBasic.stderrStream
 import class TSCUtility.PercentProgressAnimation
 
 public struct ReduceFrontendCommand: AsyncParsableCommand {
-  public static var configuration: CommandConfiguration = CommandConfiguration(
+  public static let configuration: CommandConfiguration = CommandConfiguration(
     commandName: "reduce-frontend",
     abstract: "Reduce a single swift-frontend crash",
     shouldDisplay: false
@@ -64,6 +64,7 @@ public struct ReduceFrontendCommand: AsyncParsableCommand {
   )
   var frontendArgs: [String]
 
+  @MainActor
   var toolchain: Toolchain? {
     get async throws {
       if let toolchainOverride {
@@ -76,6 +77,7 @@ public struct ReduceFrontendCommand: AsyncParsableCommand {
 
   public init() {}
 
+  @MainActor
   public func run() async throws {
     guard let sourcekitd = try await toolchain?.sourcekitd else {
       throw ReductionError("Unable to find sourcekitd.framework")
@@ -84,7 +86,10 @@ public struct ReduceFrontendCommand: AsyncParsableCommand {
       throw ReductionError("Unable to find swift-frontend")
     }
 
-    let progressBar = PercentProgressAnimation(stream: stderrStream, header: "Reducing swift-frontend crash")
+    let progressBar = PercentProgressAnimation(
+      stream: stderrStream,
+      header: "Reducing swift-frontend crash"
+    )
 
     let executor = OutOfProcessSourceKitRequestExecutor(
       sourcekitd: sourcekitd.asURL,

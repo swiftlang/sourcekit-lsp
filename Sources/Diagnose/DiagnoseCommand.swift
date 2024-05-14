@@ -16,13 +16,13 @@ import SKCore
 
 import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
-import var TSCBasic.stderrStream
 import class TSCUtility.PercentProgressAnimation
 
 /// When diagnosis is started, a progress bar displayed on the terminal that shows how far the diagnose command has
 /// progressed.
 /// Can't be a member of `DiagnoseCommand` because then `DiagnoseCommand` is no longer codable, which it needs to be
 /// to be a `AsyncParsableCommand`.
+@MainActor
 private var progressBar: PercentProgressAnimation? = nil
 
 /// A component of the diagnostic bundle that's collected in independent stages.
@@ -35,7 +35,7 @@ fileprivate enum BundleComponent: String, CaseIterable, ExpressibleByArgument {
 }
 
 public struct DiagnoseCommand: AsyncParsableCommand {
-  public static var configuration: CommandConfiguration = CommandConfiguration(
+  public static let configuration: CommandConfiguration = CommandConfiguration(
     commandName: "diagnose",
     abstract: "Creates a bundle containing information that help diagnose issues with sourcekit-lsp"
   )
@@ -72,6 +72,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     }
   }
 
+  @MainActor
   var toolchain: Toolchain? {
     get async throws {
       if let toolchainOverride {
@@ -96,6 +97,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
   public init() {}
 
+  @MainActor
   private func addSourcekitdCrashReproducer(toBundle bundlePath: URL) async throws {
     reportProgress(.reproducingSourcekitdCrash(progress: 0), message: "Trying to reduce recent sourcekitd crashes")
     for (name, requestInfo) in try requestInfos() {
@@ -121,6 +123,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     }
   }
 
+  @MainActor
   private func addSwiftFrontendCrashReproducer(toBundle bundlePath: URL) async throws {
     reportProgress(
       .reproducingSwiftFrontendCrash(progress: 0),
@@ -182,7 +185,8 @@ public struct DiagnoseCommand: AsyncParsableCommand {
   }
 
   /// Execute body and if it throws, log the error.
-  private func orPrintError(_ body: () async throws -> Void) async {
+  @MainActor
+  private func orPrintError(_ body: @MainActor () async throws -> Void) async {
     do {
       try await body()
     } catch {
@@ -190,6 +194,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     }
   }
 
+  @MainActor
   private func addOsLog(toBundle bundlePath: URL) async throws {
     #if os(macOS)
     reportProgress(.collectingLogMessages(progress: 0), message: "Collecting log messages")
@@ -227,6 +232,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     #endif
   }
 
+  @MainActor
   private func addCrashLogs(toBundle bundlePath: URL) throws {
     #if os(macOS)
     reportProgress(.collectingCrashReports, message: "Collecting crash reports")
@@ -252,6 +258,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     #endif
   }
 
+  @MainActor
   private func addSwiftVersion(toBundle bundlePath: URL) async throws {
     let outputFileUrl = bundlePath.appendingPathComponent("swift-versions.txt")
     FileManager.default.createFile(atPath: outputFileUrl.path, contents: nil)
@@ -283,10 +290,12 @@ public struct DiagnoseCommand: AsyncParsableCommand {
     }
   }
 
+  @MainActor
   private func reportProgress(_ state: DiagnoseProgressState, message: String) {
     progressBar?.update(step: Int(state.progress * 100), total: 100, text: message)
   }
 
+  @MainActor
   public func run() async throws {
     print(
       """
@@ -303,7 +312,10 @@ public struct DiagnoseCommand: AsyncParsableCommand {
       """
     )
 
-    progressBar = PercentProgressAnimation(stream: stderrStream, header: "Diagnosing sourcekit-lsp issues")
+    progressBar = PercentProgressAnimation(
+      stream: stderrStreamConcurrencySafe,
+      header: "Diagnosing sourcekit-lsp issues"
+    )
 
     let dateFormatter = ISO8601DateFormatter()
     dateFormatter.timeZone = NSTimeZone.local
@@ -342,6 +354,7 @@ public struct DiagnoseCommand: AsyncParsableCommand {
 
   }
 
+  @MainActor
   private func reduce(
     requestInfo: RequestInfo,
     toolchain: Toolchain?,
