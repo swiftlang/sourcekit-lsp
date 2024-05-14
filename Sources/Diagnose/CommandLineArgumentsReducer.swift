@@ -16,6 +16,7 @@ import LSPLogging
 // MARK: - Entry point
 
 extension RequestInfo {
+  @MainActor
   func reduceCommandLineArguments(
     using executor: SourceKitRequestExecutor,
     progressUpdate: (_ progress: Double, _ message: String) -> Void
@@ -49,6 +50,7 @@ fileprivate class CommandLineArgumentReducer {
     self.progressUpdate = progressUpdate
   }
 
+  @MainActor
   func run(initialRequestInfo: RequestInfo) async throws -> RequestInfo {
     var requestInfo = initialRequestInfo
     requestInfo = try await reduce(initialRequestInfo: requestInfo, simultaneousRemove: 10)
@@ -113,6 +115,7 @@ fileprivate class CommandLineArgumentReducer {
     return requestInfo
   }
 
+  @MainActor
   private func tryRemoving(
     _ argumentsToRemove: ClosedRange<Int>,
     from requestInfo: RequestInfo

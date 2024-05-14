@@ -19,7 +19,7 @@ import struct TSCBasic.ProcessResult
 
 /// The different states in which a sourcekitd request can finish.
 @_spi(Testing)
-public enum SourceKitDRequestResult {
+public enum SourceKitDRequestResult: Sendable {
   /// The request succeeded.
   case success(response: String)
 
@@ -46,11 +46,12 @@ fileprivate extension String {
 /// An executor that can run a sourcekitd request and indicate whether the request reprodes a specified issue.
 @_spi(Testing)
 public protocol SourceKitRequestExecutor {
-  func runSourceKitD(request: RequestInfo) async throws -> SourceKitDRequestResult
-  func runSwiftFrontend(request: RequestInfo) async throws -> SourceKitDRequestResult
+  @MainActor func runSourceKitD(request: RequestInfo) async throws -> SourceKitDRequestResult
+  @MainActor func runSwiftFrontend(request: RequestInfo) async throws -> SourceKitDRequestResult
 }
 
 extension SourceKitRequestExecutor {
+  @MainActor
   func run(request: RequestInfo) async throws -> SourceKitDRequestResult {
     if request.requestTemplate == RequestInfo.fakeRequestTemplateForFrontendIssues {
       return try await runSwiftFrontend(request: request)
