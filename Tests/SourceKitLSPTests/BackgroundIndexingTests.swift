@@ -202,9 +202,10 @@ final class BackgroundIndexingTests: XCTestCase {
 
     // Wait for indexing to finish without elevating the priority
     let semaphore = WrappedSemaphore()
+    let testClient = project.testClient
     Task(priority: .low) {
       await assertNoThrow {
-        try await project.testClient.send(PollIndexRequest())
+        try await testClient.send(PollIndexRequest())
       }
       semaphore.signal()
     }
