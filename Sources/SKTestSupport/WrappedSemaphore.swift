@@ -17,8 +17,8 @@ import Dispatch
 ///
 /// This should only be used for tests that test priority escalation and thus cannot await a `Task` (which would cause
 /// priority elevations).
-public struct WrappedSemaphore {
-  let semaphore = DispatchSemaphore(value: 0)
+public struct WrappedSemaphore: Sendable {
+  private let semaphore = DispatchSemaphore(value: 0)
 
   public init() {}
 
