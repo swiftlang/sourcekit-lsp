@@ -22,11 +22,11 @@ fileprivate extension TokenSyntax {
     var node = Syntax(self)
     LOOP: while let parent = node.parent {
       switch parent.kind {
-      case .caseItem, .closureParam:
+      case .switchCaseItem, .closureShorthandParameter:
         // case items (inside a switch) and closure parameters can’t have type
         // annotations.
         return false
-      case .codeBlockItem, .memberDeclListItem:
+      case .codeBlockItem, .memberBlockItem:
         // Performance optimization. If we walked the parents up to code block item,
         // we can’t enter a case item or closure param anymore. No need walking
         // the tree any further.

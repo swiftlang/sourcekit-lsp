@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-public typealias CodeActionProvider = (CodeActionRequest) async throws -> [CodeAction]
+public typealias CodeActionProvider = @Sendable (CodeActionRequest) async throws -> [CodeAction]
 
 /// Request for returning all possible code actions for a given text document and range.
 ///

@@ -70,26 +70,27 @@ enum LanguageServerType: Hashable {
 }
 
 /// A request and a callback that returns the request's reply
-fileprivate final class RequestAndReply<Params: RequestType> {
+fileprivate final class RequestAndReply<Params: RequestType>: Sendable {
   let params: Params
-  private let replyBlock: (LSPResult<Params.Response>) -> Void
+  private let replyBlock: @Sendable (LSPResult<Params.Response>) -> Void
 
   /// Whether a reply has been made. Every request must reply exactly once.
-  private var replied: Bool = false
+  /// `nonisolated(unsafe)` is fine because `replied` is atomic.
+  private nonisolated(unsafe) var replied: AtomicBool = AtomicBool(initialValue: false)
 
-  public init(_ request: Params, reply: @escaping (LSPResult<Params.Response>) -> Void) {
+  public init(_ request: Params, reply: @escaping @Sendable (LSPResult<Params.Response>) -> Void) {
     self.params = request
     self.replyBlock = reply
   }
 
   deinit {
-    precondition(replied, "request never received a reply")
+    precondition(replied.value, "request never received a reply")
   }
 
   /// Call the `replyBlock` with the result produced by the given closure.
-  func reply(_ body: () async throws -> Params.Response) async {
-    precondition(!replied, "replied to request more than once")
-    replied = true
+  func reply(_ body: @Sendable () async throws -> Params.Response) async {
+    precondition(!replied.value, "replied to request more than once")
+    replied.value = true
     do {
       replyBlock(.success(try await body()))
     } catch {
@@ -631,7 +632,7 @@ public actor SourceKitLSPServer {
 
     // This should be created as soon as we receive an open call, even if the document
     // isn't yet ready.
-    guard let languageService = workspace.documentService[doc] else {
+    guard let languageService = workspace.documentService.value[doc] else {
       return
     }
 
@@ -640,7 +641,9 @@ public actor SourceKitLSPServer {
 
   private func handleRequest<RequestType: TextDocumentRequest>(
     for request: RequestAndReply<RequestType>,
-    requestHandler: @escaping (RequestType, Workspace, LanguageService) async throws ->
+    requestHandler: @Sendable @escaping (
+      RequestType, Workspace, LanguageService
+    ) async throws ->
       RequestType.Response
   ) async {
     await request.reply {
@@ -649,7 +652,7 @@ public actor SourceKitLSPServer {
       guard let workspace = await self.workspaceForDocument(uri: request.textDocument.uri) else {
         throw ResponseError.workspaceNotOpen(request.textDocument.uri)
       }
-      guard let languageService = workspace.documentService[doc] else {
+      guard let languageService = workspace.documentService.value[doc] else {
         throw ResponseError.unknown("No language service for '\(request.textDocument.uri)' found")
       }
       return try await requestHandler(request, workspace, languageService)
@@ -673,7 +676,7 @@ public actor SourceKitLSPServer {
       guard let workspace = await self.workspaceForDocument(uri: documentUri) else {
         continue
       }
-      guard workspace.documentService[documentUri] === languageService else {
+      guard workspace.documentService.value[documentUri] === languageService else {
         continue
       }
       guard let snapshot = try? self.documentManager.latestSnapshot(documentUri) else {
@@ -799,7 +802,7 @@ public actor SourceKitLSPServer {
     _ language: Language,
     in workspace: Workspace
   ) async -> LanguageService? {
-    if let service = workspace.documentService[uri] {
+    if let service = workspace.documentService.value[uri] {
       return service
     }
 
@@ -811,21 +814,24 @@ public actor SourceKitLSPServer {
 
     logger.log("Using toolchain \(toolchain.displayName) (\(toolchain.identifier)) for \(uri.forLogging)")
 
-    if let concurrentlySetService = workspace.documentService[uri] {
-      // Since we await the construction of `service`, another call to this
-      // function might have happened and raced us, setting
-      // `workspace.documentServices[uri]`. If this is the case, return the
-      // existing value and discard the service that we just retrieved.
-      return concurrentlySetService
+    return workspace.documentService.withLock { documentService in
+      if let concurrentlySetService = documentService[uri] {
+        // Since we await the construction of `service`, another call to this
+        // function might have happened and raced us, setting
+        // `workspace.documentServices[uri]`. If this is the case, return the
+        // existing value and discard the service that we just retrieved.
+        return concurrentlySetService
+      }
+      documentService[uri] = service
+      return service
     }
-    workspace.documentService[uri] = service
-    return service
   }
 }
 
 // MARK: - MessageHandler
 
-private var notificationIDForLogging = AtomicUInt32(initialValue: 1)
+// nonisolated(unsafe) is fine because `notificationIDForLogging` is atomic.
+private nonisolated(unsafe) var notificationIDForLogging = AtomicUInt32(initialValue: 1)
 
 extension SourceKitLSPServer: MessageHandler {
   public nonisolated func handle(_ params: some NotificationType) {
@@ -886,7 +892,7 @@ extension SourceKitLSPServer: MessageHandler {
   public nonisolated func handle<R: RequestType>(
     _ params: R,
     id: RequestID,
-    reply: @escaping (LSPResult<R.Response>) -> Void
+    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) {
     let signposter = Logger(subsystem: LoggingScope.subsystem, category: "request-\(id)").makeSignposter()
     let signpostID = signposter.makeSignpostID()
@@ -918,7 +924,7 @@ extension SourceKitLSPServer: MessageHandler {
   private func handleImpl<R: RequestType>(
     _ params: R,
     id: RequestID,
-    reply: @escaping (LSPResult<R.Response>) -> Void
+    reply: @Sendable @escaping (LSPResult<R.Response>) -> Void
   ) async {
     let startDate = Date()
 
@@ -1059,7 +1065,7 @@ extension SourceKitLSPServer: BuildSystemDelegate {
         continue
       }
 
-      guard let service = await self.workspaceForDocument(uri: uri)?.documentService[uri] else {
+      guard let service = await self.workspaceForDocument(uri: uri)?.documentService.value[uri] else {
         continue
       }
 
@@ -1083,7 +1089,7 @@ extension SourceKitLSPServer: BuildSystemDelegate {
       }
       for uri in self.affectedOpenDocumentsForChangeSet(changedFilesForWorkspace, self.documentManager) {
         logger.log("Dependencies updated for opened file \(uri.forLogging)")
-        if let service = workspace.documentService[uri] {
+        if let service = workspace.documentService.value[uri] {
           await service.documentDependenciesUpdated(uri)
         }
       }
@@ -1430,8 +1436,7 @@ extension SourceKitLSPServer {
     // the client to open new workspaces.
     for workspace in self.workspaces {
       await workspace.buildSystemManager.setMainFilesProvider(nil)
-      // Close the index, which will flush to disk.
-      workspace.uncheckedIndex = nil
+      workspace.closeIndex()
 
       // Break retain cycle with the BSM.
       await workspace.buildSystemManager.setDelegate(nil)
@@ -1523,7 +1528,7 @@ extension SourceKitLSPServer {
 
     await workspace.buildSystemManager.unregisterForChangeNotifications(for: uri)
 
-    await workspace.documentService[uri]?.closeDocument(note)
+    await workspace.documentService.value[uri]?.closeDocument(note)
   }
 
   func changeDocument(_ notification: DidChangeTextDocumentNotification) async {
@@ -1538,7 +1543,7 @@ extension SourceKitLSPServer {
 
     // If the document is ready, we can handle the change right now.
     documentManager.edit(notification)
-    await workspace.documentService[uri]?.changeDocument(notification)
+    await workspace.documentService.value[uri]?.changeDocument(notification)
   }
 
   func willSaveDocument(
@@ -1788,7 +1793,7 @@ extension SourceKitLSPServer {
     guard let workspace = await workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }
-    guard let languageService = workspace.documentService[uri] else {
+    guard let languageService = workspace.documentService.value[uri] else {
       return nil
     }
 

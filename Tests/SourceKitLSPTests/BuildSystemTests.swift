@@ -188,7 +188,9 @@ final class BuildSystemTests: XCTestCase {
 
   func testSwiftDocumentUpdatedBuildSettings() async throws {
     let doc = DocumentURI.for(.swift)
-    let args = FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!.compilerArguments
+    let args = await FallbackBuildSystem(buildSetup: .default)
+      .buildSettings(for: doc, language: .swift)!
+      .compilerArguments
 
     buildSystem.buildSettingsByFile[doc] = FileBuildSettings(compilerArguments: args)
 
@@ -257,7 +259,7 @@ final class BuildSystemTests: XCTestCase {
     let doc = DocumentURI.for(.swift)
 
     // Primary settings must be different than the fallback settings.
-    var primarySettings = FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!
+    var primarySettings = await FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!
     primarySettings.isFallback = false
     primarySettings.compilerArguments.append("-DPRIMARY")
 

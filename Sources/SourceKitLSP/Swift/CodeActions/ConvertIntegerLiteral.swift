@@ -15,7 +15,7 @@ import SwiftRefactor
 import SwiftSyntax
 
 extension IntegerLiteralExprSyntax.Radix {
-  static var allCases: [Self] = [.binary, .octal, .decimal, .hex]
+  static let allCases: [Self] = [.binary, .octal, .decimal, .hex]
 }
 
 /// Syntactic code action provider to convert integer literals between

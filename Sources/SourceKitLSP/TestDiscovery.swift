@@ -21,7 +21,7 @@ public enum TestStyle {
   public static let swiftTesting = "swift-testing"
 }
 
-public struct AnnotatedTestItem {
+public struct AnnotatedTestItem: Sendable {
   /// The test item to be annotated
   public var testItem: TestItem
 
@@ -180,6 +180,7 @@ extension SourceKitLSPServer {
       )
     }
 
+    let documentManager = self.documentManager
     return occurrencesByParent[nil, default: []]
       .sorted()
       .map { testItem(for: $0, documentManager: documentManager, context: []) }
@@ -212,7 +213,7 @@ extension SourceKitLSPServer {
     }
 
     let testsFromFilesWithInMemoryState = await filesWithInMemoryState.concurrentMap { (uri) -> [AnnotatedTestItem] in
-      guard let languageService = workspace.documentService[uri] else {
+      guard let languageService = workspace.documentService.value[uri] else {
         return []
       }
       return await orLog("Getting document tests for \(uri)") {

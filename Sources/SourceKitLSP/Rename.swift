@@ -10,7 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import IndexStoreDB
+@preconcurrency import IndexStoreDB
 import LSPLogging
 import LanguageServerProtocol
 import SKSupport
@@ -445,7 +445,7 @@ extension SwiftLanguageService {
 /// These names might differ. For example, an Objective-C method gets translated by the clang importer to form the Swift
 /// name or it could have a `SWIFT_NAME` attribute that defines the method's name in Swift. Similarly, a Swift symbol
 /// might specify the name by which it gets exposed to Objective-C using the `@objc` attribute.
-public struct CrossLanguageName {
+public struct CrossLanguageName: Sendable {
   /// The name of the symbol in clang languages or `nil` if the symbol is defined in Swift, doesn't have any references
   /// from clang languages and thus hasn't been translated.
   fileprivate let clangName: String?
@@ -564,6 +564,22 @@ extension SourceKitLSPServer {
     return nil
   }
 
+  // FIXME: (async-workaround): Needed to work around rdar://127977642
+  private func translateClangNameToSwift(
+    _ swiftLanguageService: SwiftLanguageService,
+    at symbolLocation: SymbolLocation,
+    in snapshot: DocumentSnapshot,
+    isObjectiveCSelector: Bool,
+    name: String
+  ) async throws -> String {
+    return try await swiftLanguageService.translateClangNameToSwift(
+      at: symbolLocation,
+      in: snapshot,
+      isObjectiveCSelector: isObjectiveCSelector,
+      name: name
+    )
+  }
+
   private func getCrossLanguageName(
     forDefinitionOccurrence definitionOccurrence: SymbolOccurrence,
     overrideName: String? = nil,
@@ -598,7 +614,8 @@ extension SourceKitLSPServer {
       let swiftName: String?
       if let swiftReference = await getReferenceFromSwift(usr: usr, index: index, workspace: workspace) {
         let isObjectiveCSelector = definitionLanguage == .objective_c && definitionSymbol.kind.isMethod
-        swiftName = try await swiftReference.swiftLanguageService.translateClangNameToSwift(
+        swiftName = try await self.translateClangNameToSwift(
+          swiftReference.swiftLanguageService,
           at: swiftReference.location,
           in: swiftReference.snapshot,
           isObjectiveCSelector: isObjectiveCSelector,
@@ -670,7 +687,7 @@ extension SourceKitLSPServer {
     guard let workspace = await workspaceForDocument(uri: uri) else {
       throw ResponseError.workspaceNotOpen(uri)
     }
-    guard let primaryFileLanguageService = workspace.documentService[uri] else {
+    guard let primaryFileLanguageService = workspace.documentService.value[uri] else {
       return nil
     }
 
@@ -716,10 +733,10 @@ extension SourceKitLSPServer {
     var locationsByFile: [URL: [RenameLocation]] = [:]
 
     actor LanguageServerTypesCache {
-      let index: CheckedIndex
+      let index: UncheckedIndex
       var languageServerTypesCache: [URL: LanguageServerType?] = [:]
 
-      init(index: CheckedIndex) {
+      init(index: UncheckedIndex) {
         self.index = index
       }
 
@@ -727,13 +744,15 @@ extension SourceKitLSPServer {
         if let cachedValue = languageServerTypesCache[url] {
           return cachedValue
         }
-        let serverType = LanguageServerType(symbolProvider: index.symbolProvider(for: url.path))
+        let serverType = LanguageServerType(
+          symbolProvider: index.checked(for: .deletedFiles).symbolProvider(for: url.path)
+        )
         languageServerTypesCache[url] = serverType
         return serverType
       }
     }
 
-    let languageServerTypesCache = LanguageServerTypesCache(index: index)
+    let languageServerTypesCache = LanguageServerTypesCache(index: index.unchecked)
 
     let usrsToRename = overridingAndOverriddenUsrs(of: usr, index: index)
     let occurrencesToRename = usrsToRename.flatMap { index.occurrences(ofUSR: $0, roles: renameRoles) }

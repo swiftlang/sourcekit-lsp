@@ -68,7 +68,7 @@ fileprivate func diagnosticsEnabled(for document: DocumentURI) -> Bool {
 }
 
 /// A swift compiler command derived from a `FileBuildSettingsChange`.
-public struct SwiftCompileCommand: Equatable {
+public struct SwiftCompileCommand: Sendable, Equatable {
 
   /// The compiler arguments, including working directory. This is required since sourcekitd only
   /// accepts the working directory via the compiler arguments.
@@ -90,7 +90,7 @@ public struct SwiftCompileCommand: Equatable {
   }
 }
 
-public actor SwiftLanguageService: LanguageService {
+public actor SwiftLanguageService: LanguageService, Sendable {
   /// The ``SourceKitLSPServer`` instance that created this `ClangLanguageService`.
   weak var sourceKitLSPServer: SourceKitLSPServer?
 
@@ -218,7 +218,7 @@ public actor SwiftLanguageService: LanguageService {
   }
 
   /// - Important: For testing only
-  public func setReusedNodeCallback(_ callback: ReusedNodeCallback?) async {
+  public func setReusedNodeCallback(_ callback: (@Sendable (_ node: Syntax) -> ())?) async {
     await self.syntaxTreeManager.setReusedNodeCallback(callback)
   }
 
@@ -246,7 +246,7 @@ public actor SwiftLanguageService: LanguageService {
   }
 
   public func addStateChangeHandler(
-    handler: @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
+    handler: @Sendable @escaping (_ oldState: LanguageServerState, _ newState: LanguageServerState) -> Void
   ) {
     self.stateChangeHandlers.append(handler)
   }

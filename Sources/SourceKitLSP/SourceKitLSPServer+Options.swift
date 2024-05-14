@@ -21,7 +21,7 @@ import struct TSCBasic.RelativePath
 extension SourceKitLSPServer {
 
   /// Configuration options for the SourceKitServer.
-  public struct Options {
+  public struct Options: Sendable {
 
     /// Additional compiler flags (e.g. `-Xswiftc` for SwiftPM projects) and other build-related
     /// configuration.

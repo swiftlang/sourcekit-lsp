@@ -203,7 +203,7 @@ extension ConvertJSONToCodableStruct: SyntaxRefactoringCodeActionProvider {
     return nil
   }
 
-  static var title = "Create Codable structs from JSON"
+  static let title = "Create Codable structs from JSON"
 }
 
 /// A JSON object, which is has a set of fields, each of which has the given

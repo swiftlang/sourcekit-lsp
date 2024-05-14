@@ -147,7 +147,7 @@ final class BuildSystemManagerTests: XCTestCase {
     )
     defer { withExtendedLifetime(bsm) {} }  // Keep BSM alive for callbacks.
     let del = await BSMDelegate(bsm)
-    let fallbackSettings = fallback.buildSettings(for: a, language: .swift)
+    let fallbackSettings = await fallback.buildSettings(for: a, language: .swift)
     await bsm.registerForChangeNotifications(for: a, language: .swift)
     assertEqual(await bsm.buildSettingsInferredFromMainFile(for: a, language: .swift), fallbackSettings)
 

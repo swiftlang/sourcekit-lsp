@@ -21,7 +21,7 @@ import struct TSCBasic.AbsolutePath
 import class TSCBasic.Process
 
 /// A simple BuildSystem suitable as a fallback when accurate settings are unknown.
-public final class FallbackBuildSystem {
+public actor FallbackBuildSystem {
 
   let buildSetup: BuildSetup
 
@@ -37,6 +37,10 @@ public final class FallbackBuildSystem {
         .trimmingCharacters(in: .whitespacesAndNewlines)
     )
   }()
+
+  @_spi(Testing) public func setSdkPath(_ newValue: AbsolutePath?) {
+    self.sdkpath = newValue
+  }
 
   /// Delegate to handle any build system events.
   public weak var delegate: BuildSystemDelegate? = nil

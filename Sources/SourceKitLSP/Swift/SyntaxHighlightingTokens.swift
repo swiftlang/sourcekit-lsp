@@ -15,7 +15,7 @@ import LanguageServerProtocol
 import SourceKitD
 
 /// A wrapper around an array of syntax highlighting tokens.
-public struct SyntaxHighlightingTokens {
+public struct SyntaxHighlightingTokens: Sendable {
   public var tokens: [SyntaxHighlightingToken]
 
   public init(tokens: [SyntaxHighlightingToken]) {
