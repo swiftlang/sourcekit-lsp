@@ -115,6 +115,10 @@ final actor WorkDoneProgressState {
     case progressCreationFailed
   }
 
+  /// A queue so we can have synchronous `startProgress` and `endProgress` functions that don't need to wait for the
+  /// work done progress to be started or ended.
+  private let queue = AsyncQueue<Serial>()
+
   /// How many active tasks are running.
   ///
   /// A work done progress should be displayed if activeTasks > 0
@@ -135,13 +139,16 @@ final actor WorkDoneProgressState {
   /// Start a new task, creating a new `WorkDoneProgress` if none is running right now.
   ///
   /// - Parameter server: The server that is used to create the `WorkDoneProgress` on the client
-  func startProgress(server: SourceKitLSPServer) async {
+  nonisolated func startProgress(server: SourceKitLSPServer) {
+    queue.async {
+      await self.startProgressImpl(server: server)
+    }
+  }
+
+  func startProgressImpl(server: SourceKitLSPServer) async {
+    await server.waitUntilInitialized()
     activeTasks += 1
     guard await server.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false else {
-      // If the client doesn't support workDoneProgress, keep track of the active task count but don't update the state.
-      // That way, if we call `startProgress` before initialization finishes, we won't send the
-      // `CreateWorkDoneProgressRequest` but if we call `startProgress` again after initialization finished (and thus
-      // the capability is set), we will create the work done progress.
       return
     }
     if state == .noProgress {
@@ -180,7 +187,13 @@ final actor WorkDoneProgressState {
   /// If this drops the active task count to 0, the work done progress is ended on the client.
   ///
   /// - Parameter server: The server that is used to send and update of the `WorkDoneProgress` to the client
-  func endProgress(server: SourceKitLSPServer) async {
+  nonisolated func endProgress(server: SourceKitLSPServer) {
+    queue.async {
+      await self.endProgressImpl(server: server)
+    }
+  }
+
+  func endProgressImpl(server: SourceKitLSPServer) async {
     assert(activeTasks > 0, "Unbalanced startProgress/endProgress calls")
     activeTasks -= 1
     guard await server.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false else {
@@ -440,11 +453,16 @@ public actor SourceKitLSPServer {
   /// The connection to the editor.
   public let client: Connection
 
+  /// Set to `true` after the `SourceKitLSPServer` has send the reply to the `InitializeRequest`.
+  ///
+  /// Initialization can be awaited using `waitUntilInitialized`.
+  private var initialized: Bool = false
+
   var options: Options
 
   let toolchainRegistry: ToolchainRegistry
 
-  var capabilityRegistry: CapabilityRegistry?
+  public var capabilityRegistry: CapabilityRegistry?
 
   var languageServices: [LanguageServerType: [LanguageService]] = [:]
 
@@ -454,7 +472,13 @@ public actor SourceKitLSPServer {
   ///
   /// Shared process-wide to ensure the scheduled index operations across multiple workspaces don't exceed the maximum
   /// number of processor cores that the user allocated to background indexing.
-  private let indexTaskScheduler: TaskScheduler<IndexTaskDescription>
+  private let indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
+
+  /// Implicitly unwrapped optional so we can create an `IndexProgressManager` that has a weak reference to
+  /// `SourceKitLSPServer`.
+  /// `nonisolated(unsafe)` because `indexProgressManager` will not be modified after it is assigned from the
+  /// initializer.
+  private nonisolated(unsafe) var indexProgressManager: IndexProgressManager!
 
   private var packageLoadingWorkDoneProgress = WorkDoneProgressState(
     "SourceKitLSP.SourceKitLSPServer.reloadPackage",
@@ -508,19 +532,15 @@ public actor SourceKitLSPServer {
     self.inProgressRequests[id] = task
   }
 
-  let fs: FileSystem
-
   var onExit: () -> Void
 
   /// Creates a language server for the given client.
   public init(
     client: Connection,
-    fileSystem: FileSystem = localFileSystem,
     toolchainRegistry: ToolchainRegistry,
     options: Options,
     onExit: @escaping () -> Void = {}
   ) {
-    self.fs = fileSystem
     self.toolchainRegistry = toolchainRegistry
     self.options = options
     self.onExit = onExit
@@ -532,6 +552,24 @@ public actor SourceKitLSPServer {
       (TaskPriority.medium, processorCount),
       (TaskPriority.low, max(Int(lowPriorityCores), 1)),
     ])
+    self.indexProgressManager = nil
+    self.indexProgressManager = IndexProgressManager(sourceKitLSPServer: self)
+  }
+
+  /// Await until the server has send the reply to the initialize request.
+  func waitUntilInitialized() async {
+    // The polling of `initialized` is not perfect but it should be OK, because
+    //  - In almost all cases the server should already be initialized.
+    //  - If it's not initialized, we expect initialization to finish fairly quickly. Even if initialization takes 5s
+    //    this only results in 50 polls, which is acceptable.
+    // Alternative solutions that signal via an async sequence seem overkill here.
+    while !initialized {
+      do {
+        try await Task.sleep(for: .seconds(0.1))
+      } catch {
+        break
+      }
+    }
   }
 
   /// Search through all the parent directories of `uri` and check if any of these directories contain a workspace
@@ -958,6 +996,8 @@ extension SourceKitLSPServer: MessageHandler {
     switch request {
     case let request as RequestAndReply<InitializeRequest>:
       await request.reply { try await initialize(request.params) }
+      // Only set `initialized` to `true` after we have sent the response to the initialize request to the client.
+      initialized = true
     case let request as RequestAndReply<ShutdownRequest>:
       await request.reply { try await shutdown(request.params) }
     case let request as RequestAndReply<WorkspaceSymbolsRequest>:
@@ -1160,6 +1200,7 @@ extension SourceKitLSPServer {
       logger.log("Cannot open workspace before server is initialized")
       return nil
     }
+    let indexTaskDidFinishCallback = options.indexTaskDidFinish
     var options = self.options
     options.buildSetup = self.options.buildSetup.merging(buildSetup(for: workspaceFolder))
     return try? await Workspace(
@@ -1173,16 +1214,19 @@ extension SourceKitLSPServer {
       indexTaskScheduler: indexTaskScheduler,
       reloadPackageStatusCallback: { [weak self] status in
         guard let self else { return }
-        guard capabilityRegistry.clientCapabilities.window?.workDoneProgress ?? false else {
-          // Client doesn’t support work done progress
-          return
-        }
         switch status {
         case .start:
           await self.packageLoadingWorkDoneProgress.startProgress(server: self)
         case .end:
           await self.packageLoadingWorkDoneProgress.endProgress(server: self)
         }
+      },
+      indexTasksWereScheduled: { [weak self] count in
+        self?.indexProgressManager.indexTaskWasQueued(count: count)
+      },
+      indexTaskDidFinish: { [weak self] in
+        self?.indexProgressManager.indexStatusDidChange()
+        indexTaskDidFinishCallback?()
       }
     )
   }
@@ -1231,6 +1275,7 @@ extension SourceKitLSPServer {
       if self.workspaces.isEmpty {
         logger.error("no workspace found")
 
+        let indexTaskDidFinishCallback = self.options.indexTaskDidFinish
         let workspace = await Workspace(
           documentManager: self.documentManager,
           rootUri: req.rootURI,
@@ -1240,7 +1285,14 @@ extension SourceKitLSPServer {
           underlyingBuildSystem: nil,
           index: nil,
           indexDelegate: nil,
-          indexTaskScheduler: self.indexTaskScheduler
+          indexTaskScheduler: self.indexTaskScheduler,
+          indexTasksWereScheduled: { [weak self] count in
+            self?.indexProgressManager.indexTaskWasQueued(count: count)
+          },
+          indexTaskDidFinish: { [weak self] in
+            self?.indexProgressManager.indexStatusDidChange()
+            indexTaskDidFinishCallback?()
+          }
         )
 
         self.workspacesAndIsImplicit.append((workspace: workspace, isImplicit: false))

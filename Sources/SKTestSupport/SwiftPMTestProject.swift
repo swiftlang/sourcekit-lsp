@@ -42,8 +42,10 @@ public class SwiftPMTestProject: MultiFileTestProject {
     workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
     build: Bool = false,
     allowBuildFailure: Bool = false,
+    capabilities: ClientCapabilities = ClientCapabilities(),
     serverOptions: SourceKitLSPServer.Options = .testDefault,
     pollIndex: Bool = true,
+    preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     usePullDiagnostics: Bool = true,
     testName: String = #function
   ) async throws {
@@ -66,8 +68,10 @@ public class SwiftPMTestProject: MultiFileTestProject {
     try await super.init(
       files: filesByPath,
       workspaces: workspaces,
+      capabilities: capabilities,
       serverOptions: serverOptions,
       usePullDiagnostics: usePullDiagnostics,
+      preInitialization: preInitialization,
       testName: testName
     )
 

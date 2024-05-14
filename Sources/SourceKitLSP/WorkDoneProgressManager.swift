@@ -23,20 +23,37 @@ final class WorkDoneProgressManager {
   private let queue = AsyncQueue<Serial>()
   private let server: SourceKitLSPServer
 
-  init?(server: SourceKitLSPServer, capabilityRegistry: CapabilityRegistry, title: String, message: String? = nil) {
+  convenience init?(server: SourceKitLSPServer, title: String, message: String? = nil, percentage: Int? = nil) async {
+    guard let capabilityRegistry = await server.capabilityRegistry else {
+      return nil
+    }
+    self.init(server: server, capabilityRegistry: capabilityRegistry, title: title, message: message)
+  }
+
+  init?(
+    server: SourceKitLSPServer,
+    capabilityRegistry: CapabilityRegistry,
+    title: String,
+    message: String? = nil,
+    percentage: Int? = nil
+  ) {
     guard capabilityRegistry.clientCapabilities.window?.workDoneProgress ?? false else {
       return nil
     }
     self.token = .string("WorkDoneProgress-\(UUID())")
     self.server = server
     queue.async { [server, token] in
+      await server.waitUntilInitialized()
       await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
         _ = server.client.send(CreateWorkDoneProgressRequest(token: token)) { result in
           continuation.resume()
         }
       }
       await server.sendNotificationToClient(
-        WorkDoneProgress(token: token, value: .begin(WorkDoneProgressBegin(title: title, message: message)))
+        WorkDoneProgress(
+          token: token,
+          value: .begin(WorkDoneProgressBegin(title: title, message: message, percentage: percentage))
+        )
       )
     }
   }

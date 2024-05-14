@@ -165,10 +165,10 @@ final class BackgroundIndexingTests: XCTestCase {
 
   func testBackgroundIndexingHappensWithLowPriority() async throws {
     var serverOptions = backgroundIndexingOptions
-    serverOptions.indexOptions.indexTaskDidFinish = { taskDescription in
+    serverOptions.indexTaskDidFinish = {
       XCTAssert(
         Task.currentPriority == .low,
-        "\(taskDescription.description) ran with priority \(Task.currentPriority)"
+        "An index task ran with priority \(Task.currentPriority)"
       )
     }
     let project = try await SwiftPMTestProject(
@@ -327,5 +327,50 @@ final class BackgroundIndexingTests: XCTestCase {
         )
       ]
     )
+  }
+
+  func testBackgroundIndexingStatusWorkDoneProgress() async throws {
+    let workDoneProgressCreated = self.expectation(description: "Work done progress created")
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyFile.swift": """
+        func foo() {}
+        func bar() {
+          foo()
+        }
+        """
+      ],
+      capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
+      serverOptions: backgroundIndexingOptions,
+      preInitialization: { testClient in
+        testClient.handleNextRequest { (request: CreateWorkDoneProgressRequest) in
+          workDoneProgressCreated.fulfill()
+          return VoidResponse()
+        }
+      }
+    )
+    try await fulfillmentOfOrThrow([workDoneProgressCreated])
+    let workBeginProgress = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
+    guard case .begin = workBeginProgress.value else {
+      XCTFail("Expected begin work done progress")
+      return
+    }
+    var didGetEndWorkDoneProgress = false
+    for _ in 0..<3 {
+      let workEndProgress = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
+      switch workEndProgress.value {
+      case .begin:
+        XCTFail("Unexpected begin work done progress")
+      case .report:
+        // Allow up to 2 work done progress reports.
+        continue
+      case .end:
+        didGetEndWorkDoneProgress = true
+      }
+      break
+    }
+    XCTAssert(didGetEndWorkDoneProgress, "Expected end work done progress")
+
+    withExtendedLifetime(project) {}
   }
 }

@@ -25,7 +25,8 @@ private nonisolated(unsafe) var updateIndexStoreIDForLogging = AtomicUInt32(init
 /// Describes a task to index a set of source files.
 ///
 /// This task description can be scheduled in a `TaskScheduler`.
-public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
+public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
+  public static let idPrefix = "update-indexstore"
   public let id = updateIndexStoreIDForLogging.fetchAndIncrement()
 
   /// The files that should be indexed.
@@ -38,9 +39,6 @@ public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
   /// case we don't need to index it again.
   private let index: UncheckedIndex
 
-  /// A callback that is called when the index task finishes
-  private let didFinishCallback: @Sendable (UpdateIndexStoreTaskDescription) -> Void
-
   /// The task is idempotent because indexing the same file twice produces the same result as indexing it once.
   public var isIdempotent: Bool { true }
 
@@ -51,25 +49,20 @@ public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
   }
 
   public var redactedDescription: String {
-    return "indexing-\(id)"
+    return "update-indexstore-\(id)"
   }
 
   init(
     filesToIndex: Set<DocumentURI>,
     buildSystemManager: BuildSystemManager,
-    index: UncheckedIndex,
-    didFinishCallback: @escaping @Sendable (UpdateIndexStoreTaskDescription) -> Void
+    index: UncheckedIndex
   ) {
     self.filesToIndex = filesToIndex
     self.buildSystemManager = buildSystemManager
     self.index = index
-    self.didFinishCallback = didFinishCallback
   }
 
   public func execute() async {
-    defer {
-      didFinishCallback(self)
-    }
     // Only use the last two digits of the indexing ID for the logging scope to avoid creating too many scopes.
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running indexing operation.

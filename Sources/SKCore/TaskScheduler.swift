@@ -76,6 +76,19 @@ public protocol TaskDescriptionProtocol: Identifiable, Sendable, CustomLogString
   var estimatedCPUCoreCount: Int { get }
 }
 
+/// Parameter that's passed to `executionStateChangedCallback` to indicate the new state of a scheduled task.
+public enum TaskExecutionState {
+  /// The task started executing.
+  case executing
+
+  /// The task was cancelled and will be re-scheduled for execution later. Will be followed by another call with
+  /// `executing`.
+  case cancelledToBeRescheduled
+
+  /// The task has finished executing. Now more state updates will come after this one.
+  case finished
+}
+
 fileprivate actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Result of `executionTask` / the tasks in `executionTaskCreatedContinuation`.
   /// See doc comment on `executionTask`.
@@ -136,9 +149,18 @@ fileprivate actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Gets reset every time `executionTask` finishes.
   nonisolated(unsafe) private var cancelledToBeRescheduled: AtomicBool = .init(initialValue: false)
 
-  init(priority: TaskPriority? = nil, description: TaskDescription) async {
+  /// A callback that will be called when the task starts executing, is cancelled to be rescheduled, or when it finishes
+  /// execution.
+  private let executionStateChangedCallback: (@Sendable (TaskExecutionState) async -> Void)?
+
+  init(
+    priority: TaskPriority? = nil,
+    description: TaskDescription,
+    executionStateChangedCallback: (@Sendable (TaskExecutionState) async -> Void)?
+  ) async {
     self._priority = .init(initialValue: priority?.rawValue ?? Task.currentPriority.rawValue)
     self.description = description
+    self.executionStateChangedCallback = executionStateChangedCallback
 
     var updatePriorityContinuation: AsyncStream<Void>.Continuation!
     let updatePriorityStream = AsyncStream {
@@ -194,16 +216,19 @@ fileprivate actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
     }
     executionTask = task
     executionTaskCreatedContinuation.yield(task)
+    await executionStateChangedCallback?(.executing)
     return await task.value
   }
 
   /// Implementation detail of `execute` that is called after `self.description.execute()` finishes.
-  private func finalizeExecution() -> ExecutionTaskFinishStatus {
+  private func finalizeExecution() async -> ExecutionTaskFinishStatus {
     self.executionTask = nil
     if Task.isCancelled && self.cancelledToBeRescheduled.value {
+      await executionStateChangedCallback?(.cancelledToBeRescheduled)
       self.cancelledToBeRescheduled.value = false
       return ExecutionTaskFinishStatus.cancelledToBeRescheduled
     } else {
+      await executionStateChangedCallback?(.finished)
       return ExecutionTaskFinishStatus.terminated
     }
   }
@@ -308,12 +333,17 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   @discardableResult
   public func schedule(
     priority: TaskPriority? = nil,
-    _ taskDescription: TaskDescription
+    _ taskDescription: TaskDescription,
+    @_inheritActorContext executionStateChangedCallback: (@Sendable (TaskExecutionState) async -> Void)? = nil
   ) async -> Task<Void, Never> {
     withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
       logger.debug("Scheduling \(taskDescription.forLogging)")
     }
-    let queuedTask = await QueuedTask(priority: priority, description: taskDescription)
+    let queuedTask = await QueuedTask(
+      priority: priority,
+      description: taskDescription,
+      executionStateChangedCallback: executionStateChangedCallback
+    )
     pendingTasks.append(queuedTask)
     Task.detached(priority: priority ?? Task.currentPriority) {
       // Poke the `TaskScheduler` to execute a new task. If the `TaskScheduler` is already working at its capacity

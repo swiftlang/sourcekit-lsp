@@ -89,7 +89,9 @@ public final class Workspace: Sendable {
     underlyingBuildSystem: BuildSystem?,
     index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?,
-    indexTaskScheduler: TaskScheduler<IndexTaskDescription>
+    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
+    indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
+    indexTaskDidFinish: @escaping @Sendable () -> Void
   ) async {
     self.documentManager = documentManager
     self.buildSetup = options.buildSetup
@@ -107,7 +109,8 @@ public final class Workspace: Sendable {
         index: uncheckedIndex,
         buildSystemManager: buildSystemManager,
         indexTaskScheduler: indexTaskScheduler,
-        indexTaskDidFinish: options.indexOptions.indexTaskDidFinish
+        indexTasksWereScheduled: indexTasksWereScheduled,
+        indexTaskDidFinish: indexTaskDidFinish
       )
     } else {
       self.semanticIndexManager = nil
@@ -142,8 +145,10 @@ public final class Workspace: Sendable {
     options: SourceKitLSPServer.Options,
     compilationDatabaseSearchPaths: [RelativePath],
     indexOptions: IndexOptions = IndexOptions(),
-    indexTaskScheduler: TaskScheduler<IndexTaskDescription>,
-    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void
+    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
+    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void,
+    indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
+    indexTaskDidFinish: @Sendable @escaping () -> Void
   ) async throws {
     var buildSystem: BuildSystem? = nil
 
@@ -247,7 +252,9 @@ public final class Workspace: Sendable {
       underlyingBuildSystem: buildSystem,
       index: UncheckedIndex(index),
       indexDelegate: indexDelegate,
-      indexTaskScheduler: indexTaskScheduler
+      indexTaskScheduler: indexTaskScheduler,
+      indexTasksWereScheduled: indexTasksWereScheduled,
+      indexTaskDidFinish: indexTaskDidFinish
     )
   }
 
@@ -303,19 +310,13 @@ public struct IndexOptions: Sendable {
   /// Setting this to a value < 1 ensures that background indexing doesn't use all CPU resources.
   public var maxCoresPercentageToUseForBackgroundIndexing: Double
 
-  /// A callback that is called when an index task finishes.
-  ///
-  /// Intended for testing purposes.
-  public var indexTaskDidFinish: (@Sendable (IndexTaskDescription) -> Void)?
-
   public init(
     indexStorePath: AbsolutePath? = nil,
     indexDatabasePath: AbsolutePath? = nil,
     indexPrefixMappings: [PathPrefixMapping]? = nil,
     listenToUnitEvents: Bool = true,
     enableBackgroundIndexing: Bool = false,
-    maxCoresPercentageToUseForBackgroundIndexing: Double = 1,
-    indexTaskDidFinish: (@Sendable (IndexTaskDescription) -> Void)? = nil
+    maxCoresPercentageToUseForBackgroundIndexing: Double = 1
   ) {
     self.indexStorePath = indexStorePath
     self.indexDatabasePath = indexDatabasePath
@@ -323,6 +324,5 @@ public struct IndexOptions: Sendable {
     self.listenToUnitEvents = listenToUnitEvents
     self.enableBackgroundIndexing = enableBackgroundIndexing
     self.maxCoresPercentageToUseForBackgroundIndexing = maxCoresPercentageToUseForBackgroundIndexing
-    self.indexTaskDidFinish = indexTaskDidFinish
   }
 }

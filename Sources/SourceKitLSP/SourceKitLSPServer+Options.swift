@@ -49,6 +49,11 @@ extension SourceKitLSPServer {
     /// notification when running unit tests.
     public var swiftPublishDiagnosticsDebounceDuration: TimeInterval
 
+    /// A callback that is called when an index task finishes.
+    ///
+    /// Intended for testing purposes.
+    public var indexTaskDidFinish: (@Sendable () -> Void)?
+
     public init(
       buildSetup: BuildSetup = .default,
       clangdOptions: [String] = [],
