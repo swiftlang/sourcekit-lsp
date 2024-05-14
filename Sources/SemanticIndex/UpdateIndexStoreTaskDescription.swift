@@ -163,9 +163,12 @@ public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
         BuildSettingsLogger.log(settings: buildSettings, for: uri)
       }
     case .c, .cpp, .objective_c, .objective_cpp:
-      // TODO (indexing): Support indexing of clang files, including headers.
-      // https://github.com/apple/sourcekit-lsp/issues/1253
-      break
+      do {
+        try await updateIndexStore(forClangFile: uri, buildSettings: buildSettings, toolchain: toolchain)
+      } catch {
+        logger.error("Updating index store for \(uri) failed: \(error.forLogging)")
+        BuildSettingsLogger.log(settings: buildSettings, for: uri)
+      }
     default:
       logger.error(
         "Not updating index store for \(uri) because it is a language that is not supported by background indexing"
@@ -190,9 +193,48 @@ public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
       fileToIndex: uri
     )
 
-    let process = try Process.launch(
-      arguments: [swiftc.pathString] + indexingArguments,
+    try await runIndexingProcess(
+      indexFile: uri,
+      buildSettings: buildSettings,
+      processArguments: [swiftc.pathString] + indexingArguments,
       workingDirectory: buildSettings.workingDirectory.map(AbsolutePath.init(validating:))
+    )
+  }
+
+  private func updateIndexStore(
+    forClangFile uri: DocumentURI,
+    buildSettings: FileBuildSettings,
+    toolchain: Toolchain
+  ) async throws {
+    guard let clang = toolchain.clang else {
+      logger.error(
+        "Not updating index store for \(uri.forLogging) because toolchain \(toolchain.identifier) does not contain clang"
+      )
+      return
+    }
+
+    let indexingArguments = adjustClangCompilerArgumentsForIndexStoreUpdate(
+      buildSettings.compilerArguments,
+      fileToIndex: uri
+    )
+
+    try await runIndexingProcess(
+      indexFile: uri,
+      buildSettings: buildSettings,
+      processArguments: [clang.pathString] + indexingArguments,
+      workingDirectory: buildSettings.workingDirectory.map(AbsolutePath.init(validating:))
+    )
+  }
+
+  private func runIndexingProcess(
+    indexFile: DocumentURI,
+    buildSettings: FileBuildSettings,
+    processArguments: [String],
+    workingDirectory: AbsolutePath?
+  ) async throws {
+    let process = try Process.launch(
+      arguments: processArguments,
+      workingDirectory: workingDirectory
     )
     let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
     switch result.exitStatus.exhaustivelySwitchable {
@@ -205,26 +247,26 @@ public struct UpdateIndexStoreTaskDescription: TaskDescriptionProtocol {
       // Indexing will frequently fail if the source code is in an invalid state. Thus, log the failure at a low level.
       logger.debug(
         """
-        Updating index store for Swift file \(uri.forLogging) terminated with non-zero exit code \(code)
+        Updating index store for \(indexFile.forLogging) terminated with non-zero exit code \(code)
         Stderr:
         \(stderr)
         Stdout:
         \(stdout)
         """
       )
-      BuildSettingsLogger.log(level: .debug, settings: buildSettings, for: uri)
+      BuildSettingsLogger.log(level: .debug, settings: buildSettings, for: indexFile)
     case .signalled(signal: let signal):
       if !Task.isCancelled {
         // The indexing job finished with a signal. Could be because the compiler crashed.
         // Ignore signal exit codes if this task has been cancelled because the compiler exits with SIGINT if it gets
         // interrupted.
-        logger.error("Updating index store for Swift file \(uri.forLogging) signaled \(signal)")
-        BuildSettingsLogger.log(level: .error, settings: buildSettings, for: uri)
+        logger.error("Updating index store for \(indexFile.forLogging) signaled \(signal)")
+        BuildSettingsLogger.log(level: .error, settings: buildSettings, for: indexFile)
       }
     case .abnormal(exception: let exception):
       if !Task.isCancelled {
-        logger.error("Updating index store for Swift file \(uri.forLogging) exited abnormally \(exception)")
-        BuildSettingsLogger.log(level: .error, settings: buildSettings, for: uri)
+        logger.error("Updating index store for \(indexFile.forLogging) exited abnormally \(exception)")
+        BuildSettingsLogger.log(level: .error, settings: buildSettings, for: indexFile)
       }
     }
   }
@@ -302,5 +344,58 @@ private func adjustSwiftCompilerArgumentsForIndexStoreUpdate(
     // Fake an output path so that we get a different unit file for every Swift file we background index
     "-index-unit-output-path", fileToIndex.pseudoPath + ".o",
   ]
+  return result
+}
+
+/// Adjust compiler arguments that were created for building to compiler arguments that should be used for indexing.
+///
+/// This removes compiler arguments that produce output files and adds arguments to index the file.
+private func adjustClangCompilerArgumentsForIndexStoreUpdate(
+  _ compilerArguments: [String],
+  fileToIndex: DocumentURI
+) -> [String] {
+  let removeFlags: Set<String> = [
+    // Disable writing of a depfile
+    "-M",
+    "-MD",
+    "-MMD",
+    "-MG",
+    "-MM",
+    "-MV",
+    // Don't create phony targets
+    "-MP",
+    // Don't writ out compilation databases
+    "-MJ",
+    // Continue in the presence of errors during indexing
+    "-fmodules-validate-once-per-build-session",
+    // Don't compile
+    "-c",
+  ]
+
+  let removeArguments: Set<String> = [
+    // Disable writing of a depfile
+    "-MT",
+    "-MF",
+    "-MQ",
+    // Don't write serialized diagnostic files
+    "--serialize-diagnostics",
+  ]
+
+  var result: [String] = []
+  result.reserveCapacity(compilerArguments.count)
+  var iterator = compilerArguments.makeIterator()
+  while let argument = iterator.next() {
+    if removeFlags.contains(argument) || argument.starts(with: "-fbuild-session-file=") {
+      continue
+    }
+    if removeArguments.contains(argument) {
+      _ = iterator.next()
+      continue
+    }
+    result.append(argument)
+  }
+  result.append(
+    "-fsyntax-only"
+  )
   return result
 }
