@@ -133,14 +133,6 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       logger.error("Not indexing \(uri.forLogging) because it has no compiler arguments")
       return
     }
-    guard !buildSettings.isFallback else {
-      // Only index with real build settings. Indexing with fallback arguments could result in worse results than not
-      // indexing at all: If a file has been indexed with real build settings before, had a tiny modification made but
-      // we don't have any real build settings when it should get re-indexed. Then it's better to have the stale index
-      // from correct compiler arguments than no index at all.
-      logger.error("Not updating index store for \(uri.forLogging) because it has fallback compiler arguments")
-      return
-    }
     guard let toolchain = await buildSystemManager.toolchain(for: uri, language) else {
       logger.error(
         "Not updating index store for \(uri.forLogging) because no toolchain could be determined for the document"
