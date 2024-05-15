@@ -14,7 +14,7 @@ import LSPLogging
 import LanguageServerProtocol
 import SKSupport
 
-@preconcurrency import enum PackageLoading.Platform
+import enum PackageLoading.Platform
 import struct TSCBasic.AbsolutePath
 import protocol TSCBasic.FileSystem
 import var TSCBasic.localFileSystem

@@ -13,7 +13,7 @@
 /// Which log level to use (from https://developer.apple.com/wwdc20/10168?time=604)
 ///  - Debug: Useful only during debugging (only logged during debugging)
 ///  - Info: Helpful but not essential for troubleshooting (not persisted, logged to memory)
-///  - Notice/log (Default): Essential for troubleshooting
+///  - Notice/log/default: Essential for troubleshooting
 ///  - Error: Error seen during execution
 ///    - Used eg. if the user sends an erroneous request or if a request fails
 ///  - Fault: Bug in program
@@ -27,6 +27,16 @@ import os  // os_log
 public typealias LogLevel = os.OSLogType
 public typealias Logger = os.Logger
 public typealias Signposter = OSSignposter
+
+#if compiler(<5.11)
+extension OSSignposter: @unchecked Sendable {}
+extension OSSignpostID: @unchecked Sendable {}
+extension OSSignpostIntervalState: @unchecked Sendable {}
+#else
+extension OSSignposter: @retroactive @unchecked Sendable {}
+extension OSSignpostID: @retroactive @unchecked Sendable {}
+extension OSSignpostIntervalState: @retroactive @unchecked Sendable {}
+#endif
 
 extension os.Logger {
   public func makeSignposter() -> Signposter {

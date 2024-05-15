@@ -46,7 +46,7 @@ fileprivate func firstNonNil<T>(
 /// "initialize" request has been made.
 ///
 /// Typically a workspace is contained in a root directory.
-public final class Workspace {
+public final class Workspace: Sendable {
 
   /// The root directory of the workspace.
   public let rootUri: DocumentURI?
@@ -63,7 +63,7 @@ public final class Workspace {
   /// The source code index, if available.
   ///
   /// Usually a checked index (retrieved using `index(checkedFor:)`) should be used instead of the unchecked index.
-  var uncheckedIndex: UncheckedIndex? = nil
+  private let uncheckedIndex: ThreadSafeBox<UncheckedIndex?>
 
   /// The index that syntactically scans the workspace for tests.
   let syntacticTestIndex = SyntacticTestIndex()
@@ -72,7 +72,13 @@ public final class Workspace {
   private let documentManager: DocumentManager
 
   /// Language service for an open document, if available.
-  var documentService: [DocumentURI: LanguageService] = [:]
+  let documentService: ThreadSafeBox<[DocumentURI: LanguageService]> = ThreadSafeBox(initialValue: [:])
+
+  /// The `SemanticIndexManager` that keeps track of whose file's index is up-to-date in the workspace and schedules
+  /// indexing and preparation tasks for files with out-of-date index.
+  ///
+  /// `nil` if background indexing is not enabled.
+  let semanticIndexManager: SemanticIndexManager?
 
   public init(
     documentManager: DocumentManager,
@@ -82,19 +88,33 @@ public final class Workspace {
     options: SourceKitLSPServer.Options,
     underlyingBuildSystem: BuildSystem?,
     index uncheckedIndex: UncheckedIndex?,
-    indexDelegate: SourceKitIndexDelegate?
+    indexDelegate: SourceKitIndexDelegate?,
+    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
+    indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
+    indexTaskDidFinish: @escaping @Sendable () -> Void
   ) async {
     self.documentManager = documentManager
     self.buildSetup = options.buildSetup
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
-    self.uncheckedIndex = uncheckedIndex
+    self.uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildSystemManager = await BuildSystemManager(
       buildSystem: underlyingBuildSystem,
       fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
       mainFilesProvider: uncheckedIndex,
       toolchainRegistry: toolchainRegistry
     )
+    if let uncheckedIndex, options.indexOptions.enableBackgroundIndexing {
+      self.semanticIndexManager = SemanticIndexManager(
+        index: uncheckedIndex,
+        buildSystemManager: buildSystemManager,
+        indexTaskScheduler: indexTaskScheduler,
+        indexTasksWereScheduled: indexTasksWereScheduled,
+        indexTaskDidFinish: indexTaskDidFinish
+      )
+    } else {
+      self.semanticIndexManager = nil
+    }
     await indexDelegate?.addMainFileChangedCallback { [weak self] in
       await self?.buildSystemManager.mainFilesChanged()
     }
@@ -106,6 +126,9 @@ public final class Workspace {
     }
     // Trigger an initial population of `syntacticTestIndex`.
     await syntacticTestIndex.listOfTestFilesDidChange(buildSystemManager.testFiles())
+    if let semanticIndexManager {
+      await semanticIndexManager.scheduleBuildGraphGenerationAndBackgroundIndexAllFiles()
+    }
   }
 
   /// Creates a workspace for a given root `URL`, inferring the `ExternalWorkspace` if possible.
@@ -122,16 +145,26 @@ public final class Workspace {
     options: SourceKitLSPServer.Options,
     compilationDatabaseSearchPaths: [RelativePath],
     indexOptions: IndexOptions = IndexOptions(),
-    reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
+    indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
+    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void,
+    indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
+    indexTaskDidFinish: @Sendable @escaping () -> Void
   ) async throws {
     var buildSystem: BuildSystem? = nil
 
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
+      var options = options
+      var forceResolvedVersions = true
+      if options.indexOptions.enableBackgroundIndexing, options.buildSetup.path == nil {
+        options.buildSetup.path = rootPath.appending(component: ".index-build")
+        forceResolvedVersions = false
+      }
       func createSwiftPMBuildSystem(rootUrl: URL) async -> SwiftPMBuildSystem? {
         return await SwiftPMBuildSystem(
           url: rootUrl,
           toolchainRegistry: toolchainRegistry,
           buildSetup: options.buildSetup,
+          forceResolvedVersions: forceResolvedVersions,
           reloadPackageStatusCallback: reloadPackageStatusCallback
         )
       }
@@ -218,14 +251,25 @@ public final class Workspace {
       options: options,
       underlyingBuildSystem: buildSystem,
       index: UncheckedIndex(index),
-      indexDelegate: indexDelegate
+      indexDelegate: indexDelegate,
+      indexTaskScheduler: indexTaskScheduler,
+      indexTasksWereScheduled: indexTasksWereScheduled,
+      indexTaskDidFinish: indexTaskDidFinish
     )
   }
 
   /// Returns a `CheckedIndex` that verifies that all the returned entries are up-to-date with the given
   /// `IndexCheckLevel`.
   func index(checkedFor checkLevel: IndexCheckLevel) -> CheckedIndex? {
-    return uncheckedIndex?.checked(for: checkLevel)
+    return uncheckedIndex.value?.checked(for: checkLevel)
+  }
+
+  /// Write the index to disk.
+  ///
+  /// After this method is called, the workspace will no longer have an index associated with it. It should only be
+  /// called when SourceKit-LSP shuts down.
+  func closeIndex() {
+    uncheckedIndex.value = nil
   }
 
   public func filesDidChange(_ events: [FileEvent]) async {
@@ -243,7 +287,7 @@ struct WeakWorkspace {
   }
 }
 
-public struct IndexOptions {
+public struct IndexOptions: Sendable {
 
   /// Override the index-store-path provided by the build system.
   public var indexStorePath: AbsolutePath?
@@ -258,15 +302,27 @@ public struct IndexOptions {
   /// explicit calls to pollForUnitChangesAndWait().
   public var listenToUnitEvents: Bool
 
+  /// Whether background indexing should be enabled.
+  public var enableBackgroundIndexing: Bool
+
+  /// The percentage of the machine's cores that should at most be used for background indexing.
+  ///
+  /// Setting this to a value < 1 ensures that background indexing doesn't use all CPU resources.
+  public var maxCoresPercentageToUseForBackgroundIndexing: Double
+
   public init(
     indexStorePath: AbsolutePath? = nil,
     indexDatabasePath: AbsolutePath? = nil,
     indexPrefixMappings: [PathPrefixMapping]? = nil,
-    listenToUnitEvents: Bool = true
+    listenToUnitEvents: Bool = true,
+    enableBackgroundIndexing: Bool = false,
+    maxCoresPercentageToUseForBackgroundIndexing: Double = 1
   ) {
     self.indexStorePath = indexStorePath
     self.indexDatabasePath = indexDatabasePath
     self.indexPrefixMappings = indexPrefixMappings
     self.listenToUnitEvents = listenToUnitEvents
+    self.enableBackgroundIndexing = enableBackgroundIndexing
+    self.maxCoresPercentageToUseForBackgroundIndexing = maxCoresPercentageToUseForBackgroundIndexing
   }
 }

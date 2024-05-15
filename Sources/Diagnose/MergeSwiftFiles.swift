@@ -17,6 +17,7 @@ extension RequestInfo {
   /// Check if the issue reproduces when merging all `.swift` input files into a single file.
   ///
   /// Returns `nil` if the issue didn't reproduce with all `.swift` files merged.
+  @MainActor
   func mergeSwiftFiles(
     using executor: SourceKitRequestExecutor,
     progressUpdate: (_ progress: Double, _ message: String) -> Void

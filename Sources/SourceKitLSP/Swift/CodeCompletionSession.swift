@@ -52,9 +52,9 @@ class CodeCompletionSession {
   /// have a global mapping from `sourcekitd` to its currently active code
   /// completion session.
   ///
-  /// Modification of code completion sessions should only happen on
-  /// `completionQueue`.
-  private static var completionSessions: [ObjectIdentifier: CodeCompletionSession] = [:]
+  /// - Important: Must only be accessed on `completionQueue`.
+  /// `nonisolated(unsafe)` fine because this is guarded by `completionQueue`.
+  private static nonisolated(unsafe) var completionSessions: [ObjectIdentifier: CodeCompletionSession] = [:]
 
   /// Gets the code completion results for the given parameters.
   ///
@@ -180,7 +180,7 @@ class CodeCompletionSession {
     in snapshot: DocumentSnapshot,
     options: SKCompletionOptions
   ) async throws -> CompletionList {
-    logger.info("Opening code completion session: \(self, privacy: .private) filter=\(filterText)")
+    logger.info("Opening code completion session: \(self.description) filter=\(filterText)")
     guard snapshot.version == self.snapshot.version else {
       throw ResponseError(code: .invalidRequest, message: "open must use the original snapshot")
     }
@@ -221,7 +221,7 @@ class CodeCompletionSession {
   ) async throws -> CompletionList {
     // FIXME: Assertion for prefix of snapshot matching what we started with.
 
-    logger.info("Updating code completion session: \(self, privacy: .private) filter=\(filterText)")
+    logger.info("Updating code completion session: \(self.description) filter=\(filterText)")
     let req = sourcekitd.dictionary([
       keys.request: sourcekitd.requests.codeCompleteUpdate,
       keys.offset: utf8StartOffset,
@@ -272,7 +272,7 @@ class CodeCompletionSession {
         keys.offset: utf8StartOffset,
         keys.name: snapshot.uri.pseudoPath,
       ])
-      logger.info("Closing code completion session: \(self, privacy: .private)")
+      logger.info("Closing code completion session: \(self.description)")
       _ = try? await sourcekitd.send(req, fileContents: nil)
       self.state = .closed
     }

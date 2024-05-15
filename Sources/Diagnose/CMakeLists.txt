@@ -1,4 +1,5 @@
 add_library(Diagnose STATIC
+  CommandConfiguration+Sendable.swift
   CommandLineArgumentsReducer.swift
   DiagnoseCommand.swift
   MergeSwiftFiles.swift
@@ -11,9 +12,10 @@ add_library(Diagnose STATIC
   ReproducerBundle.swift
   RequestInfo.swift
   SourceKitD+RunWithYaml.swift
+  SourcekitdRequestCommand.swift
   SourceKitDRequestExecutor.swift
   SourceReducer.swift
-  SourcekitdRequestCommand.swift
+  StderrStreamConcurrencySafe.swift
   SwiftFrontendCrashScraper.swift
   Toolchain+SwiftFrontend.swift)
 

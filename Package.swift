@@ -173,6 +173,8 @@ let package = Package(
     .target(
       name: "SemanticIndex",
       dependencies: [
+        "CAtomics",
+        "LanguageServerProtocol",
         "LSPLogging",
         "SKCore",
         .product(name: "IndexStoreDB", package: "indexstore-db"),

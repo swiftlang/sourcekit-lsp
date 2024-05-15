@@ -80,8 +80,10 @@ public class MultiFileTestProject {
   public init(
     files: [RelativeFileLocation: String],
     workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
+    capabilities: ClientCapabilities = ClientCapabilities(),
     serverOptions: SourceKitLSPServer.Options = .testDefault,
     usePullDiagnostics: Bool = true,
+    preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     testName: String = #function
   ) async throws {
     scratchDirectory = try testScratchDir(testName: testName)
@@ -112,8 +114,10 @@ public class MultiFileTestProject {
 
     self.testClient = try await TestSourceKitLSPClient(
       serverOptions: serverOptions,
+      capabilities: capabilities,
       usePullDiagnostics: usePullDiagnostics,
       workspaceFolders: workspaces(scratchDirectory),
+      preInitialization: preInitialization,
       cleanUp: { [scratchDirectory] in
         if cleanScratchDirectories {
           try? FileManager.default.removeItem(at: scratchDirectory)

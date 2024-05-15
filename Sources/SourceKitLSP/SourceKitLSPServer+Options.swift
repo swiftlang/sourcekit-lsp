@@ -21,7 +21,7 @@ import struct TSCBasic.RelativePath
 extension SourceKitLSPServer {
 
   /// Configuration options for the SourceKitServer.
-  public struct Options {
+  public struct Options: Sendable {
 
     /// Additional compiler flags (e.g. `-Xswiftc` for SwiftPM projects) and other build-related
     /// configuration.
@@ -48,6 +48,11 @@ extension SourceKitLSPServer {
     /// This is mostly intended for testing purposes so we don't need to wait the debouncing time to get a diagnostics
     /// notification when running unit tests.
     public var swiftPublishDiagnosticsDebounceDuration: TimeInterval
+
+    /// A callback that is called when an index task finishes.
+    ///
+    /// Intended for testing purposes.
+    public var indexTaskDidFinish: (@Sendable () -> Void)?
 
     public init(
       buildSetup: BuildSetup = .default,

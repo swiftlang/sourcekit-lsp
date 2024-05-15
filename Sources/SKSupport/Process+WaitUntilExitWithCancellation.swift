@@ -15,9 +15,10 @@ import Foundation
 import class TSCBasic.Process
 import struct TSCBasic.ProcessResult
 
-public extension Process {
+extension Process {
   /// Wait for the process to exit. If the task gets cancelled, during this time, send a `SIGINT` to the process.
-  func waitUntilExitSendingSigIntOnTaskCancellation() async throws -> ProcessResult {
+  @discardableResult
+  public func waitUntilExitSendingSigIntOnTaskCancellation() async throws -> ProcessResult {
     return try await withTaskCancellationHandler {
       try await waitUntilExit()
     } onCancel: {

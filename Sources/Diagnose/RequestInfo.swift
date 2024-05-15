@@ -15,7 +15,7 @@ import RegexBuilder
 
 /// All the information necessary to replay a sourcektid request.
 @_spi(Testing)
-public struct RequestInfo {
+public struct RequestInfo: Sendable {
   /// The JSON request object. Contains the following dynamic placeholders:
   ///  - `$OFFSET`: To be replaced by `offset` before running the request
   ///  - `$FILE`: Will be replaced with a path to the file that contains the reduced source code.
@@ -51,7 +51,7 @@ public struct RequestInfo {
   }
 
   /// A fake value that is used to indicate that we are reducing a `swift-frontend` issue instead of a sourcekitd issue.
-  static var fakeRequestTemplateForFrontendIssues = """
+  static let fakeRequestTemplateForFrontendIssues = """
     {
       key.request: sourcekit-lsp-fake-request-for-frontend-crash
       key.compilerargs: [

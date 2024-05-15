@@ -39,11 +39,29 @@ final class TestBuildSystem: BuildSystem {
   /// Files currently being watched by our delegate.
   var watchedFiles: Set<DocumentURI> = []
 
-  func buildSettings(for document: DocumentURI, language: Language) async throws -> FileBuildSettings? {
+  func buildSettings(
+    for document: DocumentURI,
+    in buildTarget: ConfiguredTarget,
+    language: Language
+  ) async throws -> FileBuildSettings? {
     return buildSettingsByFile[document]
   }
 
   public func defaultLanguage(for document: DocumentURI) async -> Language? {
+    return nil
+  }
+
+  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+    return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
+  }
+
+  public func prepare(targets: [ConfiguredTarget]) async throws {
+    throw PrepareNotSupportedError()
+  }
+
+  public func generateBuildGraph() {}
+
+  public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 
@@ -108,7 +126,10 @@ final class BuildSystemTests: XCTestCase {
       options: SourceKitLSPServer.Options.testDefault,
       underlyingBuildSystem: buildSystem,
       index: nil,
-      indexDelegate: nil
+      indexDelegate: nil,
+      indexTaskScheduler: .forTesting,
+      indexTasksWereScheduled: { _ in },
+      indexTaskDidFinish: {}
     )
 
     await server.setWorkspaces([(workspace: workspace, isImplicit: false)])
@@ -169,7 +190,9 @@ final class BuildSystemTests: XCTestCase {
 
   func testSwiftDocumentUpdatedBuildSettings() async throws {
     let doc = DocumentURI.for(.swift)
-    let args = FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!.compilerArguments
+    let args = await FallbackBuildSystem(buildSetup: .default)
+      .buildSettings(for: doc, language: .swift)!
+      .compilerArguments
 
     buildSystem.buildSettingsByFile[doc] = FileBuildSettings(compilerArguments: args)
 
@@ -238,7 +261,7 @@ final class BuildSystemTests: XCTestCase {
     let doc = DocumentURI.for(.swift)
 
     // Primary settings must be different than the fallback settings.
-    var primarySettings = FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!
+    var primarySettings = await FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!
     primarySettings.isFallback = false
     primarySettings.compilerArguments.append("-DPRIMARY")
 

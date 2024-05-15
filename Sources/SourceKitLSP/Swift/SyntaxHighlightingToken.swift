@@ -15,7 +15,7 @@ import LanguageServerProtocol
 import SourceKitD
 
 /// A ranged token in the document used for syntax highlighting.
-public struct SyntaxHighlightingToken: Hashable {
+public struct SyntaxHighlightingToken: Hashable, Sendable {
   /// The range of the token in the document. Must be on a single line.
   public var range: Range<Position> {
     didSet {

@@ -3,6 +3,7 @@ add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
   DocumentManager.swift
   DocumentSnapshot+FromFileContents.swift
+  IndexProgressManager.swift
   IndexStoreDB+MainFilesProvider.swift
   LanguageService.swift
   Rename.swift
@@ -14,6 +15,7 @@ add_library(SourceKitLSP STATIC
   SourceKitLSPServer+Options.swift
   SymbolLocation+DocumentURI.swift
   TestDiscovery.swift
+  TextEdit+IsNoop.swift
   WorkDoneProgressManager.swift
   Workspace.swift
 )
