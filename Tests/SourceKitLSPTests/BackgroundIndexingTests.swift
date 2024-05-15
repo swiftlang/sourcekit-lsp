@@ -374,4 +374,259 @@ final class BackgroundIndexingTests: XCTestCase {
 
     withExtendedLifetime(project) {}
   }
+
+  func testBackgroundIndexingReindexesWhenSwiftFileIsModified() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyFile.swift": """
+        func 1️⃣foo() {}
+        """,
+        "MyOtherFile.swift": "",
+      ],
+      serverOptions: backgroundIndexingOptions
+    )
+
+    let (uri, positions) = try project.openDocument("MyFile.swift")
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    let callsBeforeEdit = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+    XCTAssertEqual(callsBeforeEdit, [])
+
+    let otherFileMarkedContents = """
+      func 2️⃣bar() {
+        3️⃣foo()
+      }
+      """
+
+    let otherFileUri = try project.uri(for: "MyOtherFile.swift")
+    let otherFileUrl = try XCTUnwrap(otherFileUri.fileURL)
+    let otherFilePositions = DocumentPositions(markedText: otherFileMarkedContents)
+
+    try extractMarkers(otherFileMarkedContents).textWithoutMarkers.write(
+      to: otherFileUrl,
+      atomically: true,
+      encoding: .utf8
+    )
+
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: otherFileUri, type: .changed)]))
+    _ = try await project.testClient.send(PollIndexRequest())
+
+    let callsAfterEdit = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+    XCTAssertEqual(
+      callsAfterEdit,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "bar()",
+            kind: .function,
+            tags: nil,
+            uri: otherFileUri,
+            range: Range(otherFilePositions["2️⃣"]),
+            selectionRange: Range(otherFilePositions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:9MyLibrary3baryyF"),
+              "uri": .string(otherFileUri.stringValue),
+            ])
+          ),
+          fromRanges: [Range(otherFilePositions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testBackgroundIndexingReindexesMainFilesWhenHeaderIsModified() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/include/Header.h": """
+        void 1️⃣someFunc();
+        """,
+        "MyFile.c": """
+        #include "Header.h"
+
+        void 2️⃣test() {
+        #ifdef MY_FLAG
+          3️⃣someFunc();
+        #endif
+        }
+        """,
+        "MyOtherFile.c": """
+        #include "Header.h"
+
+        void 4️⃣otherTest() {
+        #ifdef MY_FLAG
+          5️⃣someFunc();
+        #endif
+        }
+        """,
+      ],
+      build: true,
+      serverOptions: backgroundIndexingOptions
+    )
+
+    let (uri, positions) = try project.openDocument("Header.h", language: .c)
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    let callsBeforeEdit = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+    XCTAssertEqual(callsBeforeEdit, [])
+
+    let headerNewMarkedContents = """
+      void someFunc();
+
+      #define MY_FLAG 1
+      """
+
+    let headerFileUrl = try XCTUnwrap(uri.fileURL)
+
+    try extractMarkers(headerNewMarkedContents).textWithoutMarkers.write(
+      to: headerFileUrl,
+      atomically: true,
+      encoding: .utf8
+    )
+
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .changed)]))
+    _ = try await project.testClient.send(PollIndexRequest())
+
+    let callsAfterEdit = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+    XCTAssertEqual(
+      callsAfterEdit,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "otherTest",
+            kind: .function,
+            tags: nil,
+            uri: try project.uri(for: "MyOtherFile.c"),
+            range: try project.range(from: "4️⃣", to: "4️⃣", in: "MyOtherFile.c"),
+            selectionRange: try project.range(from: "4️⃣", to: "4️⃣", in: "MyOtherFile.c"),
+            data: .dictionary([
+              "usr": .string("c:@F@otherTest"),
+              "uri": .string(try project.uri(for: "MyOtherFile.c").stringValue),
+            ])
+          ),
+          fromRanges: [try project.range(from: "5️⃣", to: "5️⃣", in: "MyOtherFile.c")]
+        ),
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "test",
+            kind: .function,
+            tags: nil,
+            uri: try project.uri(for: "MyFile.c"),
+            range: try project.range(from: "2️⃣", to: "2️⃣", in: "MyFile.c"),
+            selectionRange: try project.range(from: "2️⃣", to: "2️⃣", in: "MyFile.c"),
+            data: .dictionary([
+              "usr": .string("c:@F@test"),
+              "uri": .string(try project.uri(for: "MyFile.c").stringValue),
+            ])
+          ),
+          fromRanges: [try project.range(from: "3️⃣", to: "3️⃣", in: "MyFile.c")]
+        ),
+      ]
+    )
+  }
+
+  func testBackgroundIndexingReindexesMainFilesWhenTransitiveHeaderIsModified() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/include/OtherHeader.h": "",
+        "MyLibrary/include/Header.h": """
+        #include "OtherHeader.h"
+        void 1️⃣someFunc();
+        """,
+        "MyFile.c": """
+        #include "Header.h"
+
+        void 2️⃣test() {
+        #ifdef MY_FLAG
+          3️⃣someFunc();
+        #endif
+        }
+        """,
+        "MyOtherFile.c": """
+        #include "Header.h"
+
+        void 4️⃣otherTest() {
+        #ifdef MY_FLAG
+          5️⃣someFunc();
+        #endif
+        }
+        """,
+      ],
+      build: true,
+      serverOptions: backgroundIndexingOptions
+    )
+
+    let (uri, positions) = try project.openDocument("Header.h", language: .c)
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    let callsBeforeEdit = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+    XCTAssertEqual(callsBeforeEdit, [])
+
+    let otherHeaderFileUrl = try XCTUnwrap(project.uri(for: "OtherHeader.h").fileURL)
+
+    try "#define MY_FLAG 1".write(
+      to: otherHeaderFileUrl,
+      atomically: true,
+      encoding: .utf8
+    )
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: DocumentURI(otherHeaderFileUrl), type: .changed)])
+    )
+    _ = try await project.testClient.send(PollIndexRequest())
+
+    let callsAfterEdit = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+    XCTAssertEqual(
+      callsAfterEdit,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "otherTest",
+            kind: .function,
+            tags: nil,
+            uri: try project.uri(for: "MyOtherFile.c"),
+            range: try project.range(from: "4️⃣", to: "4️⃣", in: "MyOtherFile.c"),
+            selectionRange: try project.range(from: "4️⃣", to: "4️⃣", in: "MyOtherFile.c"),
+            data: .dictionary([
+              "usr": .string("c:@F@otherTest"),
+              "uri": .string(try project.uri(for: "MyOtherFile.c").stringValue),
+            ])
+          ),
+          fromRanges: [try project.range(from: "5️⃣", to: "5️⃣", in: "MyOtherFile.c")]
+        ),
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "test",
+            kind: .function,
+            tags: nil,
+            uri: try project.uri(for: "MyFile.c"),
+            range: try project.range(from: "2️⃣", to: "2️⃣", in: "MyFile.c"),
+            selectionRange: try project.range(from: "2️⃣", to: "2️⃣", in: "MyFile.c"),
+            data: .dictionary([
+              "usr": .string("c:@F@test"),
+              "uri": .string(try project.uri(for: "MyFile.c").stringValue),
+            ])
+          ),
+          fromRanges: [try project.range(from: "3️⃣", to: "3️⃣", in: "MyFile.c")]
+        ),
+      ]
+    )
+  }
 }

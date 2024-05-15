@@ -167,6 +167,8 @@ public protocol BuildSystem: AnyObject, Sendable {
   func fileHandlingCapability(for uri: DocumentURI) async -> FileHandlingCapability
 
   /// Returns the list of source files in the project.
+  ///
+  /// Header files should not be considered as source files because they cannot be compiled.
   func sourceFiles() async -> [SourceFileInfo]
 
   /// Adds a callback that should be called when the value returned by `sourceFiles()` changes.

@@ -35,10 +35,6 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
 
-  /// A reference to the underlying index store. Used to check if the index is already up-to-date for a file, in which
-  /// case we don't need to index it again.
-  private let index: UncheckedIndex
-
   /// The task is idempotent because indexing the same file twice produces the same result as indexing it once.
   public var isIdempotent: Bool { true }
 
@@ -54,12 +50,10 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
 
   init(
     filesToIndex: Set<DocumentURI>,
-    buildSystemManager: BuildSystemManager,
-    index: UncheckedIndex
+    buildSystemManager: BuildSystemManager
   ) {
     self.filesToIndex = filesToIndex
     self.buildSystemManager = buildSystemManager
-    self.index = index
   }
 
   public func execute() async {
@@ -111,15 +105,6 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   private func updateIndexStoreForSingleFile(_ uri: DocumentURI) async {
-    guard let url = uri.fileURL else {
-      // The URI is not a file, so there's nothing we can index.
-      return
-    }
-    guard !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: url) else {
-      // We consider a file's index up-to-date if we have any up-to-date unit. Changing build settings does not
-      // invalidate the up-to-date status of the index.
-      return
-    }
     guard let language = await buildSystemManager.defaultLanguage(for: uri) else {
       logger.error("Not indexing \(uri.forLogging) because its language could not be determined")
       return

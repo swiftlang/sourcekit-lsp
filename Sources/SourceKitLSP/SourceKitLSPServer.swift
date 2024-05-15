@@ -847,6 +847,7 @@ public actor SourceKitLSPServer {
     guard let toolchain = await workspace.buildSystemManager.toolchain(for: uri, language),
       let service = await languageService(for: toolchain, language, in: workspace)
     else {
+      logger.error("Failed to create language service for \(uri)")
       return nil
     }
 
@@ -2486,7 +2487,7 @@ extension SourceKitLSPServer {
   func pollIndex(_ req: PollIndexRequest) async throws -> VoidResponse {
     for workspace in workspaces {
       await workspace.semanticIndexManager?.waitForUpToDateIndex()
-      workspace.index(checkedFor: .deletedFiles)?.pollForUnitChangesAndWait()
+      workspace.uncheckedIndex?.pollForUnitChangesAndWait()
     }
     return VoidResponse()
   }

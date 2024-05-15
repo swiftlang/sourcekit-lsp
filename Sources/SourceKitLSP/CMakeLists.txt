@@ -8,7 +8,6 @@ add_library(SourceKitLSP STATIC
   LanguageService.swift
   Rename.swift
   ResponseError+Init.swift
-  Sequence+AsyncMap.swift
   SourceKitIndexDelegate.swift
   SourceKitLSPCommandMetadata.swift
   SourceKitLSPServer.swift

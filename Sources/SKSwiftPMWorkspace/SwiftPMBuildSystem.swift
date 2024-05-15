@@ -387,7 +387,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     )
   }
 
-  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+  public func defaultLanguage(for document: DocumentURI) -> Language? {
     // TODO (indexing): Query The SwiftPM build system for the document's language.
     // https://github.com/apple/sourcekit-lsp/issues/1267
     return nil

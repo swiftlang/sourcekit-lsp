@@ -41,7 +41,7 @@ private enum FileIndexStatus {
 public final actor SemanticIndexManager {
   /// The underlying index. This is used to check if the index of a file is already up-to-date, in which case it doesn't
   /// need to be indexed again.
-  private let index: CheckedIndex
+  private let index: UncheckedIndex
 
   /// The build system manager that is used to get compiler arguments for a file.
   private let buildSystemManager: BuildSystemManager
@@ -101,14 +101,17 @@ public final actor SemanticIndexManager {
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
     indexTaskDidFinish: @escaping @Sendable () -> Void
   ) {
-    self.index = index.checked(for: .modifiedFiles)
+    self.index = index
     self.buildSystemManager = buildSystemManager
     self.indexTaskScheduler = indexTaskScheduler
     self.indexTasksWereScheduled = indexTasksWereScheduled
     self.indexTaskDidFinish = indexTaskDidFinish
   }
 
-  /// Schedules a task to index all files in `files` that don't already have an up-to-date index.
+  /// Schedules a task to index `files`. Files that are known to be up-to-date based on `indexStatus` will
+  /// not be re-indexed. The method will re-index files even if they have a unit with a timestamp that matches the
+  /// source file's mtime. This allows re-indexing eg. after compiler arguments or dependencies have changed.
+  ///
   /// Returns immediately after scheduling that task.
   ///
   /// Indexing is being performed with a low priority.
@@ -117,11 +120,22 @@ public final actor SemanticIndexManager {
   }
 
   /// Regenerate the build graph (also resolving package dependencies) and then index all the source files known to the
-  /// build system.
+  /// build system that don't currently have a unit with a timestamp that matches the mtime of the file.
+  ///
+  /// This method is intended to initially update the index of a project after it is opened.
   public func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles() async {
     generateBuildGraphTask = Task(priority: .low) {
       await orLog("Generating build graph") { try await self.buildSystemManager.generateBuildGraph() }
-      await scheduleBackgroundIndex(files: await self.buildSystemManager.sourceFiles().map(\.uri))
+      let index = index.checked(for: .modifiedFiles)
+      let filesToIndex = await self.buildSystemManager.sourceFiles().map(\.uri)
+        .filter { uri in
+          guard let url = uri.fileURL else {
+            // The URI is not a file, so there's nothing we can index.
+            return false
+          }
+          return !index.hasUpToDateUnit(for: url)
+        }
+      await scheduleBackgroundIndex(files: filesToIndex)
       generateBuildGraphTask = nil
     }
   }
@@ -170,6 +184,34 @@ public final actor SemanticIndexManager {
     logger.debug("Done waiting for up-to-date index")
   }
 
+  public func filesDidChange(_ events: [FileEvent]) async {
+    let filesToReIndex = await filesToReIndex(changedFiles: events.map(\.uri))
+
+    // Reset the index status for these files so they get re-indexed by `index(files:priority:)`
+    for uri in filesToReIndex {
+      indexStatus[uri] = nil
+    }
+    await scheduleBackgroundIndex(files: filesToReIndex)
+  }
+
+  /// Returns the files that should be re-indexed if the given files have been modified.
+  ///
+  /// - SeeAlso: The `Documentation/Files_To_Reindex.md` file.
+  private func filesToReIndex(changedFiles: [DocumentURI]) async -> Set<DocumentURI> {
+    let sourceFiles = Set(await buildSystemManager.sourceFiles().map(\.uri))
+    let filesToReIndex = await changedFiles.asyncMap { (uri) -> [DocumentURI] in
+      if sourceFiles.contains(uri) {
+        // If this is a source file, re-index it
+        return [uri]
+      }
+      // Otherwise, see if it is a header file. If so, re-index all the files that import it.
+      // We don't want to re-index `.swift` files that depend on a header file, similar to how we don't re-index a Swift
+      // module if one of its dependent modules has changed.
+      return index.checked(for: .deletedFiles).mainFilesContainingFile(uri: uri, crossLanguage: false)
+    }.flatMap { $0 }
+    return Set(filesToReIndex)
+  }
+
   // MARK: - Helper functions
 
   /// Prepare the given targets for indexing
@@ -189,8 +231,7 @@ public final actor SemanticIndexManager {
     let taskDescription = AnyIndexTaskDescription(
       UpdateIndexStoreTaskDescription(
         filesToIndex: Set(files),
-        buildSystemManager: self.buildSystemManager,
-        index: self.index.unchecked
+        buildSystemManager: self.buildSystemManager
       )
     )
     let updateIndexStoreTask = await self.indexTaskScheduler.schedule(priority: priority, taskDescription) { newState in

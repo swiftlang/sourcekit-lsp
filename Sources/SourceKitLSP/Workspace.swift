@@ -63,7 +63,11 @@ public final class Workspace: Sendable {
   /// The source code index, if available.
   ///
   /// Usually a checked index (retrieved using `index(checkedFor:)`) should be used instead of the unchecked index.
-  private let uncheckedIndex: ThreadSafeBox<UncheckedIndex?>
+  private let _uncheckedIndex: ThreadSafeBox<UncheckedIndex?>
+
+  public var uncheckedIndex: UncheckedIndex? {
+    return _uncheckedIndex.value
+  }
 
   /// The index that syntactically scans the workspace for tests.
   let syntacticTestIndex = SyntacticTestIndex()
@@ -97,7 +101,7 @@ public final class Workspace: Sendable {
     self.buildSetup = options.buildSetup
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
-    self.uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
+    self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildSystemManager = await BuildSystemManager(
       buildSystem: underlyingBuildSystem,
       fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
@@ -261,7 +265,7 @@ public final class Workspace: Sendable {
   /// Returns a `CheckedIndex` that verifies that all the returned entries are up-to-date with the given
   /// `IndexCheckLevel`.
   func index(checkedFor checkLevel: IndexCheckLevel) -> CheckedIndex? {
-    return uncheckedIndex.value?.checked(for: checkLevel)
+    return _uncheckedIndex.value?.checked(for: checkLevel)
   }
 
   /// Write the index to disk.
@@ -269,12 +273,13 @@ public final class Workspace: Sendable {
   /// After this method is called, the workspace will no longer have an index associated with it. It should only be
   /// called when SourceKit-LSP shuts down.
   func closeIndex() {
-    uncheckedIndex.value = nil
+    _uncheckedIndex.value = nil
   }
 
   public func filesDidChange(_ events: [FileEvent]) async {
     await buildSystemManager.filesDidChange(events)
     await syntacticTestIndex.filesDidChange(events)
+    await semanticIndexManager?.filesDidChange(events)
   }
 }
 

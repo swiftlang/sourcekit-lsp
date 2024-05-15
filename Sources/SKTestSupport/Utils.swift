@@ -25,8 +25,12 @@ extension Language {
 
   init?(fileExtension: String) {
     switch fileExtension {
+    case "c": self = .c
+    case "cpp": self = .cpp
     case "m": self = .objective_c
-    default: self.init(rawValue: fileExtension)
+    case "mm": self = .objective_cpp
+    case "swift": self = .swift
+    default: return nil
     }
   }
 }
