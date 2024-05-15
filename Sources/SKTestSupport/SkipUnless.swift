@@ -27,14 +27,16 @@ import enum TSCBasic.ProcessEnv
 // MARK: - Skip checks
 
 /// Namespace for functions that are used to skip unsupported tests.
-public enum SkipUnless {
+public actor SkipUnless {
   private enum FeatureCheckResult {
     case featureSupported
     case featureUnsupported(skipMessage: String)
   }
 
+  private static let shared = SkipUnless()
+
   /// For any feature that has already been evaluated, the result of whether or not it should be skipped.
-  private static var checkCache: [String: FeatureCheckResult] = [:]
+  private var checkCache: [String: FeatureCheckResult] = [:]
 
   /// Throw an `XCTSkip` if any of the following conditions hold
   ///  - The Swift version of the toolchain used for testing (`ToolchainRegistry.forTesting.default`) is older than
@@ -49,7 +51,7 @@ public enum SkipUnless {
   ///
   /// Independently of these checks, the tests are never skipped in Swift CI (identified by the presence of the `SWIFTCI_USE_LOCAL_DEPS` environment). Swift CI is assumed to always build its own toolchain, which is thus
   /// guaranteed to be up-to-date.
-  private static func skipUnlessSupportedByToolchain(
+  private func skipUnlessSupportedByToolchain(
     swiftVersion: SwiftVersion,
     featureName: String = #function,
     file: StaticString,
@@ -96,10 +98,10 @@ public enum SkipUnless {
   }
 
   public static func sourcekitdHasSemanticTokensRequest(
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
-    try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI.for(.swift)
       testClient.openDocument("0.bitPattern", uri: uri)
@@ -127,10 +129,10 @@ public enum SkipUnless {
   }
 
   public static func sourcekitdSupportsRename(
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
-    try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI.for(.swift)
       let positions = testClient.openDocument("func 1️⃣test() {}", uri: uri)
@@ -147,10 +149,10 @@ public enum SkipUnless {
 
   /// Whether clangd has support for the `workspace/indexedRename` request.
   public static func clangdSupportsIndexBasedRename(
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
-    try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI.for(.c)
       let positions = testClient.openDocument("void 1️⃣test() {}", uri: uri)
@@ -177,10 +179,10 @@ public enum SkipUnless {
   /// toolchain’s SwiftPM stores the Swift modules on the top level but we synthesize compiler arguments expecting the
   /// modules to be in a `Modules` subdirectory.
   public static func swiftpmStoresModulesInSubdirectory(
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
-    try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       let workspace = try await SwiftPMTestProject(
         files: ["test.swift": ""],
         build: true
@@ -195,21 +197,21 @@ public enum SkipUnless {
   }
 
   public static func toolchainContainsSwiftFormat(
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
-    try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
+    try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       return await ToolchainRegistry.forTesting.default?.swiftFormat != nil
     }
   }
 
   public static func sourcekitdReturnsRawDocumentationResponse(
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
     struct ExpectedMarkdownContentsError: Error {}
 
-    return try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
       // The XML-based doc comment conversion did not preserve `Precondition`.
       let testClient = try await TestSourceKitLSPClient()
       let uri = DocumentURI.for(.swift)
@@ -235,10 +237,10 @@ public enum SkipUnless {
   /// Checks whether the index contains a fix that prevents it from adding relations to non-indexed locals
   /// (https://github.com/apple/swift/pull/72930).
   public static func indexOnlyHasContainedByRelationsToIndexedDecls(
-    file: StaticString = #file,
+    file: StaticString = #filePath,
     line: UInt = #line
   ) async throws {
-    return try await skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
+    return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
       let project = try await IndexedSingleSwiftFileTestProject(
         """
         func foo() {}

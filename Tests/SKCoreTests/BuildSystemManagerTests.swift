@@ -88,6 +88,7 @@ final class BuildSystemManagerTests: XCTestCase {
     await assertEqual(bsm._cachedMainFile(for: d), nil)
   }
 
+  @MainActor
   func testSettingsMainFile() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
@@ -112,6 +113,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([changed])
   }
 
+  @MainActor
   func testSettingsMainFileInitialNil() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
@@ -134,6 +136,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([changed])
   }
 
+  @MainActor
   func testSettingsMainFileWithFallback() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
@@ -164,6 +167,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([revert])
   }
 
+  @MainActor
   func testSettingsMainFileInitialIntersect() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let b = try DocumentURI(string: "bsm:b.swift")
@@ -205,6 +209,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([changedBothA, changedBothB])
   }
 
+  @MainActor
   func testSettingsMainFileUnchanged() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let b = try DocumentURI(string: "bsm:b.swift")
@@ -236,6 +241,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([changed])
   }
 
+  @MainActor
   func testSettingsHeaderChangeMainFile() async throws {
     let h = try DocumentURI(string: "bsm:header.h")
     let cpp1 = try DocumentURI(string: "bsm:main.cpp")
@@ -292,6 +298,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([changed4])
   }
 
+  @MainActor
   func testSettingsOneMainTwoHeader() async throws {
     let h1 = try DocumentURI(string: "bsm:header1.h")
     let h2 = try DocumentURI(string: "bsm:header2.h")
@@ -340,6 +347,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([changed1, changed2])
   }
 
+  @MainActor
   func testSettingsChangedAfterUnregister() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let b = try DocumentURI(string: "bsm:b.swift")
@@ -384,6 +392,7 @@ final class BuildSystemManagerTests: XCTestCase {
     try await fulfillmentOfOrThrow([changedB])
   }
 
+  @MainActor
   func testDependenciesUpdated() async throws {
     let a = try DocumentURI(string: "bsm:a.swift")
     let mainFiles = ManualMainFilesProvider([a: [a]])
@@ -434,6 +443,7 @@ private final actor ManualMainFilesProvider: MainFilesProvider {
 }
 
 /// A simple `BuildSystem` that wraps a dictionary, for testing.
+@MainActor
 class ManualBuildSystem: BuildSystem {
   var projectRoot = try! AbsolutePath(validating: "/")
 

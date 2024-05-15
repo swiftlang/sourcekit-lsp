@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import CAtomics
 import LSPTestSupport
 import SourceKitD
 import TSCBasic
@@ -40,7 +41,7 @@ final class SourceKitDRegistryTests: XCTestCase {
     let registry = SourceKitDRegistry()
 
     @inline(never)
-    func scope(registry: SourceKitDRegistry) async throws -> Int {
+    func scope(registry: SourceKitDRegistry) async throws -> UInt32 {
       let a = await FakeSourceKitD.getOrCreate(try AbsolutePath(validating: "/a"), in: registry)
 
       await assertTrue(a === FakeSourceKitD.getOrCreate(try AbsolutePath(validating: "/a"), in: registry))
@@ -58,10 +59,10 @@ final class SourceKitDRegistryTests: XCTestCase {
   }
 }
 
-private var nextToken = 0
+private nonisolated(unsafe) var nextToken = AtomicUInt32(initialValue: 0)
 
 final class FakeSourceKitD: SourceKitD {
-  let token: Int
+  let token: UInt32
   var api: sourcekitd_api_functions_t { fatalError() }
   var keys: sourcekitd_api_keys { fatalError() }
   var requests: sourcekitd_api_requests { fatalError() }
@@ -69,8 +70,7 @@ final class FakeSourceKitD: SourceKitD {
   func addNotificationHandler(_ handler: SKDNotificationHandler) { fatalError() }
   func removeNotificationHandler(_ handler: SKDNotificationHandler) { fatalError() }
   private init() {
-    token = nextToken
-    nextToken += 1
+    token = nextToken.fetchAndIncrement()
   }
 
   static func getOrCreate(_ path: AbsolutePath, in registry: SourceKitDRegistry) async -> SourceKitD {
