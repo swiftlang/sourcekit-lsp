@@ -104,10 +104,6 @@ public final class CheckedIndex {
     }
   }
 
-  public func symbolProvider(for sourceFilePath: String) -> SymbolProviderKind? {
-    return index.symbolProvider(for: sourceFilePath)
-  }
-
   public func symbols(inFilePath path: String) -> [Symbol] {
     guard self.hasUpToDateUnit(for: URL(fileURLWithPath: path, isDirectory: false)) else {
       return []
@@ -118,6 +114,19 @@ public final class CheckedIndex {
   /// Returns all unit test symbol in unit files that reference one of the main files in `mainFilePaths`.
   public func unitTests(referencedByMainFiles mainFilePaths: [String]) -> [SymbolOccurrence] {
     return index.unitTests(referencedByMainFiles: mainFilePaths).filter { checker.isUpToDate($0.location) }
+  }
+
+  /// Returns all the files that (transitively) include the header file at the given path.
+  ///
+  /// If `crossLanguage` is set to `true`, Swift files that import a header will through a module will also be reported.
+  public func mainFilesContainingFile(uri: DocumentURI, crossLanguage: Bool = false) -> [DocumentURI] {
+    return index.mainFilesContainingFile(path: uri.pseudoPath, crossLanguage: crossLanguage).compactMap {
+      let url = URL(fileURLWithPath: $0)
+      guard checker.indexHasUpToDateUnit(for: url, index: self.index) else {
+        return nil
+      }
+      return DocumentURI(url)
+    }
   }
 
   /// Returns all unit test symbols in the index.
@@ -138,11 +147,6 @@ public final class CheckedIndex {
   /// - Important: This must only be called on a `CheckedIndex` with a `checkLevel` of `inMemoryModifiedFiles`
   public func fileHasInMemoryModifications(_ url: URL) -> Bool {
     return checker.fileHasInMemoryModifications(url)
-  }
-
-  /// Wait for IndexStoreDB to be updated based on new unit files written to disk.
-  public func pollForUnitChangesAndWait() {
-    self.index.pollForUnitChangesAndWait()
   }
 }
 
@@ -166,6 +170,15 @@ public struct UncheckedIndex: Sendable {
 
   public func checked(for checkLevel: IndexCheckLevel) -> CheckedIndex {
     return CheckedIndex(index: underlyingIndexStoreDB, checkLevel: checkLevel)
+  }
+
+  public func symbolProvider(for sourceFilePath: String) -> SymbolProviderKind? {
+    return underlyingIndexStoreDB.symbolProvider(for: sourceFilePath)
+  }
+
+  /// Wait for IndexStoreDB to be updated based on new unit files written to disk.
+  public func pollForUnitChangesAndWait() {
+    self.underlyingIndexStoreDB.pollForUnitChangesAndWait()
   }
 }
 
