@@ -371,7 +371,16 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       return nil
     }
 
-    if url.pathExtension == "h", let substituteFile = buildTarget.sources.first {
+    if !buildTarget.sources.contains(url),
+      let substituteFile = buildTarget.sources.sorted(by: { $0.path < $1.path }).first
+    {
+      // If `url` is not part of the target's source, it's most likely a header file. Fake compiler arguments for it
+      // from a substitute file within the target.
+      // Even if the file is not a header, this should give reasonable results: Say, there was a new `.cpp` file in a
+      // target and for some reason the `SwiftPMBuildSystem` doesn’t know about it. Then we would infer the target based
+      // on the file's location on disk and generate compiler arguments for it by picking a source file in that target,
+      // getting its compiler arguments and then patching up the compiler arguments by replacing the substitute file
+      // with the `.cpp` file.
       return FileBuildSettings(
         compilerArguments: try buildTarget.compileArguments(for: substituteFile),
         workingDirectory: workspacePath.pathString
@@ -406,7 +415,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       return [ConfiguredTarget(targetID: "", runDestinationID: "dummy")]
     }
 
-    if url.pathExtension == "h", let target = try? target(forHeader: path) {
+    if let target = try? inferredTarget(for: path) {
       return [target]
     }
 
@@ -614,8 +623,10 @@ extension SwiftPMBuildSystem {
     return canonicalPath == path ? nil : impl(canonicalPath)
   }
 
-  /// This finds the target the header belongs to based on its location in the file system.
-  private func target(forHeader path: AbsolutePath) throws -> ConfiguredTarget? {
+  /// This finds the target a file belongs to based on its location in the file system.
+  ///
+  /// This is primarily intended to find the target a header belongs to.
+  private func inferredTarget(for path: AbsolutePath) throws -> ConfiguredTarget? {
     func impl(_ path: AbsolutePath) throws -> ConfiguredTarget? {
       var dir = path.parentDirectory
       while !dir.isRoot {
