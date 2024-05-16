@@ -221,12 +221,14 @@ public final actor SemanticIndexManager {
   ///
   /// If `files` contains a header file, this will return a `FileToIndex` that re-indexes a main file which includes the
   /// header file to update the header file's index.
-  private func filesToIndex(toCover files: some Collection<DocumentURI>) async -> [FileToIndex] {
+  private func filesToIndex(
+    toCover files: some Collection<DocumentURI>
+  ) async -> [FileToIndex] {
     let sourceFiles = Set(await buildSystemManager.sourceFiles().map(\.uri))
     let filesToReIndex = await files.asyncCompactMap { (uri) -> FileToIndex? in
       if sourceFiles.contains(uri) {
         // If this is a source file, just index it.
-        return FileToIndex(uri: uri, mainFile: nil)
+        return .indexableFile(uri)
       }
       // Otherwise, see if it is a header file. If so, index a main file that that imports it to update header file's
       // index.
@@ -239,7 +241,7 @@ public final actor SemanticIndexManager {
       guard let mainFile else {
         return nil
       }
-      return FileToIndex(uri: uri, mainFile: mainFile)
+      return .headerFile(header: uri, mainFile: mainFile)
     }
     return filesToReIndex
   }
@@ -338,10 +340,10 @@ public final actor SemanticIndexManager {
   }
 
   /// Update the index store for the given files, assuming that their targets have already been prepared.
-  private func updateIndexStore(for files: [FileToIndex], taskID: UUID, priority: TaskPriority?) async {
+  private func updateIndexStore(for filesAndTargets: [FileAndTarget], taskID: UUID, priority: TaskPriority?) async {
     let taskDescription = AnyIndexTaskDescription(
       UpdateIndexStoreTaskDescription(
-        filesToIndex: Set(files),
+        filesToIndex: filesAndTargets,
         buildSystemManager: self.buildSystemManager,
         index: index
       )
@@ -349,22 +351,22 @@ public final actor SemanticIndexManager {
     let updateIndexStoreTask = await self.indexTaskScheduler.schedule(priority: priority, taskDescription) { newState in
       switch newState {
       case .executing:
-        for file in files {
-          if case .scheduled((taskID, let task)) = self.indexStatus[file.uri] {
-            self.indexStatus[file.uri] = .executing((taskID, task))
+        for fileAndTarget in filesAndTargets {
+          if case .scheduled((taskID, let task)) = self.indexStatus[fileAndTarget.file.sourceFile] {
+            self.indexStatus[fileAndTarget.file.sourceFile] = .executing((taskID, task))
           }
         }
       case .cancelledToBeRescheduled:
-        for file in files {
-          if case .executing((taskID, let task)) = self.indexStatus[file.uri] {
-            self.indexStatus[file.uri] = .scheduled((taskID, task))
+        for fileAndTarget in filesAndTargets {
+          if case .executing((taskID, let task)) = self.indexStatus[fileAndTarget.file.sourceFile] {
+            self.indexStatus[fileAndTarget.file.sourceFile] = .scheduled((taskID, task))
           }
         }
       case .finished:
-        for file in files {
-          switch self.indexStatus[file.uri] {
+        for fileAndTarget in filesAndTargets {
+          switch self.indexStatus[fileAndTarget.file.sourceFile] {
           case .executing((taskID, _)):
-            self.indexStatus[file.uri] = .upToDate
+            self.indexStatus[fileAndTarget.file.sourceFile] = .upToDate
           default:
             break
           }
@@ -383,24 +385,25 @@ public final actor SemanticIndexManager {
     priority: TaskPriority?
   ) async -> Task<Void, Never> {
     let outOfDateFiles = await filesToIndex(toCover: files).filter {
-      if case .upToDate = indexStatus[$0.uri] {
+      if case .upToDate = indexStatus[$0.sourceFile] {
         return false
       }
       return true
     }
-    .sorted(by: { $0.uri.stringValue < $1.uri.stringValue })  // sort files to get deterministic indexing order
+    // sort files to get deterministic indexing order
+    .sorted(by: { $0.sourceFile.stringValue < $1.sourceFile.stringValue })
 
     // Sort the targets in topological order so that low-level targets get built before high-level targets, allowing us
     // to index the low-level targets ASAP.
     var filesByTarget: [ConfiguredTarget: [FileToIndex]] = [:]
-    for file in outOfDateFiles {
-      guard let target = await buildSystemManager.canonicalConfiguredTarget(for: file.mainFile ?? file.uri) else {
+    for fileToIndex in outOfDateFiles {
+      guard let target = await buildSystemManager.canonicalConfiguredTarget(for: fileToIndex.mainFile) else {
         logger.error(
-          "Not indexing \(file.uri.forLogging) because the target could not be determined for main file \(file.mainFile?.forLogging)"
+          "Not indexing \(fileToIndex.forLogging) because the target could not be determined"
         )
         continue
       }
-      filesByTarget[target, default: []].append(file)
+      filesByTarget[target, default: []].append(fileToIndex)
     }
 
     var sortedTargets: [ConfiguredTarget] =
@@ -440,7 +443,11 @@ public final actor SemanticIndexManager {
             // https://github.com/apple/sourcekit-lsp/issues/1268
             for fileBatch in filesByTarget[target]!.partition(intoBatchesOfSize: 1) {
               taskGroup.addTask {
-                await self.updateIndexStore(for: fileBatch, taskID: taskID, priority: priority)
+                await self.updateIndexStore(
+                  for: fileBatch.map { FileAndTarget(file: $0, target: target) },
+                  taskID: taskID,
+                  priority: priority
+                )
               }
             }
           }
@@ -455,7 +462,7 @@ public final actor SemanticIndexManager {
         // setting it to `.scheduled` because we don't have an `await` call between the creation of `indexTask` and
         // this loop, so we still have exclusive access to the `SemanticIndexManager` actor and hence `updateIndexStore`
         // can't execute until we have set all index statuses to `.scheduled`.
-        indexStatus[file.uri] = .scheduled((taskID, indexTask))
+        indexStatus[file.sourceFile] = .scheduled((taskID, indexTask))
       }
       indexTasksWereScheduled(filesToIndex.count)
     }
