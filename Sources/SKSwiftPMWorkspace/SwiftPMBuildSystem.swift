@@ -63,6 +63,14 @@ private func getDefaultToolchain(_ toolchainRegistry: ToolchainRegistry) async -
   return await toolchainRegistry.default
 }
 
+fileprivate extension ConfiguredTarget {
+  init(_ buildTarget: any SwiftBuildTarget) {
+    self.init(targetID: buildTarget.name, runDestinationID: "dummy")
+  }
+
+  static let forPackageManifest = ConfiguredTarget(targetID: "", runDestinationID: "")
+}
+
 /// Swift Package Manager build system and workspace support.
 ///
 /// This class implements the `BuildSystem` interface to provide the build settings for a Swift
@@ -101,10 +109,10 @@ public actor SwiftPMBuildSystem {
   var fileToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
   var sourceDirToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
 
-  /// Maps target ids (aka. `ConfiguredTarget.targetID`) to their SwiftPM build target as well as an index in their
-  /// topological sorting. Targets with lower index are more low level, ie. targets with higher indices depend on
-  /// targets with lower indices.
-  var targets: [String: (index: Int, buildTarget: SwiftBuildTarget)] = [:]
+  /// Maps configured targets ids to their SwiftPM build target as well as an index in their topological sorting.
+  ///
+  /// Targets with lower index are more low level, ie. targets with higher indices depend on targets with lower indices.
+  var targets: [ConfiguredTarget: (index: Int, buildTarget: SwiftBuildTarget)] = [:]
 
   /// The URIs for which the delegate has registered for change notifications,
   /// mapped to the language the delegate specified when registering for change notifications.
@@ -289,7 +297,7 @@ extension SwiftPMBuildSystem {
 
     self.targets = Dictionary(
       try buildDescription.allTargetsInTopologicalOrder(in: modulesGraph).enumerated().map { (index, target) in
-        return (key: target.name, (index, target))
+        return (key: ConfiguredTarget(target), (index, target))
       },
       uniquingKeysWith: { first, second in
         logger.fault("Found two targets with the same name \(first.buildTarget.name)")
@@ -362,11 +370,11 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       return nil
     }
 
-    if configuredTarget.targetID == "" {
+    if configuredTarget == .forPackageManifest {
       return try settings(forPackageManifest: path)
     }
 
-    guard let buildTarget = self.targets[configuredTarget.targetID]?.buildTarget else {
+    guard let buildTarget = self.targets[configuredTarget]?.buildTarget else {
       logger.error("Did not find target with name \(configuredTarget.targetID)")
       return nil
     }
@@ -397,13 +405,13 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
 
     if let target = try? buildTarget(for: path) {
-      return [ConfiguredTarget(targetID: target.name, runDestinationID: "dummy")]
+      return [ConfiguredTarget(target)]
     }
 
     if path.basename == "Package.swift" {
       // We use an empty target name to represent the package manifest since an empty target name is not valid for any
       // user-defined target.
-      return [ConfiguredTarget(targetID: "", runDestinationID: "dummy")]
+      return [ConfiguredTarget.forPackageManifest]
     }
 
     if url.pathExtension == "h", let target = try? target(forHeader: path) {
@@ -415,9 +423,30 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
   public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return targets.sorted { (lhs: ConfiguredTarget, rhs: ConfiguredTarget) -> Bool in
-      let lhsIndex = self.targets[lhs.targetID]?.index ?? self.targets.count
-      let rhsIndex = self.targets[lhs.targetID]?.index ?? self.targets.count
+      let lhsIndex = self.targets[lhs]?.index ?? self.targets.count
+      let rhsIndex = self.targets[lhs]?.index ?? self.targets.count
       return lhsIndex < rhsIndex
+    }
+  }
+
+  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+    let targetIndices = targets.compactMap { self.targets[$0]?.index }
+    let minimumTargetIndex: Int?
+    if targetIndices.count == targets.count {
+      minimumTargetIndex = targetIndices.min()
+    } else {
+      // One of the targets didn't have an entry in self.targets. We don't know what might depend on it.
+      minimumTargetIndex = nil
+    }
+
+    // Files that occur before the target in the topological sorting don't depend on it.
+    // Ideally, we should consult the dependency graph here for more accurate dependency analysis instead of relying on
+    // a flattened list (https://github.com/apple/sourcekit-lsp/issues/1312).
+    return self.targets.compactMap { (configuredTarget, value) -> ConfiguredTarget? in
+      if let minimumTargetIndex, value.index <= minimumTargetIndex {
+        return nil
+      }
+      return configuredTarget
     }
   }
 
@@ -427,7 +456,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     for target in targets {
       try await prepare(singleTarget: target)
     }
-    let filesInPreparedTargets = targets.flatMap { self.targets[$0.targetID]?.buildTarget.sources ?? [] }
+    let filesInPreparedTargets = targets.flatMap { self.targets[$0]?.buildTarget.sources ?? [] }
     await fileDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets.map(DocumentURI.init)))
   }
 
@@ -620,7 +649,7 @@ extension SwiftPMBuildSystem {
       var dir = path.parentDirectory
       while !dir.isRoot {
         if let buildTarget = sourceDirToTarget[dir] {
-          return ConfiguredTarget(targetID: buildTarget.name, runDestinationID: "dummy")
+          return ConfiguredTarget(buildTarget)
         }
         dir = dir.parentDirectory
       }

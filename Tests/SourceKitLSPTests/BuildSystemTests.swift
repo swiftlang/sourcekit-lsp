@@ -69,6 +69,10 @@ actor TestBuildSystem: BuildSystem {
     return nil
   }
 
+  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+    return nil
+  }
+
   func registerForChangeNotifications(for uri: DocumentURI) async {
     watchedFiles.insert(uri)
   }

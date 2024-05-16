@@ -135,6 +135,10 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     return nil
   }
 
+  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+    return nil
+  }
+
   public func registerForChangeNotifications(for uri: DocumentURI) async {
     self.watchedFiles.insert(uri)
   }

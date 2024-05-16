@@ -126,12 +126,17 @@ extension BuildSystemManager {
     }
   }
 
+  /// Returns all the `ConfiguredTarget`s that the document is part of.
+  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+    return await buildSystem?.configuredTargets(for: document) ?? []
+  }
+
   /// Returns the `ConfiguredTarget` that should be used for semantic functionality of the given document.
   public func canonicalConfiguredTarget(for document: DocumentURI) async -> ConfiguredTarget? {
     // Sort the configured targets to deterministically pick the same `ConfiguredTarget` every time.
     // We could allow the user to specify a preference of one target over another. For now this is not necessary because
     // no build system currently returns multiple targets for a source file.
-    return await buildSystem?.configuredTargets(for: document)
+    return await configuredTargets(for: document)
       .sorted { ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID) }
       .first
   }
@@ -218,6 +223,10 @@ extension BuildSystemManager {
 
   public func topologicalSort(of targets: [ConfiguredTarget]) async throws -> [ConfiguredTarget]? {
     return await buildSystem?.topologicalSort(of: targets)
+  }
+
+  public func targets(dependingOn targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
+    return await buildSystem?.targets(dependingOn: targets)
   }
 
   public func prepare(targets: [ConfiguredTarget]) async throws {
