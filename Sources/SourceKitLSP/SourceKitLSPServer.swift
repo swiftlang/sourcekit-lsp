@@ -994,6 +994,16 @@ extension SourceKitLSPServer: MessageHandler {
 
     logger.log("Received request \(id): \(params.forLogging)")
 
+    if let textDocumentRequest = params as? any TextDocumentRequest {
+      // When we are requesting information from a document, poke preparation of its target. We don't want to wait for
+      // the preparation to finish because that would cause too big a delay.
+      // In practice, while the user is working on a file, we'll get a text document request for it on a regular basis,
+      // which prepares the files. For files that are open but aren't being worked on (eg. a different tab), we don't
+      // get requests, ensuring that we don't unnecessarily prepare them.
+      let workspace = await self.workspaceForDocument(uri: textDocumentRequest.textDocument.uri)
+      await workspace?.semanticIndexManager?.schedulePreparation(of: textDocumentRequest.textDocument.uri)
+    }
+
     switch request {
     case let request as RequestAndReply<InitializeRequest>:
       await request.reply { try await initialize(request.params) }
@@ -1538,6 +1548,7 @@ extension SourceKitLSPServer {
       )
       return
     }
+    await workspace.semanticIndexManager?.schedulePreparation(of: uri)
     await openDocument(notification, workspace: workspace)
   }
 
@@ -1593,6 +1604,7 @@ extension SourceKitLSPServer {
       )
       return
     }
+    await workspace.semanticIndexManager?.schedulePreparation(of: uri)
 
     // If the document is ready, we can handle the change right now.
     documentManager.edit(notification)

@@ -128,12 +128,9 @@ public actor SwiftPMBuildSystem {
     logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
   })
 
-  /// Whether the SwiftPMBuildSystem may modify `Package.resolved` or not.
-  ///
-  /// This is `false` if the `SwiftPMBuildSystem` is pointed at a `.index-build` directory that's independent of the
-  /// user's build. In this case `SwiftPMBuildSystem` is allowed to clone repositories even if no `Package.resolved`
-  /// exists.
-  private let forceResolvedVersions: Bool
+  /// Whether the `SwiftPMBuildSystem` is pointed at a `.index-build` directory that's independent of the
+  /// user's build.
+  private let isForIndexBuild: Bool
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
@@ -148,13 +145,13 @@ public actor SwiftPMBuildSystem {
     toolchainRegistry: ToolchainRegistry,
     fileSystem: FileSystem = localFileSystem,
     buildSetup: BuildSetup,
-    forceResolvedVersions: Bool,
+    isForIndexBuild: Bool,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void = { _ in }
   ) async throws {
     self.workspacePath = workspacePath
     self.fileSystem = fileSystem
     self.toolchainRegistry = toolchainRegistry
-    self.forceResolvedVersions = forceResolvedVersions
+    self.isForIndexBuild = isForIndexBuild
 
     guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem) else {
       throw Error.noManifest(workspacePath: workspacePath)
@@ -234,7 +231,7 @@ public actor SwiftPMBuildSystem {
     url: URL,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
-    forceResolvedVersions: Bool,
+    isForIndexBuild: Bool,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
   ) async {
     do {
@@ -243,7 +240,7 @@ public actor SwiftPMBuildSystem {
         toolchainRegistry: toolchainRegistry,
         fileSystem: localFileSystem,
         buildSetup: buildSetup,
-        forceResolvedVersions: forceResolvedVersions,
+        isForIndexBuild: isForIndexBuild,
         reloadPackageStatusCallback: reloadPackageStatusCallback
       )
     } catch Error.noManifest {
@@ -272,7 +269,7 @@ extension SwiftPMBuildSystem {
 
     let modulesGraph = try self.workspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
-      forceResolvedVersions: forceResolvedVersions,
+      forceResolvedVersions: !isForIndexBuild,
       observabilityScope: observabilitySystem.topScope
     )
 
@@ -430,6 +427,8 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     for target in targets {
       try await prepare(singleTarget: target)
     }
+    let filesInPreparedTargets = targets.flatMap { self.targets[$0.targetID]?.buildTarget.sources ?? [] }
+    await fileDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets.map(DocumentURI.init)))
   }
 
   private func prepare(singleTarget target: ConfiguredTarget) async throws {
@@ -561,9 +560,9 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     // The file watching here is somewhat fragile as well because it assumes that the `.swiftmodule` files are being
     // written to a directory within the workspace root. This is not necessarily true if the user specifies a build
     // directory outside the source tree.
-    // All of this shouldn't be necessary once we have background preparation, in which case we know when preparation of
-    // a target has finished.
-    if events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" }) {
+    // If we have background indexing enabled, this is not necessary because we call `fileDependenciesUpdated` when
+    // preparation of a target finishes.
+    if !isForIndexBuild, events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" }) {
       filesWithUpdatedDependencies.formUnion(self.fileToTarget.keys.map { DocumentURI($0.asURL) })
     }
     await self.fileDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)

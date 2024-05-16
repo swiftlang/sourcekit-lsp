@@ -450,7 +450,6 @@ final class BackgroundIndexingTests: XCTestCase {
         #include "Header.h"
         """,
       ],
-      build: true,
       serverOptions: backgroundIndexingOptions
     )
 
@@ -505,5 +504,77 @@ final class BackgroundIndexingTests: XCTestCase {
         )
       ]
     )
+  }
+
+  func testPrepareTarget() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/MyFile.swift": "",
+        "LibB/MyOtherFile.swift": """
+        import LibA
+        func bar() {
+          1️⃣foo2️⃣()
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      serverOptions: backgroundIndexingOptions
+    )
+
+    let (uri, _) = try project.openDocument("MyOtherFile.swift")
+    let initialDiagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .full(let initialDiagnostics) = initialDiagnostics else {
+      XCTFail("Expected full diagnostics")
+      return
+    }
+    XCTAssertNotEqual(initialDiagnostics.items, [])
+
+    try "public func foo() {}".write(
+      to: try XCTUnwrap(project.uri(for: "MyFile.swift").fileURL),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: try project.uri(for: "MyFile.swift"), type: .changed)])
+    )
+
+    let diagnosticRefreshReceived = self.expectation(description: "Received diagnostic refresh request")
+    project.testClient.handleNextRequest { (_: DiagnosticsRefreshRequest) in
+      diagnosticRefreshReceived.fulfill()
+      return VoidResponse()
+    }
+
+    // Send a document request for `uri` to trigger re-preparation of its target. We don't actually care about the
+    // response for this request. Instead, we wait until SourceKit-LSP sends us a `DiagnosticsRefreshRequest`,
+    // indicating that the target of `uri` has been prepared.
+    _ = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    try await fulfillmentOfOrThrow([diagnosticRefreshReceived])
+
+    let updatedDiagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .full(let updatedDiagnostics) = updatedDiagnostics else {
+      XCTFail("Expected full diagnostics")
+      return
+    }
+    XCTAssertEqual(updatedDiagnostics.items, [])
   }
 }
