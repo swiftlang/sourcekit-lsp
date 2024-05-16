@@ -22,6 +22,16 @@ import class TSCBasic.Process
 
 private nonisolated(unsafe) var updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
 
+/// Information about a file that should be indexed.
+///
+/// The URI of the file whose index should be updated. This could be a header file that can't actually be indexed on
+/// its own. In that case `mainFile` is the file that should be indexed, which will effectively update the index of
+/// `uri`.
+struct FileToIndex: Hashable {
+  let uri: DocumentURI
+  let mainFile: DocumentURI?
+}
+
 /// Describes a task to index a set of source files.
 ///
 /// This task description can be scheduled in a `TaskScheduler`.
@@ -30,10 +40,14 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   public let id = updateIndexStoreIDForLogging.fetchAndIncrement()
 
   /// The files that should be indexed.
-  private let filesToIndex: Set<DocumentURI>
+  private let filesToIndex: Set<FileToIndex>
 
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
+
+  /// A reference to the underlying index store. Used to check if the index is already up-to-date for a file, in which
+  /// case we don't need to index it again.
+  private let index: UncheckedIndex
 
   /// The task is idempotent because indexing the same file twice produces the same result as indexing it once.
   public var isIdempotent: Bool { true }
@@ -49,11 +63,13 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   init(
-    filesToIndex: Set<DocumentURI>,
-    buildSystemManager: BuildSystemManager
+    filesToIndex: Set<FileToIndex>,
+    buildSystemManager: BuildSystemManager,
+    index: UncheckedIndex
   ) {
     self.filesToIndex = filesToIndex
     self.buildSystemManager = buildSystemManager
+    self.index = index
   }
 
   public func execute() async {
@@ -66,12 +82,12 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     ) {
       let startDate = Date()
 
-      let filesToIndexDescription = filesToIndex.map { $0.fileURL?.lastPathComponent ?? $0.stringValue }
+      let filesToIndexDescription = filesToIndex.map { $0.uri.fileURL?.lastPathComponent ?? $0.uri.stringValue }
         .joined(separator: ", ")
       logger.log(
         "Starting updating index store with priority \(Task.currentPriority.rawValue, privacy: .public): \(filesToIndexDescription)"
       )
-      let filesToIndex = filesToIndex.sorted(by: { $0.stringValue < $1.stringValue })
+      let filesToIndex = filesToIndex.sorted(by: { $0.uri.stringValue < $1.uri.stringValue })
       // TODO (indexing): Once swiftc supports it, we should group files by target and index files within the same
       // target together in one swiftc invocation.
       // https://github.com/apple/sourcekit-lsp/issues/1268
@@ -104,44 +120,60 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     }
   }
 
-  private func updateIndexStoreForSingleFile(_ uri: DocumentURI) async {
-    guard let language = await buildSystemManager.defaultLanguage(for: uri) else {
-      logger.error("Not indexing \(uri.forLogging) because its language could not be determined")
+  private func updateIndexStoreForSingleFile(_ fileToIndex: FileToIndex) async {
+    let mainFileUri = fileToIndex.mainFile ?? fileToIndex.uri
+    guard let fileToIndexUrl = fileToIndex.uri.fileURL else {
+      // The URI is not a file, so there's nothing we can index.
+      return
+    }
+    guard
+      !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: fileToIndexUrl, mainFile: fileToIndex.mainFile?.fileURL)
+    else {
+      logger.debug("Not indexing \(fileToIndex.uri.forLogging) because index has an up-to-date unit")
+      // We consider a file's index up-to-date if we have any up-to-date unit. Changing build settings does not
+      // invalidate the up-to-date status of the index.
+      return
+    }
+    if let mainFile = fileToIndex.mainFile {
+      logger.log("Updating index store of \(fileToIndex.uri.forLogging) using main file \(mainFile.forLogging)")
+    }
+    guard let language = await buildSystemManager.defaultLanguage(for: mainFileUri) else {
+      logger.error("Not indexing \(fileToIndex.uri.forLogging) because its language could not be determined")
       return
     }
     let buildSettings = await buildSystemManager.buildSettingsInferredFromMainFile(
-      for: uri,
+      for: mainFileUri,
       language: language,
       logBuildSettings: false
     )
     guard let buildSettings else {
-      logger.error("Not indexing \(uri.forLogging) because it has no compiler arguments")
+      logger.error("Not indexing \(fileToIndex.uri.forLogging) because it has no compiler arguments")
       return
     }
-    guard let toolchain = await buildSystemManager.toolchain(for: uri, language) else {
+    guard let toolchain = await buildSystemManager.toolchain(for: mainFileUri, language) else {
       logger.error(
-        "Not updating index store for \(uri.forLogging) because no toolchain could be determined for the document"
+        "Not updating index store for \(mainFileUri.forLogging) because no toolchain could be determined for the document"
       )
       return
     }
     switch language {
     case .swift:
       do {
-        try await updateIndexStore(forSwiftFile: uri, buildSettings: buildSettings, toolchain: toolchain)
+        try await updateIndexStore(forSwiftFile: mainFileUri, buildSettings: buildSettings, toolchain: toolchain)
       } catch {
-        logger.error("Updating index store for \(uri) failed: \(error.forLogging)")
-        BuildSettingsLogger.log(settings: buildSettings, for: uri)
+        logger.error("Updating index store for \(fileToIndex.uri) failed: \(error.forLogging)")
+        BuildSettingsLogger.log(settings: buildSettings, for: mainFileUri)
       }
     case .c, .cpp, .objective_c, .objective_cpp:
       do {
-        try await updateIndexStore(forClangFile: uri, buildSettings: buildSettings, toolchain: toolchain)
+        try await updateIndexStore(forClangFile: mainFileUri, buildSettings: buildSettings, toolchain: toolchain)
       } catch {
-        logger.error("Updating index store for \(uri) failed: \(error.forLogging)")
-        BuildSettingsLogger.log(settings: buildSettings, for: uri)
+        logger.error("Updating index store for \(fileToIndex.uri) failed: \(error.forLogging)")
+        BuildSettingsLogger.log(settings: buildSettings, for: mainFileUri)
       }
     default:
       logger.error(
-        "Not updating index store for \(uri) because it is a language that is not supported by background indexing"
+        "Not updating index store for \(fileToIndex.uri) because it is a language that is not supported by background indexing"
       )
     }
   }
