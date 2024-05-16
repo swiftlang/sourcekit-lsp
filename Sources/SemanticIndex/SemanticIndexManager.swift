@@ -115,7 +115,7 @@ public final actor SemanticIndexManager {
   /// Returns immediately after scheduling that task.
   ///
   /// Indexing is being performed with a low priority.
-  public func scheduleBackgroundIndex(files: some Collection<DocumentURI>) async {
+  private func scheduleBackgroundIndex(files: some Collection<DocumentURI>) async {
     await self.index(files: files, priority: .low)
   }
 
@@ -127,7 +127,7 @@ public final actor SemanticIndexManager {
     generateBuildGraphTask = Task(priority: .low) {
       await orLog("Generating build graph") { try await self.buildSystemManager.generateBuildGraph() }
       let index = index.checked(for: .modifiedFiles)
-      let filesToIndex = await self.buildSystemManager.sourceFiles().map(\.uri)
+      let filesToIndex = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
         .filter { uri in
           guard let url = uri.fileURL else {
             // The URI is not a file, so there's nothing we can index.
@@ -185,31 +185,41 @@ public final actor SemanticIndexManager {
   }
 
   public func filesDidChange(_ events: [FileEvent]) async {
-    let filesToReIndex = await filesToReIndex(changedFiles: events.map(\.uri))
-
+    // We only re-index the files that were changed and don't re-index any of their dependencies. See the
+    // `Documentation/Files_To_Reindex.md` file.
+    let changedFiles = events.map(\.uri)
     // Reset the index status for these files so they get re-indexed by `index(files:priority:)`
-    for uri in filesToReIndex {
+    for uri in changedFiles {
       indexStatus[uri] = nil
     }
-    await scheduleBackgroundIndex(files: filesToReIndex)
+    await scheduleBackgroundIndex(files: changedFiles)
   }
 
-  /// Returns the files that should be re-indexed if the given files have been modified.
+  /// Returns the files that should be indexed to get up-to-date index information for the given files.
   ///
-  /// - SeeAlso: The `Documentation/Files_To_Reindex.md` file.
-  private func filesToReIndex(changedFiles: [DocumentURI]) async -> Set<DocumentURI> {
+  /// If `files` contains a header file, this will return a `FileToIndex` that re-indexes a main file which includes the
+  /// header file to update the header file's index.
+  private func filesToIndex(toCover files: some Collection<DocumentURI>) async -> [FileToIndex] {
     let sourceFiles = Set(await buildSystemManager.sourceFiles().map(\.uri))
-    let filesToReIndex = await changedFiles.asyncMap { (uri) -> [DocumentURI] in
+    let filesToReIndex = await files.asyncCompactMap { (uri) -> FileToIndex? in
       if sourceFiles.contains(uri) {
-        // If this is a source file, re-index it
-        return [uri]
+        // If this is a source file, just index it.
+        return FileToIndex(uri: uri, mainFile: nil)
       }
-      // Otherwise, see if it is a header file. If so, re-index all the files that import it.
-      // We don't want to re-index `.swift` files that depend on a header file, similar to how we don't re-index a Swift
-      // module if one of its dependent modules has changed.
-      return index.checked(for: .deletedFiles).mainFilesContainingFile(uri: uri, crossLanguage: false)
-    }.flatMap { $0 }
-    return Set(filesToReIndex)
+      // Otherwise, see if it is a header file. If so, index a main file that that imports it to update header file's
+      // index.
+      // Deterministically pick a main file. This ensures that we always pick the same main file for a header. This way,
+      // if we request the same header to be indexed twice, we'll pick the same unit file the second time around,
+      // realize that its timestamp is later than the modification date of the header and we don't need to re-index.
+      let mainFile = index.checked(for: .deletedFiles)
+        .mainFilesContainingFile(uri: uri, crossLanguage: false)
+        .sorted(by: { $0.stringValue < $1.stringValue }).first
+      guard let mainFile else {
+        return nil
+      }
+      return FileToIndex(uri: uri, mainFile: mainFile)
+    }
+    return filesToReIndex
   }
 
   // MARK: - Helper functions
@@ -227,24 +237,25 @@ public final actor SemanticIndexManager {
   }
 
   /// Update the index store for the given files, assuming that their targets have already been prepared.
-  private func updateIndexStore(for files: [DocumentURI], priority: TaskPriority?) async {
+  private func updateIndexStore(for files: [FileToIndex], priority: TaskPriority?) async {
     let taskDescription = AnyIndexTaskDescription(
       UpdateIndexStoreTaskDescription(
         filesToIndex: Set(files),
-        buildSystemManager: self.buildSystemManager
+        buildSystemManager: self.buildSystemManager,
+        index: index
       )
     )
     let updateIndexStoreTask = await self.indexTaskScheduler.schedule(priority: priority, taskDescription) { newState in
       switch newState {
       case .executing:
         for file in files {
-          if case .scheduled(let task) = self.indexStatus[file] {
-            self.indexStatus[file] = .executing(task)
+          if case .scheduled(let task) = self.indexStatus[file.uri] {
+            self.indexStatus[file.uri] = .executing(task)
           } else {
             logger.fault(
               """
-              Index status of \(file) is in an unexpected state \
-              '\(self.indexStatus[file]?.description ?? "<nil>", privacy: .public)' when update index store task \
+              Index status of \(file.uri) is in an unexpected state \
+              '\(self.indexStatus[file.uri]?.description ?? "<nil>", privacy: .public)' when update index store task \
               started executing
               """
             )
@@ -252,13 +263,13 @@ public final actor SemanticIndexManager {
         }
       case .cancelledToBeRescheduled:
         for file in files {
-          if case .executing(let task) = self.indexStatus[file] {
-            self.indexStatus[file] = .scheduled(task)
+          if case .executing(let task) = self.indexStatus[file.uri] {
+            self.indexStatus[file.uri] = .scheduled(task)
           } else {
             logger.fault(
               """
-              Index status of \(file) is in an unexpected state \
-              '\(self.indexStatus[file]?.description ?? "<nil>", privacy: .public)' when update index store task \
+              Index status of \(file.uri) is in an unexpected state \
+              '\(self.indexStatus[file.uri]?.description ?? "<nil>", privacy: .public)' when update index store task \
               is cancelled to be rescheduled.
               """
             )
@@ -266,7 +277,7 @@ public final actor SemanticIndexManager {
         }
       case .finished:
         for file in files {
-          self.indexStatus[file] = .upToDate
+          self.indexStatus[file.uri] = .upToDate
         }
         self.indexTaskDidFinish()
       }
@@ -279,20 +290,20 @@ public final actor SemanticIndexManager {
   /// The returned task finishes when all files are indexed.
   @discardableResult
   private func index(files: some Collection<DocumentURI>, priority: TaskPriority?) async -> Task<Void, Never> {
-    let outOfDateFiles = files.filter {
-      if case .upToDate = indexStatus[$0] {
+    let outOfDateFiles = await filesToIndex(toCover: files).filter {
+      if case .upToDate = indexStatus[$0.uri] {
         return false
       }
       return true
     }
-    .sorted(by: { $0.stringValue < $1.stringValue })  // sort files to get deterministic indexing order
+    .sorted(by: { $0.uri.stringValue < $1.uri.stringValue })  // sort files to get deterministic indexing order
 
     // Sort the targets in topological order so that low-level targets get built before high-level targets, allowing us
     // to index the low-level targets ASAP.
-    var filesByTarget: [ConfiguredTarget: [DocumentURI]] = [:]
+    var filesByTarget: [ConfiguredTarget: [FileToIndex]] = [:]
     for file in outOfDateFiles {
-      guard let target = await buildSystemManager.canonicalConfiguredTarget(for: file) else {
-        logger.error("Not indexing \(file.forLogging) because the target could not be determined")
+      guard let target = await buildSystemManager.canonicalConfiguredTarget(for: file.uri) else {
+        logger.error("Not indexing \(file.uri.forLogging) because the target could not be determined")
         continue
       }
       filesByTarget[target, default: []].append(file)
@@ -349,7 +360,7 @@ public final actor SemanticIndexManager {
         // setting it to `.scheduled` because we don't have an `await` call between the creation of `indexTask` and
         // this loop, so we still have exclusive access to the `SemanticIndexManager` actor and hence `updateIndexStore`
         // can't execute until we have set all index statuses to `.scheduled`.
-        indexStatus[file] = .scheduled(indexTask)
+        indexStatus[file.uri] = .scheduled(indexTask)
       }
       indexTasksWereScheduled(filesToIndex.count)
     }
