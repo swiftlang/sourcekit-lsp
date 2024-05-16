@@ -177,13 +177,9 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
   private let parentTypeNames: [String]
 
   /// The discovered test items.
-  private var result: [AnnotatedTestItem] = []
+  private var result: [TestItem] = []
 
-  private init(
-    snapshot: DocumentSnapshot,
-    allTestsDisabled: Bool,
-    parentTypeNames: [String]
-  ) {
+  private init(snapshot: DocumentSnapshot, allTestsDisabled: Bool, parentTypeNames: [String]) {
     self.snapshot = snapshot
     self.allTestsDisabled = allTestsDisabled
     self.parentTypeNames = parentTypeNames
@@ -194,7 +190,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
   public static func findTestSymbols(
     in snapshot: DocumentSnapshot,
     syntaxTreeManager: SyntaxTreeManager
-  ) async -> [AnnotatedTestItem] {
+  ) async -> [TestItem] {
     guard snapshot.text.contains("Suite") || snapshot.text.contains("Test") else {
       // If the file contains swift-testing tests, it must contain a `@Suite` or `@Test` attribute.
       // Only check for the attribute name because the attribute may be module qualified and contain an arbitrary amount
@@ -203,11 +199,7 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
       return []
     }
     let syntaxTree = await syntaxTreeManager.syntaxTree(for: snapshot)
-    let visitor = SyntacticSwiftTestingTestScanner(
-      snapshot: snapshot,
-      allTestsDisabled: false,
-      parentTypeNames: []
-    )
+    let visitor = SyntacticSwiftTestingTestScanner(snapshot: snapshot, allTestsDisabled: false, parentTypeNames: [])
     visitor.walk(syntaxTree)
     return visitor.result
   }
@@ -249,18 +241,14 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
     }
 
     let range = snapshot.range(of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia)
-    // Members won't be extensions since extensions will only be at the top level.
-    let testItem = AnnotatedTestItem(
-      testItem: TestItem(
-        id: (parentTypeNames + typeNames).joined(separator: "/"),
-        label: attributeData?.displayName ?? typeNames.last!,
-        disabled: (attributeData?.isDisabled ?? false) || allTestsDisabled,
-        style: TestStyle.swiftTesting,
-        location: Location(uri: snapshot.uri, range: range),
-        children: memberScanner.result.map(\.testItem),
-        tags: attributeData?.tags.map(TestTag.init(id:)) ?? []
-      ),
-      isExtension: node.is(ExtensionDeclSyntax.self)
+    let testItem = TestItem(
+      id: (parentTypeNames + typeNames).joined(separator: "/"),
+      label: attributeData?.displayName ?? typeNames.last!,
+      disabled: (attributeData?.isDisabled ?? false) || allTestsDisabled,
+      style: TestStyle.swiftTesting,
+      location: Location(uri: snapshot.uri, range: range),
+      children: memberScanner.result,
+      tags: attributeData?.tags.map(TestTag.init(id:)) ?? []
     )
     result.append(testItem)
     return .skipChildren
@@ -307,17 +295,14 @@ final class SyntacticSwiftTestingTestScanner: SyntaxVisitor {
       node.name.text + "(" + node.signature.parameterClause.parameters.map { "\($0.firstName.text):" }.joined() + ")"
 
     let range = snapshot.range(of: node.positionAfterSkippingLeadingTrivia..<node.endPositionBeforeTrailingTrivia)
-    let testItem = AnnotatedTestItem(
-      testItem: TestItem(
-        id: (parentTypeNames + [name]).joined(separator: "/"),
-        label: attributeData.displayName ?? name,
-        disabled: attributeData.isDisabled || allTestsDisabled,
-        style: TestStyle.swiftTesting,
-        location: Location(uri: snapshot.uri, range: range),
-        children: [],
-        tags: attributeData.tags.map(TestTag.init(id:))
-      ),
-      isExtension: false
+    let testItem = TestItem(
+      id: (parentTypeNames + [name]).joined(separator: "/"),
+      label: attributeData.displayName ?? name,
+      disabled: attributeData.isDisabled || allTestsDisabled,
+      style: TestStyle.swiftTesting,
+      location: Location(uri: snapshot.uri, range: range),
+      children: [],
+      tags: attributeData.tags.map(TestTag.init(id:))
     )
     result.append(testItem)
     return .visitChildren
