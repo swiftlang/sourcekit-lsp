@@ -16,13 +16,14 @@ import LanguageServerProtocol
 import SKCore
 
 /// Describes the state of indexing for a single source file
-private enum FileIndexStatus {
+private enum IndexStatus {
   /// The index is up-to-date.
   case upToDate
-  /// The file is not up to date and we have scheduled a task to index it but that index operation hasn't been started
-  /// yet.
+  /// The file or target is not up to date and we have scheduled a task to update the index store for the file / prepare
+  /// the target it but that index operation hasn't been started yet.
   case scheduled(Task<Void, Never>)
-  /// We are currently actively indexing this file, ie. we are running a subprocess that indexes the file.
+  /// We are currently actively updating the index store for the file / preparing the target, ie. we are running a
+  /// subprocess that updates the index store / prepares a target.
   case executing(Task<Void, Never>)
 
   var description: String {
@@ -46,14 +47,19 @@ public final actor SemanticIndexManager {
   /// The build system manager that is used to get compiler arguments for a file.
   private let buildSystemManager: BuildSystemManager
 
-  /// The index status of the source files that the `SemanticIndexManager` knows about.
-  ///
-  /// Files that have never been indexed are not in this dictionary.
-  private var indexStatus: [DocumentURI: FileIndexStatus] = [:]
-
   /// The task to generate the build graph (resolving package dependencies, generating the build description,
   /// ...). `nil` if no build graph is currently being generated.
   private var generateBuildGraphTask: Task<Void, Never>?
+
+  /// The preparation status of the targets that the `SemanticIndexManager` has started preparation for.
+  ///
+  /// Targets will be removed from this dictionary when they are no longer known to be up-to-date.
+  private var preparationStatus: [ConfiguredTarget: IndexStatus] = [:]
+
+  /// The index status of the source files that the `SemanticIndexManager` knows about.
+  ///
+  /// Files will be removed from this dictionary if their index is no longer up-to-date.
+  private var indexStatus: [DocumentURI: IndexStatus] = [:]
 
   /// The `TaskScheduler` that manages the scheduling of index tasks. This is shared among all `SemanticIndexManager`s
   /// in the process, to ensure that we don't schedule more index operations than processor cores from multiple
@@ -79,13 +85,13 @@ public final actor SemanticIndexManager {
   ///
   /// See `FileIndexStatus` for the distinction between `scheduled` and `executing`.
   public var inProgressIndexTasks: (scheduled: [DocumentURI], executing: [DocumentURI]) {
-    let scheduled = indexStatus.compactMap { (uri: DocumentURI, status: FileIndexStatus) in
+    let scheduled = indexStatus.compactMap { (uri: DocumentURI, status: IndexStatus) in
       if case .scheduled = status {
         return uri
       }
       return nil
     }
-    let inProgress = indexStatus.compactMap { (uri: DocumentURI, status: FileIndexStatus) in
+    let inProgress = indexStatus.compactMap { (uri: DocumentURI, status: IndexStatus) in
       if case .executing = status {
         return uri
       }
@@ -192,6 +198,11 @@ public final actor SemanticIndexManager {
     for uri in changedFiles {
       indexStatus[uri] = nil
     }
+    // Clear the preparation status so that we re-prepare them. If the target hasn't been affected by the file changes,
+    // we rely on a null build during preparation to fast re-preparation.
+    // Ideally, we would have more fine-grained dependency management here and only mark those targets out-of-date that
+    // might be affected by the changed files.
+    preparationStatus.removeAll()
     await scheduleBackgroundIndex(files: changedFiles)
   }
 
@@ -226,14 +237,59 @@ public final actor SemanticIndexManager {
 
   /// Prepare the given targets for indexing
   private func prepare(targets: [ConfiguredTarget], priority: TaskPriority?) async {
+    let targetsToPrepare = targets.filter {
+      if case .upToDate = preparationStatus[$0] {
+        return false
+      }
+      return true
+    }
     let taskDescription = AnyIndexTaskDescription(
       PreparationTaskDescription(
-        targetsToPrepare: targets,
+        targetsToPrepare: targetsToPrepare,
         buildSystemManager: self.buildSystemManager
       )
     )
-    await self.indexTaskScheduler.schedule(priority: priority, taskDescription).value
-    self.indexTaskDidFinish()
+    let preparationTask = await self.indexTaskScheduler.schedule(priority: priority, taskDescription) { newState in
+      switch newState {
+      case .executing:
+        for target in targetsToPrepare {
+          if case .scheduled(let task) = self.preparationStatus[target] {
+            self.preparationStatus[target] = .executing(task)
+          } else {
+            logger.fault(
+              """
+              Preparation status of \(target.forLogging) is in an unexpected state \
+              '\(self.preparationStatus[target]?.description ?? "<nil>", privacy: .public)' when preparation task \
+              started executing
+              """
+            )
+          }
+        }
+      case .cancelledToBeRescheduled:
+        for target in targetsToPrepare {
+          if case .executing(let task) = self.preparationStatus[target] {
+            self.preparationStatus[target] = .scheduled(task)
+          } else {
+            logger.fault(
+              """
+              Preparation status of \(target.forLogging) is in an unexpected state \
+              '\(self.preparationStatus[target]?.description ?? "<nil>", privacy: .public)' when preparation task \
+              is cancelled to be rescheduled.
+              """
+            )
+          }
+        }
+      case .finished:
+        for target in targetsToPrepare {
+          self.preparationStatus[target] = .upToDate
+        }
+        self.indexTaskDidFinish()
+      }
+    }
+    for target in targetsToPrepare {
+      preparationStatus[target] = .scheduled(preparationTask)
+    }
+    await preparationTask.value
   }
 
   /// Update the index store for the given files, assuming that their targets have already been prepared.
