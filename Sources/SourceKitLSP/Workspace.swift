@@ -158,17 +158,17 @@ public final class Workspace: Sendable {
 
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
       var options = options
-      var forceResolvedVersions = true
+      var isForIndexBuild = false
       if options.indexOptions.enableBackgroundIndexing, options.buildSetup.path == nil {
         options.buildSetup.path = rootPath.appending(component: ".index-build")
-        forceResolvedVersions = false
+        isForIndexBuild = true
       }
       func createSwiftPMBuildSystem(rootUrl: URL) async -> SwiftPMBuildSystem? {
         return await SwiftPMBuildSystem(
           url: rootUrl,
           toolchainRegistry: toolchainRegistry,
           buildSetup: options.buildSetup,
-          forceResolvedVersions: forceResolvedVersions,
+          isForIndexBuild: isForIndexBuild,
           reloadPackageStatusCallback: reloadPackageStatusCallback
         )
       }

@@ -16,15 +16,15 @@ import LanguageServerProtocol
 import SKCore
 
 /// Describes the state of indexing for a single source file
-private enum IndexStatus {
+private enum IndexStatus<T> {
   /// The index is up-to-date.
   case upToDate
-  /// The file or target is not up to date and we have scheduled a task to update the index store for the file / prepare
-  /// the target it but that index operation hasn't been started yet.
-  case scheduled(Task<Void, Never>)
+  /// The file or target is not up to date. We have scheduled a task to update the index store for the file / prepare
+  /// the target, but that index operation hasn't been started yet.
+  case scheduled(T)
   /// We are currently actively updating the index store for the file / preparing the target, ie. we are running a
   /// subprocess that updates the index store / prepares a target.
-  case executing(Task<Void, Never>)
+  case executing(T)
 
   var description: String {
     switch self {
@@ -54,12 +54,23 @@ public final actor SemanticIndexManager {
   /// The preparation status of the targets that the `SemanticIndexManager` has started preparation for.
   ///
   /// Targets will be removed from this dictionary when they are no longer known to be up-to-date.
-  private var preparationStatus: [ConfiguredTarget: IndexStatus] = [:]
+  ///
+  /// The associated values of the `IndexStatus` are:
+  ///  - A UUID to track the task. This is used to ensure that status updates from this task don't update
+  ///    `preparationStatus` for targets that are tracked by a different task.
+  ///  - The list of targets that are being prepared in a joint preparation operation
+  ///  - The task that prepares the target
+  private var preparationStatus: [ConfiguredTarget: IndexStatus<(UUID, [ConfiguredTarget], Task<Void, Never>)>] = [:]
 
   /// The index status of the source files that the `SemanticIndexManager` knows about.
   ///
   /// Files will be removed from this dictionary if their index is no longer up-to-date.
-  private var indexStatus: [DocumentURI: IndexStatus] = [:]
+  ///
+  /// The associated values of the `IndexStatus` are:
+  ///  - A UUID to track the task. This is used to ensure that status updates from this task don't update
+  ///    `preparationStatus` for targets that are tracked by a different task.
+  ///  - The task that prepares the target
+  private var indexStatus: [DocumentURI: IndexStatus<(UUID, Task<Void, Never>)>] = [:]
 
   /// The `TaskScheduler` that manages the scheduling of index tasks. This is shared among all `SemanticIndexManager`s
   /// in the process, to ensure that we don't schedule more index operations than processor cores from multiple
@@ -122,7 +133,7 @@ public final actor SemanticIndexManager {
   ///
   /// Indexing is being performed with a low priority.
   private func scheduleBackgroundIndex(files: some Collection<DocumentURI>) async {
-    await self.index(files: files, priority: .low)
+    _ = await self.scheduleIndexing(of: files, priority: .low)
   }
 
   /// Regenerate the build graph (also resolving package dependencies) and then index all the source files known to the
@@ -156,7 +167,7 @@ public final actor SemanticIndexManager {
     await withTaskGroup(of: Void.self) { taskGroup in
       for (_, status) in indexStatus {
         switch status {
-        case .scheduled(let task), .executing(let task):
+        case .scheduled((_, let task)), .executing((_, let task)):
           taskGroup.addTask {
             await task.value
           }
@@ -185,7 +196,7 @@ public final actor SemanticIndexManager {
     // Create a new index task for the files that aren't up-to-date. The newly scheduled index tasks will
     // - Wait for the existing index operations to finish if they have the same number of files.
     // - Reschedule the background index task in favor of an index task with fewer source files.
-    await self.index(files: uris, priority: nil).value
+    await self.scheduleIndexing(of: uris, priority: nil).value
     index.pollForUnitChangesAndWait()
     logger.debug("Done waiting for up-to-date index")
   }
@@ -233,67 +244,101 @@ public final actor SemanticIndexManager {
     return filesToReIndex
   }
 
+  /// Schedule preparation of the target that contains the given URI, building all modules that the file depends on.
+  ///
+  /// This is intended to be called when the user is interacting with the document at the given URI.
+  public func schedulePreparation(of uri: DocumentURI, priority: TaskPriority? = nil) {
+    Task(priority: priority) {
+      await withLoggingScope("preparation") {
+        guard let target = await buildSystemManager.canonicalConfiguredTarget(for: uri) else {
+          return
+        }
+        await self.prepare(targets: [target], priority: priority)
+      }
+    }
+  }
+
   // MARK: - Helper functions
 
   /// Prepare the given targets for indexing
   private func prepare(targets: [ConfiguredTarget], priority: TaskPriority?) async {
-    let targetsToPrepare = targets.filter {
-      if case .upToDate = preparationStatus[$0] {
-        return false
+    var targetsToPrepare: [ConfiguredTarget] = []
+    var preparationTasksToAwait: [Task<Void, Never>] = []
+    for target in targets {
+      switch preparationStatus[target] {
+      case .upToDate:
+        break
+      case .scheduled((_, let configuredTargets, let task)), .executing((_, let configuredTargets, let task)):
+        // If we already have a task scheduled that prepares fewer targets, await that instead of overriding the
+        // target's preparation status with a longer-running task. The key benefit here is that when we get many
+        // preparation requests for the same target (eg. one for every text document request sent to a file), we don't
+        // re-create new `PreparationTaskDescription`s for every preparation request. Instead, all the preparation
+        // requests await the same task. At the same time, if we have a multi-file preparation request and then get a
+        // single-file preparation request, we will override the preparation of that target with the single-file
+        // preparation task, ensuring that the task gets prepared as quickly as possible.
+        if configuredTargets.count <= targets.count {
+          preparationTasksToAwait.append(task)
+        }
+        fallthrough
+      case nil:
+        targetsToPrepare.append(target)
       }
-      return true
     }
+
     let taskDescription = AnyIndexTaskDescription(
       PreparationTaskDescription(
         targetsToPrepare: targetsToPrepare,
         buildSystemManager: self.buildSystemManager
       )
     )
-    let preparationTask = await self.indexTaskScheduler.schedule(priority: priority, taskDescription) { newState in
-      switch newState {
-      case .executing:
-        for target in targetsToPrepare {
-          if case .scheduled(let task) = self.preparationStatus[target] {
-            self.preparationStatus[target] = .executing(task)
-          } else {
-            logger.fault(
-              """
-              Preparation status of \(target.forLogging) is in an unexpected state \
-              '\(self.preparationStatus[target]?.description ?? "<nil>", privacy: .public)' when preparation task \
-              started executing
-              """
-            )
+    if !targetsToPrepare.isEmpty {
+      // A UUID that is used to identify the task. This ensures that status updates from this task don't update
+      // `preparationStatus` for targets that are tracked by a different task, eg. because this task is a multi-target
+      // preparation task and the target's status is now tracked by a single-file preparation task.
+      let taskID = UUID()
+      let preparationTask = await self.indexTaskScheduler.schedule(priority: priority, taskDescription) { newState in
+        switch newState {
+        case .executing:
+          for target in targetsToPrepare {
+            if case .scheduled((taskID, let targets, let task)) = self.preparationStatus[target] {
+              self.preparationStatus[target] = .executing((taskID, targets, task))
+            }
           }
-        }
-      case .cancelledToBeRescheduled:
-        for target in targetsToPrepare {
-          if case .executing(let task) = self.preparationStatus[target] {
-            self.preparationStatus[target] = .scheduled(task)
-          } else {
-            logger.fault(
-              """
-              Preparation status of \(target.forLogging) is in an unexpected state \
-              '\(self.preparationStatus[target]?.description ?? "<nil>", privacy: .public)' when preparation task \
-              is cancelled to be rescheduled.
-              """
-            )
+        case .cancelledToBeRescheduled:
+          for target in targetsToPrepare {
+            if case .executing((taskID, let targets, let task)) = self.preparationStatus[target] {
+              self.preparationStatus[target] = .scheduled((taskID, targets, task))
+            }
           }
+        case .finished:
+          for target in targetsToPrepare {
+            switch self.preparationStatus[target] {
+            case .executing((taskID, _, _)):
+              self.preparationStatus[target] = .upToDate
+            default:
+              break
+            }
+          }
+          self.indexTaskDidFinish()
         }
-      case .finished:
-        for target in targetsToPrepare {
-          self.preparationStatus[target] = .upToDate
-        }
-        self.indexTaskDidFinish()
       }
+      for target in targetsToPrepare {
+        preparationStatus[target] = .scheduled((taskID, targetsToPrepare, preparationTask))
+      }
+      preparationTasksToAwait.append(preparationTask)
     }
-    for target in targetsToPrepare {
-      preparationStatus[target] = .scheduled(preparationTask)
+    await withTaskGroup(of: Void.self) { taskGroup in
+      for task in preparationTasksToAwait {
+        taskGroup.addTask {
+          await task.value
+        }
+      }
+      await taskGroup.waitForAll()
     }
-    await preparationTask.value
   }
 
   /// Update the index store for the given files, assuming that their targets have already been prepared.
-  private func updateIndexStore(for files: [FileToIndex], priority: TaskPriority?) async {
+  private func updateIndexStore(for files: [FileToIndex], taskID: UUID, priority: TaskPriority?) async {
     let taskDescription = AnyIndexTaskDescription(
       UpdateIndexStoreTaskDescription(
         filesToIndex: Set(files),
@@ -305,35 +350,24 @@ public final actor SemanticIndexManager {
       switch newState {
       case .executing:
         for file in files {
-          if case .scheduled(let task) = self.indexStatus[file.uri] {
-            self.indexStatus[file.uri] = .executing(task)
-          } else {
-            logger.fault(
-              """
-              Index status of \(file.uri) is in an unexpected state \
-              '\(self.indexStatus[file.uri]?.description ?? "<nil>", privacy: .public)' when update index store task \
-              started executing
-              """
-            )
+          if case .scheduled((taskID, let task)) = self.indexStatus[file.uri] {
+            self.indexStatus[file.uri] = .executing((taskID, task))
           }
         }
       case .cancelledToBeRescheduled:
         for file in files {
-          if case .executing(let task) = self.indexStatus[file.uri] {
-            self.indexStatus[file.uri] = .scheduled(task)
-          } else {
-            logger.fault(
-              """
-              Index status of \(file.uri) is in an unexpected state \
-              '\(self.indexStatus[file.uri]?.description ?? "<nil>", privacy: .public)' when update index store task \
-              is cancelled to be rescheduled.
-              """
-            )
+          if case .executing((taskID, let task)) = self.indexStatus[file.uri] {
+            self.indexStatus[file.uri] = .scheduled((taskID, task))
           }
         }
       case .finished:
         for file in files {
-          self.indexStatus[file.uri] = .upToDate
+          switch self.indexStatus[file.uri] {
+          case .executing((taskID, _)):
+            self.indexStatus[file.uri] = .upToDate
+          default:
+            break
+          }
         }
         self.indexTaskDidFinish()
       }
@@ -341,11 +375,13 @@ public final actor SemanticIndexManager {
     await updateIndexStoreTask.value
   }
 
-  /// Index the given set of files at the given priority.
+  /// Index the given set of files at the given priority, preparing their targets beforehand, if needed.
   ///
   /// The returned task finishes when all files are indexed.
-  @discardableResult
-  private func index(files: some Collection<DocumentURI>, priority: TaskPriority?) async -> Task<Void, Never> {
+  private func scheduleIndexing(
+    of files: some Collection<DocumentURI>,
+    priority: TaskPriority?
+  ) async -> Task<Void, Never> {
     let outOfDateFiles = await filesToIndex(toCover: files).filter {
       if case .upToDate = indexStatus[$0.uri] {
         return false
@@ -389,6 +425,7 @@ public final actor SemanticIndexManager {
     // processor count, so we can get parallelism during preparation.
     // https://github.com/apple/sourcekit-lsp/issues/1262
     for targetsBatch in sortedTargets.partition(intoBatchesOfSize: 1) {
+      let taskID = UUID()
       let indexTask = Task(priority: priority) {
         // First prepare the targets.
         await prepare(targets: targetsBatch, priority: priority)
@@ -401,7 +438,7 @@ public final actor SemanticIndexManager {
             // https://github.com/apple/sourcekit-lsp/issues/1268
             for fileBatch in filesByTarget[target]!.partition(intoBatchesOfSize: 1) {
               taskGroup.addTask {
-                await self.updateIndexStore(for: fileBatch, priority: priority)
+                await self.updateIndexStore(for: fileBatch, taskID: taskID, priority: priority)
               }
             }
           }
@@ -416,7 +453,7 @@ public final actor SemanticIndexManager {
         // setting it to `.scheduled` because we don't have an `await` call between the creation of `indexTask` and
         // this loop, so we still have exclusive access to the `SemanticIndexManager` actor and hence `updateIndexStore`
         // can't execute until we have set all index statuses to `.scheduled`.
-        indexStatus[file.uri] = .scheduled(indexTask)
+        indexStatus[file.uri] = .scheduled((taskID, indexTask))
       }
       indexTasksWereScheduled(filesToIndex.count)
     }
