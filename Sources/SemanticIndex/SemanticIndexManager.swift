@@ -394,8 +394,10 @@ public final actor SemanticIndexManager {
     // to index the low-level targets ASAP.
     var filesByTarget: [ConfiguredTarget: [FileToIndex]] = [:]
     for file in outOfDateFiles {
-      guard let target = await buildSystemManager.canonicalConfiguredTarget(for: file.uri) else {
-        logger.error("Not indexing \(file.uri.forLogging) because the target could not be determined")
+      guard let target = await buildSystemManager.canonicalConfiguredTarget(for: file.mainFile ?? file.uri) else {
+        logger.error(
+          "Not indexing \(file.uri.forLogging) because the target could not be determined for main file \(file.mainFile?.forLogging)"
+        )
         continue
       }
       filesByTarget[target, default: []].append(file)

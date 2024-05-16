@@ -195,6 +195,17 @@ public struct NonDarwinLogInterpolation: StringInterpolationProtocol, Sendable {
     append(description: message.description, redactedDescription: message.redactedDescription, privacy: privacy)
   }
 
+  public mutating func appendInterpolation(
+    _ message: (some CustomLogStringConvertibleWrapper & Sendable)?,
+    privacy: NonDarwinLogPrivacy = .private
+  ) {
+    if let message {
+      self.appendInterpolation(message, privacy: privacy)
+    } else {
+      self.appendLiteral("<nil>")
+    }
+  }
+
   public mutating func appendInterpolation(_ type: Any.Type, privacy: NonDarwinLogPrivacy = .public) {
     append(description: String(reflecting: type), redactedDescription: "<private>", privacy: privacy)
   }

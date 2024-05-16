@@ -18,7 +18,9 @@ Alternatives would be:
 
 ## `.h`
 
-Affects all files that include the header (including via other headers). For existing headers, we know which files import a header from the existing index. For new header files, we assume that it hasn’t been included in any file yet and so we don’t re-index any file. If it is, it’s likely that the user will modify the file that includes the new header file shortly after, which will re-index it.
+All files that include the header (including via other headers) might be affected by the change, similar to how all `.swift` files that import a module might be affected. Similar to modules, we choose to not re-index all files that include the header because of the same considerations mentioned above.
+
+To re-index the header, we pick one main file that includes the header and re-index that, which will effectively update the index for the header. For existing headers, we know which files import a header from the existing index. For new header files, we assume that it hasn’t been included in any file yet and thus don't re-index it. If the header is included from somewhere lese, it’s likely that the user will modify the file that includes the new header file shortly after, which will index the header and establish the header to main file connection.
 
 ## `.c` / `.cpp` / `.m`
 
