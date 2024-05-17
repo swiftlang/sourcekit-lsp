@@ -38,6 +38,19 @@ private enum IndexStatus<T> {
   }
 }
 
+/// See `SemanticIndexManager.preparationStatus`
+private struct PreparationTaskStatusData {
+  /// A UUID to track the task. This is used to ensure that status updates from this task don't update
+  /// `preparationStatus` for targets that are tracked by a different task.
+  let taskID: UUID
+
+  /// The list of targets that are being prepared in a joint preparation operation.
+  let targets: [ConfiguredTarget]
+
+  /// The task that prepares the target
+  let task: Task<Void, Never>
+}
+
 /// Schedules index tasks and keeps track of the index status of files.
 public final actor SemanticIndexManager {
   /// The underlying index. This is used to check if the index of a file is already up-to-date, in which case it doesn't
@@ -54,13 +67,7 @@ public final actor SemanticIndexManager {
   /// The preparation status of the targets that the `SemanticIndexManager` has started preparation for.
   ///
   /// Targets will be removed from this dictionary when they are no longer known to be up-to-date.
-  ///
-  /// The associated values of the `IndexStatus` are:
-  ///  - A UUID to track the task. This is used to ensure that status updates from this task don't update
-  ///    `preparationStatus` for targets that are tracked by a different task.
-  ///  - The list of targets that are being prepared in a joint preparation operation
-  ///  - The task that prepares the target
-  private var preparationStatus: [ConfiguredTarget: IndexStatus<(UUID, [ConfiguredTarget], Task<Void, Never>)>] = [:]
+  private var preparationStatus: [ConfiguredTarget: IndexStatus<PreparationTaskStatusData>] = [:]
 
   /// The index status of the source files that the `SemanticIndexManager` knows about.
   ///
@@ -268,7 +275,7 @@ public final actor SemanticIndexManager {
       switch preparationStatus[target] {
       case .upToDate:
         break
-      case .scheduled((_, let existingTaskTargets, let task)), .executing((_, let existingTaskTargets, let task)):
+      case .scheduled(let existingTaskData), .executing(let existingTaskData):
         // If we already have a task scheduled that prepares fewer targets, await that instead of overriding the
         // target's preparation status with a longer-running task. The key benefit here is that when we get many
         // preparation requests for the same target (eg. one for every text document request sent to a file), we don't
@@ -276,8 +283,8 @@ public final actor SemanticIndexManager {
         // requests await the same task. At the same time, if we have a multi-file preparation request and then get a
         // single-file preparation request, we will override the preparation of that target with the single-file
         // preparation task, ensuring that the task gets prepared as quickly as possible.
-        if existingTaskTargets.count <= targets.count {
-          preparationTasksToAwait.append(task)
+        if existingTaskData.targets.count <= targets.count {
+          preparationTasksToAwait.append(existingTaskData.task)
         } else {
           targetsToPrepare.append(target)
         }
@@ -301,20 +308,22 @@ public final actor SemanticIndexManager {
         switch newState {
         case .executing:
           for target in targetsToPrepare {
-            if case .scheduled((taskID, let targets, let task)) = self.preparationStatus[target] {
-              self.preparationStatus[target] = .executing((taskID, targets, task))
+            if case .scheduled(let existingTaskData) = self.preparationStatus[target], existingTaskData.taskID == taskID
+            {
+              self.preparationStatus[target] = .executing(existingTaskData)
             }
           }
         case .cancelledToBeRescheduled:
           for target in targetsToPrepare {
-            if case .executing((taskID, let targets, let task)) = self.preparationStatus[target] {
-              self.preparationStatus[target] = .scheduled((taskID, targets, task))
+            if case .executing(let existingTaskData) = self.preparationStatus[target], existingTaskData.taskID == taskID
+            {
+              self.preparationStatus[target] = .scheduled(existingTaskData)
             }
           }
         case .finished:
           for target in targetsToPrepare {
             switch self.preparationStatus[target] {
-            case .executing((taskID, _, _)):
+            case .executing(let existingTaskData) where existingTaskData.taskID == taskID:
               self.preparationStatus[target] = .upToDate
             default:
               break
@@ -324,14 +333,16 @@ public final actor SemanticIndexManager {
         }
       }
       for target in targetsToPrepare {
-        preparationStatus[target] = .scheduled((taskID, targetsToPrepare, preparationTask))
+        preparationStatus[target] = .scheduled(
+          PreparationTaskStatusData(taskID: taskID, targets: targetsToPrepare, task: preparationTask)
+        )
       }
       preparationTasksToAwait.append(preparationTask)
     }
     await withTaskGroup(of: Void.self) { taskGroup in
       for task in preparationTasksToAwait {
         taskGroup.addTask {
-          await task.value
+          await task.valuePropagatingCancellation
         }
       }
       await taskGroup.waitForAll()
