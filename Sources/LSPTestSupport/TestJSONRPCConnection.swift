@@ -76,9 +76,9 @@ public final class TestJSONRPCConnection: Sendable {
 
 public struct TestLocalConnection {
   public let client: TestClient
-  public let clientConnection: LocalConnection = LocalConnection()
+  public let clientConnection: LocalConnection = LocalConnection(name: "Test")
   public let server: TestServer
-  public let serverConnection: LocalConnection = LocalConnection()
+  public let serverConnection: LocalConnection = LocalConnection(name: "Test")
 
   public init(allowUnexpectedNotification: Bool = true) {
     client = TestClient(connectionToServer: serverConnection, allowUnexpectedNotification: allowUnexpectedNotification)
