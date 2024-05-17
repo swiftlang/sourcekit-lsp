@@ -268,7 +268,7 @@ public final actor SemanticIndexManager {
       switch preparationStatus[target] {
       case .upToDate:
         break
-      case .scheduled((_, let configuredTargets, let task)), .executing((_, let configuredTargets, let task)):
+      case .scheduled((_, let existingTaskTargets, let task)), .executing((_, let existingTaskTargets, let task)):
         // If we already have a task scheduled that prepares fewer targets, await that instead of overriding the
         // target's preparation status with a longer-running task. The key benefit here is that when we get many
         // preparation requests for the same target (eg. one for every text document request sent to a file), we don't
@@ -276,10 +276,11 @@ public final actor SemanticIndexManager {
         // requests await the same task. At the same time, if we have a multi-file preparation request and then get a
         // single-file preparation request, we will override the preparation of that target with the single-file
         // preparation task, ensuring that the task gets prepared as quickly as possible.
-        if configuredTargets.count <= targets.count {
+        if existingTaskTargets.count <= targets.count {
           preparationTasksToAwait.append(task)
+        } else {
+          targetsToPrepare.append(target)
         }
-        fallthrough
       case nil:
         targetsToPrepare.append(target)
       }
