@@ -35,6 +35,9 @@ public struct PreparationTaskDescription: IndexTaskDescription {
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
 
+  /// Test hooks that should be called when the preparation task finishes.
+  private let testHooks: IndexTestHooks
+
   /// The task is idempotent because preparing the same target twice produces the same result as preparing it once.
   public var isIdempotent: Bool { true }
 
@@ -50,10 +53,12 @@ public struct PreparationTaskDescription: IndexTaskDescription {
 
   init(
     targetsToPrepare: [ConfiguredTarget],
-    buildSystemManager: BuildSystemManager
+    buildSystemManager: BuildSystemManager,
+    testHooks: IndexTestHooks
   ) {
     self.targetsToPrepare = targetsToPrepare
     self.buildSystemManager = buildSystemManager
+    self.testHooks = testHooks
   }
 
   public func execute() async {
@@ -79,6 +84,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
           "Preparation failed: \(error.forLogging)"
         )
       }
+      testHooks.preparationTaskDidFinish?(self)
       logger.log(
         "Finished preparation in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms: \(targetsToPrepareDescription)"
       )

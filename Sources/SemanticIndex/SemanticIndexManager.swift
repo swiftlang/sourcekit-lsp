@@ -60,6 +60,8 @@ public final actor SemanticIndexManager {
   /// The build system manager that is used to get compiler arguments for a file.
   private let buildSystemManager: BuildSystemManager
 
+  private let testHooks: IndexTestHooks
+
   /// The task to generate the build graph (resolving package dependencies, generating the build description,
   /// ...). `nil` if no build graph is currently being generated.
   private var generateBuildGraphTask: Task<Void, Never>?
@@ -121,12 +123,14 @@ public final actor SemanticIndexManager {
   public init(
     index: UncheckedIndex,
     buildSystemManager: BuildSystemManager,
+    testHooks: IndexTestHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
     indexTaskDidFinish: @escaping @Sendable () -> Void
   ) {
     self.index = index
     self.buildSystemManager = buildSystemManager
+    self.testHooks = testHooks
     self.indexTaskScheduler = indexTaskScheduler
     self.indexTasksWereScheduled = indexTasksWereScheduled
     self.indexTaskDidFinish = indexTaskDidFinish
@@ -296,7 +300,8 @@ public final actor SemanticIndexManager {
     let taskDescription = AnyIndexTaskDescription(
       PreparationTaskDescription(
         targetsToPrepare: targetsToPrepare,
-        buildSystemManager: self.buildSystemManager
+        buildSystemManager: self.buildSystemManager,
+        testHooks: testHooks
       )
     )
     if !targetsToPrepare.isEmpty {
@@ -355,7 +360,8 @@ public final actor SemanticIndexManager {
       UpdateIndexStoreTaskDescription(
         filesToIndex: Set(files),
         buildSystemManager: self.buildSystemManager,
-        index: index
+        index: index,
+        testHooks: testHooks
       )
     )
     let updateIndexStoreTask = await self.indexTaskScheduler.schedule(priority: priority, taskDescription) { newState in
