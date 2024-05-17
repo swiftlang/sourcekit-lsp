@@ -118,7 +118,7 @@ public final class CheckedIndex {
 
   /// Returns all the files that (transitively) include the header file at the given path.
   ///
-  /// If `crossLanguage` is set to `true`, Swift files that import a header will through a module will also be reported.
+  /// If `crossLanguage` is set to `true`, Swift files that import a header through a module will also be reported.
   public func mainFilesContainingFile(uri: DocumentURI, crossLanguage: Bool = false) -> [DocumentURI] {
     return index.mainFilesContainingFile(path: uri.pseudoPath, crossLanguage: crossLanguage).compactMap {
       let url = URL(fileURLWithPath: $0)

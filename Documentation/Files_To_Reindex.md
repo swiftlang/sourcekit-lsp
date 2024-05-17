@@ -26,8 +26,8 @@ This is the easy case since only the file itself is affected.
 
 ## Compiler settings (`compile_commands.json` / `Package.swift`)
 
-Ideally, we would considered like a file change for all files whose compile commands have changed, if they changed in a meaningful way (ie. in a way that would also trigger re-compilation in an incremental build). Non-meaningful changes would be:
-- If compiler arguments, like include paths are shuffled around. We could have a really quick check for compiler arguments equality by comparing them unordered. Any really compiler argument change will most likely do more than rearranging the arguments.
+Ideally, we would like to consider a file as changed when its compile commands have changed, if they changed in a meaningful way (ie. in a way that would also trigger re-compilation in an incremental build). Non-meaningful changes would be:
+- If compiler arguments that aren't order dependent are shuffled around. We could have a really quick check for compiler arguments equality by comparing them unordered. Any real compiler argument change will most likely do more than rearranging the arguments.
 - The addition of a new Swift file to a target is equivalent to that file being modified and shouldn’t trigger a re-index of the entire target.
 
 At the moment, unit files don’t include information about the compiler arguments with which they were created, so it’s impossible to know whether the compiler arguments have changed when a project is opened. Thus, for now, we don’t re-index any files on compiler settings changing.
