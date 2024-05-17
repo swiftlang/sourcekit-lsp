@@ -357,4 +357,52 @@ final class FoldingRangeTests: XCTestCase {
       expectedRanges: [FoldingRangeSpec(from: "1️⃣", to: "2️⃣")]
     )
   }
+
+  func testFoldArgumentsForConditionalIfCompileDirectives() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        1️⃣#if DEBUG
+            let foo = "x"
+        2️⃣#endif
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣")
+      ]
+    )
+  }
+
+  func testFoldArgumentsForConditionalElseIfCompileDirectives() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        1️⃣#if DEBUG
+          let foo = "x"
+        2️⃣#elseif TEST
+          let foo = "y"
+        3️⃣#else
+          let foo = "z"
+        4️⃣#endif
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣"),
+        FoldingRangeSpec(from: "2️⃣", to: "3️⃣"),
+        FoldingRangeSpec(from: "3️⃣", to: "4️⃣"),
+      ]
+    )
+  }
+
+  func testFoldArgumentsForConditionalElseCompileDirectives() async throws {
+    try await assertFoldingRanges(
+      markedSource: """
+        1️⃣#if DEBUG
+          let foo = "x"
+        2️⃣#else
+          let foo = "y"
+        3️⃣#endif
+        """,
+      expectedRanges: [
+        FoldingRangeSpec(from: "1️⃣", to: "2️⃣"),
+        FoldingRangeSpec(from: "2️⃣", to: "3️⃣"),
+      ]
+    )
+  }
 }

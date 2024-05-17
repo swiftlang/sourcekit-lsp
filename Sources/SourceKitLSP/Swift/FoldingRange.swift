@@ -164,6 +164,17 @@ fileprivate final class FoldingRangeFinder: SyntaxAnyVisitor {
     return .visitChildren
   }
 
+  override func visit(_ node: IfConfigClauseSyntax) -> SyntaxVisitorContinueKind {
+    guard let closePound = node.lastToken(viewMode: .sourceAccurate)?.nextToken(viewMode: .sourceAccurate) else {
+      return .visitChildren
+    }
+
+    return self.addFoldingRange(
+      start: node.poundKeyword.positionAfterSkippingLeadingTrivia,
+      end: closePound.positionAfterSkippingLeadingTrivia
+    )
+  }
+
   override func visit(_ node: SubscriptCallExprSyntax) -> SyntaxVisitorContinueKind {
     return self.addFoldingRange(
       start: node.leftSquare.endPositionBeforeTrailingTrivia,
