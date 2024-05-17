@@ -22,6 +22,15 @@ extension SourceKitLSPServer {
 
   /// Configuration options for the SourceKitServer.
   public struct Options: Sendable {
+    /// Callbacks that allow inspection of internal state modifications during testing.
+    public struct TestHooks: Sendable {
+      /// A callback that is called when an index task finishes.
+      public var indexTaskDidFinish: (@Sendable () -> Void)?
+
+      public init(indexTaskDidFinish: (@Sendable () -> Void)? = nil) {
+        self.indexTaskDidFinish = indexTaskDidFinish
+      }
+    }
 
     /// Additional compiler flags (e.g. `-Xswiftc` for SwiftPM projects) and other build-related
     /// configuration.
@@ -49,10 +58,7 @@ extension SourceKitLSPServer {
     /// notification when running unit tests.
     public var swiftPublishDiagnosticsDebounceDuration: TimeInterval
 
-    /// A callback that is called when an index task finishes.
-    ///
-    /// Intended for testing purposes.
-    public var indexTaskDidFinish: (@Sendable () -> Void)?
+    public var testHooks: TestHooks
 
     public init(
       buildSetup: BuildSetup = .default,
@@ -61,7 +67,8 @@ extension SourceKitLSPServer {
       indexOptions: IndexOptions = .init(),
       completionOptions: SKCompletionOptions = .init(),
       generatedInterfacesPath: AbsolutePath = defaultDirectoryForGeneratedInterfaces,
-      swiftPublishDiagnosticsDebounceDuration: TimeInterval = 2 /* 2s */
+      swiftPublishDiagnosticsDebounceDuration: TimeInterval = 2, /* 2s */
+      testHooks: TestHooks = TestHooks()
     ) {
       self.buildSetup = buildSetup
       self.clangdOptions = clangdOptions
@@ -70,6 +77,7 @@ extension SourceKitLSPServer {
       self.completionOptions = completionOptions
       self.generatedInterfacesPath = generatedInterfacesPath
       self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
+      self.testHooks = testHooks
     }
   }
 }

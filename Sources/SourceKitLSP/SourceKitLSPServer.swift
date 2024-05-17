@@ -1211,7 +1211,7 @@ extension SourceKitLSPServer {
       logger.log("Cannot open workspace before server is initialized")
       return nil
     }
-    let indexTaskDidFinishCallback = options.indexTaskDidFinish
+    let indexTaskDidFinishCallback = options.testHooks.indexTaskDidFinish
     var options = self.options
     options.buildSetup = self.options.buildSetup.merging(buildSetup(for: workspaceFolder))
     return try? await Workspace(
@@ -1286,7 +1286,7 @@ extension SourceKitLSPServer {
       if self.workspaces.isEmpty {
         logger.error("no workspace found")
 
-        let indexTaskDidFinishCallback = self.options.indexTaskDidFinish
+        let indexTaskDidFinishCallback = self.options.testHooks.indexTaskDidFinish
         let workspace = await Workspace(
           documentManager: self.documentManager,
           rootUri: req.rootURI,
