@@ -118,7 +118,7 @@ extension BuildSystemManager {
     }
     switch document.fileURL?.pathExtension {
     case "c": return .c
-    case "cpp", "cc", "cxx": return .cpp
+    case "cpp", "cc", "cxx", "hpp": return .cpp
     case "m": return .objective_c
     case "mm", "h": return .objective_cpp
     case "swift": return .swift
