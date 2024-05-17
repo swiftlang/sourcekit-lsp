@@ -24,7 +24,47 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
       return []
     }
 
-    return addTestTargetActions(call: call, in: scope) + addProductActions(call: call, in: scope)
+    return addTargetActions(call: call, in: scope) + addTestTargetActions(call: call, in: scope)
+      + addProductActions(call: call, in: scope)
+  }
+
+  /// Produce code actions to add new targets of various kinds.
+  static func addTargetActions(
+    call: FunctionCallExprSyntax,
+    in scope: SyntaxCodeActionScope
+  ) -> [CodeAction] {
+    do {
+      var actions: [CodeAction] = []
+      let variants: [(TargetDescription.TargetType, String)] = [
+        (.regular, "library"),
+        (.executable, "executable"),
+        (.macro, "macro"),
+      ]
+
+      for (type, name) in variants {
+        let target = try TargetDescription(
+          name: "NewTarget",
+          type: type
+        )
+
+        let edits = try AddTarget.addTarget(
+          target,
+          to: scope.file
+        )
+
+        actions.append(
+          CodeAction(
+            title: "Add \(name) target",
+            kind: .refactor,
+            edit: edits.asWorkspaceEdit(snapshot: scope.snapshot)
+          )
+        )
+      }
+
+      return actions
+    } catch {
+      return []
+    }
   }
 
   /// Produce code actions to add test target(s) if we are currently on
@@ -77,7 +117,7 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
   }
 
   /// A list of target kinds that allow the creation of tests.
-  static let targetsThatAllowTests: Set<String> = [
+  static let targetsThatAllowTests: [String] = [
     "executableTarget",
     "macro",
     "target",
@@ -123,7 +163,7 @@ struct PackageManifestEdits: SyntaxCodeActionProvider {
   }
 
   /// A list of target kinds that allow the creation of tests.
-  static let targetsThatAllowProducts: Set<String> = [
+  static let targetsThatAllowProducts: [String] = [
     "executableTarget",
     "target",
   ]
