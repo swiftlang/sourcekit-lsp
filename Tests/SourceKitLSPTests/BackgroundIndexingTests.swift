@@ -12,13 +12,56 @@
 
 import LSPTestSupport
 import LanguageServerProtocol
+import SKCore
 import SKTestSupport
+import SemanticIndex
 import SourceKitLSP
 import XCTest
 
 fileprivate let backgroundIndexingOptions = SourceKitLSPServer.Options(
   indexOptions: IndexOptions(enableBackgroundIndexing: true)
 )
+
+fileprivate actor ExpectedPreparationTracker {
+  /// The targets we expect to be prepared. For targets within the same set, we don't care about the exact order.
+  private var expectedPreparations: [Set<ConfiguredTarget>]
+
+  /// Implicitly-unwrapped optional so we can reference `self` when creating `IndexTestHooks`.
+  /// `nonisolated(unsafe)` is fine because this is not modified after `testHooks` is created.
+  nonisolated(unsafe) var testHooks: IndexTestHooks!
+
+  init(expectedPreparations: [Set<ConfiguredTarget>]) {
+    self.expectedPreparations = expectedPreparations
+    self.testHooks = IndexTestHooks(preparationTaskDidFinish: { [weak self] in
+      await self?.preparationTaskDidFinish(taskDescription: $0)
+    })
+  }
+
+  func preparationTaskDidFinish(taskDescription: PreparationTaskDescription) -> Void {
+    guard let expectedTargetsToPrepare = expectedPreparations.first else {
+      XCTFail("Didn't expect a preparation but received \(taskDescription)")
+      return
+    }
+    guard Set(taskDescription.targetsToPrepare).isSubset(of: expectedTargetsToPrepare) else {
+      XCTFail("Received unexpected preparation of \(taskDescription)")
+      return
+    }
+    let remainingExpectedTargetsToPrepare = expectedTargetsToPrepare.subtracting(taskDescription.targetsToPrepare)
+    if remainingExpectedTargetsToPrepare.isEmpty {
+      expectedPreparations.remove(at: 0)
+    } else {
+      expectedPreparations[0] = remainingExpectedTargetsToPrepare
+    }
+  }
+
+  deinit {
+    let expectedPreparations = self.expectedPreparations
+    XCTAssert(
+      expectedPreparations.isEmpty,
+      "ExpectedPreparationTracker destroyed with unfulfilled expected preparations: \(expectedPreparations)."
+    )
+  }
+}
 
 final class BackgroundIndexingTests: XCTestCase {
   func testBackgroundIndexingOfSingleFile() async throws {
@@ -508,6 +551,19 @@ final class BackgroundIndexingTests: XCTestCase {
 
   func testPrepareTarget() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
+    var serverOptions = backgroundIndexingOptions
+    let expectedPreparationTracker = ExpectedPreparationTracker(expectedPreparations: [
+      [
+        ConfiguredTarget(targetID: "LibA", runDestinationID: "dummy"),
+        ConfiguredTarget(targetID: "LibB", runDestinationID: "dummy"),
+      ],
+      [
+        ConfiguredTarget(targetID: "LibA", runDestinationID: "dummy"),
+        ConfiguredTarget(targetID: "LibB", runDestinationID: "dummy"),
+      ],
+    ])
+    serverOptions.indexTestHooks = expectedPreparationTracker.testHooks
+
     let project = try await SwiftPMTestProject(
       files: [
         "LibA/MyFile.swift": "",
@@ -531,7 +587,8 @@ final class BackgroundIndexingTests: XCTestCase {
           ]
         )
         """,
-      serverOptions: backgroundIndexingOptions
+      serverOptions: serverOptions,
+      cleanUp: { /* Keep expectedPreparationTracker alive */ _ = expectedPreparationTracker }
     )
 
     let (uri, _) = try project.openDocument("MyOtherFile.swift")

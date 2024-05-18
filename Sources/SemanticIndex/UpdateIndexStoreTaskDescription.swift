@@ -99,7 +99,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       for file in filesToIndex {
         await updateIndexStoreForSingleFile(file)
       }
-      testHooks.updateIndexStoreTaskDidFinish?(self)
+      await testHooks.updateIndexStoreTaskDidFinish?(self)
       logger.log(
         "Finished updating index store in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms: \(filesToIndexDescription)"
       )

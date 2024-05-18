@@ -84,6 +84,7 @@ public class MultiFileTestProject {
     serverOptions: SourceKitLSPServer.Options = .testDefault,
     usePullDiagnostics: Bool = true,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
+    cleanUp: (() -> Void)? = nil,
     testName: String = #function
   ) async throws {
     scratchDirectory = try testScratchDir(testName: testName)
@@ -122,6 +123,7 @@ public class MultiFileTestProject {
         if cleanScratchDirectories {
           try? FileManager.default.removeItem(at: scratchDirectory)
         }
+        cleanUp?()
       }
     )
   }

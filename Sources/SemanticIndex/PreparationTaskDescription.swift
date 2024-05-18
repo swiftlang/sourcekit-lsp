@@ -30,7 +30,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
   public let id = preparationIDForLogging.fetchAndIncrement()
 
   /// The targets that should be prepared.
-  private let targetsToPrepare: [ConfiguredTarget]
+  public let targetsToPrepare: [ConfiguredTarget]
 
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
@@ -84,7 +84,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
           "Preparation failed: \(error.forLogging)"
         )
       }
-      testHooks.preparationTaskDidFinish?(self)
+      await testHooks.preparationTaskDidFinish?(self)
       logger.log(
         "Finished preparation in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms: \(targetsToPrepareDescription)"
       )
