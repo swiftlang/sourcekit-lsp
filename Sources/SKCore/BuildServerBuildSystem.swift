@@ -285,6 +285,10 @@ extension BuildServerBuildSystem: BuildSystem {
     return nil
   }
 
+  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+    return nil
+  }
+
   public func prepare(targets: [ConfiguredTarget]) async throws {
     throw PrepareNotSupportedError()
   }

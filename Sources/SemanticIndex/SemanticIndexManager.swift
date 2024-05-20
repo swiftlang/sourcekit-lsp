@@ -209,11 +209,19 @@ public final actor SemanticIndexManager {
     for uri in changedFiles {
       indexStatus[uri] = nil
     }
-    // Clear the preparation status so that we re-prepare them. If the target hasn't been affected by the file changes,
-    // we rely on a null build during preparation to fast re-preparation.
-    // Ideally, we would have more fine-grained dependency management here and only mark those targets out-of-date that
-    // might be affected by the changed files.
-    preparationStatus.removeAll()
+    // Note that configured targets are the right abstraction layer here (instead of a non-configured target) because a
+    // build system might have targets that include different source files. Hence a source file might be in target T
+    // configured for macOS but not in target T configured for iOS.
+    let targets = await changedFiles.asyncMap { await buildSystemManager.configuredTargets(for: $0) }.flatMap { $0 }
+    if let dependentTargets = await buildSystemManager.targets(dependingOn: targets) {
+      for dependentTarget in dependentTargets {
+        preparationStatus[dependentTarget] = nil
+      }
+    } else {
+      // We couldn't determine which targets depend on the modified targets. Be conservative and assume all of them do.
+      preparationStatus = [:]
+    }
+
     await scheduleBackgroundIndex(files: changedFiles)
   }
 
