@@ -146,13 +146,10 @@ extension BuildSystemManager {
   /// Implementation detail of `buildSettings(for:language:)`.
   private func buildSettingsFromPrimaryBuildSystem(
     for document: DocumentURI,
+    in target: ConfiguredTarget?,
     language: Language
   ) async throws -> FileBuildSettings? {
-    guard let buildSystem else {
-      return nil
-    }
-    guard let target = await canonicalConfiguredTarget(for: document) else {
-      logger.error("Failed to get target for \(document.forLogging)")
+    guard let buildSystem, let target else {
       return nil
     }
     // FIXME: (async) We should only wait `fallbackSettingsTimeout` for build
@@ -160,18 +157,25 @@ extension BuildSystemManager {
     // implement that with Swift concurrency.
     // For now, this should be fine because all build systems return
     // very quickly from `settings(for:language:)`.
-    guard let settings = try await buildSystem.buildSettings(for: document, in: target, language: language) else {
-      return nil
-    }
-    return settings
+    return try await buildSystem.buildSettings(for: document, in: target, language: language)
   }
 
-  private func buildSettings(
+  /// Returns the build settings for the given file in the given target.
+  ///
+  /// Only call this method if it is known that `document` is a main file. Prefer `buildSettingsInferredFromMainFile`
+  /// otherwise. If `document` is a header file, this will most likely return fallback settings because header files
+  /// don't have build settings by themselves.
+  public func buildSettings(
     for document: DocumentURI,
+    in target: ConfiguredTarget?,
     language: Language
   ) async -> FileBuildSettings? {
     do {
-      if let buildSettings = try await buildSettingsFromPrimaryBuildSystem(for: document, language: language) {
+      if let buildSettings = try await buildSettingsFromPrimaryBuildSystem(
+        for: document,
+        in: target,
+        language: language
+      ) {
         return buildSettings
       }
     } catch {
@@ -199,11 +203,11 @@ extension BuildSystemManager {
   /// references to that C file in the build settings by the header file.
   public func buildSettingsInferredFromMainFile(
     for document: DocumentURI,
-    language: Language,
-    logBuildSettings: Bool = true
+    language: Language
   ) async -> FileBuildSettings? {
     let mainFile = await mainFile(for: document, language: language)
-    guard var settings = await buildSettings(for: mainFile, language: language) else {
+    let target = await canonicalConfiguredTarget(for: mainFile)
+    guard var settings = await buildSettings(for: mainFile, in: target, language: language) else {
       return nil
     }
     if mainFile != document {
@@ -211,9 +215,7 @@ extension BuildSystemManager {
       // to reference `document` instead of `mainFile`.
       settings = settings.patching(newFile: document.pseudoPath, originalFile: mainFile.pseudoPath)
     }
-    if logBuildSettings {
-      await BuildSettingsLogger.shared.log(settings: settings, for: document)
-    }
+    await BuildSettingsLogger.shared.log(settings: settings, for: document)
     return settings
   }
 

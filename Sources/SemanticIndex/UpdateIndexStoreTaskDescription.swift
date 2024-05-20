@@ -22,14 +22,58 @@ import class TSCBasic.Process
 
 private nonisolated(unsafe) var updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
 
-/// Information about a file that should be indexed.
-///
-/// The URI of the file whose index should be updated. This could be a header file that can't actually be indexed on
-/// its own. In that case `mainFile` is the file that should be indexed, which will effectively update the index of
-/// `uri`.
-struct FileToIndex: Hashable {
-  let uri: DocumentURI
-  let mainFile: DocumentURI?
+enum FileToIndex: CustomLogStringConvertible {
+  /// A non-header file
+  case indexableFile(DocumentURI)
+
+  /// A header file where `mainFile` should be indexed to update the index of `header`.
+  case headerFile(header: DocumentURI, mainFile: DocumentURI)
+
+  /// The file whose index store should be updated.
+  ///
+  /// This file might be a header file that doesn't have build settings associated with it. For the actual compiler
+  /// invocation that updates the index store, the `mainFile` should be used.
+  var sourceFile: DocumentURI {
+    switch self {
+    case .indexableFile(let uri): return uri
+    case .headerFile(header: let header, mainFile: _): return header
+    }
+  }
+
+  /// The file that should be used for compiler invocations that update the index.
+  ///
+  /// If the `sourceFile` is a header file, this will be a main file that includes the header. Otherwise, it will be the
+  /// same as `sourceFile`.
+  var mainFile: DocumentURI {
+    switch self {
+    case .indexableFile(let uri): return uri
+    case .headerFile(header: _, mainFile: let mainFile): return mainFile
+    }
+  }
+
+  var description: String {
+    switch self {
+    case .indexableFile(let uri):
+      return uri.description
+    case .headerFile(header: let header, mainFile: let mainFile):
+      return "\(header.description) using main file \(mainFile.description)"
+    }
+  }
+
+  var redactedDescription: String {
+    switch self {
+    case .indexableFile(let uri):
+      return uri.redactedDescription
+    case .headerFile(header: let header, mainFile: let mainFile):
+      return "\(header.redactedDescription) using main file \(mainFile.redactedDescription)"
+    }
+  }
+}
+
+/// A file to index and the target in which the file should be indexed.
+struct FileAndTarget {
+  let file: FileToIndex
+  let target: ConfiguredTarget
 }
 
 /// Describes a task to index a set of source files.
@@ -40,7 +84,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   public let id = updateIndexStoreIDForLogging.fetchAndIncrement()
 
   /// The files that should be indexed.
-  private let filesToIndex: Set<FileToIndex>
+  private let filesToIndex: [FileAndTarget]
 
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
@@ -63,7 +107,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   init(
-    filesToIndex: Set<FileToIndex>,
+    filesToIndex: [FileAndTarget],
     buildSystemManager: BuildSystemManager,
     index: UncheckedIndex
   ) {
@@ -82,17 +126,19 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     ) {
       let startDate = Date()
 
-      let filesToIndexDescription = filesToIndex.map { $0.uri.fileURL?.lastPathComponent ?? $0.uri.stringValue }
-        .joined(separator: ", ")
+      let filesToIndexDescription = filesToIndex.map {
+        $0.file.sourceFile.fileURL?.lastPathComponent ?? $0.file.sourceFile.stringValue
+      }
+      .joined(separator: ", ")
       logger.log(
         "Starting updating index store with priority \(Task.currentPriority.rawValue, privacy: .public): \(filesToIndexDescription)"
       )
-      let filesToIndex = filesToIndex.sorted(by: { $0.uri.stringValue < $1.uri.stringValue })
+      let filesToIndex = filesToIndex.sorted(by: { $0.file.sourceFile.stringValue < $1.file.sourceFile.stringValue })
       // TODO (indexing): Once swiftc supports it, we should group files by target and index files within the same
       // target together in one swiftc invocation.
       // https://github.com/apple/sourcekit-lsp/issues/1268
       for file in filesToIndex {
-        await updateIndexStoreForSingleFile(file)
+        await updateIndexStore(forSingleFile: file.file, in: file.target)
       }
       logger.log(
         "Finished updating index store in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms: \(filesToIndexDescription)"
@@ -103,8 +149,11 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   public func dependencies(
     to currentlyExecutingTasks: [UpdateIndexStoreTaskDescription]
   ) -> [TaskDependencyAction<UpdateIndexStoreTaskDescription>] {
+    let selfMainFiles = Set(filesToIndex.map(\.file.mainFile))
     return currentlyExecutingTasks.compactMap { (other) -> TaskDependencyAction<UpdateIndexStoreTaskDescription>? in
-      guard !other.filesToIndex.intersection(filesToIndex).isEmpty else {
+      guard
+        !other.filesToIndex.lazy.map(\.file.mainFile).contains(where: { selfMainFiles.contains($0) })
+      else {
         // Disjoint sets of files can be indexed concurrently.
         return nil
       }
@@ -120,60 +169,62 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     }
   }
 
-  private func updateIndexStoreForSingleFile(_ fileToIndex: FileToIndex) async {
-    let mainFileUri = fileToIndex.mainFile ?? fileToIndex.uri
-    guard let fileToIndexUrl = fileToIndex.uri.fileURL else {
+  private func updateIndexStore(forSingleFile file: FileToIndex, in target: ConfiguredTarget) async {
+    guard let sourceFileUrl = file.sourceFile.fileURL else {
       // The URI is not a file, so there's nothing we can index.
       return
     }
-    guard
-      !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: fileToIndexUrl, mainFile: fileToIndex.mainFile?.fileURL)
+    guard !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: sourceFileUrl, mainFile: file.mainFile.fileURL)
     else {
-      logger.debug("Not indexing \(fileToIndex.uri.forLogging) because index has an up-to-date unit")
+      logger.debug("Not indexing \(file.forLogging) because index has an up-to-date unit")
       // We consider a file's index up-to-date if we have any up-to-date unit. Changing build settings does not
       // invalidate the up-to-date status of the index.
       return
     }
-    if let mainFile = fileToIndex.mainFile {
-      logger.log("Updating index store of \(fileToIndex.uri.forLogging) using main file \(mainFile.forLogging)")
+    if file.mainFile != file.sourceFile {
+      logger.log("Updating index store of \(file.forLogging) using main file \(file.mainFile.forLogging)")
     }
-    guard let language = await buildSystemManager.defaultLanguage(for: mainFileUri) else {
-      logger.error("Not indexing \(fileToIndex.uri.forLogging) because its language could not be determined")
+    guard let language = await buildSystemManager.defaultLanguage(for: file.mainFile) else {
+      logger.error("Not indexing \(file.forLogging) because its language could not be determined")
       return
     }
-    let buildSettings = await buildSystemManager.buildSettingsInferredFromMainFile(
-      for: mainFileUri,
-      language: language,
-      logBuildSettings: false
-    )
+    let buildSettings = await buildSystemManager.buildSettings(for: file.mainFile, in: target, language: language)
     guard let buildSettings else {
-      logger.error("Not indexing \(fileToIndex.uri.forLogging) because it has no compiler arguments")
+      logger.error("Not indexing \(file.forLogging) because it has no compiler arguments")
       return
     }
-    guard let toolchain = await buildSystemManager.toolchain(for: mainFileUri, language) else {
+    guard let toolchain = await buildSystemManager.toolchain(for: file.mainFile, language) else {
       logger.error(
-        "Not updating index store for \(mainFileUri.forLogging) because no toolchain could be determined for the document"
+        "Not updating index store for \(file.forLogging) because no toolchain could be determined for the document"
       )
       return
     }
     switch language {
     case .swift:
       do {
-        try await updateIndexStore(forSwiftFile: mainFileUri, buildSettings: buildSettings, toolchain: toolchain)
+        try await updateIndexStore(
+          forSwiftFile: file.mainFile,
+          buildSettings: buildSettings,
+          toolchain: toolchain
+        )
       } catch {
-        logger.error("Updating index store for \(fileToIndex.uri) failed: \(error.forLogging)")
-        BuildSettingsLogger.log(settings: buildSettings, for: mainFileUri)
+        logger.error("Updating index store for \(file.forLogging) failed: \(error.forLogging)")
+        BuildSettingsLogger.log(settings: buildSettings, for: file.mainFile)
       }
     case .c, .cpp, .objective_c, .objective_cpp:
       do {
-        try await updateIndexStore(forClangFile: mainFileUri, buildSettings: buildSettings, toolchain: toolchain)
+        try await updateIndexStore(
+          forClangFile: file.mainFile,
+          buildSettings: buildSettings,
+          toolchain: toolchain
+        )
       } catch {
-        logger.error("Updating index store for \(fileToIndex.uri) failed: \(error.forLogging)")
-        BuildSettingsLogger.log(settings: buildSettings, for: mainFileUri)
+        logger.error("Updating index store for \(file) failed: \(error.forLogging)")
+        BuildSettingsLogger.log(settings: buildSettings, for: file.mainFile)
       }
     default:
       logger.error(
-        "Not updating index store for \(fileToIndex.uri) because it is a language that is not supported by background indexing"
+        "Not updating index store for \(file) because it is a language that is not supported by background indexing"
       )
     }
   }
@@ -406,4 +457,22 @@ private func adjustClangCompilerArgumentsForIndexStoreUpdate(
     "-fsyntax-only"
   )
   return result
+}
+
+fileprivate extension Sequence {
+  /// Returns `true` if this sequence contains an element that is equal to an element in `otherSequence` when
+  /// considering two elements as equal if they satisfy `predicate`.
+  func hasIntersection(
+    with otherSequence: some Sequence<Element>,
+    where predicate: (Element, Element) -> Bool
+  ) -> Bool {
+    for outer in self {
+      for inner in otherSequence {
+        if predicate(outer, inner) {
+          return true
+        }
+      }
+    }
+    return false
+  }
 }
