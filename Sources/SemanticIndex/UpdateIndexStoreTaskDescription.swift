@@ -281,37 +281,38 @@ private func adjustSwiftCompilerArgumentsForIndexStoreUpdate(
   _ compilerArguments: [String],
   fileToIndex: DocumentURI
 ) -> [String] {
-  let removeFlags: Set<String> = [
-    "-c",
-    "-disable-cmo",
-    "-emit-dependencies",
-    "-emit-module-interface",
-    "-emit-module",
-    "-emit-module",
-    "-emit-objc-header",
-    "-incremental",
-    "-no-color-diagnostics",
-    "-parseable-output",
-    "-save-temps",
-    "-serialize-diagnostics",
-    "-use-frontend-parseable-output",
-    "-validate-clang-modules-once",
-    "-whole-module-optimization",
+  let optionsToRemove: [CompilerCommandLineOption] = [
+    .flag("c", [.singleDash]),
+    .flag("disable-cmo", [.singleDash]),
+    .flag("emit-dependencies", [.singleDash]),
+    .flag("emit-module-interface", [.singleDash]),
+    .flag("emit-module", [.singleDash]),
+    .flag("emit-objc-header", [.singleDash]),
+    .flag("incremental", [.singleDash]),
+    .flag("no-color-diagnostics", [.singleDash]),
+    .flag("parseable-output", [.singleDash]),
+    .flag("save-temps", [.singleDash]),
+    .flag("serialize-diagnostics", [.singleDash]),
+    .flag("use-frontend-parseable-output", [.singleDash]),
+    .flag("validate-clang-modules-once", [.singleDash]),
+    .flag("whole-module-optimization", [.singleDash]),
+
+    .option("clang-build-session-file", [.singleDash], [.separatedBySpace]),
+    .option("emit-module-interface-path", [.singleDash], [.separatedBySpace]),
+    .option("emit-module-path", [.singleDash], [.separatedBySpace]),
+    .option("emit-objc-header-path", [.singleDash], [.separatedBySpace]),
+    .option("emit-package-module-interface-path", [.singleDash], [.separatedBySpace]),
+    .option("emit-private-module-interface-path", [.singleDash], [.separatedBySpace]),
+    .option("num-threads", [.singleDash], [.separatedBySpace]),
+    // Technically, `-o` and the output file don't need to be separated by a space. Eg. `swiftc -oa file.swift` is
+    // valid and will write to an output file named `a`.
+    // We can't support that because the only way to know that `-output-file-map` is a different flag and not an option
+    // to write to an output file named `utput-file-map` is to know all compiler arguments of `swiftc`, which we don't.
+    .option("o", [.singleDash], [.separatedBySpace]),
+    .option("output-file-map", [.singleDash], [.separatedBySpace, .separatedByEqualSign]),
   ]
 
-  let removeArguments: Set<String> = [
-    "-clang-build-session-file",
-    "-emit-module-interface-path",
-    "-emit-module-path",
-    "-emit-objc-header-path",
-    "-emit-package-module-interface-path",
-    "-emit-private-module-interface-path",
-    "-num-threads",
-    "-o",
-    "-output-file-map",
-  ]
-
-  let removeFrontendFlags: Set<String> = [
+  let removeFrontendFlags = [
     "-experimental-skip-non-inlinable-function-bodies",
     "-experimental-skip-all-function-bodies",
   ]
@@ -320,12 +321,14 @@ private func adjustSwiftCompilerArgumentsForIndexStoreUpdate(
   result.reserveCapacity(compilerArguments.count)
   var iterator = compilerArguments.makeIterator()
   while let argument = iterator.next() {
-    if removeFlags.contains(argument) {
+    switch optionsToRemove.firstMatch(for: argument) {
+    case .removeOption:
       continue
-    }
-    if removeArguments.contains(argument) {
+    case .removeOptionAndNextArgument:
       _ = iterator.next()
       continue
+    case nil:
+      break
     }
     if argument == "-Xfrontend" {
       if let nextArgument = iterator.next() {
@@ -356,43 +359,46 @@ private func adjustClangCompilerArgumentsForIndexStoreUpdate(
   _ compilerArguments: [String],
   fileToIndex: DocumentURI
 ) -> [String] {
-  let removeFlags: Set<String> = [
+  let optionsToRemove: [CompilerCommandLineOption] = [
     // Disable writing of a depfile
-    "-M",
-    "-MD",
-    "-MMD",
-    "-MG",
-    "-MM",
-    "-MV",
+    .flag("M", [.singleDash]),
+    .flag("MD", [.singleDash]),
+    .flag("MMD", [.singleDash]),
+    .flag("MG", [.singleDash]),
+    .flag("MM", [.singleDash]),
+    .flag("MV", [.singleDash]),
     // Don't create phony targets
-    "-MP",
-    // Don't writ out compilation databases
-    "-MJ",
-    // Continue in the presence of errors during indexing
-    "-fmodules-validate-once-per-build-session",
+    .flag("MP", [.singleDash]),
+    // Don't write out compilation databases
+    .flag("MJ", [.singleDash]),
     // Don't compile
-    "-c",
-  ]
+    .flag("c", [.singleDash]),
 
-  let removeArguments: Set<String> = [
+    .flag("fmodules-validate-once-per-build-session", [.singleDash]),
+
     // Disable writing of a depfile
-    "-MT",
-    "-MF",
-    "-MQ",
+    .option("MT", [.singleDash], [.noSpace, .separatedBySpace]),
+    .option("MF", [.singleDash], [.noSpace, .separatedBySpace]),
+    .option("MQ", [.singleDash], [.noSpace, .separatedBySpace]),
+
     // Don't write serialized diagnostic files
-    "--serialize-diagnostics",
+    .option("serialize-diagnostics", [.singleDash, .doubleDash], [.separatedBySpace]),
+
+    .option("fbuild-session-file", [.singleDash], [.separatedByEqualSign]),
   ]
 
   var result: [String] = []
   result.reserveCapacity(compilerArguments.count)
   var iterator = compilerArguments.makeIterator()
   while let argument = iterator.next() {
-    if removeFlags.contains(argument) || argument.starts(with: "-fbuild-session-file=") {
+    switch optionsToRemove.firstMatch(for: argument) {
+    case .removeOption:
       continue
-    }
-    if removeArguments.contains(argument) {
+    case .removeOptionAndNextArgument:
       _ = iterator.next()
       continue
+    case nil:
+      break
     }
     result.append(argument)
   }

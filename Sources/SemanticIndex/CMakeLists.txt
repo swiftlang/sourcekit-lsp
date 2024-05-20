@@ -1,6 +1,7 @@
 
 add_library(SemanticIndex STATIC
   CheckedIndex.swift
+  CompilerCommandLineOption.swift
   IndexTaskDescription.swift
   PreparationTaskDescription.swift
   SemanticIndexManager.swift
