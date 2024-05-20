@@ -117,7 +117,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
     }
     self.notificationYielder = notificationYielder
 
-    let serverToClientConnection = LocalConnection()
+    let serverToClientConnection = LocalConnection(name: "client")
     self.serverToClientConnection = serverToClientConnection
     server = SourceKitLSPServer(
       client: serverToClientConnection,
