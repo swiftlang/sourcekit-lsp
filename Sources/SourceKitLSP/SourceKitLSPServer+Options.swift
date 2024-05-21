@@ -14,6 +14,7 @@ import Foundation
 import LanguageServerProtocol
 import SKCore
 import SKSupport
+import SemanticIndex
 
 import struct TSCBasic.AbsolutePath
 import struct TSCBasic.RelativePath
@@ -22,7 +23,6 @@ extension SourceKitLSPServer {
 
   /// Configuration options for the SourceKitServer.
   public struct Options: Sendable {
-
     /// Additional compiler flags (e.g. `-Xswiftc` for SwiftPM projects) and other build-related
     /// configuration.
     public var buildSetup: BuildSetup
@@ -49,10 +49,7 @@ extension SourceKitLSPServer {
     /// notification when running unit tests.
     public var swiftPublishDiagnosticsDebounceDuration: TimeInterval
 
-    /// A callback that is called when an index task finishes.
-    ///
-    /// Intended for testing purposes.
-    public var indexTaskDidFinish: (@Sendable () -> Void)?
+    public var indexTestHooks: IndexTestHooks
 
     public init(
       buildSetup: BuildSetup = .default,
@@ -61,7 +58,8 @@ extension SourceKitLSPServer {
       indexOptions: IndexOptions = .init(),
       completionOptions: SKCompletionOptions = .init(),
       generatedInterfacesPath: AbsolutePath = defaultDirectoryForGeneratedInterfaces,
-      swiftPublishDiagnosticsDebounceDuration: TimeInterval = 2 /* 2s */
+      swiftPublishDiagnosticsDebounceDuration: TimeInterval = 2, /* 2s */
+      indexTestHooks: IndexTestHooks = IndexTestHooks()
     ) {
       self.buildSetup = buildSetup
       self.clangdOptions = clangdOptions
@@ -70,6 +68,7 @@ extension SourceKitLSPServer {
       self.completionOptions = completionOptions
       self.generatedInterfacesPath = generatedInterfacesPath
       self.swiftPublishDiagnosticsDebounceDuration = swiftPublishDiagnosticsDebounceDuration
+      self.indexTestHooks = indexTestHooks
     }
   }
 }

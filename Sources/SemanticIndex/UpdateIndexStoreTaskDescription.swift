@@ -93,6 +93,9 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   /// case we don't need to index it again.
   private let index: UncheckedIndex
 
+  /// Test hooks that should be called when the index task finishes.
+  private let testHooks: IndexTestHooks
+
   /// The task is idempotent because indexing the same file twice produces the same result as indexing it once.
   public var isIdempotent: Bool { true }
 
@@ -109,11 +112,13 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   init(
     filesToIndex: [FileAndTarget],
     buildSystemManager: BuildSystemManager,
-    index: UncheckedIndex
+    index: UncheckedIndex,
+    testHooks: IndexTestHooks
   ) {
     self.filesToIndex = filesToIndex
     self.buildSystemManager = buildSystemManager
     self.index = index
+    self.testHooks = testHooks
   }
 
   public func execute() async {
@@ -140,6 +145,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       for file in filesToIndex {
         await updateIndexStore(forSingleFile: file.file, in: file.target)
       }
+      await testHooks.updateIndexStoreTaskDidFinish?(self)
       logger.log(
         "Finished updating index store in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms: \(filesToIndexDescription)"
       )

@@ -5,6 +5,7 @@ add_library(SemanticIndex STATIC
   IndexTaskDescription.swift
   PreparationTaskDescription.swift
   SemanticIndexManager.swift
+  TestHooks.swift
   UpdateIndexStoreTaskDescription.swift
 )
 set_target_properties(SemanticIndex PROPERTIES

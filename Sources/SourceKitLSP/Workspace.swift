@@ -112,6 +112,7 @@ public final class Workspace: Sendable {
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
         buildSystemManager: buildSystemManager,
+        testHooks: options.indexTestHooks,
         indexTaskScheduler: indexTaskScheduler,
         indexTasksWereScheduled: indexTasksWereScheduled,
         indexTaskDidFinish: indexTaskDidFinish
