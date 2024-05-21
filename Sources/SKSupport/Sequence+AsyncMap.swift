@@ -39,4 +39,19 @@ extension Sequence {
 
     return result
   }
+
+  /// Just like `Sequence.map` but allows an `async` transform function.
+  public func asyncFilter(
+    @_inheritActorContext _ predicate: @Sendable (Element) async throws -> Bool
+  ) async rethrows -> [Element] {
+    var result: [Element] = []
+
+    for element in self {
+      if try await predicate(element) {
+        result.append(element)
+      }
+    }
+
+    return result
+  }
 }
