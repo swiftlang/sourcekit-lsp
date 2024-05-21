@@ -348,7 +348,9 @@ fileprivate extension TaskScheduler<ClosureTaskDescription> {
       body,
       dependencies: dependencies
     )
-    return await self.schedule(priority: priority, taskDescription)
+    return Task(priority: priority) {
+      await self.schedule(priority: priority, taskDescription).waitToFinishPropagatingCancellation()
+    }
   }
 }
 

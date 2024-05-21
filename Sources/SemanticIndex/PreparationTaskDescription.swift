@@ -35,6 +35,8 @@ public struct PreparationTaskDescription: IndexTaskDescription {
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
 
+  private let preparationUpToDateStatus: IndexUpToDateStatusManager<ConfiguredTarget>
+
   /// Test hooks that should be called when the preparation task finishes.
   private let testHooks: IndexTestHooks
 
@@ -54,10 +56,12 @@ public struct PreparationTaskDescription: IndexTaskDescription {
   init(
     targetsToPrepare: [ConfiguredTarget],
     buildSystemManager: BuildSystemManager,
+    preparationUpToDateStatus: IndexUpToDateStatusManager<ConfiguredTarget>,
     testHooks: IndexTestHooks
   ) {
     self.targetsToPrepare = targetsToPrepare
     self.buildSystemManager = buildSystemManager
+    self.preparationUpToDateStatus = preparationUpToDateStatus
     self.testHooks = testHooks
   }
 
@@ -66,10 +70,15 @@ public struct PreparationTaskDescription: IndexTaskDescription {
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running preparation operations
     await withLoggingScope("preparation-\(id % 100)") {
-      let startDate = Date()
-      let targetsToPrepare = targetsToPrepare.sorted(by: {
+      let targetsToPrepare = await targetsToPrepare.asyncFilter {
+        await !preparationUpToDateStatus.isUpToDate($0)
+      }.sorted(by: {
         ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
       })
+      if targetsToPrepare.isEmpty {
+        return
+      }
+
       let targetsToPrepareDescription =
         targetsToPrepare
         .map { "\($0.targetID)-\($0.runDestinationID)" }
@@ -77,6 +86,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
       logger.log(
         "Starting preparation with priority \(Task.currentPriority.rawValue, privacy: .public): \(targetsToPrepareDescription)"
       )
+      let startDate = Date()
       do {
         try await buildSystemManager.prepare(targets: targetsToPrepare)
       } catch {
@@ -85,6 +95,9 @@ public struct PreparationTaskDescription: IndexTaskDescription {
         )
       }
       await testHooks.preparationTaskDidFinish?(self)
+      if !Task.isCancelled {
+        await preparationUpToDateStatus.markUpToDate(targetsToPrepare, updateOperationStartDate: startDate)
+      }
       logger.log(
         "Finished preparation in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms: \(targetsToPrepareDescription)"
       )

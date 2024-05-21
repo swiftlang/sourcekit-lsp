@@ -73,7 +73,7 @@ actor IndexProgressManager {
     var scheduled: [DocumentURI] = []
     var executing: [DocumentURI] = []
     for indexManager in await sourceKitLSPServer.workspaces.compactMap({ $0.semanticIndexManager }) {
-      let inProgress = await indexManager.inProgressIndexTasks
+      let inProgress = await indexManager.inProgressIndexFiles
       scheduled += inProgress.scheduled
       executing += inProgress.executing
     }

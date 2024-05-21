@@ -87,7 +87,7 @@ public enum TaskExecutionState {
   case finished
 }
 
-fileprivate actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
+public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Result of `executionTask` / the tasks in `executionTaskCreatedContinuation`.
   /// See doc comment on `executionTask`.
   enum ExecutionTaskFinishStatus {
@@ -147,14 +147,38 @@ fileprivate actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Gets reset every time `executionTask` finishes.
   nonisolated(unsafe) private var cancelledToBeRescheduled: AtomicBool = .init(initialValue: false)
 
+  private nonisolated(unsafe) var _isExecuting: AtomicBool = .init(initialValue: false)
+
+  /// Whether the task is currently executing or still queued to be executed later.
+  public nonisolated var isExecuting: Bool {
+    return _isExecuting.value
+  }
+
+  /// Wait for the task to finish.
+  ///
+  /// If the tasks that waits for this queued task to finished is cancelled, the QueuedTask will still continue
+  /// executing.
+  public func waitToFinish() async {
+    return await resultTask.value
+  }
+
+  /// Wait for the task to finish.
+  ///
+  /// If the tasks that waits for this queued task to finished is cancelled, the QueuedTask will also be cancelled.
+  /// This assumes that the caller of this method has unique control over the task and is the only one interested in its
+  /// value.
+  public func waitToFinishPropagatingCancellation() async {
+    return await resultTask.valuePropagatingCancellation
+  }
+
   /// A callback that will be called when the task starts executing, is cancelled to be rescheduled, or when it finishes
   /// execution.
-  private let executionStateChangedCallback: (@Sendable (TaskExecutionState) async -> Void)?
+  private let executionStateChangedCallback: (@Sendable (QueuedTask, TaskExecutionState) async -> Void)?
 
   init(
     priority: TaskPriority? = nil,
     description: TaskDescription,
-    executionStateChangedCallback: (@Sendable (TaskExecutionState) async -> Void)?
+    executionStateChangedCallback: (@Sendable (QueuedTask, TaskExecutionState) async -> Void)?
   ) async {
     self._priority = .init(initialValue: priority?.rawValue ?? Task.currentPriority.rawValue)
     self.description = description
@@ -214,19 +238,21 @@ fileprivate actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
     }
     executionTask = task
     executionTaskCreatedContinuation.yield(task)
-    await executionStateChangedCallback?(.executing)
+    _isExecuting.value = true
+    await executionStateChangedCallback?(self, .executing)
     return await task.value
   }
 
   /// Implementation detail of `execute` that is called after `self.description.execute()` finishes.
   private func finalizeExecution() async -> ExecutionTaskFinishStatus {
     self.executionTask = nil
+    _isExecuting.value = false
     if Task.isCancelled && self.cancelledToBeRescheduled.value {
-      await executionStateChangedCallback?(.cancelledToBeRescheduled)
+      await executionStateChangedCallback?(self, .cancelledToBeRescheduled)
       self.cancelledToBeRescheduled.value = false
       return ExecutionTaskFinishStatus.cancelledToBeRescheduled
     } else {
-      await executionStateChangedCallback?(.finished)
+      await executionStateChangedCallback?(self, .finished)
       return ExecutionTaskFinishStatus.terminated
     }
   }
@@ -327,8 +353,10 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   public func schedule(
     priority: TaskPriority? = nil,
     _ taskDescription: TaskDescription,
-    @_inheritActorContext executionStateChangedCallback: (@Sendable (TaskExecutionState) async -> Void)? = nil
-  ) async -> Task<Void, Never> {
+    @_inheritActorContext executionStateChangedCallback: (
+      @Sendable (QueuedTask<TaskDescription>, TaskExecutionState) async -> Void
+    )? = nil
+  ) async -> QueuedTask<TaskDescription> {
     let queuedTask = await QueuedTask(
       priority: priority,
       description: taskDescription,
@@ -341,7 +369,7 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
       // queued task.
       await self.poke()
     }
-    return queuedTask.resultTask
+    return queuedTask
   }
 
   /// Trigger all queued tasks to update their priority.

@@ -558,8 +558,7 @@ final class BackgroundIndexingTests: XCTestCase {
         ConfiguredTarget(targetID: "LibB", runDestinationID: "dummy"),
       ],
       [
-        ConfiguredTarget(targetID: "LibA", runDestinationID: "dummy"),
-        ConfiguredTarget(targetID: "LibB", runDestinationID: "dummy"),
+        ConfiguredTarget(targetID: "LibB", runDestinationID: "dummy")
       ],
     ])
     serverOptions.indexTestHooks = expectedPreparationTracker.testHooks
