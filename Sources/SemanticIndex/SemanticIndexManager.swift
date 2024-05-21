@@ -186,6 +186,12 @@ public final actor SemanticIndexManager {
   /// This method is intended to initially update the index of a project after it is opened.
   public func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles() async {
     generateBuildGraphTask = Task(priority: .low) {
+      let signposter = Logger(subsystem: LoggingScope.subsystem, category: "preparation").makeSignposter()
+      let signpostID = signposter.makeSignpostID()
+      let state = signposter.beginInterval("Preparing", id: signpostID, "Generating build graph")
+      defer {
+        signposter.endInterval("Preparing", state)
+      }
       await orLog("Generating build graph") { try await self.buildSystemManager.generateBuildGraph() }
       let index = index.checked(for: .modifiedFiles)
       let filesToIndex = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
