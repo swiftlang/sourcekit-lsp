@@ -279,18 +279,20 @@ final class CrashRecoveryTests: XCTestCase {
     let clangdRestartedFirstTime = self.expectation(description: "clangd restarted for the first time")
     let clangdRestartedSecondTime = self.expectation(description: "clangd restarted for the second time")
 
-    var clangdHasRestartedFirstTime = false
+    let clangdHasRestartedFirstTime = ThreadSafeBox(initialValue: false)
 
     await clangdServer.addStateChangeHandler { (oldState, newState) in
       switch newState {
       case .connectionInterrupted:
         clangdCrashed.fulfill()
       case .connected:
-        if !clangdHasRestartedFirstTime {
-          clangdRestartedFirstTime.fulfill()
-          clangdHasRestartedFirstTime = true
-        } else {
-          clangdRestartedSecondTime.fulfill()
+        clangdHasRestartedFirstTime.withLock { clangdHasRestartedFirstTime in
+          if !clangdHasRestartedFirstTime {
+            clangdRestartedFirstTime.fulfill()
+            clangdHasRestartedFirstTime = true
+          } else {
+            clangdRestartedSecondTime.fulfill()
+          }
         }
       default:
         break

@@ -63,6 +63,14 @@ private func getDefaultToolchain(_ toolchainRegistry: ToolchainRegistry) async -
   return await toolchainRegistry.default
 }
 
+fileprivate extension ConfiguredTarget {
+  init(_ buildTarget: any SwiftBuildTarget) {
+    self.init(targetID: buildTarget.name, runDestinationID: "dummy")
+  }
+
+  static let forPackageManifest = ConfiguredTarget(targetID: "", runDestinationID: "")
+}
+
 /// Swift Package Manager build system and workspace support.
 ///
 /// This class implements the `BuildSystem` interface to provide the build settings for a Swift
@@ -101,10 +109,10 @@ public actor SwiftPMBuildSystem {
   var fileToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
   var sourceDirToTarget: [AbsolutePath: SwiftBuildTarget] = [:]
 
-  /// Maps target ids (aka. `ConfiguredTarget.targetID`) to their SwiftPM build target as well as an index in their
-  /// topological sorting. Targets with lower index are more low level, ie. targets with higher indices depend on
-  /// targets with lower indices.
-  var targets: [String: (index: Int, buildTarget: SwiftBuildTarget)] = [:]
+  /// Maps configured targets ids to their SwiftPM build target as well as an index in their topological sorting.
+  ///
+  /// Targets with lower index are more low level, ie. targets with higher indices depend on targets with lower indices.
+  var targets: [ConfiguredTarget: (index: Int, buildTarget: SwiftBuildTarget)] = [:]
 
   /// The URIs for which the delegate has registered for change notifications,
   /// mapped to the language the delegate specified when registering for change notifications.
@@ -128,12 +136,9 @@ public actor SwiftPMBuildSystem {
     logger.log(level: diagnostic.severity.asLogLevel, "SwiftPM log: \(diagnostic.description)")
   })
 
-  /// Whether the SwiftPMBuildSystem may modify `Package.resolved` or not.
-  ///
-  /// This is `false` if the `SwiftPMBuildSystem` is pointed at a `.index-build` directory that's independent of the
-  /// user's build. In this case `SwiftPMBuildSystem` is allowed to clone repositories even if no `Package.resolved`
-  /// exists.
-  private let forceResolvedVersions: Bool
+  /// Whether the `SwiftPMBuildSystem` is pointed at a `.index-build` directory that's independent of the
+  /// user's build.
+  private let isForIndexBuild: Bool
 
   /// Creates a build system using the Swift Package Manager, if this workspace is a package.
   ///
@@ -148,13 +153,13 @@ public actor SwiftPMBuildSystem {
     toolchainRegistry: ToolchainRegistry,
     fileSystem: FileSystem = localFileSystem,
     buildSetup: BuildSetup,
-    forceResolvedVersions: Bool,
+    isForIndexBuild: Bool,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void = { _ in }
   ) async throws {
     self.workspacePath = workspacePath
     self.fileSystem = fileSystem
     self.toolchainRegistry = toolchainRegistry
-    self.forceResolvedVersions = forceResolvedVersions
+    self.isForIndexBuild = isForIndexBuild
 
     guard let packageRoot = findPackageDirectory(containing: workspacePath, fileSystem) else {
       throw Error.noManifest(workspacePath: workspacePath)
@@ -233,7 +238,7 @@ public actor SwiftPMBuildSystem {
     url: URL,
     toolchainRegistry: ToolchainRegistry,
     buildSetup: BuildSetup,
-    forceResolvedVersions: Bool,
+    isForIndexBuild: Bool,
     reloadPackageStatusCallback: @escaping (ReloadPackageStatus) async -> Void
   ) async {
     do {
@@ -242,7 +247,7 @@ public actor SwiftPMBuildSystem {
         toolchainRegistry: toolchainRegistry,
         fileSystem: localFileSystem,
         buildSetup: buildSetup,
-        forceResolvedVersions: forceResolvedVersions,
+        isForIndexBuild: isForIndexBuild,
         reloadPackageStatusCallback: reloadPackageStatusCallback
       )
     } catch Error.noManifest {
@@ -271,7 +276,7 @@ extension SwiftPMBuildSystem {
 
     let modulesGraph = try self.workspace.loadPackageGraph(
       rootInput: PackageGraphRootInput(packages: [AbsolutePath(projectRoot)]),
-      forceResolvedVersions: forceResolvedVersions,
+      forceResolvedVersions: !isForIndexBuild,
       availableLibraries: self.buildParameters.toolchain.providedLibraries,
       observabilityScope: observabilitySystem.topScope
     )
@@ -292,7 +297,7 @@ extension SwiftPMBuildSystem {
 
     self.targets = Dictionary(
       try buildDescription.allTargetsInTopologicalOrder(in: modulesGraph).enumerated().map { (index, target) in
-        return (key: target.name, (index, target))
+        return (key: ConfiguredTarget(target), (index, target))
       },
       uniquingKeysWith: { first, second in
         logger.fault("Found two targets with the same name \(first.buildTarget.name)")
@@ -365,16 +370,25 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       return nil
     }
 
-    if configuredTarget.targetID == "" {
+    if configuredTarget == .forPackageManifest {
       return try settings(forPackageManifest: path)
     }
 
-    guard let buildTarget = self.targets[configuredTarget.targetID]?.buildTarget else {
+    guard let buildTarget = self.targets[configuredTarget]?.buildTarget else {
       logger.error("Did not find target with name \(configuredTarget.targetID)")
       return nil
     }
 
-    if url.pathExtension == "h", let substituteFile = buildTarget.sources.first {
+    if !buildTarget.sources.contains(url),
+      let substituteFile = buildTarget.sources.sorted(by: { $0.path < $1.path }).first
+    {
+      // If `url` is not part of the target's source, it's most likely a header file. Fake compiler arguments for it
+      // from a substitute file within the target.
+      // Even if the file is not a header, this should give reasonable results: Say, there was a new `.cpp` file in a
+      // target and for some reason the `SwiftPMBuildSystem` doesn’t know about it. Then we would infer the target based
+      // on the file's location on disk and generate compiler arguments for it by picking a source file in that target,
+      // getting its compiler arguments and then patching up the compiler arguments by replacing the substitute file
+      // with the `.cpp` file.
       return FileBuildSettings(
         compilerArguments: try buildTarget.compileArguments(for: substituteFile),
         workingDirectory: workspacePath.pathString
@@ -387,7 +401,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     )
   }
 
-  public func defaultLanguage(for document: DocumentURI) async -> Language? {
+  public func defaultLanguage(for document: DocumentURI) -> Language? {
     // TODO (indexing): Query The SwiftPM build system for the document's language.
     // https://github.com/apple/sourcekit-lsp/issues/1267
     return nil
@@ -400,16 +414,16 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
 
     if let target = try? buildTarget(for: path) {
-      return [ConfiguredTarget(targetID: target.name, runDestinationID: "dummy")]
+      return [ConfiguredTarget(target)]
     }
 
     if path.basename == "Package.swift" {
       // We use an empty target name to represent the package manifest since an empty target name is not valid for any
       // user-defined target.
-      return [ConfiguredTarget(targetID: "", runDestinationID: "dummy")]
+      return [ConfiguredTarget.forPackageManifest]
     }
 
-    if url.pathExtension == "h", let target = try? target(forHeader: path) {
+    if let target = try? inferredTarget(for: path) {
       return [target]
     }
 
@@ -418,9 +432,30 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
 
   public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return targets.sorted { (lhs: ConfiguredTarget, rhs: ConfiguredTarget) -> Bool in
-      let lhsIndex = self.targets[lhs.targetID]?.index ?? self.targets.count
-      let rhsIndex = self.targets[lhs.targetID]?.index ?? self.targets.count
+      let lhsIndex = self.targets[lhs]?.index ?? self.targets.count
+      let rhsIndex = self.targets[lhs]?.index ?? self.targets.count
       return lhsIndex < rhsIndex
+    }
+  }
+
+  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+    let targetIndices = targets.compactMap { self.targets[$0]?.index }
+    let minimumTargetIndex: Int?
+    if targetIndices.count == targets.count {
+      minimumTargetIndex = targetIndices.min()
+    } else {
+      // One of the targets didn't have an entry in self.targets. We don't know what might depend on it.
+      minimumTargetIndex = nil
+    }
+
+    // Files that occur before the target in the topological sorting don't depend on it.
+    // Ideally, we should consult the dependency graph here for more accurate dependency analysis instead of relying on
+    // a flattened list (https://github.com/apple/sourcekit-lsp/issues/1312).
+    return self.targets.compactMap { (configuredTarget, value) -> ConfiguredTarget? in
+      if let minimumTargetIndex, value.index <= minimumTargetIndex {
+        return nil
+      }
+      return configuredTarget
     }
   }
 
@@ -430,6 +465,8 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     for target in targets {
       try await prepare(singleTarget: target)
     }
+    let filesInPreparedTargets = targets.flatMap { self.targets[$0]?.buildTarget.sources ?? [] }
+    await fileDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets.map(DocumentURI.init)))
   }
 
   private func prepare(singleTarget target: ConfiguredTarget) async throws {
@@ -561,9 +598,9 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     // The file watching here is somewhat fragile as well because it assumes that the `.swiftmodule` files are being
     // written to a directory within the workspace root. This is not necessarily true if the user specifies a build
     // directory outside the source tree.
-    // All of this shouldn't be necessary once we have background preparation, in which case we know when preparation of
-    // a target has finished.
-    if events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" }) {
+    // If we have background indexing enabled, this is not necessary because we call `fileDependenciesUpdated` when
+    // preparation of a target finishes.
+    if !isForIndexBuild, events.contains(where: { $0.uri.fileURL?.pathExtension == "swiftmodule" }) {
       filesWithUpdatedDependencies.formUnion(self.fileToTarget.keys.map { DocumentURI($0.asURL) })
     }
     await self.fileDependenciesUpdatedDebouncer.scheduleCall(filesWithUpdatedDependencies)
@@ -615,13 +652,15 @@ extension SwiftPMBuildSystem {
     return canonicalPath == path ? nil : impl(canonicalPath)
   }
 
-  /// This finds the target the header belongs to based on its location in the file system.
-  private func target(forHeader path: AbsolutePath) throws -> ConfiguredTarget? {
+  /// This finds the target a file belongs to based on its location in the file system.
+  ///
+  /// This is primarily intended to find the target a header belongs to.
+  private func inferredTarget(for path: AbsolutePath) throws -> ConfiguredTarget? {
     func impl(_ path: AbsolutePath) throws -> ConfiguredTarget? {
       var dir = path.parentDirectory
       while !dir.isRoot {
         if let buildTarget = sourceDirToTarget[dir] {
-          return ConfiguredTarget(targetID: buildTarget.name, runDestinationID: "dummy")
+          return ConfiguredTarget(buildTarget)
         }
         dir = dir.parentDirectory
       }

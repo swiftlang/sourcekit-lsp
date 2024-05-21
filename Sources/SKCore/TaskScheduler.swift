@@ -20,8 +20,6 @@ public enum TaskDependencyAction<TaskDescription: TaskDescriptionProtocol> {
   case cancelAndRescheduleDependency(TaskDescription)
 }
 
-private let taskSchedulerSubsystem = "org.swift.sourcekit-lsp.task-scheduler"
-
 public protocol TaskDescriptionProtocol: Identifiable, Sendable, CustomLogStringConvertible {
   /// Execute the task.
   ///
@@ -89,7 +87,7 @@ public enum TaskExecutionState {
   case finished
 }
 
-fileprivate actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
+public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Result of `executionTask` / the tasks in `executionTaskCreatedContinuation`.
   /// See doc comment on `executionTask`.
   enum ExecutionTaskFinishStatus {
@@ -149,14 +147,38 @@ fileprivate actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Gets reset every time `executionTask` finishes.
   nonisolated(unsafe) private var cancelledToBeRescheduled: AtomicBool = .init(initialValue: false)
 
+  private nonisolated(unsafe) var _isExecuting: AtomicBool = .init(initialValue: false)
+
+  /// Whether the task is currently executing or still queued to be executed later.
+  public nonisolated var isExecuting: Bool {
+    return _isExecuting.value
+  }
+
+  /// Wait for the task to finish.
+  ///
+  /// If the tasks that waits for this queued task to finished is cancelled, the QueuedTask will still continue
+  /// executing.
+  public func waitToFinish() async {
+    return await resultTask.value
+  }
+
+  /// Wait for the task to finish.
+  ///
+  /// If the tasks that waits for this queued task to finished is cancelled, the QueuedTask will also be cancelled.
+  /// This assumes that the caller of this method has unique control over the task and is the only one interested in its
+  /// value.
+  public func waitToFinishPropagatingCancellation() async {
+    return await resultTask.valuePropagatingCancellation
+  }
+
   /// A callback that will be called when the task starts executing, is cancelled to be rescheduled, or when it finishes
   /// execution.
-  private let executionStateChangedCallback: (@Sendable (TaskExecutionState) async -> Void)?
+  private let executionStateChangedCallback: (@Sendable (QueuedTask, TaskExecutionState) async -> Void)?
 
   init(
     priority: TaskPriority? = nil,
     description: TaskDescription,
-    executionStateChangedCallback: (@Sendable (TaskExecutionState) async -> Void)?
+    executionStateChangedCallback: (@Sendable (QueuedTask, TaskExecutionState) async -> Void)?
   ) async {
     self._priority = .init(initialValue: priority?.rawValue ?? Task.currentPriority.rawValue)
     self.description = description
@@ -216,19 +238,21 @@ fileprivate actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
     }
     executionTask = task
     executionTaskCreatedContinuation.yield(task)
-    await executionStateChangedCallback?(.executing)
+    _isExecuting.value = true
+    await executionStateChangedCallback?(self, .executing)
     return await task.value
   }
 
   /// Implementation detail of `execute` that is called after `self.description.execute()` finishes.
   private func finalizeExecution() async -> ExecutionTaskFinishStatus {
     self.executionTask = nil
+    _isExecuting.value = false
     if Task.isCancelled && self.cancelledToBeRescheduled.value {
-      await executionStateChangedCallback?(.cancelledToBeRescheduled)
+      await executionStateChangedCallback?(self, .cancelledToBeRescheduled)
       self.cancelledToBeRescheduled.value = false
       return ExecutionTaskFinishStatus.cancelledToBeRescheduled
     } else {
-      await executionStateChangedCallback?(.finished)
+      await executionStateChangedCallback?(self, .finished)
       return ExecutionTaskFinishStatus.terminated
     }
   }
@@ -259,11 +283,6 @@ fileprivate actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// a new task that depends on it. Otherwise a no-op.
   nonisolated func elevatePriority(to targetPriority: TaskPriority) {
     if priority < targetPriority {
-      withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
-        logger.debug(
-          "Elevating priority of \(self.description.forLogging) from \(self.priority.rawValue) to \(targetPriority.rawValue)"
-        )
-      }
       Task(priority: targetPriority) {
         await self.resultTask.value
       }
@@ -334,11 +353,10 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
   public func schedule(
     priority: TaskPriority? = nil,
     _ taskDescription: TaskDescription,
-    @_inheritActorContext executionStateChangedCallback: (@Sendable (TaskExecutionState) async -> Void)? = nil
-  ) async -> Task<Void, Never> {
-    withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
-      logger.debug("Scheduling \(taskDescription.forLogging)")
-    }
+    @_inheritActorContext executionStateChangedCallback: (
+      @Sendable (QueuedTask<TaskDescription>, TaskExecutionState) async -> Void
+    )? = nil
+  ) async -> QueuedTask<TaskDescription> {
     let queuedTask = await QueuedTask(
       priority: priority,
       description: taskDescription,
@@ -351,7 +369,7 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
       // queued task.
       await self.poke()
     }
-    return queuedTask.resultTask
+    return queuedTask
   }
 
   /// Trigger all queued tasks to update their priority.
@@ -397,17 +415,13 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
         case .cancelAndRescheduleDependency(let taskDescription):
           guard let dependency = self.currentlyExecutingTasks.first(where: { $0.description.id == taskDescription.id })
           else {
-            withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
-              logger.fault(
-                "Cannot find task to wait for \(taskDescription.forLogging) in list of currently executing tasks"
-              )
-            }
+            logger.fault(
+              "Cannot find task to wait for \(taskDescription.forLogging) in list of currently executing tasks"
+            )
             return nil
           }
           if !taskDescription.isIdempotent {
-            withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
-              logger.fault("Cannot reschedule task '\(taskDescription.forLogging)' since it is not idempotent")
-            }
+            logger.fault("Cannot reschedule task '\(taskDescription.forLogging)' since it is not idempotent")
             return dependency
           }
           if dependency.priority > task.priority {
@@ -418,11 +432,9 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
         case .waitAndElevatePriorityOfDependency(let taskDescription):
           guard let dependency = self.currentlyExecutingTasks.first(where: { $0.description.id == taskDescription.id })
           else {
-            withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
-              logger.fault(
-                "Cannot find task to wait for '\(taskDescription.forLogging)' in list of currently executing tasks"
-              )
-            }
+            logger.fault(
+              "Cannot find task to wait for '\(taskDescription.forLogging)' in list of currently executing tasks"
+            )
             return nil
           }
           return dependency
@@ -440,11 +452,9 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
         switch taskDependency {
         case .cancelAndRescheduleDependency(let taskDescription):
           guard let task = self.currentlyExecutingTasks.first(where: { $0.description.id == taskDescription.id }) else {
-            withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
-              logger.fault(
-                "Cannot find task to reschedule \(taskDescription.forLogging) in list of currently executing tasks"
-              )
-            }
+            logger.fault(
+              "Cannot find task to reschedule \(taskDescription.forLogging) in list of currently executing tasks"
+            )
             return nil
           }
           return task
@@ -455,9 +465,6 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
       if !rescheduleTasks.isEmpty {
         Task.detached(priority: task.priority) {
           for task in rescheduleTasks {
-            withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
-              logger.debug("Suspending \(task.description.forLogging)")
-            }
             await task.cancelToBeRescheduled()
           }
         }
@@ -468,25 +475,12 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
         return
       }
 
-      withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
-        logger.debug("Executing \(task.description.forLogging) with priority \(task.priority.rawValue)")
-      }
       currentlyExecutingTasks.append(task)
       pendingTasks.removeAll(where: { $0 === task })
       Task.detached(priority: task.priority) {
-        withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
-          logger.debug(
-            "Execution of \(task.description.forLogging) started with priority \(Task.currentPriority.rawValue)"
-          )
-        }
         // Await the task's return in a task so that this poker can continue checking if there are more execution
         // slots that can be filled with queued tasks.
         let finishStatus = await task.execute()
-        withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
-          logger.debug(
-            "Execution of \(task.description.forLogging) finished with priority \(Task.currentPriority.rawValue)"
-          )
-        }
         await self.finalizeTaskExecution(task: task, finishStatus: finishStatus)
       }
     }

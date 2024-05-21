@@ -500,7 +500,7 @@ extension SourceKitLSPServer {
   ) async -> (swiftLanguageService: SwiftLanguageService, snapshot: DocumentSnapshot, location: SymbolLocation)? {
     var reference: SymbolOccurrence? = nil
     index.forEachSymbolOccurrence(byUSR: usr, roles: renameRoles) {
-      if index.symbolProvider(for: $0.location.path) == .swift {
+      if index.unchecked.symbolProvider(for: $0.location.path) == .swift {
         reference = $0
         // We have found a reference from Swift. Stop iteration.
         return false
@@ -631,7 +631,7 @@ extension SourceKitLSPServer {
       // If we terminate early by returning `false` from the closure, `forEachSymbolOccurrence` returns `true`,
       // indicating that we have found a reference from clang.
       let hasReferenceFromClang = !index.forEachSymbolOccurrence(byUSR: usr, roles: renameRoles) {
-        return index.symbolProvider(for: $0.location.path) != .clang
+        return index.unchecked.symbolProvider(for: $0.location.path) != .clang
       }
       let clangName: String?
       if hasReferenceFromClang {
@@ -745,7 +745,7 @@ extension SourceKitLSPServer {
           return cachedValue
         }
         let serverType = LanguageServerType(
-          symbolProvider: index.checked(for: .deletedFiles).symbolProvider(for: url.path)
+          symbolProvider: index.symbolProvider(for: url.path)
         )
         languageServerTypesCache[url] = serverType
         return serverType

@@ -30,10 +30,15 @@ public struct PreparationTaskDescription: IndexTaskDescription {
   public let id = preparationIDForLogging.fetchAndIncrement()
 
   /// The targets that should be prepared.
-  private let targetsToPrepare: [ConfiguredTarget]
+  public let targetsToPrepare: [ConfiguredTarget]
 
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
+
+  private let preparationUpToDateStatus: IndexUpToDateStatusManager<ConfiguredTarget>
+
+  /// Test hooks that should be called when the preparation task finishes.
+  private let testHooks: IndexTestHooks
 
   /// The task is idempotent because preparing the same target twice produces the same result as preparing it once.
   public var isIdempotent: Bool { true }
@@ -50,10 +55,14 @@ public struct PreparationTaskDescription: IndexTaskDescription {
 
   init(
     targetsToPrepare: [ConfiguredTarget],
-    buildSystemManager: BuildSystemManager
+    buildSystemManager: BuildSystemManager,
+    preparationUpToDateStatus: IndexUpToDateStatusManager<ConfiguredTarget>,
+    testHooks: IndexTestHooks
   ) {
     self.targetsToPrepare = targetsToPrepare
     self.buildSystemManager = buildSystemManager
+    self.preparationUpToDateStatus = preparationUpToDateStatus
+    self.testHooks = testHooks
   }
 
   public func execute() async {
@@ -61,10 +70,15 @@ public struct PreparationTaskDescription: IndexTaskDescription {
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running preparation operations
     await withLoggingScope("preparation-\(id % 100)") {
-      let startDate = Date()
-      let targetsToPrepare = targetsToPrepare.sorted(by: {
+      let targetsToPrepare = await targetsToPrepare.asyncFilter {
+        await !preparationUpToDateStatus.isUpToDate($0)
+      }.sorted(by: {
         ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
       })
+      if targetsToPrepare.isEmpty {
+        return
+      }
+
       let targetsToPrepareDescription =
         targetsToPrepare
         .map { "\($0.targetID)-\($0.runDestinationID)" }
@@ -72,12 +86,17 @@ public struct PreparationTaskDescription: IndexTaskDescription {
       logger.log(
         "Starting preparation with priority \(Task.currentPriority.rawValue, privacy: .public): \(targetsToPrepareDescription)"
       )
+      let startDate = Date()
       do {
         try await buildSystemManager.prepare(targets: targetsToPrepare)
       } catch {
         logger.error(
           "Preparation failed: \(error.forLogging)"
         )
+      }
+      await testHooks.preparationTaskDidFinish?(self)
+      if !Task.isCancelled {
+        await preparationUpToDateStatus.markUpToDate(targetsToPrepare, updateOperationStartDate: startDate)
       }
       logger.log(
         "Finished preparation in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms: \(targetsToPrepareDescription)"

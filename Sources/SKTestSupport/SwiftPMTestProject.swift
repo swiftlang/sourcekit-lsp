@@ -47,6 +47,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
     pollIndex: Bool = true,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     usePullDiagnostics: Bool = true,
+    cleanUp: (() -> Void)? = nil,
     testName: String = #function
   ) async throws {
     var filesByPath: [RelativeFileLocation: String] = [:]
@@ -72,6 +73,7 @@ public class SwiftPMTestProject: MultiFileTestProject {
       serverOptions: serverOptions,
       usePullDiagnostics: usePullDiagnostics,
       preInitialization: preInitialization,
+      cleanUp: cleanUp,
       testName: testName
     )
 

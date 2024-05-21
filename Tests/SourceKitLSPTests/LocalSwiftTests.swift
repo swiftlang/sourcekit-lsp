@@ -1352,7 +1352,9 @@ final class LocalSwiftTests: XCTestCase {
     let uri = DocumentURI(url)
 
     let reusedNodeCallback = self.expectation(description: "reused node callback called")
-    var reusedNodes: [Syntax] = []
+    // nonisolated(unsafe) is fine because the variable will only be read after all writes from reusedNodeCallback are
+    // done.
+    nonisolated(unsafe) var reusedNodes: [Syntax] = []
     let swiftLanguageService =
       await testClient.server._languageService(for: uri, .swift, in: testClient.server.workspaceForDocument(uri: uri)!)
       as! SwiftLanguageService

@@ -3,6 +3,7 @@ default.profraw
 Package.resolved
 /.build
 /.index-build
+/.linux-build
 /Packages
 /*.xcodeproj
 /*.sublime-project

@@ -22,6 +22,60 @@ import class TSCBasic.Process
 
 private nonisolated(unsafe) var updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
 
+enum FileToIndex: CustomLogStringConvertible {
+  /// A non-header file
+  case indexableFile(DocumentURI)
+
+  /// A header file where `mainFile` should be indexed to update the index of `header`.
+  case headerFile(header: DocumentURI, mainFile: DocumentURI)
+
+  /// The file whose index store should be updated.
+  ///
+  /// This file might be a header file that doesn't have build settings associated with it. For the actual compiler
+  /// invocation that updates the index store, the `mainFile` should be used.
+  var sourceFile: DocumentURI {
+    switch self {
+    case .indexableFile(let uri): return uri
+    case .headerFile(header: let header, mainFile: _): return header
+    }
+  }
+
+  /// The file that should be used for compiler invocations that update the index.
+  ///
+  /// If the `sourceFile` is a header file, this will be a main file that includes the header. Otherwise, it will be the
+  /// same as `sourceFile`.
+  var mainFile: DocumentURI {
+    switch self {
+    case .indexableFile(let uri): return uri
+    case .headerFile(header: _, mainFile: let mainFile): return mainFile
+    }
+  }
+
+  var description: String {
+    switch self {
+    case .indexableFile(let uri):
+      return uri.description
+    case .headerFile(header: let header, mainFile: let mainFile):
+      return "\(header.description) using main file \(mainFile.description)"
+    }
+  }
+
+  var redactedDescription: String {
+    switch self {
+    case .indexableFile(let uri):
+      return uri.redactedDescription
+    case .headerFile(header: let header, mainFile: let mainFile):
+      return "\(header.redactedDescription) using main file \(mainFile.redactedDescription)"
+    }
+  }
+}
+
+/// A file to index and the target in which the file should be indexed.
+struct FileAndTarget {
+  let file: FileToIndex
+  let target: ConfiguredTarget
+}
+
 /// Describes a task to index a set of source files.
 ///
 /// This task description can be scheduled in a `TaskScheduler`.
@@ -30,14 +84,19 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   public let id = updateIndexStoreIDForLogging.fetchAndIncrement()
 
   /// The files that should be indexed.
-  private let filesToIndex: Set<DocumentURI>
+  private let filesToIndex: [FileAndTarget]
 
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
 
+  private let indexStoreUpToDateStatus: IndexUpToDateStatusManager<DocumentURI>
+
   /// A reference to the underlying index store. Used to check if the index is already up-to-date for a file, in which
   /// case we don't need to index it again.
   private let index: UncheckedIndex
+
+  /// Test hooks that should be called when the index task finishes.
+  private let testHooks: IndexTestHooks
 
   /// The task is idempotent because indexing the same file twice produces the same result as indexing it once.
   public var isIdempotent: Bool { true }
@@ -53,13 +112,17 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   init(
-    filesToIndex: Set<DocumentURI>,
+    filesToIndex: [FileAndTarget],
     buildSystemManager: BuildSystemManager,
-    index: UncheckedIndex
+    index: UncheckedIndex,
+    indexStoreUpToDateStatus: IndexUpToDateStatusManager<DocumentURI>,
+    testHooks: IndexTestHooks
   ) {
     self.filesToIndex = filesToIndex
     self.buildSystemManager = buildSystemManager
     self.index = index
+    self.indexStoreUpToDateStatus = indexStoreUpToDateStatus
+    self.testHooks = testHooks
   }
 
   public func execute() async {
@@ -72,18 +135,21 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     ) {
       let startDate = Date()
 
-      let filesToIndexDescription = filesToIndex.map { $0.fileURL?.lastPathComponent ?? $0.stringValue }
-        .joined(separator: ", ")
+      let filesToIndexDescription = filesToIndex.map {
+        $0.file.sourceFile.fileURL?.lastPathComponent ?? $0.file.sourceFile.stringValue
+      }
+      .joined(separator: ", ")
       logger.log(
         "Starting updating index store with priority \(Task.currentPriority.rawValue, privacy: .public): \(filesToIndexDescription)"
       )
-      let filesToIndex = filesToIndex.sorted(by: { $0.stringValue < $1.stringValue })
+      let filesToIndex = filesToIndex.sorted(by: { $0.file.sourceFile.stringValue < $1.file.sourceFile.stringValue })
       // TODO (indexing): Once swiftc supports it, we should group files by target and index files within the same
       // target together in one swiftc invocation.
       // https://github.com/apple/sourcekit-lsp/issues/1268
       for file in filesToIndex {
-        await updateIndexStoreForSingleFile(file)
+        await updateIndexStore(forSingleFile: file.file, in: file.target)
       }
+      await testHooks.updateIndexStoreTaskDidFinish?(self)
       logger.log(
         "Finished updating index store in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms: \(filesToIndexDescription)"
       )
@@ -93,8 +159,11 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   public func dependencies(
     to currentlyExecutingTasks: [UpdateIndexStoreTaskDescription]
   ) -> [TaskDependencyAction<UpdateIndexStoreTaskDescription>] {
+    let selfMainFiles = Set(filesToIndex.map(\.file.mainFile))
     return currentlyExecutingTasks.compactMap { (other) -> TaskDependencyAction<UpdateIndexStoreTaskDescription>? in
-      guard !other.filesToIndex.intersection(filesToIndex).isEmpty else {
+      guard
+        !other.filesToIndex.lazy.map(\.file.mainFile).contains(where: { selfMainFiles.contains($0) })
+      else {
         // Disjoint sets of files can be indexed concurrently.
         return nil
       }
@@ -110,63 +179,70 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     }
   }
 
-  private func updateIndexStoreForSingleFile(_ uri: DocumentURI) async {
-    guard let url = uri.fileURL else {
+  private func updateIndexStore(forSingleFile file: FileToIndex, in target: ConfiguredTarget) async {
+    guard await !indexStoreUpToDateStatus.isUpToDate(file.sourceFile) else {
+      // If we know that the file is up-to-date without having ot hit the index, do that because it's fastest.
+      return
+    }
+    guard let sourceFileUrl = file.sourceFile.fileURL else {
       // The URI is not a file, so there's nothing we can index.
       return
     }
-    guard !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: url) else {
+    guard !index.checked(for: .modifiedFiles).hasUpToDateUnit(for: sourceFileUrl, mainFile: file.mainFile.fileURL)
+    else {
+      logger.debug("Not indexing \(file.forLogging) because index has an up-to-date unit")
       // We consider a file's index up-to-date if we have any up-to-date unit. Changing build settings does not
       // invalidate the up-to-date status of the index.
       return
     }
-    guard let language = await buildSystemManager.defaultLanguage(for: uri) else {
-      logger.error("Not indexing \(uri.forLogging) because its language could not be determined")
+    if file.mainFile != file.sourceFile {
+      logger.log("Updating index store of \(file.forLogging) using main file \(file.mainFile.forLogging)")
+    }
+    guard let language = await buildSystemManager.defaultLanguage(for: file.mainFile) else {
+      logger.error("Not indexing \(file.forLogging) because its language could not be determined")
       return
     }
-    let buildSettings = await buildSystemManager.buildSettingsInferredFromMainFile(
-      for: uri,
-      language: language,
-      logBuildSettings: false
-    )
+    let buildSettings = await buildSystemManager.buildSettings(for: file.mainFile, in: target, language: language)
     guard let buildSettings else {
-      logger.error("Not indexing \(uri.forLogging) because it has no compiler arguments")
+      logger.error("Not indexing \(file.forLogging) because it has no compiler arguments")
       return
     }
-    guard !buildSettings.isFallback else {
-      // Only index with real build settings. Indexing with fallback arguments could result in worse results than not
-      // indexing at all: If a file has been indexed with real build settings before, had a tiny modification made but
-      // we don't have any real build settings when it should get re-indexed. Then it's better to have the stale index
-      // from correct compiler arguments than no index at all.
-      logger.error("Not updating index store for \(uri.forLogging) because it has fallback compiler arguments")
-      return
-    }
-    guard let toolchain = await buildSystemManager.toolchain(for: uri, language) else {
+    guard let toolchain = await buildSystemManager.toolchain(for: file.mainFile, language) else {
       logger.error(
-        "Not updating index store for \(uri.forLogging) because no toolchain could be determined for the document"
+        "Not updating index store for \(file.forLogging) because no toolchain could be determined for the document"
       )
       return
     }
+    let startDate = Date()
     switch language {
     case .swift:
       do {
-        try await updateIndexStore(forSwiftFile: uri, buildSettings: buildSettings, toolchain: toolchain)
+        try await updateIndexStore(
+          forSwiftFile: file.mainFile,
+          buildSettings: buildSettings,
+          toolchain: toolchain
+        )
       } catch {
-        logger.error("Updating index store for \(uri) failed: \(error.forLogging)")
-        BuildSettingsLogger.log(settings: buildSettings, for: uri)
+        logger.error("Updating index store for \(file.forLogging) failed: \(error.forLogging)")
+        BuildSettingsLogger.log(settings: buildSettings, for: file.mainFile)
       }
     case .c, .cpp, .objective_c, .objective_cpp:
       do {
-        try await updateIndexStore(forClangFile: uri, buildSettings: buildSettings, toolchain: toolchain)
+        try await updateIndexStore(
+          forClangFile: file.mainFile,
+          buildSettings: buildSettings,
+          toolchain: toolchain
+        )
       } catch {
-        logger.error("Updating index store for \(uri) failed: \(error.forLogging)")
-        BuildSettingsLogger.log(settings: buildSettings, for: uri)
+        logger.error("Updating index store for \(file) failed: \(error.forLogging)")
+        BuildSettingsLogger.log(settings: buildSettings, for: file.mainFile)
       }
     default:
       logger.error(
-        "Not updating index store for \(uri) because it is a language that is not supported by background indexing"
+        "Not updating index store for \(file) because it is a language that is not supported by background indexing"
       )
     }
+    await indexStoreUpToDateStatus.markUpToDate([file.sourceFile], updateOperationStartDate: startDate)
   }
 
   private func updateIndexStore(
@@ -272,37 +348,38 @@ private func adjustSwiftCompilerArgumentsForIndexStoreUpdate(
   _ compilerArguments: [String],
   fileToIndex: DocumentURI
 ) -> [String] {
-  let removeFlags: Set<String> = [
-    "-c",
-    "-disable-cmo",
-    "-emit-dependencies",
-    "-emit-module-interface",
-    "-emit-module",
-    "-emit-module",
-    "-emit-objc-header",
-    "-incremental",
-    "-no-color-diagnostics",
-    "-parseable-output",
-    "-save-temps",
-    "-serialize-diagnostics",
-    "-use-frontend-parseable-output",
-    "-validate-clang-modules-once",
-    "-whole-module-optimization",
+  let optionsToRemove: [CompilerCommandLineOption] = [
+    .flag("c", [.singleDash]),
+    .flag("disable-cmo", [.singleDash]),
+    .flag("emit-dependencies", [.singleDash]),
+    .flag("emit-module-interface", [.singleDash]),
+    .flag("emit-module", [.singleDash]),
+    .flag("emit-objc-header", [.singleDash]),
+    .flag("incremental", [.singleDash]),
+    .flag("no-color-diagnostics", [.singleDash]),
+    .flag("parseable-output", [.singleDash]),
+    .flag("save-temps", [.singleDash]),
+    .flag("serialize-diagnostics", [.singleDash]),
+    .flag("use-frontend-parseable-output", [.singleDash]),
+    .flag("validate-clang-modules-once", [.singleDash]),
+    .flag("whole-module-optimization", [.singleDash]),
+
+    .option("clang-build-session-file", [.singleDash], [.separatedBySpace]),
+    .option("emit-module-interface-path", [.singleDash], [.separatedBySpace]),
+    .option("emit-module-path", [.singleDash], [.separatedBySpace]),
+    .option("emit-objc-header-path", [.singleDash], [.separatedBySpace]),
+    .option("emit-package-module-interface-path", [.singleDash], [.separatedBySpace]),
+    .option("emit-private-module-interface-path", [.singleDash], [.separatedBySpace]),
+    .option("num-threads", [.singleDash], [.separatedBySpace]),
+    // Technically, `-o` and the output file don't need to be separated by a space. Eg. `swiftc -oa file.swift` is
+    // valid and will write to an output file named `a`.
+    // We can't support that because the only way to know that `-output-file-map` is a different flag and not an option
+    // to write to an output file named `utput-file-map` is to know all compiler arguments of `swiftc`, which we don't.
+    .option("o", [.singleDash], [.separatedBySpace]),
+    .option("output-file-map", [.singleDash], [.separatedBySpace, .separatedByEqualSign]),
   ]
 
-  let removeArguments: Set<String> = [
-    "-clang-build-session-file",
-    "-emit-module-interface-path",
-    "-emit-module-path",
-    "-emit-objc-header-path",
-    "-emit-package-module-interface-path",
-    "-emit-private-module-interface-path",
-    "-num-threads",
-    "-o",
-    "-output-file-map",
-  ]
-
-  let removeFrontendFlags: Set<String> = [
+  let removeFrontendFlags = [
     "-experimental-skip-non-inlinable-function-bodies",
     "-experimental-skip-all-function-bodies",
   ]
@@ -311,12 +388,14 @@ private func adjustSwiftCompilerArgumentsForIndexStoreUpdate(
   result.reserveCapacity(compilerArguments.count)
   var iterator = compilerArguments.makeIterator()
   while let argument = iterator.next() {
-    if removeFlags.contains(argument) {
+    switch optionsToRemove.firstMatch(for: argument) {
+    case .removeOption:
       continue
-    }
-    if removeArguments.contains(argument) {
+    case .removeOptionAndNextArgument:
       _ = iterator.next()
       continue
+    case nil:
+      break
     }
     if argument == "-Xfrontend" {
       if let nextArgument = iterator.next() {
@@ -347,43 +426,46 @@ private func adjustClangCompilerArgumentsForIndexStoreUpdate(
   _ compilerArguments: [String],
   fileToIndex: DocumentURI
 ) -> [String] {
-  let removeFlags: Set<String> = [
+  let optionsToRemove: [CompilerCommandLineOption] = [
     // Disable writing of a depfile
-    "-M",
-    "-MD",
-    "-MMD",
-    "-MG",
-    "-MM",
-    "-MV",
+    .flag("M", [.singleDash]),
+    .flag("MD", [.singleDash]),
+    .flag("MMD", [.singleDash]),
+    .flag("MG", [.singleDash]),
+    .flag("MM", [.singleDash]),
+    .flag("MV", [.singleDash]),
     // Don't create phony targets
-    "-MP",
-    // Don't writ out compilation databases
-    "-MJ",
-    // Continue in the presence of errors during indexing
-    "-fmodules-validate-once-per-build-session",
+    .flag("MP", [.singleDash]),
+    // Don't write out compilation databases
+    .flag("MJ", [.singleDash]),
     // Don't compile
-    "-c",
-  ]
+    .flag("c", [.singleDash]),
 
-  let removeArguments: Set<String> = [
+    .flag("fmodules-validate-once-per-build-session", [.singleDash]),
+
     // Disable writing of a depfile
-    "-MT",
-    "-MF",
-    "-MQ",
+    .option("MT", [.singleDash], [.noSpace, .separatedBySpace]),
+    .option("MF", [.singleDash], [.noSpace, .separatedBySpace]),
+    .option("MQ", [.singleDash], [.noSpace, .separatedBySpace]),
+
     // Don't write serialized diagnostic files
-    "--serialize-diagnostics",
+    .option("serialize-diagnostics", [.singleDash, .doubleDash], [.separatedBySpace]),
+
+    .option("fbuild-session-file", [.singleDash], [.separatedByEqualSign]),
   ]
 
   var result: [String] = []
   result.reserveCapacity(compilerArguments.count)
   var iterator = compilerArguments.makeIterator()
   while let argument = iterator.next() {
-    if removeFlags.contains(argument) || argument.starts(with: "-fbuild-session-file=") {
+    switch optionsToRemove.firstMatch(for: argument) {
+    case .removeOption:
       continue
-    }
-    if removeArguments.contains(argument) {
+    case .removeOptionAndNextArgument:
       _ = iterator.next()
       continue
+    case nil:
+      break
     }
     result.append(argument)
   }
@@ -391,4 +473,22 @@ private func adjustClangCompilerArgumentsForIndexStoreUpdate(
     "-fsyntax-only"
   )
   return result
+}
+
+fileprivate extension Sequence {
+  /// Returns `true` if this sequence contains an element that is equal to an element in `otherSequence` when
+  /// considering two elements as equal if they satisfy `predicate`.
+  func hasIntersection(
+    with otherSequence: some Sequence<Element>,
+    where predicate: (Element, Element) -> Bool
+  ) -> Bool {
+    for outer in self {
+      for inner in otherSequence {
+        if predicate(outer, inner) {
+          return true
+        }
+      }
+    }
+    return false
+  }
 }

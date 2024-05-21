@@ -89,6 +89,7 @@ final class CrossLanguageRenameTests: XCTestCase {
         }
         """,
       ],
+      headerFileLanguage: .c,
       newName: "dFunc",
       expectedPrepareRenamePlaceholder: "cFunc",
       expected: [

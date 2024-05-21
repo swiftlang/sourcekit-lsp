@@ -20,34 +20,57 @@ import SKTestSupport
 import TSCBasic
 import XCTest
 
+/// The bundle of the currently executing test.
+private let testBundle: Bundle = {
+  #if os(macOS)
+  if let bundle = Bundle.allBundles.first(where: { $0.bundlePath.hasSuffix(".xctest") }) {
+    return bundle
+  }
+  fatalError("couldn't find the test bundle")
+  #else
+  return Bundle.main
+  #endif
+}()
+
+/// The path to the built products directory.
+private let productsDirectory: URL = {
+  #if os(macOS)
+  return testBundle.bundleURL.deletingLastPathComponent()
+  #else
+  return testBundle.bundleURL
+  #endif
+}()
+
+/// The path to the INPUTS directory of shared test projects.
+private let skTestSupportInputsDirectory: URL = {
+  #if os(macOS)
+  // FIXME: Use Bundle.module.resourceURL once the fix for SR-12912 is released.
+
+  var resources =
+    productsDirectory
+    .appendingPathComponent("SourceKitLSP_SKTestSupport.bundle")
+    .appendingPathComponent("Contents")
+    .appendingPathComponent("Resources")
+  if !FileManager.default.fileExists(atPath: resources.path) {
+    // Xcode and command-line swiftpm differ about the path.
+    resources.deleteLastPathComponent()
+    resources.deleteLastPathComponent()
+  }
+  #else
+  let resources = XCTestCase.productsDirectory
+    .appendingPathComponent("SourceKitLSP_SKTestSupport.resources")
+  #endif
+  guard FileManager.default.fileExists(atPath: resources.path) else {
+    fatalError("missing resources \(resources.path)")
+  }
+  return resources.appendingPathComponent("INPUTS", isDirectory: true).standardizedFileURL
+}()
+
 final class BuildServerBuildSystemTests: XCTestCase {
-  /// The path to the INPUTS directory of shared test projects.
-  private static var skTestSupportInputsDirectory: URL = {
-    #if os(macOS)
-    // FIXME: Use Bundle.module.resourceURL once the fix for SR-12912 is released.
-
-    var resources = XCTestCase.productsDirectory
-      .appendingPathComponent("SourceKitLSP_SKTestSupport.bundle")
-      .appendingPathComponent("Contents")
-      .appendingPathComponent("Resources")
-    if !FileManager.default.fileExists(atPath: resources.path) {
-      // Xcode and command-line swiftpm differ about the path.
-      resources.deleteLastPathComponent()
-      resources.deleteLastPathComponent()
-    }
-    #else
-    let resources = XCTestCase.productsDirectory
-      .appendingPathComponent("SourceKitLSP_SKTestSupport.resources")
-    #endif
-    guard FileManager.default.fileExists(atPath: resources.path) else {
-      fatalError("missing resources \(resources.path)")
-    }
-    return resources.appendingPathComponent("INPUTS", isDirectory: true).standardizedFileURL
-  }()
-
   private var root: AbsolutePath {
     try! AbsolutePath(
-      validating: Self.skTestSupportInputsDirectory
+      validating:
+        skTestSupportInputsDirectory
         .appendingPathComponent(testDirectoryName, isDirectory: true).path
     )
   }

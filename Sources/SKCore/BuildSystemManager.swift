@@ -118,7 +118,7 @@ extension BuildSystemManager {
     }
     switch document.fileURL?.pathExtension {
     case "c": return .c
-    case "cpp", "cc", "cxx": return .cpp
+    case "cpp", "cc", "cxx", "hpp": return .cpp
     case "m": return .objective_c
     case "mm", "h": return .objective_cpp
     case "swift": return .swift
@@ -126,12 +126,17 @@ extension BuildSystemManager {
     }
   }
 
+  /// Returns all the `ConfiguredTarget`s that the document is part of.
+  public func configuredTargets(for document: DocumentURI) async -> [ConfiguredTarget] {
+    return await buildSystem?.configuredTargets(for: document) ?? []
+  }
+
   /// Returns the `ConfiguredTarget` that should be used for semantic functionality of the given document.
   public func canonicalConfiguredTarget(for document: DocumentURI) async -> ConfiguredTarget? {
     // Sort the configured targets to deterministically pick the same `ConfiguredTarget` every time.
     // We could allow the user to specify a preference of one target over another. For now this is not necessary because
     // no build system currently returns multiple targets for a source file.
-    return await buildSystem?.configuredTargets(for: document)
+    return await configuredTargets(for: document)
       .sorted { ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID) }
       .first
   }
@@ -141,13 +146,10 @@ extension BuildSystemManager {
   /// Implementation detail of `buildSettings(for:language:)`.
   private func buildSettingsFromPrimaryBuildSystem(
     for document: DocumentURI,
+    in target: ConfiguredTarget?,
     language: Language
   ) async throws -> FileBuildSettings? {
-    guard let buildSystem else {
-      return nil
-    }
-    guard let target = await canonicalConfiguredTarget(for: document) else {
-      logger.error("Failed to get target for \(document.forLogging)")
+    guard let buildSystem, let target else {
       return nil
     }
     // FIXME: (async) We should only wait `fallbackSettingsTimeout` for build
@@ -155,18 +157,25 @@ extension BuildSystemManager {
     // implement that with Swift concurrency.
     // For now, this should be fine because all build systems return
     // very quickly from `settings(for:language:)`.
-    guard let settings = try await buildSystem.buildSettings(for: document, in: target, language: language) else {
-      return nil
-    }
-    return settings
+    return try await buildSystem.buildSettings(for: document, in: target, language: language)
   }
 
-  private func buildSettings(
+  /// Returns the build settings for the given file in the given target.
+  ///
+  /// Only call this method if it is known that `document` is a main file. Prefer `buildSettingsInferredFromMainFile`
+  /// otherwise. If `document` is a header file, this will most likely return fallback settings because header files
+  /// don't have build settings by themselves.
+  public func buildSettings(
     for document: DocumentURI,
+    in target: ConfiguredTarget?,
     language: Language
   ) async -> FileBuildSettings? {
     do {
-      if let buildSettings = try await buildSettingsFromPrimaryBuildSystem(for: document, language: language) {
+      if let buildSettings = try await buildSettingsFromPrimaryBuildSystem(
+        for: document,
+        in: target,
+        language: language
+      ) {
         return buildSettings
       }
     } catch {
@@ -194,11 +203,11 @@ extension BuildSystemManager {
   /// references to that C file in the build settings by the header file.
   public func buildSettingsInferredFromMainFile(
     for document: DocumentURI,
-    language: Language,
-    logBuildSettings: Bool = true
+    language: Language
   ) async -> FileBuildSettings? {
     let mainFile = await mainFile(for: document, language: language)
-    guard var settings = await buildSettings(for: mainFile, language: language) else {
+    let target = await canonicalConfiguredTarget(for: mainFile)
+    guard var settings = await buildSettings(for: mainFile, in: target, language: language) else {
       return nil
     }
     if mainFile != document {
@@ -206,9 +215,7 @@ extension BuildSystemManager {
       // to reference `document` instead of `mainFile`.
       settings = settings.patching(newFile: document.pseudoPath, originalFile: mainFile.pseudoPath)
     }
-    if logBuildSettings {
-      await BuildSettingsLogger.shared.log(settings: settings, for: document)
-    }
+    await BuildSettingsLogger.shared.log(settings: settings, for: document)
     return settings
   }
 
@@ -218,6 +225,10 @@ extension BuildSystemManager {
 
   public func topologicalSort(of targets: [ConfiguredTarget]) async throws -> [ConfiguredTarget]? {
     return await buildSystem?.topologicalSort(of: targets)
+  }
+
+  public func targets(dependingOn targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
+    return await buildSystem?.targets(dependingOn: targets)
   }
 
   public func prepare(targets: [ConfiguredTarget]) async throws {
