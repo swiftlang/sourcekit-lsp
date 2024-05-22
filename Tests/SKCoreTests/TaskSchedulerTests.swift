@@ -195,7 +195,6 @@ final class TaskSchedulerTests: XCTestCase {
       }
     )
   }
-
 }
 
 // MARK: - Test helpers
@@ -354,8 +353,11 @@ fileprivate extension TaskScheduler<ClosureTaskDescription> {
       body,
       dependencies: dependencies
     )
+    // Make sure that we call `schedule` outside of the `Task` because the execution order of `Task`s is not guaranteed
+    // and if we called `schedule` inside `Task`, Swift concurrency can re-order the order that we schedule tasks in.
+    let queuedTask = await self.schedule(priority: priority, taskDescription)
     return Task(priority: priority) {
-      await self.schedule(priority: priority, taskDescription).waitToFinishPropagatingCancellation()
+      await queuedTask.waitToFinishPropagatingCancellation()
     }
   }
 }
