@@ -20,6 +20,8 @@ public enum TaskDependencyAction<TaskDescription: TaskDescriptionProtocol> {
   case cancelAndRescheduleDependency(TaskDescription)
 }
 
+private let taskSchedulerSubsystem = "org.swift.sourcekit-lsp.task-scheduler"
+
 public protocol TaskDescriptionProtocol: Identifiable, Sendable, CustomLogStringConvertible {
   /// Execute the task.
   ///
@@ -208,7 +210,14 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
         await withTaskGroup(of: Void.self) { taskGroup in
           taskGroup.addTask {
             for await _ in updatePriorityStream {
-              self.priority = Task.currentPriority
+              if Task.currentPriority != self.priority {
+                withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
+                  logger.debug(
+                    "Updating priority of \(self.description.forLogging) from \(self.priority.rawValue) to \(Task.currentPriority.rawValue)"
+                  )
+                }
+                self.priority = Task.currentPriority
+              }
             }
           }
           taskGroup.addTask {
@@ -296,6 +305,11 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// a new task that depends on it. Otherwise a no-op.
   nonisolated func elevatePriority(to targetPriority: TaskPriority) {
     if priority < targetPriority {
+      withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
+        logger.debug(
+          "Elevating priority of \(self.description.forLogging) from \(self.priority.rawValue) to \(targetPriority.rawValue)"
+        )
+      }
       Task(priority: targetPriority) {
         await self.resultTask.value
       }
@@ -428,13 +442,17 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
         case .cancelAndRescheduleDependency(let taskDescription):
           guard let dependency = self.currentlyExecutingTasks.first(where: { $0.description.id == taskDescription.id })
           else {
-            logger.fault(
-              "Cannot find task to wait for \(taskDescription.forLogging) in list of currently executing tasks"
-            )
+            withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
+              logger.fault(
+                "Cannot find task to wait for \(taskDescription.forLogging) in list of currently executing tasks"
+              )
+            }
             return nil
           }
           if !taskDescription.isIdempotent {
-            logger.fault("Cannot reschedule task '\(taskDescription.forLogging)' since it is not idempotent")
+            withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
+              logger.fault("Cannot reschedule task '\(taskDescription.forLogging)' since it is not idempotent")
+            }
             return dependency
           }
           if dependency.priority > task.priority {
@@ -445,9 +463,11 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
         case .waitAndElevatePriorityOfDependency(let taskDescription):
           guard let dependency = self.currentlyExecutingTasks.first(where: { $0.description.id == taskDescription.id })
           else {
-            logger.fault(
-              "Cannot find task to wait for '\(taskDescription.forLogging)' in list of currently executing tasks"
-            )
+            withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
+              logger.fault(
+                "Cannot find task to wait for '\(taskDescription.forLogging)' in list of currently executing tasks"
+              )
+            }
             return nil
           }
           return dependency
@@ -465,9 +485,11 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
         switch taskDependency {
         case .cancelAndRescheduleDependency(let taskDescription):
           guard let task = self.currentlyExecutingTasks.first(where: { $0.description.id == taskDescription.id }) else {
-            logger.fault(
-              "Cannot find task to reschedule \(taskDescription.forLogging) in list of currently executing tasks"
-            )
+            withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
+              logger.fault(
+                "Cannot find task to reschedule \(taskDescription.forLogging) in list of currently executing tasks"
+              )
+            }
             return nil
           }
           return task
@@ -478,6 +500,9 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
       if !rescheduleTasks.isEmpty {
         Task.detached(priority: task.priority) {
           for task in rescheduleTasks {
+            withLoggingSubsystemAndScope(subsystem: taskSchedulerSubsystem, scope: nil) {
+              logger.debug("Suspending \(task.description.forLogging)")
+            }
             await task.cancelToBeRescheduled()
           }
         }

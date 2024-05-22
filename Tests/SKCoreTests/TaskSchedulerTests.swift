@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPLogging
 import SKCore
 import SKTestSupport
 import XCTest
@@ -262,7 +263,9 @@ fileprivate final class ClosureTaskDescription: TaskDescriptionProtocol {
   }
 
   func execute() async {
+    logger.debug("Starting execution of \(self) with priority \(Task.currentPriority.rawValue)")
     await closure()
+    logger.debug("Finished executing \(self) with priority \(Task.currentPriority.rawValue)")
   }
 
   func dependencies(
