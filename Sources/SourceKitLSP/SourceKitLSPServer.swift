@@ -1233,9 +1233,9 @@ extension SourceKitLSPServer {
         }
       },
       indexTasksWereScheduled: { [weak self] count in
-        self?.indexProgressManager.indexTaskWasQueued(count: count)
+        self?.indexProgressManager.indexTasksWereScheduled(count: count)
       },
-      indexTaskDidFinish: { [weak self] in
+      indexStatusDidChange: { [weak self] in
         self?.indexProgressManager.indexStatusDidChange()
       }
     )
@@ -1296,9 +1296,9 @@ extension SourceKitLSPServer {
           indexDelegate: nil,
           indexTaskScheduler: self.indexTaskScheduler,
           indexTasksWereScheduled: { [weak self] count in
-            self?.indexProgressManager.indexTaskWasQueued(count: count)
+            self?.indexProgressManager.indexTasksWereScheduled(count: count)
           },
-          indexTaskDidFinish: { [weak self] in
+          indexStatusDidChange: { [weak self] in
             self?.indexProgressManager.indexStatusDidChange()
           }
         )

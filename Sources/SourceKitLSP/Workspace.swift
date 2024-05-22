@@ -95,7 +95,7 @@ public final class Workspace: Sendable {
     indexDelegate: SourceKitIndexDelegate?,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
-    indexTaskDidFinish: @escaping @Sendable () -> Void
+    indexStatusDidChange: @escaping @Sendable () -> Void
   ) async {
     self.documentManager = documentManager
     self.buildSetup = options.buildSetup
@@ -115,7 +115,7 @@ public final class Workspace: Sendable {
         testHooks: options.indexTestHooks,
         indexTaskScheduler: indexTaskScheduler,
         indexTasksWereScheduled: indexTasksWereScheduled,
-        indexTaskDidFinish: indexTaskDidFinish
+        indexStatusDidChange: indexStatusDidChange
       )
     } else {
       self.semanticIndexManager = nil
@@ -153,7 +153,7 @@ public final class Workspace: Sendable {
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
     reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void,
     indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
-    indexTaskDidFinish: @Sendable @escaping () -> Void
+    indexStatusDidChange: @Sendable @escaping () -> Void
   ) async throws {
     var buildSystem: BuildSystem? = nil
 
@@ -259,7 +259,7 @@ public final class Workspace: Sendable {
       indexDelegate: indexDelegate,
       indexTaskScheduler: indexTaskScheduler,
       indexTasksWereScheduled: indexTasksWereScheduled,
-      indexTaskDidFinish: indexTaskDidFinish
+      indexStatusDidChange: indexStatusDidChange
     )
   }
 
@@ -316,13 +316,22 @@ public struct IndexOptions: Sendable {
   /// Setting this to a value < 1 ensures that background indexing doesn't use all CPU resources.
   public var maxCoresPercentageToUseForBackgroundIndexing: Double
 
+  /// Whether to show the files that are currently being indexed / the targets that are currently being prepared in the
+  /// work done progress.
+  ///
+  /// This is an option because VS Code tries to render a multi-line work done progress into a single line text field in
+  /// the status bar, which looks broken. But at the same time, it is very useful to get a feeling about what's
+  /// currently happening indexing-wise.
+  public var showActivePreparationTasksInProgress: Bool
+
   public init(
     indexStorePath: AbsolutePath? = nil,
     indexDatabasePath: AbsolutePath? = nil,
     indexPrefixMappings: [PathPrefixMapping]? = nil,
     listenToUnitEvents: Bool = true,
     enableBackgroundIndexing: Bool = false,
-    maxCoresPercentageToUseForBackgroundIndexing: Double = 1
+    maxCoresPercentageToUseForBackgroundIndexing: Double = 1,
+    showActivePreparationTasksInProgress: Bool = false
   ) {
     self.indexStorePath = indexStorePath
     self.indexDatabasePath = indexDatabasePath
@@ -330,5 +339,6 @@ public struct IndexOptions: Sendable {
     self.listenToUnitEvents = listenToUnitEvents
     self.enableBackgroundIndexing = enableBackgroundIndexing
     self.maxCoresPercentageToUseForBackgroundIndexing = maxCoresPercentageToUseForBackgroundIndexing
+    self.showActivePreparationTasksInProgress = showActivePreparationTasksInProgress
   }
 }

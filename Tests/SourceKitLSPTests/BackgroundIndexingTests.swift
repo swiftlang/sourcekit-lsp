@@ -462,7 +462,7 @@ final class BackgroundIndexingTests: XCTestCase {
       return
     }
     var didGetEndWorkDoneProgress = false
-    for _ in 0..<3 {
+    for _ in 0..<5 {
       let workEndProgress = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
       switch workEndProgress.value {
       case .begin:
