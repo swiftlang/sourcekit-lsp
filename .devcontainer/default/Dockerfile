@@ -12,5 +12,3 @@ RUN \
     apt-get install -y \
       libsqlite3-dev libncurses5-dev python3
 
-ENV \
-  PATH="/swift-format/.build/debug:${PATH}"
