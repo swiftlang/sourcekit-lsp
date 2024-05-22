@@ -63,7 +63,11 @@ public final class Workspace: Sendable {
   /// The source code index, if available.
   ///
   /// Usually a checked index (retrieved using `index(checkedFor:)`) should be used instead of the unchecked index.
-  private let uncheckedIndex: ThreadSafeBox<UncheckedIndex?>
+  private let _uncheckedIndex: ThreadSafeBox<UncheckedIndex?>
+
+  public var uncheckedIndex: UncheckedIndex? {
+    return _uncheckedIndex.value
+  }
 
   /// The index that syntactically scans the workspace for tests.
   let syntacticTestIndex = SyntacticTestIndex()
@@ -97,7 +101,7 @@ public final class Workspace: Sendable {
     self.buildSetup = options.buildSetup
     self.rootUri = rootUri
     self.capabilityRegistry = capabilityRegistry
-    self.uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
+    self._uncheckedIndex = ThreadSafeBox(initialValue: uncheckedIndex)
     self.buildSystemManager = await BuildSystemManager(
       buildSystem: underlyingBuildSystem,
       fallbackBuildSystem: FallbackBuildSystem(buildSetup: buildSetup),
@@ -108,6 +112,7 @@ public final class Workspace: Sendable {
       self.semanticIndexManager = SemanticIndexManager(
         index: uncheckedIndex,
         buildSystemManager: buildSystemManager,
+        testHooks: options.indexTestHooks,
         indexTaskScheduler: indexTaskScheduler,
         indexTasksWereScheduled: indexTasksWereScheduled,
         indexTaskDidFinish: indexTaskDidFinish
@@ -154,17 +159,17 @@ public final class Workspace: Sendable {
 
     if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
       var options = options
-      var forceResolvedVersions = true
+      var isForIndexBuild = false
       if options.indexOptions.enableBackgroundIndexing, options.buildSetup.path == nil {
         options.buildSetup.path = rootPath.appending(component: ".index-build")
-        forceResolvedVersions = false
+        isForIndexBuild = true
       }
       func createSwiftPMBuildSystem(rootUrl: URL) async -> SwiftPMBuildSystem? {
         return await SwiftPMBuildSystem(
           url: rootUrl,
           toolchainRegistry: toolchainRegistry,
           buildSetup: options.buildSetup,
-          forceResolvedVersions: forceResolvedVersions,
+          isForIndexBuild: isForIndexBuild,
           reloadPackageStatusCallback: reloadPackageStatusCallback
         )
       }
@@ -261,7 +266,7 @@ public final class Workspace: Sendable {
   /// Returns a `CheckedIndex` that verifies that all the returned entries are up-to-date with the given
   /// `IndexCheckLevel`.
   func index(checkedFor checkLevel: IndexCheckLevel) -> CheckedIndex? {
-    return uncheckedIndex.value?.checked(for: checkLevel)
+    return _uncheckedIndex.value?.checked(for: checkLevel)
   }
 
   /// Write the index to disk.
@@ -269,12 +274,13 @@ public final class Workspace: Sendable {
   /// After this method is called, the workspace will no longer have an index associated with it. It should only be
   /// called when SourceKit-LSP shuts down.
   func closeIndex() {
-    uncheckedIndex.value = nil
+    _uncheckedIndex.value = nil
   }
 
   public func filesDidChange(_ events: [FileEvent]) async {
     await buildSystemManager.filesDidChange(events)
     await syntacticTestIndex.filesDidChange(events)
+    await semanticIndexManager?.filesDidChange(events)
   }
 }
 

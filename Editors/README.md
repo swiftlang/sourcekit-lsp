@@ -22,58 +22,7 @@ The [Swift for Visual Studio Code extension](https://marketplace.visualstudio.co
 
 ## Sublime Text
 
-Before using SourceKit-LSP with Sublime Text, you will need to install the LSP package from Package Control. To configure SourceKit-LSP, open the LSP package's settings. The following snippet should be enough to get started with Swift.
-
-You will need the path to the `sourcekit-lsp` executable for the "command" section.
-
-```json
-{
-  "clients":
-  {
-    "SourceKit-LSP":
-    {
-      "enabled": true,
-      "command": [
-        "<sourcekit-lsp command>"
-      ],
-      "env": {
-        // To override the toolchain, uncomment the following:
-        // "SOURCEKIT_TOOLCHAIN_PATH": "<path to toolchain>",
-      },
-      "languages": [
-        {
-          "scopes": ["source.swift"],
-          "syntaxes": [
-            "Packages/Swift/Syntaxes/Swift.tmLanguage",
-            "Packages/Decent Swift Syntax/Swift.sublime-syntax",
-          ],
-          "languageId": "swift"
-        },
-        {
-          "scopes": ["source.c"],
-          "syntaxes": ["Packages/C++/C.sublime-syntax"],
-          "languageId": "c"
-        },
-        {
-          "scopes": ["source.c++"],
-          "syntaxes": ["Packages/C++/C++.sublime-syntax"],
-          "languageId": "cpp"
-        },
-        {
-          "scopes": ["source.objc"],
-          "syntaxes": ["Packages/Objective-C/Objective-C.sublime-syntax"],
-          "languageId": "objective-c"
-        },
-        {
-          "scopes": ["source.objc++"],
-          "syntaxes": ["Packages/Objective-C/Objective-C++.sublime-syntax"],
-          "languageId": "objective-cpp"
-        },
-      ]
-    }
-  }
-}
-```
+Before using SourceKit-LSP with Sublime Text, you will need to install the [LSP](https://packagecontrol.io/packages/LSP), [LSP-SourceKit](https://github.com/sublimelsp/LSP-SourceKit) and [Swift-Next](https://github.com/Swift-Next/Swift-Next) packages from Package Control. Then toggle the server on by typing in command palette `LSP: Enable Language Server Globally` or `LSP: Enable Language Server in Project`.
 
 ## Emacs
 

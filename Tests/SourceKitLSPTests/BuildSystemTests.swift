@@ -21,11 +21,11 @@ import XCTest
 
 /// Build system to be used for testing BuildSystem and BuildSystemDelegate functionality with SourceKitLSPServer
 /// and other components.
-final class TestBuildSystem: BuildSystem {
-  var projectRoot: AbsolutePath = try! AbsolutePath(validating: "/")
-  var indexStorePath: AbsolutePath? = nil
-  var indexDatabasePath: AbsolutePath? = nil
-  var indexPrefixMappings: [PathPrefixMapping] = []
+actor TestBuildSystem: BuildSystem {
+  let projectRoot: AbsolutePath = try! AbsolutePath(validating: "/")
+  let indexStorePath: AbsolutePath? = nil
+  let indexDatabasePath: AbsolutePath? = nil
+  let indexPrefixMappings: [PathPrefixMapping] = []
 
   weak var delegate: BuildSystemDelegate?
 
@@ -34,10 +34,14 @@ final class TestBuildSystem: BuildSystem {
   }
 
   /// Build settings by file.
-  var buildSettingsByFile: [DocumentURI: FileBuildSettings] = [:]
+  private var buildSettingsByFile: [DocumentURI: FileBuildSettings] = [:]
 
   /// Files currently being watched by our delegate.
-  var watchedFiles: Set<DocumentURI> = []
+  private var watchedFiles: Set<DocumentURI> = []
+
+  func setBuildSettings(for uri: DocumentURI, to buildSettings: FileBuildSettings) {
+    buildSettingsByFile[uri] = buildSettings
+  }
 
   func buildSettings(
     for document: DocumentURI,
@@ -62,6 +66,10 @@ final class TestBuildSystem: BuildSystem {
   public func generateBuildGraph() {}
 
   public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
+    return nil
+  }
+
+  public func targets(dependingOn targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
   }
 
@@ -160,7 +168,7 @@ final class BuildSystemTests: XCTestCase {
       }
       """
 
-    buildSystem.buildSettingsByFile[doc] = FileBuildSettings(compilerArguments: args)
+    await buildSystem.setBuildSettings(for: doc, to: FileBuildSettings(compilerArguments: args))
 
     let documentManager = await self.testClient.server._documentManager
 
@@ -173,7 +181,7 @@ final class BuildSystemTests: XCTestCase {
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
     let newSettings = FileBuildSettings(compilerArguments: args + ["-DFOO"])
-    buildSystem.buildSettingsByFile[doc] = newSettings
+    await buildSystem.setBuildSettings(for: doc, to: newSettings)
 
     await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
@@ -194,7 +202,7 @@ final class BuildSystemTests: XCTestCase {
       .buildSettings(for: doc, language: .swift)!
       .compilerArguments
 
-    buildSystem.buildSettingsByFile[doc] = FileBuildSettings(compilerArguments: args)
+    await buildSystem.setBuildSettings(for: doc, to: FileBuildSettings(compilerArguments: args))
 
     let text = """
       #if FOO
@@ -214,7 +222,7 @@ final class BuildSystemTests: XCTestCase {
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should no longer have errors.
     let newSettings = FileBuildSettings(compilerArguments: args + ["-DFOO"])
-    buildSystem.buildSettingsByFile[doc] = newSettings
+    await buildSystem.setBuildSettings(for: doc, to: newSettings)
 
     await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
@@ -248,7 +256,7 @@ final class BuildSystemTests: XCTestCase {
     // Modify the build settings and inform the delegate.
     // This should trigger a new publish diagnostics and we should see a diagnostic.
     let newSettings = FileBuildSettings(compilerArguments: args)
-    buildSystem.buildSettingsByFile[doc] = newSettings
+    await buildSystem.setBuildSettings(for: doc, to: newSettings)
 
     await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 
@@ -283,7 +291,7 @@ final class BuildSystemTests: XCTestCase {
     XCTAssertEqual(text, try documentManager.latestSnapshot(doc).text)
 
     // Swap from fallback settings to primary build system settings.
-    buildSystem.buildSettingsByFile[doc] = primarySettings
+    await buildSystem.setBuildSettings(for: doc, to: primarySettings)
 
     await buildSystem.delegate?.fileBuildSettingsChanged([doc])
 

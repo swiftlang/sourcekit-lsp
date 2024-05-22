@@ -699,7 +699,6 @@ public actor SourceKitLSPServer {
 
   /// Send the given notification to the editor.
   public func sendNotificationToClient(_ notification: some NotificationType) {
-    logger.log("Sending notification: \(notification.forLogging)")
     client.send(notification)
   }
 
@@ -847,6 +846,7 @@ public actor SourceKitLSPServer {
     guard let toolchain = await workspace.buildSystemManager.toolchain(for: uri, language),
       let service = await languageService(for: toolchain, language, in: workspace)
     else {
+      logger.error("Failed to create language service for \(uri)")
       return nil
     }
 
@@ -992,6 +992,16 @@ extension SourceKitLSPServer: MessageHandler {
     }
 
     logger.log("Received request \(id): \(params.forLogging)")
+
+    if let textDocumentRequest = params as? any TextDocumentRequest {
+      // When we are requesting information from a document, poke preparation of its target. We don't want to wait for
+      // the preparation to finish because that would cause too big a delay.
+      // In practice, while the user is working on a file, we'll get a text document request for it on a regular basis,
+      // which prepares the files. For files that are open but aren't being worked on (eg. a different tab), we don't
+      // get requests, ensuring that we don't unnecessarily prepare them.
+      let workspace = await self.workspaceForDocument(uri: textDocumentRequest.textDocument.uri)
+      await workspace?.semanticIndexManager?.schedulePreparation(of: textDocumentRequest.textDocument.uri)
+    }
 
     switch request {
     case let request as RequestAndReply<InitializeRequest>:
@@ -1200,7 +1210,6 @@ extension SourceKitLSPServer {
       logger.log("Cannot open workspace before server is initialized")
       return nil
     }
-    let indexTaskDidFinishCallback = options.indexTaskDidFinish
     var options = self.options
     options.buildSetup = self.options.buildSetup.merging(buildSetup(for: workspaceFolder))
     return try? await Workspace(
@@ -1226,7 +1235,6 @@ extension SourceKitLSPServer {
       },
       indexTaskDidFinish: { [weak self] in
         self?.indexProgressManager.indexStatusDidChange()
-        indexTaskDidFinishCallback?()
       }
     )
   }
@@ -1275,7 +1283,6 @@ extension SourceKitLSPServer {
       if self.workspaces.isEmpty {
         logger.error("no workspace found")
 
-        let indexTaskDidFinishCallback = self.options.indexTaskDidFinish
         let workspace = await Workspace(
           documentManager: self.documentManager,
           rootUri: req.rootURI,
@@ -1291,7 +1298,6 @@ extension SourceKitLSPServer {
           },
           indexTaskDidFinish: { [weak self] in
             self?.indexProgressManager.indexStatusDidChange()
-            indexTaskDidFinishCallback?()
           }
         )
 
@@ -1537,6 +1543,7 @@ extension SourceKitLSPServer {
       )
       return
     }
+    await workspace.semanticIndexManager?.schedulePreparation(of: uri)
     await openDocument(notification, workspace: workspace)
   }
 
@@ -1592,6 +1599,7 @@ extension SourceKitLSPServer {
       )
       return
     }
+    await workspace.semanticIndexManager?.schedulePreparation(of: uri)
 
     // If the document is ready, we can handle the change right now.
     documentManager.edit(notification)
@@ -2486,7 +2494,7 @@ extension SourceKitLSPServer {
   func pollIndex(_ req: PollIndexRequest) async throws -> VoidResponse {
     for workspace in workspaces {
       await workspace.semanticIndexManager?.waitForUpToDateIndex()
-      workspace.index(checkedFor: .deletedFiles)?.pollForUnitChangesAndWait()
+      workspace.uncheckedIndex?.pollForUnitChangesAndWait()
     }
     return VoidResponse()
   }

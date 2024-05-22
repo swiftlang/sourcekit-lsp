@@ -20,7 +20,7 @@ private typealias CodeActionCapabilities = TextDocumentClientCapabilities.CodeAc
 private typealias CodeActionLiteralSupport = CodeActionCapabilities.CodeActionLiteralSupport
 private typealias CodeActionKindCapabilities = CodeActionLiteralSupport.CodeActionKind
 
-private var clientCapabilitiesWithCodeActionSupport: ClientCapabilities = {
+private let clientCapabilitiesWithCodeActionSupport: ClientCapabilities = {
   var documentCapabilities = TextDocumentClientCapabilities()
   var codeActionCapabilities = CodeActionCapabilities()
   let codeActionKinds = CodeActionKindCapabilities(valueSet: [.refactor, .quickFix])
@@ -608,6 +608,12 @@ final class CodeActionTests: XCTestCase {
       return action.title == "Add test target (Swift Testing)"
     }
     XCTAssertNotNil(addTestAction)
+
+    XCTAssertTrue(
+      codeActions.contains { action in
+        action.title == "Add library target"
+      }
+    )
 
     guard let addTestChanges = addTestAction?.edit?.documentChanges else {
       XCTFail("Didn't have changes in the 'Add test target (Swift Testing)' action")

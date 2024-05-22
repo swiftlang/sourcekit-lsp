@@ -37,7 +37,7 @@ class ConnectionTests: XCTestCase {
     XCTAssertEqual("a/b", dec.string)
   }
 
-  func testEcho() {
+  func testEcho() async throws {
     let client = connection.client
     let expectation = self.expectation(description: "response received")
 
@@ -48,7 +48,7 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 
   func testMessageBuffer() async throws {
@@ -95,7 +95,7 @@ class ConnectionTests: XCTestCase {
     XCTAssert(connection.serverToClientConnection.requestBufferIsEmpty)
   }
 
-  func testEchoError() {
+  func testEchoError() async throws {
     let client = connection.client
     let expectation = self.expectation(description: "response received 1")
     let expectation2 = self.expectation(description: "response received 2")
@@ -114,7 +114,7 @@ class ConnectionTests: XCTestCase {
       expectation2.fulfill()
     }
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation, expectation2])
   }
 
   func testEchoNote() async throws {
@@ -131,7 +131,7 @@ class ConnectionTests: XCTestCase {
     try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testUnknownRequest() {
+  func testUnknownRequest() async throws {
     let client = connection.client
     let expectation = self.expectation(description: "response received")
 
@@ -145,10 +145,10 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testUnknownNotification() {
+  func testUnknownNotification() async throws {
     let client = connection.client
     let expectation = self.expectation(description: "note received")
 
@@ -167,10 +167,10 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testUnexpectedResponse() {
+  func testUnexpectedResponse() async throws {
     let client = connection.client
     let expectation = self.expectation(description: "response received")
 
@@ -186,10 +186,10 @@ class ConnectionTests: XCTestCase {
       expectation.fulfill()
     }
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 
-  func testSendAfterClose() {
+  func testSendAfterClose() async throws {
     let client = connection.client
     let expectation = self.expectation(description: "note received")
 
@@ -206,7 +206,7 @@ class ConnectionTests: XCTestCase {
     connection.clientToServerConnection.close()
     connection.clientToServerConnection.close()
 
-    waitForExpectations(timeout: defaultTimeout)
+    try await fulfillmentOfOrThrow([expectation])
   }
 
   func testSendBeforeClose() async throws {
@@ -229,7 +229,7 @@ class ConnectionTests: XCTestCase {
   /// DispatchIO can make its callback at any time, so this test is to try to
   /// provoke a race between those things and ensure the closeHandler is called
   /// exactly once.
-  func testCloseRace() {
+  func testCloseRace() async throws {
     for _ in 0...100 {
       let to = Pipe()
       let from = Pipe()
@@ -274,9 +274,8 @@ class ConnectionTests: XCTestCase {
       #endif
       conn.close()
 
-      withExtendedLifetime(conn) {
-        waitForExpectations(timeout: defaultTimeout)
-      }
+      try await fulfillmentOfOrThrow([expectation])
+      withExtendedLifetime(conn) {}
     }
   }
 

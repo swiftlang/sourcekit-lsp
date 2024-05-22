@@ -10,7 +10,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-// We need to import all of TSCBasic because otherwise we can't refer to Process.ExitStatus (rdar://127577691)
 import struct TSCBasic.ProcessResult
 
 /// Same as `ProcessResult.ExitStatus` in tools-support-core but has the same cases on all platforms and is thus easier

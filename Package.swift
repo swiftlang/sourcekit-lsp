@@ -182,6 +182,13 @@ let package = Package(
       exclude: ["CMakeLists.txt"]
     ),
 
+    .testTarget(
+      name: "SemanticIndexTests",
+      dependencies: [
+        "SemanticIndex"
+      ]
+    ),
+
     // MARK: SKCore
     // Data structures and algorithms useful across the project, but not necessarily
     // suitable for use in other packages.

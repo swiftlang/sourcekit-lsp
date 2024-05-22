@@ -12,13 +12,56 @@
 
 import LSPTestSupport
 import LanguageServerProtocol
+import SKCore
 import SKTestSupport
+import SemanticIndex
 import SourceKitLSP
 import XCTest
 
 fileprivate let backgroundIndexingOptions = SourceKitLSPServer.Options(
   indexOptions: IndexOptions(enableBackgroundIndexing: true)
 )
+
+fileprivate actor ExpectedPreparationTracker {
+  /// The targets we expect to be prepared. For targets within the same set, we don't care about the exact order.
+  private var expectedPreparations: [Set<ConfiguredTarget>]
+
+  /// Implicitly-unwrapped optional so we can reference `self` when creating `IndexTestHooks`.
+  /// `nonisolated(unsafe)` is fine because this is not modified after `testHooks` is created.
+  nonisolated(unsafe) var testHooks: IndexTestHooks!
+
+  init(expectedPreparations: [Set<ConfiguredTarget>]) {
+    self.expectedPreparations = expectedPreparations
+    self.testHooks = IndexTestHooks(preparationTaskDidFinish: { [weak self] in
+      await self?.preparationTaskDidFinish(taskDescription: $0)
+    })
+  }
+
+  func preparationTaskDidFinish(taskDescription: PreparationTaskDescription) -> Void {
+    guard let expectedTargetsToPrepare = expectedPreparations.first else {
+      XCTFail("Didn't expect a preparation but received \(taskDescription)")
+      return
+    }
+    guard Set(taskDescription.targetsToPrepare).isSubset(of: expectedTargetsToPrepare) else {
+      XCTFail("Received unexpected preparation of \(taskDescription)")
+      return
+    }
+    let remainingExpectedTargetsToPrepare = expectedTargetsToPrepare.subtracting(taskDescription.targetsToPrepare)
+    if remainingExpectedTargetsToPrepare.isEmpty {
+      expectedPreparations.remove(at: 0)
+    } else {
+      expectedPreparations[0] = remainingExpectedTargetsToPrepare
+    }
+  }
+
+  deinit {
+    let expectedPreparations = self.expectedPreparations
+    XCTAssert(
+      expectedPreparations.isEmpty,
+      "ExpectedPreparationTracker destroyed with unfulfilled expected preparations: \(expectedPreparations)."
+    )
+  }
+}
 
 final class BackgroundIndexingTests: XCTestCase {
   func testBackgroundIndexingOfSingleFile() async throws {
@@ -165,11 +208,11 @@ final class BackgroundIndexingTests: XCTestCase {
 
   func testBackgroundIndexingHappensWithLowPriority() async throws {
     var serverOptions = backgroundIndexingOptions
-    serverOptions.indexTaskDidFinish = {
-      XCTAssert(
-        Task.currentPriority == .low,
-        "An index task ran with priority \(Task.currentPriority)"
-      )
+    serverOptions.indexTestHooks.preparationTaskDidFinish = { taskDescription in
+      XCTAssert(Task.currentPriority == .low, "\(taskDescription) ran with priority \(Task.currentPriority)")
+    }
+    serverOptions.indexTestHooks.updateIndexStoreTaskDidFinish = { taskDescription in
+      XCTAssert(Task.currentPriority == .low, "\(taskDescription) ran with priority \(Task.currentPriority)")
     }
     let project = try await SwiftPMTestProject(
       files: [
@@ -202,9 +245,10 @@ final class BackgroundIndexingTests: XCTestCase {
 
     // Wait for indexing to finish without elevating the priority
     let semaphore = WrappedSemaphore()
+    let testClient = project.testClient
     Task(priority: .low) {
       await assertNoThrow {
-        try await project.testClient.send(PollIndexRequest())
+        try await testClient.send(PollIndexRequest())
       }
       semaphore.signal()
     }
@@ -372,5 +416,224 @@ final class BackgroundIndexingTests: XCTestCase {
     XCTAssert(didGetEndWorkDoneProgress, "Expected end work done progress")
 
     withExtendedLifetime(project) {}
+  }
+
+  func testBackgroundIndexingReindexesWhenSwiftFileIsModified() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyFile.swift": """
+        func 1️⃣foo() {}
+        """,
+        "MyOtherFile.swift": "",
+      ],
+      serverOptions: backgroundIndexingOptions
+    )
+
+    let (uri, positions) = try project.openDocument("MyFile.swift")
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    let callsBeforeEdit = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+    XCTAssertEqual(callsBeforeEdit, [])
+
+    let otherFileMarkedContents = """
+      func 2️⃣bar() {
+        3️⃣foo()
+      }
+      """
+
+    let otherFileUri = try project.uri(for: "MyOtherFile.swift")
+    let otherFileUrl = try XCTUnwrap(otherFileUri.fileURL)
+    let otherFilePositions = DocumentPositions(markedText: otherFileMarkedContents)
+
+    try extractMarkers(otherFileMarkedContents).textWithoutMarkers.write(
+      to: otherFileUrl,
+      atomically: true,
+      encoding: .utf8
+    )
+
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: otherFileUri, type: .changed)]))
+    _ = try await project.testClient.send(PollIndexRequest())
+
+    let callsAfterEdit = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+    XCTAssertEqual(
+      callsAfterEdit,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "bar()",
+            kind: .function,
+            tags: nil,
+            uri: otherFileUri,
+            range: Range(otherFilePositions["2️⃣"]),
+            selectionRange: Range(otherFilePositions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("s:9MyLibrary3baryyF"),
+              "uri": .string(otherFileUri.stringValue),
+            ])
+          ),
+          fromRanges: [Range(otherFilePositions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testBackgroundIndexingReindexesHeader() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyLibrary/include/Header.h": """
+        void 1️⃣someFunc();
+        """,
+        "MyFile.c": """
+        #include "Header.h"
+        """,
+      ],
+      serverOptions: backgroundIndexingOptions
+    )
+
+    let (uri, positions) = try project.openDocument("Header.h", language: .c)
+    let prepare = try await project.testClient.send(
+      CallHierarchyPrepareRequest(textDocument: TextDocumentIdentifier(uri), position: positions["1️⃣"])
+    )
+
+    let callsBeforeEdit = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+    XCTAssertEqual(callsBeforeEdit, [])
+
+    let headerNewMarkedContents = """
+      void someFunc();
+
+      void 2️⃣test() {
+        3️⃣someFunc();
+      };
+      """
+    let newPositions = DocumentPositions(markedText: headerNewMarkedContents)
+
+    try extractMarkers(headerNewMarkedContents).textWithoutMarkers.write(
+      to: try XCTUnwrap(uri.fileURL),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    project.testClient.send(DidChangeWatchedFilesNotification(changes: [FileEvent(uri: uri, type: .changed)]))
+    _ = try await project.testClient.send(PollIndexRequest())
+
+    let callsAfterEdit = try await project.testClient.send(
+      CallHierarchyIncomingCallsRequest(item: try XCTUnwrap(prepare?.only))
+    )
+    XCTAssertEqual(
+      callsAfterEdit,
+      [
+        CallHierarchyIncomingCall(
+          from: CallHierarchyItem(
+            name: "test",
+            kind: .function,
+            tags: nil,
+            uri: uri,
+            range: Range(newPositions["2️⃣"]),
+            selectionRange: Range(newPositions["2️⃣"]),
+            data: .dictionary([
+              "usr": .string("c:@F@test"),
+              "uri": .string(uri.stringValue),
+            ])
+          ),
+          fromRanges: [Range(newPositions["3️⃣"])]
+        )
+      ]
+    )
+  }
+
+  func testPrepareTarget() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
+    var serverOptions = backgroundIndexingOptions
+    let expectedPreparationTracker = ExpectedPreparationTracker(expectedPreparations: [
+      [
+        ConfiguredTarget(targetID: "LibA", runDestinationID: "dummy"),
+        ConfiguredTarget(targetID: "LibB", runDestinationID: "dummy"),
+      ],
+      [
+        ConfiguredTarget(targetID: "LibB", runDestinationID: "dummy")
+      ],
+    ])
+    serverOptions.indexTestHooks = expectedPreparationTracker.testHooks
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/MyFile.swift": "",
+        "LibB/MyOtherFile.swift": """
+        import LibA
+        func bar() {
+          1️⃣foo2️⃣()
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      serverOptions: serverOptions,
+      cleanUp: { /* Keep expectedPreparationTracker alive */ _ = expectedPreparationTracker }
+    )
+
+    let (uri, _) = try project.openDocument("MyOtherFile.swift")
+    let initialDiagnostics = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+    guard case .full(let initialDiagnostics) = initialDiagnostics else {
+      XCTFail("Expected full diagnostics")
+      return
+    }
+    XCTAssertNotEqual(initialDiagnostics.items, [])
+
+    try "public func foo() {}".write(
+      to: try XCTUnwrap(project.uri(for: "MyFile.swift").fileURL),
+      atomically: true,
+      encoding: .utf8
+    )
+
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: try project.uri(for: "MyFile.swift"), type: .changed)])
+    )
+
+    // Send a document request for `uri` to trigger re-preparation of its target. We don't actually care about the
+    // response for this request. Instead, we wait until SourceKit-LSP sends us a `DiagnosticsRefreshRequest`,
+    // indicating that the target of `uri` has been prepared.
+    _ = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
+
+    let receivedEmptyDiagnostics = self.expectation(description: "Received diagnostic refresh request")
+    project.testClient.handleNextRequest { (_: DiagnosticsRefreshRequest) in
+      Task {
+        let updatedDiagnostics = try await project.testClient.send(
+          DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+        )
+        guard case .full(let updatedDiagnostics) = updatedDiagnostics else {
+          XCTFail("Expected full diagnostics")
+          return
+        }
+        if updatedDiagnostics.items.isEmpty {
+          receivedEmptyDiagnostics.fulfill()
+        }
+      }
+      return VoidResponse()
+    }
+
+    try await fulfillmentOfOrThrow([receivedEmptyDiagnostics])
   }
 }

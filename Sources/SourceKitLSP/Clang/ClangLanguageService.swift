@@ -499,8 +499,6 @@ extension ClangLanguageService {
       return
     }
     let clangBuildSettings = await self.buildSettings(for: uri)
-    // FIXME: (logging) Log only the `-something` flags with paths redacted if private mode is enabled
-    logger.info("settings for \(uri.forLogging): \(clangBuildSettings?.compilerArgs.description ?? "nil")")
 
     // The compile command changed, send over the new one.
     // FIXME: what should we do if we no longer have valid build settings?
