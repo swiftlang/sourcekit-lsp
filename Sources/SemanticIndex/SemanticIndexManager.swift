@@ -264,9 +264,6 @@ public final actor SemanticIndexManager {
     if let dependentTargets = await buildSystemManager.targets(dependingOn: targets) {
       await preparationUpToDateStatus.markOutOfDate(dependentTargets)
     } else {
-      // We couldn't determine which targets depend on the modified targets. Be conservative and assume all of them do.
-      await indexStoreUpToDateStatus.markOutOfDate(changedFiles)
-
       await preparationUpToDateStatus.markAllOutOfDate()
       // `markAllOutOfDate` only marks targets out-of-date that have been indexed before. Also mark all targets with
       // in-progress preparation out of date. So we don't get into the following situation, which would result in an
@@ -524,17 +521,22 @@ public final actor SemanticIndexManager {
       indexTasks.append(indexTask)
 
       let filesToIndex = targetsBatch.flatMap({ filesByTarget[$0]! })
+      // The number of index tasks that don't currently have an in-progress task associated with it.
+      // The denominator in the index progress should get incremented by this amount.
+      // We don't want to increment the denominator for tasks that already have an index in progress.
+      let newIndexTasks = filesToIndex.filter { inProgressIndexTasks[$0.sourceFile] == nil }.count
       for file in filesToIndex {
-        // indexStatus will get set to `.upToDate` by `updateIndexStore`. Setting it to `.upToDate` cannot race with
-        // setting it to `.scheduled` because we don't have an `await` call between the creation of `indexTask` and
+        // The state of `inProgressIndexTasks` will get pushed on from `updateIndexStore`.
+        // The updates to `inProgressIndexTasks` from `updateIndexStore` cannot race with setting it to
+        // `.waitingForPreparation` here  because we don't have an `await` call between the creation of `indexTask` and
         // this loop, so we still have exclusive access to the `SemanticIndexManager` actor and hence `updateIndexStore`
-        // can't execute until we have set all index statuses to `.scheduled`.
+        // can't execute until we have set all index statuses to `.waitingForPreparation`.
         inProgressIndexTasks[file.sourceFile] = .waitingForPreparation(
           preparationTaskID: preparationTaskID,
           indexTask: indexTask
         )
       }
-      indexTasksWereScheduled(filesToIndex.count)
+      indexTasksWereScheduled(newIndexTasks)
     }
     let indexTasksImmutable = indexTasks
 
