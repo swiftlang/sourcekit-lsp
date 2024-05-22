@@ -70,6 +70,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running preparation operations
     await withLoggingScope("preparation-\(id % 100)") {
+      await testHooks.preparationTaskDidStart?(self)
       let targetsToPrepare = await targetsToPrepare.asyncFilter {
         await !preparationUpToDateStatus.isUpToDate($0)
       }.sorted(by: {

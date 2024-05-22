@@ -301,6 +301,9 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     processArguments: [String],
     workingDirectory: AbsolutePath?
   ) async throws {
+    if Task.isCancelled {
+      return
+    }
     let process = try Process.launch(
       arguments: processArguments,
       workingDirectory: workingDirectory

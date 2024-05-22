@@ -22,36 +22,98 @@ fileprivate let backgroundIndexingOptions = SourceKitLSPServer.Options(
   indexOptions: IndexOptions(enableBackgroundIndexing: true)
 )
 
+fileprivate struct ExpectedPreparation {
+  let targetID: String
+  let runDestinationID: String
+
+  /// A closure that will be executed when a preparation task starts.
+  /// This allows the artificial delay of a preparation task to force two preparation task to race.
+  let didStart: (() -> Void)?
+
+  /// A closure that will be executed when a preparation task finishes.
+  /// This allows the artificial delay of a preparation task to force two preparation task to race.
+  let didFinish: (() -> Void)?
+
+  internal init(
+    targetID: String,
+    runDestinationID: String,
+    didStart: (() -> Void)? = nil,
+    didFinish: (() -> Void)? = nil
+  ) {
+    self.targetID = targetID
+    self.runDestinationID = runDestinationID
+    self.didStart = didStart
+    self.didFinish = didFinish
+  }
+
+  var configuredTarget: ConfiguredTarget {
+    return ConfiguredTarget(targetID: targetID, runDestinationID: runDestinationID)
+  }
+}
+
 fileprivate actor ExpectedPreparationTracker {
   /// The targets we expect to be prepared. For targets within the same set, we don't care about the exact order.
-  private var expectedPreparations: [Set<ConfiguredTarget>]
+  private var expectedPreparations: [[ExpectedPreparation]]
 
   /// Implicitly-unwrapped optional so we can reference `self` when creating `IndexTestHooks`.
   /// `nonisolated(unsafe)` is fine because this is not modified after `testHooks` is created.
   nonisolated(unsafe) var testHooks: IndexTestHooks!
 
-  init(expectedPreparations: [Set<ConfiguredTarget>]) {
+  init(expectedPreparations: [[ExpectedPreparation]]) {
     self.expectedPreparations = expectedPreparations
-    self.testHooks = IndexTestHooks(preparationTaskDidFinish: { [weak self] in
-      await self?.preparationTaskDidFinish(taskDescription: $0)
-    })
+    self.testHooks = IndexTestHooks(
+      preparationTaskDidStart: { [weak self] in
+        await self?.preparationTaskDidStart(taskDescription: $0)
+      },
+      preparationTaskDidFinish: { [weak self] in
+        await self?.preparationTaskDidFinish(taskDescription: $0)
+      }
+    )
+  }
+
+  func preparationTaskDidStart(taskDescription: PreparationTaskDescription) -> Void {
+    if Task.isCancelled {
+      return
+    }
+    guard let expectedTargetsToPrepare = expectedPreparations.first else {
+      return
+    }
+    for expectedPreparation in expectedTargetsToPrepare {
+      if taskDescription.targetsToPrepare.contains(expectedPreparation.configuredTarget) {
+        expectedPreparation.didStart?()
+      }
+    }
   }
 
   func preparationTaskDidFinish(taskDescription: PreparationTaskDescription) -> Void {
+    if Task.isCancelled {
+      return
+    }
     guard let expectedTargetsToPrepare = expectedPreparations.first else {
-      XCTFail("Didn't expect a preparation but received \(taskDescription)")
+      XCTFail("Didn't expect a preparation but received \(taskDescription.targetsToPrepare)")
       return
     }
-    guard Set(taskDescription.targetsToPrepare).isSubset(of: expectedTargetsToPrepare) else {
-      XCTFail("Received unexpected preparation of \(taskDescription)")
+    guard Set(taskDescription.targetsToPrepare).isSubset(of: expectedTargetsToPrepare.map(\.configuredTarget)) else {
+      XCTFail("Received unexpected preparation of \(taskDescription.targetsToPrepare)")
       return
     }
-    let remainingExpectedTargetsToPrepare = expectedTargetsToPrepare.subtracting(taskDescription.targetsToPrepare)
+    var remainingExpectedTargetsToPrepare: [ExpectedPreparation] = []
+    for expectedPreparation in expectedTargetsToPrepare {
+      if taskDescription.targetsToPrepare.contains(expectedPreparation.configuredTarget) {
+        expectedPreparation.didFinish?()
+      } else {
+        remainingExpectedTargetsToPrepare.append(expectedPreparation)
+      }
+    }
     if remainingExpectedTargetsToPrepare.isEmpty {
       expectedPreparations.remove(at: 0)
     } else {
       expectedPreparations[0] = remainingExpectedTargetsToPrepare
     }
+  }
+
+  nonisolated func keepAlive() {
+    withExtendedLifetime(self) { _ in }
   }
 
   deinit {
@@ -549,16 +611,16 @@ final class BackgroundIndexingTests: XCTestCase {
     )
   }
 
-  func testPrepareTarget() async throws {
+  func testPrepareTargetAfterEditToDependency() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     var serverOptions = backgroundIndexingOptions
     let expectedPreparationTracker = ExpectedPreparationTracker(expectedPreparations: [
       [
-        ConfiguredTarget(targetID: "LibA", runDestinationID: "dummy"),
-        ConfiguredTarget(targetID: "LibB", runDestinationID: "dummy"),
+        ExpectedPreparation(targetID: "LibA", runDestinationID: "dummy"),
+        ExpectedPreparation(targetID: "LibB", runDestinationID: "dummy"),
       ],
       [
-        ConfiguredTarget(targetID: "LibB", runDestinationID: "dummy")
+        ExpectedPreparation(targetID: "LibB", runDestinationID: "dummy")
       ],
     ])
     serverOptions.indexTestHooks = expectedPreparationTracker.testHooks
@@ -587,7 +649,7 @@ final class BackgroundIndexingTests: XCTestCase {
         )
         """,
       serverOptions: serverOptions,
-      cleanUp: { /* Keep expectedPreparationTracker alive */ _ = expectedPreparationTracker }
+      cleanUp: { expectedPreparationTracker.keepAlive() }
     )
 
     let (uri, _) = try project.openDocument("MyOtherFile.swift")
@@ -635,5 +697,87 @@ final class BackgroundIndexingTests: XCTestCase {
     }
 
     try await fulfillmentOfOrThrow([receivedEmptyDiagnostics])
+  }
+
+  func testDontStackTargetPreparationForEditorFunctionality() async throws {
+    let allDocumentsOpened = self.expectation(description: "All documents opened")
+    let libBStartedPreparation = self.expectation(description: "LibB started preparing")
+    let libDPreparedForEditing = self.expectation(description: "LibD prepared for editing")
+
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
+    var serverOptions = backgroundIndexingOptions
+    let expectedPreparationTracker = ExpectedPreparationTracker(expectedPreparations: [
+      // Preparation of targets during the initial of the target
+      [
+        ExpectedPreparation(targetID: "LibA", runDestinationID: "dummy"),
+        ExpectedPreparation(targetID: "LibB", runDestinationID: "dummy"),
+        ExpectedPreparation(targetID: "LibC", runDestinationID: "dummy"),
+        ExpectedPreparation(targetID: "LibD", runDestinationID: "dummy"),
+      ],
+      // LibB's preparation has already started by the time we browse through the other files, so we finish its preparation
+      [
+        ExpectedPreparation(
+          targetID: "LibB",
+          runDestinationID: "dummy",
+          didStart: { libBStartedPreparation.fulfill() },
+          didFinish: { self.wait(for: [allDocumentsOpened], timeout: defaultTimeout) }
+        )
+      ],
+      // And now we just want to prepare LibD, and not LibC
+      [
+        ExpectedPreparation(
+          targetID: "LibD",
+          runDestinationID: "dummy",
+          didFinish: { libDPreparedForEditing.fulfill() }
+        )
+      ],
+    ])
+    serverOptions.indexTestHooks = expectedPreparationTracker.testHooks
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": "",
+        "LibB/LibB.swift": "",
+        "LibC/LibC.swift": "",
+        "LibD/LibD.swift": "",
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+           .target(name: "LibA"),
+           .target(name: "LibB", dependencies: ["LibA"]),
+           .target(name: "LibC", dependencies: ["LibA"]),
+           .target(name: "LibD", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      serverOptions: serverOptions,
+      cleanUp: { expectedPreparationTracker.keepAlive() }
+    )
+
+    // Clean the preparation status of all libraries
+    project.testClient.send(
+      DidChangeWatchedFilesNotification(changes: [FileEvent(uri: try project.uri(for: "LibA.swift"), type: .changed)])
+    )
+
+    // Quickly flip through all files
+    _ = try project.openDocument("LibB.swift")
+    try await self.fulfillmentOfOrThrow([libBStartedPreparation])
+
+    _ = try project.openDocument("LibC.swift")
+
+    // Ensure that LibC gets opened before LibD, so that LibD is the latest document. Two open requests don't have
+    // dependencies between each other, so SourceKit-LSP is free to execute them in parallel or re-order them without
+    // the barrier.
+    _ = try await project.testClient.send(BarrierRequest())
+    _ = try project.openDocument("LibD.swift")
+
+    allDocumentsOpened.fulfill()
+    try await self.fulfillmentOfOrThrow([libDPreparedForEditing])
   }
 }

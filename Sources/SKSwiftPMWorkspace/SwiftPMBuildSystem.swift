@@ -489,6 +489,9 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
       "--disable-index-store",
       "--target", target.targetID,
     ]
+    if Task.isCancelled {
+      return
+    }
     let process = try Process.launch(arguments: arguments, workingDirectory: nil)
     let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
     switch result.exitStatus.exhaustivelySwitchable {

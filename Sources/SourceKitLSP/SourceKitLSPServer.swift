@@ -1000,7 +1000,9 @@ extension SourceKitLSPServer: MessageHandler {
       // which prepares the files. For files that are open but aren't being worked on (eg. a different tab), we don't
       // get requests, ensuring that we don't unnecessarily prepare them.
       let workspace = await self.workspaceForDocument(uri: textDocumentRequest.textDocument.uri)
-      await workspace?.semanticIndexManager?.schedulePreparation(of: textDocumentRequest.textDocument.uri)
+      await workspace?.semanticIndexManager?.schedulePreparationForEditorFunctionality(
+        of: textDocumentRequest.textDocument.uri
+      )
     }
 
     switch request {
@@ -1543,7 +1545,7 @@ extension SourceKitLSPServer {
       )
       return
     }
-    await workspace.semanticIndexManager?.schedulePreparation(of: uri)
+    await workspace.semanticIndexManager?.schedulePreparationForEditorFunctionality(of: uri)
     await openDocument(notification, workspace: workspace)
   }
 
@@ -1599,7 +1601,7 @@ extension SourceKitLSPServer {
       )
       return
     }
-    await workspace.semanticIndexManager?.schedulePreparation(of: uri)
+    await workspace.semanticIndexManager?.schedulePreparationForEditorFunctionality(of: uri)
 
     // If the document is ready, we can handle the change right now.
     documentManager.edit(notification)

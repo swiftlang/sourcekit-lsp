@@ -86,6 +86,17 @@ public final actor SemanticIndexManager {
   /// After the file is indexed, it is removed from this dictionary.
   private var inProgressIndexTasks: [DocumentURI: InProgressIndexStore] = [:]
 
+  /// The currently running task that prepares a document for editor functionality.
+  ///
+  /// This is used so we can cancel preparation tasks for documents that the user is no longer interacting with and
+  /// avoid the following scenario: The user browses through documents from targets A, B, and C in quick succession. We
+  /// don't want stack preparation of A, B, and C. Instead we want to only prepare target C - and also finish
+  /// preparation of A if it has already started when the user opens C.
+  ///
+  /// `id` is a unique ID that identifies the preparation task and is used to set `inProgressPrepareForEditorTask` to
+  /// `nil` when the current in progress task finishes.
+  private var inProgressPrepareForEditorTask: (id: UUID, document: DocumentURI, task: Task<Void, Never>)? = nil
+
   /// The `TaskScheduler` that manages the scheduling of index tasks. This is shared among all `SemanticIndexManager`s
   /// in the process, to ensure that we don't schedule more index operations than processor cores from multiple
   /// workspaces.
@@ -287,20 +298,39 @@ public final actor SemanticIndexManager {
   /// Schedule preparation of the target that contains the given URI, building all modules that the file depends on.
   ///
   /// This is intended to be called when the user is interacting with the document at the given URI.
-  public func schedulePreparation(of uri: DocumentURI, priority: TaskPriority? = nil) {
-    Task(priority: priority) {
+  public func schedulePreparationForEditorFunctionality(
+    of uri: DocumentURI,
+    priority: TaskPriority? = nil
+  ) {
+    if inProgressPrepareForEditorTask?.document == uri {
+      // We are already preparing this document, so nothing to do. This is necessary to avoid the following scenario:
+      // Determining the canonical configured target for a document takes 1s and we get a new document request for the
+      // document ever 0.5s, which would cancel the previous in-progress preparation task, cancelling the canonical
+      // configured target configuration, never actually getting to the actual preparation.
+      return
+    }
+    let id = UUID()
+    let task = Task(priority: priority) {
       await withLoggingScope("preparation") {
         guard let target = await buildSystemManager.canonicalConfiguredTarget(for: uri) else {
           return
         }
+        if Task.isCancelled {
+          return
+        }
         await self.prepare(targets: [target], priority: priority)
+        if inProgressPrepareForEditorTask?.id == id {
+          inProgressPrepareForEditorTask = nil
+        }
       }
     }
+    inProgressPrepareForEditorTask?.task.cancel()
+    inProgressPrepareForEditorTask = (id, uri, task)
   }
 
   // MARK: - Helper functions
 
-  /// Prepare the given targets for indexing
+  /// Prepare the given targets for indexing.
   private func prepare(targets: [ConfiguredTarget], priority: TaskPriority?) async {
     // Perform a quick initial check whether the target is up-to-date, in which case we don't need to schedule a
     // preparation operation at all.
@@ -323,6 +353,9 @@ public final actor SemanticIndexManager {
         testHooks: testHooks
       )
     )
+    if Task.isCancelled {
+      return
+    }
     let preparationTask = await indexTaskScheduler.schedule(priority: priority, taskDescription) { task, newState in
       guard case .finished = newState else {
         return
@@ -337,7 +370,17 @@ public final actor SemanticIndexManager {
     for target in targetsToPrepare {
       inProgressPreparationTasks[target] = OpaqueQueuedIndexTask(preparationTask)
     }
-    return await preparationTask.waitToFinishPropagatingCancellation()
+    await withTaskCancellationHandler {
+      return await preparationTask.waitToFinish()
+    } onCancel: {
+      // Only cancel the preparation task if it hasn't started executing yet. This ensures that we always make progress
+      // during preparation and can't get into the following scenario: The user has two target A and B that both take
+      // 10s to prepare. The user is now switching between the files every 5 seconds, which would always cause
+      // preparation for one target to get cancelled, never resulting in an up-to-date preparation status.
+      if !preparationTask.isExecuting {
+        preparationTask.cancel()
+      }
+    }
   }
 
   /// Update the index store for the given files, assuming that their targets have already been prepared.
