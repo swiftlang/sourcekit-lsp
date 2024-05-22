@@ -22,109 +22,6 @@ fileprivate let backgroundIndexingOptions = SourceKitLSPServer.Options(
   indexOptions: IndexOptions(enableBackgroundIndexing: true)
 )
 
-fileprivate struct ExpectedPreparation {
-  let targetID: String
-  let runDestinationID: String
-
-  /// A closure that will be executed when a preparation task starts.
-  /// This allows the artificial delay of a preparation task to force two preparation task to race.
-  let didStart: (() -> Void)?
-
-  /// A closure that will be executed when a preparation task finishes.
-  /// This allows the artificial delay of a preparation task to force two preparation task to race.
-  let didFinish: (() -> Void)?
-
-  internal init(
-    targetID: String,
-    runDestinationID: String,
-    didStart: (() -> Void)? = nil,
-    didFinish: (() -> Void)? = nil
-  ) {
-    self.targetID = targetID
-    self.runDestinationID = runDestinationID
-    self.didStart = didStart
-    self.didFinish = didFinish
-  }
-
-  var configuredTarget: ConfiguredTarget {
-    return ConfiguredTarget(targetID: targetID, runDestinationID: runDestinationID)
-  }
-}
-
-fileprivate actor ExpectedPreparationTracker {
-  /// The targets we expect to be prepared. For targets within the same set, we don't care about the exact order.
-  private var expectedPreparations: [[ExpectedPreparation]]
-
-  /// Implicitly-unwrapped optional so we can reference `self` when creating `IndexTestHooks`.
-  /// `nonisolated(unsafe)` is fine because this is not modified after `testHooks` is created.
-  nonisolated(unsafe) var testHooks: IndexTestHooks!
-
-  init(expectedPreparations: [[ExpectedPreparation]]) {
-    self.expectedPreparations = expectedPreparations
-    self.testHooks = IndexTestHooks(
-      preparationTaskDidStart: { [weak self] in
-        await self?.preparationTaskDidStart(taskDescription: $0)
-      },
-      preparationTaskDidFinish: { [weak self] in
-        await self?.preparationTaskDidFinish(taskDescription: $0)
-      }
-    )
-  }
-
-  func preparationTaskDidStart(taskDescription: PreparationTaskDescription) -> Void {
-    if Task.isCancelled {
-      return
-    }
-    guard let expectedTargetsToPrepare = expectedPreparations.first else {
-      return
-    }
-    for expectedPreparation in expectedTargetsToPrepare {
-      if taskDescription.targetsToPrepare.contains(expectedPreparation.configuredTarget) {
-        expectedPreparation.didStart?()
-      }
-    }
-  }
-
-  func preparationTaskDidFinish(taskDescription: PreparationTaskDescription) -> Void {
-    if Task.isCancelled {
-      return
-    }
-    guard let expectedTargetsToPrepare = expectedPreparations.first else {
-      XCTFail("Didn't expect a preparation but received \(taskDescription.targetsToPrepare)")
-      return
-    }
-    guard Set(taskDescription.targetsToPrepare).isSubset(of: expectedTargetsToPrepare.map(\.configuredTarget)) else {
-      XCTFail("Received unexpected preparation of \(taskDescription.targetsToPrepare)")
-      return
-    }
-    var remainingExpectedTargetsToPrepare: [ExpectedPreparation] = []
-    for expectedPreparation in expectedTargetsToPrepare {
-      if taskDescription.targetsToPrepare.contains(expectedPreparation.configuredTarget) {
-        expectedPreparation.didFinish?()
-      } else {
-        remainingExpectedTargetsToPrepare.append(expectedPreparation)
-      }
-    }
-    if remainingExpectedTargetsToPrepare.isEmpty {
-      expectedPreparations.remove(at: 0)
-    } else {
-      expectedPreparations[0] = remainingExpectedTargetsToPrepare
-    }
-  }
-
-  nonisolated func keepAlive() {
-    withExtendedLifetime(self) { _ in }
-  }
-
-  deinit {
-    let expectedPreparations = self.expectedPreparations
-    XCTAssert(
-      expectedPreparations.isEmpty,
-      "ExpectedPreparationTracker destroyed with unfulfilled expected preparations: \(expectedPreparations)."
-    )
-  }
-}
-
 final class BackgroundIndexingTests: XCTestCase {
   func testBackgroundIndexingOfSingleFile() async throws {
     let project = try await SwiftPMTestProject(
@@ -614,7 +511,7 @@ final class BackgroundIndexingTests: XCTestCase {
   func testPrepareTargetAfterEditToDependency() async throws {
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     var serverOptions = backgroundIndexingOptions
-    let expectedPreparationTracker = ExpectedPreparationTracker(expectedPreparations: [
+    let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       [
         ExpectedPreparation(targetID: "LibA", runDestinationID: "dummy"),
         ExpectedPreparation(targetID: "LibB", runDestinationID: "dummy"),
@@ -706,7 +603,7 @@ final class BackgroundIndexingTests: XCTestCase {
 
     try await SkipUnless.swiftpmStoresModulesInSubdirectory()
     var serverOptions = backgroundIndexingOptions
-    let expectedPreparationTracker = ExpectedPreparationTracker(expectedPreparations: [
+    let expectedPreparationTracker = ExpectedIndexTaskTracker(expectedPreparations: [
       // Preparation of targets during the initial of the target
       [
         ExpectedPreparation(targetID: "LibA", runDestinationID: "dummy"),
@@ -797,6 +694,49 @@ final class BackgroundIndexingTests: XCTestCase {
     XCTAssert(
       indexFileNotification.message.hasPrefix("Indexing \(try project.uri(for: "MyFile.swift").pseudoPath)"),
       "\(indexFileNotification.message) does not have the expected prefix"
+    )
+  }
+
+  func testPreparationHappensInParallel() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
+
+    let fileAIndexingStarted = self.expectation(description: "FileA indexing started")
+    let fileBIndexingStarted = self.expectation(description: "FileB indexing started")
+
+    var serverOptions = backgroundIndexingOptions
+    let expectedIndexTaskTracker = ExpectedIndexTaskTracker(
+      expectedIndexStoreUpdates: [
+        [
+          ExpectedIndexStoreUpdate(
+            sourceFileName: "FileA.swift",
+            didStart: {
+              fileAIndexingStarted.fulfill()
+            },
+            didFinish: {
+              self.wait(for: [fileBIndexingStarted], timeout: defaultTimeout)
+            }
+          ),
+          ExpectedIndexStoreUpdate(
+            sourceFileName: "FileB.swift",
+            didStart: {
+              fileBIndexingStarted.fulfill()
+            },
+            didFinish: {
+              self.wait(for: [fileAIndexingStarted], timeout: defaultTimeout)
+            }
+          ),
+        ]
+      ]
+    )
+    serverOptions.indexTestHooks = expectedIndexTaskTracker.testHooks
+
+    _ = try await SwiftPMTestProject(
+      files: [
+        "FileA.swift": "",
+        "FileB.swift": "",
+      ],
+      serverOptions: serverOptions,
+      cleanUp: { expectedIndexTaskTracker.keepAlive() }
     )
   }
 }
