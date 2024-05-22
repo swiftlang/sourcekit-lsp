@@ -14,8 +14,7 @@
   "customizations": {
     "vscode": {
       "extensions": [
-        "sswg.swift-lang",
-        "vknabel.vscode-apple-swift-format"
+        "sswg.swift-lang"
       ],
       "settings": {
         "lldb.launch.expressions": "native",
