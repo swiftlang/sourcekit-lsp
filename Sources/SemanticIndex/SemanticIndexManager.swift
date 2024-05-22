@@ -515,6 +515,10 @@ public final actor SemanticIndexManager {
       indexTasks.append(indexTask)
 
       let filesToIndex = targetsBatch.flatMap({ filesByTarget[$0]! })
+      // The number of index tasks that don't currently have an in-progress task associated with it.
+      // The denominator in the index progress should get incremented by this amount.
+      // We don't want to increment the denominator for tasks that already have an index in progress.
+      let newIndexTasks = filesToIndex.filter { inProgressIndexTasks[$0.sourceFile] == nil }.count
       for file in filesToIndex {
         // The state of `inProgressIndexTasks` will get pushed on from `updateIndexStore`.
         // The updates to `inProgressIndexTasks` from `updateIndexStore` cannot race with setting it to
@@ -526,7 +530,7 @@ public final actor SemanticIndexManager {
           indexTask: indexTask
         )
       }
-      indexTasksWereScheduled(filesToIndex.count)
+      indexTasksWereScheduled(newIndexTasks)
     }
     let indexTasksImmutable = indexTasks
 

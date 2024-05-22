@@ -31,6 +31,13 @@ actor IndexProgressManager {
   ///
   /// The number of outstanding tasks is determined from the `scheduled` and `executing` tasks in all the
   /// `SemanticIndexManager`s.
+  ///
+  /// Note that the `queuedIndexTasks` might exceed the number of files in the project, eg. in the following scenario:
+  /// - Schedule indexing of A.swift and B.swift -> 0 / 2
+  /// - Indexing of A.swift finishes -> 1 / 2
+  /// - A.swift is modified and should be indexed again -> 1 / 3
+  /// - B.swift finishes indexing -> 2 / 3
+  /// - A.swift finishes indexing for the second time -> 3 / 3 -> Status disappears
   private var queuedIndexTasks = 0
 
   /// While there are ongoing index tasks, a `WorkDoneProgressManager` that displays the work done progress.
