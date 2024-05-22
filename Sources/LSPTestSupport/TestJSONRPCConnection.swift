@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import InProcessClient
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
 import SKSupport
