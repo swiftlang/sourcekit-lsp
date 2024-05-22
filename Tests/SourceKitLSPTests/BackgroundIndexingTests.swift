@@ -569,16 +569,9 @@ final class BackgroundIndexingTests: XCTestCase {
       DidChangeWatchedFilesNotification(changes: [FileEvent(uri: try project.uri(for: "MyFile.swift"), type: .changed)])
     )
 
-    // Send a document request for `uri` to trigger re-preparation of its target. We don't actually care about the
-    // response for this request. Instead, we wait until SourceKit-LSP sends us a `DiagnosticsRefreshRequest`,
-    // indicating that the target of `uri` has been prepared.
-    _ = try await project.testClient.send(
-      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
-    )
-
     let receivedEmptyDiagnostics = self.expectation(description: "Received diagnostic refresh request")
 
-    project.testClient.handleSingleRequest { (_: DiagnosticsRefreshRequest) in
+    project.testClient.handleMultipleRequests { (_: DiagnosticsRefreshRequest) in
       Task {
         let updatedDiagnostics = try await project.testClient.send(
           DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
@@ -593,6 +586,13 @@ final class BackgroundIndexingTests: XCTestCase {
       }
       return VoidResponse()
     }
+
+    // Send a document request for `uri` to trigger re-preparation of its target. We don't actually care about the
+    // response for this request. Instead, we wait until SourceKit-LSP sends us a `DiagnosticsRefreshRequest`,
+    // indicating that the target of `uri` has been prepared.
+    _ = try await project.testClient.send(
+      DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))
+    )
 
     try await fulfillmentOfOrThrow([receivedEmptyDiagnostics])
   }
