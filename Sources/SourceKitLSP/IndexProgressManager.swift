@@ -18,6 +18,14 @@ import SemanticIndex
 /// Listens for index status updates from `SemanticIndexManagers`. From that information, it manages a
 /// `WorkDoneProgress` that communicates the index progress to the editor.
 actor IndexProgressManager {
+  /// A queue on which `indexTaskWasQueued` and `indexStatusDidChange` are handled.
+  ///
+  /// This allows the two functions two be `nonisolated` (and eg. the caller of `indexStatusDidChange` doesn't have to
+  /// wait for the work done progress to be updated) while still guaranteeing that there is only one
+  /// `indexStatusDidChangeImpl` running at a time, preventing race conditions that would cause two
+  /// `WorkDoneProgressManager`s to be created.
+  private let queue = AsyncQueue<Serial>()
+
   /// The `SourceKitLSPServer` for which this manages the index progress. It gathers all `SemanticIndexManagers` from
   /// the workspaces in the `SourceKitLSPServer`.
   private weak var sourceKitLSPServer: SourceKitLSPServer?
@@ -42,7 +50,7 @@ actor IndexProgressManager {
 
   /// Called when a new file is scheduled to be indexed. Increments the target index count, eg. the 3 in `1/3`.
   nonisolated func indexTasksWereScheduled(count: Int) {
-    Task {
+    queue.async {
       await self.indexTasksWereScheduledImpl(count: count)
     }
   }
@@ -54,7 +62,7 @@ actor IndexProgressManager {
 
   /// Called when a `SemanticIndexManager` finishes indexing a file. Adjusts the done index count, eg. the 1 in `1/3`.
   nonisolated func indexStatusDidChange() {
-    Task {
+    queue.async {
       await self.indexStatusDidChangeImpl()
     }
   }
