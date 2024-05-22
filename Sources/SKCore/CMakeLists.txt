@@ -10,6 +10,7 @@ add_library(SKCore STATIC
   Debouncer.swift
   FallbackBuildSystem.swift
   FileBuildSettings.swift
+  IndexProcessResult.swift
   MainFilesProvider.swift
   PathPrefixMapping.swift
   SplitShellCommand.swift

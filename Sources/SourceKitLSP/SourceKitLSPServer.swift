@@ -698,7 +698,7 @@ public actor SourceKitLSPServer {
   }
 
   /// Send the given notification to the editor.
-  public func sendNotificationToClient(_ notification: some NotificationType) {
+  public nonisolated func sendNotificationToClient(_ notification: some NotificationType) {
     client.send(notification)
   }
 
@@ -1177,6 +1177,21 @@ private extension LanguageServerProtocol.WorkspaceType {
   }
 }
 
+extension SourceKitLSPServer {
+  nonisolated func indexTaskDidProduceResult(_ result: IndexProcessResult) {
+    self.sendNotificationToClient(
+      LogMessageNotification(
+        type: result.failed ? .info : .warning,
+        message: """
+          \(result.taskDescription) finished in \(result.duration)
+          \(result.command)
+          \(result.output)
+          """
+      )
+    )
+  }
+}
+
 // MARK: - Request and notification handling
 
 extension SourceKitLSPServer {
@@ -1223,6 +1238,9 @@ extension SourceKitLSPServer {
       compilationDatabaseSearchPaths: self.options.compilationDatabaseSearchPaths,
       indexOptions: self.options.indexOptions,
       indexTaskScheduler: indexTaskScheduler,
+      indexProcessDidProduceResult: { [weak self] in
+        self?.indexTaskDidProduceResult($0)
+      },
       reloadPackageStatusCallback: { [weak self] status in
         guard let self else { return }
         switch status {
@@ -1295,6 +1313,9 @@ extension SourceKitLSPServer {
           index: nil,
           indexDelegate: nil,
           indexTaskScheduler: self.indexTaskScheduler,
+          indexProcessDidProduceResult: { [weak self] in
+            self?.indexTaskDidProduceResult($0)
+          },
           indexTasksWereScheduled: { [weak self] count in
             self?.indexProgressManager.indexTasksWereScheduled(count: count)
           },

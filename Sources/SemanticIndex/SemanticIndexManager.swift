@@ -108,6 +108,12 @@ public final actor SemanticIndexManager {
   /// workspaces.
   private let indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>
 
+  /// Callback to be called when the process to prepare a target finishes.
+  ///
+  /// Allows an index log to be displayed to the user that includes the command line invocations of all index-related
+  /// process launches, as well as their output.
+  private let indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+
   /// Called when files are scheduled to be indexed.
   ///
   /// The parameter is the number of files that were scheduled to be indexed.
@@ -150,6 +156,7 @@ public final actor SemanticIndexManager {
     buildSystemManager: BuildSystemManager,
     testHooks: IndexTestHooks,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
+    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
     indexStatusDidChange: @escaping @Sendable () -> Void
   ) {
@@ -157,6 +164,7 @@ public final actor SemanticIndexManager {
     self.buildSystemManager = buildSystemManager
     self.testHooks = testHooks
     self.indexTaskScheduler = indexTaskScheduler
+    self.indexProcessDidProduceResult = indexProcessDidProduceResult
     self.indexTasksWereScheduled = indexTasksWereScheduled
     self.indexStatusDidChange = indexStatusDidChange
   }
@@ -350,6 +358,7 @@ public final actor SemanticIndexManager {
         targetsToPrepare: targetsToPrepare,
         buildSystemManager: self.buildSystemManager,
         preparationUpToDateStatus: preparationUpToDateStatus,
+        indexProcessDidProduceResult: indexProcessDidProduceResult,
         testHooks: testHooks
       )
     )
@@ -396,6 +405,7 @@ public final actor SemanticIndexManager {
         buildSystemManager: self.buildSystemManager,
         index: index,
         indexStoreUpToDateStatus: indexStoreUpToDateStatus,
+        indexProcessDidProduceResult: indexProcessDidProduceResult,
         testHooks: testHooks
       )
     )

@@ -780,4 +780,23 @@ final class BackgroundIndexingTests: XCTestCase {
     allDocumentsOpened.fulfill()
     try await self.fulfillmentOfOrThrow([libDPreparedForEditing])
   }
+
+  public func testProduceIndexLog() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyFile.swift": ""
+      ],
+      serverOptions: backgroundIndexingOptions
+    )
+    let targetPrepareNotification = try await project.testClient.nextNotification(ofType: LogMessageNotification.self)
+    XCTAssert(
+      targetPrepareNotification.message.hasPrefix("Preparing MyLibrary"),
+      "\(targetPrepareNotification.message) does not have the expected prefix"
+    )
+    let indexFileNotification = try await project.testClient.nextNotification(ofType: LogMessageNotification.self)
+    XCTAssert(
+      indexFileNotification.message.hasPrefix("Indexing \(try project.uri(for: "MyFile.swift").pseudoPath)"),
+      "\(indexFileNotification.message) does not have the expected prefix"
+    )
+  }
 }

@@ -231,8 +231,11 @@ extension BuildSystemManager {
     return await buildSystem?.targets(dependingOn: targets)
   }
 
-  public func prepare(targets: [ConfiguredTarget]) async throws {
-    try await buildSystem?.prepare(targets: targets)
+  public func prepare(
+    targets: [ConfiguredTarget],
+    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+  ) async throws {
+    try await buildSystem?.prepare(targets: targets, indexProcessDidProduceResult: indexProcessDidProduceResult)
   }
 
   public func registerForChangeNotifications(for uri: DocumentURI, language: Language) async {

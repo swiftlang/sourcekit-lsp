@@ -94,6 +94,7 @@ public final class Workspace: Sendable {
     index uncheckedIndex: UncheckedIndex?,
     indexDelegate: SourceKitIndexDelegate?,
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
+    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
     indexStatusDidChange: @escaping @Sendable () -> Void
   ) async {
@@ -114,6 +115,7 @@ public final class Workspace: Sendable {
         buildSystemManager: buildSystemManager,
         testHooks: options.indexTestHooks,
         indexTaskScheduler: indexTaskScheduler,
+        indexProcessDidProduceResult: indexProcessDidProduceResult,
         indexTasksWereScheduled: indexTasksWereScheduled,
         indexStatusDidChange: indexStatusDidChange
       )
@@ -151,6 +153,7 @@ public final class Workspace: Sendable {
     compilationDatabaseSearchPaths: [RelativePath],
     indexOptions: IndexOptions = IndexOptions(),
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
+    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
     reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void,
     indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
     indexStatusDidChange: @Sendable @escaping () -> Void
@@ -258,6 +261,7 @@ public final class Workspace: Sendable {
       index: UncheckedIndex(index),
       indexDelegate: indexDelegate,
       indexTaskScheduler: indexTaskScheduler,
+      indexProcessDidProduceResult: indexProcessDidProduceResult,
       indexTasksWereScheduled: indexTasksWereScheduled,
       indexStatusDidChange: indexStatusDidChange
     )

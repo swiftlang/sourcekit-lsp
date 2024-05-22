@@ -95,6 +95,9 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   /// case we don't need to index it again.
   private let index: UncheckedIndex
 
+  /// See `SemanticIndexManager.indexProcessDidProduceResult`
+  private let indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+
   /// Test hooks that should be called when the index task finishes.
   private let testHooks: IndexTestHooks
 
@@ -116,12 +119,14 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     buildSystemManager: BuildSystemManager,
     index: UncheckedIndex,
     indexStoreUpToDateStatus: IndexUpToDateStatusManager<DocumentURI>,
+    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
     testHooks: IndexTestHooks
   ) {
     self.filesToIndex = filesToIndex
     self.buildSystemManager = buildSystemManager
     self.index = index
     self.indexStoreUpToDateStatus = indexStoreUpToDateStatus
+    self.indexProcessDidProduceResult = indexProcessDidProduceResult
     self.testHooks = testHooks
   }
 
@@ -304,18 +309,28 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     if Task.isCancelled {
       return
     }
+    let start = ContinuousClock.now
     let process = try Process.launch(
       arguments: processArguments,
       workingDirectory: workingDirectory
     )
     let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+
+    indexProcessDidProduceResult(
+      IndexProcessResult(
+        taskDescription: "Indexing \(indexFile.pseudoPath)",
+        processResult: result,
+        start: start
+      )
+    )
+
     switch result.exitStatus.exhaustivelySwitchable {
     case .terminated(code: 0):
       break
     case .terminated(code: let code):
       // This most likely happens if there are compilation errors in the source file. This is nothing to worry about.
-      let stdout = (try? String(bytes: result.output.get(), encoding: .utf8)) ?? "<no stderr>"
-      let stderr = (try? String(bytes: result.stderrOutput.get(), encoding: .utf8)) ?? "<no stderr>"
+      let stdout = (try? String(bytes: result.output.get(), encoding: .utf8)) ?? "<failed to decode stdout>"
+      let stderr = (try? String(bytes: result.stderrOutput.get(), encoding: .utf8)) ?? "<failed to decode stderr>"
       // Indexing will frequently fail if the source code is in an invalid state. Thus, log the failure at a low level.
       logger.debug(
         """
