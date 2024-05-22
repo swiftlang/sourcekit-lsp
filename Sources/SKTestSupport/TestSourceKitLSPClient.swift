@@ -12,6 +12,7 @@
 
 import CAtomics
 import Foundation
+import InProcessClient
 import LSPTestSupport
 import LanguageServerProtocol
 import LanguageServerProtocolJSONRPC
