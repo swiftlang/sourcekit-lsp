@@ -346,7 +346,7 @@ final class BackgroundIndexingTests: XCTestCase {
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
       serverOptions: backgroundIndexingOptions,
       preInitialization: { testClient in
-        testClient.handleNextRequest { (request: CreateWorkDoneProgressRequest) in
+        testClient.handleSingleRequest { (request: CreateWorkDoneProgressRequest) in
           workDoneProgressCreated.fulfill()
           return VoidResponse()
         }
@@ -577,7 +577,8 @@ final class BackgroundIndexingTests: XCTestCase {
     )
 
     let receivedEmptyDiagnostics = self.expectation(description: "Received diagnostic refresh request")
-    project.testClient.handleNextRequest { (_: DiagnosticsRefreshRequest) in
+
+    project.testClient.handleSingleRequest { (_: DiagnosticsRefreshRequest) in
       Task {
         let updatedDiagnostics = try await project.testClient.send(
           DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))

@@ -470,7 +470,7 @@ final class CodeActionTests: XCTestCase {
 
     let editReceived = self.expectation(description: "Received ApplyEdit request")
 
-    testClient.handleNextRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
+    testClient.handleSingleRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
       defer {
         editReceived.fulfill()
       }

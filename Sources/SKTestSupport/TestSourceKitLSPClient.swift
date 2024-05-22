@@ -147,7 +147,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
         throw ConflictingDiagnosticsError()
       }
       capabilities.textDocument!.diagnostic = .init(dynamicRegistration: true)
-      self.handleNextRequest { (request: RegisterCapabilityRequest) in
+      self.handleSingleRequest { (request: RegisterCapabilityRequest) in
         XCTAssertEqual(request.registrations.only?.method, DocumentDiagnosticsRequest.method)
         return VoidResponse()
       }
@@ -258,22 +258,17 @@ public final class TestSourceKitLSPClient: MessageHandler {
     }
   }
 
-  /// Handle the next request that is sent to the client with the given handler.
+  /// Handle the next request of the given type that is sent to the client.
   ///
-  /// By default, `TestSourceKitLSPClient` emits an `XCTFail` if a request is sent
-  /// to the client, since it doesn't know how to handle it. This allows the
-  /// simulation of a single request's handling on the client.
-  ///
-  /// If the next request that is sent to the client is of a different kind than
-  /// the given handler, `TestSourceKitLSPClient` will emit an `XCTFail`.
-  public func handleNextRequest<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
+  /// The request handler will only handle a single request. If the request is called again, the request handler won't
+  /// call again
+  public func handleSingleRequest<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
     requestHandlers.value.append(requestHandler)
   }
 
   // MARK: - Conformance to MessageHandler
 
-  /// - Important: Implementation detail of `TestSourceKitLSPServer`. Do not call
-  ///   from tests.
+  /// - Important: Implementation detail of `TestSourceKitLSPServer`. Do not call from tests.
   public func handle(_ params: some NotificationType) {
     notificationYielder.yield(params)
   }
