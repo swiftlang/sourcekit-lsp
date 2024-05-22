@@ -74,7 +74,10 @@ public struct PreparationTaskDescription: IndexTaskDescription {
     // Only use the last two digits of the preparation ID for the logging scope to avoid creating too many scopes.
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running preparation operations
-    await withLoggingScope("preparation-\(id % 100)") {
+    await withLoggingSubsystemAndScope(
+      subsystem: "org.swift.sourcekit-lsp.indexing",
+      scope: "preparation-\(id % 100)"
+    ) {
       await testHooks.preparationTaskDidStart?(self)
       let targetsToPrepare = await targetsToPrepare.asyncFilter {
         await !preparationUpToDateStatus.isUpToDate($0)
@@ -92,6 +95,12 @@ public struct PreparationTaskDescription: IndexTaskDescription {
       logger.log(
         "Starting preparation with priority \(Task.currentPriority.rawValue, privacy: .public): \(targetsToPrepareDescription)"
       )
+      let signposter = Logger(subsystem: LoggingScope.subsystem, category: "preparation").makeSignposter()
+      let signpostID = signposter.makeSignpostID()
+      let state = signposter.beginInterval("Preparing", id: signpostID, "Preparing \(targetsToPrepareDescription)")
+      defer {
+        signposter.endInterval("Preparing", state)
+      }
       let startDate = Date()
       do {
         try await buildSystemManager.prepare(

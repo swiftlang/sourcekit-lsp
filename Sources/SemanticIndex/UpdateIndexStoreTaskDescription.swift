@@ -310,6 +310,16 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       return
     }
     let start = ContinuousClock.now
+    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "indexing").makeSignposter()
+    let signpostID = signposter.makeSignpostID()
+    let state = signposter.beginInterval(
+      "Indexing",
+      id: signpostID,
+      "Indexing \(indexFile.fileURL?.lastPathComponent ?? indexFile.pseudoPath)"
+    )
+    defer {
+      signposter.endInterval("Indexing", state)
+    }
     let process = try Process.launch(
       arguments: processArguments,
       workingDirectory: workingDirectory
