@@ -155,7 +155,13 @@ final class TaskSchedulerTests: XCTestCase {
         )
       },
       validate: { (recordings: [Set<TaskID>]) in
-        XCTAssertEqual(recordings.filter({ !$0.isEmpty }), [[suspendedTaskId], [suspenderTaskId], [suspendedTaskId]])
+        let nonEmptyRecordings = recordings.filter({ !$0.isEmpty })
+        // The suspended task might get cancelled to be rescheduled before or after we run the body. Allow either.
+        XCTAssert(
+          nonEmptyRecordings == [[suspendedTaskId], [suspenderTaskId], [suspendedTaskId]]
+            || nonEmptyRecordings == [[suspenderTaskId], [suspendedTaskId]],
+          "Recordings did not match expected: \(nonEmptyRecordings)"
+        )
       }
     )
   }
