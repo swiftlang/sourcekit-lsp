@@ -433,7 +433,7 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
   public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return targets.sorted { (lhs: ConfiguredTarget, rhs: ConfiguredTarget) -> Bool in
       let lhsIndex = self.targets[lhs]?.index ?? self.targets.count
-      let rhsIndex = self.targets[lhs]?.index ?? self.targets.count
+      let rhsIndex = self.targets[rhs]?.index ?? self.targets.count
       return lhsIndex < rhsIndex
     }
   }
