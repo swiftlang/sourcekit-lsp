@@ -37,6 +37,9 @@ public struct PreparationTaskDescription: IndexTaskDescription {
 
   private let preparationUpToDateStatus: IndexUpToDateStatusManager<ConfiguredTarget>
 
+  /// See `SemanticIndexManager.indexProcessDidProduceResult`
+  private let indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+
   /// Test hooks that should be called when the preparation task finishes.
   private let testHooks: IndexTestHooks
 
@@ -57,11 +60,13 @@ public struct PreparationTaskDescription: IndexTaskDescription {
     targetsToPrepare: [ConfiguredTarget],
     buildSystemManager: BuildSystemManager,
     preparationUpToDateStatus: IndexUpToDateStatusManager<ConfiguredTarget>,
+    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
     testHooks: IndexTestHooks
   ) {
     self.targetsToPrepare = targetsToPrepare
     self.buildSystemManager = buildSystemManager
     self.preparationUpToDateStatus = preparationUpToDateStatus
+    self.indexProcessDidProduceResult = indexProcessDidProduceResult
     self.testHooks = testHooks
   }
 
@@ -89,7 +94,10 @@ public struct PreparationTaskDescription: IndexTaskDescription {
       )
       let startDate = Date()
       do {
-        try await buildSystemManager.prepare(targets: targetsToPrepare)
+        try await buildSystemManager.prepare(
+          targets: targetsToPrepare,
+          indexProcessDidProduceResult: indexProcessDidProduceResult
+        )
       } catch {
         logger.error(
           "Preparation failed: \(error.forLogging)"

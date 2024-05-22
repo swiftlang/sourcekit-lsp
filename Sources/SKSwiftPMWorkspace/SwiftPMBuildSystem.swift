@@ -459,17 +459,23 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     }
   }
 
-  public func prepare(targets: [ConfiguredTarget]) async throws {
+  public func prepare(
+    targets: [ConfiguredTarget],
+    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+  ) async throws {
     // TODO (indexing): Support preparation of multiple targets at once.
     // https://github.com/apple/sourcekit-lsp/issues/1262
     for target in targets {
-      try await prepare(singleTarget: target)
+      try await prepare(singleTarget: target, indexProcessDidProduceResult: indexProcessDidProduceResult)
     }
     let filesInPreparedTargets = targets.flatMap { self.targets[$0]?.buildTarget.sources ?? [] }
     await fileDependenciesUpdatedDebouncer.scheduleCall(Set(filesInPreparedTargets.map(DocumentURI.init)))
   }
 
-  private func prepare(singleTarget target: ConfiguredTarget) async throws {
+  private func prepare(
+    singleTarget target: ConfiguredTarget,
+    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+  ) async throws {
     // TODO (indexing): Add a proper 'prepare' job in SwiftPM instead of building the target.
     // https://github.com/apple/sourcekit-lsp/issues/1254
     guard let toolchain = await toolchainRegistry.default else {
@@ -492,8 +498,16 @@ extension SwiftPMBuildSystem: SKCore.BuildSystem {
     if Task.isCancelled {
       return
     }
+    let start = ContinuousClock.now
     let process = try Process.launch(arguments: arguments, workingDirectory: nil)
     let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+    indexProcessDidProduceResult(
+      IndexProcessResult(
+        taskDescription: "Preparing \(target.targetID) for \(target.runDestinationID)",
+        processResult: result,
+        start: start
+      )
+    )
     switch result.exitStatus.exhaustivelySwitchable {
     case .terminated(code: 0):
       break

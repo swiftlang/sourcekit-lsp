@@ -462,7 +462,7 @@ final class BackgroundIndexingTests: XCTestCase {
       return
     }
     var didGetEndWorkDoneProgress = false
-    for _ in 0..<3 {
+    for _ in 0..<5 {
       let workEndProgress = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
       switch workEndProgress.value {
       case .begin:
@@ -779,5 +779,24 @@ final class BackgroundIndexingTests: XCTestCase {
 
     allDocumentsOpened.fulfill()
     try await self.fulfillmentOfOrThrow([libDPreparedForEditing])
+  }
+
+  public func testProduceIndexLog() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "MyFile.swift": ""
+      ],
+      serverOptions: backgroundIndexingOptions
+    )
+    let targetPrepareNotification = try await project.testClient.nextNotification(ofType: LogMessageNotification.self)
+    XCTAssert(
+      targetPrepareNotification.message.hasPrefix("Preparing MyLibrary"),
+      "\(targetPrepareNotification.message) does not have the expected prefix"
+    )
+    let indexFileNotification = try await project.testClient.nextNotification(ofType: LogMessageNotification.self)
+    XCTAssert(
+      indexFileNotification.message.hasPrefix("Indexing \(try project.uri(for: "MyFile.swift").pseudoPath)"),
+      "\(indexFileNotification.message) does not have the expected prefix"
+    )
   }
 }
