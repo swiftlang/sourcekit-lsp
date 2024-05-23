@@ -11,7 +11,7 @@
     // Use a named volume for the build products for optimal performance (https://code.visualstudio.com/remote/advancedcontainers/improve-performance?WT.mc_id=javascript-14373-yolasors#_use-a-targeted-named-volume)
     "source=${localWorkspaceFolderBasename}-build,target=${containerWorkspaceFolder}/.build,type=volume",
     // Do the same for experimental background indexing
-    "source=${localWorkspaceFolderBasename}-build,target=${containerWorkspaceFolder}/.index-build,type=volume"
+    "source=${localWorkspaceFolderBasename}-index-build,target=${containerWorkspaceFolder}/.index-build,type=volume"
   ],
   "customizations": {
     "vscode": {
