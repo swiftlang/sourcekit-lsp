@@ -22,7 +22,7 @@ import class TSCBasic.Process
 
 private nonisolated(unsafe) var updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
 
-enum FileToIndex: CustomLogStringConvertible {
+public enum FileToIndex: CustomLogStringConvertible {
   /// A non-header file
   case indexableFile(DocumentURI)
 
@@ -33,7 +33,7 @@ enum FileToIndex: CustomLogStringConvertible {
   ///
   /// This file might be a header file that doesn't have build settings associated with it. For the actual compiler
   /// invocation that updates the index store, the `mainFile` should be used.
-  var sourceFile: DocumentURI {
+  public var sourceFile: DocumentURI {
     switch self {
     case .indexableFile(let uri): return uri
     case .headerFile(header: let header, mainFile: _): return header
@@ -51,7 +51,7 @@ enum FileToIndex: CustomLogStringConvertible {
     }
   }
 
-  var description: String {
+  public var description: String {
     switch self {
     case .indexableFile(let uri):
       return uri.description
@@ -60,7 +60,7 @@ enum FileToIndex: CustomLogStringConvertible {
     }
   }
 
-  var redactedDescription: String {
+  public var redactedDescription: String {
     switch self {
     case .indexableFile(let uri):
       return uri.redactedDescription
@@ -71,9 +71,9 @@ enum FileToIndex: CustomLogStringConvertible {
 }
 
 /// A file to index and the target in which the file should be indexed.
-struct FileAndTarget {
-  let file: FileToIndex
-  let target: ConfiguredTarget
+public struct FileAndTarget: Sendable {
+  public let file: FileToIndex
+  public let target: ConfiguredTarget
 }
 
 /// Describes a task to index a set of source files.
@@ -84,7 +84,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   public let id = updateIndexStoreIDForLogging.fetchAndIncrement()
 
   /// The files that should be indexed.
-  private let filesToIndex: [FileAndTarget]
+  public let filesToIndex: [FileAndTarget]
 
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
@@ -140,6 +140,8 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     ) {
       let startDate = Date()
 
+      await testHooks.updateIndexStoreTaskDidStart?(self)
+
       let filesToIndexDescription = filesToIndex.map {
         $0.file.sourceFile.fileURL?.lastPathComponent ?? $0.file.sourceFile.stringValue
       }
@@ -166,9 +168,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   ) -> [TaskDependencyAction<UpdateIndexStoreTaskDescription>] {
     let selfMainFiles = Set(filesToIndex.map(\.file.mainFile))
     return currentlyExecutingTasks.compactMap { (other) -> TaskDependencyAction<UpdateIndexStoreTaskDescription>? in
-      guard
-        !other.filesToIndex.lazy.map(\.file.mainFile).contains(where: { selfMainFiles.contains($0) })
-      else {
+      if !other.filesToIndex.lazy.map(\.file.mainFile).contains(where: { selfMainFiles.contains($0) }) {
         // Disjoint sets of files can be indexed concurrently.
         return nil
       }

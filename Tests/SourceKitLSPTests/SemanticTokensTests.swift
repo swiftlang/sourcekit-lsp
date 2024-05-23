@@ -71,7 +71,7 @@ final class SemanticTokensTests: XCTestCase {
     // We will wait for the server to dynamically register semantic tokens
 
     let registerCapabilityExpectation = expectation(description: "\(#function) - register semantic tokens capability")
-    testClient.handleNextRequest { (req: RegisterCapabilityRequest) -> VoidResponse in
+    testClient.handleSingleRequest { (req: RegisterCapabilityRequest) -> VoidResponse in
       let capabilityRegistration = req.registrations.first { reg in
         reg.method == SemanticTokensRegistrationOptions.method
       }

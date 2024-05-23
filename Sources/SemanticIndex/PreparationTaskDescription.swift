@@ -78,7 +78,6 @@ public struct PreparationTaskDescription: IndexTaskDescription {
       subsystem: "org.swift.sourcekit-lsp.indexing",
       scope: "preparation-\(id % 100)"
     ) {
-      await testHooks.preparationTaskDidStart?(self)
       let targetsToPrepare = await targetsToPrepare.asyncFilter {
         await !preparationUpToDateStatus.isUpToDate($0)
       }.sorted(by: {
@@ -87,6 +86,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
       if targetsToPrepare.isEmpty {
         return
       }
+      await testHooks.preparationTaskDidStart?(self)
 
       let targetsToPrepareDescription =
         targetsToPrepare

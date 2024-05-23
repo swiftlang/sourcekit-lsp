@@ -161,7 +161,7 @@ final class PullDiagnosticsTests: XCTestCase {
     XCTAssert(fullReportBeforeChangingFileA.items.contains(where: { $0.message == "Cannot find 'sayHello' in scope" }))
 
     let diagnosticsRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
-    project.testClient.handleNextRequest { (request: DiagnosticsRefreshRequest) in
+    project.testClient.handleSingleRequest { (request: DiagnosticsRefreshRequest) in
       diagnosticsRefreshRequestReceived.fulfill()
       return VoidResponse()
     }
@@ -224,7 +224,7 @@ final class PullDiagnosticsTests: XCTestCase {
     XCTAssert(fullReportBeforeBuilding.items.contains(where: { $0.message == "No such module 'LibA'" }))
 
     let diagnosticsRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
-    project.testClient.handleNextRequest { (request: DiagnosticsRefreshRequest) in
+    project.testClient.handleSingleRequest { (request: DiagnosticsRefreshRequest) in
       diagnosticsRefreshRequestReceived.fulfill()
       return VoidResponse()
     }

@@ -69,7 +69,11 @@ public final class TestSourceKitLSPClient: MessageHandler {
   ///
   /// Conceptually, this is an array of `RequestHandler<any RequestType>` but
   /// since we can't express this in the Swift type system, we use `[Any]`.
-  private nonisolated(unsafe) var requestHandlers = ThreadSafeBox<[Any]>(initialValue: [])
+  ///
+  /// `isOneShort` if the request handler should only serve a single request and should be removed from
+  /// `requestHandlers` after it has been called.
+  private nonisolated(unsafe) var requestHandlers: ThreadSafeBox<[(requestHandler: Any, isOneShot: Bool)]> =
+    ThreadSafeBox(initialValue: [])
 
   /// A closure that is called when the `TestSourceKitLSPClient` is destructed.
   ///
@@ -147,7 +151,7 @@ public final class TestSourceKitLSPClient: MessageHandler {
         throw ConflictingDiagnosticsError()
       }
       capabilities.textDocument!.diagnostic = .init(dynamicRegistration: true)
-      self.handleNextRequest { (request: RegisterCapabilityRequest) in
+      self.handleSingleRequest { (request: RegisterCapabilityRequest) in
         XCTAssertEqual(request.registrations.only?.method, DocumentDiagnosticsRequest.method)
         return VoidResponse()
       }
@@ -258,22 +262,22 @@ public final class TestSourceKitLSPClient: MessageHandler {
     }
   }
 
-  /// Handle the next request that is sent to the client with the given handler.
+  /// Handle the next request of the given type that is sent to the client.
   ///
-  /// By default, `TestSourceKitLSPClient` emits an `XCTFail` if a request is sent
-  /// to the client, since it doesn't know how to handle it. This allows the
-  /// simulation of a single request's handling on the client.
-  ///
-  /// If the next request that is sent to the client is of a different kind than
-  /// the given handler, `TestSourceKitLSPClient` will emit an `XCTFail`.
-  public func handleNextRequest<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
-    requestHandlers.value.append(requestHandler)
+  /// The request handler will only handle a single request. If the request is called again, the request handler won't
+  /// call again
+  public func handleSingleRequest<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
+    requestHandlers.value.append((requestHandler: requestHandler, isOneShot: true))
+  }
+
+  /// Handle all requests of the given type that are sent to the client.
+  public func handleMultipleRequests<R: RequestType>(_ requestHandler: @escaping RequestHandler<R>) {
+    requestHandlers.value.append((requestHandler: requestHandler, isOneShot: false))
   }
 
   // MARK: - Conformance to MessageHandler
 
-  /// - Important: Implementation detail of `TestSourceKitLSPServer`. Do not call
-  ///   from tests.
+  /// - Important: Implementation detail of `TestSourceKitLSPServer`. Do not call from tests.
   public func handle(_ params: some NotificationType) {
     notificationYielder.yield(params)
   }
@@ -285,19 +289,21 @@ public final class TestSourceKitLSPClient: MessageHandler {
     reply: @escaping (LSPResult<Request.Response>) -> Void
   ) {
     requestHandlers.withLock { requestHandlers in
-      let requestHandlerAndIndex = requestHandlers.enumerated().compactMap {
-        (index, handler) -> (RequestHandler<Request>, Int)? in
-        guard let handler = handler as? RequestHandler<Request> else {
+      let requestHandlerIndexAndIsOneShot = requestHandlers.enumerated().compactMap {
+        (index, handlerAndIsOneShot) -> (RequestHandler<Request>, Int, Bool)? in
+        guard let handler = handlerAndIsOneShot.requestHandler as? RequestHandler<Request> else {
           return nil
         }
-        return (handler, index)
+        return (handler, index, handlerAndIsOneShot.isOneShot)
       }.first
-      guard let (requestHandler, index) = requestHandlerAndIndex else {
+      guard let (requestHandler, index, isOneShot) = requestHandlerIndexAndIsOneShot else {
         reply(.failure(.methodNotFound(Request.method)))
         return
       }
       reply(.success(requestHandler(params)))
-      requestHandlers.remove(at: index)
+      if isOneShot {
+        requestHandlers.remove(at: index)
+      }
     }
   }
 
