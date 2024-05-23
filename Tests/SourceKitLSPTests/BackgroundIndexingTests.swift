@@ -333,7 +333,6 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testBackgroundIndexingStatusWorkDoneProgress() async throws {
-    let workDoneProgressCreated = self.expectation(description: "Work done progress created")
     let project = try await SwiftPMTestProject(
       files: [
         "MyFile.swift": """
@@ -346,32 +345,33 @@ final class BackgroundIndexingTests: XCTestCase {
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
       serverOptions: backgroundIndexingOptions,
       preInitialization: { testClient in
-        testClient.handleSingleRequest { (request: CreateWorkDoneProgressRequest) in
-          workDoneProgressCreated.fulfill()
+        testClient.handleMultipleRequests { (request: CreateWorkDoneProgressRequest) in
           return VoidResponse()
         }
       }
     )
-    try await fulfillmentOfOrThrow([workDoneProgressCreated])
-    let workBeginProgress = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
-    guard case .begin = workBeginProgress.value else {
-      XCTFail("Expected begin work done progress")
-      return
-    }
+    var indexingWorkDoneProgressToken: ProgressToken? = nil
     var didGetEndWorkDoneProgress = false
-    for _ in 0..<5 {
-      let workEndProgress = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
-      switch workEndProgress.value {
-      case .begin:
-        XCTFail("Unexpected begin work done progress")
+    // Loop terminates when we see the work done end progress or if waiting for the next notification times out
+    LOOP: while true {
+      let workDoneProgress = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
+      switch workDoneProgress.value {
+      case .begin(let data):
+        if data.title == "Indexing" {
+          XCTAssertNil(indexingWorkDoneProgressToken, "Received multiple work done progress notifications for indexing")
+          indexingWorkDoneProgressToken = workDoneProgress.token
+        }
       case .report:
-        // Allow up to 2 work done progress reports.
-        continue
+        // We ignore progress reports in the test because it's non-deterministic how many we get
+        break
       case .end:
-        didGetEndWorkDoneProgress = true
+        if workDoneProgress.token == indexingWorkDoneProgressToken {
+          didGetEndWorkDoneProgress = true
+          break LOOP
+        }
       }
-      break
     }
+    XCTAssertNotNil(indexingWorkDoneProgressToken, "Expected to receive a work done progress start")
     XCTAssert(didGetEndWorkDoneProgress, "Expected end work done progress")
 
     withExtendedLifetime(project) {}
