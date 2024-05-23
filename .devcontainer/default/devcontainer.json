@@ -8,7 +8,7 @@
   "securityOpt": [ "seccomp=unconfined" ],
 
   "mounts": [
-    // Use a named volume for the build products for optimal performance (https://code.visualstudio.com/remote/advancedcontainers/improve-performance?WT.mc_id=javascript-14373-yolasors#_use-a-targeted-named-volume)
+    // Use a named volume for the build products for optimal performance (https://code.visualstudio.com/remote/advancedcontainers/improve-performance#_use-a-targeted-named-volume)
     "source=${localWorkspaceFolderBasename}-build,target=${containerWorkspaceFolder}/.build,type=volume",
     // Do the same for experimental background indexing
     "source=${localWorkspaceFolderBasename}-index-build,target=${containerWorkspaceFolder}/.index-build,type=volume"
