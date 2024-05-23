@@ -382,6 +382,7 @@ extension SwiftLanguageService {
       keys.enableDiagnostics: 0,
       keys.syntacticOnly: 1,
       keys.compilerArgs: compileCommand?.compilerArgs as [SKDRequestValue]?,
+      keys.cancelBuilds: 0,
     ])
   }
 
