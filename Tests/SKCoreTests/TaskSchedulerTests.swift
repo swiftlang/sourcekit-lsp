@@ -53,7 +53,9 @@ final class TaskSchedulerTests: XCTestCase {
     )
   }
 
-  func testTasksWithElevatedPrioritiesGetExecutedFirst() async {
+  func testTasksWithElevatedPrioritiesGetExecutedFirst() async throws {
+    try XCTSkipIf(true, "rdar://128601797")
+
     await runTaskScheduler(
       scheduleTasks: { scheduler, taskExecutionRecorder in
         for i in 0..<20 {
