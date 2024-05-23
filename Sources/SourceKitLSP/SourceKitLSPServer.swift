@@ -1470,7 +1470,7 @@ extension SourceKitLSPServer {
     // dynamic registration of watch patterns.
     // This must be a superset of the files that return true for SwiftPM's `Workspace.fileAffectsSwiftOrClangBuildSettings`.
     var watchers = FileRuleDescription.builtinRules.flatMap({ $0.fileTypes }).map { fileExtension in
-      return FileSystemWatcher(globPattern: "**/*.\(fileExtension)", kind: [.create, .delete])
+      return FileSystemWatcher(globPattern: "**/*.\(fileExtension)", kind: [.create, .change, .delete])
     }
     watchers.append(FileSystemWatcher(globPattern: "**/Package.swift", kind: [.change]))
     watchers.append(FileSystemWatcher(globPattern: "**/compile_commands.json", kind: [.create, .change, .delete]))
