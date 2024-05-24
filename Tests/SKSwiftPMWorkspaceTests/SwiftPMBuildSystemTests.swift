@@ -76,15 +76,14 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
       let packageRoot = tempDir.appending(component: "pkg")
       let tr = ToolchainRegistry.forTesting
-      await assertThrowsError(
-        try await SwiftPMBuildSystem(
-          workspacePath: packageRoot,
-          toolchainRegistry: tr,
-          fileSystem: fs,
-          buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
-          isForIndexBuild: false
-        )
+      let buildSystem = try await SwiftPMBuildSystem(
+        workspacePath: packageRoot,
+        toolchainRegistry: tr,
+        fileSystem: fs,
+        buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
+        isForIndexBuild: false
       )
+      await assertThrowsError(try await buildSystem.generateBuildGraph(allowFileSystemWrites: false))
     }
   }
 
@@ -140,6 +139,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
         isForIndexBuild: false
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = await swiftpmBuildSystem.buildParameters.triple
@@ -147,7 +147,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
       assertNotNil(await swiftpmBuildSystem.indexStorePath)
-      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
+        .compilerArguments
 
       assertArgumentsContain("-module-name", "lib", arguments: arguments)
       assertArgumentsContain("-emit-dependencies", arguments: arguments)
@@ -209,13 +210,15 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSetup: config,
         isForIndexBuild: false
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let hostTriple = await swiftpmBuildSystem.buildParameters.triple
       let build = buildPath(root: packageRoot, config: config, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
-      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
+        .compilerArguments
 
       assertArgumentsContain("-typecheck", arguments: arguments)
       assertArgumentsContain("-Xcc", "-m32", arguments: arguments)
@@ -247,9 +250,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
         isForIndexBuild: false
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let source = try resolveSymlinks(packageRoot.appending(component: "Package.swift"))
-      let arguments = try await swiftpmBuildSystem.buildSettings(for: source.asURI, language: .swift)!.compilerArguments
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: source.asURI, language: .swift))
+        .compilerArguments
 
       assertArgumentsContain("-swift-version", "4.2", arguments: arguments)
       assertArgumentsContain(source.pathString, arguments: arguments)
@@ -281,15 +286,16 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
         isForIndexBuild: false
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "lib", "b.swift")
 
-      let argumentsA = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!
+      let argumentsA = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
         .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: argumentsA)
       assertArgumentsContain(bswift.pathString, arguments: argumentsA)
-      let argumentsB = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!
+      let argumentsB = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
         .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: argumentsB)
       assertArgumentsContain(bswift.pathString, arguments: argumentsB)
@@ -327,10 +333,12 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
         isForIndexBuild: false
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
-      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
+        .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: arguments)
       assertArgumentsDoNotContain(bswift.pathString, arguments: arguments)
       // Temporary conditional to work around revlock between SourceKit-LSP and SwiftPM
@@ -351,7 +359,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         )
       }
 
-      let argumentsB = try await swiftpmBuildSystem.buildSettings(for: bswift.asURI, language: .swift)!
+      let argumentsB = try await unwrap(swiftpmBuildSystem.buildSettings(for: bswift.asURI, language: .swift))
         .compilerArguments
       assertArgumentsContain(bswift.pathString, arguments: argumentsB)
       assertArgumentsDoNotContain(aswift.pathString, arguments: argumentsB)
@@ -390,6 +398,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
         isForIndexBuild: false
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "libA", "a.swift")
       let bswift = packageRoot.appending(components: "Sources", "libB", "b.swift")
@@ -431,6 +440,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
         isForIndexBuild: false
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
@@ -442,7 +452,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       assertNotNil(await swiftpmBuildSystem.indexStorePath)
 
       for file in [acxx, header] {
-        let args = try await swiftpmBuildSystem.buildSettings(for: file.asURI, language: .cpp)!.compilerArguments
+        let args = try await unwrap(swiftpmBuildSystem.buildSettings(for: file.asURI, language: .cpp)).compilerArguments
 
         assertArgumentsContain("-std=c++14", arguments: args)
 
@@ -511,9 +521,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
         isForIndexBuild: false
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
+        .compilerArguments
       assertArgumentsContain("-target", arguments: arguments)  // Only one!
       let hostTriple = await swiftpmBuildSystem.buildParameters.triple
 
@@ -559,6 +571,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
         isForIndexBuild: false
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift1 = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let aswift2 =
@@ -624,6 +637,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
         isForIndexBuild: false
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       for file in [acpp, ah] {
         let args = try unwrap(
@@ -665,9 +679,11 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
         isForIndexBuild: false
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
+        .compilerArguments
       assertArgumentsContain(aswift.pathString, arguments: arguments)
       XCTAssertNotNil(
         arguments.firstIndex(where: {
@@ -739,6 +755,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
         buildSetup: SourceKitLSPServer.Options.testDefault.buildSetup,
         isForIndexBuild: false
       )
+      try await swiftpmBuildSystem.generateBuildGraph(allowFileSystemWrites: false)
 
       let aswift = packageRoot.appending(components: "Plugins", "MyPlugin", "a.swift")
       let hostTriple = await swiftpmBuildSystem.buildParameters.triple
@@ -746,7 +763,8 @@ final class SwiftPMBuildSystemTests: XCTestCase {
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
       assertNotNil(await swiftpmBuildSystem.indexStorePath)
-      let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
+      let arguments = try await unwrap(swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift))
+        .compilerArguments
 
       // Plugins get compiled with the same compiler arguments as the package manifest
       assertArgumentsContain("-package-description-version", "5.7.0", arguments: arguments)

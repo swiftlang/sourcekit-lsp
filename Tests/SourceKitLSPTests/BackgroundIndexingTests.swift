@@ -821,4 +821,27 @@ final class BackgroundIndexingTests: XCTestCase {
     )
     _ = try await otherClient.send(PollIndexRequest())
   }
+
+  func testOpeningFileThatIsNotPartOfThePackageDoesntGenerateABuildFolderThere() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "Lib.swift": "",
+        "OtherLib/OtherLib.swift": "",
+      ],
+      serverOptions: backgroundIndexingOptions
+    )
+    _ = try project.openDocument("OtherLib.swift")
+    // Wait for 1 second to increase the likelihood of this test failing in case we would start scheduling some
+    // background task that causes a build in the `OtherLib` directory.
+    try await Task.sleep(for: .seconds(1))
+    let nestedIndexBuildURL = try XCTUnwrap(
+      project.uri(for: "OtherLib.swift").fileURL?
+        .deletingLastPathComponent()
+        .appendingPathComponent(".index-build")
+    )
+    XCTAssertFalse(
+      FileManager.default.fileExists(atPath: nestedIndexBuildURL.path),
+      "No file should exist at \(nestedIndexBuildURL)"
+    )
+  }
 }
