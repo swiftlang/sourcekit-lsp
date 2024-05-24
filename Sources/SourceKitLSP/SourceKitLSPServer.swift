@@ -698,7 +698,7 @@ public actor SourceKitLSPServer {
   }
 
   /// Send the given notification to the editor.
-  public func sendNotificationToClient(_ notification: some NotificationType) {
+  public nonisolated func sendNotificationToClient(_ notification: some NotificationType) {
     client.send(notification)
   }
 
@@ -1000,7 +1000,9 @@ extension SourceKitLSPServer: MessageHandler {
       // which prepares the files. For files that are open but aren't being worked on (eg. a different tab), we don't
       // get requests, ensuring that we don't unnecessarily prepare them.
       let workspace = await self.workspaceForDocument(uri: textDocumentRequest.textDocument.uri)
-      await workspace?.semanticIndexManager?.schedulePreparation(of: textDocumentRequest.textDocument.uri)
+      await workspace?.semanticIndexManager?.schedulePreparationForEditorFunctionality(
+        of: textDocumentRequest.textDocument.uri
+      )
     }
 
     switch request {
@@ -1175,6 +1177,21 @@ private extension LanguageServerProtocol.WorkspaceType {
   }
 }
 
+extension SourceKitLSPServer {
+  nonisolated func indexTaskDidProduceResult(_ result: IndexProcessResult) {
+    self.sendNotificationToClient(
+      LogMessageNotification(
+        type: result.failed ? .info : .warning,
+        message: """
+          \(result.taskDescription) finished in \(result.duration)
+          \(result.command)
+          \(result.output)
+          """
+      )
+    )
+  }
+}
+
 // MARK: - Request and notification handling
 
 extension SourceKitLSPServer {
@@ -1221,6 +1238,9 @@ extension SourceKitLSPServer {
       compilationDatabaseSearchPaths: self.options.compilationDatabaseSearchPaths,
       indexOptions: self.options.indexOptions,
       indexTaskScheduler: indexTaskScheduler,
+      indexProcessDidProduceResult: { [weak self] in
+        self?.indexTaskDidProduceResult($0)
+      },
       reloadPackageStatusCallback: { [weak self] status in
         guard let self else { return }
         switch status {
@@ -1231,9 +1251,9 @@ extension SourceKitLSPServer {
         }
       },
       indexTasksWereScheduled: { [weak self] count in
-        self?.indexProgressManager.indexTaskWasQueued(count: count)
+        self?.indexProgressManager.indexTasksWereScheduled(count: count)
       },
-      indexTaskDidFinish: { [weak self] in
+      indexStatusDidChange: { [weak self] in
         self?.indexProgressManager.indexStatusDidChange()
       }
     )
@@ -1293,10 +1313,13 @@ extension SourceKitLSPServer {
           index: nil,
           indexDelegate: nil,
           indexTaskScheduler: self.indexTaskScheduler,
-          indexTasksWereScheduled: { [weak self] count in
-            self?.indexProgressManager.indexTaskWasQueued(count: count)
+          indexProcessDidProduceResult: { [weak self] in
+            self?.indexTaskDidProduceResult($0)
           },
-          indexTaskDidFinish: { [weak self] in
+          indexTasksWereScheduled: { [weak self] count in
+            self?.indexProgressManager.indexTasksWereScheduled(count: count)
+          },
+          indexStatusDidChange: { [weak self] in
             self?.indexProgressManager.indexStatusDidChange()
           }
         )
@@ -1543,7 +1566,7 @@ extension SourceKitLSPServer {
       )
       return
     }
-    await workspace.semanticIndexManager?.schedulePreparation(of: uri)
+    await workspace.semanticIndexManager?.schedulePreparationForEditorFunctionality(of: uri)
     await openDocument(notification, workspace: workspace)
   }
 
@@ -1599,7 +1622,7 @@ extension SourceKitLSPServer {
       )
       return
     }
-    await workspace.semanticIndexManager?.schedulePreparation(of: uri)
+    await workspace.semanticIndexManager?.schedulePreparationForEditorFunctionality(of: uri)
 
     // If the document is ready, we can handle the change right now.
     documentManager.edit(notification)

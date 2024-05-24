@@ -59,7 +59,10 @@ actor TestBuildSystem: BuildSystem {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
-  public func prepare(targets: [ConfiguredTarget]) async throws {
+  public func prepare(
+    targets: [ConfiguredTarget],
+    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+  ) async throws {
     throw PrepareNotSupportedError()
   }
 
@@ -136,8 +139,9 @@ final class BuildSystemTests: XCTestCase {
       index: nil,
       indexDelegate: nil,
       indexTaskScheduler: .forTesting,
+      indexProcessDidProduceResult: { _ in },
       indexTasksWereScheduled: { _ in },
-      indexTaskDidFinish: {}
+      indexStatusDidChange: {}
     )
 
     await server.setWorkspaces([(workspace: workspace, isImplicit: false)])

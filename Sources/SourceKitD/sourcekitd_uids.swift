@@ -71,8 +71,6 @@ public struct sourcekitd_api_keys {
   public let moduleInterfaceName: sourcekitd_api_uid_t
   /// `key.hash`
   public let hash: sourcekitd_api_uid_t
-  /// `key.compilerargs`
-  public let compilerArgs: sourcekitd_api_uid_t
   /// `key.severity`
   public let severity: sourcekitd_api_uid_t
   /// `key.offset`
@@ -81,8 +79,6 @@ public struct sourcekitd_api_keys {
   public let length: sourcekitd_api_uid_t
   /// `key.sourcefile`
   public let sourceFile: sourcekitd_api_uid_t
-  /// `key.sourcetext`
-  public let sourceText: sourcekitd_api_uid_t
   /// `key.primary_file`
   public let primaryFile: sourcekitd_api_uid_t
   /// `key.enablesyntaxmap`
@@ -215,6 +211,8 @@ public struct sourcekitd_api_keys {
   public let deprecated: sourcekitd_api_uid_t
   /// `key.obsoleted`
   public let obsoleted: sourcekitd_api_uid_t
+  /// `key.cancel_builds`
+  public let cancelBuilds: sourcekitd_api_uid_t
   /// `key.removecache`
   public let removeCache: sourcekitd_api_uid_t
   /// `key.typeusr`
@@ -415,6 +413,10 @@ public struct sourcekitd_api_keys {
   public let ignoreStdlib: sourcekitd_api_uid_t
   /// `key.disable_implicit_modules`
   public let disableImplicitModules: sourcekitd_api_uid_t
+  /// `key.compilerargs`
+  public let compilerArgs: sourcekitd_api_uid_t
+  /// `key.sourcetext`
+  public let sourceText: sourcekitd_api_uid_t
   /// `key.codecomplete.sort.byname`
   public let sortByName: sourcekitd_api_uid_t
   /// `key.codecomplete.sort.useimportdepth`
@@ -495,12 +497,10 @@ public struct sourcekitd_api_keys {
     filePath = api.uid_get_from_cstr("key.filepath")!
     moduleInterfaceName = api.uid_get_from_cstr("key.module_interface_name")!
     hash = api.uid_get_from_cstr("key.hash")!
-    compilerArgs = api.uid_get_from_cstr("key.compilerargs")!
     severity = api.uid_get_from_cstr("key.severity")!
     offset = api.uid_get_from_cstr("key.offset")!
     length = api.uid_get_from_cstr("key.length")!
     sourceFile = api.uid_get_from_cstr("key.sourcefile")!
-    sourceText = api.uid_get_from_cstr("key.sourcetext")!
     primaryFile = api.uid_get_from_cstr("key.primary_file")!
     enableSyntaxMap = api.uid_get_from_cstr("key.enablesyntaxmap")!
     enableStructure = api.uid_get_from_cstr("key.enablesubstructure")!
@@ -567,6 +567,7 @@ public struct sourcekitd_api_keys {
     introduced = api.uid_get_from_cstr("key.introduced")!
     deprecated = api.uid_get_from_cstr("key.deprecated")!
     obsoleted = api.uid_get_from_cstr("key.obsoleted")!
+    cancelBuilds = api.uid_get_from_cstr("key.cancel_builds")!
     removeCache = api.uid_get_from_cstr("key.removecache")!
     typeUsr = api.uid_get_from_cstr("key.typeusr")!
     containerTypeUsr = api.uid_get_from_cstr("key.containertypeusr")!
@@ -667,6 +668,8 @@ public struct sourcekitd_api_keys {
     includeSystemModules = api.uid_get_from_cstr("key.include_system_modules")!
     ignoreStdlib = api.uid_get_from_cstr("key.ignore_stdlib")!
     disableImplicitModules = api.uid_get_from_cstr("key.disable_implicit_modules")!
+    compilerArgs = api.uid_get_from_cstr("key.compilerargs")!
+    sourceText = api.uid_get_from_cstr("key.sourcetext")!
     sortByName = api.uid_get_from_cstr("key.codecomplete.sort.byname")!
     useImportDepth = api.uid_get_from_cstr("key.codecomplete.sort.useimportdepth")!
     groupOverloads = api.uid_get_from_cstr("key.codecomplete.group.overloads")!

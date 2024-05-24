@@ -125,7 +125,10 @@ extension CompilationDatabaseBuildSystem: BuildSystem {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
-  public func prepare(targets: [ConfiguredTarget]) async throws {
+  public func prepare(
+    targets: [ConfiguredTarget],
+    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+  ) async throws {
     throw PrepareNotSupportedError()
   }
 

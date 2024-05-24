@@ -289,7 +289,10 @@ extension BuildServerBuildSystem: BuildSystem {
     return nil
   }
 
-  public func prepare(targets: [ConfiguredTarget]) async throws {
+  public func prepare(
+    targets: [ConfiguredTarget],
+    indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+  ) async throws {
     throw PrepareNotSupportedError()
   }
 

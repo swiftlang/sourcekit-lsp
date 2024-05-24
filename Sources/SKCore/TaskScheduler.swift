@@ -147,11 +147,18 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   /// Gets reset every time `executionTask` finishes.
   nonisolated(unsafe) private var cancelledToBeRescheduled: AtomicBool = .init(initialValue: false)
 
+  /// Whether `resultTask` has been cancelled.
+  private nonisolated(unsafe) var resultTaskCancelled: AtomicBool = .init(initialValue: false)
+
   private nonisolated(unsafe) var _isExecuting: AtomicBool = .init(initialValue: false)
 
   /// Whether the task is currently executing or still queued to be executed later.
   public nonisolated var isExecuting: Bool {
     return _isExecuting.value
+  }
+
+  public nonisolated func cancel() {
+    resultTask.cancel()
   }
 
   /// Wait for the task to finish.
@@ -197,31 +204,35 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
     self.executionTaskCreatedContinuation = executionTaskCreatedContinuation
 
     self.resultTask = Task.detached(priority: priority) {
-      await withTaskGroup(of: Void.self) { taskGroup in
-        taskGroup.addTask {
-          for await _ in updatePriorityStream {
-            self.priority = Task.currentPriority
-          }
-        }
-        taskGroup.addTask {
-          for await task in executionTaskCreatedStream {
-            switch await task.value {
-            case .cancelledToBeRescheduled:
-              // Break the switch and wait for a new `executionTask` to be placed into `executionTaskCreatedStream`.
-              break
-            case .terminated:
-              // The task finished. We are done with this `QueuedTask`
-              return
+      await withTaskCancellationHandler {
+        await withTaskGroup(of: Void.self) { taskGroup in
+          taskGroup.addTask {
+            for await _ in updatePriorityStream {
+              self.priority = Task.currentPriority
             }
           }
+          taskGroup.addTask {
+            for await task in executionTaskCreatedStream {
+              switch await task.valuePropagatingCancellation {
+              case .cancelledToBeRescheduled:
+                // Break the switch and wait for a new `executionTask` to be placed into `executionTaskCreatedStream`.
+                break
+              case .terminated:
+                // The task finished. We are done with this `QueuedTask`
+                return
+              }
+            }
+          }
+          // The first (update priority) task never finishes, so this waits for the second (wait for execution) task
+          // to terminate.
+          // Afterwards we also cancel the update priority task.
+          for await _ in taskGroup {
+            taskGroup.cancelAll()
+            return
+          }
         }
-        // The first (update priority) task never finishes, so this waits for the second (wait for execution) task
-        // to terminate.
-        // Afterwards we also cancel the update priority task.
-        for await _ in taskGroup {
-          taskGroup.cancelAll()
-          return
-        }
+      } onCancel: {
+        self.resultTaskCancelled.value = true
       }
     }
   }
@@ -233,7 +244,9 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   func execute() async -> ExecutionTaskFinishStatus {
     precondition(executionTask == nil, "Task started twice")
     let task = Task.detached(priority: self.priority) {
-      await self.description.execute()
+      if !Task.isCancelled && !self.resultTaskCancelled.value {
+        await self.description.execute()
+      }
       return await self.finalizeExecution()
     }
     executionTask = task

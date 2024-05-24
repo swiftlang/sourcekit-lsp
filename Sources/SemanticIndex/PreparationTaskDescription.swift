@@ -37,6 +37,9 @@ public struct PreparationTaskDescription: IndexTaskDescription {
 
   private let preparationUpToDateStatus: IndexUpToDateStatusManager<ConfiguredTarget>
 
+  /// See `SemanticIndexManager.indexProcessDidProduceResult`
+  private let indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
+
   /// Test hooks that should be called when the preparation task finishes.
   private let testHooks: IndexTestHooks
 
@@ -57,11 +60,13 @@ public struct PreparationTaskDescription: IndexTaskDescription {
     targetsToPrepare: [ConfiguredTarget],
     buildSystemManager: BuildSystemManager,
     preparationUpToDateStatus: IndexUpToDateStatusManager<ConfiguredTarget>,
+    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
     testHooks: IndexTestHooks
   ) {
     self.targetsToPrepare = targetsToPrepare
     self.buildSystemManager = buildSystemManager
     self.preparationUpToDateStatus = preparationUpToDateStatus
+    self.indexProcessDidProduceResult = indexProcessDidProduceResult
     self.testHooks = testHooks
   }
 
@@ -69,7 +74,10 @@ public struct PreparationTaskDescription: IndexTaskDescription {
     // Only use the last two digits of the preparation ID for the logging scope to avoid creating too many scopes.
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running preparation operations
-    await withLoggingScope("preparation-\(id % 100)") {
+    await withLoggingSubsystemAndScope(
+      subsystem: "org.swift.sourcekit-lsp.indexing",
+      scope: "preparation-\(id % 100)"
+    ) {
       let targetsToPrepare = await targetsToPrepare.asyncFilter {
         await !preparationUpToDateStatus.isUpToDate($0)
       }.sorted(by: {
@@ -78,6 +86,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
       if targetsToPrepare.isEmpty {
         return
       }
+      await testHooks.preparationTaskDidStart?(self)
 
       let targetsToPrepareDescription =
         targetsToPrepare
@@ -86,9 +95,18 @@ public struct PreparationTaskDescription: IndexTaskDescription {
       logger.log(
         "Starting preparation with priority \(Task.currentPriority.rawValue, privacy: .public): \(targetsToPrepareDescription)"
       )
+      let signposter = Logger(subsystem: LoggingScope.subsystem, category: "preparation").makeSignposter()
+      let signpostID = signposter.makeSignpostID()
+      let state = signposter.beginInterval("Preparing", id: signpostID, "Preparing \(targetsToPrepareDescription)")
+      defer {
+        signposter.endInterval("Preparing", state)
+      }
       let startDate = Date()
       do {
-        try await buildSystemManager.prepare(targets: targetsToPrepare)
+        try await buildSystemManager.prepare(
+          targets: targetsToPrepare,
+          indexProcessDidProduceResult: indexProcessDidProduceResult
+        )
       } catch {
         logger.error(
           "Preparation failed: \(error.forLogging)"

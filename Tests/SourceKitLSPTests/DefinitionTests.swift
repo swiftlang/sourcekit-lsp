@@ -414,7 +414,7 @@ class DefinitionTests: XCTestCase {
     // Wait until SourceKit-LSP has handled the `DidChangeWatchedFilesNotification` (which it only does after a delay
     // because it debounces these notifications), indicated by it telling us that we should refresh diagnostics.
     let diagnosticRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
-    project.testClient.handleNextRequest { (request: DiagnosticsRefreshRequest) in
+    project.testClient.handleSingleRequest { (request: DiagnosticsRefreshRequest) in
       diagnosticRefreshRequestReceived.fulfill()
       return VoidResponse()
     }
@@ -489,7 +489,7 @@ class DefinitionTests: XCTestCase {
     // Wait until SourceKit-LSP has handled the `DidChangeWatchedFilesNotification` (which it only does after a delay
     // because it debounces these notifications), indicated by it telling us that we should refresh diagnostics.
     let diagnosticRefreshRequestReceived = self.expectation(description: "DiagnosticsRefreshRequest received")
-    project.testClient.handleNextRequest { (request: DiagnosticsRefreshRequest) in
+    project.testClient.handleSingleRequest { (request: DiagnosticsRefreshRequest) in
       diagnosticRefreshRequestReceived.fulfill()
       return VoidResponse()
     }

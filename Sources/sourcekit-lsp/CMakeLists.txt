@@ -5,6 +5,7 @@ target_link_libraries(sourcekit-lsp PRIVATE
   Diagnose
   LanguageServerProtocol
   LanguageServerProtocolJSONRPC
+  SemanticIndex
   SKCore
   SKSupport
   SourceKitLSP
