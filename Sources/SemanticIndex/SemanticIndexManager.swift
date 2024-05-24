@@ -192,7 +192,9 @@ public final actor SemanticIndexManager {
       defer {
         signposter.endInterval("Preparing", state)
       }
+      await testHooks.buildGraphGenerationDidStart?()
       await orLog("Generating build graph") { try await self.buildSystemManager.generateBuildGraph() }
+      await testHooks.buildGraphGenerationDidFinish?()
       let index = index.checked(for: .modifiedFiles)
       let filesToIndex = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
         .filter { uri in
@@ -205,6 +207,7 @@ public final actor SemanticIndexManager {
       await scheduleBackgroundIndex(files: filesToIndex)
       generateBuildGraphTask = nil
     }
+    indexStatusDidChange()
   }
 
   /// Wait for all in-progress index tasks to finish.
