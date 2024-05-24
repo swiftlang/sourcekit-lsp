@@ -17,6 +17,7 @@ add_library(SKSupport STATIC
   Result.swift
   Sequence+AsyncMap.swift
   SwitchableProcessResultExitStatus.swift
+  Task+WithPriorityChangedHandler.swift
   ThreadSafeBox.swift
   WorkspaceType.swift
 )

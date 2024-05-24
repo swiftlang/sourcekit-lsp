@@ -10,6 +10,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+import LSPLogging
 import SKCore
 import SKTestSupport
 import XCTest
@@ -54,8 +55,7 @@ final class TaskSchedulerTests: XCTestCase {
   }
 
   func testTasksWithElevatedPrioritiesGetExecutedFirst() async throws {
-    try XCTSkipIf(true, "rdar://128601797")
-
+    try SkipUnless.platformSupportsTaskPriorityElevation()
     await runTaskScheduler(
       scheduleTasks: { scheduler, taskExecutionRecorder in
         for i in 0..<20 {
@@ -262,7 +262,9 @@ fileprivate final class ClosureTaskDescription: TaskDescriptionProtocol {
   }
 
   func execute() async {
+    logger.debug("Starting execution of \(self) with priority \(Task.currentPriority.rawValue)")
     await closure()
+    logger.debug("Finished executing \(self) with priority \(Task.currentPriority.rawValue)")
   }
 
   func dependencies(
