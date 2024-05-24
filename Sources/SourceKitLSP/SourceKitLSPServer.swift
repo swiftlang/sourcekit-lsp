@@ -508,6 +508,9 @@ public actor SourceKitLSPServer {
   private var workspacesAndIsImplicit: [(workspace: Workspace, isImplicit: Bool)] = [] {
     didSet {
       uriToWorkspaceCache = [:]
+      // `indexProgressManager` iterates over all workspaces in the SourceKitLSPServer. Modifying workspaces might thus
+      // update the index progress status.
+      indexProgressManager.indexStatusDidChange()
     }
   }
 

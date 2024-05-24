@@ -384,21 +384,19 @@ final class BackgroundIndexingTests: XCTestCase {
     XCTAssertEqual(beginData.message, "Generating build graph")
     let indexingWorkDoneProgressToken = beginNotification.token
 
-    let reportNotification = try await project.testClient.nextNotification(
+    _ = try await project.testClient.nextNotification(
       ofType: WorkDoneProgress.self,
       satisfying: { notification in
-        guard notification.token == indexingWorkDoneProgressToken, case .report = notification.value else {
+        guard notification.token == indexingWorkDoneProgressToken,
+          case .report(let reportData) = notification.value,
+          reportData.message == "0 / 1"
+        else {
           return false
         }
         return true
       }
     )
     receivedReportProgressNotification.fulfill()
-    guard case .report(let reportData) = reportNotification.value else {
-      XCTFail("Expected report notification")
-      return
-    }
-    XCTAssertEqual(reportData.message, "0 / 1")
 
     _ = try await project.testClient.nextNotification(
       ofType: WorkDoneProgress.self,
