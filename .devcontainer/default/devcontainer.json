@@ -1,0 +1,32 @@
+// Reference: https://containers.dev/implementors/json_reference/
+{
+  "name": "SourceKit-LSP",
+  "dockerFile": "Dockerfile",
+
+  // Allow the processes in the container to attach a debugger
+  "capAdd": [ "SYS_PTRACE" ],
+  "securityOpt": [ "seccomp=unconfined" ],
+
+  "mounts": [
+    // Use a named volume for the build products for optimal performance (https://code.visualstudio.com/remote/advancedcontainers/improve-performance#_use-a-targeted-named-volume)
+    "source=${localWorkspaceFolderBasename}-build,target=${containerWorkspaceFolder}/.build,type=volume",
+    // Do the same for experimental background indexing
+    "source=${localWorkspaceFolderBasename}-index-build,target=${containerWorkspaceFolder}/.index-build,type=volume"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "sswg.swift-lang"
+      ],
+      "settings": {
+        "lldb.library": "/usr/lib/liblldb.so",
+        "swift.buildArguments": [
+          "-Xcxx",
+          "-I/usr/lib/swift",
+          "-Xcxx",
+          "-I/usr/lib/swift/Block"
+        ]
+      }
+    }
+  }
+}

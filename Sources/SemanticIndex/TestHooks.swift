@@ -12,16 +12,24 @@
 
 /// Callbacks that allow inspection of internal state modifications during testing.
 public struct IndexTestHooks: Sendable {
+  public var preparationTaskDidStart: (@Sendable (PreparationTaskDescription) async -> Void)?
+
   public var preparationTaskDidFinish: (@Sendable (PreparationTaskDescription) async -> Void)?
+
+  public var updateIndexStoreTaskDidStart: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)?
 
   /// A callback that is called when an index task finishes.
   public var updateIndexStoreTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)?
 
   public init(
+    preparationTaskDidStart: (@Sendable (PreparationTaskDescription) async -> Void)? = nil,
     preparationTaskDidFinish: (@Sendable (PreparationTaskDescription) async -> Void)? = nil,
+    updateIndexStoreTaskDidStart: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)? = nil,
     updateIndexStoreTaskDidFinish: (@Sendable (UpdateIndexStoreTaskDescription) async -> Void)? = nil
   ) {
+    self.preparationTaskDidStart = preparationTaskDidStart
     self.preparationTaskDidFinish = preparationTaskDidFinish
+    self.updateIndexStoreTaskDidStart = updateIndexStoreTaskDidStart
     self.updateIndexStoreTaskDidFinish = updateIndexStoreTaskDidFinish
   }
 }

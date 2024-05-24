@@ -105,6 +105,7 @@ struct SourceKitLSP: AsyncParsableCommand {
     abstract: "Language Server Protocol implementation for Swift and C-based languages",
     subcommands: [
       DiagnoseCommand.self,
+      IndexCommand.self,
       ReduceCommand.self,
       ReduceFrontendCommand.self,
       SourceKitdRequestCommand.self,
@@ -203,7 +204,15 @@ struct SourceKitLSP: AsyncParsableCommand {
   @Flag(
     help: "Enable background indexing. This feature is still under active development and may be incomplete."
   )
-  var enableExperimentalBackgroundIndexing = false
+  var experimentalEnableBackgroundIndexing = false
+
+  @Flag(
+    help: """
+      Show which index tasks are currently running in the indexing work done progress. \
+      This produces a multi-line work done progress, which might render incorrectly depending in the editor.
+      """
+  )
+  var experimentalShowActivePreparationTasksInProgress = false
 
   func mapOptions() -> SourceKitLSPServer.Options {
     var serverOptions = SourceKitLSPServer.Options()
@@ -220,7 +229,8 @@ struct SourceKitLSP: AsyncParsableCommand {
     serverOptions.indexOptions.indexStorePath = indexStorePath
     serverOptions.indexOptions.indexDatabasePath = indexDatabasePath
     serverOptions.indexOptions.indexPrefixMappings = indexPrefixMappings
-    serverOptions.indexOptions.enableBackgroundIndexing = enableExperimentalBackgroundIndexing
+    serverOptions.indexOptions.enableBackgroundIndexing = experimentalEnableBackgroundIndexing
+    serverOptions.indexOptions.showActivePreparationTasksInProgress = experimentalShowActivePreparationTasksInProgress
     serverOptions.completionOptions.maxResults = completionMaxResults
     serverOptions.generatedInterfacesPath = generatedInterfacesPath
 

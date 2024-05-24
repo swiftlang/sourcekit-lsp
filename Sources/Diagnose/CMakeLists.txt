@@ -2,6 +2,7 @@ add_library(Diagnose STATIC
   CommandConfiguration+Sendable.swift
   CommandLineArgumentsReducer.swift
   DiagnoseCommand.swift
+  IndexCommand.swift
   MergeSwiftFiles.swift
   OSLogScraper.swift
   ReduceCommand.swift
@@ -23,6 +24,8 @@ set_target_properties(Diagnose PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_Swift_MODULE_DIRECTORY})
 
 target_link_libraries(Diagnose PUBLIC
+  InProcessClient
+  LSPLogging
   SKCore
   SourceKitD
   ArgumentParser

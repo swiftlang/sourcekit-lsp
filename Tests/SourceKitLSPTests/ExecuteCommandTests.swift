@@ -44,7 +44,7 @@ final class ExecuteCommandTests: XCTestCase {
 
     let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
 
-    testClient.handleNextRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
+    testClient.handleSingleRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
 
@@ -100,7 +100,7 @@ final class ExecuteCommandTests: XCTestCase {
 
     let request = ExecuteCommandRequest(command: command.command, arguments: command.arguments)
 
-    testClient.handleNextRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
+    testClient.handleSingleRequest { (req: ApplyEditRequest) -> ApplyEditResponse in
       return ApplyEditResponse(applied: true, failureReason: nil)
     }
 

@@ -75,7 +75,7 @@ final class CrashRecoveryTests: XCTestCase {
       "Sanity check failed. The Hover response did not contain foo(), even before crashing sourcekitd. Received response: \(String(describing: preCrashHoverResponse))"
     )
 
-    testClient.handleNextRequest { (request: CreateWorkDoneProgressRequest) -> VoidResponse in
+    testClient.handleSingleRequest { (request: CreateWorkDoneProgressRequest) -> VoidResponse in
       return VoidResponse()
     }
 

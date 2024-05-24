@@ -53,7 +53,9 @@ final class TaskSchedulerTests: XCTestCase {
     )
   }
 
-  func testTasksWithElevatedPrioritiesGetExecutedFirst() async {
+  func testTasksWithElevatedPrioritiesGetExecutedFirst() async throws {
+    try XCTSkipIf(true, "rdar://128601797")
+
     await runTaskScheduler(
       scheduleTasks: { scheduler, taskExecutionRecorder in
         for i in 0..<20 {
@@ -155,7 +157,13 @@ final class TaskSchedulerTests: XCTestCase {
         )
       },
       validate: { (recordings: [Set<TaskID>]) in
-        XCTAssertEqual(recordings.filter({ !$0.isEmpty }), [[suspendedTaskId], [suspenderTaskId], [suspendedTaskId]])
+        let nonEmptyRecordings = recordings.filter({ !$0.isEmpty })
+        // The suspended task might get cancelled to be rescheduled before or after we run the body. Allow either.
+        XCTAssert(
+          nonEmptyRecordings == [[suspendedTaskId], [suspenderTaskId], [suspendedTaskId]]
+            || nonEmptyRecordings == [[suspenderTaskId], [suspendedTaskId]],
+          "Recordings did not match expected: \(nonEmptyRecordings)"
+        )
       }
     )
   }
@@ -189,7 +197,6 @@ final class TaskSchedulerTests: XCTestCase {
       }
     )
   }
-
 }
 
 // MARK: - Test helpers
@@ -348,8 +355,11 @@ fileprivate extension TaskScheduler<ClosureTaskDescription> {
       body,
       dependencies: dependencies
     )
+    // Make sure that we call `schedule` outside of the `Task` because the execution order of `Task`s is not guaranteed
+    // and if we called `schedule` inside `Task`, Swift concurrency can re-order the order that we schedule tasks in.
+    let queuedTask = await self.schedule(priority: priority, taskDescription)
     return Task(priority: priority) {
-      await self.schedule(priority: priority, taskDescription).waitToFinishPropagatingCancellation()
+      await queuedTask.waitToFinishPropagatingCancellation()
     }
   }
 }

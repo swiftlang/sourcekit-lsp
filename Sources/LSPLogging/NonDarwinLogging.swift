@@ -394,5 +394,6 @@ public struct NonDarwinSignposter: Sendable {
 
   public func emitEvent(_ name: StaticString, id: NonDarwinSignpostID, _ message: NonDarwinLogMessage = "") {}
 
-  public func endInterval(_ name: StaticString, _ state: NonDarwinSignpostIntervalState, _ message: StaticString) {}
+  public func endInterval(_ name: StaticString, _ state: NonDarwinSignpostIntervalState, _ message: StaticString = "") {
+  }
 }

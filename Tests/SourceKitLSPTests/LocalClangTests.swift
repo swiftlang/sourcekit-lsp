@@ -201,7 +201,7 @@ final class LocalClangTests: XCTestCase {
     XCTAssertEqual(command.command, "clangd.applyTweak")
 
     let applyEdit = XCTestExpectation(description: "applyEdit")
-    testClient.handleNextRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
+    testClient.handleSingleRequest { (request: ApplyEditRequest) -> ApplyEditResponse in
       XCTAssertNotNil(request.edit.changes)
       applyEdit.fulfill()
       return ApplyEditResponse(applied: true, failureReason: nil)

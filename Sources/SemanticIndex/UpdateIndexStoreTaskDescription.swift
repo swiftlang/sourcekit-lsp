@@ -22,7 +22,7 @@ import class TSCBasic.Process
 
 private nonisolated(unsafe) var updateIndexStoreIDForLogging = AtomicUInt32(initialValue: 1)
 
-enum FileToIndex: CustomLogStringConvertible {
+public enum FileToIndex: CustomLogStringConvertible {
   /// A non-header file
   case indexableFile(DocumentURI)
 
@@ -33,7 +33,7 @@ enum FileToIndex: CustomLogStringConvertible {
   ///
   /// This file might be a header file that doesn't have build settings associated with it. For the actual compiler
   /// invocation that updates the index store, the `mainFile` should be used.
-  var sourceFile: DocumentURI {
+  public var sourceFile: DocumentURI {
     switch self {
     case .indexableFile(let uri): return uri
     case .headerFile(header: let header, mainFile: _): return header
@@ -51,7 +51,7 @@ enum FileToIndex: CustomLogStringConvertible {
     }
   }
 
-  var description: String {
+  public var description: String {
     switch self {
     case .indexableFile(let uri):
       return uri.description
@@ -60,7 +60,7 @@ enum FileToIndex: CustomLogStringConvertible {
     }
   }
 
-  var redactedDescription: String {
+  public var redactedDescription: String {
     switch self {
     case .indexableFile(let uri):
       return uri.redactedDescription
@@ -71,9 +71,9 @@ enum FileToIndex: CustomLogStringConvertible {
 }
 
 /// A file to index and the target in which the file should be indexed.
-struct FileAndTarget {
-  let file: FileToIndex
-  let target: ConfiguredTarget
+public struct FileAndTarget: Sendable {
+  public let file: FileToIndex
+  public let target: ConfiguredTarget
 }
 
 /// Describes a task to index a set of source files.
@@ -84,7 +84,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   public let id = updateIndexStoreIDForLogging.fetchAndIncrement()
 
   /// The files that should be indexed.
-  private let filesToIndex: [FileAndTarget]
+  public let filesToIndex: [FileAndTarget]
 
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
@@ -94,6 +94,9 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   /// A reference to the underlying index store. Used to check if the index is already up-to-date for a file, in which
   /// case we don't need to index it again.
   private let index: UncheckedIndex
+
+  /// See `SemanticIndexManager.indexProcessDidProduceResult`
+  private let indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
 
   /// Test hooks that should be called when the index task finishes.
   private let testHooks: IndexTestHooks
@@ -116,12 +119,14 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     buildSystemManager: BuildSystemManager,
     index: UncheckedIndex,
     indexStoreUpToDateStatus: IndexUpToDateStatusManager<DocumentURI>,
+    indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
     testHooks: IndexTestHooks
   ) {
     self.filesToIndex = filesToIndex
     self.buildSystemManager = buildSystemManager
     self.index = index
     self.indexStoreUpToDateStatus = indexStoreUpToDateStatus
+    self.indexProcessDidProduceResult = indexProcessDidProduceResult
     self.testHooks = testHooks
   }
 
@@ -134,6 +139,8 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       scope: "update-indexstore-\(id % 100)"
     ) {
       let startDate = Date()
+
+      await testHooks.updateIndexStoreTaskDidStart?(self)
 
       let filesToIndexDescription = filesToIndex.map {
         $0.file.sourceFile.fileURL?.lastPathComponent ?? $0.file.sourceFile.stringValue
@@ -161,9 +168,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   ) -> [TaskDependencyAction<UpdateIndexStoreTaskDescription>] {
     let selfMainFiles = Set(filesToIndex.map(\.file.mainFile))
     return currentlyExecutingTasks.compactMap { (other) -> TaskDependencyAction<UpdateIndexStoreTaskDescription>? in
-      guard
-        !other.filesToIndex.lazy.map(\.file.mainFile).contains(where: { selfMainFiles.contains($0) })
-      else {
+      if !other.filesToIndex.lazy.map(\.file.mainFile).contains(where: { selfMainFiles.contains($0) }) {
         // Disjoint sets of files can be indexed concurrently.
         return nil
       }
@@ -301,18 +306,41 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     processArguments: [String],
     workingDirectory: AbsolutePath?
   ) async throws {
+    if Task.isCancelled {
+      return
+    }
+    let start = ContinuousClock.now
+    let signposter = Logger(subsystem: LoggingScope.subsystem, category: "indexing").makeSignposter()
+    let signpostID = signposter.makeSignpostID()
+    let state = signposter.beginInterval(
+      "Indexing",
+      id: signpostID,
+      "Indexing \(indexFile.fileURL?.lastPathComponent ?? indexFile.pseudoPath)"
+    )
+    defer {
+      signposter.endInterval("Indexing", state)
+    }
     let process = try Process.launch(
       arguments: processArguments,
       workingDirectory: workingDirectory
     )
     let result = try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+
+    indexProcessDidProduceResult(
+      IndexProcessResult(
+        taskDescription: "Indexing \(indexFile.pseudoPath)",
+        processResult: result,
+        start: start
+      )
+    )
+
     switch result.exitStatus.exhaustivelySwitchable {
     case .terminated(code: 0):
       break
     case .terminated(code: let code):
       // This most likely happens if there are compilation errors in the source file. This is nothing to worry about.
-      let stdout = (try? String(bytes: result.output.get(), encoding: .utf8)) ?? "<no stderr>"
-      let stderr = (try? String(bytes: result.stderrOutput.get(), encoding: .utf8)) ?? "<no stderr>"
+      let stdout = (try? String(bytes: result.output.get(), encoding: .utf8)) ?? "<failed to decode stdout>"
+      let stderr = (try? String(bytes: result.stderrOutput.get(), encoding: .utf8)) ?? "<failed to decode stderr>"
       // Indexing will frequently fail if the source code is in an invalid state. Thus, log the failure at a low level.
       logger.debug(
         """

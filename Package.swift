@@ -74,9 +74,12 @@ let package = Package(
     .target(
       name: "Diagnose",
       dependencies: [
+        "InProcessClient",
         "LSPLogging",
-        "SourceKitD",
         "SKCore",
+        "SKSupport",
+        "SourceKitD",
+        "SourceKitLSP",
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         .product(name: "SwiftIDEUtils", package: "swift-syntax"),
         .product(name: "SwiftSyntax", package: "swift-syntax"),
@@ -97,6 +100,20 @@ let package = Package(
         "SKTestSupport",
         .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
       ]
+    ),
+
+    // MARK: InProcessClient
+
+    .target(
+      name: "InProcessClient",
+      dependencies: [
+        "CAtomics",
+        "LanguageServerProtocol",
+        "LSPLogging",
+        "SKCore",
+        "SourceKitLSP",
+      ],
+      exclude: ["CMakeLists.txt"]
     ),
 
     // MARK: LanguageServerProtocol
@@ -162,6 +179,7 @@ let package = Package(
     .target(
       name: "LSPTestSupport",
       dependencies: [
+        "InProcessClient",
         "LanguageServerProtocol",
         "LanguageServerProtocolJSONRPC",
         "SKSupport",
@@ -278,6 +296,7 @@ let package = Package(
       name: "SKTestSupport",
       dependencies: [
         "CSKTestSupport",
+        "InProcessClient",
         "LanguageServerProtocol",
         "LSPTestSupport",
         "LSPLogging",

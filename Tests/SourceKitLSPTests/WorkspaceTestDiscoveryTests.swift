@@ -902,7 +902,6 @@ final class WorkspaceTestDiscoveryTests: XCTestCase {
     )
 
     let testsAfterEdit = try await project.testClient.send(WorkspaceTestsRequest())
-    print(testsAfterEdit)
     // We know from the semantic index that NotQuiteTest does not inherit from XCTestCase, so we should not include it.
     // We don't have any semantic knowledge about `OtherNotQuiteTest`, so we are conservative and should include it.
     XCTAssertFalse(testsAfterEdit.contains { $0.label == "NotQuiteTest" })

@@ -22,6 +22,19 @@ final class WorkDoneProgressManager {
   private let token: ProgressToken
   private let queue = AsyncQueue<Serial>()
   private let server: SourceKitLSPServer
+  /// `true` if the client returned without an error from the `CreateWorkDoneProgressRequest`.
+  ///
+  /// Since all work done progress reports are being sent on `queue`, we never access it in a state where the
+  /// `CreateWorkDoneProgressRequest` is still in progress.
+  ///
+  /// Must be a reference because `deinit` captures it and wants to observe changes to it from `init` eg. in the
+  /// following:
+  ///  - `init` is called
+  ///  - `deinit` is called
+  ///  - The task from `init` gets executed
+  ///  - The task from `deinit` gets executed
+  ///    - This should have `workDoneProgressCreated == true` so that it can send the work progress end.
+  private let workDoneProgressCreated: ThreadSafeBox<Bool> & AnyObject = ThreadSafeBox<Bool>(initialValue: false)
 
   convenience init?(server: SourceKitLSPServer, title: String, message: String? = nil, percentage: Int? = nil) async {
     guard let capabilityRegistry = await server.capabilityRegistry else {
@@ -42,25 +55,29 @@ final class WorkDoneProgressManager {
     }
     self.token = .string("WorkDoneProgress-\(UUID())")
     self.server = server
-    queue.async { [server, token] in
+    queue.async { [server, token, workDoneProgressCreated] in
       await server.waitUntilInitialized()
-      await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-        _ = server.client.send(CreateWorkDoneProgressRequest(token: token)) { result in
-          continuation.resume()
-        }
+      do {
+        _ = try await server.client.send(CreateWorkDoneProgressRequest(token: token))
+      } catch {
+        return
       }
-      await server.sendNotificationToClient(
+      server.sendNotificationToClient(
         WorkDoneProgress(
           token: token,
           value: .begin(WorkDoneProgressBegin(title: title, message: message, percentage: percentage))
         )
       )
+      workDoneProgressCreated.value = true
     }
   }
 
   func update(message: String? = nil, percentage: Int? = nil) {
-    queue.async { [server, token] in
-      await server.sendNotificationToClient(
+    queue.async { [server, token, workDoneProgressCreated] in
+      guard workDoneProgressCreated.value else {
+        return
+      }
+      server.sendNotificationToClient(
         WorkDoneProgress(
           token: token,
           value: .report(WorkDoneProgressReport(cancellable: false, message: message, percentage: percentage))
@@ -70,8 +87,11 @@ final class WorkDoneProgressManager {
   }
 
   deinit {
-    queue.async { [server, token] in
-      await server.sendNotificationToClient(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
+    queue.async { [server, token, workDoneProgressCreated] in
+      guard workDoneProgressCreated.value else {
+        return
+      }
+      server.sendNotificationToClient(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
     }
   }
 }
