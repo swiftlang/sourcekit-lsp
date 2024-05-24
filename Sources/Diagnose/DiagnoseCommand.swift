@@ -352,6 +352,15 @@ public struct DiagnoseCommand: AsyncParsableCommand {
       """
     )
 
+    #if os(macOS)
+    // Reveal the bundle in Finder on macOS
+    do {
+      let process = try Process.launch(arguments: ["open", "-R", bundlePath.path], workingDirectory: nil)
+      try await process.waitUntilExitSendingSigIntOnTaskCancellation()
+    } catch {
+      // If revealing the bundle in Finder should fail, we don't care. We still printed the bundle path to stdout.
+    }
+    #endif
   }
 
   @MainActor
