@@ -93,7 +93,7 @@ actor IndexProgressManager {
       }
     }
 
-    if indexTasks.isEmpty {
+    if indexTasks.isEmpty && !isGeneratingBuildGraph {
       // Nothing left to index. Reset the target count and dismiss the work done progress.
       queuedIndexTasks = 0
       workDoneProgress = nil
@@ -104,7 +104,12 @@ actor IndexProgressManager {
     // `indexTasksWereScheduled` calls yet but the semantic index managers already track them in their in-progress tasks.
     // Clip the finished tasks to 0 because showing a negative number there looks stupid.
     let finishedTasks = max(queuedIndexTasks - indexTasks.count, 0)
-    var message = "\(finishedTasks) / \(queuedIndexTasks)"
+    var message: String
+    if isGeneratingBuildGraph {
+      message = "Generating build graph"
+    } else {
+      message = "\(finishedTasks) / \(queuedIndexTasks)"
+    }
 
     if await sourceKitLSPServer.options.indexOptions.showActivePreparationTasksInProgress {
       var inProgressTasks: [String] = []
@@ -121,7 +126,12 @@ actor IndexProgressManager {
       message += "\n\n" + inProgressTasks.joined(separator: "\n")
     }
 
-    let percentage = Int(Double(finishedTasks) / Double(queuedIndexTasks) * 100)
+    let percentage: Int
+    if queuedIndexTasks != 0 {
+      percentage = Int(Double(finishedTasks) / Double(queuedIndexTasks) * 100)
+    } else {
+      percentage = 0
+    }
     if let workDoneProgress {
       workDoneProgress.update(message: message, percentage: percentage)
     } else {

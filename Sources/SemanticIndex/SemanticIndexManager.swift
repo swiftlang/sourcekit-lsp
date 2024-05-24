@@ -192,10 +192,12 @@ public final actor SemanticIndexManager {
       defer {
         signposter.endInterval("Preparing", state)
       }
+      await testHooks.buildGraphGenerationDidStart?()
       await orLog("Generating build graph") { try await self.buildSystemManager.generateBuildGraph() }
       // Ensure that we have an up-to-date indexstore-db. Waiting for the indexstore-db to be updated is cheaper than
       // potentially not knowing about unit files, which causes the corresponding source files to be re-indexed.
       index.pollForUnitChangesAndWait()
+      await testHooks.buildGraphGenerationDidFinish?()
       let index = index.checked(for: .modifiedFiles)
       let filesToIndex = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
         .filter { uri in
@@ -208,6 +210,7 @@ public final actor SemanticIndexManager {
       await scheduleBackgroundIndex(files: filesToIndex)
       generateBuildGraphTask = nil
     }
+    indexStatusDidChange()
   }
 
   /// Wait for all in-progress index tasks to finish.
