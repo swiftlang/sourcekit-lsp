@@ -201,6 +201,7 @@ final actor WorkDoneProgressState {
     }
     if state == .created && activeTasks == 0 {
       server.client.send(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
+      self.state = .noProgress
     }
   }
 }
