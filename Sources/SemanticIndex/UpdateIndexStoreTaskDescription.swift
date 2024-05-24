@@ -105,7 +105,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
 
-  private let indexStoreUpToDateStatus: IndexUpToDateStatusManager<DocumentURI>
+  private let indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>
 
   /// A reference to the underlying index store. Used to check if the index is already up-to-date for a file, in which
   /// case we don't need to index it again.
@@ -138,14 +138,14 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     filesToIndex: [FileAndTarget],
     buildSystemManager: BuildSystemManager,
     index: UncheckedIndex,
-    indexStoreUpToDateStatus: IndexUpToDateStatusManager<DocumentURI>,
+    indexStoreUpToDateTracker: UpToDateTracker<DocumentURI>,
     indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
     testHooks: IndexTestHooks
   ) {
     self.filesToIndex = filesToIndex
     self.buildSystemManager = buildSystemManager
     self.index = index
-    self.indexStoreUpToDateStatus = indexStoreUpToDateStatus
+    self.indexStoreUpToDateTracker = indexStoreUpToDateTracker
     self.indexProcessDidProduceResult = indexProcessDidProduceResult
     self.testHooks = testHooks
   }
@@ -202,7 +202,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
   }
 
   private func updateIndexStore(forSingleFile file: FileToIndex, in target: ConfiguredTarget) async {
-    guard await !indexStoreUpToDateStatus.isUpToDate(file.sourceFile) else {
+    guard await !indexStoreUpToDateTracker.isUpToDate(file.sourceFile) else {
       // If we know that the file is up-to-date without having ot hit the index, do that because it's fastest.
       return
     }
@@ -264,7 +264,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         "Not updating index store for \(file) because it is a language that is not supported by background indexing"
       )
     }
-    await indexStoreUpToDateStatus.markUpToDate([file.sourceFile], updateOperationStartDate: startDate)
+    await indexStoreUpToDateTracker.markUpToDate([file.sourceFile], updateOperationStartDate: startDate)
   }
 
   private func updateIndexStore(
