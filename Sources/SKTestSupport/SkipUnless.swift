@@ -103,7 +103,7 @@ public actor SkipUnless {
   ) async throws {
     try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       let testClient = try await TestSourceKitLSPClient()
-      let uri = DocumentURI.for(.swift)
+      let uri = DocumentURI(for: .swift)
       testClient.openDocument("0.bitPattern", uri: uri)
       let response = try unwrap(
         await testClient.send(DocumentSemanticTokensRequest(textDocument: TextDocumentIdentifier(uri)))
@@ -134,7 +134,7 @@ public actor SkipUnless {
   ) async throws {
     try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       let testClient = try await TestSourceKitLSPClient()
-      let uri = DocumentURI.for(.swift)
+      let uri = DocumentURI(for: .swift)
       let positions = testClient.openDocument("func 1️⃣test() {}", uri: uri)
       do {
         _ = try await testClient.send(
@@ -154,7 +154,7 @@ public actor SkipUnless {
   ) async throws {
     try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(5, 11), file: file, line: line) {
       let testClient = try await TestSourceKitLSPClient()
-      let uri = DocumentURI.for(.c)
+      let uri = DocumentURI(for: .c)
       let positions = testClient.openDocument("void 1️⃣test() {}", uri: uri)
       do {
         _ = try await testClient.send(
@@ -214,7 +214,7 @@ public actor SkipUnless {
     return try await shared.skipUnlessSupportedByToolchain(swiftVersion: SwiftVersion(6, 0), file: file, line: line) {
       // The XML-based doc comment conversion did not preserve `Precondition`.
       let testClient = try await TestSourceKitLSPClient()
-      let uri = DocumentURI.for(.swift)
+      let uri = DocumentURI(for: .swift)
       let positions = testClient.openDocument(
         """
         /// - Precondition: Must have an apple

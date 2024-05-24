@@ -159,7 +159,7 @@ final class BuildSystemTests: XCTestCase {
   func testClangdDocumentUpdatedBuildSettings() async throws {
     guard haveClangd else { return }
 
-    let doc = DocumentURI.for(.objective_c)
+    let doc = DocumentURI(for: .objective_c)
     let args = [doc.pseudoPath, "-DDEBUG"]
     let text = """
       #ifdef FOO
@@ -201,7 +201,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testSwiftDocumentUpdatedBuildSettings() async throws {
-    let doc = DocumentURI.for(.swift)
+    let doc = DocumentURI(for: .swift)
     let args = await FallbackBuildSystem(buildSetup: .default)
       .buildSettings(for: doc, language: .swift)!
       .compilerArguments
@@ -236,7 +236,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testClangdDocumentFallbackWithholdsDiagnostics() async throws {
-    let doc = DocumentURI.for(.objective_c)
+    let doc = DocumentURI(for: .objective_c)
     let args = [doc.pseudoPath, "-DDEBUG"]
     let text = """
         #ifdef FOO
@@ -270,7 +270,7 @@ final class BuildSystemTests: XCTestCase {
   }
 
   func testSwiftDocumentFallbackWithholdsSemanticDiagnostics() async throws {
-    let doc = DocumentURI.for(.swift)
+    let doc = DocumentURI(for: .swift)
 
     // Primary settings must be different than the fallback settings.
     var primarySettings = await FallbackBuildSystem(buildSetup: .default).buildSettings(for: doc, language: .swift)!

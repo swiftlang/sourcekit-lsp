@@ -57,7 +57,7 @@ func assertFoldingRanges(
     )
   )
   let testClient = try await TestSourceKitLSPClient(capabilities: capabilities)
-  let uri = DocumentURI.for(.swift)
+  let uri = DocumentURI(for: .swift)
   let positions = testClient.openDocument(markedSource, uri: uri)
   let foldingRanges = try unwrap(await testClient.send(FoldingRangeRequest(textDocument: TextDocumentIdentifier(uri))))
   if foldingRanges.count != expectedRanges.count {

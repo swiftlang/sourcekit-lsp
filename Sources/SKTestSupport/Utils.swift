@@ -36,8 +36,8 @@ extension Language {
 }
 
 extension DocumentURI {
-  /// Create a unique URI for a document of the given language.
-  public static func `for`(_ language: Language, testName: String = #function) -> DocumentURI {
+  /// Construct a `DocumentURI` by creating a unique URI for a document of the given language.
+  public init(for language: Language, testName: String = #function) {
     let testBaseName = testName.prefix(while: \.isLetter)
 
     #if os(Windows)
@@ -45,7 +45,8 @@ extension DocumentURI {
     #else
     let url = URL(fileURLWithPath: "/\(testBaseName)/\(UUID())/test.\(language.fileExtension)")
     #endif
-    return DocumentURI(url)
+
+    self.init(url)
   }
 }
 

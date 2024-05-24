@@ -212,7 +212,7 @@ final class SwiftInterfaceTests: XCTestCase {
 
   func testJumpToSynthesizedExtensionMethodInSystemModuleWithoutIndex() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """

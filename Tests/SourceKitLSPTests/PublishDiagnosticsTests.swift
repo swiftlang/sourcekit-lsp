@@ -18,7 +18,7 @@ import XCTest
 final class PublishDiagnosticsTests: XCTestCase {
   func testUnknownIdentifierDiagnostic() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     testClient.openDocument(
       """
@@ -39,7 +39,7 @@ final class PublishDiagnosticsTests: XCTestCase {
 
   func testRangeShiftAfterNewlineAdded() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     testClient.openDocument(
       """
@@ -80,7 +80,7 @@ final class PublishDiagnosticsTests: XCTestCase {
 
   func testRangeShiftAfterNewlineRemoved() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     testClient.openDocument(
       """
