@@ -201,6 +201,7 @@ final actor WorkDoneProgressState {
     }
     if state == .created && activeTasks == 0 {
       server.client.send(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
+      self.state = .noProgress
     }
   }
 }
@@ -507,6 +508,9 @@ public actor SourceKitLSPServer {
   private var workspacesAndIsImplicit: [(workspace: Workspace, isImplicit: Bool)] = [] {
     didSet {
       uriToWorkspaceCache = [:]
+      // `indexProgressManager` iterates over all workspaces in the SourceKitLSPServer. Modifying workspaces might thus
+      // update the index progress status.
+      indexProgressManager.indexStatusDidChange()
     }
   }
 

@@ -272,6 +272,16 @@ public actor SkipUnless {
   public static func platformIsDarwin(_ message: String) throws {
     try XCTSkipUnless(Platform.current == .darwin, message)
   }
+
+  public static func platformSupportsTaskPriorityElevation() throws {
+    #if os(macOS)
+    guard #available(macOS 14.0, *) else {
+      // Priority elevation was implemented by https://github.com/apple/swift/pull/63019, which is available in the
+      // Swift 5.9 runtime included in macOS 14.0+
+      throw XCTSkip("Priority elevation of tasks is only supported on macOS 14 and above")
+    }
+    #endif
+  }
 }
 
 // MARK: - Parsing Swift compiler version

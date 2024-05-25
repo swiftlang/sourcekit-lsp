@@ -248,15 +248,16 @@ public final class TestSourceKitLSPClient: MessageHandler {
     return try await nextNotification(ofType: PublishDiagnosticsNotification.self, timeout: timeout)
   }
 
-  /// Waits for the next notification of the given type to be sent to the client. Ignores any notifications that are of
-  /// a different type.
+  /// Waits for the next notification of the given type to be sent to the client that satisfies the given predicate.
+  /// Ignores any notifications that are of a different type or that don't satisfy the predicate.
   public func nextNotification<ExpectedNotificationType: NotificationType>(
     ofType: ExpectedNotificationType.Type,
+    satisfying predicate: (ExpectedNotificationType) -> Bool = { _ in true },
     timeout: TimeInterval = defaultTimeout
   ) async throws -> ExpectedNotificationType {
     while true {
       let nextNotification = try await nextNotification(timeout: timeout)
-      if let notification = nextNotification as? ExpectedNotificationType {
+      if let notification = nextNotification as? ExpectedNotificationType, predicate(notification) {
         return notification
       }
     }
