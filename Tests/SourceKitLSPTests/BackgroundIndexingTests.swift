@@ -333,6 +333,21 @@ final class BackgroundIndexingTests: XCTestCase {
   }
 
   func testBackgroundIndexingStatusWorkDoneProgress() async throws {
+    let receivedBeginProgressNotification = self.expectation(
+      description: "Received work done progress saying build graph generation"
+    )
+    let receivedReportProgressNotification = self.expectation(
+      description: "Received work done progress saying indexing"
+    )
+    var serverOptions = backgroundIndexingOptions
+    serverOptions.indexTestHooks = IndexTestHooks(
+      buildGraphGenerationDidFinish: {
+        await self.fulfillment(of: [receivedBeginProgressNotification], timeout: defaultTimeout)
+      },
+      updateIndexStoreTaskDidFinish: { _ in
+        await self.fulfillment(of: [receivedReportProgressNotification], timeout: defaultTimeout)
+      }
+    )
     let project = try await SwiftPMTestProject(
       files: [
         "MyFile.swift": """
@@ -343,36 +358,55 @@ final class BackgroundIndexingTests: XCTestCase {
         """
       ],
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
-      serverOptions: backgroundIndexingOptions,
+      serverOptions: serverOptions,
+      pollIndex: false,
       preInitialization: { testClient in
         testClient.handleMultipleRequests { (request: CreateWorkDoneProgressRequest) in
           return VoidResponse()
         }
       }
     )
-    var indexingWorkDoneProgressToken: ProgressToken? = nil
-    var didGetEndWorkDoneProgress = false
-    // Loop terminates when we see the work done end progress or if waiting for the next notification times out
-    LOOP: while true {
-      let workDoneProgress = try await project.testClient.nextNotification(ofType: WorkDoneProgress.self)
-      switch workDoneProgress.value {
-      case .begin(let data):
-        if data.title == "Indexing" {
-          XCTAssertNil(indexingWorkDoneProgressToken, "Received multiple work done progress notifications for indexing")
-          indexingWorkDoneProgressToken = workDoneProgress.token
+
+    let beginNotification = try await project.testClient.nextNotification(
+      ofType: WorkDoneProgress.self,
+      satisfying: { notification in
+        guard case .begin(let data) = notification.value else {
+          return false
         }
-      case .report:
-        // We ignore progress reports in the test because it's non-deterministic how many we get
-        break
-      case .end:
-        if workDoneProgress.token == indexingWorkDoneProgressToken {
-          didGetEndWorkDoneProgress = true
-          break LOOP
-        }
+        return data.title == "Indexing"
       }
+    )
+    receivedBeginProgressNotification.fulfill()
+    guard case .begin(let beginData) = beginNotification.value else {
+      XCTFail("Expected begin notification")
+      return
     }
-    XCTAssertNotNil(indexingWorkDoneProgressToken, "Expected to receive a work done progress start")
-    XCTAssert(didGetEndWorkDoneProgress, "Expected end work done progress")
+    XCTAssertEqual(beginData.message, "Generating build graph")
+    let indexingWorkDoneProgressToken = beginNotification.token
+
+    _ = try await project.testClient.nextNotification(
+      ofType: WorkDoneProgress.self,
+      satisfying: { notification in
+        guard notification.token == indexingWorkDoneProgressToken,
+          case .report(let reportData) = notification.value,
+          reportData.message == "0 / 1"
+        else {
+          return false
+        }
+        return true
+      }
+    )
+    receivedReportProgressNotification.fulfill()
+
+    _ = try await project.testClient.nextNotification(
+      ofType: WorkDoneProgress.self,
+      satisfying: { notification in
+        guard notification.token == indexingWorkDoneProgressToken, case .end = notification.value else {
+          return false
+        }
+        return true
+      }
+    )
 
     withExtendedLifetime(project) {}
   }

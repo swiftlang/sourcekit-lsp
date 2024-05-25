@@ -134,10 +134,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
     // Only use the last two digits of the indexing ID for the logging scope to avoid creating too many scopes.
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running indexing operation.
-    await withLoggingSubsystemAndScope(
-      subsystem: "org.swift.sourcekit-lsp.indexing",
-      scope: "update-indexstore-\(id % 100)"
-    ) {
+    await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "update-indexstore-\(id % 100)") {
       let startDate = Date()
 
       await testHooks.updateIndexStoreTaskDidStart?(self)

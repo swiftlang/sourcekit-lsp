@@ -15,6 +15,9 @@ import LSPLogging
 import LanguageServerProtocol
 import SKCore
 
+/// The logging subsystem that should be used for all index-related logging.
+let indexLoggingSubsystem = "org.swift.sourcekit-lsp.indexing"
+
 /// A wrapper around `QueuedTask` that only allows equality comparison and inspection whether the `QueuedTask` is
 /// currently executing.
 ///
@@ -186,28 +189,40 @@ public final actor SemanticIndexManager {
   /// This method is intended to initially update the index of a project after it is opened.
   public func scheduleBuildGraphGenerationAndBackgroundIndexAllFiles() async {
     generateBuildGraphTask = Task(priority: .low) {
-      let signposter = Logger(subsystem: LoggingScope.subsystem, category: "preparation").makeSignposter()
-      let signpostID = signposter.makeSignpostID()
-      let state = signposter.beginInterval("Preparing", id: signpostID, "Generating build graph")
-      defer {
-        signposter.endInterval("Preparing", state)
-      }
-      await orLog("Generating build graph") { try await self.buildSystemManager.generateBuildGraph() }
-      // Ensure that we have an up-to-date indexstore-db. Waiting for the indexstore-db to be updated is cheaper than
-      // potentially not knowing about unit files, which causes the corresponding source files to be re-indexed.
-      index.pollForUnitChangesAndWait()
-      let index = index.checked(for: .modifiedFiles)
-      let filesToIndex = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
-        .filter { uri in
-          guard let url = uri.fileURL else {
-            // The URI is not a file, so there's nothing we can index.
-            return false
-          }
-          return !index.hasUpToDateUnit(for: url)
+      await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "build-graph-generation") {
+        logger.log(
+          "Starting build graph generation with priority \(Task.currentPriority.rawValue, privacy: .public)"
+        )
+        let signposter = logger.makeSignposter()
+        let signpostID = signposter.makeSignpostID()
+        let state = signposter.beginInterval("Preparing", id: signpostID, "Generating build graph")
+        let startDate = Date()
+        defer {
+          logger.log(
+            "Finished build graph generation in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms"
+          )
+          signposter.endInterval("Preparing", state)
         }
-      await scheduleBackgroundIndex(files: filesToIndex)
-      generateBuildGraphTask = nil
+        await testHooks.buildGraphGenerationDidStart?()
+        await orLog("Generating build graph") { try await self.buildSystemManager.generateBuildGraph() }
+        // Ensure that we have an up-to-date indexstore-db. Waiting for the indexstore-db to be updated is cheaper than
+        // potentially not knowing about unit files, which causes the corresponding source files to be re-indexed.
+        index.pollForUnitChangesAndWait()
+        await testHooks.buildGraphGenerationDidFinish?()
+        let index = index.checked(for: .modifiedFiles)
+        let filesToIndex = await self.buildSystemManager.sourceFiles().lazy.map(\.uri)
+          .filter { uri in
+            guard let url = uri.fileURL else {
+              // The URI is not a file, so there's nothing we can index.
+              return false
+            }
+            return !index.hasUpToDateUnit(for: url)
+          }
+        await scheduleBackgroundIndex(files: filesToIndex)
+        generateBuildGraphTask = nil
+      }
     }
+    indexStatusDidChange()
   }
 
   /// Wait for all in-progress index tasks to finish.
