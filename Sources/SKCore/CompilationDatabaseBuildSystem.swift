@@ -93,6 +93,8 @@ public actor CompilationDatabaseBuildSystem {
 }
 
 extension CompilationDatabaseBuildSystem: BuildSystem {
+  public nonisolated var supportsPreparation: Bool { false }
+
   public var indexDatabasePath: AbsolutePath? {
     indexStorePath?.parentDirectory.appending(component: "IndexDatabase")
   }

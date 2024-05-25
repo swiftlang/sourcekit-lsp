@@ -68,6 +68,10 @@ public actor BuildSystemManager {
     }
   }
 
+  public var supportsPreparation: Bool {
+    return buildSystem?.supportsPreparation ?? false
+  }
+
   /// Create a BuildSystemManager that wraps the given build system. The new
   /// manager will modify the delegate of the underlying build system.
   public init(

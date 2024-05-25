@@ -455,6 +455,8 @@ class ManualBuildSystem: BuildSystem {
     self.delegate = delegate
   }
 
+  public nonisolated var supportsPreparation: Bool { false }
+
   func buildSettings(for uri: DocumentURI, in buildTarget: ConfiguredTarget, language: Language) -> FileBuildSettings? {
     return map[uri]
   }
