@@ -10,9 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+import CAtomics
 import LSPTestSupport
 import LanguageServerProtocol
 import SKTestSupport
+import SourceKitLSP
 import XCTest
 
 final class PullDiagnosticsTests: XCTestCase {
@@ -246,5 +248,68 @@ final class PullDiagnosticsTests: XCTestCase {
       DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(bUri))
     )
     XCTAssertEqual(afterChangingFileA, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+  }
+
+  func testDiagnosticsWaitForDocumentToBePrepared() async throws {
+    try await SkipUnless.swiftpmStoresModulesInSubdirectory()
+
+    nonisolated(unsafe) var diagnosticRequestSent = AtomicBool(initialValue: false)
+    var serverOptions = SourceKitLSPServer.Options.testDefault
+    serverOptions.indexTestHooks.preparationTaskDidStart = { @Sendable taskDescription in
+      // Only start preparation after we sent the diagnostic request. In almost all cases, this should not give
+      // preparation enough time to finish before the diagnostic request is handled unless we wait for preparation in
+      // the diagnostic request.
+      while diagnosticRequestSent.value == false {
+        do {
+          try await Task.sleep(for: .seconds(0.01))
+        } catch {
+          XCTFail("Did not expect sleep to fail")
+          break
+        }
+      }
+    }
+
+    let project = try await SwiftPMTestProject(
+      files: [
+        "LibA/LibA.swift": """
+        public func sayHello() {}
+        """,
+        "LibB/LibB.swift": """
+        import LibA
+
+        func test() {
+          sayHello()
+        }
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "LibA"),
+            .target(name: "LibB", dependencies: ["LibA"]),
+          ]
+        )
+        """,
+      serverOptions: serverOptions,
+      enableBackgroundIndexing: true,
+      pollIndex: false
+    )
+
+    let (uri, _) = try project.openDocument("LibB.swift")
+
+    // Use completion handler based method to send request so we can fulfill `diagnosticRequestSent` after sending it
+    // but before receiving a reply. The async variant doesn't allow this distinction.
+    let receivedDiagnostics = self.expectation(description: "Received diagnostics")
+    project.testClient.send(DocumentDiagnosticsRequest(textDocument: TextDocumentIdentifier(uri))) { diagnostics in
+      XCTAssertEqual(diagnostics.success, .full(RelatedFullDocumentDiagnosticReport(items: [])))
+      receivedDiagnostics.fulfill()
+    }
+    diagnosticRequestSent.value = true
+    try await fulfillmentOfOrThrow([receivedDiagnostics])
   }
 }
