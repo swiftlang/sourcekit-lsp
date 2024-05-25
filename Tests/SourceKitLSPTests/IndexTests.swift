@@ -49,7 +49,7 @@ final class IndexTests: XCTestCase {
           ]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (libAUri, libAPositions) = try project.openDocument("LibA.swift")

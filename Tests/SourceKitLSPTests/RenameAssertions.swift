@@ -145,7 +145,7 @@ func assertMultiFileRename(
   let project = try await SwiftPMTestProject(
     files: files,
     manifest: manifest,
-    build: true,
+    enableBackgroundIndexing: true,
     testName: testName
   )
   try preRenameActions(project)

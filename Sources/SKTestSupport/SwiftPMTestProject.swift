@@ -40,8 +40,6 @@ public class SwiftPMTestProject: MultiFileTestProject {
     files: [RelativeFileLocation: String],
     manifest: String = SwiftPMTestProject.defaultPackageManifest,
     workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
-    build: Bool = false,
-    allowBuildFailure: Bool = false,
     capabilities: ClientCapabilities = ClientCapabilities(),
     serverOptions: SourceKitLSPServer.Options = .testDefault,
     enableBackgroundIndexing: Bool = false,
@@ -79,13 +77,6 @@ public class SwiftPMTestProject: MultiFileTestProject {
       testName: testName
     )
 
-    if build {
-      if allowBuildFailure {
-        try? await Self.build(at: self.scratchDirectory)
-      } else {
-        try await Self.build(at: self.scratchDirectory)
-      }
-    }
     if pollIndex {
       // Wait for the indexstore-db to finish indexing
       _ = try await testClient.send(PollIndexRequest())

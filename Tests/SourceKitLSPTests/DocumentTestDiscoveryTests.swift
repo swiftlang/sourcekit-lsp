@@ -48,7 +48,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
           targets: [.testTarget(name: "MyLibraryTests")]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (uri, positions) = try project.openDocument("MyTests.swift")
@@ -1304,7 +1304,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
           targets: [.testTarget(name: "MyLibraryTests")]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (uri, positions) = try project.openDocument("Test.m")
@@ -1363,7 +1363,7 @@ final class DocumentTestDiscoveryTests: XCTestCase {
           targets: [.testTarget(name: "MyLibraryTests")]
         )
         """,
-      build: true
+      enableBackgroundIndexing: true
     )
 
     let (uri, positions) = try project.openDocument("Test.m")
