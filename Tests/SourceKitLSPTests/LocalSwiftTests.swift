@@ -419,7 +419,7 @@ final class LocalSwiftTests: XCTestCase {
     )
   }
 
-  func testFixitsAreIncludedInPublishDiagnosticsNotes() async throws {
+  func testFixitsAreIncludedInPublishDiagnosticsNotifications() async throws {
     let testClient = try await TestSourceKitLSPClient(usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
@@ -585,7 +585,7 @@ final class LocalSwiftTests: XCTestCase {
     )
   }
 
-  func testFixitsAreReturnedFromCodeActionsNotes() async throws {
+  func testFixitsAreReturnedFromCodeActionsNotifications() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities, usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
@@ -691,7 +691,7 @@ final class LocalSwiftTests: XCTestCase {
     )
   }
 
-  func testMuliEditFixitCodeActionNote() async throws {
+  func testMuliEditFixitCodeActionNotifications() async throws {
     let testClient = try await TestSourceKitLSPClient(capabilities: quickFixCapabilities, usePullDiagnostics: false)
     let url = URL(fileURLWithPath: "/\(UUID())/a.swift")
     let uri = DocumentURI(url)
