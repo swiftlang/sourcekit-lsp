@@ -326,13 +326,7 @@ extension SwiftLanguageService {
     cancelInFlightPublishDiagnosticsTask(for: snapshot.uri)
     await diagnosticReportManager.removeItemsFromCache(with: snapshot.uri)
 
-    let keys = self.keys
-    let path = snapshot.uri.pseudoPath
-
-    let closeReq = sourcekitd.dictionary([
-      keys.request: requests.editorClose,
-      keys.name: path,
-    ])
+    let closeReq = closeDocumentSourcekitdRequest(uri: snapshot.uri)
     _ = try? await self.sourcekitd.send(closeReq, fileContents: nil)
 
     let openReq = openDocumentSourcekitdRequest(snapshot: snapshot, compileCommand: compileCmd)
@@ -382,6 +376,13 @@ extension SwiftLanguageService {
       keys.enableDiagnostics: 0,
       keys.syntacticOnly: 1,
       keys.compilerArgs: compileCommand?.compilerArgs as [SKDRequestValue]?,
+    ])
+  }
+
+  private func closeDocumentSourcekitdRequest(uri: DocumentURI) -> SKDRequestDictionary {
+    return sourcekitd.dictionary([
+      keys.request: requests.editorClose,
+      keys.name: uri.pseudoPath,
       keys.cancelBuilds: 0,
     ])
   }
@@ -421,17 +422,9 @@ extension SwiftLanguageService {
     inFlightPublishDiagnosticsTasks[note.textDocument.uri] = nil
     await diagnosticReportManager.removeItemsFromCache(with: note.textDocument.uri)
 
-    let keys = self.keys
-
     self.documentManager.close(note)
 
-    let uri = note.textDocument.uri
-
-    let req = sourcekitd.dictionary([
-      keys.request: self.requests.editorClose,
-      keys.name: uri.pseudoPath,
-    ])
-
+    let req = closeDocumentSourcekitdRequest(uri: note.textDocument.uri)
     _ = try? await self.sourcekitd.send(req, fileContents: nil)
   }
 
