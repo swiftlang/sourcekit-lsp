@@ -96,7 +96,7 @@ public final class Workspace: Sendable {
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
     indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
-    indexStatusDidChange: @escaping @Sendable () -> Void
+    indexProgressStatusDidChange: @escaping @Sendable () -> Void
   ) async {
     self.documentManager = documentManager
     self.buildSetup = options.buildSetup
@@ -117,7 +117,7 @@ public final class Workspace: Sendable {
         indexTaskScheduler: indexTaskScheduler,
         indexProcessDidProduceResult: indexProcessDidProduceResult,
         indexTasksWereScheduled: indexTasksWereScheduled,
-        indexStatusDidChange: indexStatusDidChange
+        indexProgressStatusDidChange: indexProgressStatusDidChange
       )
     } else {
       self.semanticIndexManager = nil
@@ -156,7 +156,7 @@ public final class Workspace: Sendable {
     indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
     reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void,
     indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
-    indexStatusDidChange: @Sendable @escaping () -> Void
+    indexProgressStatusDidChange: @Sendable @escaping () -> Void
   ) async throws {
     var buildSystem: BuildSystem? = nil
 
@@ -263,7 +263,7 @@ public final class Workspace: Sendable {
       indexTaskScheduler: indexTaskScheduler,
       indexProcessDidProduceResult: indexProcessDidProduceResult,
       indexTasksWereScheduled: indexTasksWereScheduled,
-      indexStatusDidChange: indexStatusDidChange
+      indexProgressStatusDidChange: indexProgressStatusDidChange
     )
   }
 

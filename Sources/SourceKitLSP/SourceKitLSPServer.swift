@@ -510,7 +510,7 @@ public actor SourceKitLSPServer {
       uriToWorkspaceCache = [:]
       // `indexProgressManager` iterates over all workspaces in the SourceKitLSPServer. Modifying workspaces might thus
       // update the index progress status.
-      indexProgressManager.indexStatusDidChange()
+      indexProgressManager.indexProgressStatusDidChange()
     }
   }
 
@@ -1257,8 +1257,8 @@ extension SourceKitLSPServer {
       indexTasksWereScheduled: { [weak self] count in
         self?.indexProgressManager.indexTasksWereScheduled(count: count)
       },
-      indexStatusDidChange: { [weak self] in
-        self?.indexProgressManager.indexStatusDidChange()
+      indexProgressStatusDidChange: { [weak self] in
+        self?.indexProgressManager.indexProgressStatusDidChange()
       }
     )
   }
@@ -1323,8 +1323,8 @@ extension SourceKitLSPServer {
           indexTasksWereScheduled: { [weak self] count in
             self?.indexProgressManager.indexTasksWereScheduled(count: count)
           },
-          indexStatusDidChange: { [weak self] in
-            self?.indexProgressManager.indexStatusDidChange()
+          indexProgressStatusDidChange: { [weak self] in
+            self?.indexProgressManager.indexProgressStatusDidChange()
           }
         )
 

@@ -64,6 +64,38 @@ public enum IndexTaskStatus: Comparable {
   case executing
 }
 
+/// The current index status that should be displayed to the editor.
+///
+/// In reality, these status are not exclusive. Eg. the index might be preparing one target for editor functionality,
+/// re-generating the build graph and indexing files at the same time. To avoid showing too many concurrent status
+/// messages to the user, we only show the highest priority task.
+public enum IndexProgressStatus {
+  case preparingFileForEditorFunctionality
+  case generatingBuildGraph
+  case indexing(preparationTasks: [ConfiguredTarget: IndexTaskStatus], indexTasks: [DocumentURI: IndexTaskStatus])
+  case upToDate
+
+  public func merging(with other: IndexProgressStatus) -> IndexProgressStatus {
+    switch (self, other) {
+    case (_, .preparingFileForEditorFunctionality), (.preparingFileForEditorFunctionality, _):
+      return .preparingFileForEditorFunctionality
+    case (_, .generatingBuildGraph), (.generatingBuildGraph, _):
+      return .generatingBuildGraph
+    case (
+      .indexing(let selfPreparationTasks, let selfIndexTasks),
+      .indexing(let otherPreparationTasks, let otherIndexTasks)
+    ):
+      return .indexing(
+        preparationTasks: selfPreparationTasks.merging(otherPreparationTasks) { max($0, $1) },
+        indexTasks: selfIndexTasks.merging(otherIndexTasks) { max($0, $1) }
+      )
+    case (.indexing, .upToDate): return self
+    case (.upToDate, .indexing): return other
+    case (.upToDate, .upToDate): return .upToDate
+    }
+  }
+}
+
 /// Schedules index tasks and keeps track of the index status of files.
 public final actor SemanticIndexManager {
   /// The underlying index. This is used to check if the index of a file is already up-to-date, in which case it doesn't
@@ -122,24 +154,22 @@ public final actor SemanticIndexManager {
   /// The parameter is the number of files that were scheduled to be indexed.
   private let indexTasksWereScheduled: @Sendable (_ numberOfFileScheduled: Int) -> Void
 
-  /// Callback that is called when the progress status of an update indexstore or preparation task finishes.
-  ///
-  /// An object observing this property probably wants to check `inProgressIndexTasks` when the callback is called to
-  /// get the current list of in-progress index tasks.
-  ///
-  /// The number of `indexStatusDidChange` calls does not have to relate to the number of `indexTasksWereScheduled` calls.
-  private let indexStatusDidChange: @Sendable () -> Void
+  /// Callback that is called when `progressStatus` might have changed.
+  private let indexProgressStatusDidChange: @Sendable () -> Void
 
   // MARK: - Public API
 
   /// A summary of the tasks that this `SemanticIndexManager` has currently scheduled or is currently indexing.
-  public var inProgressTasks:
-    (
-      isGeneratingBuildGraph: Bool,
-      indexTasks: [DocumentURI: IndexTaskStatus],
-      preparationTasks: [ConfiguredTarget: IndexTaskStatus]
-    )
-  {
+  public var progressStatus: IndexProgressStatus {
+    if inProgressPrepareForEditorTask != nil {
+      return .preparingFileForEditorFunctionality
+    }
+    if generateBuildGraphTask != nil {
+      return .generatingBuildGraph
+    }
+    let preparationTasks = inProgressPreparationTasks.mapValues { queuedTask in
+      return queuedTask.isExecuting ? IndexTaskStatus.executing : IndexTaskStatus.scheduled
+    }
     let indexTasks = inProgressIndexTasks.mapValues { status in
       switch status {
       case .waitingForPreparation:
@@ -148,10 +178,10 @@ public final actor SemanticIndexManager {
         return updateIndexStoreTask.isExecuting ? IndexTaskStatus.executing : IndexTaskStatus.scheduled
       }
     }
-    let preparationTasks = inProgressPreparationTasks.mapValues { queuedTask in
-      return queuedTask.isExecuting ? IndexTaskStatus.executing : IndexTaskStatus.scheduled
+    if preparationTasks.isEmpty && indexTasks.isEmpty {
+      return .upToDate
     }
-    return (generateBuildGraphTask != nil, indexTasks, preparationTasks)
+    return .indexing(preparationTasks: preparationTasks, indexTasks: indexTasks)
   }
 
   public init(
@@ -161,7 +191,7 @@ public final actor SemanticIndexManager {
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
     indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
     indexTasksWereScheduled: @escaping @Sendable (Int) -> Void,
-    indexStatusDidChange: @escaping @Sendable () -> Void
+    indexProgressStatusDidChange: @escaping @Sendable () -> Void
   ) {
     self.index = index
     self.buildSystemManager = buildSystemManager
@@ -169,7 +199,7 @@ public final actor SemanticIndexManager {
     self.indexTaskScheduler = indexTaskScheduler
     self.indexProcessDidProduceResult = indexProcessDidProduceResult
     self.indexTasksWereScheduled = indexTasksWereScheduled
-    self.indexStatusDidChange = indexStatusDidChange
+    self.indexProgressStatusDidChange = indexProgressStatusDidChange
   }
 
   /// Schedules a task to index `files`. Files that are known to be up-to-date based on `indexStatus` will
@@ -222,7 +252,7 @@ public final actor SemanticIndexManager {
         generateBuildGraphTask = nil
       }
     }
-    indexStatusDidChange()
+    indexProgressStatusDidChange()
   }
 
   /// Wait for all in-progress index tasks to finish.
@@ -350,11 +380,13 @@ public final actor SemanticIndexManager {
         await self.prepare(targets: [target], priority: priority)
         if inProgressPrepareForEditorTask?.id == id {
           inProgressPrepareForEditorTask = nil
+          self.indexProgressStatusDidChange()
         }
       }
     }
     inProgressPrepareForEditorTask?.task.cancel()
     inProgressPrepareForEditorTask = (id, uri, task)
+    self.indexProgressStatusDidChange()
   }
 
   // MARK: - Helper functions
@@ -388,7 +420,7 @@ public final actor SemanticIndexManager {
     }
     let preparationTask = await indexTaskScheduler.schedule(priority: priority, taskDescription) { task, newState in
       guard case .finished = newState else {
-        self.indexStatusDidChange()
+        self.indexProgressStatusDidChange()
         return
       }
       for target in targetsToPrepare {
@@ -396,7 +428,7 @@ public final actor SemanticIndexManager {
           self.inProgressPreparationTasks[target] = nil
         }
       }
-      self.indexStatusDidChange()
+      self.indexProgressStatusDidChange()
     }
     for target in targetsToPrepare {
       inProgressPreparationTasks[target] = OpaqueQueuedIndexTask(preparationTask)
@@ -432,7 +464,7 @@ public final actor SemanticIndexManager {
     )
     let updateIndexTask = await indexTaskScheduler.schedule(priority: priority, taskDescription) { task, newState in
       guard case .finished = newState else {
-        self.indexStatusDidChange()
+        self.indexProgressStatusDidChange()
         return
       }
       for fileAndTarget in filesAndTargets {
@@ -442,7 +474,7 @@ public final actor SemanticIndexManager {
           self.inProgressIndexTasks[fileAndTarget.file.sourceFile] = nil
         }
       }
-      self.indexStatusDidChange()
+      self.indexProgressStatusDidChange()
     }
     for fileAndTarget in filesAndTargets {
       if case .waitingForPreparation(preparationTaskID, let indexTask) = inProgressIndexTasks[
