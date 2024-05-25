@@ -455,10 +455,19 @@ public final actor SemanticIndexManager {
     // schedule two indexing jobs for the same file in quick succession, only the first one actually updates the index
     // store and the second one will be a no-op once it runs.
     let outOfDateFiles = await filesToIndex(toCover: files).asyncFilter {
-      return await !indexStoreUpToDateStatus.isUpToDate($0.sourceFile)
+      if await indexStoreUpToDateStatus.isUpToDate($0.sourceFile) {
+        return false
+      }
+      guard let language = await buildSystemManager.defaultLanguage(for: $0.mainFile),
+        UpdateIndexStoreTaskDescription.canIndex(language: language)
+      else {
+        return false
+      }
+      return true
     }
     // sort files to get deterministic indexing order
     .sorted(by: { $0.sourceFile.stringValue < $1.sourceFile.stringValue })
+    logger.debug("Scheduling indexing of \(outOfDateFiles.map(\.sourceFile.stringValue).joined(separator: ", "))")
 
     // Sort the targets in topological order so that low-level targets get built before high-level targets, allowing us
     // to index the low-level targets ASAP.

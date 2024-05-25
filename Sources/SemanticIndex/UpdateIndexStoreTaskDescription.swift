@@ -76,6 +76,22 @@ public struct FileAndTarget: Sendable {
   public let target: ConfiguredTarget
 }
 
+private enum IndexKind {
+  case clang
+  case swift
+
+  init?(language: Language) {
+    switch language {
+    case .swift:
+      self = .swift
+    case .c, .cpp, .objective_c, .objective_cpp:
+      self = .clang
+    default:
+      return nil
+    }
+  }
+}
+
 /// Describes a task to index a set of source files.
 ///
 /// This task description can be scheduled in a `TaskScheduler`.
@@ -112,6 +128,10 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
 
   public var redactedDescription: String {
     return "update-indexstore-\(id)"
+  }
+
+  static func canIndex(language: Language) -> Bool {
+    return IndexKind(language: language) != nil
   }
 
   init(
@@ -219,7 +239,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
       return
     }
     let startDate = Date()
-    switch language {
+    switch IndexKind(language: language) {
     case .swift:
       do {
         try await updateIndexStore(
@@ -231,7 +251,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         logger.error("Updating index store for \(file.forLogging) failed: \(error.forLogging)")
         BuildSettingsLogger.log(settings: buildSettings, for: file.mainFile)
       }
-    case .c, .cpp, .objective_c, .objective_cpp:
+    case .clang:
       do {
         try await updateIndexStore(
           forClangFile: file.mainFile,
@@ -242,7 +262,7 @@ public struct UpdateIndexStoreTaskDescription: IndexTaskDescription {
         logger.error("Updating index store for \(file) failed: \(error.forLogging)")
         BuildSettingsLogger.log(settings: buildSettings, for: file.mainFile)
       }
-    default:
+    case nil:
       logger.error(
         "Not updating index store for \(file) because it is a language that is not supported by background indexing"
       )

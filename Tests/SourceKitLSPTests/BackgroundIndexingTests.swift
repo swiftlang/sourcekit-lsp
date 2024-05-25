@@ -740,4 +740,51 @@ final class BackgroundIndexingTests: XCTestCase {
       cleanUp: { expectedIndexTaskTracker.keepAlive() }
     )
   }
+
+  func testNoIndexingHappensWhenPackageIsReopened() async throws {
+    let project = try await SwiftPMTestProject(
+      files: [
+        "SwiftLib/NonEmptySwiftFile.swift": """
+        func test() {}
+        """,
+        "CLib/include/EmptyHeader.h": "",
+        "CLib/Assembly.S": "",
+        "CLib/EmptyC.c": "",
+        "CLib/NonEmptyC.c": """
+        void test() {}
+        """,
+      ],
+      manifest: """
+        // swift-tools-version: 5.7
+
+        import PackageDescription
+
+        let package = Package(
+          name: "MyLibrary",
+          targets: [
+            .target(name: "SwiftLib"),
+            .target(name: "CLib"),
+          ]
+        )
+        """,
+      serverOptions: backgroundIndexingOptions
+    )
+
+    var otherClientOptions = backgroundIndexingOptions
+    otherClientOptions.indexTestHooks = IndexTestHooks(
+      preparationTaskDidStart: { taskDescription in
+        XCTFail("Did not expect any target preparation, got \(taskDescription.targetsToPrepare)")
+      },
+      updateIndexStoreTaskDidStart: { taskDescription in
+        XCTFail("Did not expect any indexing tasks, got \(taskDescription.filesToIndex)")
+      }
+    )
+    let otherClient = try await TestSourceKitLSPClient(
+      serverOptions: otherClientOptions,
+      workspaceFolders: [
+        WorkspaceFolder(uri: DocumentURI(project.scratchDirectory))
+      ]
+    )
+    _ = try await otherClient.send(PollIndexRequest())
+  }
 }
