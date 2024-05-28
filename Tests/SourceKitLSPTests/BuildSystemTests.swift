@@ -66,7 +66,7 @@ actor TestBuildSystem: BuildSystem {
     throw PrepareNotSupportedError()
   }
 
-  public func generateBuildGraph() {}
+  public func generateBuildGraph(allowFileSystemWrites: Bool) {}
 
   public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil
@@ -141,7 +141,7 @@ final class BuildSystemTests: XCTestCase {
       indexTaskScheduler: .forTesting,
       indexProcessDidProduceResult: { _ in },
       indexTasksWereScheduled: { _ in },
-      indexStatusDidChange: {}
+      indexProgressStatusDidChange: {}
     )
 
     await server.setWorkspaces([(workspace: workspace, isImplicit: false)])

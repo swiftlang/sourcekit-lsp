@@ -1,11 +1,14 @@
 
 add_library(SourceKitLSP STATIC
   CapabilityRegistry.swift
+  CreateBuildSystem.swift
   DocumentManager.swift
   DocumentSnapshot+FromFileContents.swift
   IndexProgressManager.swift
   IndexStoreDB+MainFilesProvider.swift
+  LanguageServerType.swift
   LanguageService.swift
+  MessageHandlingDependencyTracker.swift
   Rename.swift
   ResponseError+Init.swift
   SourceKitIndexDelegate.swift
@@ -16,6 +19,7 @@ add_library(SourceKitLSP STATIC
   TestDiscovery.swift
   TextEdit+IsNoop.swift
   WorkDoneProgressManager.swift
+  WorkDoneProgressState.swift
   Workspace.swift
 )
 target_sources(SourceKitLSP PRIVATE

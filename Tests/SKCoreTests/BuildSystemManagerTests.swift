@@ -474,7 +474,7 @@ class ManualBuildSystem: BuildSystem {
     throw PrepareNotSupportedError()
   }
 
-  public func generateBuildGraph() {}
+  public func generateBuildGraph(allowFileSystemWrites: Bool) {}
 
   public func topologicalSort(of targets: [ConfiguredTarget]) -> [ConfiguredTarget]? {
     return nil

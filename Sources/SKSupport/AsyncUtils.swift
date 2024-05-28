@@ -166,3 +166,28 @@ extension Collection where Element: Sendable {
     }
   }
 }
+
+public struct TimeoutError: Error, CustomStringConvertible {
+  public var description: String { "Timed out" }
+}
+
+/// Executes `body`. If it doesn't finish after `duration`, throws a `TimeoutError`.
+public func withTimeout<T: Sendable>(
+  _ duration: Duration,
+  _ body: @escaping @Sendable () async throws -> T
+) async throws -> T {
+  try await withThrowingTaskGroup(of: T.self) { taskGroup in
+    taskGroup.addTask {
+      try await Task.sleep(for: duration)
+      throw TimeoutError()
+    }
+    taskGroup.addTask {
+      return try await body()
+    }
+    for try await value in taskGroup {
+      taskGroup.cancelAll()
+      return value
+    }
+    throw CancellationError()
+  }
+}

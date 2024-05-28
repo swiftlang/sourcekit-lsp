@@ -74,10 +74,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
     // Only use the last two digits of the preparation ID for the logging scope to avoid creating too many scopes.
     // See comment in `withLoggingScope`.
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running preparation operations
-    await withLoggingSubsystemAndScope(
-      subsystem: "org.swift.sourcekit-lsp.indexing",
-      scope: "preparation-\(id % 100)"
-    ) {
+    await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "preparation-\(id % 100)") {
       let targetsToPrepare = await targetsToPrepare.asyncFilter {
         await !preparationUpToDateStatus.isUpToDate($0)
       }.sorted(by: {
@@ -98,10 +95,13 @@ public struct PreparationTaskDescription: IndexTaskDescription {
       let signposter = Logger(subsystem: LoggingScope.subsystem, category: "preparation").makeSignposter()
       let signpostID = signposter.makeSignpostID()
       let state = signposter.beginInterval("Preparing", id: signpostID, "Preparing \(targetsToPrepareDescription)")
+      let startDate = Date()
       defer {
+        logger.log(
+          "Finished preparation in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms: \(targetsToPrepareDescription)"
+        )
         signposter.endInterval("Preparing", state)
       }
-      let startDate = Date()
       do {
         try await buildSystemManager.prepare(
           targets: targetsToPrepare,
@@ -116,9 +116,6 @@ public struct PreparationTaskDescription: IndexTaskDescription {
       if !Task.isCancelled {
         await preparationUpToDateStatus.markUpToDate(targetsToPrepare, updateOperationStartDate: startDate)
       }
-      logger.log(
-        "Finished preparation in \(Date().timeIntervalSince(startDate) * 1000, privacy: .public)ms: \(targetsToPrepareDescription)"
-      )
     }
   }
 

@@ -82,6 +82,7 @@ public class MultiFileTestProject {
     workspaces: (URL) async throws -> [WorkspaceFolder] = { [WorkspaceFolder(uri: DocumentURI($0))] },
     capabilities: ClientCapabilities = ClientCapabilities(),
     serverOptions: SourceKitLSPServer.Options = .testDefault,
+    enableBackgroundIndexing: Bool = false,
     usePullDiagnostics: Bool = true,
     preInitialization: ((TestSourceKitLSPClient) -> Void)? = nil,
     cleanUp: (() -> Void)? = nil,
@@ -117,6 +118,7 @@ public class MultiFileTestProject {
       serverOptions: serverOptions,
       capabilities: capabilities,
       usePullDiagnostics: usePullDiagnostics,
+      enableBackgroundIndexing: enableBackgroundIndexing,
       workspaceFolders: workspaces(scratchDirectory),
       preInitialization: preInitialization,
       cleanUp: { [scratchDirectory] in
