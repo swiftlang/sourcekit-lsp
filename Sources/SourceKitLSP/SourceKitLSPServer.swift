@@ -34,41 +34,6 @@ public typealias URL = Foundation.URL
 /// Disambiguate LanguageServerProtocol.Language and IndexstoreDB.Language
 public typealias Language = LanguageServerProtocol.Language
 
-/// Exhaustive enumeration of all toolchain language servers known to SourceKit-LSP.
-enum LanguageServerType: Hashable {
-  case clangd
-  case swift
-
-  init?(language: Language) {
-    switch language {
-    case .c, .cpp, .objective_c, .objective_cpp:
-      self = .clangd
-    case .swift:
-      self = .swift
-    default:
-      return nil
-    }
-  }
-
-  init?(symbolProvider: SymbolProviderKind?) {
-    switch symbolProvider {
-    case .clang: self = .clangd
-    case .swift: self = .swift
-    case nil: return nil
-    }
-  }
-
-  /// The `LanguageService` class used to provide functionality for this language class.
-  var serverType: LanguageService.Type {
-    switch self {
-    case .clangd:
-      return ClangLanguageService.self
-    case .swift:
-      return SwiftLanguageService.self
-    }
-  }
-}
-
 /// A request and a callback that returns the request's reply
 fileprivate final class RequestAndReply<Params: RequestType>: Sendable {
   let params: Params
@@ -99,331 +64,6 @@ fileprivate final class RequestAndReply<Params: RequestType>: Sendable {
   }
 }
 
-/// Keeps track of the state to send work done progress updates to the client
-final actor WorkDoneProgressState {
-  private enum State {
-    /// No `WorkDoneProgress` has been created.
-    case noProgress
-    /// We have sent the request to create a `WorkDoneProgress` but haven’t received a response yet.
-    case creating
-    /// A `WorkDoneProgress` has been created.
-    case created
-    /// The creation of a `WorkDoneProgress has failed`.
-    ///
-    /// This causes us to just give up creating any more `WorkDoneProgress` in
-    /// the future as those will most likely also fail.
-    case progressCreationFailed
-  }
-
-  /// A queue so we can have synchronous `startProgress` and `endProgress` functions that don't need to wait for the
-  /// work done progress to be started or ended.
-  private let queue = AsyncQueue<Serial>()
-
-  /// How many active tasks are running.
-  ///
-  /// A work done progress should be displayed if activeTasks > 0
-  private var activeTasks: Int = 0
-  private var state: State = .noProgress
-
-  /// The token by which we track the `WorkDoneProgress`.
-  private let token: ProgressToken
-
-  /// The title that should be displayed to the user in the UI.
-  private let title: String
-
-  init(_ token: String, title: String) {
-    self.token = ProgressToken.string(token)
-    self.title = title
-  }
-
-  /// Start a new task, creating a new `WorkDoneProgress` if none is running right now.
-  ///
-  /// - Parameter server: The server that is used to create the `WorkDoneProgress` on the client
-  nonisolated func startProgress(server: SourceKitLSPServer) {
-    queue.async {
-      await self.startProgressImpl(server: server)
-    }
-  }
-
-  func startProgressImpl(server: SourceKitLSPServer) async {
-    await server.waitUntilInitialized()
-    activeTasks += 1
-    guard await server.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false else {
-      return
-    }
-    if state == .noProgress {
-      state = .creating
-      // Discard the handle. We don't support cancellation of the creation of a work done progress.
-      _ = server.client.send(CreateWorkDoneProgressRequest(token: token)) { result in
-        Task {
-          await self.handleCreateWorkDoneProgressResponse(result, server: server)
-        }
-      }
-    }
-  }
-
-  private func handleCreateWorkDoneProgressResponse(
-    _ result: Result<VoidResponse, ResponseError>,
-    server: SourceKitLSPServer
-  ) {
-    if result.success != nil {
-      if self.activeTasks == 0 {
-        // ActiveTasks might have been decreased while we created the `WorkDoneProgress`
-        self.state = .noProgress
-        server.client.send(WorkDoneProgress(token: self.token, value: .end(WorkDoneProgressEnd())))
-      } else {
-        self.state = .created
-        server.client.send(
-          WorkDoneProgress(token: self.token, value: .begin(WorkDoneProgressBegin(title: self.title)))
-        )
-      }
-    } else {
-      self.state = .progressCreationFailed
-    }
-  }
-
-  /// End a new task stated using `startProgress`.
-  ///
-  /// If this drops the active task count to 0, the work done progress is ended on the client.
-  ///
-  /// - Parameter server: The server that is used to send and update of the `WorkDoneProgress` to the client
-  nonisolated func endProgress(server: SourceKitLSPServer) {
-    queue.async {
-      await self.endProgressImpl(server: server)
-    }
-  }
-
-  func endProgressImpl(server: SourceKitLSPServer) async {
-    assert(activeTasks > 0, "Unbalanced startProgress/endProgress calls")
-    activeTasks -= 1
-    guard await server.capabilityRegistry?.clientCapabilities.window?.workDoneProgress ?? false else {
-      return
-    }
-    if state == .created && activeTasks == 0 {
-      server.client.send(WorkDoneProgress(token: token, value: .end(WorkDoneProgressEnd())))
-      self.state = .noProgress
-    }
-  }
-}
-
-/// A lightweight way of describing tasks that are created from handling LSP
-/// requests or notifications for the purpose of dependency tracking.
-fileprivate enum TaskMetadata: DependencyTracker {
-  /// A task that changes the global configuration of sourcekit-lsp in any way.
-  ///
-  /// No other tasks must execute simultaneously with this task since they
-  /// might be relying on this task to take effect.
-  case globalConfigurationChange
-
-  /// A request that depends on the state of all documents.
-  ///
-  /// These requests wait for `documentUpdate` tasks for all documents to finish before being executed.
-  ///
-  /// Requests that only read the semantic index and are not affected by changes to the in-memory file contents should
-  /// `freestanding` requests.
-  case workspaceRequest
-
-  /// Changes the contents of the document with the given URI.
-  ///
-  /// Any other updates or requests to this document must wait for the
-  /// document update to finish before being executed
-  case documentUpdate(DocumentURI)
-
-  /// A request that concerns one document.
-  ///
-  /// Any updates to this document must be processed before the document
-  /// request can be handled. Multiple requests to the same document can be
-  /// handled simultaneously.
-  case documentRequest(DocumentURI)
-
-  /// A request that doesn't have any dependencies other than global
-  /// configuration changes.
-  case freestanding
-
-  /// Whether this request needs to finish before `other` can start executing.
-  func isDependency(of other: TaskMetadata) -> Bool {
-    switch (self, other) {
-    // globalConfigurationChange
-    case (.globalConfigurationChange, _): return true
-    case (_, .globalConfigurationChange): return true
-
-    // globalDocumentState
-    case (.workspaceRequest, .workspaceRequest): return false
-    case (.documentUpdate, .workspaceRequest): return true
-    case (.workspaceRequest, .documentUpdate): return true
-    case (.workspaceRequest, .documentRequest): return false
-    case (.documentRequest, .workspaceRequest): return false
-
-    // documentUpdate
-    case (.documentUpdate(let selfUri), .documentUpdate(let otherUri)):
-      return selfUri == otherUri
-    case (.documentUpdate(let selfUri), .documentRequest(let otherUri)):
-      return selfUri == otherUri
-    case (.documentRequest(let selfUri), .documentUpdate(let otherUri)):
-      return selfUri == otherUri
-
-    // documentRequest
-    case (.documentRequest, .documentRequest):
-      return false
-
-    // freestanding
-    case (.freestanding, _):
-      return false
-    case (_, .freestanding):
-      return false
-    }
-  }
-
-  init(_ notification: any NotificationType) {
-    switch notification {
-    case is CancelRequestNotification:
-      self = .freestanding
-    case is CancelWorkDoneProgressNotification:
-      self = .freestanding
-    case is DidChangeConfigurationNotification:
-      self = .globalConfigurationChange
-    case let notification as DidChangeNotebookDocumentNotification:
-      self = .documentUpdate(notification.notebookDocument.uri)
-    case let notification as DidChangeTextDocumentNotification:
-      self = .documentUpdate(notification.textDocument.uri)
-    case is DidChangeWatchedFilesNotification:
-      self = .globalConfigurationChange
-    case is DidChangeWorkspaceFoldersNotification:
-      self = .globalConfigurationChange
-    case let notification as DidCloseNotebookDocumentNotification:
-      self = .documentUpdate(notification.notebookDocument.uri)
-    case let notification as DidCloseTextDocumentNotification:
-      self = .documentUpdate(notification.textDocument.uri)
-    case is DidCreateFilesNotification:
-      self = .freestanding
-    case is DidDeleteFilesNotification:
-      self = .freestanding
-    case let notification as DidOpenNotebookDocumentNotification:
-      self = .documentUpdate(notification.notebookDocument.uri)
-    case let notification as DidOpenTextDocumentNotification:
-      self = .documentUpdate(notification.textDocument.uri)
-    case is DidRenameFilesNotification:
-      self = .freestanding
-    case let notification as DidSaveNotebookDocumentNotification:
-      self = .documentUpdate(notification.notebookDocument.uri)
-    case let notification as DidSaveTextDocumentNotification:
-      self = .documentUpdate(notification.textDocument.uri)
-    case is ExitNotification:
-      self = .globalConfigurationChange
-    case is InitializedNotification:
-      self = .globalConfigurationChange
-    case is LogMessageNotification:
-      self = .freestanding
-    case is LogTraceNotification:
-      self = .freestanding
-    case is PublishDiagnosticsNotification:
-      self = .freestanding
-    case is SetTraceNotification:
-      self = .globalConfigurationChange
-    case is ShowMessageNotification:
-      self = .freestanding
-    case let notification as WillSaveTextDocumentNotification:
-      self = .documentUpdate(notification.textDocument.uri)
-    case is WorkDoneProgress:
-      self = .freestanding
-    default:
-      logger.error(
-        """
-        Unknown notification \(type(of: notification)). Treating as a freestanding notification. \
-        This might lead to out-of-order request handling
-        """
-      )
-      self = .freestanding
-    }
-  }
-
-  init(_ request: any RequestType) {
-    switch request {
-    case let request as any TextDocumentRequest: self = .documentRequest(request.textDocument.uri)
-    case is ApplyEditRequest:
-      self = .freestanding
-    case is BarrierRequest:
-      self = .globalConfigurationChange
-    case is CallHierarchyIncomingCallsRequest:
-      self = .freestanding
-    case is CallHierarchyOutgoingCallsRequest:
-      self = .freestanding
-    case is CodeActionResolveRequest:
-      self = .freestanding
-    case is CodeLensRefreshRequest:
-      self = .freestanding
-    case is CodeLensResolveRequest:
-      self = .freestanding
-    case is CompletionItemResolveRequest:
-      self = .freestanding
-    case is CreateWorkDoneProgressRequest:
-      self = .freestanding
-    case is DiagnosticsRefreshRequest:
-      self = .freestanding
-    case is DocumentLinkResolveRequest:
-      self = .freestanding
-    case let request as ExecuteCommandRequest:
-      if let uri = request.textDocument?.uri {
-        self = .documentRequest(uri)
-      } else {
-        self = .freestanding
-      }
-    case is InitializeRequest:
-      self = .globalConfigurationChange
-    case is InlayHintRefreshRequest:
-      self = .freestanding
-    case is InlayHintResolveRequest:
-      self = .freestanding
-    case is InlineValueRefreshRequest:
-      self = .freestanding
-    case is PollIndexRequest:
-      self = .globalConfigurationChange
-    case is RenameRequest:
-      // Rename might touch multiple files. Make it a global configuration change so that edits to all files that might
-      // be affected have been processed.
-      self = .globalConfigurationChange
-    case is RegisterCapabilityRequest:
-      self = .globalConfigurationChange
-    case is ShowMessageRequest:
-      self = .freestanding
-    case is ShutdownRequest:
-      self = .globalConfigurationChange
-    case is TypeHierarchySubtypesRequest:
-      self = .freestanding
-    case is TypeHierarchySupertypesRequest:
-      self = .freestanding
-    case is UnregisterCapabilityRequest:
-      self = .globalConfigurationChange
-    case is WillCreateFilesRequest:
-      self = .freestanding
-    case is WillDeleteFilesRequest:
-      self = .freestanding
-    case is WillRenameFilesRequest:
-      self = .freestanding
-    case is WorkspaceDiagnosticsRequest:
-      self = .freestanding
-    case is WorkspaceFoldersRequest:
-      self = .freestanding
-    case is WorkspaceSemanticTokensRefreshRequest:
-      self = .freestanding
-    case is WorkspaceSymbolResolveRequest:
-      self = .freestanding
-    case is WorkspaceSymbolsRequest:
-      self = .freestanding
-    case is WorkspaceTestsRequest:
-      self = .workspaceRequest
-    default:
-      logger.error(
-        """
-        Unknown request \(type(of: request)). Treating as a freestanding request. \
-        This might lead to out-of-order request handling
-        """
-      )
-      self = .freestanding
-    }
-  }
-}
-
 /// The SourceKit-LSP server.
 ///
 /// This is the client-facing language server implementation, providing indexing, multiple-toolchain
@@ -439,7 +79,7 @@ public actor SourceKitLSPServer {
   /// have forwarded the request to clangd.
   ///
   /// The actual semantic handling of the message happens off this queue.
-  private let messageHandlingQueue = AsyncQueue<TaskMetadata>()
+  private let messageHandlingQueue = AsyncQueue<MessageHandlingDependencyTracker>()
 
   /// The queue on which we start and stop keeping track of cancellation.
   ///
@@ -890,7 +530,7 @@ extension SourceKitLSPServer: MessageHandler {
       .makeSignposter()
     let signpostID = signposter.makeSignpostID()
     let state = signposter.beginInterval("Notification", id: signpostID, "\(type(of: params))")
-    messageHandlingQueue.async(metadata: TaskMetadata(params)) {
+    messageHandlingQueue.async(metadata: MessageHandlingDependencyTracker(params)) {
       signposter.emitEvent("Start handling", id: signpostID)
 
       // Only use the last two digits of the notification ID for the logging scope to avoid creating too many scopes.
@@ -925,7 +565,7 @@ extension SourceKitLSPServer: MessageHandler {
       await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.willSaveDocument)
     case let notification as DidSaveTextDocumentNotification:
       await self.withLanguageServiceAndWorkspace(for: notification, notificationHandler: self.didSaveDocument)
-    // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
+    // IMPORTANT: When adding a new entry to this switch, also add it to the `MessageHandlingDependencyTracker` initializer.
     default:
       break
     }
@@ -940,7 +580,7 @@ extension SourceKitLSPServer: MessageHandler {
     let signpostID = signposter.makeSignpostID()
     let state = signposter.beginInterval("Request", id: signpostID, "\(R.self)")
 
-    let task = messageHandlingQueue.async(metadata: TaskMetadata(params)) {
+    let task = messageHandlingQueue.async(metadata: MessageHandlingDependencyTracker(params)) {
       signposter.emitEvent("Start handling", id: signpostID)
       // Only use the last two digits of the request ID for the logging scope to avoid creating too many scopes.
       // See comment in `withLoggingScope`.
@@ -1086,7 +726,7 @@ extension SourceKitLSPServer: MessageHandler {
       await self.handleRequest(for: request, requestHandler: self.prepareRename)
     case let request as RequestAndReply<IndexedRenameRequest>:
       await self.handleRequest(for: request, requestHandler: self.indexedRename)
-    // IMPORTANT: When adding a new entry to this switch, also add it to the `TaskMetadata` initializer.
+    // IMPORTANT: When adding a new entry to this switch, also add it to the `MessageHandlingDependencyTracker` initializer.
     default:
       await request.reply { throw ResponseError.methodNotFound(R.method) }
     }
