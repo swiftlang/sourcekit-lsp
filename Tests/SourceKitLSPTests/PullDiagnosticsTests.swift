@@ -20,7 +20,7 @@ import XCTest
 final class PullDiagnosticsTests: XCTestCase {
   func testUnknownIdentifierDiagnostic() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     testClient.openDocument(
       """
@@ -52,7 +52,7 @@ final class PullDiagnosticsTests: XCTestCase {
         )
       )
     )
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     testClient.openDocument(
       """

@@ -41,7 +41,7 @@ final class LifecycleTests: XCTestCase {
 
   func testCancellation() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       class Foo {

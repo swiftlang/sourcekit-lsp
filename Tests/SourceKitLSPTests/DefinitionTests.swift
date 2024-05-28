@@ -19,7 +19,7 @@ import enum PackageLoading.Platform
 class DefinitionTests: XCTestCase {
   func testJumpToDefinitionAtEndOfIdentifier() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -200,7 +200,7 @@ class DefinitionTests: XCTestCase {
 
   func testReportInitializerOnDefinitionForType() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       struct 1️⃣Foo {
@@ -353,7 +353,7 @@ class DefinitionTests: XCTestCase {
 
   func testDefinitionOfImplicitInitializer() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """

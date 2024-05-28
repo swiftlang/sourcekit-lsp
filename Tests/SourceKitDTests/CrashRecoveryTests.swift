@@ -52,7 +52,7 @@ final class CrashRecoveryTests: XCTestCase {
       capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
       usePullDiagnostics: false
     )
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -150,7 +150,7 @@ final class CrashRecoveryTests: XCTestCase {
     try SkipUnless.longTestsEnabled()
 
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.cpp)
+    let uri = DocumentURI(for: .cpp)
 
     let positions = testClient.openDocument("1️⃣", uri: uri)
 
@@ -256,7 +256,7 @@ final class CrashRecoveryTests: XCTestCase {
     try SkipUnless.longTestsEnabled()
 
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.cpp)
+    let uri = DocumentURI(for: .cpp)
 
     let positions = testClient.openDocument("1️⃣", uri: uri)
 

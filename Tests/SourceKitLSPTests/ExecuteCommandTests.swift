@@ -19,7 +19,7 @@ import XCTest
 final class ExecuteCommandTests: XCTestCase {
   func testLocationSemanticRefactoring() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """
@@ -74,7 +74,7 @@ final class ExecuteCommandTests: XCTestCase {
 
   func testRangeSemanticRefactoring() async throws {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     let positions = testClient.openDocument(
       """

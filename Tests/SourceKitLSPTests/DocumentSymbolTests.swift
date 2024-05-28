@@ -738,7 +738,7 @@ fileprivate func assertDocumentSymbols(
   line: UInt = #line
 ) async throws {
   let testClient = try await TestSourceKitLSPClient()
-  let uri = DocumentURI.for(.swift)
+  let uri = DocumentURI(for: .swift)
 
   let positions = testClient.openDocument(markedText, uri: uri)
   let symbols = try unwrap(try await testClient.send(DocumentSymbolRequest(textDocument: TextDocumentIdentifier(uri))))

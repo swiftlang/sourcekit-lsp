@@ -21,7 +21,7 @@ final class InlayHintTests: XCTestCase {
 
   func performInlayHintRequest(text: String, range: Range<Position>? = nil) async throws -> [InlayHint] {
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
 
     testClient.openDocument(text, uri: uri)
 

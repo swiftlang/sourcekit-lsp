@@ -658,7 +658,7 @@ final class RenameTests: XCTestCase {
   func testPrepeareRenameOnDefinition() async throws {
     try await SkipUnless.sourcekitdSupportsRename()
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       func 1️⃣foo2️⃣(3️⃣a: Int) {}
@@ -677,7 +677,7 @@ final class RenameTests: XCTestCase {
   func testPrepeareRenameOnReference() async throws {
     try await SkipUnless.sourcekitdSupportsRename()
     let testClient = try await TestSourceKitLSPClient()
-    let uri = DocumentURI.for(.swift)
+    let uri = DocumentURI(for: .swift)
     let positions = testClient.openDocument(
       """
       func foo(a: Int, b: Int = 1) {}
