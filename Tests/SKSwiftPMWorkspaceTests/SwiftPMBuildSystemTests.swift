@@ -142,7 +142,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
@@ -211,7 +211,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
       let build = buildPath(root: packageRoot, config: config, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
@@ -435,7 +435,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let acxx = packageRoot.appending(components: "Sources", "lib", "a.cpp")
       let bcxx = packageRoot.appending(components: "Sources", "lib", "b.cpp")
       let header = packageRoot.appending(components: "Sources", "lib", "include", "a.h")
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
@@ -515,7 +515,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       let aswift = packageRoot.appending(components: "Sources", "lib", "a.swift")
       let arguments = try await swiftpmBuildSystem.buildSettings(for: aswift.asURI, language: .swift)!.compilerArguments
       assertArgumentsContain("-target", arguments: arguments)  // Only one!
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
 
       #if os(macOS)
       assertArgumentsContain(
@@ -741,7 +741,7 @@ final class SwiftPMBuildSystemTests: XCTestCase {
       )
 
       let aswift = packageRoot.appending(components: "Plugins", "MyPlugin", "a.swift")
-      let hostTriple = await swiftpmBuildSystem.buildParameters.triple
+      let hostTriple = await swiftpmBuildSystem.destinationBuildParameters.triple
       let build = buildPath(root: packageRoot, platform: hostTriple.platformBuildPathComponent)
 
       assertEqual(await swiftpmBuildSystem.buildPath, build)
