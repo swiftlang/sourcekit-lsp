@@ -846,7 +846,7 @@ final class BackgroundIndexingTests: XCTestCase {
         "Lib.swift": "",
         "OtherLib/OtherLib.swift": "",
       ],
-      serverOptions: backgroundIndexingOptions
+      enableBackgroundIndexing: true
     )
     _ = try project.openDocument("OtherLib.swift")
     // Wait for 1 second to increase the likelihood of this test failing in case we would start scheduling some
