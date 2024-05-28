@@ -219,8 +219,8 @@ extension BuildSystemManager {
     return settings
   }
 
-  public func generateBuildGraph() async throws {
-    try await self.buildSystem?.generateBuildGraph()
+  public func generateBuildGraph(allowFileSystemWrites: Bool) async throws {
+    try await self.buildSystem?.generateBuildGraph(allowFileSystemWrites: allowFileSystemWrites)
   }
 
   public func topologicalSort(of targets: [ConfiguredTarget]) async throws -> [ConfiguredTarget]? {

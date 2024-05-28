@@ -279,7 +279,7 @@ extension BuildServerBuildSystem: BuildSystem {
     return [ConfiguredTarget(targetID: "dummy", runDestinationID: "dummy")]
   }
 
-  public func generateBuildGraph() {}
+  public func generateBuildGraph(allowFileSystemWrites: Bool) {}
 
   public func topologicalSort(of targets: [ConfiguredTarget]) async -> [ConfiguredTarget]? {
     return nil

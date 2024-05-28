@@ -15,7 +15,6 @@ import LSPLogging
 import LanguageServerProtocol
 import SKCore
 import SKSupport
-import SKSwiftPMWorkspace
 import SemanticIndex
 
 import struct TSCBasic.AbsolutePath
@@ -148,82 +147,15 @@ public final class Workspace: Sendable {
     documentManager: DocumentManager,
     rootUri: DocumentURI,
     capabilityRegistry: CapabilityRegistry,
+    buildSystem: BuildSystem?,
     toolchainRegistry: ToolchainRegistry,
     options: SourceKitLSPServer.Options,
-    compilationDatabaseSearchPaths: [RelativePath],
     indexOptions: IndexOptions = IndexOptions(),
     indexTaskScheduler: TaskScheduler<AnyIndexTaskDescription>,
     indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
-    reloadPackageStatusCallback: @Sendable @escaping (ReloadPackageStatus) async -> Void,
     indexTasksWereScheduled: @Sendable @escaping (Int) -> Void,
     indexProgressStatusDidChange: @Sendable @escaping () -> Void
   ) async throws {
-    var buildSystem: BuildSystem? = nil
-
-    if let rootUrl = rootUri.fileURL, let rootPath = try? AbsolutePath(validating: rootUrl.path) {
-      var options = options
-      var isForIndexBuild = false
-      if options.indexOptions.enableBackgroundIndexing, options.buildSetup.path == nil {
-        options.buildSetup.path = rootPath.appending(component: ".index-build")
-        isForIndexBuild = true
-      }
-      func createSwiftPMBuildSystem(rootUrl: URL) async -> SwiftPMBuildSystem? {
-        return await SwiftPMBuildSystem(
-          url: rootUrl,
-          toolchainRegistry: toolchainRegistry,
-          buildSetup: options.buildSetup,
-          isForIndexBuild: isForIndexBuild,
-          reloadPackageStatusCallback: reloadPackageStatusCallback
-        )
-      }
-
-      func createCompilationDatabaseBuildSystem(rootPath: AbsolutePath) -> CompilationDatabaseBuildSystem? {
-        return CompilationDatabaseBuildSystem(
-          projectRoot: rootPath,
-          searchPaths: compilationDatabaseSearchPaths
-        )
-      }
-
-      func createBuildServerBuildSystem(rootPath: AbsolutePath) async -> BuildServerBuildSystem? {
-        return await BuildServerBuildSystem(projectRoot: rootPath, buildSetup: options.buildSetup)
-      }
-
-      let defaultBuildSystem: BuildSystem? =
-        switch options.buildSetup.defaultWorkspaceType {
-        case .buildServer: await createBuildServerBuildSystem(rootPath: rootPath)
-        case .compilationDatabase: createCompilationDatabaseBuildSystem(rootPath: rootPath)
-        case .swiftPM: await createSwiftPMBuildSystem(rootUrl: rootUrl)
-        case nil: nil
-        }
-      if let defaultBuildSystem {
-        buildSystem = defaultBuildSystem
-      } else if let buildServer = await createBuildServerBuildSystem(rootPath: rootPath) {
-        buildSystem = buildServer
-      } else if let swiftpm = await createSwiftPMBuildSystem(rootUrl: rootUrl) {
-        buildSystem = swiftpm
-      } else if let compdb = createCompilationDatabaseBuildSystem(rootPath: rootPath) {
-        buildSystem = compdb
-      } else {
-        buildSystem = nil
-      }
-      if let buildSystem {
-        let projectRoot = await buildSystem.projectRoot
-        logger.log(
-          "Opening workspace at \(rootUrl) as \(type(of: buildSystem)) with project root \(projectRoot.pathString)"
-        )
-      } else {
-        logger.error(
-          "Could not set up a build system for workspace at '\(rootUri.forLogging)'"
-        )
-      }
-    } else {
-      // We assume that workspaces are directories. This is only true for URLs not for URIs in general.
-      // Simply skip setting up the build integration in this case.
-      logger.error(
-        "cannot setup build integration for workspace at URI \(rootUri.forLogging) because the URI it is not a valid file URL"
-      )
-    }
-
     var index: IndexStoreDB? = nil
     var indexDelegate: SourceKitIndexDelegate? = nil
 

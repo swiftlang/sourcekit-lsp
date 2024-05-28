@@ -234,11 +234,20 @@ public actor SourceKitLSPServer {
       // The latter might happen if there is an existing SwiftPM workspace that hasn't been reloaded after a new file
       // was added to it and thus currently doesn't know that it can handle that file. In that case, we shouldn't open
       // a new workspace for the same root. Instead, the existing workspace's build system needs to be reloaded.
-      if let workspace = await self.createWorkspace(WorkspaceFolder(uri: DocumentURI(url))),
-        await workspace.buildSystemManager.fileHandlingCapability(for: uri) == .handled,
-        let projectRoot = await workspace.buildSystemManager.projectRoot,
-        !projectRoots.contains(projectRoot)
-      {
+      let workspace = await self.createWorkspace(WorkspaceFolder(uri: DocumentURI(url))) { buildSystem in
+        guard let buildSystem, !projectRoots.contains(await buildSystem.projectRoot) else {
+          // If we didn't create a build system, `url` is not capable of handling the document.
+          // If we already have a workspace at the same project root, don't create another one.
+          return false
+        }
+        do {
+          try await buildSystem.generateBuildGraph(allowFileSystemWrites: false)
+        } catch {
+          return false
+        }
+        return await buildSystem.fileHandlingCapability(for: uri) == .handled
+      }
+      if let workspace {
         return workspace
       }
       url.deleteLastPathComponent()
@@ -866,25 +875,22 @@ extension SourceKitLSPServer {
   }
 
   /// Creates a workspace at the given `uri`.
-  private func createWorkspace(_ workspaceFolder: WorkspaceFolder) async -> Workspace? {
+  ///
+  /// If the build system that was determined for the workspace does not satisfy `condition`, `nil` is returned.
+  private func createWorkspace(
+    _ workspaceFolder: WorkspaceFolder,
+    condition: (BuildSystem?) async -> Bool = { _ in true }
+  ) async -> Workspace? {
     guard let capabilityRegistry = capabilityRegistry else {
       logger.log("Cannot open workspace before server is initialized")
       return nil
     }
     var options = self.options
     options.buildSetup = self.options.buildSetup.merging(buildSetup(for: workspaceFolder))
-    return try? await Workspace(
-      documentManager: self.documentManager,
+    let buildSystem = await createBuildSystem(
       rootUri: workspaceFolder.uri,
-      capabilityRegistry: capabilityRegistry,
-      toolchainRegistry: self.toolchainRegistry,
       options: options,
-      compilationDatabaseSearchPaths: self.options.compilationDatabaseSearchPaths,
-      indexOptions: self.options.indexOptions,
-      indexTaskScheduler: indexTaskScheduler,
-      indexProcessDidProduceResult: { [weak self] in
-        self?.indexTaskDidProduceResult($0)
-      },
+      toolchainRegistry: toolchainRegistry,
       reloadPackageStatusCallback: { [weak self] status in
         guard let self else { return }
         switch status {
@@ -893,6 +899,34 @@ extension SourceKitLSPServer {
         case .end:
           await self.packageLoadingWorkDoneProgress.endProgress(server: self)
         }
+      }
+    )
+    guard await condition(buildSystem) else {
+      return nil
+    }
+    do {
+      try await buildSystem?.generateBuildGraph(allowFileSystemWrites: true)
+    } catch {
+      logger.error("failed to generate build graph at \(workspaceFolder.uri.forLogging): \(error.forLogging)")
+      return nil
+    }
+
+    let projectRoot = await buildSystem?.projectRoot.pathString
+    logger.log(
+      "Created workspace at \(workspaceFolder.uri.forLogging) as \(type(of: buildSystem)) with project root \(projectRoot ?? "<nil>")"
+    )
+
+    return try? await Workspace(
+      documentManager: self.documentManager,
+      rootUri: workspaceFolder.uri,
+      capabilityRegistry: capabilityRegistry,
+      buildSystem: buildSystem,
+      toolchainRegistry: self.toolchainRegistry,
+      options: options,
+      indexOptions: self.options.indexOptions,
+      indexTaskScheduler: indexTaskScheduler,
+      indexProcessDidProduceResult: { [weak self] in
+        self?.indexTaskDidProduceResult($0)
       },
       indexTasksWereScheduled: { [weak self] count in
         self?.indexProgressManager.indexTasksWereScheduled(count: count)
