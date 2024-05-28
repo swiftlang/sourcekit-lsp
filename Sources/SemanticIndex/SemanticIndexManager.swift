@@ -357,10 +357,7 @@ public final actor SemanticIndexManager {
   /// Schedule preparation of the target that contains the given URI, building all modules that the file depends on.
   ///
   /// This is intended to be called when the user is interacting with the document at the given URI.
-  public func schedulePreparationForEditorFunctionality(
-    of uri: DocumentURI,
-    priority: TaskPriority? = nil
-  ) {
+  public func schedulePreparationForEditorFunctionality(of uri: DocumentURI, priority: TaskPriority? = nil) {
     if inProgressPrepareForEditorTask?.document == uri {
       // We are already preparing this document, so nothing to do. This is necessary to avoid the following scenario:
       // Determining the canonical configured target for a document takes 1s and we get a new document request for the
@@ -371,13 +368,7 @@ public final actor SemanticIndexManager {
     let id = UUID()
     let task = Task(priority: priority) {
       await withLoggingScope("preparation") {
-        guard let target = await buildSystemManager.canonicalConfiguredTarget(for: uri) else {
-          return
-        }
-        if Task.isCancelled {
-          return
-        }
-        await self.prepare(targets: [target], priority: priority)
+        await self.prepareFileForEditorFunctionality(uri)
         if inProgressPrepareForEditorTask?.id == id {
           inProgressPrepareForEditorTask = nil
           self.indexProgressStatusDidChange()
@@ -387,6 +378,20 @@ public final actor SemanticIndexManager {
     inProgressPrepareForEditorTask?.task.cancel()
     inProgressPrepareForEditorTask = (id, uri, task)
     self.indexProgressStatusDidChange()
+  }
+
+  /// Prepare the target that the given file is in, building all modules that the file depends on. Returns when
+  /// preparation has finished.
+  ///
+  /// If file's target is known to be up-to-date, this returns almost immediately.
+  public func prepareFileForEditorFunctionality(_ uri: DocumentURI) async {
+    guard let target = await buildSystemManager.canonicalConfiguredTarget(for: uri) else {
+      return
+    }
+    if Task.isCancelled {
+      return
+    }
+    await self.prepare(targets: [target], priority: nil)
   }
 
   // MARK: - Helper functions
