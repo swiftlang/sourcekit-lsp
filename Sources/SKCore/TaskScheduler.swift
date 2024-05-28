@@ -182,11 +182,11 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
   private let executionStateChangedCallback: (@Sendable (QueuedTask, TaskExecutionState) async -> Void)?
 
   init(
-    priority: TaskPriority? = nil,
+    priority: TaskPriority,
     description: TaskDescription,
     executionStateChangedCallback: (@Sendable (QueuedTask, TaskExecutionState) async -> Void)?
   ) async {
-    self._priority = AtomicUInt8(initialValue: priority?.rawValue ?? Task.currentPriority.rawValue)
+    self._priority = AtomicUInt8(initialValue: priority.rawValue)
     self.description = description
     self.executionStateChangedCallback = executionStateChangedCallback
 
@@ -277,6 +277,10 @@ public actor QueuedTask<TaskDescription: TaskDescriptionProtocol> {
           "Elevating priority of \(self.description.forLogging) from \(self.priority.rawValue) to \(targetPriority.rawValue)"
         )
       }
+      // Awaiting the result task from a higher-priority task will eventually update `priority` through
+      // `withTaskPriorityChangedHandler` but that might take a while because `withTaskPriorityChangedHandler` polls.
+      // Since we know that the priority will be elevated, set it now. That way we don't try to elevate it again.
+      self.priority = targetPriority
       Task(priority: targetPriority) {
         await self.resultTask.value
       }
@@ -352,7 +356,7 @@ public actor TaskScheduler<TaskDescription: TaskDescriptionProtocol> {
     )? = nil
   ) async -> QueuedTask<TaskDescription> {
     let queuedTask = await QueuedTask(
-      priority: priority,
+      priority: priority ?? Task.currentPriority,
       description: taskDescription,
       executionStateChangedCallback: executionStateChangedCallback
     )
