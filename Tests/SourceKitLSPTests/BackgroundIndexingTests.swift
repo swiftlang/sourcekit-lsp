@@ -579,6 +579,7 @@ final class BackgroundIndexingTests: XCTestCase {
           ]
         )
         """,
+      capabilities: ClientCapabilities(window: WindowClientCapabilities(workDoneProgress: true)),
       serverOptions: serverOptions,
       cleanUp: { expectedPreparationTracker.keepAlive() }
     )
@@ -604,6 +605,9 @@ final class BackgroundIndexingTests: XCTestCase {
     )
 
     let receivedEmptyDiagnostics = self.expectation(description: "Received diagnostic refresh request")
+    project.testClient.handleMultipleRequests { (_: CreateWorkDoneProgressRequest) in
+      return VoidResponse()
+    }
 
     project.testClient.handleMultipleRequests { (_: DiagnosticsRefreshRequest) in
       Task {
@@ -629,6 +633,18 @@ final class BackgroundIndexingTests: XCTestCase {
     )
 
     try await fulfillmentOfOrThrow([receivedEmptyDiagnostics])
+
+    // Check that we received a work done progress for the re-preparation of the target
+    _ = try await project.testClient.nextNotification(
+      ofType: WorkDoneProgress.self,
+      satisfying: { notification in
+        switch notification.value {
+        case .begin(let value): return value.message == "Preparing current file"
+        case .report(let value): return value.message == "Preparing current file"
+        case .end: return false
+        }
+      }
+    )
   }
 
   func testDontStackTargetPreparationForEditorFunctionality() async throws {

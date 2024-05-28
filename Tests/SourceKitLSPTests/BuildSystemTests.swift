@@ -141,7 +141,7 @@ final class BuildSystemTests: XCTestCase {
       indexTaskScheduler: .forTesting,
       indexProcessDidProduceResult: { _ in },
       indexTasksWereScheduled: { _ in },
-      indexStatusDidChange: {}
+      indexProgressStatusDidChange: {}
     )
 
     await server.setWorkspaces([(workspace: workspace, isImplicit: false)])

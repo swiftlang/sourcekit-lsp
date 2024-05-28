@@ -36,6 +36,10 @@ final class WorkDoneProgressManager {
   ///    - This should have `workDoneProgressCreated == true` so that it can send the work progress end.
   private let workDoneProgressCreated: ThreadSafeBox<Bool> & AnyObject = ThreadSafeBox<Bool>(initialValue: false)
 
+  /// The last message and percentage so we don't send a new report notification to the client if `update` is called
+  /// without any actual change.
+  private var lastStatus: (message: String?, percentage: Int?)
+
   convenience init?(server: SourceKitLSPServer, title: String, message: String? = nil, percentage: Int? = nil) async {
     guard let capabilityRegistry = await server.capabilityRegistry else {
       return nil
@@ -69,6 +73,7 @@ final class WorkDoneProgressManager {
         )
       )
       workDoneProgressCreated.value = true
+      self.lastStatus = (message, percentage)
     }
   }
 
@@ -77,6 +82,10 @@ final class WorkDoneProgressManager {
       guard workDoneProgressCreated.value else {
         return
       }
+      guard (message, percentage) != self.lastStatus else {
+        return
+      }
+      self.lastStatus = (message, percentage)
       server.sendNotificationToClient(
         WorkDoneProgress(
           token: token,
