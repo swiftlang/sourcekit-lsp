@@ -208,8 +208,8 @@ struct SourceKitLSP: AsyncParsableCommand {
 
   @Flag(
     help: """
-      Show which index tasks are currently running in the indexing work done progress. \
-      This produces a multi-line work done progress, which might render incorrectly depending in the editor.
+      When reporting index progress, show the currently running index tasks in addition to the task's count. \
+      This produces a multi-line work done progress, which might render incorrectly, depending on the editor.
       """
   )
   var experimentalShowActivePreparationTasksInProgress = false

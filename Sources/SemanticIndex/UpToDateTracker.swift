@@ -14,7 +14,7 @@ import Foundation
 import SKCore
 
 /// Keeps track of whether an item (a target or file to index) is up-to-date.
-actor IndexUpToDateStatusManager<Item: Hashable> {
+actor UpToDateTracker<Item: Hashable> {
   private enum Status {
     /// The item is up-to-date.
     case upToDate
@@ -57,7 +57,7 @@ actor IndexUpToDateStatusManager<Item: Hashable> {
     }
   }
 
-  func markAllOutOfDate() {
+  func markAllKnownOutOfDate() {
     markOutOfDate(status.keys)
   }
 

@@ -111,9 +111,9 @@ public final actor SemanticIndexManager {
   /// ...). `nil` if no build graph is currently being generated.
   private var generateBuildGraphTask: Task<Void, Never>?
 
-  private let preparationUpToDateStatus = IndexUpToDateStatusManager<ConfiguredTarget>()
+  private let preparationUpToDateTracker = UpToDateTracker<ConfiguredTarget>()
 
-  private let indexStoreUpToDateStatus = IndexUpToDateStatusManager<DocumentURI>()
+  private let indexStoreUpToDateTracker = UpToDateTracker<DocumentURI>()
 
   /// The preparation tasks that have been started and are either scheduled in the task scheduler or currently
   /// executing.
@@ -305,23 +305,23 @@ public final actor SemanticIndexManager {
     // We only re-index the files that were changed and don't re-index any of their dependencies. See the
     // `Documentation/Files_To_Reindex.md` file.
     let changedFiles = events.map(\.uri)
-    await indexStoreUpToDateStatus.markOutOfDate(changedFiles)
+    await indexStoreUpToDateTracker.markOutOfDate(changedFiles)
 
     // Note that configured targets are the right abstraction layer here (instead of a non-configured target) because a
     // build system might have targets that include different source files. Hence a source file might be in target T
     // configured for macOS but not in target T configured for iOS.
     let targets = await changedFiles.asyncMap { await buildSystemManager.configuredTargets(for: $0) }.flatMap { $0 }
     if let dependentTargets = await buildSystemManager.targets(dependingOn: targets) {
-      await preparationUpToDateStatus.markOutOfDate(dependentTargets)
+      await preparationUpToDateTracker.markOutOfDate(dependentTargets)
     } else {
-      await preparationUpToDateStatus.markAllOutOfDate()
+      await preparationUpToDateTracker.markAllKnownOutOfDate()
       // `markAllOutOfDate` only marks targets out-of-date that have been indexed before. Also mark all targets with
       // in-progress preparation out of date. So we don't get into the following situation, which would result in an
       // incorrect up-to-date status of a target
       //  - Target preparation starts for the first time
       //  - Files changed
       //  - Target preparation finishes.
-      await preparationUpToDateStatus.markOutOfDate(inProgressPreparationTasks.keys)
+      await preparationUpToDateTracker.markOutOfDate(inProgressPreparationTasks.keys)
     }
 
     await scheduleBackgroundIndex(files: changedFiles)
@@ -406,7 +406,7 @@ public final actor SemanticIndexManager {
     // schedule two preparations of the same target in quick succession, only the first one actually performs a prepare
     // and the second one will be a no-op once it runs.
     let targetsToPrepare = await targets.asyncFilter {
-      await !preparationUpToDateStatus.isUpToDate($0)
+      await !preparationUpToDateTracker.isUpToDate($0)
     }
 
     guard !targetsToPrepare.isEmpty else {
@@ -417,7 +417,7 @@ public final actor SemanticIndexManager {
       PreparationTaskDescription(
         targetsToPrepare: targetsToPrepare,
         buildSystemManager: self.buildSystemManager,
-        preparationUpToDateStatus: preparationUpToDateStatus,
+        preparationUpToDateTracker: preparationUpToDateTracker,
         indexProcessDidProduceResult: indexProcessDidProduceResult,
         testHooks: testHooks
       )
@@ -464,7 +464,7 @@ public final actor SemanticIndexManager {
         filesToIndex: filesAndTargets,
         buildSystemManager: self.buildSystemManager,
         index: index,
-        indexStoreUpToDateStatus: indexStoreUpToDateStatus,
+        indexStoreUpToDateTracker: indexStoreUpToDateTracker,
         indexProcessDidProduceResult: indexProcessDidProduceResult,
         testHooks: testHooks
       )
@@ -509,7 +509,7 @@ public final actor SemanticIndexManager {
     // schedule two indexing jobs for the same file in quick succession, only the first one actually updates the index
     // store and the second one will be a no-op once it runs.
     let outOfDateFiles = await filesToIndex(toCover: files).asyncFilter {
-      if await indexStoreUpToDateStatus.isUpToDate($0.sourceFile) {
+      if await indexStoreUpToDateTracker.isUpToDate($0.sourceFile) {
         return false
       }
       guard let language = await buildSystemManager.defaultLanguage(for: $0.mainFile),

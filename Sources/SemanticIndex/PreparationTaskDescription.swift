@@ -35,7 +35,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
   /// The build system manager that is used to get the toolchain and build settings for the files to index.
   private let buildSystemManager: BuildSystemManager
 
-  private let preparationUpToDateStatus: IndexUpToDateStatusManager<ConfiguredTarget>
+  private let preparationUpToDateTracker: UpToDateTracker<ConfiguredTarget>
 
   /// See `SemanticIndexManager.indexProcessDidProduceResult`
   private let indexProcessDidProduceResult: @Sendable (IndexProcessResult) -> Void
@@ -59,13 +59,13 @@ public struct PreparationTaskDescription: IndexTaskDescription {
   init(
     targetsToPrepare: [ConfiguredTarget],
     buildSystemManager: BuildSystemManager,
-    preparationUpToDateStatus: IndexUpToDateStatusManager<ConfiguredTarget>,
+    preparationUpToDateTracker: UpToDateTracker<ConfiguredTarget>,
     indexProcessDidProduceResult: @escaping @Sendable (IndexProcessResult) -> Void,
     testHooks: IndexTestHooks
   ) {
     self.targetsToPrepare = targetsToPrepare
     self.buildSystemManager = buildSystemManager
-    self.preparationUpToDateStatus = preparationUpToDateStatus
+    self.preparationUpToDateTracker = preparationUpToDateTracker
     self.indexProcessDidProduceResult = indexProcessDidProduceResult
     self.testHooks = testHooks
   }
@@ -76,7 +76,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
     // The last 2 digits should be sufficient to differentiate between multiple concurrently running preparation operations
     await withLoggingSubsystemAndScope(subsystem: indexLoggingSubsystem, scope: "preparation-\(id % 100)") {
       let targetsToPrepare = await targetsToPrepare.asyncFilter {
-        await !preparationUpToDateStatus.isUpToDate($0)
+        await !preparationUpToDateTracker.isUpToDate($0)
       }.sorted(by: {
         ($0.targetID, $0.runDestinationID) < ($1.targetID, $1.runDestinationID)
       })
@@ -114,7 +114,7 @@ public struct PreparationTaskDescription: IndexTaskDescription {
       }
       await testHooks.preparationTaskDidFinish?(self)
       if !Task.isCancelled {
-        await preparationUpToDateStatus.markUpToDate(targetsToPrepare, updateOperationStartDate: startDate)
+        await preparationUpToDateTracker.markUpToDate(targetsToPrepare, updateOperationStartDate: startDate)
       }
     }
   }
