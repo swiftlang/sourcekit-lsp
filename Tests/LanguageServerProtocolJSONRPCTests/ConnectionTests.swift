@@ -64,8 +64,10 @@ class ConnectionTests: XCTestCase {
     let notification1 = try JSONEncoder().encode(JSONRPCMessage.notification(EchoNotification(string: "hello!")))
     let notification2 = try JSONEncoder().encode(JSONRPCMessage.notification(EchoNotification(string: "no way!")))
 
-    let notification1Str: String = "Content-Length: \(notification1.count)\r\n\r\n\(String(data: notification1, encoding: .utf8)!)"
-    let notfication2Str: String = "Content-Length: \(notification2.count)\r\n\r\n\(String(data: notification2, encoding: .utf8)!)"
+    let notification1Str =
+      "Content-Length: \(notification1.count)\r\n\r\n\(String(data: notification1, encoding: .utf8)!)"
+    let notfication2Str =
+      "Content-Length: \(notification2.count)\r\n\r\n\(String(data: notification2, encoding: .utf8)!)"
 
     for b in notification1Str.utf8.dropLast() {
       clientConnection.send(_rawData: [b].withUnsafeBytes { DispatchData(bytes: $0) })
